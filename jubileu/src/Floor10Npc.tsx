@@ -22,6 +22,7 @@ import { Cadencia, CADENCIA_PERCEPCAO, CADENCIA_VONTADE } from './npc/floor10Cad
 import { yawDaVarredura } from './npc/floor10Olhar';
 import {
     deliberationRetryDelay,
+    REARME_APOS_FALA_SEG,
     type Floor10Deliberation,
 } from './npc/floor10Deliberation';
 
@@ -69,6 +70,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // volta dele em vez de girar sem fim.
     const rumoParado = useRef<number | null>(null);
     const conversaAberta = useRef(false);
+    /** A fala estava ocupando o aparelho no quadro anterior? */
+    const falaOcupando = useRef(false);
     // ── DELIBERAÇÃO ────────────────────────────────────────────────────────
     // O cérebro pequeno pensa por fora, sem pressa. Guardamos só a última
     // intenção pronta; o reflexo abaixo continua decidindo a cada quadro.
@@ -139,6 +142,26 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // Os dois modelos ficam residentes, mas não geram ao mesmo tempo:
             // o Mini pensa nas janelas ociosas, inclusive enquanto o jogador
             // escreve. Ao começar uma fala, ele é pausado sem perder os pesos.
+            // ── A FALA ACABOU: A VONTADE VOLTA EM SEGUIDA ─────────────────
+            //
+            // Sem isto, o próximo pensamento só podia acontecer no ciclo cheio
+            // de 60s contado a partir do ÚLTIMO disparo — e, como a pausa agora
+            // encerra o runtime, ainda havia a reabertura por cima. Depois de
+            // cada conversa dava mais de um minuto de silêncio, tempo de sobra
+            // para quem está jogando concluir que ele parou de pensar.
+            //
+            // E o contador de falhas é zerado: ser interrompido pela fala não é
+            // fracasso, e o castigo exponencial não pode sobreviver à conversa.
+            const falaOcupa = npc.phase === 'thinking' || npc.phase === 'loading';
+            if (falaOcupando.current && !falaOcupa) {
+                nextDeliberationAt.current = Math.min(
+                    nextDeliberationAt.current,
+                    t + REARME_APOS_FALA_SEG,
+                );
+                deliberationFailures.current = 0;
+            }
+            falaOcupando.current = falaOcupa;
+
             if (npc.phase !== 'thinking' && npc.phase !== 'loading'
                 && t >= nextDeliberationAt.current) {
                 nextDeliberationAt.current = t + 60;

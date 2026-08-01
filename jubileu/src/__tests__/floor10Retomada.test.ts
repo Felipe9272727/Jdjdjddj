@@ -191,3 +191,32 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
         expect(vivo).not.toMatch(/(Estou preso neste andar)[\s\S]*\1/);
     });
 });
+
+describe('a tela precisa DIZER que ele voltou', () => {
+    it('reabrir o runtime não é anunciado como download', async () => {
+        const { deliberationThought } = await import('../npc/floor10Deliberation');
+        // A barra de download some (a fase deixou de ser 'loading') e no lugar
+        // entra a frase que responde "ele morreu ou está voltando?".
+        expect(deliberationThought('reopening', '')).toBe('voltando a pensar…');
+        expect(deliberationThought('thinking', '')).toBe('pensando…');
+        expect(deliberationThought('off', '')).toBe('');
+    });
+
+    it('a segunda rodada anuncia REABERTURA, não carga', async () => {
+        await brain.precarregarVontade();
+        controle.atrasoMs = 40;
+        const primeira = brain.deliberateFloor10(entrada());
+        expect(await ate(() => store.npc.deliberationPhase === 'thinking')).toBe(true);
+        brain.abortDeliberation();
+        await primeira;
+
+        controle.atrasoMs = 1;
+        store.npcSet({ phase: 'ready' });
+        const fases: string[] = [];
+        const parar = store.npcSubscribe(() => fases.push(store.npc.deliberationPhase));
+        await brain.deliberateFloor10(entrada());
+        parar();
+        expect(fases).toContain('reopening');
+        expect(fases).not.toContain('loading');
+    });
+});

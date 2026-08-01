@@ -251,7 +251,12 @@ const Floor10NpcChat: React.FC = () => {
         // do outro lado da sala.
         const pensamentoVisivel = showNiloThoughts && !baixandoCerebro
             && st.deliberationLive !== ''
-            && (st.deliberationPhase === 'thinking' || st.deliberationPhase === 'decided');
+            && (st.deliberationPhase === 'thinking'
+                || st.deliberationPhase === 'decided'
+                // Durante a reabertura o texto na tela é o pensamento PAUSADO,
+                // que vai ser continuado. Escondê-lo aqui fazia o raciocínio
+                // sumir e reaparecer, parecendo que tinha sido perdido.
+                || st.deliberationPhase === 'reopening');
         if (!st.near && !speechAudible && !thoughtVisible && !baixandoCerebro
             && !pensamentoVisivel) return null;
         return (
@@ -348,6 +353,7 @@ const Floor10NpcChat: React.FC = () => {
     // isto, de dentro do painel não dá para saber se o cérebro de vontade está
     // trabalhando, travado ou desligado.
     const vontadeTrabalhando = st.deliberationPhase === 'thinking'
+        || st.deliberationPhase === 'reopening'
         || st.motorPhase === 'translating';
     // A fila é lida do singleton; `st.version` já força o re-render a cada
     // npcSet, e todo progresso passa por um npcSet.
@@ -422,7 +428,12 @@ const Floor10NpcChat: React.FC = () => {
                     <span>
                         {st.deliberationPhase === 'thinking'
                             ? `${NPC_NAME} está pensando por conta própria…`
-                            : 'traduzindo o pensamento em movimento…'}
+                            : st.deliberationPhase === 'reopening'
+                                // Reabrir o runtime leva alguns segundos e ANTES
+                                // disso não aparecia nada: de fora, "voltando" e
+                                // "morreu" eram a mesma tela.
+                                ? `${NPC_NAME} está voltando a pensar…`
+                                : 'traduzindo o pensamento em movimento…'}
                     </span>
                 </div>
             )}

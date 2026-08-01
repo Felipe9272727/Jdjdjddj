@@ -505,10 +505,17 @@ function ensureSmallEngine(
         loadAbort = controller;
         let engine: SmallInstance | null = null;
         medidorVontade.reset();
+        // REABRIR NÃO É BAIXAR. Depois que a pausa passou a encerrar o worker,
+        // toda volta passa por aqui — e anunciar isso como download fazia a tela
+        // mostrar uma barra de 1,32 GB que não existe, escondendo justamente o
+        // "ele está voltando a pensar" que o jogador queria ver.
+        const reabrindo = pesosNoAparelho;
         npcSet({
-            deliberationPhase: 'loading',
-            deliberationLoadText: `verificando o cache do ${SMALL_BRAIN_MODEL.label}…`,
-            deliberationLoadProgress: 0,
+            deliberationPhase: reabrindo ? 'reopening' : 'loading',
+            deliberationLoadText: reabrindo
+                ? `reabrindo o ${SMALL_BRAIN_MODEL.label} (já está no aparelho)…`
+                : `verificando o cache do ${SMALL_BRAIN_MODEL.label}…`,
+            deliberationLoadProgress: reabrindo ? 1 : 0,
             deliberationDownload: DOWNLOAD_ZERO,
         });
         // A FALA PRIMEIRO — mas a pergunta certa é "CABEM OS DOIS?", não

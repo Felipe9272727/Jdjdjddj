@@ -260,6 +260,10 @@ const DELIBERATION_THOUGHT: Record<DeliberationGoal, string> = {
 /** Texto da bolha de pensamento; vazio quando não há nada a mostrar. */
 export function deliberationThought(phase: string, goal: string): string {
     if (phase === 'thinking') return 'pensando…';
+    // Sem esta linha havia um buraco visível de dezenas de segundos entre a
+    // conversa acabar e o pensamento voltar — e de fora isso é indistinguível
+    // de "ele morreu".
+    if (phase === 'reopening') return 'voltando a pensar…';
     if (phase !== 'decided') return '';
     return DELIBERATION_THOUGHT[goal as DeliberationGoal] ?? 'decidi o que fazer.';
 }
@@ -334,3 +338,14 @@ export function deliberationRetryDelay(consecutiveFailures: number): number {
     if (falhas <= DELIBERATION_MAX_FAST_RETRIES) return 5;
     return Math.min(300, 5 * 2 ** (falhas - DELIBERATION_MAX_FAST_RETRIES));
 }
+
+/**
+ * Quanto tempo depois de a fala terminar a vontade ganha uma nova chance.
+ *
+ * Antes ela esperava o ciclo cheio de 60s a partir do ÚLTIMO disparo — somado
+ * ao tempo de reabrir o runtime, dava mais de um minuto de silêncio depois de
+ * cada conversa, e quem estava jogando concluía (com razão) que ele tinha
+ * parado de pensar. Seis segundos é o bastante para a fala terminar de assentar
+ * e curto o suficiente para o retorno ser visível.
+ */
+export const REARME_APOS_FALA_SEG = 6;

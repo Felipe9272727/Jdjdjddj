@@ -3851,3 +3851,25 @@ teste anterior conseguia montar essa sequência. Também documenta o desenho: a 
 NÃO baixa nada sozinha (quem carrega é a fila) — pisar no andar não pode disparar 1,32 GB.
 
 **Estado:** tsc 0 · 526/526 vitest (+10) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 2) — "não voltou a pensar": era espera longa + tela muda
+
+Felipe: *"ele não voltou a pensar, mas chuto eu que pode ser um bug de UI, e não apareça pra
+mim"*. O palpite estava certo em parte. O harness (`fakeWllama`) prova que a rodada VOLTA a
+rodar; o que não voltava era a INFORMAÇÃO na tela — e ela demorava demais.
+
+Três coisas somadas, todas criadas pela mudança de "pausar = encerrar o worker":
+
+1. **A espera.** `nextDeliberationAt` é `t + 60` contado do ÚLTIMO disparo, e agora ainda há
+   a reabertura do runtime por cima. Depois de cada conversa dava mais de um minuto de
+   silêncio. Agora, quando a fala termina, a vontade ganha chance em `REARME_APOS_FALA_SEG`
+   (6 s) e o contador de falhas é zerado — ser interrompido pela fala não é fracasso.
+2. **A tela chamava reabertura de download.** Reabrir o runtime lê o .gguf do disco; a fase
+   era `'loading'`, e a UI mostra barra de download para `'loading'`. Resultado: barra de
+   1,32 GB que não existe, no lugar do "ele está voltando". Nova fase `'reopening'`:
+   sem barra, com a frase "Nilo está voltando a pensar…".
+3. **O pensamento pausado sumia da tela** durante a reabertura (`pensamentoVisivel` exigia
+   thinking/decided), então o raciocínio desaparecia e reaparecia — parecia perdido. Agora
+   ele continua visível em `'reopening'`, que é exatamente o texto que vai ser continuado.
+
+**Estado:** tsc 0 · 528/528 vitest (+2) · audit sem erros · index.html rebuildado.

@@ -42,7 +42,11 @@ export type NpcState = {
     // Visível na UI para dar para saber, olhando, se ele está vivo: sem isto o
     // segundo cérebro trabalharia invisível e não haveria como diferenciar
     // "pensando", "decidiu" e "não carregou".
-    deliberationPhase: 'off' | 'loading' | 'thinking' | 'decided' | 'unavailable';
+    // 'reopening' existe porque a pausa passou a ENCERRAR o worker: voltar a
+    // pensar exige reabrir o runtime lendo o .gguf do disco. Isso NÃO é
+    // download — e mostrar a barra de download aqui fazia parecer que o jogo
+    // estava baixando 1,32 GB de novo, além de esconder o "ele voltou".
+    deliberationPhase: 'off' | 'loading' | 'reopening' | 'thinking' | 'decided' | 'unavailable';
     deliberationLoadText: string;      // download/cache do cérebro pequeno
     deliberationLoadProgress: number;  // 0..1, progresso real do arquivo
     deliberationDownload: DownloadSample;
