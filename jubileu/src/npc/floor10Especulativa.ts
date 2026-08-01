@@ -7,7 +7,8 @@
 // .types` — e é de `types` que `common_speculative_init()` decide tudo. Ou
 // seja: dava para informar um rascunhador e nada acontecia.
 //
-// Então a wllama foi recompilada com o patch mínimo (ver `wllama-espec/`):
+// Então a wllama foi recompilada com o patch mínimo (ver
+// `public/wllama-espec/`):
 //
 //   spec_draft_model = "types:ngram-simple,ngram-cache" → liga os n-gramas
 //   spec_draft_model = "models/x.gguf"                  → modelo, e agora

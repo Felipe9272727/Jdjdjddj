@@ -85,9 +85,10 @@ let js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
 //
 // O jogo sempre foi single-file; estes dois também precisam ser. O pacote só
 // vira Blob URL quando `?especulativa` é usado, então sem a flag não criamos um
-// runtime WASM extra na memória. Os arquivos externos continuam na raiz como
-// fallback para Vite/dev e para diagnosticar o build.
-const pastaEspeculativa = path.join(raiz, 'wllama-espec');
+// runtime WASM extra na memória. A fonte única fica em `public/wllama-espec`:
+// o Vite a copia automaticamente para `dist/wllama-espec` (o diretório que a
+// Vercel realmente publica) e este builder lê o mesmo par para o single-file.
+const pastaEspeculativa = path.join(scriptDir, 'public', 'wllama-espec');
 const esmEspeculativo = path.join(pastaEspeculativa, 'index.js');
 const wasmEspeculativo = path.join(pastaEspeculativa, 'wllama.wasm');
 if (!fs.existsSync(esmEspeculativo) || !fs.existsSync(wasmEspeculativo)) {
