@@ -1,4 +1,5 @@
 import type { NpcMsg } from './npcStore';
+import { blocoDoResumo } from './floor10Compressor';
 import {
     formatFloor10PerceptionForPrompt,
     hasFloor10PerceptionContradiction,
@@ -291,7 +292,11 @@ export function buildFloor10SystemPrompt(
         : '';
     const actionRequest = formatFloor10ActionRequestForPrompt(userText);
 
-    return `${ESSENTIAL_PERSONA}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}`;
+    // O resumo vem LOGO DEPOIS da persona, e isso é de propósito: ele muda uma
+    // vez a cada várias falas, então o prefixo em cache do llama.cpp sobrevive
+    // entre uma pergunta e outra. Fosse no fim, invalidaria menos ainda — mas
+    // aí o modelo leria os fatos antes de saber do que já falaram.
+    return `${ESSENTIAL_PERSONA}${blocoDoResumo()}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}`;
 }
 
 const HARD_CONTRADICTIONS: readonly RegExp[] = [

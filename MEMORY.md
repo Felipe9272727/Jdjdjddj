@@ -3971,3 +3971,40 @@ reação curta, teto de tempo, CDN fora do ar (indisponível ≠ pane) e os trê
 que o transformers.js já devolveu.
 
 **Estado:** tsc 0 · 553/553 vitest (+13) · audit sem erros · index.html rebuildado (83,9 MB).
+
+### Sessão 2026-08-01 (cont. 6) — o compressor + EU ESTAVA ERRADO sobre a especulativa
+
+**Correção que muda o rumo do projeto.** Eu afirmei três vezes que decodificação especulativa
+era impossível aqui. Estava errado: eu conferi só a versão FIXADA (wllama 3.5.1) e concluí
+"impossível" quando o correto era "impossível na 3.5.1". O Felipe insistiu três vezes e a
+insistência estava certa.
+
+| versão | API |
+|---|---|
+| wllama 3.5.1 (em uso) | só alto nível: createCompletion/ChatCompletion/Embedding/Rerank |
+| **wllama 2.4.0** | **`decode` · `getLogits` · `tokenize` · `samplingSample` · `samplingAccept` · `kvClear` · `kvRemove` · `lookupToken`** |
+
+Ou seja: com um runtime v2, o MESMO SmolLM3-3B (mesmo .gguf, mesmo cache OPFS) pode
+verificar rascunhos. Especulativa de verdade — saída idêntica, só mais rápida — sem trocar
+nenhuma IA. O que muda é a versão da BIBLIOTECA, não o modelo.
+
+**Detalhe que decide o desenho do rascunhador:** SmolLM3-3B tem `vocab_size: 128256` e
+`bos_token_id: 128000` (família Llama-3). O SmolLM2-135M do reflexo tem vocabulário 49152 —
+**tokenizadores diferentes, logo ele NÃO serve de rascunhador**. Especulativa exige o mesmo
+vocabulário. Duas saídas: (a) prompt-lookup (rascunha n-gramas do próprio prompt, sem
+segundo modelo, imune a esse problema) ou (b) o Llama 3.2 1B da vontade, que já está no
+aparelho e é da mesma família de vocabulário — a confirmar.
+
+**RISCO PRINCIPAL, ainda não medido:** o llama.cpp embutido na wllama 2.4.0 é mais antigo e
+pode não conhecer a arquitetura `smollm3`. Se não carregar o .gguf, o plano morre — e isso se
+descobre em 2 minutos com uma sonda no celular, antes de qualquer implementação.
+
+**ENTREGUE NESTA PARTE: `floor10Compressor.ts`** (o atalho que ele aprovou). O micro dobra a
+conversa antiga em uma linha, que entra no prompt logo após a persona (muda raramente → o
+prefixo em cache sobrevive). Dois ganhos: menos tokens para o 3B ler E o começo da conversa
+para de sumir quando o orçamento de histórico (1.800 chars / 4 mensagens) estoura.
+REGRA DURA: o micro NUNCA toca em fato — cânone, percepção e vontade seguem verbatim. Ele
+resume conversa, que é lembrança, não medição. Peneira contra papagaio, texto girando e
+migalha; falhou, fica o resumo anterior. Roda DEPOIS da resposta, sem `await`.
+
+**Estado:** tsc 0 · 566/566 vitest (+13) · audit sem erros · index.html rebuildado.

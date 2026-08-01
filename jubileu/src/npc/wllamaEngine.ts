@@ -20,7 +20,8 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
-import { reagir, reflexoJaCarregado } from './floor10Reflexo';
+import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
+import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
@@ -96,6 +97,14 @@ export const CPU_LOAD_CONFIG = Object.freeze({
     // em vez de estourar o watchdog na primeira fala real.
     warmup: true,
 });
+/**
+ * Quantas mensagens o 3B lê PALAVRA POR PALAVRA. O que fica antes disso é o que
+ * o compressor dobra em uma linha — os dois números precisam ser o mesmo, senão
+ * o resumo cobriria mensagens que o modelo ainda vai ler inteiras (e ele leria
+ * a mesma coisa duas vezes).
+ */
+export const FLOOR10_HISTORY_VERBATIM = 4;
+
 export const CHAT_COMPLETION_CONFIG = Object.freeze({
     stream: true,
     // 64 cortava a fala no meio da palavra no celular do Felipe. Medido: passar
@@ -1230,7 +1239,7 @@ export async function sendToNpc(userText: string): Promise<void> {
     // Memória curta de propósito: as últimas 2 trocas (4 mensagens). Histórico
     // longo inchava o prefill e fazia o 3B "fixar" num tema. O essencial do
     // personagem vive na persona, não no histórico.
-    const groundedHistory = groundedModelHistory(history, 4);
+    const groundedHistory = groundedModelHistory(history, FLOOR10_HISTORY_VERBATIM);
 
     // Toda tentativa usa o mesmo 3B. Se a validação detectar uma contradição,
     // o próprio 3B recebe uma única chance de revisar; não há frase pronta nem
@@ -1391,15 +1400,33 @@ export async function sendToNpc(userText: string): Promise<void> {
         if (languageDecision.command) {
             npcIssueWillCommand(languageDecision.command, finalText);
         }
+        const historicoFinal = [
+            ...history,
+            { role: 'assistant' as const, content: trimToCompleteSentence(finalText) },
+        ];
         npcSet({
             // Entrega só o que ficou inteiro: o teto de tokens cortava a fala no
             // meio da palavra, e o pedaço solto ainda contaminava a mensagem
             // seguinte (".O elevador…", "eu possa.O hotel…").
-            history: [...history, { role: 'assistant', content: trimToCompleteSentence(finalText) }],
+            history: historicoFinal,
             streaming: '',
             phase: 'ready',
             speaking: false,
         });
+        // ── O COMPRESSOR TRABALHA DEPOIS, NUNCA ANTES ─────────────────────
+        //
+        // A resposta já está na tela. Só agora o micro dobra a conversa antiga
+        // numa linha, para a PRÓXIMA pergunta ter menos prompt para ler — e
+        // para o começo da conversa não sumir quando o orçamento de histórico
+        // estourar. Sem `await` de propósito: se demorar ou falhar, o jogador
+        // não fica sabendo e nada muda.
+        if (reflexoJaCarregado()) {
+            void dobrarConversa(
+                historicoFinal,
+                FLOOR10_HISTORY_VERBATIM,
+                (prompt) => completar(prompt),
+            );
+        }
     } catch (error: unknown) {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;

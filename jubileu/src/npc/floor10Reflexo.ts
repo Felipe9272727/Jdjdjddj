@@ -268,3 +268,41 @@ export function resetReflexoForTests(): void {
     gerador = null;
     pesosNoAparelho = false;
 }
+
+/** Teto do resumo: ele roda fora do caminho da fala, então pode respirar mais. */
+export const RESUMO_TIMEOUT_MS = 6_000;
+
+/** Uma frase. O prompt pede isso, e o teto garante.  */
+export const RESUMO_MAX_TOKENS = 64;
+
+/**
+ * Geração livre do micro, para quem precisa de texto e não de reação.
+ *
+ * É o mesmo modelo, o mesmo motor e a mesma regra: nunca lança, nunca demora
+ * além do teto, e devolve '' quando não deu. Quem chama decide o que fazer com
+ * o vazio — no caso do compressor, ficar com o resumo que já tinha.
+ */
+export async function completar(
+    prompt: string,
+    tetoMs = RESUMO_TIMEOUT_MS,
+): Promise<string> {
+    if (!gerador) return '';
+    try {
+        const corrida = await Promise.race([
+            gerador(
+                [{ role: 'user', content: prompt }],
+                {
+                    max_new_tokens: RESUMO_MAX_TOKENS,
+                    do_sample: false,
+                    return_full_text: false,
+                },
+            ),
+            new Promise<null>((resolve) => {
+                globalThis.setTimeout(() => resolve(null), tetoMs);
+            }),
+        ]);
+        return corrida === null ? '' : lerTextoGerado(corrida);
+    } catch {
+        return '';
+    }
+}
