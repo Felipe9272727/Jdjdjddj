@@ -3776,3 +3776,46 @@ Cada `npcSet` é um re-render do painel na MESMA thread que desenha o jogo enqua
 geram a fala — e é o FPS durante a geração que o gerente de GPU (`floor10Gpu`) julga.
 
 **Estado:** tsc 0 · 509/509 vitest (+17) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 — o celular travando e desligando: DOIS llama.cpp ao mesmo tempo
+
+Felipe: *"quando está rodando o llama 1b, o meu celular fica extremamente travado, a ponto de
+chegar a desligar sozinho... o pensamento da llama está demorando 10 anos pra mostrar... tô
+achando que vc tá colocando tudo pra rodar ao msm tempo, sendo que é pra funcionar em dupla"*.
+
+Ele estava certo no diagnóstico, e a causa estava escrita num comentário do próprio código
+que a causava (`floor10SmallBrain.ts`):
+
+> *"o `abort` do wllama 3.5.1 só faz o JS PARAR DE LER; o worker continua gerando até o EOS
+> ou até os 320 tokens. Portanto isto não devolve CPU."*
+
+E `terminateSmallEngine`/`terminate` só encerravam o engine que estava **carregando** —
+nunca o que estava **gerando**. Resultado a cada mensagem do jogador: `abortDeliberation()`
+fazia o JS virar as costas, o Llama 1B seguia gerando 320 tokens em 8 threads, e o SmolLM3
+começava a gerar em mais 8. Dois (às vezes três, com o córtex motor) llama.cpp nos mesmos
+núcleos. Não é modelo pesado — são dois ao mesmo tempo sem ninguém ter pedido.
+
+E o pensamento que continuava gerando ia para o lixo, porque ninguém lia: a rodada seguinte
+recomeçava do primeiro token. ~320 tokens a 2 tok/s não fecham se reiniciam a cada fala —
+era o "demorando 10 anos pra mostrar".
+
+**O conserto (`floor10Pausa.ts` + os dois cérebros):**
+- **Pausar = encerrar o worker.** Nesta versão do wllama é a ÚNICA forma de devolver CPU.
+  Rastreei `generatingEngine`/`translatingEngine` (o que gera, não o que carrega) e a
+  preempção encerra os dois. Os pesos ficam no OPFS: a volta é releitura de disco, sem baixar.
+- **Retomar = continuar de onde parou.** O raciocínio interrompido é guardado (janela de 90 s)
+  e a rodada seguinte recebe `promptDeRetomada`, que manda CONTINUAR sem repetir. O texto
+  retomado é a base do `texto`, inclusive quando o wllama reabre a resposta.
+- **`vontadeJaCarregada()` deixou de ser `enginePromise !== null`** — com o runtime sendo
+  encerrado na pausa, ela responderia "não" para sempre e a deliberação desistiria achando
+  que precisaria baixar 1,32 GB. Agora existe `pesosNoAparelho`.
+- **Rodada morta não fala.** Matar o worker pode deixar a promessa do stream pendurada (este
+  projeto já pagou esse defeito: `inFlight` travado = livre-arbítrio morto pela sessão).
+  `abortDeliberation` libera a rodada por decreto, salva o parcial de `deliberationLive`, e um
+  contador de rodada impede que a promessa atrasada publique decisão por cima da atual.
+
+**AINDA ABERTO (decisão do Felipe):** os quatro modelos podem ficar RESIDENTES juntos
+(~4,2 GB de RAM). A CPU agora é de um pipeline por vez, mas a memória não. Despejar a dupla
+inativa custaria recarregar 1,9 GB do disco na próxima fala — troca de latência por RAM.
+
+**Estado:** tsc 0 · 516/516 vitest (+7) · audit sem erros · index.html rebuildado.

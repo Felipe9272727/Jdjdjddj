@@ -30,6 +30,12 @@ import {
 } from './floor10MotorBrain';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
+    descartarPensamento,
+    pausarPensamento,
+    pensamentoPausado,
+    promptDeRetomada,
+} from './floor10Pausa';
+import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, SPEECH_BRAIN_BYTES, type SmallBrainId,
 } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
@@ -254,6 +260,28 @@ let inFlight = false;
 let currentAbort: AbortController | null = null;
 let loadAbort: AbortController | null = null;
 let loadingEngine: SmallInstance | null = null;
+/**
+ * O engine que está GERANDO agora. Existir separado de `loadingEngine` é o que
+ * conserta a travada do aparelho: até aqui a preempção só encerrava o worker
+ * que estava CARREGANDO, e o que estava gerando seguia queimando os núcleos
+ * até os 320 tokens — junto com a fala que acabara de começar.
+ */
+let generatingEngine: SmallInstance | null = null;
+/**
+ * Conta as rodadas de deliberação. Encerrar o worker no meio pode deixar a
+ * promessa do stream pendurada; se ela acordar depois, a rodada morta não pode
+ * publicar uma decisão por cima da que já está valendo.
+ */
+let rodadaDeliberacao = 0;
+/**
+ * Os pesos já vieram para o aparelho nesta sessão (OPFS).
+ *
+ * Precisa ser separado de `enginePromise` porque agora o runtime é ENCERRADO na
+ * pausa: sem esta memória, `vontadeJaCarregada()` passaria a responder "não" na
+ * primeira preempção e a deliberação desistiria para sempre, achando que
+ * precisaria baixar 1,32 GB de novo. Encerrar o worker não apaga o arquivo.
+ */
+let pesosNoAparelho = false;
 
 export const SMALL_BRAIN_HANDOFF_TIMEOUT_MS = 3_000;
 
@@ -305,6 +333,36 @@ export function abortDeliberation(): void {
     const loading = loadingEngine;
     loadingEngine = null;
     terminateSmallEngine(loading);
+    // ── O QUE FALTAVA: ENCERRAR QUEM ESTÁ GERANDO ─────────────────────────
+    //
+    // `currentAbort.abort()` acima só faz o JS parar de ler. O worker continua
+    // gerando até 320 tokens — e é exatamente isso que punha o Llama 1B e o
+    // SmolLM3 nos mesmos núcleos ao mesmo tempo, travando o aparelho a ponto de
+    // desligar. Nesta versão do wllama, encerrar o Worker é a única forma de
+    // devolver CPU.
+    //
+    // Os pesos NÃO são perdidos: eles estão no OPFS. `enginePromise` é zerado
+    // para a próxima rodada reabrir o runtime lendo do disco, sem baixar nada —
+    // e `pesosNoAparelho` garante que a deliberação saiba disso.
+    const gerando = generatingEngine;
+    generatingEngine = null;
+    if (gerando) {
+        // O QUE ELE JÁ PENSOU É SALVO AQUI, e não só no `finally` da rodada:
+        // matar o worker pode deixar a promessa do stream pendurada para
+        // sempre, e nesse caso o `finally` nunca roda. `deliberationLive` é
+        // publicado a cada 150 ms, então se perde no máximo isso.
+        if (pausedInference && !escolhaAssinada(npc.deliberationLive)) {
+            pausarPensamento('vontade', npc.deliberationLive, 0);
+        }
+        terminateSmallEngine(gerando);
+        enginePromise = null;
+        floor10ModelCoordinator.markUnloaded('deliberation');
+        // A rodada acabou por decreto. Sem isto, uma promessa pendurada
+        // deixaria `inFlight` travado e o livre-arbítrio morreria calado pelo
+        // resto da sessão — defeito que este projeto já pagou uma vez.
+        rodadaDeliberacao += 1;
+        inFlight = false;
+    }
     if (npc.deliberationPhase === 'thinking' || npc.deliberationPhase === 'loading') {
         npcSet({
             deliberationPhase: 'off',
@@ -561,6 +619,11 @@ function ensureSmallEngine(
                 deliberationLoadProgress: 1,
                 deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · iniciando vontade`,
             });
+            // O .gguf está no OPFS a partir daqui. Encerrar o worker na pausa
+            // não desfaz isto — por isso a bandeira é separada do runtime.
+            pesosNoAparelho = true;
+            npcSet({
+            });
             return engine;
         } catch (falha) {
             terminateSmallEngine(engine);
@@ -705,7 +768,12 @@ export function deliberationYieldedTurn(): boolean { return cedeuAVez; }
  * Pergunta sem baixar nada. `enginePromise` só existe depois que alguém pediu
  * a carga — e é essa distinção que faltava.
  */
-export function vontadeJaCarregada(): boolean { return enginePromise !== null; }
+export function vontadeJaCarregada(): boolean {
+    // `enginePromise` deixou de ser a única prova: a pausa encerra o runtime
+    // para devolver CPU, mas o .gguf continua no aparelho. Sem `pesosNoAparelho`
+    // a deliberação desistiria de vez depois da primeira fala do jogador.
+    return enginePromise !== null || pesosNoAparelho;
+}
 
 export async function deliberateFloor10(
     input: DeliberateInput,
@@ -766,6 +834,11 @@ export async function deliberateFloor10(
         });
         currentAbort = new AbortController();
         const abort = currentAbort;
+        // A partir daqui existe um worker GERANDO. `abortDeliberation` precisa
+        // dele para encerrar de verdade: o abort do wllama sozinho só faz o JS
+        // parar de ler, e o worker seguiria queimando os núcleos junto da fala.
+        generatingEngine = engine;
+        const minhaRodada = ++rodadaDeliberacao;
         // TETO DE TEMPO. Sem ele, um worker preso deixava esta promessa pendente
         // para sempre; como `inFlight` só é liberado no finally, o livre-arbítrio
         // morria calado pelo resto da sessão. Agora a rodada é abandonada e a
@@ -782,11 +855,19 @@ export async function deliberateFloor10(
         // enquanto nasce, e a rodada pode PARAR assim que ele assina a escolha,
         // em vez de continuar até o teto de 320 tokens.
         const comecouAPensar = Date.now();
-        let texto = '';
+        // ── RETOMAR DE ONDE PAROU ─────────────────────────────────────────
+        // Se a fala do jogador interrompeu um raciocínio recente, ele NÃO
+        // recomeça do primeiro token: o que já tinha sido pensado volta como
+        // ponto de partida. Sem isto, um pensamento de ~320 tokens a 2 tok/s
+        // nunca fechava — bastava o jogador falar de vez em quando para ele
+        // reiniciar para sempre.
+        const retomado = pensamentoPausado('vontade');
+        const base = retomado?.parcial ?? '';
+        let texto = base;
         let tokens = 0;
         let cortadoNaEscolha = false;
         npcSet({
-            deliberationLive: '',
+            deliberationLive: texto,
             deliberationThreads: smallBrainThreads(),
             deliberationSeconds: 0,
         });
@@ -796,7 +877,12 @@ export async function deliberateFloor10(
                     { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
                     {
                         role: 'user',
-                        content: buildDeliberationPrompt(input.perception, input.drives, input.memory),
+                        content: retomado
+                            ? promptDeRetomada(
+                                buildDeliberationPrompt(input.perception, input.drives, input.memory),
+                                retomado.parcial,
+                            )
+                            : buildDeliberationPrompt(input.perception, input.drives, input.memory),
                     },
                 ],
                 ...SMALL_BRAIN_COMPLETION_CONFIG,
@@ -809,7 +895,10 @@ export async function deliberateFloor10(
                 // Mesmo vazamento do cérebro de fala: os restos da rodada
                 // anterior vêm na frente. Sem descartar, "CHOICE: idle" chegava
                 // como "OSE: idleCHO" e a decisão era perdida.
-                if (chunkOpensReply(c)) { texto = ''; tokens = 0; }
+                // Volta para a BASE, não para o vazio: os restos da rodada
+                // anterior são descartados sem jogar fora o que ele já pensou
+                // antes da pausa.
+                if (chunkOpensReply(c)) { texto = base; tokens = 0; }
                 const pedaco = chunkPensamento(c);
                 if (!pedaco) continue;
                 texto += pedaco;
@@ -831,6 +920,13 @@ export async function deliberateFloor10(
             // se ele chegou a assinar a escolha, a rodada ainda conta.
         } finally {
             globalThis.clearTimeout(relogio);
+            generatingEngine = null;
+            // PAUSOU, NÃO PERDEU. Se a fala cortou no meio e ele ainda não
+            // tinha assinado, o raciocínio fica guardado e a próxima rodada
+            // continua daí — em vez de recomeçar do primeiro token.
+            if (abort.signal.aborted && !escolhaAssinada(texto)) {
+                pausarPensamento('vontade', texto, tokens);
+            }
             const segundos = (Date.now() - comecouAPensar) / 1000;
             npcSet({
                 deliberationLive: texto,
@@ -838,6 +934,11 @@ export async function deliberateFloor10(
                 deliberationTps: segundos > 0 ? tokens / segundos : 0,
             });
         }
+        // A RODADA AINDA É A ATUAL? Se o worker foi encerrado pela fala, esta
+        // promessa pode ter acordado tarde. Publicar daqui seria sobrescrever a
+        // decisão de uma rodada mais nova com o eco de uma morta.
+        if (minhaRodada !== rodadaDeliberacao) return null;
+
         // PARAR NO "CHOICE:" É ENCERRAR A RODADA, não interromper o modelo no
         // meio de uma frase: a linha da escolha é a última coisa que ele
         // escreve, por instrução do prompt.
@@ -859,6 +960,9 @@ export async function deliberateFloor10(
         // palavras saem, não quantas vezes. Descartar aqui evita alimentar o
         // corpo com uma "decisão" tirada de um texto em círculo.
         if (looksLikeLoop(texto)) {
+            // Pensamento girando no lugar não merece ser retomado: continuar
+            // dele só faria o círculo crescer.
+            descartarPensamento('vontade');
             npcSet({
                 deliberationPhase: 'off',
                 deliberationLoadText: `${SMALL_BRAIN_MODEL.label} se enrolou; vai tentar de novo`,
@@ -885,6 +989,7 @@ export async function deliberateFloor10(
             if (motion) decided = { ...decided, motion };
         }
         if (decided) {
+            descartarPensamento('vontade');
             npcSet({
                 deliberationPhase: 'decided',
                 deliberationLoadText: decided.motion

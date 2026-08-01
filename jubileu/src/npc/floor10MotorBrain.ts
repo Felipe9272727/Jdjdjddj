@@ -131,6 +131,12 @@ const medidorMotor = new DownloadMeter();
 let enginePromise: Promise<MotorInstance | null> | null = null;
 let residentEngine: MotorInstance | null = null;
 let loadingEngine: MotorInstance | null = null;
+/**
+ * O engine que está TRADUZINDO agora. Mesmo defeito do cérebro pequeno: o
+ * `abortSignal` do wllama só faz o JS parar de ler, e este worker continuava
+ * gerando junto da fala. Sem esta referência não havia o que encerrar.
+ */
+let translatingEngine: MotorInstance | null = null;
 let loadAbort: AbortController | null = null;
 let inferenceAbort: AbortController | null = null;
 let inFlight = false;
@@ -367,6 +373,7 @@ export async function translateWithMotorEngine(
     const inheritAbort = () => controller.abort();
     parentSignal?.addEventListener('abort', inheritAbort, { once: true });
     inferenceAbort = controller;
+    translatingEngine = engine;
     const timer = globalThis.setTimeout(
         () => controller.abort(),
         FLOOR10_MOTOR_TIMEOUT_MS,
@@ -390,6 +397,7 @@ export async function translateWithMotorEngine(
         globalThis.clearTimeout(timer);
         parentSignal?.removeEventListener('abort', inheritAbort);
         if (inferenceAbort === controller) inferenceAbort = null;
+        if (translatingEngine === engine) translatingEngine = null;
     }
 }
 
@@ -454,6 +462,15 @@ export function abortFloor10MotorBrain(): void {
     const loading = loadingEngine;
     loadingEngine = null;
     terminate(loading);
+    // Encerra também quem está TRADUZINDO — só o abort deixaria este worker
+    // gerando em cima da fala. Os 640 MB do Qwen continuam no OPFS; a próxima
+    // tradução reabre o runtime lendo do disco, sem baixar nada.
+    const traduzindo = translatingEngine;
+    translatingEngine = null;
+    if (traduzindo) {
+        terminate(traduzindo);
+        enginePromise = null;
+    }
     // A barra não pode continuar dizendo "baixando" depois do corte. O
     // progresso permanece: ele mostra quanto do arquivo já está no cache.
     if (npc.motorPhase === 'loading' || npc.motorPhase === 'translating') {
