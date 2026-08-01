@@ -20,11 +20,19 @@ export const controle = {
   tokens: ['Estou ', 'preso ', 'neste ', 'andar ', 'faz ', 'tempo ', 'demais.'],
   /** Espera entre um token e outro. */
   atrasoMs: 5,
+  /**
+   * Depois de N tokens o modelo SEGURA o pensamento e só termina quando for
+   * interrompido. É isto que torna determinístico o teste de preempção: sem
+   * ele, a geração podia acabar sozinha antes do corte e o teste virava sorteio
+   * — falhava um run em cada tantos, que é o pior tipo de teste que existe.
+   */
+  travarApos: null,
   reset() {
     this.construidos = 0;
     this.geracoes = 0;
     this.encerrados = 0;
     this.prompts = [];
+    this.travarApos = null;
   },
 };
 
@@ -56,15 +64,24 @@ export class Wllama {
     );
     const engine = this;
     const tokens = controle.tokens.slice();
+    const travar = controle.travarApos;
+    // O wllama para de entregar quando o sinal dispara ("o JS para de ler").
+    const sinal = opts.abortSignal;
+    const parou = () => engine.morto || !!sinal?.aborted;
     return (async function* () {
       // Abre a resposta como o wllama faz (delta.role), para o consumidor
       // exercitar o caminho do `chunkOpensReply`.
       yield { choices: [{ delta: { role: 'assistant' } }] };
-      for (const t of tokens) {
-        if (engine.morto) return;
+      for (let i = 0; i < tokens.length; i++) {
+        if (parou()) return;
         await dorme(controle.atrasoMs);
-        if (engine.morto) return;
-        yield { choices: [{ delta: { content: t } }] };
+        if (parou()) return;
+        yield { choices: [{ delta: { content: tokens[i] } }] };
+        if (travar !== null && i + 1 >= travar) {
+          // Pensamento longo: fica aqui até alguém interromper.
+          while (!parou()) await dorme(5);
+          return;
+        }
       }
     })();
   }

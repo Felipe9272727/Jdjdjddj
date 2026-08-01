@@ -22,6 +22,7 @@ type Controle = {
     prompts: string[];
     tokens: string[];
     atrasoMs: number;
+    travarApos: number | null;
     reset(): void;
 };
 
@@ -119,7 +120,8 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
 
     it('A FALA INTERROMPE E A VONTADE VOLTA — era isto que estava quebrado', async () => {
         await brain.precarregarVontade();
-        controle.atrasoMs = 40; // dá tempo de interromper no meio
+        controle.atrasoMs = 30;
+        controle.travarApos = 12; // segura o pensamento até o corte chegar
         const primeira = brain.deliberateFloor10(entrada());
         expect(await ate(() => store.npc.deliberationPhase === 'thinking')).toBe(true);
         expect(await ate(() => store.npc.deliberationLive.length > 0)).toBe(true);
@@ -142,7 +144,8 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
 
     it('e ela RETOMA de onde parou, em vez de recomeçar do zero', async () => {
         await brain.precarregarVontade();
-        controle.atrasoMs = 40;
+        controle.atrasoMs = 30;
+        controle.travarApos = 12;
         const primeira = brain.deliberateFloor10(entrada());
         expect(await ate(() => store.npc.deliberationLive.length > 10)).toBe(true);
         const pensadoAntes = store.npc.deliberationLive;
@@ -167,7 +170,8 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
         // Este é o "não volta a pensar". Contada como fracasso, a espera dobrava
         // a cada mensagem (5s → 10s → 20s… → 300s) e a vontade ficava de castigo.
         await brain.precarregarVontade();
-        controle.atrasoMs = 40;
+        controle.atrasoMs = 30;
+        controle.travarApos = 12;
         const rodada = brain.deliberateFloor10(entrada());
         expect(await ate(() => store.npc.deliberationPhase === 'thinking')).toBe(true);
         brain.abortDeliberation();
@@ -177,12 +181,14 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
 
     it('o pensamento retomado não sai gaguejando', async () => {
         await brain.precarregarVontade();
-        controle.atrasoMs = 40;
+        controle.atrasoMs = 30;
+        controle.travarApos = 12;
         const primeira = brain.deliberateFloor10(entrada());
         expect(await ate(() => store.npc.deliberationLive.length > 10)).toBe(true);
         brain.abortDeliberation();
         await primeira;
 
+        controle.travarApos = null;
         controle.atrasoMs = 1;
         store.npcSet({ phase: 'ready' });
         await brain.deliberateFloor10(entrada());
@@ -218,5 +224,58 @@ describe('a tela precisa DIZER que ele voltou', () => {
         parar();
         expect(fases).toContain('reopening');
         expect(fases).not.toContain('loading');
+    });
+});
+
+describe('a caixa-preta conta a história que eu não conseguia ver', () => {
+    it('registra carga, pensamento, preempção e retomada — na ordem', async () => {
+        const caixa = await import('../npc/floor10CaixaPreta');
+        caixa.limparCaixaPreta();
+        // Este describe tem o seu próprio começo do zero: sem isto, um
+        // pensamento pausado por outro teste faria a primeira rodada já nascer
+        // como retomada.
+        pausa.limparPausas();
+        controle.reset();
+        // O texto vivo do teste anterior ainda está no store; sem zerar, a
+        // espera abaixo passa na hora e o corte cai ANTES de a geração começar.
+        store.npcSet({ deliberationLive: '', deliberationPhase: 'off', phase: 'ready' });
+        // Pensamento longo: precisa durar o bastante para a fala interromper no
+        // MEIO. Com poucos tokens a rodada terminava sozinha antes do corte, e
+        // aí não há preempção nenhuma para registrar.
+        const original = controle.tokens;
+        controle.tokens = Array.from({ length: 40 }, (_, i) => `palavra${i} `);
+
+        await brain.precarregarVontade();
+        controle.atrasoMs = 30;
+        controle.travarApos = 12;
+        const primeira = brain.deliberateFloor10(entrada());
+        // Espera haver pensamento SUFICIENTE para valer a pena guardar: abortar
+        // no primeiro instante de 'thinking' não salva nada, e a caixa-preta
+        // registra isso honestamente (guardou=false).
+        expect(await ate(() => store.npc.deliberationPhase === 'thinking')).toBe(true);
+        expect(await ate(() => store.npc.deliberationLive.length > 24)).toBe(true);
+        brain.abortDeliberation();
+        await primeira;
+
+        controle.travarApos = null;
+        controle.atrasoMs = 1;
+        store.npcSet({ phase: 'ready' });
+        await brain.deliberateFloor10(entrada());
+
+        const tipos = caixa.eventosDaCaixaPreta().map((e) => e.tipo);
+        expect(tipos).toContain('vontade:pensando');
+        expect(tipos).toContain('vontade:preemptada');
+        expect(tipos).toContain('vontade:reabrindo');
+        expect(tipos).toContain('vontade:retomando');
+        // A preempção vem ANTES da retomada: é essa ordem que conta a história.
+        expect(tipos.indexOf('vontade:preemptada'))
+            .toBeLessThan(tipos.indexOf('vontade:retomando'));
+
+        // E o evento diz QUANTO se salvou, que é o número que eu precisava.
+        const preempcao = caixa.eventosDaCaixaPreta()
+            .find((e) => e.tipo === 'vontade:preemptada');
+        expect(preempcao?.dados?.guardou).toBe(true);
+        expect(Number(preempcao?.dados?.pensado)).toBeGreaterThan(0);
+        controle.tokens = original;
     });
 });

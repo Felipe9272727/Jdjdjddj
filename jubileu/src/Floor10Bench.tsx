@@ -14,6 +14,7 @@
  * Run:  cd jubileu && npm run dev  →  http://localhost:3000/floor10.html
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { coletarRelatorio, limparCaixaPreta } from './npc/floor10CaixaPreta';
 import { npc, npcSubscribe, npcReset } from './npc/npcStore';
 import {
     FLOOR10_GPU_MAX_LAYERS, floor10Gpu, layersThatFit, probeWebGpuAdapter,
@@ -86,6 +87,28 @@ const Bancada: React.FC = () => {
     const [marcos, setMarcos] = useState<Marco[]>([]);
     const [erros, setErros] = useState<string[]>([]);
     const [texto, setTexto] = useState('Oi, qual o seu nome?');
+    const [copiado, setCopiado] = useState(false);
+
+    /**
+     * Copia o relatório da caixa-preta. No celular não há DevTools, então a
+     * área de transferência é o único caminho real — e quando ela não existe
+     * (contexto sem permissão), o texto vai para a tela para poder ser
+     * selecionado à mão. Falhar em silêncio aqui seria o pior dos mundos:
+     * o defeito continuaria invisível E o diagnóstico também.
+     */
+    const copiarDiagnostico = async () => {
+        const relatorio = await coletarRelatorio();
+        try {
+            await navigator.clipboard.writeText(relatorio);
+            setCopiado(true);
+            globalThis.setTimeout(() => setCopiado(false), 2500);
+        } catch {
+            // Sem área de transferência o texto vai para a lista de erros, que
+            // é a única superfície de texto longo que esta bancada já tem.
+            setErros((e) => [...e, 'sem acesso à área de transferência:', relatorio]);
+        }
+        limparCaixaPreta();
+    };
     const [cota, setCota] = useState<Record<string, string> | null>(null);
     // O EXPERIMENTO DA GPU. Ver o painel lá embaixo: o offload matou a fala
     // duas vezes neste tipo de aparelho, e ficou uma pergunta que só o celular
@@ -219,6 +242,20 @@ const Bancada: React.FC = () => {
                     onClick={() => { void limparTudo().then(setCota); }}
                 >
                     apagar modelo baixado
+                </button>
+                {/* A CAIXA-PRETA — o botão que fecha a distância entre quem
+                    tem o aparelho e quem lê o código.
+                    Quando algo der errado no celular, é daqui que sai o texto
+                    para colar na conversa: o que carregou, quem interrompeu
+                    quem, quantos tokens, quanto tempo, quanta memória. Sem
+                    isto, o defeito chega como uma frase e a investigação vira
+                    adivinhação — foi o que custou horas nesta sessão. */}
+                <button
+                    type="button"
+                    style={{ ...btn, background: '#2f5f7a' }}
+                    onClick={() => { void copiarDiagnostico(); }}
+                >
+                    {copiado ? '✓ diagnóstico copiado' : 'copiar diagnóstico'}
                 </button>
                 <input
                     value={texto}

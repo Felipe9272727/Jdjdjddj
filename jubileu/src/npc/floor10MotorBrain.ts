@@ -32,6 +32,7 @@ import {
 } from './floor10ModelStorage';
 import type { Floor10Perception } from './floor10Perception';
 import { npc, npcSet } from './npcStore';
+import { anotar } from './floor10CaixaPreta';
 import { cpuThreadCount } from './wllamaEngine';
 
 const WLLAMA_V = '3.5.1';
@@ -374,6 +375,7 @@ export async function translateWithMotorEngine(
     parentSignal?.addEventListener('abort', inheritAbort, { once: true });
     inferenceAbort = controller;
     translatingEngine = engine;
+    anotar('motor:traduzindo');
     const timer = globalThis.setTimeout(
         () => controller.abort(),
         FLOOR10_MOTOR_TIMEOUT_MS,
@@ -468,6 +470,7 @@ export function abortFloor10MotorBrain(): void {
     const traduzindo = translatingEngine;
     translatingEngine = null;
     if (traduzindo) {
+        anotar('motor:preemptado');
         terminate(traduzindo);
         enginePromise = null;
     }

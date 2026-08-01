@@ -29,6 +29,7 @@ import {
     translateFloor10MotorThought,
 } from './floor10MotorBrain';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
+import { anotar } from './floor10CaixaPreta';
 import {
     descartarPensamento,
     emendarPensamento,
@@ -352,9 +353,13 @@ export function abortDeliberation(): void {
         // matar o worker pode deixar a promessa do stream pendurada para
         // sempre, e nesse caso o `finally` nunca roda. `deliberationLive` é
         // publicado a cada 150 ms, então se perde no máximo isso.
-        if (pausedInference && !escolhaAssinada(npc.deliberationLive)) {
-            pausarPensamento('vontade', npc.deliberationLive, 0);
-        }
+        const salvou = pausedInference && !escolhaAssinada(npc.deliberationLive)
+            && pausarPensamento('vontade', npc.deliberationLive, 0);
+        anotar('vontade:preemptada', {
+            fase: npc.deliberationPhase,
+            pensado: npc.deliberationLive.length,
+            guardou: !!salvou,
+        });
         terminateSmallEngine(gerando);
         enginePromise = null;
         floor10ModelCoordinator.markUnloaded('deliberation');
@@ -510,6 +515,10 @@ function ensureSmallEngine(
         // mostrar uma barra de 1,32 GB que não existe, escondendo justamente o
         // "ele está voltando a pensar" que o jogador queria ver.
         const reabrindo = pesosNoAparelho;
+        anotar(reabrindo ? 'vontade:reabrindo' : 'vontade:carregando', {
+            modelo: SMALL_BRAIN_MODEL.id,
+        });
+        const comecouACarregar = Date.now();
         npcSet({
             deliberationPhase: reabrindo ? 'reopening' : 'loading',
             deliberationLoadText: reabrindo
@@ -644,6 +653,11 @@ function ensureSmallEngine(
             // O .gguf está no OPFS a partir daqui. Encerrar o worker na pausa
             // não desfaz isto — por isso a bandeira é separada do runtime.
             pesosNoAparelho = true;
+            anotar('vontade:pronta', {
+                ms: Date.now() - comecouACarregar,
+                reabertura: reabrindo,
+                threads: smallBrainThreads(),
+            });
             return engine;
         } catch (falha) {
             terminateSmallEngine(engine);
@@ -882,6 +896,9 @@ export async function deliberateFloor10(
         // nunca fechava — bastava o jogador falar de vez em quando para ele
         // reiniciar para sempre.
         const retomado = pensamentoPausado('vontade');
+        anotar(retomado ? 'vontade:retomando' : 'vontade:pensando', {
+            herdado: retomado?.parcial.length ?? 0,
+        });
         const base = retomado?.parcial ?? '';
         // A continuação é acumulada à parte para poder ser EMENDADA à base: o
         // modelo costuma reescrever o fim da frase anterior antes de seguir.
@@ -952,6 +969,13 @@ export async function deliberateFloor10(
                 pausarPensamento('vontade', texto, tokens);
             }
             const segundos = (Date.now() - comecouAPensar) / 1000;
+            anotar('vontade:fim-da-geracao', {
+                tokens,
+                s: segundos,
+                tps: segundos > 0 ? tokens / segundos : 0,
+                cortada: abort.signal.aborted,
+                assinou: escolhaAssinada(texto),
+            });
             npcSet({
                 deliberationLive: texto,
                 deliberationSeconds: segundos,
@@ -1014,6 +1038,7 @@ export async function deliberateFloor10(
         }
         if (decided) {
             descartarPensamento('vontade');
+            anotar('vontade:decidiu', { meta: decided.goal, motor: !!decided.motion });
             npcSet({
                 deliberationPhase: 'decided',
                 deliberationLoadText: decided.motion

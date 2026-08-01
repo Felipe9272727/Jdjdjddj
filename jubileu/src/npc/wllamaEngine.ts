@@ -19,6 +19,7 @@ import {
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
+import { anotar } from './floor10CaixaPreta';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
@@ -1209,6 +1210,8 @@ export async function sendToNpc(userText: string): Promise<void> {
         quadrosDaVez = new FpsSampler();
         quadrosDaVez.start();
         tpsDaVez = 0;
+        const comecouAFalar = Date.now();
+        anotar('fala:gerando', { gpu: loadedGpuLayers, threads: loadedThreads });
         const streamPromise = engine.createChatCompletion({
             messages: [
                 { role: 'system', content: prompt },
@@ -1264,6 +1267,9 @@ export async function sendToNpc(userText: string): Promise<void> {
     /** Fecha a medição desta fala e entrega o veredito ao gerente de GPU. */
     const entregarAmostra = (resposta = '') => {
         const fps = quadrosDaVez?.stop() ?? null;
+        // O FPS aqui é o número que eu mais quis ver e nunca vi: ele mede o
+        // jogo DURANTE a geração, que é quando o aparelho aperta.
+        anotar('fala:fim', { tps: tpsDaVez, fps, letras: resposta.length });
         // ── SANIDADE ANTES DE VELOCIDADE ──────────────────────────────────
         // Com 2 camadas na GPU o Nilo respondeu lixo — tokens aleatórios,
         // e-mail, `_trampoline` — e o gerente carimbou "estável", porque

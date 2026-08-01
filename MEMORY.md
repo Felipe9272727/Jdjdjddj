@@ -3873,3 +3873,30 @@ Três coisas somadas, todas criadas pela mudança de "pausar = encerrar o worker
    ele continua visível em `'reopening'`, que é exatamente o texto que vai ser continuado.
 
 **Estado:** tsc 0 · 528/528 vitest (+2) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 3) — a caixa-preta: o que EU sentia falta
+
+Felipe perguntou o que estava faltando na minha visão. A resposta honesta: **eu não enxergo
+o aparelho dele**. Esta sessão inteira foi "Felipe testa → descreve em uma frase → eu leio
+código e chuto". Gastei horas chutando na travada; quando construí o wllama falso, achei
+dois defeitos em minutos. A diferença não foi esperteza, foi enxergar.
+
+**`floor10CaixaPreta.ts`** — buffer circular (200 eventos) que grava o que de fato acontece
+no Andar 10, e um botão **"copiar diagnóstico"** no `?bancada` que devolve tudo em texto
+colável. Também em `window.__caixaPreta()` no desktop.
+
+O relatório abre com BUILD + aparelho + núcleos + isolamento + cota/uso/persistido — sem
+isso os eventos não significam nada (já analisei comportamento de build errado nesta sessão).
+Eventos instrumentados: `vontade:carregando|reabrindo|pronta|pensando|retomando|preemptada|
+fim-da-geracao|decidiu`, `fala:gerando|fim` (com **tok/s e FPS medidos durante a geração** —
+o número que eu mais quis e nunca tive), `motor:traduzindo|preemptado`.
+
+Regras: só grava em eventos (nunca por quadro), teto fixo, nunca lança, e o que o jogador
+escreve NUNCA entra.
+
+**Um teste instável foi corrigido junto:** os testes de preempção dependiam de relógio (o
+pensamento podia acabar antes do corte) e falhavam ~1 run em 5. O wllama falso ganhou
+`travarApos`: depois de N tokens ele SEGURA o pensamento até ser interrompido. A preempção
+virou determinística — 3 execuções completas seguidas, 537/537.
+
+**Estado:** tsc 0 · 537/537 vitest (+9) · audit sem erros · index.html rebuildado.
