@@ -468,3 +468,35 @@ describe('npc/wllamaEngine — restos da geração anterior no início do stream
         expect(vistos).toContain('');
     });
 });
+
+describe('divisaoDaEspera — a conta que decide onde vale otimizar', () => {
+    it('separa leitura de fala a partir do que o motor mediu', async () => {
+        const { divisaoDaEspera } = await import('../npc/wllamaEngine');
+        // Caso realista de celular: 600 tokens de prompt lidos a 20 tok/s (30s
+        // de LEITURA) e fala a 2,5 tok/s. Aqui encolher o prompt vale ouro.
+        expect(divisaoDaEspera({
+            prompt_n: 600,
+            prompt_per_second: 20,
+            predicted_per_second: 2.5,
+            cache_n: 120,
+        })).toEqual({
+            lidos: 600,
+            reusados: 120,
+            leitura_s: 30,
+            leitura_tps: 20,
+            fala_tps: 2.5,
+        });
+    });
+
+    it('prompt inteiro reaproveitado: não há leitura para cobrar', async () => {
+        const { divisaoDaEspera } = await import('../npc/wllamaEngine');
+        expect(divisaoDaEspera({ prompt_n: 0, cache_n: 700, predicted_per_second: 2.4 }))
+            .toEqual({ reusados: 700, fala_tps: 2.4 });
+    });
+
+    it('sem medição, não inventa número', async () => {
+        const { divisaoDaEspera } = await import('../npc/wllamaEngine');
+        expect(divisaoDaEspera(null)).toEqual({});
+        expect(divisaoDaEspera({})).toEqual({});
+    });
+});

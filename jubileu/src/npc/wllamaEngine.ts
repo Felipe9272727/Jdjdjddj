@@ -505,6 +505,36 @@ export function formatTimings(timings: ChatTimings | null): string {
     return parts.join(' · ');
 }
 
+/**
+ * Separa a espera em LEITURA e FALA, a partir do que o motor mediu.
+ *
+ * `leitura_s` é derivado (tokens ÷ tokens por segundo) porque é isso que o
+ * wllama entrega — e é exatamente o suficiente para responder qual das duas
+ * metades domina.
+ */
+export function divisaoDaEspera(
+    timings: ChatTimings | null,
+): Record<string, number> {
+    if (!timings) return {};
+    const saida: Record<string, number> = {};
+    const lidos = typeof timings.prompt_n === 'number' ? timings.prompt_n : 0;
+    const reusados = typeof timings.cache_n === 'number' ? timings.cache_n : 0;
+    if (lidos > 0) saida.lidos = lidos;
+    if (reusados > 0) saida.reusados = reusados;
+    if (
+        lidos > 0
+        && typeof timings.prompt_per_second === 'number'
+        && timings.prompt_per_second > 0
+    ) {
+        saida.leitura_s = lidos / timings.prompt_per_second;
+        saida.leitura_tps = timings.prompt_per_second;
+    }
+    if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
+        saida.fala_tps = timings.predicted_per_second;
+    }
+    return saida;
+}
+
 /** Consome o stream sem permitir que um Worker silencioso deixe a UI em "…". */
 export async function consumeChatStream(
     streamPromise: Promise<AsyncIterable<ChatChunk>>,
@@ -1194,6 +1224,22 @@ export async function sendToNpc(userText: string): Promise<void> {
     let tpsDaVez = 0;
     /** Última etiqueta de velocidade publicada — evita re-render repetido. */
     let ultimaMedicao = '';
+    /**
+     * A ÚLTIMA MEDIÇÃO CRUA DA RODADA.
+     *
+     * Existe para a caixa-preta poder separar as duas metades da espera, que é a
+     * pergunta que decide qualquer otimização daqui para a frente:
+     *
+     *   LEITURA (prefill) — o modelo lendo o prompt, uma vez só.
+     *   FALA (decode)     — o modelo escrevendo, um token de cada vez.
+     *
+     * Se a espera for quase toda LEITURA, encolher o prompt vale a pena (e um
+     * modelo auxiliar que resuma tem função). Se for quase toda FALA, prompt
+     * menor não muda nada — só menos tokens de saída ou mais tok/s ajudam, e aí
+     * nenhum modelo auxiliar resolve. Sem este número, escolher entre os dois é
+     * chute; já paguei caro por chute nesta sessão.
+     */
+    let medicaoFinal: ChatTimings | null = null;
     const generateWithMainModel = async (
         prompt: string,
         sampling: Partial<{
@@ -1234,6 +1280,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                 nextTokenMs,
                 // Publica a velocidade MEDIDA pelo motor no aparelho do jogador.
                 onTimings: (timings) => {
+                    medicaoFinal = timings;
                     if (typeof timings.predicted_per_second === 'number'
                         && timings.predicted_per_second > 0) {
                         tpsDaVez = timings.predicted_per_second;
@@ -1269,7 +1316,12 @@ export async function sendToNpc(userText: string): Promise<void> {
         const fps = quadrosDaVez?.stop() ?? null;
         // O FPS aqui é o número que eu mais quis ver e nunca vi: ele mede o
         // jogo DURANTE a geração, que é quando o aparelho aperta.
-        anotar('fala:fim', { tps: tpsDaVez, fps, letras: resposta.length });
+        anotar('fala:fim', {
+            tps: tpsDaVez,
+            fps,
+            letras: resposta.length,
+            ...divisaoDaEspera(medicaoFinal),
+        });
         // ── SANIDADE ANTES DE VELOCIDADE ──────────────────────────────────
         // Com 2 camadas na GPU o Nilo respondeu lixo — tokens aleatórios,
         // e-mail, `_trampoline` — e o gerente carimbou "estável", porque

@@ -3900,3 +3900,36 @@ pensamento podia acabar antes do corte) e falhavam ~1 run em 5. O wllama falso g
 virou determinística — 3 execuções completas seguidas, 537/537.
 
 **Estado:** tsc 0 · 537/537 vitest (+9) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 4) — velocidade: a medição que decide antes de adicionar modelo
+
+Felipe quer que o jogo fique mais rápido para quem vai jogar depois ("o pessoal é
+impaciente"), sem trocar nenhuma IA — a ideia dele: uma IA MENOR dando um "atalho
+inteligente" ao pensamento das outras.
+
+**A ideia tem nome e está certa: decodificação especulativa** (o pequeno rascunha, o grande
+CONFERE tudo numa passada só; a saída é matematicamente idêntica à do grande sozinho).
+**Mas é impossível neste runtime.** A API pública do wllama 3.5.1 (baixada do CDN e
+conferida) tem só `createCompletion / createChatCompletion / createEmbedding / createRerank /
+loadModel*`. Não há `decode`, `getLogits`, `tokenize` nem `sampling*` — sem logits por
+posição o modelo grande não tem como conferir o rascunho, e sem conferência a especulação
+vira aposta (perderia inteligência, que é justamente o que ele não quer).
+
+**Correção factual importante:** o embedding NÃO usa outro runtime. Ele roda no mesmo wllama
+(`new mod.Wllama`, GGUF embeddinggemma-300M). ONNX/transformers.js não existe no projeto
+(`grep` vazio). Ele parece diferente porque é ENCODER: uma passada só, sem gerar token. Os
+outros três são autoregressivos. A diferença é a natureza da tarefa, não a biblioteca.
+
+**Antes de adicionar um quarto modelo, MEDIR.** A espera de uma fala tem duas metades:
+LEITURA (prefill, o prompt inteiro, uma vez) e FALA (decode, token a token). Elas pedem
+otimizações opostas:
+- LEITURA dominando → encolher o prompt vale muito (e aí um modelo auxiliar que resuma tem
+  função real).
+- FALA dominando → prompt menor não muda nada; só menos tokens de saída ou mais tok/s. E
+  nenhum modelo auxiliar resolve isso sem verificação.
+
+`divisaoDaEspera()` extrai essa conta das medições do próprio motor, e a caixa-preta passa a
+gravá-la em `fala:fim` (lidos, reusados, leitura_s, leitura_tps, fala_tps). Uma sessão de
+jogo + botão "copiar diagnóstico" responde qual das duas metades manda.
+
+**Estado:** tsc 0 · 540/540 vitest (+3) · audit sem erros · index.html rebuildado.
