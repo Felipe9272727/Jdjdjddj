@@ -4008,3 +4008,43 @@ resume conversa, que é lembrança, não medição. Peneira contra papagaio, tex
 migalha; falhou, fica o resumo anterior. Roda DEPOIS da resposta, sem `await`.
 
 **Estado:** tsc 0 · 566/566 vitest (+13) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 7) — a especulativa JÁ ESTAVA na wllama 3.5.1
+
+**Eu errei duas vezes e o Felipe insistiu três.** Ele estava certo. Eu olhei a superfície
+JavaScript da wllama, não achei `getLogits`, e afirmei "impossível". A capacidade estava um
+nível abaixo, no runtime que este jogo já baixa há meses.
+
+**A PROVA** (`cpp/wllama-context.h:524`, do repositório da wllama):
+```cpp
+// speculative decoding
+if (req.spec_draft_model.not_null())
+  params.speculative.draft.mparams.path = req.spec_draft_model.value;
+```
+A v3 embute o `server_context` do llama.cpp INTEIRO — e o llama.cpp tem especulativa nativa.
+`LoadModelParams` da 3.5.1 já declara `spec_draft_model`, `spec_draft_n_max`, `n_min`,
+`p_min`, `ngl` e os threads. **Nada de recompilar, forkar, ONNX ou ponte entre versões.**
+
+**O QUE FALTAVA (e o que este commit resolve):** `spec_draft_model` é um CAMINHO no FS do
+WASM, e a API pública não monta arquivo avulso — `prepareBlobs()` transforma todo blob extra
+em shard do modelo principal. O recurso existe e estava desligado por falta de encanamento.
+
+`floor10Especulativa.ts` é esse encanamento, deliberadamente MÍNIMO: embrulha dois métodos
+internos (`proxy.moduleInit` acrescenta o .gguf do rascunhador; `proxy.wllamaAction('load')`
+injeta os campos `spec_draft_*`) e deixa a wllama fazer TODO o resto igual — cache, compat de
+Safari/Firefox, mmap, threads, template. `loadModelFromUrl` roda como sempre rodou.
+O rascunhador sai de `cacheManager.open(url)`: arquivo já baixado, download zero.
+
+**DESLIGADA POR PADRÃO.** Só com `?especulativa`. Se qualquer coisa falhar (proxy ausente,
+rascunhador não baixado, cache com erro), o preparo devolve `ok:false` e a carga segue
+idêntica à de hoje. 8 testes cobrem cada recusa.
+
+**A PERGUNTA EM ABERTO — o rascunhador.** Exige o MESMO tokenizador do alvo. Vocabulários:
+SmolLM3-3B = 128256, Llama 3.2 1B = 128256 (compatíveis entre si), Qwen3-0.6B do motor = outro.
+Medição publicada: 1B rascunhando para 8B rende 1,83×. Mas o nosso alvo é 3B — o 1B é UM
+TERÇO dele, não um décimo, e o Felipe está certo em dizer que ele é lento. O rascunhador
+ideal teria ~100M com vocabulário Llama-3, e não achei nenhum no Hub. Alternativas a medir:
+Llama 3.2 1B **Q4** (807 MB, já no catálogo) com `n_max` baixo, ou aceitar que para 3B o
+ganho não paga.
+
+**Estado:** tsc 0 · 574/574 vitest (+8) · audit sem erros · index.html rebuildado.

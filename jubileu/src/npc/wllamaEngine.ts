@@ -20,6 +20,8 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
+import { especulativaLigada, prepararEspeculativa } from './floor10Especulativa';
+import { SMALL_BRAIN_MODEL } from './floor10SmallBrain';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
@@ -864,6 +866,33 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     suppressNativeLog: !(globalThis as { __npcVerboseLlama?: boolean })
                         .__npcVerboseLlama,
                 });
+                // ── ESPECULATIVA (só com `?especulativa`) ─────────────
+                //
+                // Precisa acontecer AQUI, entre construir e carregar: é o único
+                // instante em que dá para acrescentar o .gguf do rascunhador à
+                // montagem e injetar os campos `spec_draft_*` na mensagem de
+                // carga. Falhar aqui não é problema — a carga segue normal, e a
+                // fala de hoje continua exatamente a fala de hoje.
+                if (especulativaLigada()) {
+                    try {
+                        const preparo = await prepararEspeculativa(
+                            candidate as unknown as Parameters<typeof prepararEspeculativa>[0],
+                            SMALL_BRAIN_MODEL.url,
+                        );
+                        if (preparo.ok) {
+                            npcSet({
+                                loadText: `especulativa ligada · rascunhador de ${Math.round(preparo.bytes / 1e6)} MB`,
+                            });
+                        } else {
+                            npcSet({ loadText: `especulativa desligada: ${preparo.motivo}` });
+                            anotar('especulativa:recusada', { motivo: preparo.motivo });
+                        }
+                    } catch (erro) {
+                        anotar('especulativa:erro', {
+                            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+                        });
+                    }
+                }
                 const loadTask = candidate.loadModelFromUrl(model.url, {
                     ...CPU_LOAD_CONFIG,
                     n_threads: threads,
