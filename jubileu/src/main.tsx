@@ -61,6 +61,9 @@ const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
 // build publicado emite um único index.html — o floor10.html só existe no dev,
 // e no celular (que é onde o problema aparece) a página não seria alcançável.
 const Floor10Bench = lazy(() => import('./Floor10Bench.tsx'));
+// `?comparacao` isola o teste A/B pedido pelo dono do jogo: mesmo SmolLM3,
+// mesmo cache e mesmas perguntas; muda apenas o runtime normal/N-gram.
+const Floor10Comparacao = lazy(() => import('./Floor10Comparacao.tsx'));
 // `?mente` abre a sala da mente: o Andar 10 de cima, para observar o cérebro
 // pequeno pensar. Em jogo a deliberação é invisível de propósito, então é a
 // única forma de flagrar uma cadeia de pensamento circular.
@@ -70,6 +73,7 @@ const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
+const isComparacao = search.includes('comparacao');
 const isMente = search.includes('mente');
 // `?prisao` abre a bancada do campo de provas do Andar 10: a sala vista de
 // cima, os aparelhos, e o Nilo tentando. Existe porque o andar ainda não é
@@ -81,7 +85,9 @@ createRoot(document.getElementById('root')!).render(
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isPrisao ? (
+    {isComparacao ? (
+      <Suspense fallback={null}><Floor10Comparacao /></Suspense>
+    ) : isPrisao ? (
       <Suspense fallback={null}><Floor10Prisao /></Suspense>
     ) : isMente ? (
       <Suspense fallback={null}><Floor10Mente /></Suspense>

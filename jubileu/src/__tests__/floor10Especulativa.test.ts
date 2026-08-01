@@ -3,17 +3,21 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
     caminhosDaEspeculativa,
+    definirRuntimeFloor10,
     especulativaLigada,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
     RASCUNHO_N_MAX,
     resetCaminhosEspeculativosForTests,
+    resetRuntimeFloor10ForTests,
+    runtimeFloor10,
     TIPOS_NGRAMA,
 } from '../npc/floor10Especulativa';
 
 afterEach(() => {
     delete (globalThis as Record<string, unknown>).__TNE_WLLAMA_ESPEC__;
     resetCaminhosEspeculativosForTests();
+    resetRuntimeFloor10ForTests();
     vi.restoreAllMocks();
 });
 
@@ -39,6 +43,18 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(especulativaLigada('?bancada')).toBe(false);
         expect(especulativaLigada('?especulativa')).toBe(true);
         expect(especulativaLigada('?bancada&especulativa')).toBe(true);
+    });
+
+    it('a bancada alterna os runtimes sem adulterar consultas explícitas à URL', () => {
+        definirRuntimeFloor10('ngram');
+        expect(runtimeFloor10()).toBe('ngram');
+        expect(especulativaLigada()).toBe(true);
+        expect(especulativaLigada('?bancada')).toBe(false);
+
+        definirRuntimeFloor10('normal');
+        expect(runtimeFloor10()).toBe('normal');
+        expect(especulativaLigada()).toBe(false);
+        expect(especulativaLigada('?especulativa')).toBe(true);
     });
 
     it('pede AUTO-especulação: nenhum modelo rascunhador no caminho', () => {

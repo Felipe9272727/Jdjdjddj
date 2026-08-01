@@ -77,9 +77,30 @@ export const RASCUNHO_P_MIN = 0.75;
  */
 export const RASCUNHO_THREADS = 2;
 
+export type Floor10Runtime = 'normal' | 'ngram';
+
+/**
+ * A URL continua sendo a fonte de verdade no jogo. A bancada A/B pode forçar
+ * um runtime sem recarregar a página, porque precisa alternar os dois usando o
+ * MESMO cache, modelo e aparelho.
+ */
+let runtimeForcado: Floor10Runtime | null = null;
+
+export function definirRuntimeFloor10(runtime: Floor10Runtime | null): void {
+    runtimeForcado = runtime;
+    if (runtime) anotar('comparacao:runtime', { runtime });
+}
+
+export function runtimeFloor10(): Floor10Runtime {
+    return especulativaLigada() ? 'ngram' : 'normal';
+}
+
 /** `?especulativa` liga. Desligada é o padrão — o que funciona hoje não muda sozinho. */
-export function especulativaLigada(busca = globalThis.location?.search ?? ''): boolean {
-    return /[?&]especulativa\b/i.test(busca);
+export function especulativaLigada(busca?: string): boolean {
+    // Uma busca explícita é uma consulta pura (inclusive nos testes); somente
+    // quem pergunta pelo modo ATUAL recebe a escolha feita pela bancada.
+    if (busca === undefined && runtimeForcado !== null) return runtimeForcado === 'ngram';
+    return /[?&]especulativa\b/i.test(busca ?? globalThis.location?.search ?? '');
 }
 
 /** Os campos que entram na mensagem de carga do wllama. */
@@ -140,4 +161,9 @@ export function caminhosDaEspeculativa(): { esm: string; wasm: string } {
 /** Somente para isolar testes que injetam o pacote do single-file. */
 export function resetCaminhosEspeculativosForTests(): void {
     caminhosEmbutidos = null;
+}
+
+/** Somente para impedir vazamento da seleção A/B entre testes. */
+export function resetRuntimeFloor10ForTests(): void {
+    runtimeForcado = null;
 }

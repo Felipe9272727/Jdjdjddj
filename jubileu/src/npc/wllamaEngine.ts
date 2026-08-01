@@ -21,7 +21,8 @@ import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
-    caminhosDaEspeculativa, especulativaLigada, parametrosEspeculativos,
+    caminhosDaEspeculativa, definirRuntimeFloor10, especulativaLigada,
+    parametrosEspeculativos, type Floor10Runtime,
 } from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
@@ -757,6 +758,12 @@ async function teardownEngine(engine: WllamaInstance | null = currentEngine): Pr
         loadedDisableThinking = false;
         loadedThreads = 1;
         loadedGpuLayers = 0;
+        // O KV e o Worker pertencem à instância encerrada. Reabrir outro
+        // runtime (caso A/B) precisa aquecer a própria persona, não herdar a
+        // promessa já concluída do anterior.
+        prewarmPromise = null;
+        personaPrewarmed = false;
+        personaPrewarmDone = false;
         floor10ModelCoordinator.markUnloaded('conversation');
     }
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
@@ -1149,8 +1156,34 @@ export function unloadConversationBrain(): Promise<void> {
     return floor10ModelCoordinator.release('conversation');
 }
 
+/**
+ * Troca segura usada pela bancada A/B.
+ *
+ * Um único aparelho não comporta dois SmolLM3 residentes. Esperamos qualquer
+ * prewarm em curso, encerramos o Worker atual e só então mudamos o par
+ * ESM/WASM. O GGUF continua no mesmo cache: nada é baixado outra vez.
+ */
+export async function selectConversationRuntime(runtime: Floor10Runtime): Promise<void> {
+    await settlePersonaPrewarm();
+    await unloadConversationBrain();
+    definirRuntimeFloor10(runtime);
+    npcSet({
+        phase: 'cold',
+        loadText: '',
+        loadProgress: 0,
+        loadDownload: DOWNLOAD_ZERO,
+        modelLabel: '',
+        streaming: '',
+        speaking: false,
+        error: '',
+    });
+}
+
 /** Manda a fala do jogador e transmite a resposta token a token pro npcStore. */
-export async function sendToNpc(userText: string): Promise<void> {
+export async function sendToNpc(
+    userText: string,
+    options: { forceMainModel?: boolean } = {},
+): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
 
@@ -1158,7 +1191,7 @@ export async function sendToNpc(userText: string): Promise<void> {
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
     // ao 3B, pois só a decisão verbal dele pode virar ação na Utility AI.
     const actionRequest = hasFloor10PhysicalActionCue(text);
-    if (!actionRequest) {
+    if (!options.forceMainModel && !actionRequest) {
         const willAnswer = answerFloor10WillQuestion(text, npc.autonomy);
         if (willAnswer) {
             npcSet({
