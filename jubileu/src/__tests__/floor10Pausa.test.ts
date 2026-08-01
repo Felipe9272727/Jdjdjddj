@@ -58,3 +58,32 @@ describe('floor10Pausa — pausar deixou de significar jogar fora', () => {
         expect(prompt).toMatch(/não recomece/i);
     });
 });
+
+describe('emendarPensamento — a retomada não pode sair gaguejando', () => {
+    it('remove a sobreposição quando o modelo reescreve o fim da frase', async () => {
+        const { emendarPensamento } = await import('../npc/floor10Pausa');
+        expect(emendarPensamento(
+            'Estou preso neste andar faz',
+            'preso neste andar faz tempo demais.',
+        )).toBe('Estou preso neste andar faz tempo demais.');
+    });
+
+    it('junta com espaço quando não há sobreposição nenhuma', async () => {
+        const { emendarPensamento } = await import('../npc/floor10Pausa');
+        expect(emendarPensamento('Primeira parte.', 'Segunda parte.'))
+            .toBe('Primeira parte. Segunda parte.');
+    });
+
+    it('coincidência curta não é tratada como repetição', async () => {
+        const { emendarPensamento } = await import('../npc/floor10Pausa');
+        // " o " aparece nos dois lados, mas 3 caracteres não provam nada.
+        expect(emendarPensamento('penso no elevador e o', 'o hóspede espera'))
+            .toBe('penso no elevador e o o hóspede espera');
+    });
+
+    it('lado vazio devolve o outro inteiro', async () => {
+        const { emendarPensamento } = await import('../npc/floor10Pausa');
+        expect(emendarPensamento('', 'só o novo')).toBe('só o novo');
+        expect(emendarPensamento('só a base', '')).toBe('só a base');
+    });
+});

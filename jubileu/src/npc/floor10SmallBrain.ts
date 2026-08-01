@@ -31,6 +31,7 @@ import {
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     descartarPensamento,
+    emendarPensamento,
     pausarPensamento,
     pensamentoPausado,
     promptDeRetomada,
@@ -362,6 +363,20 @@ export function abortDeliberation(): void {
         // resto da sessão — defeito que este projeto já pagou uma vez.
         rodadaDeliberacao += 1;
         inFlight = false;
+        // ── CEDER A VEZ NÃO É FALHAR ──────────────────────────────────────
+        //
+        // Esta linha é o conserto de "depois de eu mandar mensagem, o llama 1b
+        // não volta a pensar". Quando a pausa passou a ENCERRAR o worker, a
+        // rodada morta passou a devolver null — e quem chama (Floor10Npc) lê
+        // null como FRACASSO e aumenta a espera a cada vez: 5s, 10s, 20s… até o
+        // teto de 300s. Ou seja, quanto mais o jogador conversava, mais tempo a
+        // vontade ficava de castigo, até parecer que tinha morrido.
+        //
+        // O projeto já tinha o conceito certo para isto e eu não o usei: a
+        // rodada não fracassou, ela CEDEU A VEZ para a fala. Cedendo, a espera
+        // continua no ciclo normal e ele volta a pensar assim que a conversa dá
+        // uma folga.
+        cedeuAVez = true;
     }
     if (npc.deliberationPhase === 'thinking' || npc.deliberationPhase === 'loading') {
         npcSet({
@@ -622,8 +637,6 @@ function ensureSmallEngine(
             // O .gguf está no OPFS a partir daqui. Encerrar o worker na pausa
             // não desfaz isto — por isso a bandeira é separada do runtime.
             pesosNoAparelho = true;
-            npcSet({
-            });
             return engine;
         } catch (falha) {
             terminateSmallEngine(engine);
@@ -863,6 +876,9 @@ export async function deliberateFloor10(
         // reiniciar para sempre.
         const retomado = pensamentoPausado('vontade');
         const base = retomado?.parcial ?? '';
+        // A continuação é acumulada à parte para poder ser EMENDADA à base: o
+        // modelo costuma reescrever o fim da frase anterior antes de seguir.
+        let continuacao = '';
         let texto = base;
         let tokens = 0;
         let cortadoNaEscolha = false;
@@ -898,10 +914,11 @@ export async function deliberateFloor10(
                 // Volta para a BASE, não para o vazio: os restos da rodada
                 // anterior são descartados sem jogar fora o que ele já pensou
                 // antes da pausa.
-                if (chunkOpensReply(c)) { texto = base; tokens = 0; }
+                if (chunkOpensReply(c)) { continuacao = ''; texto = base; tokens = 0; }
                 const pedaco = chunkPensamento(c);
                 if (!pedaco) continue;
-                texto += pedaco;
+                continuacao += pedaco;
+                texto = emendarPensamento(base, continuacao);
                 tokens += 1;
                 // A tela não precisa de 30 atualizações por segundo; cada uma
                 // custa um re-render do painel inteiro.

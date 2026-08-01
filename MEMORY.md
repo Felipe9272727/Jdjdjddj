@@ -3819,3 +3819,35 @@ era o "demorando 10 anos pra mostrar".
 inativa custaria recarregar 1,9 GB do disco na próxima fala — troca de latência por RAM.
 
 **Estado:** tsc 0 · 516/516 vitest (+7) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont.) — "não volta a pensar": eu tinha feito a pausa contar como fracasso
+
+Felipe, depois do conserto da travada: *"nem laga mais, roda lisinho igual manteiga, o único
+problema agr é que dps de eu mandar mensagem o llama 1b não volta a pensar"*.
+
+Defeito meu, e o próprio projeto já tinha o aviso escrito em `Floor10Npc.tsx`:
+
+> *"CEDER A VEZ NÃO É FALHAR. Contar isso como fracasso levava a espera ao teto de 300s.
+> Quando a CPU enfim liberava, o cérebro de vontade estava de castigo por 5 minutos."*
+
+Quando a pausa passou a ENCERRAR o worker, a rodada preemptada passou a devolver `null` sem
+marcar `cedeuAVez` — e quem chama lê `null` como fracasso e DOBRA a espera: 5s → 10s → 20s
+→ … → 300s. Cada mensagem do jogador aumentava o castigo. Antes da minha mudança a rodada
+cortada geralmente ainda decidia com o texto parcial, então isso não aparecia.
+
+**Conserto:** `abortDeliberation()` marca `cedeuAVez = true` ao encerrar uma rodada que
+estava gerando. A espera volta ao ciclo normal e ele retoma assim que a conversa dá folga.
+
+**Segundo defeito, achado pelo teste:** o pensamento retomado saía gaguejando. Mandar
+"continue de onde parou" não impede o modelo de reescrever o fim da frase anterior —
+"…neste andar faz" + "Estou preso neste andar faz tempo demais" virava texto duplicado, que
+ainda ia para o parser da decisão. `emendarPensamento()` remove a maior sobreposição entre
+o fim de um e o começo do outro.
+
+**HARNESS NOVO (o que faltava neste andar):** `src/__tests__/fakeWllama/` — um wllama falso
+servido por `__wllamaCdn`, que permite exercitar a SEQUÊNCIA real sem baixar 1,32 GB:
+carregar → gerar → preemptar → tentar de novo. Foi ele que mostrou os dois defeitos; nenhum
+teste anterior conseguia montar essa sequência. Também documenta o desenho: a deliberação
+NÃO baixa nada sozinha (quem carrega é a fila) — pisar no andar não pode disparar 1,32 GB.
+
+**Estado:** tsc 0 · 526/526 vitest (+10) · audit sem erros · index.html rebuildado.

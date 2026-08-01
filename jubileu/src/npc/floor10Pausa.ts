@@ -106,3 +106,33 @@ VOCÊ JÁ TINHA COMEÇADO A PENSAR ISTO (a fala do jogador interrompeu no meio):
 CONTINUE exatamente daí. Não repita o que já está escrito acima, não recomece:
 feche o raciocínio e assine a escolha.`;
 }
+
+/** Quanto do fim do pensamento antigo é comparado com o começo do novo. */
+const JANELA_EMENDA = 240;
+/** Sobreposição menor que isto é coincidência de palavra comum, não repetição. */
+const MINIMO_EMENDA = 12;
+
+/**
+ * Emenda o que ele pensou ANTES da pausa com o que pensou DEPOIS.
+ *
+ * Mandar "continue de onde parou" não impede o modelo de reescrever o fim da
+ * frase anterior antes de seguir — foi o que apareceu no teste:
+ * "…neste andar faz" + "Estou preso neste andar faz tempo demais" virava
+ * "…faxEstou preso neste andar faz tempo demais". O pensamento na tela ficava
+ * gaguejando, e o texto duplicado ainda ia para o parser da decisão.
+ *
+ * Aqui a maior sobreposição entre o fim de um e o começo do outro é removida.
+ */
+export function emendarPensamento(base: string, continuacao: string): string {
+    if (!base) return continuacao;
+    if (!continuacao) return base;
+    const janela = base.slice(-JANELA_EMENDA);
+    const teto = Math.min(janela.length, continuacao.length);
+    for (let n = teto; n >= MINIMO_EMENDA; n--) {
+        if (janela.slice(-n) === continuacao.slice(0, n)) {
+            return base + continuacao.slice(n);
+        }
+    }
+    const emenda = /\s$/.test(base) || /^\s/.test(continuacao) ? '' : ' ';
+    return base + emenda + continuacao;
+}
