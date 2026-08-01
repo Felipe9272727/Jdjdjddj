@@ -5,7 +5,9 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const PASTA_FAKE = pathToFileURL(path.join(import.meta.dirname, 'fakeOnnx')).href;
+const MODULO_FAKE = pathToFileURL(
+    path.join(import.meta.dirname, 'fakeOnnx', 'transformers.min.js'),
+).href;
 
 type Controle = {
     criados: number;
@@ -26,8 +28,8 @@ let store: typeof import('../npc/npcStore');
 let fila: typeof import('../npc/floor10Fila');
 
 beforeAll(async () => {
-    (globalThis as Record<string, unknown>).__onnxCdn = PASTA_FAKE;
-    ({ controle } = await import(`${PASTA_FAKE}/dist/transformers.min.js`) as { controle: Controle });
+    (globalThis as Record<string, unknown>).__onnxModuleUrl = MODULO_FAKE;
+    ({ controle } = await import(MODULO_FAKE) as { controle: Controle });
     reflexo = await import('../npc/floor10Reflexo');
     store = await import('../npc/npcStore');
     fila = await import('../npc/floor10Fila');

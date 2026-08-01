@@ -43,6 +43,8 @@ const TRANSFORMERS_V = '3.8.1';
 
 const CDN = (globalThis as { __onnxCdn?: string }).__onnxCdn
     ?? `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${TRANSFORMERS_V}`;
+const TRANSFORMERS_ESM = (globalThis as { __onnxModuleUrl?: string }).__onnxModuleUrl
+    ?? `${CDN}/dist/transformers.min.js`;
 
 /**
  * SmolLM2-135M-Instruct em int8 (~137 MB).
@@ -142,7 +144,7 @@ async function carregar(): Promise<Gerador | null> {
         reflexoDownload: DOWNLOAD_ZERO,
     });
     try {
-        modulePromise ??= import(/* @vite-ignore */ `${CDN}/dist/transformers.min.js`) as
+        modulePromise ??= import(/* @vite-ignore */ TRANSFORMERS_ESM) as
             unknown as Promise<TransformersModule>;
         const mod = await modulePromise;
         const criado = await mod.pipeline('text-generation', FLOOR10_REFLEXO_MODEL.repo, {

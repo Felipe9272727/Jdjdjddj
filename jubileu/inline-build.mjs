@@ -76,6 +76,29 @@ const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 const jsRel = scriptMatch[1].replace(/^\//, '');
 let js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
 
+// ── WLLAMA ESPECULATIVO: ESM + WASM DENTRO DO SINGLE-FILE ────────────────
+// O runtime recompilado começou como dois arquivos na raiz. Isso funciona num
+// host público comum, mas não num preview protegido da Vercel quando o Service
+// Worker já tem o jogo: o HTML abre do cache e o import dinâmico novo recebe
+// um redirect de autenticação, que o navegador relata apenas como "Failed to
+// fetch dynamically imported module".
+//
+// O jogo sempre foi single-file; estes dois também precisam ser. O pacote só
+// vira Blob URL quando `?especulativa` é usado, então sem a flag não criamos um
+// runtime WASM extra na memória. Os arquivos externos continuam na raiz como
+// fallback para Vite/dev e para diagnosticar o build.
+const pastaEspeculativa = path.join(raiz, 'wllama-espec');
+const esmEspeculativo = path.join(pastaEspeculativa, 'index.js');
+const wasmEspeculativo = path.join(pastaEspeculativa, 'wllama.wasm');
+if (!fs.existsSync(esmEspeculativo) || !fs.existsSync(wasmEspeculativo)) {
+  throw new Error('wllama-espec incompleto — index.js e wllama.wasm precisam andar juntos.');
+}
+const pacoteEspeculativo = {
+  esm: fs.readFileSync(esmEspeculativo, 'utf8'),
+  wasmBase64: fs.readFileSync(wasmEspeculativo).toString('base64'),
+};
+js = `globalThis.__TNE_WLLAMA_ESPEC__=Object.freeze(${JSON.stringify(pacoteEspeculativo)});\n${js}`;
+
 // ── WORKER DO NPC: bundle clássico embutido como Blob URL ─────────────────
 // O worker (src/npc/npcWorker.ts) roda o WebLLM fora da thread principal. Em
 // file:// o Chrome BLOQUEIA module workers (era o "WORKER_MORTO" ao abrir o

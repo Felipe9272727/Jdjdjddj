@@ -95,10 +95,48 @@ export function parametrosEspeculativos(): Record<string, unknown> {
 /** Onde vive o wllama recompilado. Servido pela própria origem do jogo. */
 export const PASTA_ESPECULATIVA = '/wllama-espec';
 
-/** O ESM e o .wasm do build com o patch. */
+type PacoteEspeculativoEmbutido = {
+    esm: string;
+    wasmBase64: string;
+};
+
+type GlobalComPacoteEspeculativo = typeof globalThis & {
+    __TNE_WLLAMA_ESPEC__?: PacoteEspeculativoEmbutido;
+};
+
+let caminhosEmbutidos: { esm: string; wasm: string } | null = null;
+
+/**
+ * O ESM e o .wasm do build com o patch.
+ *
+ * O single-file injeta os dois dentro do próprio index.html. Isso é necessário
+ * porque previews protegidos da Vercel podem servir o HTML já guardado pelo
+ * Service Worker e redirecionar um import novo para a tela de login — foi o
+ * `Failed to fetch dynamically imported module` visto no aparelho. No Vite
+ * normal, onde não há pacote injetado, os caminhos HTTP continuam servindo.
+ */
 export function caminhosDaEspeculativa(): { esm: string; wasm: string } {
+    const pacote = (globalThis as GlobalComPacoteEspeculativo).__TNE_WLLAMA_ESPEC__;
+    if (pacote?.esm && pacote.wasmBase64) {
+        caminhosEmbutidos ??= {
+            esm: URL.createObjectURL(new Blob(
+                [pacote.esm],
+                { type: 'text/javascript' },
+            )),
+            wasm: URL.createObjectURL(new Blob(
+                [Uint8Array.from(atob(pacote.wasmBase64), (c) => c.charCodeAt(0))],
+                { type: 'application/wasm' },
+            )),
+        };
+        return caminhosEmbutidos;
+    }
     return {
         esm: `${PASTA_ESPECULATIVA}/index.js`,
         wasm: `${PASTA_ESPECULATIVA}/wllama.wasm`,
     };
+}
+
+/** Somente para isolar testes que injetam o pacote do single-file. */
+export function resetCaminhosEspeculativosForTests(): void {
+    caminhosEmbutidos = null;
 }

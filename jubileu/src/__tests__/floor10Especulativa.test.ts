@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     caminhosDaEspeculativa,
     especulativaLigada,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
     RASCUNHO_N_MAX,
+    resetCaminhosEspeculativosForTests,
     TIPOS_NGRAMA,
 } from '../npc/floor10Especulativa';
+
+afterEach(() => {
+    delete (globalThis as Record<string, unknown>).__TNE_WLLAMA_ESPEC__;
+    resetCaminhosEspeculativosForTests();
+    vi.restoreAllMocks();
+});
 
 describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () => {
     it('desligada por padrão; só `?especulativa` liga', () => {
@@ -43,6 +50,25 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(esm.startsWith(PASTA_ESPECULATIVA)).toBe(true);
         expect(wasm.startsWith(PASTA_ESPECULATIVA)).toBe(true);
         expect(wasm.endsWith('.wasm')).toBe(true);
+    });
+
+    it('no single-file usa Blob URLs e não depende de módulo externo', () => {
+        (globalThis as Record<string, unknown>).__TNE_WLLAMA_ESPEC__ = {
+            esm: 'export const Wllama = class {};',
+            // Cabeçalho mágico de um módulo WASM: \0asm.
+            wasmBase64: 'AGFzbQ==',
+        };
+        const criar = vi.spyOn(URL, 'createObjectURL')
+            .mockReturnValueOnce('blob:wllama-esm')
+            .mockReturnValueOnce('blob:wllama-wasm');
+
+        expect(caminhosDaEspeculativa()).toEqual({
+            esm: 'blob:wllama-esm',
+            wasm: 'blob:wllama-wasm',
+        });
+        // A mesma instância precisa usar o mesmo par ESM/WASM até descarregar.
+        expect(caminhosDaEspeculativa().wasm).toBe('blob:wllama-wasm');
+        expect(criar).toHaveBeenCalledTimes(2);
     });
 
     it('n_min nunca passa de n_max — o llama.cpp trunca, mas melhor não depender', () => {

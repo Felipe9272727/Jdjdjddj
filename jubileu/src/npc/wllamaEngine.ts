@@ -642,7 +642,24 @@ let loadedThreads = 1;
 let loadedGpuLayers = 0;
 let webGpuDisabledForSession = false;
 let modulePromise: Promise<WllamaModule> | null = null;
+let moduleEsm = '';
 let transitionPromise: Promise<WllamaInstance> | null = null;
+
+/** Não mistura o ESM oficial com o WASM recompilado quando outro probe veio antes. */
+function carregarModuloWllama(esm: string): Promise<WllamaModule> {
+    if (modulePromise && moduleEsm === esm) return modulePromise;
+    moduleEsm = esm;
+    const pending = import(/* @vite-ignore */ esm) as unknown as Promise<WllamaModule>;
+    const tracked = pending.catch((error: unknown) => {
+        if (modulePromise === tracked) {
+            modulePromise = null;
+            moduleEsm = '';
+        }
+        throw error;
+    });
+    modulePromise = tracked;
+    return tracked;
+}
 
 /** Falha de ARMAZENAMENTO, não do modelo: merece texto próprio para o jogador. */
 export class ModelStorageError extends Error {
@@ -722,8 +739,7 @@ async function reclaimSmallBrains(mod: WllamaModule): Promise<number> {
 export async function speechModelReady(): Promise<boolean> {
     if (currentEngine && activeModelUrl === FLOOR10_MODEL.url) return true;
     try {
-        modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
-        return await isModelCached(await modulePromise, FLOOR10_MODEL.url);
+        return await isModelCached(await carregarModuloWllama(WLLAMA_ESM), FLOOR10_MODEL.url);
     } catch {
         return false;
     }
@@ -779,8 +795,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // Com a especulativa ligada, o ESM tem de ser o do binário
         // recompilado: o glue do emscripten e o .wasm andam em par.
         const esmDaVez = especulativaLigada() ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
-        modulePromise ??= import(/* @vite-ignore */ esmDaVez) as unknown as Promise<WllamaModule>;
-        const mod = await modulePromise;
+        const mod = await carregarModuloWllama(esmDaVez);
 
         // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
         // cache, não há nada a caber — a pergunta simplesmente não se aplica.
@@ -1006,6 +1021,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
             loadedThreads = 1;
             loadedGpuLayers = 0;
             modulePromise = null;
+            moduleEsm = '';
             npcSet({
                 phase: 'error',
                 speaking: false,
