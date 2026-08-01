@@ -25,10 +25,10 @@
 // celular é a receita da travada que já aconteceu aqui.
 import { npc } from './npcStore';
 import {
-    floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA,
+    floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA, FILA_REFLEXO,
 } from './floor10Fila';
 
-export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'memoria' | 'pronto';
+export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'pronto';
 
 /**
  * Quando o carregador devolve `false` sem exceção, o motivo já está escrito na
@@ -39,6 +39,7 @@ function motivoDaTela(etapa: PrecargaEtapa): string {
     if (etapa === 'vontade') return npc.deliberationLoadText || 'não foi possível baixar';
     if (etapa === 'motor') return npc.motorLoadText || 'não foi possível baixar';
     if (etapa === 'memoria') return npc.memoriaLoadText || 'não foi possível baixar';
+    if (etapa === 'reflexo') return npc.reflexoLoadText || 'não foi possível baixar';
     return npc.loadText || 'não foi possível baixar';
 }
 
@@ -104,12 +105,17 @@ export function passosDoAndar10(carregadores: {
     vontade: () => Promise<unknown>;
     motor: () => Promise<unknown>;
     memoria: () => Promise<unknown>;
+    /** Opcional: o reflexo é a única etapa que o jogo não sente falta. */
+    reflexo?: () => Promise<unknown>;
 }): Passo[] {
     return [
         { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
         { id: FILA_VONTADE, etapa: 'vontade', carregar: carregadores.vontade },
         { id: FILA_MOTOR, etapa: 'motor', carregar: carregadores.motor },
         { id: FILA_MEMORIA, etapa: 'memoria', carregar: carregadores.memoria },
+        ...(carregadores.reflexo
+            ? [{ id: FILA_REFLEXO, etapa: 'reflexo' as const, carregar: carregadores.reflexo }]
+            : []),
     ];
 }
 

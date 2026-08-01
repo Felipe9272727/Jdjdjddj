@@ -5,6 +5,7 @@ import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
+import { FLOOR10_REFLEXO_MODEL, precarregarReflexo } from './npc/floor10Reflexo';
 import {
     FLOOR10_MOTOR_MODEL,
     FLOOR10_MOTOR_SIZE_LABEL,
@@ -38,6 +39,7 @@ definirFilaDoAndar10({
     vontade: SMALL_BRAIN_MODEL.bytes,
     motor: FLOOR10_MOTOR_MODEL.bytes,
     memoria: FLOOR10_MEMORIA_MODEL.bytes,
+    reflexo: FLOOR10_REFLEXO_MODEL.bytes,
 });
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
@@ -165,6 +167,10 @@ const Floor10NpcChat: React.FC = () => {
             vontade: () => precarregarVontade(),
             motor: () => precarregarMotor(),
             memoria: () => precarregarMemoria(),
+            // O quinto e último: o reflexo em ONNX. Desce depois de tudo de que
+            // a conversa depende — se falhar, a única coisa que se perde é o
+            // preenchimento do primeiro segundo.
+            reflexo: () => precarregarReflexo(),
         }));
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
@@ -466,6 +472,18 @@ const Floor10NpcChat: React.FC = () => {
                                 <div style={m.role === 'user' ? userBubble : npcBubble}>{m.content}</div>
                             </div>
                         ))}
+                        {/* O REFLEXO. Aparece só enquanto o 3B ainda não
+                            escreveu nada, e sai de cena quando ele começa. É
+                            marcado como reação — não pode ser confundido com a
+                            resposta, senão viraria o modelo pequeno falando pelo
+                            Nilo, que é o oposto do que este andar defende. */}
+                        {st.reflexo !== '' && st.streaming === '' && (
+                            <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
+                                <div style={reflexoBubble} aria-live="polite">
+                                    {st.reflexo}
+                                </div>
+                            </div>
+                        )}
                         {st.phase === 'thinking' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
                                 <div style={npcBubble} aria-live="polite">
@@ -527,6 +545,19 @@ const thoughtBubbleStyle: React.CSSProperties = {
 // Fica em cima, à esquerda, no lugar da barra de download (elas nunca aparecem
 // juntas: enquanto baixa não há pensamento). Não intercepta toque nenhum — o
 // jogo continua jogável com ele aberto.
+/** A bolha do reflexo: a mesma do Nilo, mas apagada — reação, não resposta. */
+const reflexoBubble: React.CSSProperties = {
+    maxWidth: '78%',
+    padding: '7px 11px',
+    borderRadius: 12,
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px dashed rgba(255,255,255,0.14)',
+    color: '#9a9aa6',
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 1.35,
+};
+
 const pensamentoCruStyle: React.CSSProperties = {
     position: 'fixed', zIndex: 60, left: 'max(12px, 2.5vw)', top: 'max(82px, 13vh)',
     width: 'min(340px, 76vw)', maxHeight: 'min(38vh, 300px)', overflow: 'hidden',

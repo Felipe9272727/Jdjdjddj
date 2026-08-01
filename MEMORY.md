@@ -3933,3 +3933,41 @@ gravá-la em `fala:fim` (lidos, reusados, leitura_s, leitura_tps, fala_tps). Uma
 jogo + botão "copiar diagnóstico" responde qual das duas metades manda.
 
 **Estado:** tsc 0 · 540/540 vitest (+3) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 5) — ONNX no jogo: a quinta IA, e a primeira fora do wllama
+
+Felipe decidiu: *"adicione o sistema onnx, vamos fazer isso funcionar, inclusive, pra eu
+baixar, coloque ele na barra de download única"*.
+
+**`floor10Reflexo.ts`** — transformers.js 3.8.1 do CDN (mesmo padrão do wllama: nada no
+bundle) + **SmolLM2-135M-Instruct int8 (~137 MB)**, na CPU (`device: 'wasm'`). Conferido no
+Hub antes de fixar: o repo tem `onnx/model_int8.onnx`, `config.json`, `tokenizer.json` e
+`generation_config.json`. Entra na **fila única** como 5º item (`FILA_REFLEXO`), último de
+propósito — é o único cujo trabalho o jogo já sabe fazer sem ele (esperar).
+
+**O papel dele hoje é o REFLEXO, não a resposta.** Entre a mensagem do jogador e a primeira
+palavra do 3B passam dezenas de segundos (carga + leitura do prompt), e a tela ficava em "…".
+O 135M devolve uma reação curtíssima em <1s ("Hm.", "Espera aí…"), em bolha tracejada e
+itálica, que SAI DE CENA quando a fala real começa. O prompt dele proíbe responder ou
+inventar: quem responde é o 3B, com cânone, percepção e memória. Isso não acelera o 3B em um
+milissegundo — encurta a espera PERCEBIDA, que é o que faz o impaciente fechar o jogo.
+
+**Ordem de execução (não é detalhe):** o reflexo roda depois de `abortDeliberation()` e antes
+de o 3B gerar — a janela em que o aparelho está livre. Teto de 2,5s, e se estourar ele
+simplesmente perde a vez. Dois motores gerando junto foi o que desligou o celular.
+
+**SOBRE A ESPECULATIVA (pedida na mesma mensagem):** agora ela é POSSÍVEL, mas só entre
+modelos ONNX. Conferido baixando os tipos: `transformers.js` expõe `forward()` com logits;
+o wllama 3.5.1 não expõe `decode`/`getLogits`/`tokenize`/`sampling`. Logits por posição são a
+única forma de o modelo grande CONFERIR o rascunho do pequeno — e é a conferência que faz a
+saída ser idêntica à do grande sozinho. Como o SmolLM3-3B da fala vive no wllama, ele
+continua fora do alcance. Para existir de verdade, o modelo que RESPONDE teria de rodar em
+ONNX (ex.: um par 360M verificador + 135M rascunhador, comparável ao 3B numa bancada). É
+troca de motor da fala — decisão do dono do jogo, não minha.
+
+**Testes:** `src/__tests__/fakeOnnx/` — transformers.js falso servido por `__onnxCdn`, mesmo
+truque do `fakeWllama`. Cobre: carga com dtype/device certos, entrada na fila única,
+reação curta, teto de tempo, CDN fora do ar (indisponível ≠ pane) e os três formatos de saída
+que o transformers.js já devolveu.
+
+**Estado:** tsc 0 · 553/553 vitest (+13) · audit sem erros · index.html rebuildado (83,9 MB).

@@ -182,6 +182,8 @@ export const FILA_FALA = 'fala';
 export const FILA_VONTADE = 'vontade';
 export const FILA_MOTOR = 'motor';
 export const FILA_MEMORIA = 'memoria';
+/** O reflexo (ONNX). Último da fila: é o único que o jogo não precisa para falar. */
+export const FILA_REFLEXO = 'reflexo';
 
 /**
  * A ORDEM É A DO JOGO, não a do meu gosto.
@@ -194,7 +196,7 @@ export const FILA_MEMORIA = 'memoria';
  * motores — importar fecharia um ciclo, já que os três reportam progresso aqui.
  */
 export function definirFilaDoAndar10(bytes: {
-    fala: number; vontade: number; motor: number; memoria: number;
+    fala: number; vontade: number; motor: number; memoria: number; reflexo?: number;
 }): void {
     floor10Fila.definir([
         { id: FILA_FALA, label: 'conversa', bytes: bytes.fala },
@@ -203,6 +205,11 @@ export function definirFilaDoAndar10(bytes: {
         // A memória é a ÚLTIMA de propósito: sem ela o Nilo continua falando,
         // só que procurando o fato por palavra, como fazia antes.
         { id: FILA_MEMORIA, label: 'memória', bytes: bytes.memoria },
+        // O REFLEXO É O ÚLTIMO, e por um motivo: ele é o único cujo trabalho o
+        // jogo já sabe fazer sem ele (esperar). Descer antes de qualquer um dos
+        // outros seria atrasar algo de que a conversa depende para adiantar um
+        // conforto. Opcional também na fila: sem tamanho, nem aparece.
+        ...(bytes.reflexo ? [{ id: FILA_REFLEXO, label: 'reflexo', bytes: bytes.reflexo }] : []),
     ]);
 }
 

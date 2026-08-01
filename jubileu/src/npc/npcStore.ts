@@ -47,6 +47,15 @@ export type NpcState = {
     // download — e mostrar a barra de download aqui fazia parecer que o jogo
     // estava baixando 1,32 GB de novo, além de esconder o "ele voltou".
     deliberationPhase: 'off' | 'loading' | 'reopening' | 'thinking' | 'decided' | 'unavailable';
+    // ── O REFLEXO (ONNX, 135M) ─────────────────────────────────────────────
+    // A quinta IA e a primeira fora do wllama. Ela não responde nada: cobre o
+    // primeiro segundo, enquanto o 3B ainda está lendo o prompt.
+    reflexoPhase: 'off' | 'loading' | 'reopening' | 'ready' | 'unavailable';
+    reflexoLoadText: string;
+    reflexoLoadProgress: number;
+    reflexoDownload: DownloadSample;
+    /** A reação curta em cartaz agora. Some quando a fala de verdade começa. */
+    reflexo: string;
     deliberationLoadText: string;      // download/cache do cérebro pequeno
     deliberationLoadProgress: number;  // 0..1, progresso real do arquivo
     deliberationDownload: DownloadSample;
@@ -99,6 +108,8 @@ const s: NpcState = {
     willCommand: null,
     autonomousSpeech: '', autonomousSpeechId: 0,
     deliberationPhase: 'off', deliberationLoadText: '', deliberationLoadProgress: 0,
+    reflexoPhase: 'off', reflexoLoadText: '', reflexoLoadProgress: 0,
+    reflexoDownload: DOWNLOAD_ZERO, reflexo: '',
     deliberationDownload: DOWNLOAD_ZERO,
     storage: { quota: null, usage: 0, needBytes: 0 },
     deliberationGoal: '', deliberationCount: 0,

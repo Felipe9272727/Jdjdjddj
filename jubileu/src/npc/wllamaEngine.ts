@@ -20,6 +20,7 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
+import { reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
@@ -1154,6 +1155,27 @@ export async function sendToNpc(userText: string): Promise<void> {
     // de 688 MB permanecem residentes, então a autonomia retoma sem recarga.
     abortDeliberation();
 
+    // ── O REFLEXO COBRE O PRIMEIRO SEGUNDO ────────────────────────────────
+    //
+    // Daqui até a primeira palavra do 3B passam dezenas de segundos: ele ainda
+    // vai carregar (se estiver frio), ler o prompt inteiro e só então escrever.
+    // A tela mostrava "…" o tempo todo, e para quem não sabe o que está
+    // acontecendo isso é indistinguível de travamento.
+    //
+    // A ORDEM AQUI NÃO É DETALHE: o reflexo roda AGORA, com a deliberação já
+    // encerrada e o 3B ainda sem gerar — a janela em que o aparelho está livre.
+    // Ele tem 2,5s de teto e some sozinho. Nunca, em hipótese alguma, gera ao
+    // mesmo tempo que a fala: foi assim que o celular desligou sozinho.
+    if (reflexoJaCarregado()) {
+        void reagir(text).then((reacao) => {
+            // Se a fala de verdade já começou, a reação perdeu a vez — publicar
+            // agora seria empurrar texto velho por cima do novo.
+            if (reacao && npc.streaming === '' && npc.phase !== 'ready') {
+                npcSet({ reflexo: reacao });
+            }
+        });
+    }
+
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({
         history,
@@ -1193,7 +1215,9 @@ export async function sendToNpc(userText: string): Promise<void> {
             .map((m) => m.content).join(' ')} ${text}`,
     );
 
-    npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
+    // O reflexo sai de cena quando a fala real começa: ele cobriu o silêncio,
+    // e a partir daqui quem fala é o 3B.
+    npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '', reflexo: '' });
     const systemPrompt = prepareFloor10SystemPrompt(
         buildFloor10SystemPrompt(
             text,
