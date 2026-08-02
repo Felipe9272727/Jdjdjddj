@@ -8,7 +8,7 @@ import {
   type Floor10QuestionResult,
 } from './npc/floor10Comparacao';
 import { eventosDaCaixaPreta } from './npc/floor10CaixaPreta';
-import { downloadLine } from './npc/floor10Download';
+import { downloadLine, formatBytes } from './npc/floor10Download';
 import { definirRuntimeFloor10, type Floor10Runtime } from './npc/floor10Especulativa';
 import { npc, npcSet, npcSubscribe, useNpc } from './npc/npcStore';
 import {
@@ -23,6 +23,7 @@ import {
 type BusyState = 'switching' | 'loading' | 'sending' | null;
 type ComparisonQuestion = { id: number; text: string };
 type ResultsByRuntime = Record<Floor10Runtime, Floor10QuestionResult[]>;
+type LoadClock = { totalMs: number; memoryMs: number | null };
 
 const EMPTY_RESULTS = (): ResultsByRuntime => ({ normal: [], ngram: [] });
 
@@ -61,7 +62,9 @@ const Floor10Comparacao: React.FC = () => {
   const [loads, setLoads] = useState<Partial<Record<Floor10Runtime, Floor10LoadResult>>>({});
   const [copied, setCopied] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [loadClock, setLoadClock] = useState<LoadClock>({ totalMs: 0, memoryMs: null });
   const nextQuestionId = useRef(1);
+  const loadTicker = useRef<ReturnType<typeof globalThis.setInterval> | null>(null);
   const environment = useRef({
     build: (globalThis as { __TNE_BUILD__?: { build?: string } }).__TNE_BUILD__?.build ?? '?',
     userAgent: navigator.userAgent,
@@ -83,6 +86,7 @@ const Floor10Comparacao: React.FC = () => {
       error: '',
     });
     return () => {
+      if (loadTicker.current !== null) globalThis.clearInterval(loadTicker.current);
       definirRuntimeFloor10(null);
       void unloadConversationBrain();
     };
@@ -109,6 +113,14 @@ const Floor10Comparacao: React.FC = () => {
     setActiveReady(false);
     const started = performance.now();
     let downloadAt: number | null = null;
+    setLoadClock({ totalMs: 0, memoryMs: null });
+    loadTicker.current = globalThis.setInterval(() => {
+      const now = performance.now();
+      setLoadClock({
+        totalMs: now - started,
+        memoryMs: downloadAt === null ? null : now - downloadAt,
+      });
+    }, 1000);
     const unsubscribe = npcSubscribe(() => {
       if (downloadAt === null && npc.phase === 'loading' && npc.loadProgress >= 1) {
         downloadAt = performance.now();
@@ -148,6 +160,15 @@ const Floor10Comparacao: React.FC = () => {
       return false;
     } finally {
       unsubscribe();
+      const ended = performance.now();
+      if (loadTicker.current !== null) {
+        globalThis.clearInterval(loadTicker.current);
+        loadTicker.current = null;
+      }
+      setLoadClock({
+        totalMs: ended - started,
+        memoryMs: downloadAt === null ? null : ended - downloadAt,
+      });
       setBusy(null);
     }
   };
@@ -307,8 +328,19 @@ const Floor10Comparacao: React.FC = () => {
               <i style={{ width: `${Math.max(1, st.loadProgress * 100)}%` }} />
             </div>
             <span className="f10compare__muted">
-              {downloadLine(st.loadDownload)} · {Math.round(st.loadProgress * 100)}%
+              {st.loadProgress >= 1
+                ? `${formatBytes(st.loadDownload.totalBytes || st.loadDownload.bytes)} no cache`
+                : downloadLine(st.loadDownload)}{' '}
+              · {Math.round(st.loadProgress * 100)}% ·{' '}
+              {loadClock.memoryMs === null
+                ? `total ${seconds(loadClock.totalMs)}`
+                : `memória ${seconds(loadClock.memoryMs)} · total ${seconds(loadClock.totalMs)}`}
             </span>
+            {loadClock.memoryMs !== null && loadClock.memoryMs >= 30_000 ? (
+              <span className="f10compare__memory-note">
+                O arquivo já terminou de baixar. Agora o runtime está montando o modelo e os buffers na memória.
+              </span>
+            ) : null}
           </>
         ) : null}
         {currentLoad ? (
@@ -441,6 +473,7 @@ const COMPARISON_CSS = `
   .f10compare__progress { height: 10px; margin: 13px 0 7px; overflow: hidden; border-radius: 999px; background: #30323a; }
   .f10compare__progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #eea824, #ffda72); transition: width .2s ease; }
   .f10compare__muted { color: #9296a1; font-size: 13px; overflow-wrap: anywhere; }
+  .f10compare__memory-note { display: block; margin-top: 8px; color: #d8bf82; font-size: 13px; overflow-wrap: anywhere; }
   .f10compare__stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
   .f10compare__stats.four { grid-template-columns: repeat(4, minmax(0,1fr)); }
   .f10compare__metric { min-width: 0; padding: 10px; border-radius: 12px; background: #0d0e13; }

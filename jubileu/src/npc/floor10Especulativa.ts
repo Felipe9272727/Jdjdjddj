@@ -10,17 +10,16 @@
 // Então a wllama foi recompilada com o patch mínimo (ver
 // `public/wllama-espec/`):
 //
-//   spec_draft_model = "types:ngram-simple,ngram-cache" → liga os n-gramas
-//   spec_draft_model = "models/x.gguf"                  → modelo, e agora
-//                                                         também liga o tipo
+//   spec_draft_model = "types:ngram-cache" → liga os n-gramas
+//   spec_draft_model = "models/x.gguf"     → modelo, e agora também liga o tipo
 //
 // O campo foi SOBRECARREGADO em vez de criado porque o GLUE lê os campos
 // posicionalmente: um campo novo obrigaria o JavaScript a enviá-lo, e assim o
 // mesmo protocolo de sempre continua valendo.
 //
 // ── POR QUE N-GRAMA, E NÃO UM MODELO RASCUNHADOR ──────────────────────────
-// `ngram-simple` e `ngram-cache` são AUTO-especulação: o próprio modelo propõe
-// as continuações a partir do texto que ele já viu, e confere na mesma passada.
+// `ngram-cache` é AUTO-especulação: o próprio modelo propõe as continuações a
+// partir do texto que ele já viu, e confere na mesma passada.
 // Isso resolve as três perguntas que travavam a ideia:
 //
 //   - quem rascunha para o cérebro de 1B?  ele mesmo;
@@ -43,39 +42,20 @@
 import { anotar } from './floor10CaixaPreta';
 
 /**
- * Os especuladores pedidos, na ordem de preferência do llama.cpp.
+ * O especulador pedido ao llama.cpp.
  *
- * `ngram-simple` adivinha bastante coisa sem nenhum modelo; `ngram-cache`
- * mantém um cache de n-gramas em três níveis e entra como reforço. Os dois
- * juntos porque o llama.cpp ENCADEIA as implementações: se a primeira não
- * propõe nada, a seguinte tenta.
- */
-export const TIPOS_NGRAMA = 'types:ngram-simple,ngram-cache';
-
-/**
- * Quantos tokens o rascunhador propõe por rodada.
+ * Esta build do wllama expõe os controles `spec_draft_*`, mas esses controles
+ * pertencem exclusivamente a um MODELO rascunhador. Em `ngram-simple`, portanto,
+ * o aparente `spec_draft_n_max: 4` era ignorado e o llama.cpp dd4623a7 usava o
+ * padrão interno de 48 propostas. Isso fazia o contexto reservar até 49 saídas
+ * sobre o vocabulário de 128k justamente depois de o download chegar a 100% —
+ * a etapa que ficou parada no Android.
  *
- * 4 é conservador de propósito: cada token rejeitado é trabalho jogado fora, e
- * num celular o rascunhador de 1B não é barato como seria um de 100M. O número
- * certo sai da medição no aparelho, não daqui.
+ * `ngram-cache` mantém a auto-especulação sem outro modelo e, nessa mesma versão
+ * do llama.cpp, limita internamente a rodada a 8 propostas. É a opção segura
+ * enquanto o bridge não expõe `ngram-simple.size_m` de verdade.
  */
-export const RASCUNHO_N_MAX = 4;
-
-/** Abaixo disto nem vale propor: a rodada sai mais cara que a geração normal. */
-export const RASCUNHO_N_MIN = 1;
-
-/**
- * Confiança mínima do rascunhador para a proposta valer. Alto de propósito: um
- * palpite inseguro quase sempre é rejeitado, e rejeição custa.
- */
-export const RASCUNHO_P_MIN = 0.75;
-
-/**
- * Threads do rascunhador. Poucas, e a razão é a mesma que já derrubou este
- * celular uma vez: os dois modelos vão disputar os MESMOS núcleos, e a fala é
- * quem o jogador está esperando.
- */
-export const RASCUNHO_THREADS = 2;
+export const TIPOS_NGRAMA = 'types:ngram-cache';
 
 export type Floor10Runtime = 'normal' | 'ngram';
 
@@ -107,10 +87,6 @@ export function especulativaLigada(busca?: string): boolean {
 export function parametrosEspeculativos(): Record<string, unknown> {
     return {
         spec_draft_model: TIPOS_NGRAMA,
-        spec_draft_n_max: RASCUNHO_N_MAX,
-        spec_draft_n_min: RASCUNHO_N_MIN,
-        spec_draft_p_min: RASCUNHO_P_MIN,
-        spec_draft_ngl: 0,
     };
 }
 

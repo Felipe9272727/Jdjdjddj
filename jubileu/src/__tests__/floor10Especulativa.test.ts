@@ -7,7 +7,6 @@ import {
     especulativaLigada,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
-    RASCUNHO_N_MAX,
     resetCaminhosEspeculativosForTests,
     resetRuntimeFloor10ForTests,
     runtimeFloor10,
@@ -61,20 +60,21 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         // O prefixo `types:` é o que o patch em cpp/wllama-context.h reconhece.
         // Sem ele, a string seria lida como caminho de um .gguf que não existe.
         expect(TIPOS_NGRAMA.startsWith('types:')).toBe(true);
-        expect(TIPOS_NGRAMA).toContain('ngram-simple');
         expect(TIPOS_NGRAMA).toContain('ngram-cache');
+        // Regressão do travamento pós-download: nesta build, ngram-simple usa
+        // silenciosamente o padrão de 48 propostas ao montar o contexto.
+        expect(TIPOS_NGRAMA).not.toContain('ngram-simple');
         // Nada de .gguf: é isto que dispensa download, RAM e vocabulário igual.
         expect(TIPOS_NGRAMA).not.toContain('.gguf');
     });
 
-    it('os parâmetros vão pelo campo público do LoadModelParams', () => {
+    it('não envia controles de modelo rascunhador que o N-gram ignora', () => {
         const p = parametrosEspeculativos();
-        expect(p.spec_draft_model).toBe(TIPOS_NGRAMA);
-        expect(p.spec_draft_n_max).toBe(RASCUNHO_N_MAX);
-        expect(p).toHaveProperty('spec_draft_n_min');
-        expect(p).toHaveProperty('spec_draft_p_min');
-        // A CPU manda aqui: a GPU deste andar já custou duas falas perdidas.
-        expect(p.spec_draft_ngl).toBe(0);
+        expect(p).toEqual({ spec_draft_model: TIPOS_NGRAMA });
+        expect(p).not.toHaveProperty('spec_draft_n_max');
+        expect(p).not.toHaveProperty('spec_draft_n_min');
+        expect(p).not.toHaveProperty('spec_draft_p_min');
+        expect(p).not.toHaveProperty('spec_draft_ngl');
     });
 
     it('o ESM e o .wasm vêm do MESMO lugar — eles andam em par', () => {
@@ -105,15 +105,4 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(criar).toHaveBeenCalledTimes(2);
     });
 
-    it('n_min nunca passa de n_max — o llama.cpp trunca, mas melhor não depender', () => {
-        const p = parametrosEspeculativos();
-        expect(Number(p.spec_draft_n_min)).toBeLessThanOrEqual(Number(p.spec_draft_n_max));
-        expect(Number(p.spec_draft_n_min)).toBeGreaterThanOrEqual(0);
-    });
-
-    it('p_min fica entre 0 e 1 — é probabilidade, não contador', () => {
-        const p = Number(parametrosEspeculativos().spec_draft_p_min);
-        expect(p).toBeGreaterThan(0);
-        expect(p).toBeLessThanOrEqual(1);
-    });
 });

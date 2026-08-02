@@ -936,7 +936,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
                             // o jogador vê. Trocar o texto não acelera, mas para de
                             // mentir que acabou.
                             loadText: acabou
-                                ? `instalando ${model.label} na memória… (só na primeira vez)`
+                                ? `montando ${model.label} e o contexto na memória…`
                                 : `preparando ${model.label}… ${Math.round(fraction * 100)}%`,
                         });
                     },
