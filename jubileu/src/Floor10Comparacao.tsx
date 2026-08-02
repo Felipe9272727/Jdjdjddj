@@ -9,7 +9,10 @@ import {
 } from './npc/floor10Comparacao';
 import { eventosDaCaixaPreta } from './npc/floor10CaixaPreta';
 import { downloadLine, formatBytes } from './npc/floor10Download';
-import { definirRuntimeFloor10, type Floor10Runtime } from './npc/floor10Especulativa';
+import {
+  runtimeFloor10,
+  type Floor10Runtime,
+} from './npc/floor10Especulativa';
 import { npc, npcSet, npcSubscribe, useNpc } from './npc/npcStore';
 import {
   FLOOR10_MODEL,
@@ -18,7 +21,6 @@ import {
   selectConversationRuntime,
   sendToNpc,
   settlePersonaPrewarm,
-  unloadConversationBrain,
 } from './npc/wllamaEngine';
 
 type BusyState = 'switching' | 'loading' | 'sending' | null;
@@ -54,7 +56,7 @@ const normalizeQuestion = (text: string): string => text.trim().replace(/\s+/g, 
 
 const Floor10Comparacao: React.FC = () => {
   const st = useNpc();
-  const [runtime, setRuntime] = useState<Floor10Runtime>('normal');
+  const [runtime, setRuntime] = useState<Floor10Runtime>(() => runtimeFloor10());
   const [busy, setBusy] = useState<BusyState>(null);
   const [activeReady, setActiveReady] = useState(false);
   const [question, setQuestion] = useState('');
@@ -76,7 +78,6 @@ const Floor10Comparacao: React.FC = () => {
   });
 
   useEffect(() => {
-    definirRuntimeFloor10('normal');
     npcSet({
       phase: 'cold',
       history: [],
@@ -89,8 +90,11 @@ const Floor10Comparacao: React.FC = () => {
     });
     return () => {
       if (loadTicker.current !== null) globalThis.clearInterval(loadTicker.current);
-      definirRuntimeFloor10(null);
-      void unloadConversationBrain();
+      // O motor da fala é global e pertence à aba, não a esta tela. Mantê-lo
+      // vivo evita remontar 1,92 GB quando React remonta a bancada ou o jogador
+      // fecha uma interface. O navegador libera Worker/WASM ao fechar a aba;
+      // a troca Normal <-> N-gram continua descarregando explicitamente porque
+      // um celular não comporta os dois SmolLM3 residentes ao mesmo tempo.
     };
   }, []);
 

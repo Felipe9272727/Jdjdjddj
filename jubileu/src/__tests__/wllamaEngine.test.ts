@@ -429,6 +429,12 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
             size: 100_000_000,
             total: 2_000_000_000,
         })).toBe('GGUF 1.10 GB de 2.00 GB');
+        expect(describeModelLoadActivity({
+            stage: 'opfs-mmap',
+            offset: 1_000_000_000,
+            size: 100_000_000,
+            total: 2_000_000_000,
+        })).toBe('GGUF 1.10 GB de 2.00 GB');
     });
 
     it('mantém um teto absoluto mesmo se chegarem pulsos para sempre', async () => {

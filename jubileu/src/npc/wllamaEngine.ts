@@ -21,7 +21,7 @@ import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
-    caminhosDaEspeculativa, definirRuntimeFloor10, especulativaLigada,
+    caminhosDaEspeculativa, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
     parametrosEspeculativos, type Floor10Runtime,
 } from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
@@ -351,7 +351,11 @@ export function stringifyModelLoadLog(values: readonly unknown[]): string {
 
 /** Texto curto e copiável para mostrar exatamente onde o Worker está. */
 export function describeModelLoadActivity(activity: ModelLoadActivity): string {
-    if (activity.stage === 'file-read') {
+    if (
+        activity.stage === 'file-read'
+        || activity.stage === 'opfs-mmap'
+        || activity.stage === 'heapfs-write'
+    ) {
         const offset = Number.isFinite(activity.offset) ? Math.max(0, activity.offset ?? 0) : 0;
         const size = Number.isFinite(activity.size) ? Math.max(0, activity.size ?? 0) : 0;
         const total = Number.isFinite(activity.total) ? Math.max(0, activity.total ?? 0) : 0;
@@ -375,7 +379,11 @@ function resetModelLoadTrace(now = Date.now()): void {
 function rememberModelLoadActivity(activity: ModelLoadActivity, now = Date.now()): string {
     const detail = describeModelLoadActivity(activity);
     const elapsed = Math.max(0, now - modelLoadTraceStartedAt) / 1000;
-    const kind = activity.stage === 'file-read' ? 'arquivo' : 'nativo';
+    const kind = (
+        activity.stage === 'file-read'
+        || activity.stage === 'opfs-mmap'
+        || activity.stage === 'heapfs-write'
+    ) ? 'arquivo' : 'nativo';
     modelLoadTrace.push(`${elapsed.toFixed(1)}s · ${kind} · ${detail}`);
     if (modelLoadTrace.length > MODEL_LOAD_TRACE_LIMIT) {
         modelLoadTrace.splice(0, modelLoadTrace.length - MODEL_LOAD_TRACE_LIMIT);
@@ -977,6 +985,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
         const plans = requestedGpuLayers > 0
             ? [requestedGpuLayers, 0]
             : [0];
+        // O N-gram tenta primeiro OPFS -> Worker -> HeapFS/mmap. Caso o
+        // navegador não aceite o handle síncrono ou a alocação contígua, uma
+        // instância nova recua para a leitura JSPI compatível.
+        const fastLoadPlans = usandoNgram ? [true, false] : [false];
         let lastError: unknown = new Error('Nenhum backend local disponível');
 
         // Duas voltas: se a primeira morrer por CACHE QUEBRADO, apagamos o
@@ -985,10 +997,13 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // registro corrompido — e nada no jogo apagava aquilo.
         for (let tentativa = 0; tentativa < 2; tentativa += 1) {
         for (const gpuLayers of plans) {
+        for (const cargaRapida of fastLoadPlans) {
             const runtime = speechRuntimeLabel(gpuLayers, threads);
             npcSet({
                 modelLabel: `${model.label} · ${runtime}`,
-                loadText: `carregando ${model.label} (${runtime})…`,
+                loadText: cargaRapida
+                    ? `montando ${model.label} direto do armazenamento…`
+                    : `carregando ${model.label} (${runtime})…`,
                 loadProgress: 0,
             });
 
@@ -1022,7 +1037,11 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     const detail = rememberModelLoadActivity(activity, now);
                     if (downloadDoneAt === null) return;
                     npcSet({
-                        loadText: activity.stage === 'file-read'
+                        loadText: (
+                            activity.stage === 'file-read'
+                            || activity.stage === 'opfs-mmap'
+                            || activity.stage === 'heapfs-write'
+                        )
                             ? `lendo ${model.label} do cache · ${detail}`
                             : `llama.cpp · ${detail}`,
                     });
@@ -1082,6 +1101,9 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     // pulso, 180 s de leitura ativa pareciam um travamento.
                     ...(usandoNgram ? {
                         modelLoadActivityCallback: publishModelLoadActivity,
+                    } : {}),
+                    ...(usandoNgram && cargaRapida ? {
+                        fastModelLoad: configuracaoCargaRapida(model.url),
                     } : {}),
                     },
                 );
@@ -1191,6 +1213,13 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     Promise.resolve(candidate?.exit?.()).catch(() => undefined),
                     new Promise<void>((resolve) => { globalThis.setTimeout(resolve, 3_000); }),
                 ]);
+                if (cargaRapida) {
+                    npcSet({
+                        loadText: 'a montagem OPFS/mmap não coube; retomando pela leitura compatível…',
+                        loadProgress: 1,
+                    });
+                    continue;
+                }
                 if (gpuLayers > 0) {
                     // O gerente precisa saber. Sem isto ele proporia GPU de
                     // novo na próxima carga e o jogador pagaria o mesmo
@@ -1207,6 +1236,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     });
                 }
             }
+        }
         }
         // Fim de uma volta. Cache quebrado tem conserto; qualquer outra falha
         // não melhora repetindo, então sai na hora.

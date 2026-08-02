@@ -57,6 +57,27 @@ import { anotar } from './floor10CaixaPreta';
  */
 export const TIPOS_NGRAMA = 'types:ngram-cache';
 
+/**
+ * Blocos grandes o bastante para evitar milhares de mensagens entre threads,
+ * mas pequenos perto dos 1,92 GB do GGUF e da memória de um celular.
+ */
+export const FLOOR10_FAST_LOAD_CHUNK_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Contrato da build customizada para o caminho OPFS -> Worker -> HeapFS/mmap.
+ * O runtime usa a mesma URL para localizar a entrada criada pelo CacheManager;
+ * se ela não existir ou o navegador não oferecer SyncAccessHandle, recua.
+ */
+export function configuracaoCargaRapida(url: string): {
+    cacheURL: string;
+    chunkBytes: number;
+} {
+    return {
+        cacheURL: url,
+        chunkBytes: FLOOR10_FAST_LOAD_CHUNK_BYTES,
+    };
+}
+
 export type Floor10Runtime = 'normal' | 'ngram';
 
 /**

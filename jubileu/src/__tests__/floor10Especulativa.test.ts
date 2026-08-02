@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
     caminhosDaEspeculativa,
+    configuracaoCargaRapida,
     definirRuntimeFloor10,
     especulativaLigada,
+    FLOOR10_FAST_LOAD_CHUNK_BYTES,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
     resetCaminhosEspeculativosForTests,
@@ -36,6 +38,9 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(esm).toContain('Wllama');
         expect(esm).toContain('modelLoadActivityCallback');
         expect(esm).toContain('stage: "file-read"');
+        expect(esm).toContain('fs.write_opfs');
+        expect(esm).toContain('createSyncAccessHandle');
+        expect(esm).toContain('opfs-mmap');
         expect([...wasm.subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
     });
 
@@ -77,6 +82,15 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(p).not.toHaveProperty('spec_draft_n_min');
         expect(p).not.toHaveProperty('spec_draft_p_min');
         expect(p).not.toHaveProperty('spec_draft_ngl');
+    });
+
+    it('monta o GGUF em blocos grandes usando a mesma chave de cache', () => {
+        const url = 'https://huggingface.co/modelo/resolve/main/modelo.gguf';
+        expect(configuracaoCargaRapida(url)).toEqual({
+            cacheURL: url,
+            chunkBytes: FLOOR10_FAST_LOAD_CHUNK_BYTES,
+        });
+        expect(FLOOR10_FAST_LOAD_CHUNK_BYTES).toBe(16 * 1024 * 1024);
     });
 
     it('o ESM e o .wasm vêm do MESMO lugar — eles andam em par', () => {
