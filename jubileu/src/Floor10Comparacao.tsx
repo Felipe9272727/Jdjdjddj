@@ -13,6 +13,7 @@ import { definirRuntimeFloor10, type Floor10Runtime } from './npc/floor10Especul
 import { npc, npcSet, npcSubscribe, useNpc } from './npc/npcStore';
 import {
   FLOOR10_MODEL,
+  conversationModelLoadTrace,
   initLLM,
   selectConversationRuntime,
   sendToNpc,
@@ -63,6 +64,7 @@ const Floor10Comparacao: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [loadClock, setLoadClock] = useState<LoadClock>({ totalMs: 0, memoryMs: null });
+  const [liveLoadTrace, setLiveLoadTrace] = useState<string[]>([]);
   const nextQuestionId = useRef(1);
   const loadTicker = useRef<ReturnType<typeof globalThis.setInterval> | null>(null);
   const environment = useRef({
@@ -114,17 +116,20 @@ const Floor10Comparacao: React.FC = () => {
     const started = performance.now();
     let downloadAt: number | null = null;
     setLoadClock({ totalMs: 0, memoryMs: null });
+    setLiveLoadTrace([]);
     loadTicker.current = globalThis.setInterval(() => {
       const now = performance.now();
       setLoadClock({
         totalMs: now - started,
         memoryMs: downloadAt === null ? null : now - downloadAt,
       });
+      setLiveLoadTrace(conversationModelLoadTrace());
     }, 1000);
     const unsubscribe = npcSubscribe(() => {
       if (downloadAt === null && npc.phase === 'loading' && npc.loadProgress >= 1) {
         downloadAt = performance.now();
       }
+      setLiveLoadTrace(conversationModelLoadTrace());
     });
     try {
       await initLLM();
@@ -138,6 +143,7 @@ const Floor10Comparacao: React.FC = () => {
         readyMs: readyAt - started,
         runtimeLabel: npc.modelLabel,
         error: npc.error,
+        loadTrace: conversationModelLoadTrace(),
       };
       setLoads((current) => ({ ...current, [runtime]: load }));
       setActiveReady(!npc.error);
@@ -154,6 +160,7 @@ const Floor10Comparacao: React.FC = () => {
           readyMs: ended - started,
           runtimeLabel: npc.modelLabel,
           error: npc.error || message,
+          loadTrace: conversationModelLoadTrace(),
         },
       }));
       setActiveReady(false);
@@ -169,6 +176,7 @@ const Floor10Comparacao: React.FC = () => {
         totalMs: ended - started,
         memoryMs: downloadAt === null ? null : ended - downloadAt,
       });
+      setLiveLoadTrace(conversationModelLoadTrace());
       setBusy(null);
     }
   };
@@ -268,6 +276,8 @@ const Floor10Comparacao: React.FC = () => {
   const currentResults = results[runtime];
   const currentLoad = loads[runtime];
   const isLoading = busy === 'loading';
+  const visibleLoadTrace = isLoading ? liveLoadTrace : currentLoad?.loadTrace ?? [];
+  const lastLoadSignal = visibleLoadTrace[visibleLoadTrace.length - 1] ?? '';
 
   return (
     <main className="f10compare">
@@ -342,6 +352,9 @@ const Floor10Comparacao: React.FC = () => {
               </span>
             ) : null}
           </>
+        ) : null}
+        {lastLoadSignal ? (
+          <span className="f10compare__native-stage">Último sinal: {lastLoadSignal}</span>
         ) : null}
         {currentLoad ? (
           <div className="f10compare__stats four">
@@ -474,6 +487,7 @@ const COMPARISON_CSS = `
   .f10compare__progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #eea824, #ffda72); transition: width .2s ease; }
   .f10compare__muted { color: #9296a1; font-size: 13px; overflow-wrap: anywhere; }
   .f10compare__memory-note { display: block; margin-top: 8px; color: #d8bf82; font-size: 13px; overflow-wrap: anywhere; }
+  .f10compare__native-stage { display: block; margin-top: 8px; padding: 8px 10px; color: #b9c9e8; background: #101725; border: 1px solid #283958; border-radius: 10px; font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
   .f10compare__stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
   .f10compare__stats.four { grid-template-columns: repeat(4, minmax(0,1fr)); }
   .f10compare__metric { min-width: 0; padding: 10px; border-radius: 12px; background: #0d0e13; }

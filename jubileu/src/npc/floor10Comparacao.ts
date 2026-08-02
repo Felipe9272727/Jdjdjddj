@@ -15,6 +15,8 @@ export type Floor10LoadResult = {
   readyMs: number;
   runtimeLabel: string;
   error: string;
+  /** Últimos sinais do Worker/llama.cpp durante a carga, já prontos para copiar. */
+  loadTrace: string[];
 };
 
 export type Floor10QuestionMetrics = {
@@ -60,7 +62,7 @@ const fmtNumber = (value: number | null, suffix = ''): string =>
 
 function formatLoad(load: Floor10LoadResult | undefined): string[] {
   if (!load) return ['carga: ainda não executada'];
-  return [
+  const lines = [
     `download concluído: ${fmtSeconds(load.downloadMs)}`,
     `instalação na memória: ${fmtSeconds(load.modelMs)}`,
     `prewarm da persona: ${fmtSeconds(load.prewarmMs)}`,
@@ -68,6 +70,13 @@ function formatLoad(load: Floor10LoadResult | undefined): string[] {
     `runtime detectado: ${load.runtimeLabel || '—'}`,
     `erro de carga: ${load.error || 'nenhum'}`,
   ];
+  if (load.loadTrace.length > 0) {
+    lines.push('últimos estágios da carga:');
+    lines.push(...load.loadTrace.map((entry) => `  ${entry}`));
+  } else {
+    lines.push('últimos estágios da carga: nenhum sinal registrado');
+  }
+  return lines;
 }
 
 function formatQuestion(result: Floor10QuestionResult): string[] {

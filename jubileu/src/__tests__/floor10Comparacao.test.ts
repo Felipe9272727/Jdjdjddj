@@ -18,6 +18,7 @@ const DATA: Floor10ComparisonData = {
       readyMs: 71_000,
       runtimeLabel: 'SmolLM3-3B · CPU×8',
       error: '',
+      loadTrace: [],
     },
     ngram: {
       downloadMs: null,
@@ -26,6 +27,10 @@ const DATA: Floor10ComparisonData = {
       readyMs: 73_000,
       runtimeLabel: 'SmolLM3-3B · CPU×8',
       error: '',
+      loadTrace: [
+        '66.2s · nativo · llama_context: n_ctx = 1536',
+        '72.4s · nativo · speculative decoding context initialized',
+      ],
     },
   },
   results: {
@@ -81,6 +86,8 @@ describe('floor10Comparacao — relatório A/B copiável', () => {
     expect(report).toContain('Eu sou Nilo Azevedo.');
     expect(report).toContain('#1: total normal 30.0s × n-gram 24.0s');
     expect(report).toContain('fala normal 2.10 tok/s × n-gram 3.20 tok/s');
+    expect(report).toContain('últimos estágios da carga:');
+    expect(report).toContain('speculative decoding context initialized');
   });
 
   it('reconstrói o histórico isolado de uma versão', () => {

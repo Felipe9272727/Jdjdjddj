@@ -29,7 +29,7 @@ import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
-import { DownloadMeter, DOWNLOAD_ZERO } from './floor10Download';
+import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
 import {
     CACHE_HEADROOM,
     deleteCachedModel,
@@ -307,12 +307,86 @@ export const WEBGPU_INIT_WATCHDOG_MS = 45_000;
 export const CPU_INIT_WATCHDOG_MS = 180_000;
 
 /**
- * O runtime N-gram lê o GGUF do OPFS de forma assíncrona e pode passar vários
- * minutos montando os pesos no WASM. Cada leitura agora renova este prazo; ele
- * mede INATIVIDADE real, não o tempo total legítimo de instalação na memória.
+ * O N-gram tem um teto absoluto, mas não um relógio de "silêncio". Depois da
+ * última leitura do GGUF o Worker entra numa chamada WASM longa e não existe
+ * heartbeat confiável nessa região: matar após 300 s sem postMessage foi o
+ * falso erro medido na bancada. Quinze minutos continuam impedindo espera
+ * infinita sem fingir que silêncio do llama.cpp prova travamento.
  */
-export const NGRAM_CPU_INIT_WATCHDOG_MS = 300_000;
 export const NGRAM_CPU_INIT_HARD_LIMIT_MS = 900_000;
+
+export type ModelLoadActivity = {
+    stage?: string;
+    level?: string;
+    message?: string;
+    offset?: number;
+    size?: number;
+    total?: number;
+};
+
+const MODEL_LOAD_TRACE_LIMIT = 24;
+let modelLoadTraceStartedAt = 0;
+let modelLoadTrace: string[] = [];
+
+/** A telemetria detalhada só é ligada na bancada A/B, nunca no jogo normal. */
+export function floor10ComparisonDiagnosticsEnabled(
+    search = globalThis.location?.search ?? '',
+): boolean {
+    return /(?:^\?|&)comparacao(?:[=&]|$)/i.test(search);
+}
+
+/** Converte os argumentos do logger do wllama em uma linha copiável. */
+export function stringifyModelLoadLog(values: readonly unknown[]): string {
+    return values.map((value) => {
+        if (typeof value === 'string') return value;
+        if (value instanceof Error) return `${value.name}: ${value.message}`;
+        try {
+            const json = JSON.stringify(value);
+            return json === undefined ? String(value) : json;
+        } catch {
+            return String(value);
+        }
+    }).join(' ');
+}
+
+/** Texto curto e copiável para mostrar exatamente onde o Worker está. */
+export function describeModelLoadActivity(activity: ModelLoadActivity): string {
+    if (activity.stage === 'file-read') {
+        const offset = Number.isFinite(activity.offset) ? Math.max(0, activity.offset ?? 0) : 0;
+        const size = Number.isFinite(activity.size) ? Math.max(0, activity.size ?? 0) : 0;
+        const total = Number.isFinite(activity.total) ? Math.max(0, activity.total ?? 0) : 0;
+        const lidos = Math.min(total || Number.POSITIVE_INFINITY, offset + size);
+        return total > 0
+            ? `GGUF ${formatBytes(lidos)} de ${formatBytes(total)}`
+            : `lendo GGUF em ${formatBytes(lidos)}`;
+    }
+    const message = (activity.message ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const detail = message.length > 180 ? `${message.slice(0, 177)}…` : message;
+    return detail || activity.stage || 'atividade nativa sem detalhe';
+}
+
+function resetModelLoadTrace(now = Date.now()): void {
+    modelLoadTraceStartedAt = now;
+    modelLoadTrace = [];
+}
+
+function rememberModelLoadActivity(activity: ModelLoadActivity, now = Date.now()): string {
+    const detail = describeModelLoadActivity(activity);
+    const elapsed = Math.max(0, now - modelLoadTraceStartedAt) / 1000;
+    const kind = activity.stage === 'file-read' ? 'arquivo' : 'nativo';
+    modelLoadTrace.push(`${elapsed.toFixed(1)}s · ${kind} · ${detail}`);
+    if (modelLoadTrace.length > MODEL_LOAD_TRACE_LIMIT) {
+        modelLoadTrace.splice(0, modelLoadTrace.length - MODEL_LOAD_TRACE_LIMIT);
+    }
+    return detail;
+}
+
+/** Snapshot defensivo para a bancada guardar no relatório copiável. */
+export function conversationModelLoadTrace(): string[] {
+    return [...modelLoadTrace];
+}
 
 export class WebGpuInitTimeoutError extends Error {
     constructor() {
@@ -322,9 +396,9 @@ export class WebGpuInitTimeoutError extends Error {
 }
 
 /**
- * Reprova o plano de GPU se a inicialização travar depois do download. Só
- * decide com base no tempo PARADO após o download, então nunca interrompe uma
- * carga que ainda esteja progredindo.
+ * Reprova uma inicialização depois do download por inatividade observável ou,
+ * quando informado, por um teto absoluto. O chamador pode devolver `null` em
+ * `stalledMs` quando o Worker entra numa região sem heartbeat confiável.
  */
 export function raceGpuInitWatchdog(
     load: Promise<unknown>,
@@ -359,6 +433,19 @@ export function modelInitStalledMs(
 ): number | null {
     if (downloadDoneAt === null) return null;
     return Math.max(0, now - Math.max(downloadDoneAt, lastActivityAt ?? downloadDoneAt));
+}
+
+/** Política explícita: GPU/CPU normal têm heartbeat; CPU N-gram não tem. */
+export function modelInitWatchdogStalledMs(
+    gpuLayers: number,
+    usingNgram: boolean,
+    downloadDoneAt: number | null,
+    lastActivityAt: number | null,
+    now = Date.now(),
+): number | null {
+    if (gpuLayers > 0) return modelInitStalledMs(downloadDoneAt, null, now);
+    if (usingNgram) return null;
+    return modelInitStalledMs(downloadDoneAt, lastActivityAt, now);
 }
 
 export function speechRuntimeLabel(gpuLayers: number, threads: number): string {
@@ -800,6 +887,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
     if (transitionPromise) return transitionPromise;
 
     medidorFala.reset();
+    resetModelLoadTrace();
     npcSet({
         phase: 'loading',
         modelLabel: `${model.label} · detectando aceleração`,
@@ -824,6 +912,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // Com a especulativa ligada, o ESM tem de ser o do binário
         // recompilado: o glue do emscripten e o .wasm andam em par.
         const usandoNgram = especulativaLigada();
+        const diagnosticoComparacao = usandoNgram && floor10ComparisonDiagnosticsEnabled();
         const esmDaVez = usandoNgram ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
         const mod = await carregarModuloWllama(esmDaVez);
 
@@ -911,6 +1000,70 @@ function initConversationEngine(): Promise<WllamaInstance> {
             let lastActivityUiAt = 0;
             let observingInit = true;
             try {
+                const publishModelLoadActivity = (activity: ModelLoadActivity): void => {
+                    if (!observingInit) return;
+                    const now = Date.now();
+                    lastInitActivityAt = now;
+                    // O callback da build customizada avisa que EXISTIU um
+                    // log, mas não traz seus argumentos. Na bancada o logger
+                    // oficial logo abaixo publica a mesma linha com o texto
+                    // real, então descartamos apenas esse pulso genérico.
+                    if (
+                        diagnosticoComparacao
+                        && activity.stage === 'native-log'
+                        && !activity.message
+                    ) return;
+                    // Logs nativos são poucos e valiosos; leituras do GGUF
+                    // chegam em rajada e entram no relatório/UI no máximo uma
+                    // vez por segundo.
+                    const nativeLog = activity.stage === 'native-log';
+                    if (!nativeLog && now - lastActivityUiAt < 1_000) return;
+                    lastActivityUiAt = now;
+                    const detail = rememberModelLoadActivity(activity, now);
+                    if (downloadDoneAt === null) return;
+                    npcSet({
+                        loadText: activity.stage === 'file-read'
+                            ? `lendo ${model.label} do cache · ${detail}`
+                            : `llama.cpp · ${detail}`,
+                    });
+                };
+                // Wllama já aceita um logger próprio. Assim a bancada enxerga
+                // as mensagens reais do Worker sem editar o bundle gerado e
+                // sem inundar o console durante o jogo normal.
+                const diagnosticLogger = diagnosticoComparacao ? {
+                    debug: (...args: unknown[]) => {
+                        console.debug(...args);
+                        publishModelLoadActivity({
+                            stage: 'native-log',
+                            level: 'debug',
+                            message: stringifyModelLoadLog(args),
+                        });
+                    },
+                    log: (...args: unknown[]) => {
+                        console.log(...args);
+                        publishModelLoadActivity({
+                            stage: 'native-log',
+                            level: 'log',
+                            message: stringifyModelLoadLog(args),
+                        });
+                    },
+                    warn: (...args: unknown[]) => {
+                        console.warn(...args);
+                        publishModelLoadActivity({
+                            stage: 'native-log',
+                            level: 'warn',
+                            message: stringifyModelLoadLog(args),
+                        });
+                    },
+                    error: (...args: unknown[]) => {
+                        console.error(...args);
+                        publishModelLoadActivity({
+                            stage: 'native-log',
+                            level: 'error',
+                            message: stringifyModelLoadLog(args),
+                        });
+                    },
+                } : undefined;
                 // Em jogo o log nativo do llama.cpp só polui o console; na
                 // bancada ele é a ÚNICA janela para saber em que etapa a carga
                 // travou (abrir o GGUF, montar o KV, aquecer…).
@@ -919,24 +1072,16 @@ function initConversationEngine(): Promise<WllamaInstance> {
                         ? { default: caminhosDaEspeculativa().wasm }
                         : WLLAMA_PATHS,
                     {
-                    suppressNativeLog: !(globalThis as { __npcVerboseLlama?: boolean })
-                        .__npcVerboseLlama,
+                    suppressNativeLog: !(
+                        diagnosticoComparacao
+                        || (globalThis as { __npcVerboseLlama?: boolean }).__npcVerboseLlama
+                    ),
+                    ...(diagnosticLogger ? { logger: diagnosticLogger } : {}),
                     // A build N-gram sabe avisar quando o Worker pede outro
                     // bloco do GGUF ou publica um estágio nativo. Sem este
                     // pulso, 180 s de leitura ativa pareciam um travamento.
                     ...(usandoNgram ? {
-                        modelLoadActivityCallback: (activity: { stage?: string }) => {
-                            if (!observingInit) return;
-                            const now = Date.now();
-                            lastInitActivityAt = now;
-                            if (downloadDoneAt === null || now - lastActivityUiAt < 1_000) return;
-                            lastActivityUiAt = now;
-                            npcSet({
-                                loadText: activity.stage === 'file-read'
-                                    ? `lendo ${model.label} do cache para a memória…`
-                                    : `montando ${model.label} e os buffers na memória…`,
-                            });
-                        },
+                        modelLoadActivityCallback: publishModelLoadActivity,
                     } : {}),
                     },
                 );
@@ -987,26 +1132,28 @@ function initConversationEngine(): Promise<WllamaInstance> {
                         });
                     },
                 });
-                // O cão de guarda vale para OS DOIS planos. Na CPU o travamento
-                // medido foi o pior de todos: o Worker levantou QuotaExceeded,
+                // O cão de guarda vale para OS DOIS planos. Na CPU normal o
+                // travamento medido foi o pior de todos: o Worker levantou QuotaExceeded,
                 // não conseguiu devolver o erro por postMessage (DOMException
                 // não é clonável) e a promessa nunca resolveu NEM rejeitou —
                 // "carregando" eterno, sem uma linha de erro. Passar batido por
                 // isso é o que fazia o jogador esperar 300s por nada.
                 await raceGpuInitWatchdog(
                     loadTask,
-                    // GPU continua com o limite por tempo total: logs de
-                    // compilação não transformam 17 minutos queimando shader
-                    // num plano saudável. Só a CPU N-gram usa os pulsos reais
-                    // de leitura do cache para distinguir trabalho de trava.
-                    () => gpuLayers > 0
-                        ? modelInitStalledMs(downloadDoneAt, null)
-                        : modelInitStalledMs(downloadDoneAt, lastInitActivityAt),
+                    // GPU e CPU normal mantêm o limite por inatividade. No
+                    // N-gram o postMessage para durante a chamada WASM longa;
+                    // só o teto absoluto abaixo é uma prova honesta.
+                    // Uma chamada WASM longa bloqueia o event loop do Worker.
+                    // A política pura abaixo mantém esse caso testável.
+                    () => modelInitWatchdogStalledMs(
+                        gpuLayers,
+                        usandoNgram,
+                        downloadDoneAt,
+                        lastInitActivityAt,
+                    ),
                     gpuLayers > 0
                         ? WEBGPU_INIT_WATCHDOG_MS
-                        : usandoNgram
-                            ? NGRAM_CPU_INIT_WATCHDOG_MS
-                            : CPU_INIT_WATCHDOG_MS,
+                        : CPU_INIT_WATCHDOG_MS,
                     1_000,
                     usandoNgram && gpuLayers === 0 ? {
                         elapsedMs: () => downloadDoneAt === null

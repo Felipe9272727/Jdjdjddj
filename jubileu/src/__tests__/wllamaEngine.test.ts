@@ -2,6 +2,7 @@ import { FLOOR10_GPU_START_LAYERS } from '../npc/floor10Gpu';
 import { describe, expect, it } from 'vitest';
 import {
     CHAT_COMPLETION_CONFIG,
+    CPU_INIT_WATCHDOG_MS,
     CPU_LOAD_CONFIG,
     FLOOR10_MODEL,
     GenerationTimeoutError,
@@ -10,9 +11,11 @@ import {
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
+    describeModelLoadActivity,
+    floor10ComparisonDiagnosticsEnabled,
     modelInitStalledMs,
+    modelInitWatchdogStalledMs,
     NGRAM_CPU_INIT_HARD_LIMIT_MS,
-    NGRAM_CPU_INIT_WATCHDOG_MS,
     raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
@@ -25,6 +28,7 @@ import {
     sendToNpc,
     speechGpuLayerCount,
     speechRuntimeLabel,
+    stringifyModelLoadLog,
     visibleText,
 } from '../npc/wllamaEngine';
 import { npc, npcSet } from '../npc/npcStore';
@@ -389,10 +393,42 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         ).rejects.toThrow('sem VRAM');
     });
 
-    it('renova o prazo quando o runtime ainda está lendo o GGUF do cache', () => {
+    it('mede atividade para os runtimes que possuem heartbeat confiável', () => {
         expect(modelInitStalledMs(null, null, 50_000)).toBeNull();
         expect(modelInitStalledMs(1_000, null, 11_000)).toBe(10_000);
         expect(modelInitStalledMs(1_000, 10_500, 11_000)).toBe(500);
+    });
+
+    it('não inventa travamento por silêncio durante a chamada WASM N-gram', () => {
+        expect(modelInitWatchdogStalledMs(0, true, 1_000, 10_500, 500_000)).toBeNull();
+        expect(modelInitWatchdogStalledMs(0, false, 1_000, 10_500, 11_000)).toBe(500);
+        // GPU usa tempo total pós-download; logs não prolongam compilação ruim.
+        expect(modelInitWatchdogStalledMs(2, false, 1_000, 10_500, 11_000)).toBe(10_000);
+    });
+
+    it('liga diagnóstico nativo somente na rota de comparação', () => {
+        expect(floor10ComparisonDiagnosticsEnabled('?comparacao')).toBe(true);
+        expect(floor10ComparisonDiagnosticsEnabled('?foo=1&comparacao=1')).toBe(true);
+        expect(floor10ComparisonDiagnosticsEnabled('?especulativa')).toBe(false);
+        expect(floor10ComparisonDiagnosticsEnabled('?comparacaox')).toBe(false);
+    });
+
+    it('preserva a etapa nativa e resume o avanço da leitura do GGUF', () => {
+        expect(stringifyModelLoadLog([
+            'llama_model_loader:',
+            { tensors: 123 },
+            new Error('falhou'),
+        ])).toBe('llama_model_loader: {"tensors":123} Error: falhou');
+        expect(describeModelLoadActivity({
+            stage: 'native-log',
+            message: '  llama_context:   n_ctx = 1536  ',
+        })).toBe('llama_context: n_ctx = 1536');
+        expect(describeModelLoadActivity({
+            stage: 'file-read',
+            offset: 1_000_000_000,
+            size: 100_000_000,
+            total: 2_000_000_000,
+        })).toBe('GGUF 1.10 GB de 2.00 GB');
     });
 
     it('mantém um teto absoluto mesmo se chegarem pulsos para sempre', async () => {
@@ -410,8 +446,7 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
 
     it('só entra em ação depois do download, com folga de verdade', () => {
         expect(WEBGPU_INIT_WATCHDOG_MS).toBeGreaterThanOrEqual(30_000);
-        expect(NGRAM_CPU_INIT_WATCHDOG_MS).toBeGreaterThan(WEBGPU_INIT_WATCHDOG_MS);
-        expect(NGRAM_CPU_INIT_HARD_LIMIT_MS).toBeGreaterThan(NGRAM_CPU_INIT_WATCHDOG_MS);
+        expect(NGRAM_CPU_INIT_HARD_LIMIT_MS).toBeGreaterThan(CPU_INIT_WATCHDOG_MS);
     });
 
     it('o override manda mais que o gerente, para a sonda poder medir', () => {
