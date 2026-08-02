@@ -306,6 +306,14 @@ export const WEBGPU_INIT_WATCHDOG_MS = 45_000;
  */
 export const CPU_INIT_WATCHDOG_MS = 180_000;
 
+/**
+ * O runtime N-gram lê o GGUF do OPFS de forma assíncrona e pode passar vários
+ * minutos montando os pesos no WASM. Cada leitura agora renova este prazo; ele
+ * mede INATIVIDADE real, não o tempo total legítimo de instalação na memória.
+ */
+export const NGRAM_CPU_INIT_WATCHDOG_MS = 300_000;
+export const NGRAM_CPU_INIT_HARD_LIMIT_MS = 900_000;
+
 export class WebGpuInitTimeoutError extends Error {
     constructor() {
         super('WEBGPU_INIT_TIMEOUT');
@@ -323,11 +331,15 @@ export function raceGpuInitWatchdog(
     stalledMs: () => number | null,
     limitMs = WEBGPU_INIT_WATCHDOG_MS,
     pollMs = 1_000,
+    hardLimit?: { elapsedMs: () => number | null; limitMs: number },
 ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const timer = globalThis.setInterval(() => {
             const stalled = stalledMs();
-            if (stalled !== null && stalled > limitMs) {
+            const elapsed = hardLimit?.elapsedMs() ?? null;
+            const passouDoTeto = elapsed !== null
+                && elapsed > (hardLimit?.limitMs ?? Number.POSITIVE_INFINITY);
+            if ((stalled !== null && stalled > limitMs) || passouDoTeto) {
                 globalThis.clearInterval(timer);
                 reject(new WebGpuInitTimeoutError());
             }
@@ -337,6 +349,16 @@ export function raceGpuInitWatchdog(
             (error: unknown) => { globalThis.clearInterval(timer); reject(error); },
         );
     });
+}
+
+/** Quanto tempo a carga está realmente sem dar sinal de vida. */
+export function modelInitStalledMs(
+    downloadDoneAt: number | null,
+    lastActivityAt: number | null,
+    now = Date.now(),
+): number | null {
+    if (downloadDoneAt === null) return null;
+    return Math.max(0, now - Math.max(downloadDoneAt, lastActivityAt ?? downloadDoneAt));
 }
 
 export function speechRuntimeLabel(gpuLayers: number, threads: number): string {
@@ -801,7 +823,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
         // Com a especulativa ligada, o ESM tem de ser o do binário
         // recompilado: o glue do emscripten e o .wasm andam em par.
-        const esmDaVez = especulativaLigada() ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
+        const usandoNgram = especulativaLigada();
+        const esmDaVez = usandoNgram ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
         const mod = await carregarModuloWllama(esmDaVez);
 
         // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
@@ -884,17 +907,37 @@ function initConversationEngine(): Promise<WllamaInstance> {
             // Marca o instante em que o download acabou. Enquanto for null, o
             // cão de guarda do WebGPU nem começa a contar.
             let downloadDoneAt: number | null = null;
+            let lastInitActivityAt: number | null = null;
+            let lastActivityUiAt = 0;
+            let observingInit = true;
             try {
                 // Em jogo o log nativo do llama.cpp só polui o console; na
                 // bancada ele é a ÚNICA janela para saber em que etapa a carga
                 // travou (abrir o GGUF, montar o KV, aquecer…).
                 candidate = new mod.Wllama(
-                    especulativaLigada()
+                    usandoNgram
                         ? { default: caminhosDaEspeculativa().wasm }
                         : WLLAMA_PATHS,
                     {
                     suppressNativeLog: !(globalThis as { __npcVerboseLlama?: boolean })
                         .__npcVerboseLlama,
+                    // A build N-gram sabe avisar quando o Worker pede outro
+                    // bloco do GGUF ou publica um estágio nativo. Sem este
+                    // pulso, 180 s de leitura ativa pareciam um travamento.
+                    ...(usandoNgram ? {
+                        modelLoadActivityCallback: (activity: { stage?: string }) => {
+                            if (!observingInit) return;
+                            const now = Date.now();
+                            lastInitActivityAt = now;
+                            if (downloadDoneAt === null || now - lastActivityUiAt < 1_000) return;
+                            lastActivityUiAt = now;
+                            npcSet({
+                                loadText: activity.stage === 'file-read'
+                                    ? `lendo ${model.label} do cache para a memória…`
+                                    : `montando ${model.label} e os buffers na memória…`,
+                            });
+                        },
+                    } : {}),
                     },
                 );
                 // ── ESPECULATIVA POR N-GRAMAS (só com `?especulativa`) ─
@@ -902,7 +945,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // `speculative.types`, então esta build vem do binário
                 // recompilado em /wllama-espec. Desligada, nada disto acontece
                 // e o jogo carrega o CDN de sempre.
-                const espec = especulativaLigada() ? parametrosEspeculativos() : {};
+                const espec = usandoNgram ? parametrosEspeculativos() : {};
                 const loadTask = candidate.loadModelFromUrl(model.url, {
                     ...CPU_LOAD_CONFIG,
                     ...espec,
@@ -913,7 +956,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
                             ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
                             : 0;
                         const acabou = fraction >= 1;
-                        downloadDoneAt = acabou ? (downloadDoneAt ?? Date.now()) : null;
+                        if (acabou && downloadDoneAt === null) {
+                            downloadDoneAt = Date.now();
+                            lastInitActivityAt = downloadDoneAt;
+                        }
                         const amostraFala = medidorFala.push(
                             progress.loaded ?? 0,
                             progress.total ?? 0,
@@ -949,9 +995,27 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // isso é o que fazia o jogador esperar 300s por nada.
                 await raceGpuInitWatchdog(
                     loadTask,
-                    () => (downloadDoneAt === null ? null : Date.now() - downloadDoneAt),
-                    gpuLayers > 0 ? WEBGPU_INIT_WATCHDOG_MS : CPU_INIT_WATCHDOG_MS,
+                    // GPU continua com o limite por tempo total: logs de
+                    // compilação não transformam 17 minutos queimando shader
+                    // num plano saudável. Só a CPU N-gram usa os pulsos reais
+                    // de leitura do cache para distinguir trabalho de trava.
+                    () => gpuLayers > 0
+                        ? modelInitStalledMs(downloadDoneAt, null)
+                        : modelInitStalledMs(downloadDoneAt, lastInitActivityAt),
+                    gpuLayers > 0
+                        ? WEBGPU_INIT_WATCHDOG_MS
+                        : usandoNgram
+                            ? NGRAM_CPU_INIT_WATCHDOG_MS
+                            : CPU_INIT_WATCHDOG_MS,
+                    1_000,
+                    usandoNgram && gpuLayers === 0 ? {
+                        elapsedMs: () => downloadDoneAt === null
+                            ? null
+                            : Date.now() - downloadDoneAt,
+                        limitMs: NGRAM_CPU_INIT_HARD_LIMIT_MS,
+                    } : undefined,
                 );
+                observingInit = false;
                 loadedDisableThinking = model.disableThinking;
                 const confirmedThreads = candidate.getNumThreads?.();
                 // O teto aqui precisa acompanhar MAX_SPEECH_THREADS: preso em 4,
@@ -971,6 +1035,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
                 return candidate;
             } catch (error) {
+                observingInit = false;
                 lastError = error;
                 // Encerrar o Worker é o que realmente mata o trabalho de GPU em
                 // curso. Se ele estiver ocupado demais para responder, seguimos

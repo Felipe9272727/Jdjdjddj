@@ -10,6 +10,9 @@ import {
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
+    modelInitStalledMs,
+    NGRAM_CPU_INIT_HARD_LIMIT_MS,
+    NGRAM_CPU_INIT_WATCHDOG_MS,
     raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
@@ -386,8 +389,29 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         ).rejects.toThrow('sem VRAM');
     });
 
+    it('renova o prazo quando o runtime ainda está lendo o GGUF do cache', () => {
+        expect(modelInitStalledMs(null, null, 50_000)).toBeNull();
+        expect(modelInitStalledMs(1_000, null, 11_000)).toBe(10_000);
+        expect(modelInitStalledMs(1_000, 10_500, 11_000)).toBe(500);
+    });
+
+    it('mantém um teto absoluto mesmo se chegarem pulsos para sempre', async () => {
+        const nunca = new Promise<void>(() => { /* trava de propósito */ });
+        await expect(
+            raceGpuInitWatchdog(
+                nunca,
+                () => 0,
+                50_000,
+                5,
+                { elapsedMs: () => 50_000, limitMs: 10 },
+            ),
+        ).rejects.toBeInstanceOf(WebGpuInitTimeoutError);
+    });
+
     it('só entra em ação depois do download, com folga de verdade', () => {
         expect(WEBGPU_INIT_WATCHDOG_MS).toBeGreaterThanOrEqual(30_000);
+        expect(NGRAM_CPU_INIT_WATCHDOG_MS).toBeGreaterThan(WEBGPU_INIT_WATCHDOG_MS);
+        expect(NGRAM_CPU_INIT_HARD_LIMIT_MS).toBeGreaterThan(NGRAM_CPU_INIT_WATCHDOG_MS);
     });
 
     it('o override manda mais que o gerente, para a sonda poder medir', () => {

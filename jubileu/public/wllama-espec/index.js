@@ -1297,10 +1297,11 @@ if (!WebAssembly.Suspending) {
 `;
 var ProxyToWorker = class {
   // filename -> Blob for async reads
-  constructor(resources, nbThread, suppressNativeLog, logger) {
+  constructor(resources, nbThread, suppressNativeLog, logger, modelLoadActivityCallback) {
     __publicField(this, "resources");
     __publicField(this, "logger");
     __publicField(this, "suppressNativeLog");
+    __publicField(this, "modelLoadActivityCallback");
     __publicField(this, "taskQueue", []);
     __publicField(this, "taskId", 1);
     __publicField(this, "resultQueue", []);
@@ -1316,7 +1317,16 @@ var ProxyToWorker = class {
     this.multiThread = nbThread > 0;
     this.logger = logger;
     this.suppressNativeLog = suppressNativeLog;
+    this.modelLoadActivityCallback = modelLoadActivityCallback;
     this.useAsyncFile = canUseAsyncFileRead(resources.compat);
+  }
+  reportModelLoadActivity(activity) {
+    if (typeof this.modelLoadActivityCallback !== "function") return;
+    try {
+      this.modelLoadActivityCallback(activity);
+    } catch (_err) {
+      // Telemetria nunca pode interromper a carga do modelo.
+    }
   }
   getModuleCode() {
     return __async(this, null, function* () {
@@ -1479,6 +1489,13 @@ var ProxyToWorker = class {
         if (!blob) {
           throw new Error(`blob not found for name="${name}"`);
         }
+        this.reportModelLoadActivity({
+          stage: "file-read",
+          name,
+          offset,
+          size,
+          total: blob.size
+        });
         const chunk = blob.slice(offset, offset + size);
         const buffer = yield chunk.arrayBuffer();
         this.worker.postMessage(
@@ -1547,6 +1564,7 @@ var ProxyToWorker = class {
     const { verb, args } = e.data;
     const isCompatBuild = this.resources.compat;
     if (verb && verb.startsWith("console.")) {
+      this.reportModelLoadActivity({ stage: "native-log" });
       if (this.suppressNativeLog) {
         return;
       }
@@ -2828,7 +2846,8 @@ var Wllama = class {
         this.useMultiThread ? nbThreads : 0,
         // 0 means disable pthread
         (_b = this.config.suppressNativeLog) != null ? _b : false,
-        this.logger()
+        this.logger(),
+        this.config.modelLoadActivityCallback
       );
       let logLevel = (_c = params.log_level) != null ? _c : 2 /* INFO */;
       if (this.config.suppressNativeLog) {

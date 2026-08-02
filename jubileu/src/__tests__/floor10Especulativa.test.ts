@@ -34,6 +34,8 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         const wasm = readFileSync(wasmPath);
 
         expect(esm).toContain('Wllama');
+        expect(esm).toContain('modelLoadActivityCallback');
+        expect(esm).toContain('stage: "file-read"');
         expect([...wasm.subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
     });
 
