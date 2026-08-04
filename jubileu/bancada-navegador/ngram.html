@@ -1,0 +1,146 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada n-gram</title>
+<pre id="saida">iniciando…</pre>
+<script type="module">
+const saida = document.getElementById('saida');
+const linhas = [];
+const diz = (t) => { linhas.push(t); saida.textContent = linhas.join('\n'); console.log(t); };
+
+globalThis.__resultado = null;
+
+const MODELO = '/modelo.gguf';
+
+// Dois prompts de propósito. O repetitivo é o melhor caso do n-grama, e medir
+// só ele seria propaganda. O de conversa é o que o Nilo realmente faz.
+const PROMPTS = {
+  repetitivo: [
+    'O elevador do hotel para no andar 10. O hóspede do andar 10 se chama Nilo.',
+    'O elevador do hotel para no andar 10. O hóspede do andar 10 se chama',
+  ].join('\n'),
+  conversa: [
+    'You are Nilo, a guest who has lived on the 10th floor of a strange hotel',
+    'for years. You answer in one or two short sentences, never breaking',
+    'character, always a little tired and a little suspicious.',
+    '',
+    'Guest: What is behind the door at the end of the hallway?',
+    'Nilo:',
+  ].join('\n'),
+};
+const PROMPT = PROMPTS[new URL(location.href).searchParams.get('prompt') ?? 'repetitivo']
+  ?? PROMPTS.repetitivo;
+
+const CARGA = {
+  n_ctx: 1536,
+  n_batch: 512,
+  n_threads: 4,
+  n_gpu_layers: 0,
+  cache_type_k: 'q8_0',
+  cache_type_v: 'q8_0',
+};
+
+// Greedy de propósito: se a especulativa faz o que promete, os DOIS lados têm
+// de devolver exatamente o mesmo texto. Diferença aqui é perda de inteligência,
+// não otimização.
+const GERACAO = {
+  n_predict: 80,
+  temperature: 0,
+  top_k: 1,
+  seed: 42,
+  timings_per_token: true,
+  cache_prompt: false,
+};
+
+async function rodada(mod, nome, extras) {
+  const t0 = performance.now();
+  const marca = (t) => diz(`  [${nome} ${Math.round(performance.now() - t0)}ms] ${t}`);
+  const wllama = new mod.Wllama(
+    { default: '/wllama-espec/wllama.wasm' },
+    { suppressNativeLog: false, logger: {
+        debug: (...a) => marca(`dbg ${a.join(' ')}`.slice(0, 160)),
+        log: (...a) => marca(`log ${a.join(' ')}`.slice(0, 160)),
+        warn: (...a) => marca(`warn ${a.join(' ')}`.slice(0, 160)),
+        error: (...a) => marca(`erro ${a.join(' ')}`.slice(0, 200)),
+    },
+      modelLoadActivityCallback: (a) => {
+        if (a && a.stage && a.stage !== 'native-log' && a.stage !== 'file-read') {
+          marca(`etapa ${a.stage} ${a.message ?? ''}`);
+        }
+      },
+    },
+  );
+  marca('instância criada');
+  await wllama.loadModelFromUrl(MODELO, {
+    ...CARGA, ...extras,
+    progressCallback: ({ loaded, total }) => {
+      if (!total || loaded === total) marca(`progresso ${loaded}/${total}`);
+    },
+  });
+  const carga = performance.now() - t0;
+  marca('modelo carregado');
+
+
+  const inicio = performance.now();
+  const resposta = await wllama.createCompletion({ prompt: PROMPT, ...GERACAO });
+  const fala = performance.now() - inicio;
+  await wllama.exit();
+
+  const bruto = typeof resposta === 'string' ? { choices: [{ text: resposta }] } : resposta;
+  const texto = bruto?.choices?.[0]?.text ?? '';
+  const tm = bruto?.timings ?? {};
+
+  const r = {
+    nome,
+    cargaMs: Math.round(carga),
+    falaMs: Math.round(fala),
+    tokens: tm.predicted_n ?? null,
+    tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
+    promptTps: tm.prompt_per_second ? +tm.prompt_per_second.toFixed(2) : null,
+    rascunhados: tm.draft_n ?? 0,
+    aceitos: tm.draft_n_accepted ?? 0,
+    texto,
+  };
+  diz(`${nome}: carga ${r.cargaMs}ms · fala ${r.falaMs}ms · ${r.tokens} tok · ${r.tps} tok/s`
+    + ` · rascunho ${r.aceitos}/${r.rascunhados}`);
+  return r;
+}
+
+try {
+  diz(`crossOriginIsolated=${globalThis.crossOriginIsolated} sab=${typeof SharedArrayBuffer}`);
+  const mod = await import('/wllama-espec/index.js');
+  diz('ESM do wllama recompilado importado');
+
+  // Alternado, porque a PRIMEIRA carga paga o cache do modelo e a segunda não;
+  // medir uma vez cada mediria a ordem, não o runtime.
+  const rodadas = [];
+  for (let i = 0; i < 3; i += 1) {
+    rodadas.push(await rodada(mod, `normal${i}`, {}));
+    rodadas.push(await rodada(mod, `ngram${i}`, { spec_draft_model: 'types:ngram-cache' }));
+  }
+  const normais = rodadas.filter((r) => r.nome.startsWith('normal'));
+  const ngramas = rodadas.filter((r) => r.nome.startsWith('ngram'));
+  const media = (lista, campo) => +(lista.reduce((s, r) => s + (r[campo] ?? 0), 0) / lista.length)
+    .toFixed(2);
+
+  const textos = new Set(rodadas.map((r) => r.texto));
+  globalThis.__resultado = {
+    ok: true,
+    rodadas,
+    tpsNormal: media(normais, 'tps'),
+    tpsNgram: media(ngramas, 'tps'),
+    ganho: +(media(ngramas, 'tps') / media(normais, 'tps')).toFixed(3),
+    rascunhoAceito: `${media(ngramas, 'aceitos')}/${media(ngramas, 'rascunhados')}`,
+    // Greedy dos dois lados: a especulativa promete o MESMO texto, mais rápido.
+    todosOsTextosIguais: textos.size === 1,
+    textoUnico: [...textos][0]?.slice(0, 200) ?? '',
+  };
+  diz(`normal ${globalThis.__resultado.tpsNormal} tok/s · ngram ${globalThis.__resultado.tpsNgram} tok/s`);
+  diz(`ganho: ${globalThis.__resultado.ganho}× · rascunho aceito ${globalThis.__resultado.rascunhoAceito}`);
+  diz(`texto idêntico nas 4 rodadas: ${globalThis.__resultado.todosOsTextosIguais}`);
+  diz('FIM');
+} catch (erro) {
+  globalThis.__resultado = { ok: false, erro: String(erro && erro.stack || erro) };
+  diz(`FALHOU: ${erro}`);
+  diz('FIM');
+}
+</script>

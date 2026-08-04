@@ -35,6 +35,26 @@
 // n-grama só adivinha ONDE perguntar. Quem confere é o llama.cpp, em C++. O
 // que se ganha é passada de máquina; o que sai é o mesmo texto.
 //
+// ── A PONTE DE PTHREAD, SEM A QUAL NADA DISTO CARREGAVA ───────────────────
+// Medido num Chromium de verdade, com o binário deste diretório: a carga do
+// N-gram não era LENTA, era eterna. O emscripten desta build já não olha
+// `Module.mainScriptUrlOrBlob` (o wllama ainda entrega) e cria cada pthread com
+//
+//   var pthreadMainJs = _scriptName;
+//
+// Dentro de um Worker criado a partir de Blob, `_scriptName` é
+// `self.location.href` — o Blob do PRÓPRIO worker do wllama, que não tem o
+// bootstrap de pthread. Os workers do pool subiam e nunca respondiam o
+// handshake, `addRunDependency('loading-workers')` nunca era removido e
+// `onRuntimeInitialized` nunca disparava. O sintoma no aparelho do Felipe era
+// exatamente este: "Loading wllama.wasm" e depois silêncio até o relógio
+// estourar — 1280 s numa vez, 402 s na outra, e nenhuma das duas ia terminar.
+//
+// O conserto está em `public/wllama-espec/index.js` e são duas linhas: o worker
+// publica `globalThis.__emPthreadUrl` a partir do Blob do módulo (a única URL
+// que contém o bootstrap), e o glue passa a preferi-la a `_scriptName`. Com
+// isso o pool fecha em milissegundos.
+//
 // ── DESLIGADA POR PADRÃO ──────────────────────────────────────────────────
 // `?especulativa` liga. Sem a flag, o jogo carrega o wllama do CDN, exatamente
 // como sempre — este binário nem é baixado. E mesmo ligada, ela vale SÓ para a

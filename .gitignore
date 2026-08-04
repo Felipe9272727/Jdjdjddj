@@ -4,3 +4,6 @@ node_modules/
 # cópias runtime do jubileu/public/ na raiz (só os áudios são versionados)
 /models/
 /textures/
+
+# Modelo de teste da bancada de navegador: 386 MB, baixado sob demanda.
+jubileu/bancada-navegador/modelo.gguf

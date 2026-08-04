@@ -45,6 +45,12 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(esm).toContain('opfs-mmap');
         // A região que ficava muda — buscar o .wasm, compilar, acordar as
         // threads, reservar o GGUF — agora tem nome em cada passo.
+        // A PONTE DE PTHREAD. Sem estas duas linhas o pool de threads nunca
+        // fecha o handshake e a carga do N-gram não termina NUNCA — foi o
+        // travamento reproduzido no Chromium e vivido no celular. Um rebuild
+        // do bundle que as perca reprova aqui, não no aparelho de quem joga.
+        expect(esm).toContain('globalThis.__emPthreadUrl||_scriptName');
+        expect(esm).toContain('globalThis.__emPthreadUrl = URL.createObjectURL(argMainScriptBlob)');
         expect(esm).toContain('wasm-boot');
         expect(esm).toContain('wasm-ready');
         expect(esm).toContain('heapfs-reserve');
