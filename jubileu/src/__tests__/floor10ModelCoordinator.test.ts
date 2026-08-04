@@ -187,3 +187,24 @@ describe('a mente fala, a vontade cala — a regra que o celular cobrou', () => 
         expect(pausas).toBe(2);
     });
 });
+
+describe('carregar a memória também cala a vontade', () => {
+    it('a CARGA da memória pausa a deliberação; a busca não passa por aqui', async () => {
+        const coordenador = new Floor10ModelCoordinator();
+        let pausas = 0;
+        coordenador.register('deliberation', () => {}, () => { pausas += 1; });
+        coordenador.register('memory', () => {});
+
+        // Subir o embedding é um llama.cpp inteiro, não uma busca de 200ms.
+        await coordenador.activate('memory', async () => 'embedding');
+        expect(pausas).toBe(1);
+    });
+
+    it('a própria vontade não se pausa ao carregar', async () => {
+        const coordenador = new Floor10ModelCoordinator();
+        let pausas = 0;
+        coordenador.register('deliberation', () => {}, () => { pausas += 1; });
+        await coordenador.activate('deliberation', async () => 'vontade');
+        expect(pausas).toBe(0);
+    });
+});

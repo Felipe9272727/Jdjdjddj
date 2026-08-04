@@ -50,7 +50,13 @@ export class Floor10ModelCoordinator {
         //
         // A regra que o jogo sempre quis é a que o dono dele descreveu: quando a
         // mente trabalha, a vontade e o motor ficam pausados.
-        if (owner === 'conversation') this.pausarDeliberacao();
+        // A memória entra junto, e o comentário no topo deste arquivo explica
+        // por que ela ficava de fora: "a busca dele dura ~200ms e não disputa
+        // nada de verdade". Isso vale para a BUSCA, que nem passa por aqui —
+        // não para a CARGA, que é um llama.cpp inteiro subindo. No print do
+        // travamento eram três runtimes vivos: fala residente, vontade
+        // deliberando e memória carregando.
+        if (owner === 'conversation' || owner === 'memory') this.pausarDeliberacao();
 
         const task = this.transition
             .catch(() => undefined)
