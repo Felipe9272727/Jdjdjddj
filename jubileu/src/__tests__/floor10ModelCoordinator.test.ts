@@ -157,3 +157,33 @@ describe('Floor10ModelCoordinator — dois LLMs residentes, uma geração por ve
         expect(coordinator.residents()).toEqual(['conversation']);
     });
 });
+
+describe('a mente fala, a vontade cala — a regra que o celular cobrou', () => {
+    it('pausa a vontade em TODA ativação da fala, não só na primeira', async () => {
+        const coordenador = new Floor10ModelCoordinator();
+        let pausas = 0;
+        coordenador.register('deliberation', () => {}, () => { pausas += 1; });
+        coordenador.register('conversation', () => {});
+
+        await coordenador.activate('conversation', async () => 'motor');
+        expect(pausas).toBe(1);
+
+        // A REGRESSÃO: com a fala já residente, a guarda antiga desligava a
+        // pausa para sempre e a vontade voltava a deliberar POR CIMA da fala —
+        // dois llama.cpp de oito threads no mesmo celular.
+        await coordenador.activate('conversation', async () => 'motor');
+        await coordenador.activate('conversation', async () => 'motor');
+        expect(pausas).toBe(3);
+    });
+
+    it('falar pausa a vontade mesmo sem recarregar nada', () => {
+        const coordenador = new Floor10ModelCoordinator();
+        let pausas = 0;
+        coordenador.register('deliberation', () => {}, () => { pausas += 1; });
+
+        // É esta a chamada que o wllamaEngine faz no começo de cada geração.
+        coordenador.pausarDeliberacao();
+        coordenador.pausarDeliberacao();
+        expect(pausas).toBe(2);
+    });
+});

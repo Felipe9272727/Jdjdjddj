@@ -42,13 +42,15 @@ export class Floor10ModelCoordinator {
      */
     activate<T>(owner: Floor10BrainOwner, load: () => Promise<T>): Promise<T> {
         const generation = ++this.generations[owner];
-        if (owner === 'conversation' && !this.residentOwners.has('conversation')) {
-            this.generations.deliberation += 1;
-            try {
-                void Promise.resolve(this.preemptors.deliberation?.())
-                    .catch(() => undefined);
-            } catch { /* a carga serializada continuará com segurança */ }
-        }
+        // A guarda `!residentOwners.has('conversation')` que existia aqui
+        // pausava a vontade UMA vez — na primeira carga da fala. Depois disso o
+        // SmolLM3 ficava residente, a condição nunca mais dava verdadeira, e a
+        // vontade voltava a deliberar POR CIMA da fala: dois llama.cpp com oito
+        // threads cada no mesmo celular. Era o "está lagando absurdamente".
+        //
+        // A regra que o jogo sempre quis é a que o dono dele descreveu: quando a
+        // mente trabalha, a vontade e o motor ficam pausados.
+        if (owner === 'conversation') this.pausarDeliberacao();
 
         const task = this.transition
             .catch(() => undefined)
@@ -76,6 +78,25 @@ export class Floor10ModelCoordinator {
             () => undefined,
         );
         return task;
+    }
+
+    /**
+     * Pausa a vontade (e o motor, que vive no mesmo pipeline) AGORA.
+     *
+     * Pausar não apaga peso: `abortDeliberation` guarda o pensamento parcial e
+     * encerra o worker, então quando a vez volta ela retoma de onde parou. O
+     * que sai da CPU é o pool de threads do llama.cpp da vontade — que é o que
+     * estava disputando os núcleos com a fala.
+     *
+     * Chamado na CARGA da fala e também no começo de CADA geração: carregar
+     * acontece uma vez, falar acontece a cada mensagem.
+     */
+    pausarDeliberacao(): void {
+        this.generations.deliberation += 1;
+        try {
+            void Promise.resolve(this.preemptors.deliberation?.())
+                .catch(() => undefined);
+        } catch { /* a carga serializada continuará com segurança */ }
     }
 
     /** Libera somente o cérebro pedido; o outro continua residente. */

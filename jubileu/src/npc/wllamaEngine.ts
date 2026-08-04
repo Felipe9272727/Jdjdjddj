@@ -1689,6 +1689,13 @@ export async function sendToNpc(
         quadrosDaVez.start();
         tpsDaVez = 0;
         const comecouAFalar = Date.now();
+        // ── A BOCA FALA, A VONTADE CALA ───────────────────────────────────
+        // Carregar a fala acontece uma vez; FALAR acontece a cada mensagem. Sem
+        // esta linha a vontade deliberava por cima da geração — dois llama.cpp
+        // de oito threads disputando os mesmos núcleos, e o celular inteiro
+        // travando. Pausar aqui não custa nada à vontade: ela guarda o
+        // pensamento parcial e retoma quando a vez volta.
+        floor10ModelCoordinator.pausarDeliberacao();
         anotar('fala:gerando', { gpu: loadedGpuLayers, threads: loadedThreads });
         const streamPromise = engine.createChatCompletion({
             messages: [
