@@ -296,3 +296,42 @@ Existe `PJMixers-Dev/Granite-3.1-Earthen-v0.3-3B-A800M` — o MESMO MoE, mas
 afinado em visual novels, legendas e literatura. Q4_K_M tem os mesmos 2,02 GB e
 cabe igual. É a hipótese óbvia para recuperar a atuação sem perder os 800M
 ativos. Não testei ainda.
+
+## PISTA FORTE, AINDA NÃO FECHADA: os kernels SIMD do WASM nunca foram compilados
+
+O CMake do ggml escolhe os kernels de produto escalar quantizado assim:
+
+```cmake
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "wasm")
+    message(STATUS "Wasm detected")
+    list (APPEND GGML_CPU_SOURCES ggml-cpu/arch/wasm/quants.c)
+else()
+    message(WARNING "Unknown CPU architecture. Falling back to generic implementations.")
+    list(APPEND ARCH_FLAGS -DGGML_CPU_GENERIC)
+endif()
+```
+
+O toolchain do emscripten NÃO define `CMAKE_SYSTEM_PROCESSOR` como "wasm", então
+todos os nossos builds — e provavelmente o wllama oficial também — caíram no
+`else()`. A prova está no log do nosso configure:
+
+```
+-- Adding CPU backend variant ggml-cpu: -DGGML_CPU_GENERIC
+```
+
+`arch/wasm/quants.c` tem **100 usos de intrínsecos wasm SIMD** escritos à mão
+(`wasm_i8x16_*`, `wasm_v128_*`) para exatamente a operação que domina o decode:
+`ggml_vec_dot_q4_K_q8_K`. Nada disso entrou no binário. O v128 que aparece no
+wasm é autovetorização do LLVM, não os kernels.
+
+Trocando a condição por `MATCHES "wasm" OR EMSCRIPTEN` o configure passa a
+imprimir "Wasm detected"... e o link quebra com símbolo duplicado entre
+`ggml-cpu/quants.c` e `arch/wasm/quants.c` (os dois viram `quants.c.o` no mesmo
+arquivo `.a`). **Não resolvi esse conflito** — fica aqui como a pista mais
+promissora que sobrou, porque se os kernels entrarem é o mesmo cálculo com
+instruções melhores: velocidade pura, zero de qualidade perdida.
+
+Quem quiser continuar: o caminho é fazer o `quants.c` genérico não emitir os
+mesmos símbolos (ele deveria estar todo atrás de `#if defined(GGML_CPU_GENERIC)`)
+ou renomear o objeto do arch. É uma correção que vale para o wllama upstream
+inteiro, não só para nós.
