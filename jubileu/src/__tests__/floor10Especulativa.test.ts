@@ -50,6 +50,11 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         // travamento reproduzido no Chromium e vivido no celular. Um rebuild
         // do bundle que as perca reprova aqui, não no aparelho de quem joga.
         expect(esm).toContain('globalThis.__emPthreadUrl||_scriptName');
+        // Erro de worker precisa CHEGAR. Um DOMException (QuotaExceededError)
+        // não é clonável: passá-lo inteiro derruba o postMessage e a carga fica
+        // "carregando" para sempre em vez de dizer que faltou espaço.
+        expect(esm).toContain("args: ['exception', message, stack, null]");
+        expect(esm).not.toContain("args: ['exception', message, stack, err]");
         expect(esm).toContain('globalThis.__emPthreadUrl = URL.createObjectURL(argMainScriptBlob)');
         expect(esm).toContain('wasm-boot');
         expect(esm).toContain('wasm-ready');
@@ -58,23 +63,27 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect([...wasm.subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
     });
 
-    it('desligada por padrão; só `?especulativa` liga', () => {
-        expect(especulativaLigada('')).toBe(false);
-        expect(especulativaLigada('?bancada')).toBe(false);
+    it('ligada por padrão; `?semngram` é a saída de emergência', () => {
+        // Medido no navegador: empata no pior caso, 1,43× no melhor, texto
+        // idêntico. Um recurso assim não fica escondido atrás de flag.
+        expect(especulativaLigada('')).toBe(true);
+        expect(especulativaLigada('?bancada')).toBe(true);
         expect(especulativaLigada('?especulativa')).toBe(true);
-        expect(especulativaLigada('?bancada&especulativa')).toBe(true);
+        expect(especulativaLigada('?semngram')).toBe(false);
+        expect(especulativaLigada('?bancada&semngram')).toBe(false);
     });
 
     it('a bancada alterna os runtimes sem adulterar consultas explícitas à URL', () => {
         definirRuntimeFloor10('ngram');
         expect(runtimeFloor10()).toBe('ngram');
         expect(especulativaLigada()).toBe(true);
-        expect(especulativaLigada('?bancada')).toBe(false);
+        // Consulta explícita ignora a escolha da bancada e lê só a URL.
+        expect(especulativaLigada('?semngram')).toBe(false);
 
         definirRuntimeFloor10('normal');
         expect(runtimeFloor10()).toBe('normal');
         expect(especulativaLigada()).toBe(false);
-        expect(especulativaLigada('?especulativa')).toBe(true);
+        expect(especulativaLigada('?bancada')).toBe(true);
     });
 
     it('a carga OPFS tem flag PRÓPRIA: `?especulativa` não a arrasta junto', () => {
@@ -85,7 +94,8 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(cargaRapidaLigada('')).toBe(false);
         expect(cargaRapidaLigada('?cargarapida')).toBe(true);
         expect(cargaRapidaLigada('?especulativa&cargarapida')).toBe(true);
-        expect(especulativaLigada('?cargarapida')).toBe(false);
+        // E o contrário também: desligar o n-grama não liga a carga OPFS.
+        expect(cargaRapidaLigada('?semngram')).toBe(false);
     });
 
     it('pede AUTO-especulação: nenhum modelo rascunhador no caminho', () => {

@@ -14,6 +14,10 @@ const navegador = await chromium.launch({
     '--enable-features=SharedArrayBuffer',
     '--no-sandbox',
     '--js-flags=--experimental-wasm-jspi',
+    // O perfil do Playwright é temporário e a cota do OPFS sai do disco livre.
+    // Sem isto, guardar um GGUF de 1,92 GB levanta QuotaExceededError e o teste
+    // mede a cota da máquina, não o runtime.
+    '--unlimited-storage',
   ],
 });
 const pagina = await navegador.newPage();

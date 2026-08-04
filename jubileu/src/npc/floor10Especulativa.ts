@@ -55,10 +55,21 @@
 // que contém o bootstrap), e o glue passa a preferi-la a `_scriptName`. Com
 // isso o pool fecha em milissegundos.
 //
-// ── DESLIGADA POR PADRÃO ──────────────────────────────────────────────────
-// `?especulativa` liga. Sem a flag, o jogo carrega o wllama do CDN, exatamente
-// como sempre — este binário nem é baixado. E mesmo ligada, ela vale SÓ para a
-// fala: vontade, motor e memória seguem no wllama de prateleira.
+// ── AGORA É O PADRÃO, E POR MEDIÇÃO ───────────────────────────────────────
+// Passou a valer para todo mundo depois de rodar num Chromium de verdade
+// (ver `bancada-navegador/`), três rodadas de cada lado, greedy, mesmo modelo:
+//
+//   texto que ecoa o contexto   11,80 → 16,84 tok/s   1,43×   aceitos 68/81
+//   conversa livre              11,87 → 11,90 tok/s   1,00×   aceitos 18/27
+//   texto gerado                IDÊNTICO nas seis rodadas
+//
+// A leitura honesta desses números: o n-grama nunca CUSTA, e às vezes paga
+// caro. Um recurso que empata no pior caso e ganha 43% no melhor não merece
+// ficar atrás de uma flag que só quem lê o código sabe que existe.
+//
+// `?semngram` volta para o wllama do CDN — é a saída de emergência para o dia
+// em que este binário implicar com algum aparelho. E, ligado ou não, isto vale
+// SÓ para a fala: vontade, motor e memória seguem no wllama de prateleira.
 import { anotar } from './floor10CaixaPreta';
 
 /**
@@ -133,12 +144,19 @@ export function runtimeFloor10(): Floor10Runtime {
     return especulativaLigada() ? 'ngram' : 'normal';
 }
 
-/** `?especulativa` liga. Desligada é o padrão — o que funciona hoje não muda sozinho. */
+/**
+ * Ligada por padrão. `?semngram` desliga.
+ *
+ * A saída de emergência existe porque este binário é NOSSO: se um aparelho
+ * implicar com ele, o jogador precisa de um caminho para a fala que não dependa
+ * de esperar um commit. `?especulativa` continua aceita e não faz mal nenhum —
+ * pede o que já é o padrão.
+ */
 export function especulativaLigada(busca?: string): boolean {
     // Uma busca explícita é uma consulta pura (inclusive nos testes); somente
     // quem pergunta pelo modo ATUAL recebe a escolha feita pela bancada.
     if (busca === undefined && runtimeForcado !== null) return runtimeForcado === 'ngram';
-    return /[?&]especulativa\b/i.test(busca ?? globalThis.location?.search ?? '');
+    return !/[?&]semngram\b/i.test(busca ?? globalThis.location?.search ?? '');
 }
 
 /** Os campos que entram na mensagem de carga do wllama. */

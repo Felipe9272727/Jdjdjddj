@@ -6,4 +6,4 @@ node_modules/
 /textures/
 
 # Modelo de teste da bancada de navegador: 386 MB, baixado sob demanda.
-jubileu/bancada-navegador/modelo.gguf
+jubileu/bancada-navegador/*.gguf

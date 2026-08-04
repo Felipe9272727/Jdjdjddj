@@ -1,0 +1,103 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada · onde vão os segundos da carga</title>
+<pre id="saida">iniciando…</pre>
+<script type="module">
+// Mede a CARGA do modelo de verdade do jogo com a configuração de verdade do
+// jogo, quebrada em etapas. A pergunta é uma só: onde vão os segundos entre
+// tocar em carregar e poder perguntar?
+const linhas = [];
+const diz = (t) => { linhas.push(t); document.getElementById('saida').textContent = linhas.join('\n'); console.log(t); };
+globalThis.__resultado = null;
+
+const p = new URL(location.href).searchParams;
+const MODELO = p.get('modelo') ?? '/smollm3.gguf';
+const THREADS = Number(p.get('threads') ?? 4);
+const NGRAM = p.get('ngram') !== '0';
+
+// Igual ao CPU_LOAD_CONFIG do jogo.
+const CARGA = {
+  n_ctx: 1536,
+  n_batch: 512,
+  n_threads: THREADS,
+  n_gpu_layers: 0,
+  cache_type_k: 'q8_0',
+  cache_type_v: 'q8_0',
+  jinja: true,
+  reasoning: false,
+  ...(NGRAM ? { spec_draft_model: 'types:ngram-cache' } : {}),
+};
+
+const etapas = [];
+const t0 = performance.now();
+const marca = (nome, extra = '') => {
+  const ms = Math.round(performance.now() - t0);
+  etapas.push({ nome, ms, extra });
+  diz(`${String(ms).padStart(7)}ms  ${nome}${extra ? ' · ' + extra : ''}`);
+};
+
+try {
+  const mod = await import('/wllama-espec/index.js');
+  marca('esm importado');
+
+  const wllama = new mod.Wllama(
+    { default: '/wllama-espec/wllama.wasm' },
+    {
+      suppressNativeLog: false,
+      logger: {
+        debug: (...a) => {
+          const t = a.join(' ');
+          // Só as linhas do llama.cpp que marcam virada de etapa.
+          if (/load_tensors|llama_context: constructing|llama_kv_cache: size|sched_reserve: reserve took|model loaded|common_speculative_init|Multithread|Loading "wllama/.test(t)) {
+            marca('llama.cpp', t.slice(0, 110));
+          }
+        },
+        log: () => {}, warn: () => {},
+        error: (...a) => marca('ERRO', a.join(' ').slice(0, 160)),
+      },
+      modelLoadActivityCallback: (a) => {
+        if (a?.stage && a.stage !== 'native-log' && a.stage !== 'file-read') {
+          marca(a.stage, a.message ?? '');
+        }
+      },
+    },
+  );
+
+  let leituras = 0;
+  let bytesLidos = 0;
+  let primeiraLeitura = null;
+  let ultimaLeitura = null;
+  const original = wllama.constructor;
+  await wllama.loadModelFromUrl(MODELO, {
+    ...CARGA,
+    progressCallback: ({ loaded, total }) => {
+      if (loaded === total) marca('cache pronto', `${(total / 1e9).toFixed(2)} GB`);
+    },
+  });
+  marca('modelo carregado');
+
+  const t1 = performance.now();
+  const r = await wllama.createChatCompletion({
+    messages: [{ role: 'user', content: 'Oi. Tudo bem?' }],
+    max_tokens: 24, temperature: 0, top_k: 1, timings_per_token: true,
+  });
+  marca('primeira fala', `${Math.round(performance.now() - t1)}ms`);
+  const tm = r?.timings ?? {};
+  await wllama.exit();
+
+  globalThis.__resultado = {
+    ok: true,
+    ngram: NGRAM,
+    threads: THREADS,
+    totalMs: Math.round(performance.now() - t0),
+    etapas,
+    tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
+    rascunho: `${tm.draft_n_accepted ?? 0}/${tm.draft_n ?? 0}`,
+  };
+  diz('FIM');
+} catch (erro) {
+  globalThis.__resultado = { ok: false, erro: String(erro?.stack ?? erro), etapas };
+  diz(`FALHOU: ${erro}`);
+  diz('FIM');
+}
+</script>
