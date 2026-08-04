@@ -1427,6 +1427,13 @@ var ProxyToWorker = class {
       this.worker = createWorker(completeCode);
       this.worker.onmessage = this.onRecvMsg.bind(this);
       this.worker.onerror = this.logger.error;
+      // Daqui até o runtime ficar pronto o Worker busca o .wasm, compila e
+      // acorda o pool de pthreads. Nada disso emitia um sinal: era a região
+      // silenciosa que fazia a carga parecer travada.
+      this.reportModelLoadActivity({
+        stage: "wasm-boot",
+        message: `compilando o runtime e acordando ${this.nbThread || 1} thread(s)`
+      });
       const res = yield this.pushTask({
         verb: "module.init",
         args: [
@@ -1435,9 +1442,22 @@ var ProxyToWorker = class {
         ],
         callbackId: this.taskId++
       });
+      this.reportModelLoadActivity({
+        stage: "wasm-ready",
+        message: this.useAsyncFile ? "runtime pronto (leitura sob demanda)" : "runtime pronto (cópia para a memória)"
+      });
       const nativeFiles = [];
       for (const file of ggufFiles) {
         const needAllocBuffer = !this.useAsyncFile;
+        // Reservar o GGUF inteiro no heap WASM é UMA chamada só, e ela pode
+        // demorar minutos num celular: avisar antes é a diferença entre uma
+        // espera com nome e uma tela morta.
+        if (needAllocBuffer) {
+          this.reportModelLoadActivity({
+            stage: "heapfs-reserve",
+            message: `reservando ${file.blob.size} bytes na memória`
+          });
+        }
         const id = yield this.fileAlloc(
           file.name,
           file.blob.size,
@@ -1475,6 +1495,10 @@ var ProxyToWorker = class {
   }
   wllamaStart() {
     return __async(this, null, function* () {
+      this.reportModelLoadActivity({
+        stage: "llama-start",
+        message: "llama.cpp abrindo o modelo"
+      });
       const result = yield this.pushTask({
         verb: "wllama.start",
         args: [],

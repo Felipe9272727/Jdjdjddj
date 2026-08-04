@@ -21,8 +21,8 @@ import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
-    caminhosDaEspeculativa, cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10,
-    especulativaLigada, parametrosEspeculativos, type Floor10Runtime,
+    cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
+    parametrosEspeculativos, prepararEspeculativa, type Floor10Runtime,
 } from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
@@ -391,9 +391,29 @@ export function describeModelLoadActivity(activity: ModelLoadActivity): string {
     return detail || activity.stage || 'atividade nativa sem detalhe';
 }
 
+let ultimaEtapaNaTela = 0;
+
 function resetModelLoadTrace(now = Date.now()): void {
     modelLoadTraceStartedAt = now;
     modelLoadTrace = [];
+    ultimaEtapaNaTela = 0;
+}
+
+/**
+ * As ETAPAS ANTES do modelo entrar em cena — fila dos modelos, buscar o
+ * runtime, conferir o cache — não emitiam um sinal sequer.
+ *
+ * Isso não é detalhe: a bancada mediu 176 s inteiros ali, ANTES de o wllama
+ * sequer abrir o worker, e a tela dizia só "carregando". Quando a espera não
+ * tem nome, cada rodada de investigação vira palpite; com nome, o próximo
+ * print responde sozinho onde o tempo foi parar.
+ */
+export function publicarEtapaDeCarga(mensagem: string, texto = mensagem): void {
+    const now = Date.now();
+    rememberModelLoadActivity({ stage: 'etapa', message: mensagem }, now);
+    if (now - ultimaEtapaNaTela < 500) return;
+    ultimaEtapaNaTela = now;
+    npcSet({ loadText: texto });
 }
 
 function rememberModelLoadActivity(activity: ModelLoadActivity, now = Date.now()): string {
@@ -932,6 +952,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
     });
 
     const pending = (async () => {
+        publicarEtapaDeCarga(
+            'conferindo o armazenamento do site',
+            'conferindo o armazenamento do site…',
+        );
         const backend = await probeModelStorageBackend();
         if (!backend.ok) throw new ModelStorageError(backend.message);
 
@@ -947,8 +971,17 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // recompilado: o glue do emscripten e o .wasm andam em par.
         const usandoNgram = especulativaLigada();
         const diagnosticoComparacao = usandoNgram && floor10ComparisonDiagnosticsEnabled();
-        const esmDaVez = usandoNgram ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
+        publicarEtapaDeCarga(
+            usandoNgram ? 'buscando o runtime N-gram' : 'buscando o runtime wllama',
+            'buscando o runtime do llama.cpp…',
+        );
+        const runtimeEspec = usandoNgram ? await prepararEspeculativa() : null;
+        const esmDaVez = runtimeEspec ? runtimeEspec.esm : WLLAMA_ESM;
         const mod = await carregarModuloWllama(esmDaVez);
+        publicarEtapaDeCarga(
+            `runtime pronto (${runtimeEspec ? runtimeEspec.origem : 'cdn'})`,
+            'runtime pronto; conferindo o modelo…',
+        );
 
         // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
         // cache, não há nada a caber — a pergunta simplesmente não se aplica.
@@ -1118,8 +1151,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // bancada ele é a ÚNICA janela para saber em que etapa a carga
                 // travou (abrir o GGUF, montar o KV, aquecer…).
                 candidate = new mod.Wllama(
-                    usandoNgram
-                        ? { default: caminhosDaEspeculativa().wasm }
+                    runtimeEspec
+                        ? { default: runtimeEspec.wasm }
                         : WLLAMA_PATHS,
                     {
                     suppressNativeLog: !(

@@ -172,9 +172,91 @@ export function caminhosDaEspeculativa(): { esm: string; wasm: string } {
     };
 }
 
+/** De onde o par ESM/WASM veio nesta carga. Entra no relatório da bancada. */
+export type OrigemDoRuntime = 'embutido' | 'guardado' | 'rede';
+
+export type RuntimeEspeculativo = {
+    esm: string;
+    wasm: string;
+    origem: OrigemDoRuntime;
+};
+
+/** O balde do runtime é separado do jogo: apagar um não apaga o outro. */
+export const CACHE_RUNTIME_ESPECULATIVO = 'tne-wllama-espec-v1';
+
+let preparo: Promise<RuntimeEspeculativo> | null = null;
+
+/**
+ * Deixa o runtime N-gram pronto para usar, de preferência SEM rede.
+ *
+ * O binário recompilado tem 5,85 MB e o glue tem 320 KB, e no build da Vercel
+ * os dois eram buscados por HTTP a CADA carga — inclusive a carga que o
+ * jogador refaz dez vezes seguidas testando. O wllama do CDN não paga isso
+ * (o navegador o guarda por conta própria), então essa conta aparecia só do
+ * lado N-gram e envenenava justamente a comparação que a bancada existe para
+ * fazer.
+ *
+ * Agora o par vive no Cache Storage e é servido por Blob URL. A primeira carga
+ * numa origem ainda paga a rede; da segunda em diante, nenhuma.
+ *
+ * A regra de sempre continua valendo: isto é uma otimização, e otimização não
+ * derruba fala. Qualquer tropeço aqui devolve os caminhos HTTP de sempre.
+ */
+export function prepararEspeculativa(): Promise<RuntimeEspeculativo> {
+    preparo ??= (async (): Promise<RuntimeEspeculativo> => {
+        const pacote = (globalThis as GlobalComPacoteEspeculativo).__TNE_WLLAMA_ESPEC__;
+        if (pacote?.esm && pacote.wasmBase64) {
+            const { esm, wasm } = caminhosDaEspeculativa();
+            return { esm, wasm, origem: 'embutido' };
+        }
+
+        const rede = caminhosDaEspeculativa();
+        try {
+            const balde = await globalThis.caches?.open(CACHE_RUNTIME_ESPECULATIVO);
+            if (!balde) return { ...rede, origem: 'rede' };
+
+            let estavaGuardado = true;
+            const buscar = async (caminho: string): Promise<Response> => {
+                const guardado = await balde.match(caminho);
+                if (guardado) return guardado;
+                estavaGuardado = false;
+                await balde.add(caminho);
+                const agora = await balde.match(caminho);
+                if (!agora) throw new Error(`não guardou ${caminho}`);
+                return agora;
+            };
+
+            const [respostaEsm, respostaWasm] = await Promise.all([
+                buscar(rede.esm),
+                buscar(rede.wasm),
+            ]);
+            // O tipo é reconstruído de propósito: `instantiateStreaming` recusa
+            // um Blob que não se declare `application/wasm`, e um ESM que não se
+            // declare JavaScript nem chega a ser importado.
+            const esm = URL.createObjectURL(new Blob(
+                [await respostaEsm.text()],
+                { type: 'text/javascript' },
+            ));
+            const wasm = URL.createObjectURL(new Blob(
+                [await respostaWasm.arrayBuffer()],
+                { type: 'application/wasm' },
+            ));
+            anotar('espec:runtime', { origem: estavaGuardado ? 'guardado' : 'rede' });
+            return { esm, wasm, origem: estavaGuardado ? 'guardado' : 'rede' };
+        } catch (erro) {
+            anotar('espec:runtime-http', {
+                motivo: erro instanceof Error ? erro.message : String(erro),
+            });
+            return { ...rede, origem: 'rede' };
+        }
+    })();
+    return preparo;
+}
+
 /** Somente para isolar testes que injetam o pacote do single-file. */
 export function resetCaminhosEspeculativosForTests(): void {
     caminhosEmbutidos = null;
+    preparo = null;
 }
 
 /** Somente para impedir vazamento da seleção A/B entre testes. */

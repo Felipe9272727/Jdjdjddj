@@ -17,6 +17,8 @@ import {
     modelInitWatchdogStalledMs,
     NGRAM_CPU_INIT_HARD_LIMIT_MS,
     NGRAM_CPU_INIT_WATCHDOG_MS,
+    conversationModelLoadTrace,
+    publicarEtapaDeCarga,
     raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
@@ -452,6 +454,12 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
             size: 100_000_000,
             total: 2_000_000_000,
         })).toBe('GGUF 1.10 GB de 2.00 GB');
+    });
+
+    it('as etapas anteriores ao modelo entram no relatório e na tela', () => {
+        publicarEtapaDeCarga('buscando o runtime N-gram', 'buscando o runtime…');
+        expect(npc.loadText).toBe('buscando o runtime…');
+        expect(conversationModelLoadTrace().at(-1)).toContain('buscando o runtime N-gram');
     });
 
     it('mantém um teto absoluto mesmo se chegarem pulsos para sempre', async () => {

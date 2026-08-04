@@ -10,6 +10,7 @@ import {
     FLOOR10_FAST_LOAD_CHUNK_BYTES,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
+    prepararEspeculativa,
     resetCaminhosEspeculativosForTests,
     resetRuntimeFloor10ForTests,
     runtimeFloor10,
@@ -42,6 +43,12 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(esm).toContain('fs.write_opfs');
         expect(esm).toContain('createSyncAccessHandle');
         expect(esm).toContain('opfs-mmap');
+        // A região que ficava muda — buscar o .wasm, compilar, acordar as
+        // threads, reservar o GGUF — agora tem nome em cada passo.
+        expect(esm).toContain('wasm-boot');
+        expect(esm).toContain('wasm-ready');
+        expect(esm).toContain('heapfs-reserve');
+        expect(esm).toContain('llama-start');
         expect([...wasm.subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
     });
 
@@ -133,4 +140,85 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(criar).toHaveBeenCalledTimes(2);
     });
 
+});
+
+describe('prepararEspeculativa — o runtime de 5,85 MB não se busca duas vezes', () => {
+    const baldeFalso = (guardado: Record<string, boolean>) => {
+        const adicionados: string[] = [];
+        return {
+            balde: {
+                match: async (caminho: string) => (
+                    guardado[caminho]
+                        ? new Response('export const Wllama = class {};')
+                        : undefined
+                ),
+                add: async (caminho: string) => {
+                    adicionados.push(caminho);
+                    guardado[caminho] = true;
+                },
+            },
+            adicionados,
+        };
+    };
+
+    const comCaches = (balde: unknown) => {
+        (globalThis as Record<string, unknown>).caches = {
+            open: async () => balde,
+        };
+    };
+
+    afterEach(() => {
+        delete (globalThis as Record<string, unknown>).caches;
+    });
+
+    it('guarda o par na primeira vez e o serve do disco na seguinte', async () => {
+        const { esm, wasm } = caminhosDaEspeculativa();
+        const primeiro = baldeFalso({});
+        comCaches(primeiro.balde);
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:runtime');
+
+        const frio = await prepararEspeculativa();
+        expect(frio.origem).toBe('rede');
+        expect(primeiro.adicionados).toEqual([esm, wasm]);
+
+        // Nova visita à página: o balde já tem os dois, então ninguém sai à rede.
+        resetCaminhosEspeculativosForTests();
+        const segundo = baldeFalso({ [esm]: true, [wasm]: true });
+        comCaches(segundo.balde);
+        const quente = await prepararEspeculativa();
+        expect(quente.origem).toBe('guardado');
+        expect(segundo.adicionados).toEqual([]);
+    });
+
+    it('prepara uma vez só, por mais que perguntem', async () => {
+        const { adicionados, balde } = baldeFalso({});
+        comCaches(balde);
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:runtime');
+
+        const [a, b] = await Promise.all([prepararEspeculativa(), prepararEspeculativa()]);
+        expect(a).toBe(b);
+        expect(adicionados).toHaveLength(2);
+    });
+
+    it('o single-file não toca no balde: o par já veio dentro do HTML', async () => {
+        (globalThis as Record<string, unknown>).__TNE_WLLAMA_ESPEC__ = {
+            esm: 'export const Wllama = class {};',
+            wasmBase64: 'AGFzbQ==',
+        };
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:embutido');
+        const { adicionados, balde } = baldeFalso({});
+        comCaches(balde);
+
+        expect((await prepararEspeculativa()).origem).toBe('embutido');
+        expect(adicionados).toEqual([]);
+    });
+
+    it('balde quebrado devolve os caminhos HTTP: otimização não derruba fala', async () => {
+        (globalThis as Record<string, unknown>).caches = {
+            open: async () => { throw new Error('sem permissão de armazenamento'); },
+        };
+
+        const runtime = await prepararEspeculativa();
+        expect(runtime).toEqual({ ...caminhosDaEspeculativa(), origem: 'rede' });
+    });
 });
