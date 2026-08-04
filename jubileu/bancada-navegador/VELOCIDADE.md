@@ -345,3 +345,30 @@ quando existe um arch específico, e nesta versão ele entra em
 tirar o genérico da lista quando o ramo do arch for escolhido (ou envolver o
 conteúdo dele em `#if defined(GGML_CPU_GENERIC)`, que é o que o nome sugere que
 sempre foi a intenção).
+
+### FECHADO: os kernels entraram, e são +51%
+
+A causa do símbolo duplicado era UM nome. `arch-fallback.h`, no bloco
+`__wasm__`, mapeava `ggml_vec_dot_q4_1_q8_1_generic → ggml_vec_dot_q4_1_q8_1`,
+ou seja, declarava que o wasm NÃO implementa essa função — só que
+`arch/wasm/quants.c` implementa. Os dois arquivos definiam o mesmo símbolo.
+A interseção entre "o que o arch define" e "o que o fallback remapeia" tem
+exatamente um elemento; removida a linha, linka.
+
+Duas linhas ao todo (`OR EMSCRIPTEN` no CMake + a linha errada do fallback), e
+medido no mesmo Chromium, mesmo modelo, mesmas perguntas:
+
+| | genérico (como estava) | SIMD de wasm |
+|---|---|---|
+| fala 1 | 2,67 tok/s | **4,45 tok/s** |
+| fala 2 | 2,89 tok/s | **3,81 tok/s** |
+| fala 3 | 2,69 tok/s | **4,21 tok/s** |
+| média | 2,75 | **4,16 (+51%)** |
+
+**Uma ressalva honesta sobre o texto:** as respostas continuam no personagem e
+com o mesmo sentido ("Nada. A porta está trancada há anos." em vez de "Nada. A
+porta está trancada."), mas NÃO são idênticas palavra por palavra como no caso
+do n-grama. Isso é esperado e não é perda de qualidade: os kernels SIMD somam em
+ordem diferente do C genérico, o ponto flutuante não é associativo, e num empate
+apertado o greedy escolhe outro token. É a mesma razão pela qual o mesmo modelo
+dá saídas ligeiramente diferentes em CPU e GPU.
