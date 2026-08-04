@@ -145,18 +145,48 @@ export function runtimeFloor10(): Floor10Runtime {
 }
 
 /**
- * Ligada por padrão. `?semngram` desliga.
+ * DESLIGADA por padrão. `?ngram` liga (a bancada A/B usa isso).
  *
- * A saída de emergência existe porque este binário é NOSSO: se um aparelho
- * implicar com ele, o jogador precisa de um caminho para a fala que não dependa
- * de esperar um commit. `?especulativa` continua aceita e não faz mal nenhum —
- * pede o que já é o padrão.
+ * ERA ligada, e o dono do jogo mandou tirar depois de continuar sentindo o
+ * celular travar. A medição que está logo abaixo, feita por mim, dá razão a
+ * ele: mesmo no orçamento mínimo (n_max = 1), na CONVERSA — que é o que o
+ * jogador faz — o n-grama custava 10% de velocidade e 1,7 s a mais de CPU por
+ * resposta. O ganho de 1,43× só apareceu em texto que ecoa o contexto, que não
+ * é o caso de uso do Nilo.
+ *
+ * Um recurso que empata no melhor caso e cobra no caso comum não é padrão.
+ *
+ * ATENÇÃO ao que isto NÃO desliga: o runtime remendado continua valendo (ver
+ * `runtimeEspecLigado`). Ele carrega os kernels SIMD de WASM (+51% medidos), a
+ * ponte de pthread sem a qual a carga era eterna e o conserto do erro não
+ * clonável. Confundir as duas coisas — como o `?semngram` antigo fazia, caindo
+ * para o CDN — trocaria um custo de 10% por uma perda de 51%.
  */
 export function especulativaLigada(busca?: string): boolean {
     // Uma busca explícita é uma consulta pura (inclusive nos testes); somente
     // quem pergunta pelo modo ATUAL recebe a escolha feita pela bancada.
     if (busca === undefined && runtimeForcado !== null) return runtimeForcado === 'ngram';
-    return !/[?&]semngram\b/i.test(busca ?? globalThis.location?.search ?? '');
+    const alvo = busca ?? globalThis.location?.search ?? '';
+    if (/[?&]semngram\b/i.test(alvo)) return false;
+    return /[?&](ngram|especulativa)\b/i.test(alvo);
+}
+
+/**
+ * O BINÁRIO REMENDADO — e ele NÃO é o n-grama.
+ *
+ * Vale por padrão para todo mundo, com ou sem especulação, porque o que ele
+ * carrega não tem nada a ver com rascunhar tokens:
+ *
+ *   kernels SIMD de WASM do ggml ...... +51% na fala, medidos no Chromium
+ *   ponte de pthread (__emPthreadUrl) .. sem ela a carga NUNCA terminava
+ *   erro clonável no postMessage ....... sem ele, QuotaExceeded travava tudo
+ *
+ * `?wllamacdn` é a saída de emergência que o `?semngram` costumava ser: se um
+ * aparelho implicar com o nosso binário, o jogador volta ao wllama de
+ * prateleira sem esperar commit nenhum — pagando os 51%, conscientemente.
+ */
+export function runtimeEspecLigado(busca = globalThis.location?.search ?? ''): boolean {
+    return !/[?&]wllamacdn\b/i.test(busca);
 }
 
 /**

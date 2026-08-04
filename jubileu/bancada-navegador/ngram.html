@@ -115,7 +115,12 @@ try {
   const rodadas = [];
   for (let i = 0; i < 3; i += 1) {
     rodadas.push(await rodada(mod, `normal${i}`, {}));
-    rodadas.push(await rodada(mod, `ngram${i}`, { spec_draft_model: 'types:ngram-cache' }));
+    // `spec_draft_n_max: 1` é o orçamento que o JOGO usava — sem ele o
+    // llama.cpp cai no padrão de 8, que já foi medido em -38%. Comparar o
+    // jogo com o padrão interno mediria uma configuração que ninguém rodava.
+    rodadas.push(await rodada(mod, `ngram${i}`, {
+      spec_draft_model: 'types:ngram-cache', spec_draft_n_max: 1,
+    }));
   }
   const normais = rodadas.filter((r) => r.nome.startsWith('normal'));
   const ngramas = rodadas.filter((r) => r.nome.startsWith('ngram'));

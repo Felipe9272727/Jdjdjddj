@@ -22,7 +22,7 @@ import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
     cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
-    parametrosEspeculativos, prepararEspeculativa, type Floor10Runtime,
+    parametrosEspeculativos, prepararEspeculativa, runtimeEspecLigado, type Floor10Runtime,
 } from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
@@ -1017,15 +1017,26 @@ function initConversationEngine(): Promise<WllamaInstance> {
             }
         } catch { /* persistência é só uma otimização */ }
 
-        // Com a especulativa ligada, o ESM tem de ser o do binário
-        // recompilado: o glue do emscripten e o .wasm andam em par.
+        // DUAS DECISÕES DIFERENTES, e juntá-las custou caro uma vez.
+        //
+        // `runtimeEspecLigado` escolhe o BINÁRIO: o nosso, remendado, com os
+        // kernels SIMD (+51%), a ponte de pthread e o erro clonável. Vale
+        // sempre, salvo `?wllamacdn`.
+        //
+        // `especulativaLigada` escolhe só se o llama.cpp recebe os parâmetros
+        // de rascunho por n-grama. Hoje: não, salvo `?ngram`.
+        //
+        // Enquanto as duas eram a mesma flag, "tirar o n-grama" significava
+        // voltar ao CDN e perder os 51% junto — trocar um custo de 10% por uma
+        // perda de 51%.
+        const usandoRuntimeEspec = runtimeEspecLigado();
         const usandoNgram = especulativaLigada();
         const diagnosticoComparacao = usandoNgram && floor10ComparisonDiagnosticsEnabled();
         publicarEtapaDeCarga(
-            usandoNgram ? 'buscando o runtime N-gram' : 'buscando o runtime wllama',
+            usandoRuntimeEspec ? 'buscando o runtime remendado' : 'buscando o runtime wllama',
             'buscando o runtime do llama.cpp…',
         );
-        const runtimeEspec = usandoNgram ? await prepararEspeculativa() : null;
+        const runtimeEspec = usandoRuntimeEspec ? await prepararEspeculativa() : null;
         const esmDaVez = runtimeEspec ? runtimeEspec.esm : WLLAMA_ESM;
         const mod = await carregarModuloWllama(esmDaVez);
         publicarEtapaDeCarga(
@@ -1101,7 +1112,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // flag NÃO existe primeira tentativa para falhar, e é essa ausência que
         // devolve ao jogador os minutos que ele estava perdendo antes de a
         // carga boa começar.
-        const fastLoadPlans = usandoNgram && cargaRapidaLigada() ? [true, false] : [false];
+        const fastLoadPlans = usandoRuntimeEspec && cargaRapidaLigada() ? [true, false] : [false];
         let lastError: unknown = new Error('Nenhum backend local disponível');
 
         // Duas voltas: se a primeira morrer por CACHE QUEBRADO, apagamos o
@@ -1215,10 +1226,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     // A build N-gram sabe avisar quando o Worker pede outro
                     // bloco do GGUF ou publica um estágio nativo. Sem este
                     // pulso, 180 s de leitura ativa pareciam um travamento.
-                    ...(usandoNgram ? {
+                    ...(usandoRuntimeEspec ? {
                         modelLoadActivityCallback: publishModelLoadActivity,
                     } : {}),
-                    ...(usandoNgram && cargaRapida ? {
+                    ...(usandoRuntimeEspec && cargaRapida ? {
                         fastModelLoad: configuracaoCargaRapida(model.url),
                     } : {}),
                     },
@@ -1289,7 +1300,9 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     ),
                     gpuLayers > 0
                         ? WEBGPU_INIT_WATCHDOG_MS
-                        : (usandoNgram ? NGRAM_CPU_INIT_WATCHDOG_MS : CPU_INIT_WATCHDOG_MS),
+                        : (usandoRuntimeEspec
+                            ? NGRAM_CPU_INIT_WATCHDOG_MS
+                            : CPU_INIT_WATCHDOG_MS),
                     1_000,
                     cargaRapida ? {
                         elapsedMs: () => downloadDoneAt === null

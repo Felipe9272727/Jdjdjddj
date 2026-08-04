@@ -7,6 +7,7 @@ import {
     configuracaoCargaRapida,
     definirRuntimeFloor10,
     especulativaLigada,
+    runtimeEspecLigado,
     FLOOR10_FAST_LOAD_CHUNK_BYTES,
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
@@ -64,14 +65,29 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect([...wasm.subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
     });
 
-    it('ligada por padrão; `?semngram` é a saída de emergência', () => {
-        // Medido no navegador: empata no pior caso, 1,43× no melhor, texto
-        // idêntico. Um recurso assim não fica escondido atrás de flag.
-        expect(especulativaLigada('')).toBe(true);
-        expect(especulativaLigada('?bancada')).toBe(true);
+    it('DESLIGADA por padrão; `?ngram` liga', () => {
+        // Foi padrão e deixou de ser: medido, no orçamento mínimo (n_max = 1)
+        // e na CONVERSA — que é o que o jogador faz — o n-grama custava 10% de
+        // velocidade e 1,7s a mais de CPU por resposta. O 1,43× só aparecia em
+        // texto que ecoa o contexto, que não é o caso do Nilo.
+        expect(especulativaLigada('')).toBe(false);
+        expect(especulativaLigada('?bancada')).toBe(false);
+        expect(especulativaLigada('?ngram')).toBe(true);
         expect(especulativaLigada('?especulativa')).toBe(true);
         expect(especulativaLigada('?semngram')).toBe(false);
-        expect(especulativaLigada('?bancada&semngram')).toBe(false);
+        expect(especulativaLigada('?ngram&semngram')).toBe(false);
+    });
+
+    it('tirar o n-grama NÃO devolve o jogo ao wllama do CDN', () => {
+        // Este é o erro que a separação existe para impedir. O binário
+        // remendado carrega os kernels SIMD (+51%), a ponte de pthread e o
+        // erro clonável — nada disso é n-grama. Amarrados, "tirar o n-grama"
+        // trocaria um custo de 10% por uma perda de 51%.
+        expect(runtimeEspecLigado('')).toBe(true);
+        expect(runtimeEspecLigado('?semngram')).toBe(true);
+        expect(runtimeEspecLigado('?bancada')).toBe(true);
+        // A saída de emergência de verdade, para o aparelho que implicar.
+        expect(runtimeEspecLigado('?wllamacdn')).toBe(false);
     });
 
     it('a bancada alterna os runtimes sem adulterar consultas explícitas à URL', () => {
@@ -84,7 +100,7 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         definirRuntimeFloor10('normal');
         expect(runtimeFloor10()).toBe('normal');
         expect(especulativaLigada()).toBe(false);
-        expect(especulativaLigada('?bancada')).toBe(true);
+        expect(especulativaLigada('?ngram')).toBe(true);
     });
 
     it('a carga OPFS tem flag PRÓPRIA: `?especulativa` não a arrasta junto', () => {
