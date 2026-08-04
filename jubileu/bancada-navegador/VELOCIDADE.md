@@ -187,3 +187,52 @@ fala. O empate fica em 10% de aceitação.
 **A lição, para a próxima:** medir tok/s numa caixa de 16 GB não é medir o custo
 num celular. `custo-cpu.mjs` existe por isso — ele soma o tempo de CPU de todos
 os processos do navegador entre o início e o fim de cada fala.
+
+## A maior alavanca que sobrou: WebGPU (e eu tinha desligado ela)
+
+O llama.cpp ganhou um backend WebGPU oficial em 2026 (`ggml-webgpu`, trabalho do
+Reese Levine e equipe na UCSC), e a wllama passou a expor. Os números do paper
+"Llamas on the Web" (arXiv 2605.20706), medidos em GPUs reais:
+
+- GPU de celular / baixo consumo: **4–17 tok/s** de decode
+- Apple M4 Pro: ~52 tok/s (q4_k_m)
+- desktop de ponta: 100+ tok/s
+- e o ponto fraco é o PREFILL (21–51% pior que os concorrentes) — que no jogo
+  quase não importa, porque `cache_prompt` reaproveita a persona.
+
+Comparado com os **2,2–2,9 tok/s** que a CPU do WASM entrega aqui, é a única
+técnica na mesa que muda a ordem de grandeza. E ela não mexe num único peso: é o
+MESMO modelo, o MESMO GGUF, a MESMA saída — só quem faz a conta muda.
+
+Eu tinha compilado nosso binário com `-DGGML_WEBGPU=OFF`. Como o n-grama virou
+padrão, isso fechou a porta da GPU para o jogo inteiro sem ninguém decidir isso.
+Recompilado com `GGML_WEBGPU=ON`:
+
+- binário: 5,85 MB → 7,65 MB (pago uma vez por origem, fica no Cache Storage)
+- verificado no Chromium sem GPU: carrega e fala igual, **2,67 / 2,89 / 2,69
+  tok/s** contra 1,53 / 2,15 / 2,18 do binário anterior, com o texto idêntico
+- `n_gpu_layers` continua em 0 por padrão: o gerente do jogo é quem decide, e
+  ele já mede por aparelho. Ter o backend compilado só devolve a OPÇÃO.
+
+**Não testei com GPU de verdade** — este contêiner não tem uma. Quem responde é
+o aparelho: `?bancada` liga o gerente de GPU, e o teto continua sendo o que já
+derrubou a fala duas vezes no celular do Felipe. Comece por 4 camadas de 36, não
+por 12.
+
+## E o Colibri?
+
+Vale registrar porque a resposta é contraintuitiva: **Colibri não é para isto.**
+
+É um engine em C puro (um arquivo, ~2.400 linhas) que roda o GLM-5.2, de 744
+BILHÕES de parâmetros, em ~25 GB de RAM. O truque é tratar SSD, RAM e VRAM como
+uma hierarquia só e ler do NVMe apenas os experts que o MoE ativa naquele token
+(~40B ativos, dos quais só ~11 GB mudam entre um token e outro).
+
+O que ele compra é TAMANHO, e o que ele paga é VELOCIDADE: **0,05 a 1 token/s**,
+10 a 100× mais lento que uma H100. Para um modelo de 3B que já cabe inteiro na
+memória, a técnica não tem o que otimizar — não há nada para streamar. E nada
+dela atravessa para um navegador: depende de leitura direta de NVMe, que a
+sandbox do browser não dá.
+
+A ideia boa dele — "só o que muda entre tokens precisa se mover" — é a mesma dos
+MoE, e esbarra no mesmo teto de 2 GiB documentado acima.
