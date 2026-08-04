@@ -216,6 +216,38 @@ export function runtimeEspecLigado(busca = globalThis.location?.search ?? ''): b
  *
  * O `n_draft` do llama.cpp só obedece porque o binário em `public/wllama-espec`
  * foi recompilado com o patch que lê `spec_draft_n_max`.
+ *
+ * ── E AÍ O NÚMERO DESMENTIU O PARÁGRAFO ACIMA ────────────────────────────
+ * Rodei o A/B outra vez (bancada-navegador/ngram.html?prompt=conversa), agora
+ * com `spec_draft_n_max: 1` nos dois lados — porque o bench antigo comparava
+ * contra o padrão interno de 8, uma configuração que o jogo nunca rodou.
+ * Seis rodadas alternadas, mesmo modelo, mesmo cache, greedy:
+ *
+ *   normal0  2,92 tok/s     ngram0   —
+ *   normal1  3,23 tok/s     ngram1   4,02 tok/s
+ *   normal2  4,09 tok/s     ngram2   4,12 tok/s
+ *
+ *   rascunhados: 0     aceitos: 0     EM TODAS AS SEIS RODADAS
+ *
+ * Duas leituras, e as duas importam:
+ *
+ * 1. COM `n_max = 1` O N-GRAMA NÃO RASCUNHA NADA. Zero propostas, zero
+ *    aceitas. A mesma coluna que já mostrou "68 de 81 aceitos" com o
+ *    orçamento cheio mostra zero aqui — o campo funciona, o rascunho é que
+ *    não acontece. Ou seja: desde o commit que baixou o orçamento para 1, o
+ *    n-grama do jogo era PESO MORTO. Não acelerava e não podia acelerar.
+ *
+ * 2. ESTE BENCH NÃO MEDE MAIS NADA ALÉM DISSO. Os números sobem
+ *    monotonicamente ao longo da sessão (2,92 → 4,12) independente do braço:
+ *    é aquecimento/cache desta caixa, não runtime. O "1,057×" do resumo é
+ *    artefato da ordem. E a mesma desconfiança vale para o −10% que está
+ *    escrito acima, medido no mesmo tipo de rig.
+ *
+ * O texto saiu IDÊNTICO nas seis rodadas, então nada disto toca a qualidade.
+ *
+ * A conclusão honesta: tirar o n-grama é certo por ser peso morto e uma peça a
+ * menos para dar errado — NÃO por ser a causa do travamento do celular. Uma
+ * coisa que não rascunha nada também não queima CPU rascunhando.
  */
 export const RASCUNHO_N_MAX = 1;
 
