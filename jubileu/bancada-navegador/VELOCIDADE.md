@@ -372,3 +372,29 @@ do n-grama. Isso é esperado e não é perda de qualidade: os kernels SIMD somam
 ordem diferente do C genérico, o ponto flutuante não é associativo, e num empate
 apertado o greedy escolhe outro token. É a mesma razão pela qual o mesmo modelo
 dá saídas ligeiramente diferentes em CPU e GPU.
+
+## Threads: pedir demais é 15× MAIS LENTO
+
+Nesta caixa de 4 núcleos, mesmo modelo, mesmas perguntas, só mudando `n_threads`:
+
+| threads | fala 1 | fala 2 | fala 3 |
+|---|---|---|---|
+| **8** (mais threads que núcleo) | **0,23** | **0,18** | **0,18 tok/s** |
+| **4** (um por núcleo) | 2,54 | 3,86 | 1,10 tok/s |
+
+**Quinze vezes mais lento.** O motivo é o ggml esperar GIRANDO nas barreiras
+entre os nós do grafo: thread ociosa de llama.cpp não dorme, ela ocupa núcleo.
+Com mais threads que núcleos elas se atropelam e o tempo vira espera pura.
+
+No celular do Felipe (Snapdragon 7s Gen 2, 8 núcleos) 8 threads NÃO é
+sobrecarga aritmética — mas é o mesmo mecanismo com outro nome:
+
+- as barreiras esperam sempre a thread mais lenta, e 4 dos 8 núcleos são A55,
+  bem mais devagar que as A78;
+- com 8 de 8 ocupados girando, não sobra núcleo para o render do Three.js, para
+  o compositor do navegador nem para o sistema. O que trava não é a fala — é o
+  aparelho.
+
+Por isso `cpuThreadCount` passou a usar METADE dos núcleos (no 7s Gen 2: 4, que
+é exatamente o grupo rápido). O override manual continua valendo para quem
+quiser provar outro número no próprio aparelho.

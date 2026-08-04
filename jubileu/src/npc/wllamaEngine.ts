@@ -223,7 +223,30 @@ export function cpuThreadCount(
     const detected = Number.isFinite(hardwareConcurrency)
         ? Math.floor(hardwareConcurrency)
         : 1;
-    return Math.max(1, Math.min(MAX_SPEECH_THREADS, detected));
+    // ── FOLGA PARA O JOGO CONTINUAR SENDO UM JOGO ─────────────────────────
+    //
+    // A regra antiga pegava TODOS os núcleos (`min(detected, 8)` = 8 de 8 no
+    // celular do Felipe). Isso mediu bem e jogou mal, e o motivo é que a
+    // medição olhava tok/s da fala isolada — não o aparelho.
+    //
+    // Duas coisas que a conta de tok/s não vê:
+    //
+    // 1. O ggml ESPERA GIRANDO nas barreiras entre os nós do grafo. Thread de
+    //    llama.cpp ociosa não dorme: ela ocupa núcleo. Com 8 de 8, não sobra
+    //    nada para o render do Three.js, para o compositor do navegador nem
+    //    para o sistema — e o que trava não é a fala, é o celular inteiro.
+    // 2. Num big.LITTLE o trabalho é dividido IGUALMENTE. O Snapdragon 7s Gen 2
+    //    tem 4×A78 e 4×A55; as A55 são muito mais lentas, e como toda barreira
+    //    espera a thread mais devagar, as quatro últimas threads atrasam CADA
+    //    token além de ocupar os núcleos que faltam para desenhar.
+    //
+    // Metade dos núcleos, portanto: no 7s Gen 2 isso dá 4, que é exatamente o
+    // grupo rápido. E o override manual continua valendo — quem quiser provar
+    // que 8 é melhor no próprio aparelho mede pela bancada e fixa.
+    // Nunca pedir mais threads do que existe núcleo: num aparelho de 1 ou 2
+    // núcleos a folga não cabe, e forçar duas seria o mesmo erro ao contrário.
+    const comFolga = Math.min(detected, Math.max(2, Math.floor(detected / 2)));
+    return Math.max(1, Math.min(MAX_SPEECH_THREADS, comFolga));
 }
 
 /**

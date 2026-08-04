@@ -65,10 +65,16 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
     it('usa todos os núcleos, até oito — medido no aparelho, não suposto', () => {
         expect(cpuThreadCount(false, 12)).toBe(1);
         expect(cpuThreadCount(true, 2)).toBe(2);
-        expect(cpuThreadCount(true, 4)).toBe(4);
-        // O Felipe mediu de 1 a 8 no celular dele e 8 ganhou. A folga que eu
-        // reservava "para o render" só estava deixando o jogador esperando.
-        expect(cpuThreadCount(true, 8)).toBe(8);
+        // METADE dos núcleos, e o motivo não é a fala: o ggml espera GIRANDO
+        // nas barreiras, então thread ociosa ocupa núcleo. Com 8 de 8 não
+        // sobrava nada para o render nem para o sistema — travava o aparelho
+        // inteiro. E num big.LITTLE (4×A78 + 4×A55 no 7s Gen 2) as threads
+        // lentas ainda atrasam CADA token, porque a barreira espera a última.
+        expect(cpuThreadCount(true, 4)).toBe(2);
+        expect(cpuThreadCount(true, 8)).toBe(4);
+        expect(cpuThreadCount(true, 6)).toBe(3);
+        // Nunca passa do teto, mesmo numa máquina enorme.
+        expect(cpuThreadCount(true, 32)).toBe(8);
         expect(cpuThreadCount(true, 16)).toBe(8);
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
     });
@@ -81,7 +87,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         } finally {
             delete alvo.__npcThreads;
         }
-        expect(cpuThreadCount(true, 8)).toBe(8);
+        expect(cpuThreadCount(true, 8)).toBe(4);
     });
 
     it('a GPU só entra pela mão do gerente, e começa pequena', () => {
