@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada · quanto CPU cada rodada queima</title>
+<pre id="saida">iniciando…</pre>
+<script type="module">
+// Roda a MESMA pergunta com vários orçamentos de rascunho e avisa o medidor de
+// CPU (do lado do Node) antes e depois de cada fala. O que interessa não é só
+// tok/s: é quanto núcleo foi queimado para chegar lá.
+const linhas = [];
+const diz = (t) => { linhas.push(t); document.getElementById('saida').textContent = linhas.join('\n'); console.log(t); };
+globalThis.__resultado = null;
+
+const p = new URL(location.href).searchParams;
+const MODELO = p.get('modelo') ?? '/smollm3.gguf';
+const THREADS = Number(p.get('threads') ?? 4);
+
+const CARGA = {
+  n_ctx: 1536, n_batch: 512, n_threads: THREADS, n_gpu_layers: 0,
+  cache_type_k: 'q8_0', cache_type_v: 'q8_0', jinja: true, reasoning: false,
+};
+
+const PERSONA = 'Você é Nilo Azevedo, hóspede do 10º andar de um hotel estranho'
+  + ' há anos. Responde em uma ou duas frases curtas, cansado e desconfiado.';
+const PERGUNTA = 'O que tem atrás da porta no fim do corredor?';
+
+// Cada configuração é uma instância nova: o rascunhador é escolhido na CARGA.
+const ng = (n) => ({
+  rotulo: `ngram-n${n}`,
+  extra: { spec_draft_model: 'types:ngram-cache', spec_draft_n_max: n },
+});
+const CONFIGS = [
+  { rotulo: 'sem-ngram', extra: {} },
+  ng(1), ng(2), ng(3),
+  { rotulo: 'ngram-n8', extra: { spec_draft_model: 'types:ngram-cache' } },
+];
+
+const falas = [];
+try {
+  const mod = await import('/wllama-espec/index.js');
+  diz(`runtime carregado · threads=${THREADS}`);
+
+  for (const cfg of CONFIGS) {
+    const wllama = new mod.Wllama(
+      { default: '/wllama-espec/wllama.wasm' },
+      { suppressNativeLog: true },
+    );
+    await wllama.loadModelFromUrl(MODELO, { ...CARGA, ...cfg.extra });
+
+    // Uma fala de aquecimento fora da conta, para o KV e o cache do prompt não
+    // aparecerem como custo do rascunhador.
+    await wllama.createChatCompletion({
+      messages: [{ role: 'system', content: PERSONA }, { role: 'user', content: 'Oi.' }],
+      max_tokens: 8, temperature: 0, top_k: 1,
+    });
+
+    await globalThis.marcarCpu(`inicio:${cfg.rotulo}`);
+    const r = await wllama.createChatCompletion({
+      messages: [{ role: 'system', content: PERSONA }, { role: 'user', content: PERGUNTA }],
+      max_tokens: 64, temperature: 0, top_k: 1, timings_per_token: true, cache_prompt: true,
+    });
+    await globalThis.marcarCpu(`fim:${cfg.rotulo}`);
+
+    const tm = r?.timings ?? {};
+    falas.push({
+      rotulo: cfg.rotulo,
+      tokens: tm.predicted_n ?? 0,
+      tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
+      rascunho: `${tm.draft_n_accepted ?? 0}/${tm.draft_n ?? 0}`,
+      resposta: String(r?.choices?.[0]?.message?.content ?? '').trim().slice(0, 120),
+    });
+    diz(`${cfg.rotulo}: ${falas.at(-1).tokens} tok · ${falas.at(-1).tps} tok/s`
+      + ` · rascunho ${falas.at(-1).rascunho}`);
+    await wllama.exit();
+  }
+
+  globalThis.__resultado = { ok: true, threads: THREADS, falas };
+  diz('FIM');
+} catch (erro) {
+  globalThis.__resultado = { ok: false, erro: String(erro?.stack ?? erro), falas };
+  diz(`FALHOU: ${erro}`);
+  diz('FIM');
+}
+</script>

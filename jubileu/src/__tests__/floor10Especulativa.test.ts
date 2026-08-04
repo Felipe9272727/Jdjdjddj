@@ -11,6 +11,7 @@ import {
     parametrosEspeculativos,
     PASTA_ESPECULATIVA,
     prepararEspeculativa,
+    RASCUNHO_N_MAX,
     resetCaminhosEspeculativosForTests,
     resetRuntimeFloor10ForTests,
     runtimeFloor10,
@@ -110,13 +111,28 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(TIPOS_NGRAMA).not.toContain('.gguf');
     });
 
-    it('não envia controles de modelo rascunhador que o N-gram ignora', () => {
+    it('manda o orçamento de rascunho, e ele é pequeno de propósito', () => {
+        // O `ngram-cache` do upstream traz `n_draft = 8` FIXO ("TODO get from
+        // config?"). Medido no navegador com o SmolLM3-3B, mesma pergunta:
+        // 8 propostas → 0 aceitas, fala de 2,86 para 1,77 tok/s e +22% de CPU.
+        // Num celular isso não é uma barra mais lenta, é o aparelho travando.
+        // O binário em public/wllama-espec foi recompilado para obedecer.
+        expect(RASCUNHO_N_MAX).toBe(1);
         const p = parametrosEspeculativos();
-        expect(p).toEqual({ spec_draft_model: TIPOS_NGRAMA });
-        expect(p).not.toHaveProperty('spec_draft_n_max');
-        expect(p).not.toHaveProperty('spec_draft_n_min');
+        expect(p).toEqual({
+            spec_draft_model: TIPOS_NGRAMA,
+            spec_draft_n_max: RASCUNHO_N_MAX,
+        });
+        // Estes continuam de fora: pertencem a um modelo rascunhador.
         expect(p).not.toHaveProperty('spec_draft_p_min');
         expect(p).not.toHaveProperty('spec_draft_ngl');
+    });
+
+    it('o binário publicado sabe ler o orçamento', () => {
+        const esm = readFileSync(fileURLToPath(new URL(
+            '../../public/wllama-espec/index.js', import.meta.url,
+        )), 'utf8');
+        expect(esm).toContain('spec_draft_n_max');
     });
 
     it('monta o GGUF em blocos grandes usando a mesma chave de cache', () => {

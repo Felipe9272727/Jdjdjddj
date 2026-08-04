@@ -159,10 +159,41 @@ export function especulativaLigada(busca?: string): boolean {
     return !/[?&]semngram\b/i.test(busca ?? globalThis.location?.search ?? '');
 }
 
+/**
+ * ORÇAMENTO DE RASCUNHO: 1. Este número custou um travamento no celular.
+ *
+ * O `ngram-cache` do llama.cpp vinha com `uint16_t n_draft = 8; // TODO get
+ * from config?` — 8 propostas por passo, fixas, ignorando qualquer parâmetro.
+ * Numa pergunta comum ele acerta ZERO das 8, e o modelo verifica 9 posições
+ * para aproveitar 1. Medido no navegador com o SmolLM3-3B (4 threads, mesma
+ * pergunta, greedy):
+ *
+ *   sem n-grama   2,86 tok/s   47,5 s de CPU
+ *   n_max = 1     2,57 tok/s   49,2 s   (−10%)
+ *   n_max = 2     2,48 tok/s   50,4 s   (−13%)
+ *   n_max = 3     2,27 tok/s   52,3 s   (−21%)
+ *   n_draft = 8   1,77 tok/s   58,3 s   (−38%, +22% de CPU)
+ *
+ * Num PC isso é uma barra mais lenta; num celular é o aparelho inteiro travando,
+ * porque especular troca um trabalho limitado por MEMÓRIA (núcleos esperando)
+ * por um limitado por CONTA (núcleos a 100%), e não sobra nada para a tela.
+ *
+ * Por que 1 e não zero: com 1 proposta o passo continua limitado por banda —
+ * verificar 2 tokens relê os mesmos pesos que verificar 1 —, o prejuízo no pior
+ * caso é 10%, e o ganho aparece sempre que a resposta repete algo do contexto
+ * (medido: 68 de 81 aceitos num texto que ecoa, 1,43× de fala). O empate fica em
+ * 10% de aceitação: acima disso, 1 já paga.
+ *
+ * O `n_draft` do llama.cpp só obedece porque o binário em `public/wllama-espec`
+ * foi recompilado com o patch que lê `spec_draft_n_max`.
+ */
+export const RASCUNHO_N_MAX = 1;
+
 /** Os campos que entram na mensagem de carga do wllama. */
 export function parametrosEspeculativos(): Record<string, unknown> {
     return {
         spec_draft_model: TIPOS_NGRAMA,
+        spec_draft_n_max: RASCUNHO_N_MAX,
     };
 }
 

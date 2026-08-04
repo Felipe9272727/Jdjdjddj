@@ -24,6 +24,10 @@ Quebrada em etapas, a carga do modelo de verdade:
  61515ms  modelo carregado            ← ~3 s de aquecimento
 ```
 
+E a fala, com a persona do jogo e três perguntas seguidas (a 1ª paga o prefill
+frio): **1,53 → 2,15 → 2,18 tok/s**, respondendo no personagem
+("Nilo Azevedo. E você?", "Nada. A porta está trancada.").
+
 **Do cache pronto até o modelo na memória: 11,4 s.** Não 500. Os 402 s e os
 1280 s dos prints eram o travamento do pool de pthreads, que não ia terminar
 nunca — está consertado, com teste. Num celular estas mesmas etapas custam mais
@@ -38,7 +42,7 @@ descarrega a fala custa esses 11 s (mais, no celular) outra vez.
 
 | técnica | estado | medido |
 |---|---|---|
-| n-grama (auto-especulação) | **padrão** | 1,00× em conversa, 1,43× quando a resposta ecoa o contexto; texto idêntico |
+| n-grama (auto-especulação) | **padrão, com orçamento 1** | 1,43× quando a resposta ecoa o contexto, −10% no pior caso; texto idêntico. Ver "orçamento de rascunho" abaixo |
 | KV em q8_0 | ligado | +15% na fala, sem mudar o texto |
 | flash attention | ligado (o llama.cpp resolve sozinho: `flash_attn = auto → enabled`) | — |
 | `cache_prompt` | ligado | não relê a persona a cada mensagem — o maior ganho de todos em conversa longa |
@@ -64,38 +68,122 @@ E o que NÃO vale, para não gastar tarde à toa:
 - **Q4_0 "para ARM".** O ganho do Q4_0 em celular vem do repack para
   `Q4_0_4_4`/`i8mm`, que é código ARM. Dentro do WASM ele não existe.
 
-## MoE: a ideia está certa, o tamanho não
+## O TETO DE 2 GiB — a descoberta que decide tudo aqui embaixo
 
-O raciocínio do Felipe é o mesmo dos MoE de verdade: em vez de acordar o modelo
-inteiro para cada token, acordar só a parte que interessa. E num celular isso
-ataca exatamente o gargalo certo — gerar token é limitado por BANDA DE MEMÓRIA,
-porque cada token relê os pesos ativos. Um MoE relê só os experts ativos.
+**Nenhum GGUF acima de 2.147.483.648 bytes (2 GiB) carrega neste runtime.** Não
+é "pesado demais para o celular": não carrega em máquina nenhuma, nem nesta com
+16 GB de RAM. Medido, duas vezes:
 
-O problema é que MoE troca **memória** por **conta**, e memória é justamente o
-que está faltando aqui:
+```
+granite-4.0-h-tiny Q4_K_M (4,25 GB, MoE)
+  → tensor 'blk.19.ffn_down_exps.weight' data is not within the file bounds
 
-| modelo | total | ativo/token | Q4_K_M |
-|---|---|---|---|
-| **SmolLM3-3B** (hoje) | 3B | 3B | **1,92 GB** |
-| granite-4.0-h-tiny | 7B | ~1B | 4,25 GB (IQ4_XS: 3,79 GB) |
-| LFM2-8B-A1B | 8,3B | ~1,5B | 5,04 GB (Q4_0: 4,73 GB) |
-| Qwen3-30B-A3B | 30B | 3B | 18,56 GB |
-
-O menor MoE decente **dobra e meia** o download e a RAM residente para ler ~1/3
-dos pesos por token. Traduzindo para o aparelho do Felipe: 4,25 GB no lugar de
-1,92 GB, e no print de download dele a rede estava a 149 KB/s — 4,25 GB nessa
-velocidade são **quase 8 horas**. O ganho seria real (fala talvez 2–3× mais
-rápida, com qualidade de um denso maior), mas pago na moeda que está em falta.
-
-**Recomendação honesta:** não trocar agora. O caminho é testar antes de mexer no
-jogo — e isso já dá para fazer sem commit nenhum, porque o modelo da fala aceita
-override:
-
-```js
-// no console, antes de subir para o Andar 10
-window.__npcModelUrl = 'https://huggingface.co/unsloth/granite-4.0-h-tiny-GGUF/resolve/main/granite-4.0-h-tiny-IQ4_XS.gguf';
+SmolLM3-Q8_0 (3,27 GB, DENSO, o MESMO modelo que roda hoje)
+  → tensor 'blk.21.ffn_up.weight' data is not within the file bounds
 ```
 
-Se num celular com RAM sobrando o granite carregar e falar mais rápido que o
-SmolLM3, aí a conversa muda e a troca passa a valer a discussão. Se não
-carregar, custou um download e nenhum código.
+O segundo teste é o que fecha o caso: mesma arquitetura, mesmo modelo, só a
+quantização muda — e ele falha igual. Não é MoE, é tamanho de arquivo.
+
+`teto-do-gguf.mjs` lê o cabeçalho e mostra exatamente onde cada tensor começa:
+
+```
+$ node teto-do-gguf.mjs granite.gguf blk.19.ffn_down_exps.weight
+   offset absoluto 2.082.156.512 · primeiro tensor depois de 2^31:
+   blk.19.ffn_gate_inp.weight @ 2.153.045.984
+
+$ node teto-do-gguf.mjs smollm3.gguf      # o que roda hoje
+   nenhum tensor passa de 2^31
+```
+
+O tensor recusado é sempre o primeiro cuja DATA cruza 2^31 — o limite de um
+`long` de 32 bits. A própria wllama documenta isso no HeapFS: *"Due to ftell()
+being limited to MAX_LONG, we cannot load files bigger than 2^31 bytes"*. Se dá
+para levantar esse teto (esta build é Memory64, onde `long` deveria ter 64 bits)
+é uma investigação separada, e não prometo que dê.
+
+**O que isso significa para o jogo:** o SmolLM3-Q4_K_M tem 1,92 GB, ou seja está
+a **89% de um teto rígido**. Não há espaço para modelo maior de tipo nenhum —
+nem MoE, nem denso, nem o mesmo SmolLM3 em Q8 — enquanto o teto existir.
+
+## MoE: a ideia está certa, o tamanho é impossível hoje
+
+O raciocínio é o mesmo dos MoE de verdade: em vez de acordar o modelo inteiro
+para cada token, acordar só a parte que interessa. E num celular isso ataca o
+gargalo certo — gerar token é limitado por BANDA DE MEMÓRIA, porque cada token
+relê os pesos ativos, e um MoE relê só os experts ativos.
+
+O problema é que MoE troca **memória** por **conta**, e todo MoE que existe hoje
+passa longe do teto:
+
+| modelo | total | ativo/token | menor GGUF ~Q4 | carrega? |
+|---|---|---|---|---|
+| **SmolLM3-3B** (hoje) | 3B | 3B | **1,92 GB** | **sim** |
+| granite-4.0-h-tiny | 7B | ~1B | 3,79 GB (IQ4_XS) | não |
+| LFM2-8B-A1B | 8,3B | ~1,5B | 4,73 GB (Q4_0) | não |
+| Qwen3-30B-A3B | 30B | 3B | 18,56 GB | não |
+
+E mesmo que carregasse: na velocidade de rede do print do Felipe (149 KB/s),
+4,25 GB são quase 8 horas de download.
+
+### E converter o próprio SmolLM3-3B em MoE?
+
+Não dá — e o motivo não é ferramenta, é matemática. A técnica existe
+(*sparse upcycling*): copia-se o FFN de cada camada em N experts e acrescenta-se
+um roteador. Só que o roteador nasce **aleatório**, e sem treino acontece uma de
+duas coisas:
+
+- roteando para todos os experts, o resultado é IDÊNTICO ao denso — e mais
+  lento, porque agora há N cópias do mesmo FFN para ler;
+- roteando para poucos, o modelo quebra, porque nada ensinou o roteador a
+  escolher.
+
+A velocidade do MoE vem dos experts serem DIFERENTES entre si, e essa diferença
+só aparece depois de treinar com bilhões de tokens. Aqui não há GPU, não há
+dado e não há tempo — e o arquivo resultante passaria dos 2 GiB de qualquer
+forma.
+
+Existe uma variante sem treino pesado (*MoEfication*, que agrupa os neurônios do
+FFN em blocos e treina só um roteador pequeno), mas ela depende de o modelo ter
+ativação esparsa, o que vale para ReLU e **não** para o SwiGLU do SmolLM3. Fora
+que o GGUF teria de virar uma arquitetura que o llama.cpp reconheça.
+
+**O MoE que o jogo já tem é outro, e esse funciona:** fala, vontade, motor e
+memória são especialistas, e só um fica ativo por vez. É a mesma ideia, aplicada
+na camada onde ela sai de graça.
+
+## O orçamento de rascunho: o número que travou o celular
+
+Ligar o n-grama por padrão com a configuração de fábrica foi um erro meu, e a
+bancada de velocidade não pegou porque eu media **tok/s e não CPU queimado**.
+
+O `ngram-cache` do llama.cpp traz `uint16_t n_draft = 8; // TODO get from
+config?` — 8 propostas por passo, fixas, ignorando qualquer parâmetro. Numa
+pergunta comum ele acerta **zero** das 8, e o modelo verifica 9 posições para
+aproveitar 1. Medido com o SmolLM3-3B de verdade, 4 threads, mesma pergunta,
+greedy, CPU somado de todos os processos do Chromium:
+
+| configuração | fala | CPU | rascunho aceito |
+|---|---|---|---|
+| **sem n-grama** | **2,86 tok/s** | **47,5 s** | — |
+| n_max = 1 | 2,57 tok/s (−10%) | 49,2 s | 0/1 |
+| n_max = 2 | 2,48 tok/s (−13%) | 50,4 s | 0/2 |
+| n_max = 3 | 2,27 tok/s (−21%) | 52,3 s | 0/3 |
+| n_draft = 8 (o padrão que eu liguei) | 1,77 tok/s (−38%) | 58,3 s (+22%) | 0/8 |
+
+Num PC isso é uma barra mais lenta. Num celular é outra coisa: especular troca
+um trabalho limitado por MEMÓRIA (núcleos esperando o dado chegar) por um
+limitado por CONTA (núcleos a 100%), e o que sobrava para a tela desenhar
+acabou. Foi o "o celular inteiro trava" — com 8 núcleos ocupados verificando
+tokens que iam ser jogados fora.
+
+O binário foi recompilado com o `n_draft` obedecendo a `spec_draft_n_max`, e o
+jogo pede **1**. Por que 1 e não zero: com uma proposta o passo continua
+limitado por banda (verificar 2 tokens relê os mesmos pesos que verificar 1), o
+prejuízo no pior caso cai para 10%, e o ganho aparece sempre que a resposta
+repete algo do contexto — medido 68 de 81 aceitos num texto que ecoa, 1,43× de
+fala. O empate fica em 10% de aceitação.
+
+**A lição, para a próxima:** medir tok/s numa caixa de 16 GB não é medir o custo
+num celular. `custo-cpu.mjs` existe por isso — ele soma o tempo de CPU de todos
+os processos do navegador entre o início e o fim de cada fala.

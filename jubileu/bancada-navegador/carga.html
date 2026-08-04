@@ -76,23 +76,56 @@ try {
   });
   marca('modelo carregado');
 
-  const t1 = performance.now();
-  const r = await wllama.createChatCompletion({
-    messages: [{ role: 'user', content: 'Oi. Tudo bem?' }],
-    max_tokens: 24, temperature: 0, top_k: 1, timings_per_token: true,
-  });
-  marca('primeira fala', `${Math.round(performance.now() - t1)}ms`);
-  const tm = r?.timings ?? {};
+  // A persona é a do jogo, encurtada. Três falas: a primeira paga o prefill
+  // frio, as seguintes são o que o jogador sente em conversa.
+  const PERSONA = 'Você é Nilo Azevedo, hóspede do 10º andar de um hotel'
+    + ' estranho há anos. Responde em uma ou duas frases curtas, cansado e'
+    + ' desconfiado, sem nunca sair do personagem.';
+  const PERGUNTAS = [
+    'Oi, qual o teu nome?',
+    'O que tem atrás da porta no fim do corredor?',
+    'Por que você nunca sai daqui?',
+  ];
+
+  const falas = [];
+  for (let i = 0; i < PERGUNTAS.length; i += 1) {
+    const t1 = performance.now();
+    const r = await wllama.createChatCompletion({
+      messages: [
+        { role: 'system', content: PERSONA },
+        { role: 'user', content: PERGUNTAS[i] },
+      ],
+      max_tokens: 48, temperature: 0, top_k: 1, timings_per_token: true,
+      cache_prompt: true,
+    });
+    const tm = r?.timings ?? {};
+    const texto = r?.choices?.[0]?.message?.content ?? r?.choices?.[0]?.text ?? '';
+    falas.push({
+      pergunta: PERGUNTAS[i],
+      ms: Math.round(performance.now() - t1),
+      tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
+      promptTps: tm.prompt_per_second ? +tm.prompt_per_second.toFixed(2) : null,
+      rascunho: `${tm.draft_n_accepted ?? 0}/${tm.draft_n ?? 0}`,
+      resposta: String(texto).trim().slice(0, 220),
+    });
+    marca(`fala ${i + 1}`, `${falas[i].ms}ms · ${falas[i].tps} tok/s`);
+    diz(`      → ${falas[i].resposta}`);
+  }
   await wllama.exit();
 
+  // A 1ª fala paga cache frio; a média das seguintes é o que se sente.
+  const quentes = falas.slice(1).filter((f) => f.tps);
   globalThis.__resultado = {
     ok: true,
+    modelo: MODELO,
     ngram: NGRAM,
     threads: THREADS,
     totalMs: Math.round(performance.now() - t0),
     etapas,
-    tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
-    rascunho: `${tm.draft_n_accepted ?? 0}/${tm.draft_n ?? 0}`,
+    falas,
+    tpsQuente: quentes.length
+      ? +(quentes.reduce((s, f) => s + f.tps, 0) / quentes.length).toFixed(2)
+      : null,
   };
   diz('FIM');
 } catch (erro) {

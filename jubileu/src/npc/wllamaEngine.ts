@@ -502,6 +502,32 @@ export function modelInitWatchdogStalledMs(
     return modelInitStalledMs(downloadDoneAt, lastActivityAt, now);
 }
 
+/**
+ * O TETO DO GGUF NESTE RUNTIME: 2 GiB, e é rígido.
+ *
+ * Medido no Chromium (ver `bancada-navegador/VELOCIDADE.md`), com dois modelos
+ * diferentes e o mesmo resultado: o llama.cpp recusa o primeiro tensor cuja
+ * data cruza 2^31 com "data is not within the file bounds, model is corrupted
+ * or incomplete". O granite-4.0-h-tiny (4,25 GB, MoE) morre em
+ * `blk.19.ffn_down_exps.weight`; o PRÓPRIO SmolLM3 em Q8_0 (3,27 GB, denso)
+ * morre em `blk.21.ffn_up.weight`. Mesmo modelo, mesma arquitetura, só a
+ * quantização muda — logo o limite é o TAMANHO DO ARQUIVO, não o modelo.
+ *
+ * A wllama documenta a origem no próprio HeapFS: `ftell()` preso em MAX_LONG.
+ *
+ * Isto existe para o jogador ver o motivo em vez de "modelo corrompido", que
+ * manda a pessoa apagar o cache e baixar 2 GB de novo à toa.
+ */
+export const TETO_GGUF_BYTES = 2 ** 31;
+
+/** Mensagem quando o arquivo passa do teto; string vazia quando cabe. */
+export function excedeTetoDoGguf(bytes: number | null): string {
+    if (bytes === null || !Number.isFinite(bytes) || bytes <= TETO_GGUF_BYTES) return '';
+    return `${formatBytes(bytes)} passa do teto de ${formatBytes(TETO_GGUF_BYTES)}`
+        + ' que este runtime consegue abrir. Nenhum aparelho carrega este arquivo —'
+        + ' é limite do llama.cpp em WASM, não falta de espaço.';
+}
+
 export function speechRuntimeLabel(gpuLayers: number, threads: number): string {
     const cpu = `CPU×${Math.max(1, Math.floor(threads))}`;
     return gpuLayers > 0 ? `WebGPU×${gpuLayers} + ${cpu}` : cpu;
@@ -987,6 +1013,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // cache, não há nada a caber — a pergunta simplesmente não se aplica.
         if (!await isModelCached(mod, model.url)) {
             const modelBytes = await probeModelBytes(model.url);
+            const excedeTeto = excedeTetoDoGguf(modelBytes);
+            if (excedeTeto) throw new ModelStorageError(excedeTeto);
             let estimativa = await readStorageEstimate();
             // Publica o espaço ANTES de tentar: se não couber, o jogador vê o
             // número que explica, em vez de uma barra que nunca sai do lugar.

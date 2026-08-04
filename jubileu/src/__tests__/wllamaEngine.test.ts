@@ -8,6 +8,7 @@ import {
     GenerationTimeoutError,
     SPEECH_WEBGPU_ENABLED,
     SPEECH_WEBGPU_LAYERS,
+    SPEECH_MODEL_BYTES,
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
@@ -32,6 +33,8 @@ import {
     speechGpuLayerCount,
     speechRuntimeLabel,
     stringifyModelLoadLog,
+    TETO_GGUF_BYTES,
+    excedeTetoDoGguf,
     visibleText,
 } from '../npc/wllamaEngine';
 import { npc, npcSet } from '../npc/npcStore';
@@ -454,6 +457,18 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
             size: 100_000_000,
             total: 2_000_000_000,
         })).toBe('GGUF 1.10 GB de 2.00 GB');
+    });
+
+    it('avisa do teto de 2 GiB antes de baixar à toa', () => {
+        // Medido: granite-4.0-h-tiny (4,25 GB) e SmolLM3-Q8_0 (3,27 GB) morrem
+        // os dois em "data is not within the file bounds". O SmolLM3 de hoje
+        // (1,92 GB) passa — está a 89% do teto.
+        expect(TETO_GGUF_BYTES).toBe(2_147_483_648);
+        expect(excedeTetoDoGguf(SPEECH_MODEL_BYTES)).toBe('');
+        expect(excedeTetoDoGguf(null)).toBe('');
+        expect(excedeTetoDoGguf(4_254_815_392)).toContain('passa do teto');
+        // Nada de mandar o jogador culpar o armazenamento por um limite do runtime.
+        expect(excedeTetoDoGguf(4_254_815_392)).toContain('não falta de espaço');
     });
 
     it('as etapas anteriores ao modelo entram no relatório e na tela', () => {
