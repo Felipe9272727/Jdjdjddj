@@ -236,3 +236,63 @@ sandbox do browser não dá.
 
 A ideia boa dele — "só o que muda entre tokens precisa se mover" — é a mesma dos
 MoE, e esbarra no mesmo teto de 2 GiB documentado acima.
+
+## ACHADO: existe um MoE de 3B, ele CABE, e é 2,7× mais rápido
+
+`ibm-granite/granite-3.1-3b-a800m-instruct` — 3B no total, **800M ativos por
+token**, arquitetura `granitemoe`. O Q4_K_M tem 2.016.888.384 bytes: passa,
+raspando, abaixo do teto de 2.147.483.648. Nenhum tensor cruza 2^31.
+
+Medido na mesma bancada, mesma máquina, mesmas três perguntas com a persona do
+Nilo, greedy:
+
+| | SmolLM3-3B (denso) | granite-3.1-3b-a800m (MoE) |
+|---|---|---|
+| arquivo | 1,92 GB | 2,02 GB |
+| ativos por token | 3B | **800M** |
+| cache → pronto | 11,4 s | **8,5 s** |
+| fala 1 / 2 / 3 | 2,67 / 2,89 / 2,69 tok/s | **6,59 / 7,63 / 7,67 tok/s** |
+
+**~2,7× na fala**, exatamente o que a conta de banda de memória previa. A teoria
+do Felipe estava certa desde o começo; só faltava um MoE pequeno o bastante.
+
+### Mas a qualidade cobra, e cobra em português
+
+As MESMAS perguntas, lado a lado:
+
+```
+"Oi, qual o teu nome?"
+  SmolLM3  → Nilo Azevedo. E você?
+  granite  → Eu sou Nilo Azevedo, um hóspede desconhecido do 10º andar.
+
+"O que tem atrás da porta no fim do corredor?"
+  SmolLM3  → Nada. A porta está trancada.
+  granite  → Não posso ver além da minha porta, sou um hóspede desconhecido
+             desse lugar.
+
+"Por que você nunca sai daqui?"
+  SmolLM3  → Porque aqui é o lugar onde encontrei a paz que nunca encontrei em
+             lugar algum mais.
+  granite  → Como Nilo Azevedo, sou um hóspede fiável, não tenho motivos para
+             sair. Esta estrutura é confortável e familiar, e minha vida está
+             em ordem.
+```
+
+O SmolLM3 está no personagem: seco, curto, cansado — que é o que a persona pede.
+O granite é prolixo, repete "hóspede desconhecido", escreve em português de
+Portugal ("fiável") e QUEBRA o personagem em "Como Nilo Azevedo, sou...". Mais
+rápido e menos Nilo.
+
+**Não é uma troca óbvia — é uma escolha.** 2,7× de velocidade por uma atuação
+pior em PT-BR. Quem decide é você, e dá para experimentar sem commit nenhum:
+
+```js
+window.__npcModelUrl = 'https://huggingface.co/bartowski/granite-3.1-3b-a800m-instruct-GGUF/resolve/main/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf';
+```
+
+### O próximo teste, se a velocidade tentar
+
+Existe `PJMixers-Dev/Granite-3.1-Earthen-v0.3-3B-A800M` — o MESMO MoE, mas
+afinado em visual novels, legendas e literatura. Q4_K_M tem os mesmos 2,02 GB e
+cabe igual. É a hipótese óbvia para recuperar a atuação sem perder os 800M
+ativos. Não testei ainda.
