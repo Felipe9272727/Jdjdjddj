@@ -41,6 +41,15 @@ import {
     downloadLine,
     formatBytes,
 } from './floor10Download';
+import {
+    FLOOR10_TENTATIVAS,
+    conferirModeloCarregado,
+    ehFalhaTransitoria,
+    esperar,
+    esperaDaTentativa,
+    textoDaTentativa,
+    vigiarInatividade,
+} from './floor10Carga';
 import { floor10Fila, FILA_MEMORIA } from './floor10Fila';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
@@ -90,7 +99,11 @@ export const FLOOR10_MEMORIA_LOAD_CONFIG = Object.freeze({
 });
 
 export const FLOOR10_MEMORIA_USE_CACHE = true;
-export const FLOOR10_MEMORIA_LOAD_TIMEOUT_MS = 180_000;
+// AQUI EXISTIA `FLOOR10_MEMORIA_LOAD_TIMEOUT_MS = 180_000`, um teto sobre o
+// tempo TOTAL, e a conta condenava o celular: 334 MB a 1,5 MB/s (4G comum)
+// precisam de 222s. O download morria aos 180s com a barra ANDANDO, e o
+// AbortError resultante era indistinguível de rede caída. O teto agora é de
+// inatividade — ver floor10Carga.ts.
 /**
  * Teto por pergunta. Medido no contêiner (2 threads, CPU de servidor):
  * 130–450ms quente. Passar disso é sintoma de outra coisa disputando a CPU — e
@@ -229,6 +242,7 @@ function terminate(engine: MemoriaInstance | null): void {
 
 async function ensureMemoriaEngine(
     recoverBrokenCache = true,
+    tentativa = 0,
 ): Promise<MemoriaInstance | null> {
     if (residentEngine) return residentEngine;
     if (enginePromise) return enginePromise;
@@ -236,10 +250,14 @@ async function ensureMemoriaEngine(
     enginePromise = (async () => {
         const controller = new AbortController();
         loadAbort = controller;
-        const timer = globalThis.setTimeout(
-            () => controller.abort(),
-            FLOOR10_MEMORIA_LOAD_TIMEOUT_MS,
-        );
+        // Teto por INATIVIDADE, não por tempo total: 334 MB a 1,5 MB/s levam
+        // 222s de download saudável, e o teto total de 180s matava isso com a
+        // barra andando. Ver floor10Carga.ts para a conta inteira.
+        // `travou` separa as duas causas de aborto que chegam aqui como o
+        // MESMO AbortError: o vigia (a carga morreu — vale tentar de novo) e
+        // quem chamou (o coordenador preemptou — repetir seria desobedecer).
+        let travou = false;
+        const vigia = vigiarInatividade(() => { travou = true; controller.abort(); });
         medidor.reset();
         npcSet({
             memoriaPhase: 'loading',
@@ -276,6 +294,7 @@ async function ensureMemoriaEngine(
                 signal: controller.signal,
                 progressCallback: (progress: { loaded?: number; total?: number }) => {
                     if (controller.signal.aborted) return;
+                    vigia.avancou();
                     const amostra = medidor.push(
                         progress.loaded ?? 0,
                         progress.total ?? 0,
@@ -294,6 +313,11 @@ async function ensureMemoriaEngine(
                     });
                 },
             });
+            // VEIO MODELO OU VEIO CASCA? Medido: um GGUF truncado no cache faz
+            // `loadModelFromUrl` RESOLVER, com nVocab/nLayer zerados, e só
+            // estoura na primeira busca. Perguntar aqui joga o caso no caminho
+            // de cache quebrado, que apaga e baixa de novo.
+            await conferirModeloCarregado(engine);
             // ── AQUECIMENTO ───────────────────────────────────────────────
             // A primeira busca depois da carga custou 1504ms; as seguintes,
             // ~300ms. Não é o modelo ser lento, é a primeira passada pagar
@@ -330,7 +354,33 @@ async function ensureMemoriaEngine(
                         + 'ficou incompleto; baixando de novo…',
                 });
                 enginePromise = null;
-                return ensureMemoriaEngine(false);
+                return ensureMemoriaEngine(false, tentativa);
+            }
+            // REDE CAIU ≠ MODELO INDISPONÍVEL. O wllama guarda o que já desceu
+            // no OPFS, então a tentativa seguinte CONTINUA — não recomeça os
+            // 334 MB. Sem isto, um soluço de 4G no meio do download deixava a
+            // memória 'unavailable' até alguém recarregar a página.
+            if (
+                (travou || !controller.signal.aborted)
+                && tentativa + 1 < FLOOR10_TENTATIVAS
+                && (travou || ehFalhaTransitoria(falha))
+            ) {
+                const espera = esperaDaTentativa(tentativa + 1);
+                npcSet({
+                    memoriaPhase: 'loading',
+                    memoriaDownload: DOWNLOAD_ZERO,
+                    memoriaLoadText: textoDaTentativa(
+                        FLOOR10_MEMORIA_MODEL.label,
+                        tentativa + 1,
+                        espera,
+                    ),
+                });
+                enginePromise = null;
+                // Um aborto do VIGIA já cumpriu seu papel: o sinal fica
+                // levantado, mas a espera aqui não pode ser encurtada por ele.
+                await esperar(espera, travou ? undefined : controller.signal);
+                if (!travou && controller.signal.aborted) return null;
+                return ensureMemoriaEngine(recoverBrokenCache, tentativa + 1);
             }
             const motivo = falha instanceof Error
                 ? `${falha.name}: ${falha.message}`
@@ -344,7 +394,7 @@ async function ensureMemoriaEngine(
             enginePromise = null;
             return null;
         } finally {
-            globalThis.clearTimeout(timer);
+            vigia.parar();
             if (loadAbort === controller) loadAbort = null;
         }
     })();

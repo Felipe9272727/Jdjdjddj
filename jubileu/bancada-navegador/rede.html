@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada · a rede caindo no meio do download</title>
+<pre id="saida">medindo…</pre>
+<script>globalThis.__resultado = null;</script>
+<script type="module">
+// A PERGUNTA: quando a conexão cai no meio do download, que erro o wllama
+// entrega? A resposta decide se `ehFalhaTransitoria` acerta a classificação —
+// e, portanto, se a retentativa do jogo dispara de verdade.
+const saida = document.getElementById('saida');
+const linhas = [];
+const diz = (t) => {
+  linhas.push(t);
+  saida.textContent = linhas.join('\n');
+  console.log(t);
+};
+
+// A MESMA classificação que floor10Carga.ts usa, copiada aqui de propósito:
+// se as duas divergirem, este teste tem que acusar.
+const TRANSITORIAS = [
+  'failed to fetch', 'networkerror', 'load failed', 'network error',
+  'connection', 'err_network', 'err_internet_disconnected', 'err_connection',
+  'err_timed_out', 'socket', 'econnreset', 'etimedout',
+];
+const HTTP_TRANSITORIO = /\b(408|425|429|500|502|503|504)\b/;
+function ehFalhaTransitoria(erro) {
+  if (erro === null || erro === undefined) return false;
+  const nome = erro?.name;
+  if (typeof nome === 'string') {
+    const n = nome.toLowerCase();
+    if (n === 'aborterror' || n === 'quotaexceedederror') return false;
+  }
+  const texto = (erro instanceof Error ? `${erro.name}: ${erro.message}` : String(erro)).toLowerCase();
+  if (texto.includes('abort') || texto.includes('interrompid')) return false;
+  if (texto.includes('quota') || texto.includes('não cabe')) return false;
+  if (texto.includes('corrupted') || texto.includes('incomplete')) return false;
+  if (HTTP_TRANSITORIO.test(texto)) return true;
+  return TRANSITORIAS.some((m) => texto.includes(m));
+}
+
+// Três formas de a rede falhar, porque elas NÃO são a mesma coisa para o
+// navegador — e a classificação precisa acertar as três:
+//   corte  · a conexão morre no meio do stream (celular trocando de célula)
+//   503    · o servidor responde, mas com erro que passa se repetir
+//   morto  · não há ninguém do outro lado (modo avião, DNS caído)
+const MODO = new URLSearchParams(location.search).get('modo') ?? 'corte';
+const ALVO = MODO === 'morto'
+  ? 'http://127.0.0.1:9/fake.gguf'
+  : (MODO === '503' ? '/fake.gguf?erro=503' : '/fake.gguf');
+diz(`modo: ${MODO} · alvo: ${ALVO}`);
+
+const resultado = { ok: false, modo: MODO, tentativas: [] };
+
+try {
+  const { Wllama } = await import('./wllama-espec/index.js');
+
+  for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+    // O MESMO pathConfig do jogo: um único wasm sob a chave `default`.
+    const engine = new Wllama(
+      { default: './wllama-espec/wllama.wasm' },
+      { suppressNativeLog: true },
+    );
+    let ultimoProgresso = 0;
+    const t0 = performance.now();
+    try {
+      // `useCache: false` de propósito: com cache, a segunda tentativa leria o
+      // OPFS e a pergunta sobre a REDE ficaria sem resposta.
+      await engine.loadModelFromUrl(ALVO, {
+        n_ctx: 256,
+        n_threads: 1,
+        useCache: false,
+        progressCallback: ({ loaded, total }) => { ultimoProgresso = loaded ?? 0; },
+      });
+      // CARREGOU LIXO? Então o llama.cpp aceitou 48 MB de zeros como modelo, e
+      // isso seria um defeito muito maior que o desta bancada: um download
+      // truncado viraria um Nilo falando ruído em vez de uma falha visível.
+      let meta = null;
+      try { meta = await engine.getModelMetadata(); } catch (e) { meta = `sem metadata: ${e?.message}`; }
+      let amostra = null;
+      try {
+        const r = await engine.createCompletion('oi', { nPredict: 4 });
+        amostra = String(r).slice(0, 80);
+      } catch (e) { amostra = `não gerou: ${e?.message?.slice(0, 120)}`; }
+      diz(`tentativa ${tentativa}: carregou · meta=${JSON.stringify(meta)?.slice(0, 200)}`);
+      diz(`   gerou: ${amostra}`);
+      resultado.tentativas.push({ tentativa, carregou: true, meta: JSON.stringify(meta)?.slice(0, 200), amostra });
+    } catch (erro) {
+      const nome = erro?.name ?? '(sem nome)';
+      const msg = erro?.message ?? String(erro);
+      const classificado = ehFalhaTransitoria(erro);
+      diz(`tentativa ${tentativa} · ${Math.round(performance.now() - t0)}ms`);
+      diz(`   baixou até: ${(ultimoProgresso / 1048576).toFixed(1)} MB`);
+      diz(`   name: ${nome}`);
+      diz(`   message: ${String(msg).slice(0, 300)}`);
+      diz(`   ehFalhaTransitoria → ${classificado}`);
+      resultado.tentativas.push({
+        tentativa, nome, msg: String(msg).slice(0, 300), classificado,
+        baixou: ultimoProgresso,
+      });
+    }
+    try { await engine.exit(); } catch { /* já morreu */ }
+  }
+
+  // O QUE PRECISA SER VERDADE para o conserto do jogo valer:
+  // 1. a queda de rede levanta um erro (não fica pendurada para sempre);
+  // 2. e esse erro é classificado como transitório.
+  const primeira = resultado.tentativas[0];
+  // No modo `corte` sobreviver SEM erro também é aprovação: quer dizer que a
+  // camada de baixo já se recuperou sozinha e não havia nada a consertar.
+  resultado.ok = !!primeira
+    && (primeira.carregou === true || primeira.classificado === true);
+  resultado.veredito = !primeira
+    ? 'nenhuma tentativa aconteceu'
+    : primeira.carregou === true
+      ? 'a falha não chegou a virar erro — a camada de baixo se recuperou sozinha'
+      : primeira.classificado
+        ? 'a falha vira erro classificável — a retentativa do jogo dispara'
+        : 'a falha NÃO é classificada como transitória — a retentativa não dispararia';
+  diz('');
+  diz(resultado.veredito);
+} catch (erro) {
+  diz(`falhou fora do teste: ${erro?.message ?? erro}`);
+  resultado.erro = String(erro?.message ?? erro);
+}
+
+globalThis.__resultado = resultado;
+</script>

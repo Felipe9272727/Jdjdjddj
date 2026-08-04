@@ -40,6 +40,15 @@ import {
 import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, SPEECH_BRAIN_BYTES, type SmallBrainId,
 } from './floor10Brains';
+import {
+    FLOOR10_TENTATIVAS,
+    conferirModeloCarregado,
+    ehFalhaTransitoria,
+    esperar,
+    esperaDaTentativa,
+    textoDaTentativa,
+    vigiarInatividade,
+} from './floor10Carga';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { floor10Fila, FILA_VONTADE } from './floor10Fila';
 import {
@@ -504,10 +513,20 @@ export function readCompletionText(response: unknown): string {
 function ensureSmallEngine(
     cederParaFala = true,
     recoverBrokenCache = true,
+    tentativa = 0,
 ): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
         const controller = new AbortController();
         loadAbort = controller;
+        // O MAIOR ARQUIVO DOS QUATRO (1,32 GB) ERA O ÚNICO SEM TETO NENHUM.
+        // A fala tem cão de guarda desde o travamento por quota; a memória e o
+        // motor tinham (teto total, hoje de inatividade). Aqui não havia nada:
+        // se o download morresse em silêncio — sem erro, sem progresso — a
+        // promessa não resolvia nem rejeitava e a vontade ficava "carregando"
+        // até a página ser recarregada. Justamente no arquivo que passa mais
+        // tempo exposto à rede do celular.
+        let travou = false;
+        const vigia = vigiarInatividade(() => { travou = true; controller.abort(); });
         let engine: SmallInstance | null = null;
         medidorVontade.reset();
         // REABRIR NÃO É BAIXAR. Depois que a pausa passou a encerrar o worker,
@@ -617,6 +636,7 @@ function ensureSmallEngine(
                 signal: controller.signal,
                 progressCallback: (progress: { loaded?: number; total?: number }) => {
                     if (controller.signal.aborted) return;
+                    vigia.avancou();
                     const fraction = progress.total
                         ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
                         : 0;
@@ -646,6 +666,10 @@ function ensureSmallEngine(
                 terminateSmallEngine(engine);
                 return null;
             }
+            // VEIO MODELO OU VEIO CASCA? Ver floor10Carga: um GGUF truncado faz
+            // a carga RESOLVER com nVocab/nLayer zerados, e o estouro só vem no
+            // primeiro pensamento — onde vira "a vontade parou de funcionar".
+            await conferirModeloCarregado(engine);
             npcSet({
                 deliberationLoadProgress: 1,
                 deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · iniciando vontade`,
@@ -675,7 +699,31 @@ function ensureSmallEngine(
                         + 'incompleto; baixando de novo…',
                 });
                 enginePromise = null;
-                return ensureSmallEngine(cederParaFala, false);
+                return ensureSmallEngine(cederParaFala, false, tentativa);
+            }
+            // REDE CAIU ≠ VONTADE INDISPONÍVEL. Este é o arquivo mais pesado do
+            // andar: 1,32 GB são muitos minutos de exposição a uma rede de
+            // celular, e o que já desceu está no OPFS — a tentativa seguinte
+            // continua. Antes, um único soluço custava o download inteiro.
+            if (
+                (travou || !controller.signal.aborted)
+                && tentativa + 1 < FLOOR10_TENTATIVAS
+                && (travou || ehFalhaTransitoria(falha))
+            ) {
+                const espera = esperaDaTentativa(tentativa + 1);
+                npcSet({
+                    deliberationPhase: 'loading',
+                    deliberationDownload: DOWNLOAD_ZERO,
+                    deliberationLoadText: textoDaTentativa(
+                        SMALL_BRAIN_MODEL.label,
+                        tentativa + 1,
+                        espera,
+                    ),
+                });
+                enginePromise = null;
+                await esperar(espera, travou ? undefined : controller.signal);
+                if (!travou && controller.signal.aborted) return null;
+                return ensureSmallEngine(cederParaFala, recoverBrokenCache, tentativa + 1);
             }
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
             //
@@ -695,6 +743,7 @@ function ensureSmallEngine(
             }
             return null;
         } finally {
+            vigia.parar();
             if (loadAbort === controller) loadAbort = null;
             if (loadingEngine === engine) loadingEngine = null;
         }

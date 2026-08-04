@@ -13,6 +13,15 @@ import {
     downloadLine,
     formatBytes,
 } from './floor10Download';
+import {
+    FLOOR10_TENTATIVAS,
+    conferirModeloCarregado,
+    ehFalhaTransitoria,
+    esperar,
+    esperaDaTentativa,
+    textoDaTentativa,
+    vigiarInatividade,
+} from './floor10Carga';
 import { floor10Fila, FILA_MOTOR } from './floor10Fila';
 import type { F10PrisonState } from './f10Prison';
 import {
@@ -104,8 +113,13 @@ export const FLOOR10_MOTOR_USE_CACHE = true;
 
 export const FLOOR10_MOTOR_TOKENS = 32;
 export const FLOOR10_MOTOR_TIMEOUT_MS = 30_000;
-/** Download emperrado não pode bloquear todas as deliberações da sessão. */
-export const FLOOR10_MOTOR_LOAD_TIMEOUT_MS = 180_000;
+// AQUI EXISTIA `FLOOR10_MOTOR_LOAD_TIMEOUT_MS = 180_000`, com o comentário
+// "download emperrado não pode bloquear todas as deliberações da sessão". A
+// intenção estava certa; o instrumento, não. Download LENTO não é download
+// emperrado, e um teto sobre o tempo TOTAL não sabe a diferença: 386 MB a
+// 1,5 MB/s (4G comum) levam 257s, e o teto matava aos 180s — a 70% — um
+// download que estava andando. Quem reprova agora é o teto de INATIVIDADE de
+// floor10Carga.ts, que emperrado reprova em 2min e andando não reprova nunca.
 export const FLOOR10_MOTOR_COMPLETION_CONFIG = Object.freeze({
     stream: false,
     max_tokens: FLOOR10_MOTOR_TOKENS,
@@ -195,6 +209,7 @@ function raceWithAbort<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 async function ensureMotorEngine(
     parentSignal?: AbortSignal,
     recoverBrokenCache = true,
+    tentativa = 0,
 ): Promise<MotorInstance | null> {
     if (residentEngine) return residentEngine;
     if (parentSignal?.aborted) return null;
@@ -209,10 +224,11 @@ async function ensureMotorEngine(
         const inheritAbort = () => controller.abort();
         parentSignal?.addEventListener('abort', inheritAbort, { once: true });
         loadAbort = controller;
-        const loadTimer = globalThis.setTimeout(
-            () => controller.abort(),
-            FLOOR10_MOTOR_LOAD_TIMEOUT_MS,
-        );
+        // `travou` separa as duas causas de aborto que chegam aqui como o MESMO
+        // AbortError: o vigia (a carga morreu — vale tentar de novo) e quem
+        // chamou/a fala (preempção — repetir seria desobedecer).
+        let travou = false;
+        const vigia = vigiarInatividade(() => { travou = true; controller.abort(); });
         medidorMotor.reset();
         npcSet({
             motorPhase: 'loading',
@@ -260,6 +276,7 @@ async function ensureMotorEngine(
                 signal: controller.signal,
                 progressCallback: (progress: { loaded?: number; total?: number }) => {
                     if (controller.signal.aborted) return;
+                    vigia.avancou();
                     const fraction = progress.total
                         ? Math.max(0, Math.min(
                             1,
@@ -283,6 +300,10 @@ async function ensureMotorEngine(
                     });
                 },
             }), controller.signal);
+            // VEIO MODELO OU VEIO CASCA? Ver floor10Carga: um GGUF truncado
+            // faz a carga RESOLVER com nVocab/nLayer zerados e só estoura na
+            // primeira tradução, longe daqui e sem conserto possível.
+            await conferirModeloCarregado(engine);
             // ── AQUECIMENTO ───────────────────────────────────────────────
             // Medido: a PRIMEIRA tradução depois da carga estourou o teto de
             // 30s e voltou vazia, enquanto as cinco seguintes ficaram em 9–11s.
@@ -325,7 +346,32 @@ async function ensureMotorEngine(
                         + 'ficou incompleto; baixando de novo…',
                 });
                 enginePromise = null;
-                return ensureMotorEngine(parentSignal, false);
+                return ensureMotorEngine(parentSignal, false, tentativa);
+            }
+            // REDE CAIU ≠ MOTOR INDISPONÍVEL. O OPFS guarda o que já desceu, e
+            // a tentativa seguinte CONTINUA de onde parou em vez de recomeçar
+            // os 386 MB. Só não se insiste quando quem abortou foi a fala: aí o
+            // motor deve mesmo sair da frente.
+            if (
+                (travou || !controller.signal.aborted)
+                && tentativa + 1 < FLOOR10_TENTATIVAS
+                && (travou || ehFalhaTransitoria(falha))
+            ) {
+                const espera = esperaDaTentativa(tentativa + 1);
+                npcSet({
+                    motorPhase: 'loading',
+                    motorDownload: DOWNLOAD_ZERO,
+                    motorLoadText: textoDaTentativa(
+                        FLOOR10_MOTOR_MODEL.label,
+                        tentativa + 1,
+                        espera,
+                    ),
+                });
+                enginePromise = null;
+                await esperar(espera, travou ? parentSignal : controller.signal);
+                if (parentSignal?.aborted) return null;
+                if (!travou && controller.signal.aborted) return null;
+                return ensureMotorEngine(parentSignal, recoverBrokenCache, tentativa + 1);
             }
             if (controller.signal.aborted) {
                 // Cortado pela fala ou pelo teto de tempo. A barra para de dizer
@@ -350,7 +396,7 @@ async function ensureMotorEngine(
             enginePromise = null;
             return null;
         } finally {
-            globalThis.clearTimeout(loadTimer);
+            vigia.parar();
             parentSignal?.removeEventListener('abort', inheritAbort);
             if (loadAbort === controller) loadAbort = null;
             if (loadingEngine === engine) loadingEngine = null;

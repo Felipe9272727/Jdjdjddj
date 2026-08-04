@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { FLOOR10_INATIVIDADE_MS } from '../npc/floor10Carga';
 import {
     abortFloor10MotorBrain,
     FLOOR10_MOTOR_COMPLETION_CONFIG,
     FLOOR10_MOTOR_LOAD_CONFIG,
-    FLOOR10_MOTOR_LOAD_TIMEOUT_MS,
     FLOOR10_MOTOR_MODEL,
     FLOOR10_MOTOR_SIZE_LABEL,
     FLOOR10_MOTOR_THREADS,
@@ -60,7 +60,9 @@ describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
             enable_thinking: false,
         });
         expect(FLOOR10_MOTOR_TIMEOUT_MS).toBeLessThanOrEqual(30_000);
-        expect(FLOOR10_MOTOR_LOAD_TIMEOUT_MS).toBe(180_000);
+        // O teto da CARGA saiu daqui: era total (180s) e reprovava download
+        // saudável de celular. Hoje é o de inatividade, em floor10Carga.
+        expect(FLOOR10_INATIVIDADE_MS).toBeGreaterThanOrEqual(60_000);
     });
 
     it('transforma o pensamento pronto do MiniBrain num plano tipado', async () => {
