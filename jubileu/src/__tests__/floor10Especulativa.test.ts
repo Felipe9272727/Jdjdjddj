@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
     caminhosDaEspeculativa,
+    cargaRapidaLigada,
     configuracaoCargaRapida,
     definirRuntimeFloor10,
     especulativaLigada,
@@ -61,6 +62,17 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         expect(runtimeFloor10()).toBe('normal');
         expect(especulativaLigada()).toBe(false);
         expect(especulativaLigada('?especulativa')).toBe(true);
+    });
+
+    it('a carga OPFS tem flag PRÓPRIA: `?especulativa` não a arrasta junto', () => {
+        // Ligar o N-gram é uma decisão; trocar o jeito de ler 1,92 GB do disco
+        // é outra. Amarradas, a bancada comparava duas coisas de uma vez — e a
+        // que não terminava era a segunda.
+        expect(cargaRapidaLigada('?especulativa')).toBe(false);
+        expect(cargaRapidaLigada('')).toBe(false);
+        expect(cargaRapidaLigada('?cargarapida')).toBe(true);
+        expect(cargaRapidaLigada('?especulativa&cargarapida')).toBe(true);
+        expect(especulativaLigada('?cargarapida')).toBe(false);
     });
 
     it('pede AUTO-especulação: nenhum modelo rascunhador no caminho', () => {

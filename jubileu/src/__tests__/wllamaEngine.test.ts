@@ -16,6 +16,7 @@ import {
     modelInitStalledMs,
     modelInitWatchdogStalledMs,
     NGRAM_CPU_INIT_HARD_LIMIT_MS,
+    NGRAM_CPU_INIT_WATCHDOG_MS,
     raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
@@ -399,11 +400,27 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         expect(modelInitStalledMs(1_000, 10_500, 11_000)).toBe(500);
     });
 
-    it('não inventa travamento por silêncio durante a chamada WASM N-gram', () => {
+    it('não inventa travamento só onde realmente não há heartbeat', () => {
+        // Carga rápida: a cópia OPFS roda numa chamada síncrona e não pulsa.
         expect(modelInitWatchdogStalledMs(0, true, 1_000, 10_500, 500_000)).toBeNull();
+        // CPU com leitura JSPI (normal E N-gram): cada bloco lido é um pulso.
         expect(modelInitWatchdogStalledMs(0, false, 1_000, 10_500, 11_000)).toBe(500);
         // GPU usa tempo total pós-download; logs não prolongam compilação ruim.
         expect(modelInitWatchdogStalledMs(2, false, 1_000, 10_500, 11_000)).toBe(10_000);
+    });
+
+    it('o N-gram ganha corda maior que a CPU normal, não corda infinita', () => {
+        // A cauda silenciosa do N-gram monta contexto E especulador; ainda
+        // assim é uma cauda com fim.
+        expect(NGRAM_CPU_INIT_WATCHDOG_MS).toBeGreaterThan(CPU_INIT_WATCHDOG_MS);
+        expect(NGRAM_CPU_INIT_WATCHDOG_MS).toBeLessThanOrEqual(300_000);
+    });
+
+    it('o teto da carga rápida não pode custar mais que a carga que funciona', () => {
+        // Estourar o teto significa recomeçar do zero pela leitura JSPI. Se o
+        // teto for maior que uma carga inteira, o recuo chega tarde demais para
+        // ter valor — foi o que aconteceu com 900 s no aparelho.
+        expect(NGRAM_CPU_INIT_HARD_LIMIT_MS).toBeLessThanOrEqual(NGRAM_CPU_INIT_WATCHDOG_MS);
     });
 
     it('liga diagnóstico nativo somente na rota de comparação', () => {

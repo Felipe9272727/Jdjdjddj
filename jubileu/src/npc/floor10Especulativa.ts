@@ -64,6 +64,23 @@ export const TIPOS_NGRAMA = 'types:ngram-cache';
 export const FLOOR10_FAST_LOAD_CHUNK_BYTES = 16 * 1024 * 1024;
 
 /**
+ * A carga OPFS -> Worker -> HeapFS/mmap fica atrás da SUA PRÓPRIA flag, e
+ * desligada por padrão. Ela não é uma variação inofensiva da carga normal:
+ * ligá-la DESLIGA a leitura JSPI (a que o jogo usa hoje, sob demanda) e passa a
+ * exigir 1,92 GB contíguos alocados de uma vez dentro do heap WASM, copiados do
+ * OPFS por uma chamada síncrona dentro do Worker.
+ *
+ * Foi o que ficou 900 s sem terminar no aparelho — e, por ser síncrona, ela
+ * também cega o único heartbeat que provaria se ainda está avançando. Enquanto
+ * não houver medição de um celular dizendo que compensa, o N-gram carrega pelo
+ * mesmo caminho do runtime normal: é o que a bancada A/B precisa (uma variável
+ * de cada vez) e é o caminho que sabidamente termina.
+ */
+export function cargaRapidaLigada(busca = globalThis.location?.search ?? ''): boolean {
+    return /[?&]cargarapida\b/i.test(busca);
+}
+
+/**
  * Contrato da build customizada para o caminho OPFS -> Worker -> HeapFS/mmap.
  * O runtime usa a mesma URL para localizar a entrada criada pelo CacheManager;
  * se ela não existir ou o navegador não oferecer SyncAccessHandle, recua.

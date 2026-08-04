@@ -21,8 +21,8 @@ import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
-    caminhosDaEspeculativa, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
-    parametrosEspeculativos, type Floor10Runtime,
+    caminhosDaEspeculativa, cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10,
+    especulativaLigada, parametrosEspeculativos, type Floor10Runtime,
 } from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
@@ -307,13 +307,28 @@ export const WEBGPU_INIT_WATCHDOG_MS = 45_000;
 export const CPU_INIT_WATCHDOG_MS = 180_000;
 
 /**
- * O N-gram tem um teto absoluto, mas não um relógio de "silêncio". Depois da
- * última leitura do GGUF o Worker entra numa chamada WASM longa e não existe
- * heartbeat confiável nessa região: matar após 300 s sem postMessage foi o
- * falso erro medido na bancada. Quinze minutos continuam impedindo espera
- * infinita sem fingir que silêncio do llama.cpp prova travamento.
+ * O N-gram carrega pelo mesmo caminho JSPI do runtime normal, então ele TEM
+ * heartbeat: cada leitura do GGUF passa pela thread principal e vira um pulso.
+ * O que ele tem a mais é a cauda silenciosa no fim — montar o contexto e o
+ * especulador do llama.cpp sem devolver nenhum sinal. Daí a corda maior que a
+ * da CPU normal, e ainda assim uma corda: cinco minutos de silêncio absoluto
+ * depois da última leitura não são carga, são defeito.
  */
-export const NGRAM_CPU_INIT_HARD_LIMIT_MS = 900_000;
+export const NGRAM_CPU_INIT_WATCHDOG_MS = 300_000;
+
+/**
+ * Teto absoluto da carga rápida (`?cargarapida`), o ÚNICO caminho sem
+ * heartbeat: a cópia OPFS -> HeapFS acontece dentro de uma chamada síncrona no
+ * Worker, que não posta nada enquanto roda.
+ *
+ * Já foi 900 s, e 900 s é o defeito, não o remédio: no aparelho a carga rápida
+ * não terminou, o relógio esgotou e só ENTÃO a carga que funciona começou do
+ * zero — quinze minutos de tela parada antes da primeira leitura útil. Copiar
+ * 1,92 GB do armazenamento para a memória ou anda em poucos minutos ou não vai
+ * andar; quatro minutos é o limite entre dar uma chance e roubar a tarde de
+ * quem está jogando.
+ */
+export const NGRAM_CPU_INIT_HARD_LIMIT_MS = 240_000;
 
 export type ModelLoadActivity = {
     stage?: string;
@@ -349,13 +364,18 @@ export function stringifyModelLoadLog(values: readonly unknown[]): string {
     }).join(' ');
 }
 
+/**
+ * Etapas que chegam em RAJADA: um pulso por bloco do GGUF, centenas por carga.
+ * Elas contam como sinal de vida, mas não cabem uma a uma nem no relatório nem
+ * na tela — as etapas nativas, essas sim, são poucas e cada uma importa.
+ */
+export function leituraDoModelo(stage?: string): boolean {
+    return stage === 'file-read' || stage === 'opfs-mmap' || stage === 'heapfs-write';
+}
+
 /** Texto curto e copiável para mostrar exatamente onde o Worker está. */
 export function describeModelLoadActivity(activity: ModelLoadActivity): string {
-    if (
-        activity.stage === 'file-read'
-        || activity.stage === 'opfs-mmap'
-        || activity.stage === 'heapfs-write'
-    ) {
+    if (leituraDoModelo(activity.stage)) {
         const offset = Number.isFinite(activity.offset) ? Math.max(0, activity.offset ?? 0) : 0;
         const size = Number.isFinite(activity.size) ? Math.max(0, activity.size ?? 0) : 0;
         const total = Number.isFinite(activity.total) ? Math.max(0, activity.total ?? 0) : 0;
@@ -379,11 +399,7 @@ function resetModelLoadTrace(now = Date.now()): void {
 function rememberModelLoadActivity(activity: ModelLoadActivity, now = Date.now()): string {
     const detail = describeModelLoadActivity(activity);
     const elapsed = Math.max(0, now - modelLoadTraceStartedAt) / 1000;
-    const kind = (
-        activity.stage === 'file-read'
-        || activity.stage === 'opfs-mmap'
-        || activity.stage === 'heapfs-write'
-    ) ? 'arquivo' : 'nativo';
+    const kind = leituraDoModelo(activity.stage) ? 'arquivo' : 'nativo';
     modelLoadTrace.push(`${elapsed.toFixed(1)}s · ${kind} · ${detail}`);
     if (modelLoadTrace.length > MODEL_LOAD_TRACE_LIMIT) {
         modelLoadTrace.splice(0, modelLoadTrace.length - MODEL_LOAD_TRACE_LIMIT);
@@ -443,16 +459,26 @@ export function modelInitStalledMs(
     return Math.max(0, now - Math.max(downloadDoneAt, lastActivityAt ?? downloadDoneAt));
 }
 
-/** Política explícita: GPU/CPU normal têm heartbeat; CPU N-gram não tem. */
+/**
+ * Política explícita, e o critério é UM só: existe heartbeat neste plano?
+ *
+ * - GPU: o travamento medido foi compilar shaders sem nunca voltar, e nada
+ *   naquela região pulsa. Conta o tempo total depois do download.
+ * - CPU (normal ou N-gram): a leitura do GGUF passa pela thread principal a
+ *   cada bloco, então silêncio ali é silêncio de verdade e pode ser medido.
+ * - Carga rápida OPFS: a cópia inteira acontece dentro de uma chamada síncrona
+ *   no Worker. Ela não posta nada enquanto trabalha, e chamar isso de travado
+ *   seria inventar. Só o teto absoluto do chamador vale nesse caso.
+ */
 export function modelInitWatchdogStalledMs(
     gpuLayers: number,
-    usingNgram: boolean,
+    semHeartbeat: boolean,
     downloadDoneAt: number | null,
     lastActivityAt: number | null,
     now = Date.now(),
 ): number | null {
     if (gpuLayers > 0) return modelInitStalledMs(downloadDoneAt, null, now);
-    if (usingNgram) return null;
+    if (semHeartbeat) return null;
     return modelInitStalledMs(downloadDoneAt, lastActivityAt, now);
 }
 
@@ -985,10 +1011,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
         const plans = requestedGpuLayers > 0
             ? [requestedGpuLayers, 0]
             : [0];
-        // O N-gram tenta primeiro OPFS -> Worker -> HeapFS/mmap. Caso o
-        // navegador não aceite o handle síncrono ou a alocação contígua, uma
-        // instância nova recua para a leitura JSPI compatível.
-        const fastLoadPlans = usandoNgram ? [true, false] : [false];
+        // A carga OPFS -> Worker -> HeapFS/mmap só entra com `?cargarapida`.
+        // Ligada, ela ainda tem a instância de recuo pela leitura JSPI; sem a
+        // flag NÃO existe primeira tentativa para falhar, e é essa ausência que
+        // devolve ao jogador os minutos que ele estava perdendo antes de a
+        // carga boa começar.
+        const fastLoadPlans = usandoNgram && cargaRapidaLigada() ? [true, false] : [false];
         let lastError: unknown = new Error('Nenhum backend local disponível');
 
         // Duas voltas: se a primeira morrer por CACHE QUEBRADO, apagamos o
@@ -1012,6 +1040,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
             // cão de guarda do WebGPU nem começa a contar.
             let downloadDoneAt: number | null = null;
             let lastInitActivityAt: number | null = null;
+            let lastActivityTraceAt = 0;
             let lastActivityUiAt = 0;
             let observingInit = true;
             try {
@@ -1028,20 +1057,22 @@ function initConversationEngine(): Promise<WllamaInstance> {
                         && activity.stage === 'native-log'
                         && !activity.message
                     ) return;
-                    // Logs nativos são poucos e valiosos; leituras do GGUF
-                    // chegam em rajada e entram no relatório/UI no máximo uma
-                    // vez por segundo.
-                    const nativeLog = activity.stage === 'native-log';
-                    if (!nativeLog && now - lastActivityUiAt < 1_000) return;
-                    lastActivityUiAt = now;
+                    // Leituras chegam em rajada: uma por segundo já basta para
+                    // o relatório contar a história. Etapas nativas são poucas
+                    // e todas entram.
+                    const rajada = leituraDoModelo(activity.stage);
+                    if (rajada && now - lastActivityTraceAt < 1_000) return;
+                    if (rajada) lastActivityTraceAt = now;
                     const detail = rememberModelLoadActivity(activity, now);
+                    // A TELA tem outro limite, e mais duro: `npcSet` re-renderiza
+                    // a árvore inteira, e o llama.cpp com log ligado despeja uma
+                    // linha por tensor. Era a bancada disputando CPU com a carga
+                    // que ela deveria estar apenas medindo.
+                    if (now - lastActivityUiAt < 1_000) return;
+                    lastActivityUiAt = now;
                     if (downloadDoneAt === null) return;
                     npcSet({
-                        loadText: (
-                            activity.stage === 'file-read'
-                            || activity.stage === 'opfs-mmap'
-                            || activity.stage === 'heapfs-write'
-                        )
+                        loadText: rajada
                             ? `lendo ${model.label} do cache · ${detail}`
                             : `llama.cpp · ${detail}`,
                     });
@@ -1162,22 +1193,20 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // isso é o que fazia o jogador esperar 300s por nada.
                 await raceGpuInitWatchdog(
                     loadTask,
-                    // GPU e CPU normal mantêm o limite por inatividade. No
-                    // N-gram o postMessage para durante a chamada WASM longa;
-                    // só o teto absoluto abaixo é uma prova honesta.
-                    // Uma chamada WASM longa bloqueia o event loop do Worker.
-                    // A política pura abaixo mantém esse caso testável.
+                    // Quem tem heartbeat é medido por inatividade; quem não tem
+                    // (só a carga rápida) cai apenas no teto absoluto abaixo.
+                    // A política pura mantém os dois casos testáveis.
                     () => modelInitWatchdogStalledMs(
                         gpuLayers,
-                        usandoNgram,
+                        cargaRapida,
                         downloadDoneAt,
                         lastInitActivityAt,
                     ),
                     gpuLayers > 0
                         ? WEBGPU_INIT_WATCHDOG_MS
-                        : CPU_INIT_WATCHDOG_MS,
+                        : (usandoNgram ? NGRAM_CPU_INIT_WATCHDOG_MS : CPU_INIT_WATCHDOG_MS),
                     1_000,
-                    usandoNgram && gpuLayers === 0 ? {
+                    cargaRapida ? {
                         elapsedMs: () => downloadDoneAt === null
                             ? null
                             : Date.now() - downloadDoneAt,
