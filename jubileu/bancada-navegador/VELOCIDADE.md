@@ -335,3 +335,13 @@ Quem quiser continuar: o caminho é fazer o `quants.c` genérico não emitir os
 mesmos símbolos (ele deveria estar todo atrás de `#if defined(GGML_CPU_GENERIC)`)
 ou renomear o objeto do arch. É uma correção que vale para o wllama upstream
 inteiro, não só para nós.
+
+**Nota de quem parou aqui:** conferi a causa do símbolo duplicado.
+`ggml-cpu/quants.c` (o genérico) NÃO tem uma única ocorrência de
+`GGML_CPU_GENERIC` — ele define 24 funções (`ggml_vec_dot_*`, `quantize_*`)
+sempre, sem guarda. Ou seja, o upstream conta com esse arquivo não ser compilado
+quando existe um arch específico, e nesta versão ele entra em
+`GGML_CPU_SOURCES` de qualquer jeito. Então o conserto NÃO é mexer no arch: é
+tirar o genérico da lista quando o ramo do arch for escolhido (ou envolver o
+conteúdo dele em `#if defined(GGML_CPU_GENERIC)`, que é o que o nome sugere que
+sempre foi a intenção).
