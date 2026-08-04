@@ -29,6 +29,7 @@ import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
+import { conferirModeloCarregado } from './floor10Carga';
 import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
 import {
     CACHE_HEADROOM,
@@ -1298,6 +1299,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     } : undefined,
                 );
                 observingInit = false;
+                // VEIO MODELO OU VEIO CASCA? Ver floor10Carga: um GGUF
+                // truncado faz a carga RESOLVER com nVocab/nLayer zerados.
+                // Aqui é o pior lugar para isso passar — é o modelo com quem o
+                // jogador CONVERSA, e a falha só apareceria na primeira frase
+                // dele, como um erro incompreensível vindo do Worker.
+                await conferirModeloCarregado(candidate);
                 loadedDisableThinking = model.disableThinking;
                 const confirmedThreads = candidate.getNumThreads?.();
                 // O teto aqui precisa acompanhar MAX_SPEECH_THREADS: preso em 4,
