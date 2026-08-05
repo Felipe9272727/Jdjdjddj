@@ -162,7 +162,10 @@ await pagina.addInitScript(() => {
   const tique = (t) => {
     if (ultimo > 0) {
       const dt = t - ultimo;
-      if (dt > 100) globalThis.__quadros.buracos.push(Math.round(dt));
+      // COM CARIMBO DE TEMPO. Sem ele eu só sabia QUE houve um buraco, não
+      // QUANDO — e foi assim que casei um evento único por sessão (cheiro de
+      // carga de modelo) com um sintoma que acontece a cada mensagem.
+      if (dt > 100) globalThis.__quadros.buracos.push({ ms: Math.round(dt), em: Math.round(t) });
       if (dt > globalThis.__quadros.pior) globalThis.__quadros.pior = Math.round(dt);
     }
     ultimo = t;
@@ -224,6 +227,8 @@ try {
     await campo.fill(m, { timeout: 240_000 });
     await mandar.click({ timeout: 240_000 });
     resultado.enviadas += 1;
+    resultado.envios = resultado.envios ?? [];
+    resultado.envios.push(await pagina.evaluate(() => Math.round(performance.now())));
     // Espera a resposta assentar antes da próxima. Mensagens SEGUIDAS são o
     // roteiro que derrubava o aparelho, mas atropelar não é: o jogador lê.
     // ── QUANTO ESPERAR: A CONTA, NÃO O CHUTE ──────────────────────────────
@@ -292,13 +297,26 @@ const quadros = await pagina.evaluate(() => globalThis.__quadros).catch(() => nu
 console.log('\n===== O APARELHO EMULADO =====');
 if (quadros) {
   const b = quadros.buracos;
-  const enormes = b.filter((x) => x >= 3000);
+  const enormes = b.filter((x) => x.ms >= 3000);
+  const envios = resultado.envios ?? [];
+  // A PERGUNTA QUE SEPARA CARGA DE ENVIO: cada buraco grande caiu logo depois
+  // de um envio, ou longe de todos? Um por sessão e longe = carga de modelo.
+  // Um por mensagem e colado no envio = o sintoma relatado do aparelho.
+  const perto = enormes.map((g) => {
+    const d = envios.map((e) => g.em - e).filter((x) => x >= 0);
+    return d.length ? Math.min(...d) : null;
+  });
   console.log(`buracos de quadro ... ${b.length} acima de 100ms · pior ${quadros.pior}ms`);
-  console.log(`buracos >= 3s ....... ${enormes.length}  ${enormes.length ? JSON.stringify(enormes.slice(0, 6)) : ''}`);
-  console.log(`veredito ............ ${enormes.length
-    ? 'THREAD PRINCIPAL BLOQUEADA (buraco único e grande)'
-    : 'sem bloqueio longo; se travar, é disputa de núcleo'}`);
-  resultado.quadros = { total: b.length, pior: quadros.pior, enormes: enormes.length };
+  console.log(`buracos >= 3s ....... ${enormes.length}  ${JSON.stringify(enormes.slice(0, 6))}`);
+  console.log(`envios em ........... ${JSON.stringify(envios)}`);
+  console.log(`atraso pos-envio .... ${JSON.stringify(perto)} (ms desde o envio anterior)`);
+  const colados = perto.filter((x) => x !== null && x < 30_000).length;
+  console.log(`veredito ............ ${enormes.length === 0
+    ? 'sem bloqueio longo'
+    : colados >= 2
+      ? 'BLOQUEIO POR ENVIO — é o sintoma do aparelho'
+      : 'bloqueio ÚNICO e longe dos envios — cheira a carga de modelo, NÃO ao envio'}`);
+  resultado.quadros = { total: b.length, pior: quadros.pior, enormes: enormes.length, perto };
 }
 console.log(`duração ............ ${duracao.toFixed(0)}s`);
 console.log(`threads (pico) ..... ${picoThreads}`);
