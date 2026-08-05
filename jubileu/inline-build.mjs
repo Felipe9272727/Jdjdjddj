@@ -94,11 +94,37 @@ const wasmEspeculativo = path.join(pastaEspeculativa, 'wllama.wasm');
 if (!fs.existsSync(esmEspeculativo) || !fs.existsSync(wasmEspeculativo)) {
   throw new Error('wllama-espec incompleto — index.js e wllama.wasm precisam andar juntos.');
 }
-const pacoteEspeculativo = {
-  esm: fs.readFileSync(esmEspeculativo, 'utf8'),
-  wasmBase64: fs.readFileSync(wasmEspeculativo).toString('base64'),
-};
-js = `globalThis.__TNE_WLLAMA_ESPEC__=Object.freeze(${JSON.stringify(pacoteEspeculativo)});\n${js}`;
+// ── E ELE DEIXOU DE ENTRAR POR PADRÃO ─────────────────────────────────────
+//
+// Este embed custava 10,6 MB em TODA abertura do jogo, para todo jogador,
+// mesmo sem nunca usar o runtime remendado:
+//
+//   index.html antes do N-grama .... 83.918.310 bytes
+//   index.html com o embed ......... 94.546.177 bytes   (+10,6 MB)
+//
+// Os 7,65 MB do .wasm viram ~10,2 MB de base64 — uma STRING literal que o
+// parser de JavaScript precisa engolir inteira, congelada com `Object.freeze`,
+// como a PRIMEIRA coisa do bundle, antes de qualquer tela aparecer. Num
+// celular isso é travamento na abertura, e o relato foi exatamente esse:
+// "eu tento testar, e o meu celular laga absurdamente".
+//
+// Depois que o aparelho reprovou o binário remendado, ele virou opção de
+// diagnóstico (`?wllamaespec`) — e carregar 10,6 MB para uma opção que
+// ninguém usa é o pior negócio possível. Sem o embed, `caminhosDaEspeculativa`
+// cai sozinha nos caminhos HTTP de `dist/wllama-espec`, que o Vite publica.
+//
+// `TNE_EMBUTIR_ESPEC=1 node inline-build.mjs` traz o embed de volta para quem
+// precisar investigar o binário num deploy single-file.
+if (process.env.TNE_EMBUTIR_ESPEC === '1') {
+  const pacoteEspeculativo = {
+    esm: fs.readFileSync(esmEspeculativo, 'utf8'),
+    wasmBase64: fs.readFileSync(wasmEspeculativo).toString('base64'),
+  };
+  js = `globalThis.__TNE_WLLAMA_ESPEC__=Object.freeze(${JSON.stringify(pacoteEspeculativo)});\n${js}`;
+  console.log('wllama-espec EMBUTIDO (+10,6 MB) — pedido por TNE_EMBUTIR_ESPEC=1');
+} else {
+  console.log('wllama-espec fora do single-file (-10,6 MB); `?wllamaespec` usa o caminho HTTP');
+}
 
 // ── WORKER DO NPC: bundle clássico embutido como Blob URL ─────────────────
 // O worker (src/npc/npcWorker.ts) roda o WebLLM fora da thread principal. Em
