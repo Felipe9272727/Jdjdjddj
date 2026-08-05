@@ -1617,14 +1617,33 @@ export async function sendToNpc(
     // encerrada e o 3B ainda sem gerar — a janela em que o aparelho está livre.
     // Ele tem 2,5s de teto e some sozinho. Nunca, em hipótese alguma, gera ao
     // mesmo tempo que a fala: foi assim que o celular desligou sozinho.
+    // ── E ESTA LINHA PRECISOU DE `await` ──────────────────────────────────
+    //
+    // O parágrafo acima jura que o reflexo "nunca, em hipótese alguma, gera ao
+    // mesmo tempo que a fala". O código fazia o oposto: `void reagir(text)`
+    // dispara e SEGUE na mesma hora: a execução caía direto na carga e na
+    // geração do 3B enquanto o ONNX ainda estava gerando.
+    //
+    // Os 2,5s de teto do `reagir` não salvavam nada, porque teto de tempo ali é
+    // `Promise.race` — ele faz o JavaScript parar de esperar, não o ONNX parar
+    // de trabalhar. Exatamente o mesmo engano do `abortSignal` do wllama, no
+    // outro motor.
+    //
+    // Então o aparelho rodava 135M em ONNX e 3B em llama.cpp ao mesmo tempo,
+    // com os dois pools de threads abertos. É a receita que este arquivo já
+    // descreve como "foi assim que o celular desligou sozinho" — e desligou de
+    // novo.
+    //
+    // Esperar custa no MÁXIMO os 2,5s do teto, e esse tempo não é perdido: é
+    // justamente o buraco que o reflexo existe para preencher, antes de o 3B
+    // começar. Serializado, ele cumpre a promessa do comentário.
     if (reflexoJaCarregado()) {
-        void reagir(text).then((reacao) => {
-            // Se a fala de verdade já começou, a reação perdeu a vez — publicar
-            // agora seria empurrar texto velho por cima do novo.
-            if (reacao && npc.streaming === '' && npc.phase !== 'ready') {
-                npcSet({ reflexo: reacao });
-            }
-        });
+        const reacao = await reagir(text);
+        // Se a fala de verdade já começou, a reação perdeu a vez — publicar
+        // agora seria empurrar texto velho por cima do novo.
+        if (reacao && npc.streaming === '' && npc.phase !== 'ready') {
+            npcSet({ reflexo: reacao });
+        }
     }
 
     const history = [...npc.history, { role: 'user' as const, content: text }];

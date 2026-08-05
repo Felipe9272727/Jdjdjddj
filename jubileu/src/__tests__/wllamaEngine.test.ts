@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { FLOOR10_GPU_START_LAYERS } from '../npc/floor10Gpu';
 import { describe, expect, it } from 'vitest';
 import {
@@ -609,5 +610,38 @@ describe('divisaoDaEspera — a conta que decide onde vale otimizar', () => {
         const { divisaoDaEspera } = await import('../npc/wllamaEngine');
         expect(divisaoDaEspera(null)).toEqual({});
         expect(divisaoDaEspera({})).toEqual({});
+    });
+});
+
+describe('o reflexo não pode gerar junto com a fala', () => {
+    // O arquivo já jurava, em comentário: "Nunca, em hipótese alguma, gera ao
+    // mesmo tempo que a fala: foi assim que o celular desligou sozinho." O
+    // código fazia `void reagir(text)` e SEGUIA na mesma hora — 135M em ONNX e
+    // 3B em llama.cpp gerando juntos, com os dois pools de threads abertos.
+    //
+    // O teto de 2,5s do reagir não salvava: `Promise.race` faz o JavaScript
+    // parar de esperar, não o ONNX parar de trabalhar. Mesmo engano do
+    // abortSignal do wllama, no outro motor.
+    it('o reflexo é esperado antes de a fala começar', () => {
+        const fonte = readFileSync(
+            new URL('../npc/wllamaEngine.ts', import.meta.url),
+            'utf8',
+        );
+        const trecho = fonte.slice(fonte.indexOf('if (reflexoJaCarregado()) {'));
+        const chamada = trecho.slice(0, trecho.indexOf('npcSet({ reflexo'));
+        expect(chamada).toContain('await reagir(text)');
+        expect(chamada).not.toContain('void reagir(');
+    });
+
+    it('o reflexo roda com UMA thread, não com o aparelho inteiro', async () => {
+        // `env.backends` estava declarado no tipo e nunca configurado: sem
+        // isso o onnxruntime-web abre `navigator.hardwareConcurrency` threads.
+        const { REFLEXO_THREADS } = await import('../npc/floor10Reflexo');
+        expect(REFLEXO_THREADS).toBe(1);
+        const fonte = readFileSync(
+            new URL('../npc/floor10Reflexo.ts', import.meta.url),
+            'utf8',
+        );
+        expect(fonte).toContain('numThreads = REFLEXO_THREADS');
     });
 });
