@@ -188,6 +188,20 @@ const t0 = Date.now();
 const HZ = Number(process.env.HZ ?? 100);
 
 // Amostra threads/CPU a cada segundo enquanto o roteiro roda.
+// A ETAPA QUE ESTAVA NA TELA A CADA SEGUNDO. O buraco de ~6s cai DENTRO da
+// carga da fala, e "dentro da carga" ainda são várias coisas: baixar, gravar
+// no OPFS, ler de volta para o WASM, instanciar. Sem saber qual delas estava
+// na tela no instante do buraco, consertar seria chutar — e chutar já me
+// custou duas hipóteses hoje.
+const etapas = [];
+const relogioEtapa = setInterval(() => {
+  pagina.evaluate(() => {
+    const t = document.body.innerText || '';
+    const m = t.match(/(baixando|instalando|carregando|preparando|verificando|reabrindo|montando)[^\n]{0,70}/i);
+    return { em: Math.round(performance.now()), texto: m ? m[0] : '' };
+  }).then((e) => { if (e && e.texto) etapas.push(e); }).catch(() => {});
+}, 1000);
+
 const relogio = setInterval(() => {
   const a = arvore(pid);
   resultado.amostras.push({
@@ -267,6 +281,7 @@ if ((resultado.enviadas ?? 0) < MENSAGENS.length) {
 
 await new Promise((r) => setTimeout(r, 5000));
 clearInterval(relogio);
+clearInterval(relogioEtapa);
 
 // ── O PICO, QUE É O QUE ESQUENTA ──────────────────────────────────────────
 // A média de 806s dilui exatamente o que importa: 1,57 núcleos de 8 pode ser
@@ -311,6 +326,11 @@ if (quadros) {
   console.log(`envios em ........... ${JSON.stringify(envios)}`);
   console.log(`atraso pos-envio .... ${JSON.stringify(perto)} (ms desde o envio anterior)`);
   const colados = perto.filter((x) => x !== null && x < 30_000).length;
+  for (const g of enormes) {
+    // A etapa mais recente ANTES do buraco é a que estava rodando.
+    const antes = etapas.filter((e) => e.em <= g.em).pop();
+    console.log(`etapa no buraco ..... "${antes?.texto ?? '(nada na tela)'}" @${antes?.em ?? '?'}ms`);
+  }
   console.log(`veredito ............ ${enormes.length === 0
     ? 'sem bloqueio longo'
     : colados >= 2
