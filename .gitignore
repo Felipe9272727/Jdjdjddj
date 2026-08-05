@@ -7,3 +7,7 @@ node_modules/
 
 # Modelo de teste da bancada de navegador: 386 MB, baixado sob demanda.
 jubileu/bancada-navegador/*.gguf
+
+# O wllama do CDN, vendorizado só para a bancada medir o runtime REAL.
+# 7,6 MB que o npm/CDN já serve — não entram no repositório.
+jubileu/bancada-navegador/wllama-cdn/

@@ -36,6 +36,15 @@ const servidor = http.createServer((req, res) => {
   // O jogo monta `${CDN}/wasm/wllama.wasm`, e o dist guarda o arquivo em
   // `/wllama-espec/wllama.wasm`. A 5ª execução morreu exatamente aí: o 404
   // virou HTML e o WebAssembly.instantiate reclamou de "expected 4 bytes".
+  if (p.startsWith('/wllama-cdn/')) {
+    const alvo = path.join(import.meta.dirname, p.replace('/wllama-cdn/', 'wllama-cdn/'));
+    if (!fs.existsSync(alvo)) { res.writeHead(404).end('404'); return; }
+    res.writeHead(200, {
+      'Content-Type': alvo.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
+    });
+    fs.createReadStream(alvo).pipe(res);
+    return;
+  }
   if (p === '/wllama-espec/wasm/wllama.wasm') {
     const alvo = path.join(RAIZ, 'wllama-espec', 'wllama.wasm');
     res.writeHead(200, { 'Content-Type': 'application/wasm' });
@@ -117,7 +126,12 @@ await pagina.addInitScript(() => {
   // remendado, que o aparelho do dono do jogo reprovou. Serve para medir a
   // LÓGICA do jogo (quem roda junto com quem, quantas threads), não para
   // concluir nada sobre a velocidade do runtime que vai para o ar.
-  globalThis.__wllamaCdn = '/wllama-espec';
+  // O RUNTIME QUE VAI PARA O AR, e não o remendado. O Chromium desta caixa não
+  // alcança CDN nenhum, mas o `curl` alcança pelo proxy: o wllama 3.5.1 do
+  // jsDelivr está vendorizado em bancada-navegador/wllama-cdn e servido daqui.
+  // Sem isto a medição descrevia um binário que o aparelho do dono do jogo
+  // REPROVOU — útil para a lógica, inútil como prova do que ele vai receber.
+  globalThis.__wllamaCdn = '/wllama-cdn';
 });
 const cdp = await contexto.newCDPSession(pagina);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
