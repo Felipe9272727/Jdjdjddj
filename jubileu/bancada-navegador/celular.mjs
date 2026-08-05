@@ -329,6 +329,29 @@ try {
       console.log(`  +${String(s).padStart(2)}s ............ anônima ${(a.anonMB / 1024).toFixed(2)} GB`);
       resultado[`t${s}`] = a.anonMB;
     }
+    // ── E UM SEGUNDO CICLO, que é o que decide tudo ───────────────────────
+    // Volta 53% e deixa ~1,77 GB. Se esse resíduo é a marca d'água do heap do
+    // WASM, o segundo ciclo REAPROVEITA e o piso não sobe. Se é por ciclo, o
+    // piso do 2º fica acima do 1º — e aí o travamento reapareceria depois de
+    // várias conversas, não no começo. Um ciclo só não distingue as duas.
+    const piso1 = arvore(pid).anonMB;
+    await pagina.evaluate(async () => { await globalThis.__f10mente?.initLLM?.(); });
+    const pico2 = await marco('2o: de pe');
+    await pagina.evaluate(async () => {
+      await globalThis.__f10mente?.unloadConversationBrain?.();
+    });
+    await pagina.waitForTimeout(12_000);
+    const piso2 = await marco('2o: piso');
+    console.log(`\n  piso do 1o ciclo ..... ${(piso1 / 1024).toFixed(2)} GB`);
+    console.log(`  piso do 2o ciclo ..... ${(piso2.anonMB / 1024).toFixed(2)} GB`);
+    const cresceu = piso2.anonMB - piso1;
+    console.log(`  cresceu por ciclo .... ${(cresceu / 1024).toFixed(2)} GB`);
+    console.log(`  veredito ............. ${cresceu > 300
+      ? 'ACUMULA — cada abrir/fechar deixa resto, e o roteamento não basta'
+      : 'MARCA D\'AGUA — o resíduo é reaproveitado; o roteamento basta'}`);
+    resultado.piso1 = piso1;
+    resultado.piso2 = piso2.anonMB;
+    resultado.pico2 = pico2.anonMB;
     const tarde = arvore(pid);
     resultado.tarde = tarde.anonMB;
     const subiu = dePe.anonMB - antes.anonMB;
