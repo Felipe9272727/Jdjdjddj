@@ -235,6 +235,19 @@ try {
   // Os controles que a bancada expõe: carregar, escrever, mandar. É o mesmo
   // `sendToNpc` que o chat do jogo chama — o caminho de código é o do jogador,
   // sem precisar atravessar o prédio até o 10º andar.
+  // ── O CONTROLE QUE FALTAVA, E CUSTA 40 SEGUNDOS ───────────────────────
+  // `SEM_MODELO=1` abre a página e NÃO carrega modelo nenhum. Se o buraco de
+  // ~6s em t≈19s aparecer mesmo assim, ele não é do NPC — é da abertura do
+  // jogo (81 MB de assets em base64 sendo decodificados). Seis execuções de 13
+  // minutos tentaram localizar esse bloqueio DENTRO da carga; nenhuma testou
+  // se ele estava lá.
+  if (process.env.SEM_MODELO === '1') {
+    console.log('SEM_MODELO=1 — nenhum cérebro será carregado; só a abertura.');
+    await pagina.waitForTimeout(Number(process.env.OBSERVAR_MS ?? 40_000));
+    resultado.enviadas = MENSAGENS.length;   // não há roteiro a cobrar
+    resultado.falouAlgumaCoisa = true;       // idem
+    throw new Error('__so_abertura__');
+  }
   await pagina.getByRole('button', { name: /carregar o modelo/i })
     .click({ timeout: 60_000 });
   const campo = pagina.locator('input').last();
@@ -260,7 +273,9 @@ try {
     await pagina.waitForTimeout(ESPERA_POR_FALA_MS);
   }
 } catch (e) {
-  resultado.roteiroFalhou = String(e.message).slice(0, 200);
+  if (String(e.message) !== '__so_abertura__') {
+    resultado.roteiroFalhou = String(e.message).slice(0, 200);
+  }
 }
 
 // ── UM ROTEIRO QUE NÃO RODOU NÃO PODE PARECER SUCESSO ────────────────────
