@@ -250,6 +250,16 @@ try {
   }
   await pagina.getByRole('button', { name: /carregar o modelo/i })
     .click({ timeout: 60_000 });
+  // ── COMO O JOGADOR REALMENTE USA ──────────────────────────────────────
+  // Nos prints do aparelho, a mensagem foi enviada com a fila em 55% — os
+  // cérebros AINDA BAIXANDO. Meu roteiro sempre esperou tudo assentar antes de
+  // falar, e é por isso que nove execuções não reproduziram a trava dele: eu
+  // testava um cenário que ele nunca vive.
+  //
+  // `IMPACIENTE=1` manda as mensagens em rajada, sem esperar nada ficar pronto.
+  const impaciente = process.env.IMPACIENTE === '1';
+  const espera = impaciente ? Number(process.env.RAJADA_MS ?? 15_000) : ESPERA_POR_FALA_MS;
+  if (impaciente) console.log(`IMPACIENTE=1 — mensagens a cada ${espera}ms, sem esperar carregar`);
   const campo = pagina.locator('input').last();
   const mandar = pagina.getByRole('button', { name: /mandar a fala/i });
   resultado.enviadas = 0;
@@ -270,7 +280,7 @@ try {
     // garantir uma medição vazia.
     // Quem confere se o Nilo falou é o vigia de 1s lá em cima; aqui só se
     // espera. Conferir de novo no fim era exatamente o erro.
-    await pagina.waitForTimeout(ESPERA_POR_FALA_MS);
+    await pagina.waitForTimeout(espera);
   }
 } catch (e) {
   if (String(e.message) !== '__so_abertura__') {
