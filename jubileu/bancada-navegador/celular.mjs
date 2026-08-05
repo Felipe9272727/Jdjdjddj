@@ -196,9 +196,12 @@ const HZ = Number(process.env.HZ ?? 100);
 const etapas = [];
 const relogioEtapa = setInterval(() => {
   pagina.evaluate(() => {
-    const t = document.body.innerText || '';
-    const m = t.match(/(baixando|instalando|carregando|preparando|verificando|reabrindo|montando)[^\n]{0,70}/i);
-    return { em: Math.round(performance.now()), texto: m ? m[0] : '' };
+    // DO ESTADO, não da tela: `__npcEstado` é publicado pelo npcStore quando
+    // a URL tem ?bancada. Ler o texto renderizado foi o que fez a medição
+    // anterior devolver "(nada na tela)".
+    const e = globalThis.__npcEstado;
+    const texto = e ? `${e.phase}|${e.loadText}`.slice(0, 90) : '';
+    return { em: Math.round(performance.now()), texto };
   }).then((e) => { if (e && e.texto) etapas.push(e); }).catch(() => {});
 }, 1000);
 

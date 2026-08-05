@@ -125,6 +125,29 @@ const s: NpcState = {
 const subs = new Set<() => void>();
 export const npc = s;
 export function npcSubscribe(fn: () => void) { subs.add(fn); return () => { subs.delete(fn); }; }
+/**
+ * ── UMA JANELA PARA A BANCADA MEDIR, E SÓ PARA ELA ────────────────────────
+ *
+ * A última medição do bloqueio de carga falhou por falta disto: o arnês lia o
+ * TEXTO RENDERIZADO procurando as palavras do chat, e o roteiro entra pela
+ * bancada, que mostra o estado de outro jeito. Deu "(nada na tela)" — não
+ * porque nada acontecia, mas porque eu olhava para o lugar errado.
+ *
+ * O estado é a fonte; a tela é uma das interpretações dele. Medir pela tela é
+ * medir a interpretação.
+ *
+ * Só existe com `?bancada`/`?comparacao`/`?mente` na URL: em jogo, nada é
+ * publicado no `window`.
+ */
+function exporParaBancada(): void {
+    try {
+        const busca = globalThis.location?.search ?? '';
+        if (!/[?&](bancada|comparacao|mente)\b/i.test(busca)) return;
+        (globalThis as { __npcEstado?: NpcState }).__npcEstado = s;
+    } catch { /* sem location: não é navegador */ }
+}
+exporParaBancada();
+
 export function npcBump() { s.version++; for (const f of subs) f(); }
 export function npcSet(patch: Partial<NpcState>) { Object.assign(s, patch); npcBump(); }
 // Percepção muda várias vezes por segundo. O LLM lê o snapshot vivo direto,
