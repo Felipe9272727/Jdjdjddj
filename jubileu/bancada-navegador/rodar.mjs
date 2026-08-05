@@ -38,7 +38,19 @@ const navegador = await chromium.launch({
   args: [
     '--enable-features=SharedArrayBuffer',
     '--no-sandbox',
-    '--js-flags=--experimental-wasm-jspi',
+    // ── SEM_JSPI=1 MEDE O OUTRO CAMINHO DE CARGA ──────────────────────────
+    //
+    // O wllama escolhe como carregar o modelo por `canUseAsyncFileRead()`, que
+    // é `isSupportJSPI() || compat`. Com JSPI ele lê o .gguf do OPFS direto
+    // para os tensores. SEM JSPI ele aloca o arquivo INTEIRO no heap do wasm,
+    // zera tudo (`mmapAlloc` chama `zeroMemory`) e copia o modelo para lá pelo
+    // JavaScript, em pedaços.
+    //
+    // Isso importa porque a bancada roda com a flag LIGADA e o Chrome do
+    // Android pode não ter JSPI. Ou seja: eu posso estar medindo, há sessões,
+    // um caminho de carga que o aparelho dele nunca executa — o que explicaria
+    // travadas que nunca reproduzem aqui.
+    ...(process.env.SEM_JSPI ? [] : ['--js-flags=--experimental-wasm-jspi']),
     // O perfil do Playwright é temporário e a cota do OPFS sai do disco livre.
     // Sem isto, guardar um GGUF de 1,92 GB levanta QuotaExceededError e o teste
     // mede a cota da máquina, não o runtime.
@@ -52,7 +64,16 @@ pagina.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 await pagina.goto(URL_BASE, { waitUntil: 'domcontentloaded' });
 
 try {
-  await pagina.waitForFunction(() => globalThis.__resultado !== null, null, { timeout: LIMITE_MS });
+  // `!== null` sozinho ACEITA `undefined`, e `undefined !== null` é verdade —
+  // então uma página que esquecesse de declarar `__resultado = null` no topo
+  // era dada por pronta no primeiro instante, antes de carregar nada. Foi o que
+  // aconteceu com `memoria.html`: 0 medição, e a mensagem de erro apontava para
+  // a gravação do arquivo, não para a espera que nunca esperou.
+  await pagina.waitForFunction(
+    () => globalThis.__resultado !== null && globalThis.__resultado !== undefined,
+    null,
+    { timeout: LIMITE_MS },
+  );
 } catch {
   console.log('TIMEOUT — último texto da página:');
   console.log(await pagina.textContent('#saida'));

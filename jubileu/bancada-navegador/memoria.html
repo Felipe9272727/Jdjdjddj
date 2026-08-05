@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>de onde vem o 2,00× de RAM por cérebro</title>
+<pre id="saida"></pre>
+<script type="module">
+// ── A PERGUNTA ─────────────────────────────────────────────────────────────
+// A reta medida no celular emulado diz `RSS = 2,00 × (GB de arquivo) + 1,49`.
+// O dobro do arquivo é muito, e eu supus que fosse cópia duplicada de peso —
+// primeiro no heapfs do wllama, depois nos tensores do llama.cpp.
+//
+// Lendo o runtime, essa suposição não se sustenta: os DOIS caminhos de carga do
+// wllama são 1× por construção. Com leitura assíncrona ele nem aloca o arquivo
+// (`needAllocBuffer = !useAsyncFile`) e o llama.cpp lê do OPFS direto para os
+// tensores; sem ela, o wllama aloca uma vez e o mmap remendado devolve o MESMO
+// ponteiro (`allocated: false`), sem segunda cópia.
+//
+// Então a resposta tem de vir de quem realmente aloca. O llama.cpp imprime cada
+// buffer que abre. Esta página só liga o log nativo e lê o que ele diz.
+// O corredor espera por isto deixar de ser nulo. Sem a declaração, `undefined`
+// já passava no teste dele e a medição terminava antes de começar.
+globalThis.__resultado = null;
+const el = document.getElementById('saida');
+const linhas = [];
+const diz = (t) => { linhas.push(t); el.textContent += t + '\n'; };
+
+// ── DESLIGAR JSPI DE VERDADE ──────────────────────────────────────────────
+//
+// `--js-flags=--experimental-wasm-jspi` não serve para o teste contrário: nas
+// versões atuais o JSPI já vem ligado de fábrica, então a flag é inócua e
+// tirá-la não desliga nada. Medi assim uma vez e os dois lados deram o MESMO
+// caminho de carga — o experimento não testou o que eu queria.
+//
+// O wllama decide por `isSupportJSPI = () => !!WebAssembly.Suspending`. Então a
+// forma honesta de forçar o outro caminho é tirar o símbolo antes de importar
+// o runtime. `?semjspi` faz isso.
+const SEM_JSPI = new URLSearchParams(location.search).has('semjspi');
+if (SEM_JSPI) {
+    try { delete WebAssembly.Suspending; } catch { /* não configurável */ }
+}
+
+const MODELO = new URLSearchParams(location.search).get('m') ?? '/smollm3.gguf';
+const N_CTX = Number(new URLSearchParams(location.search).get('ctx') ?? 1536);
+
+// As mesmas opções da fala no jogo (wllamaEngine.ts), porque o que interessa é
+// o custo do cérebro REAL, não o de um carregamento de laboratório.
+const CARGA = {
+    n_ctx: N_CTX,
+    n_batch: 512,
+    n_threads: 4,
+    cache_type_k: 'q8_0',
+    cache_type_v: 'q8_0',
+};
+
+const interessa = /buffer size|KV self|kv self|compute buffer|model size|n_ctx|graph|CPU_Mapped|CPU_REPACK/i;
+const capturadas = [];
+
+const resultado = {
+    modelo: MODELO,
+    n_ctx: N_CTX,
+    semJspi: SEM_JSPI,
+    // Prova de que o desligamento pegou — sem isto o relatório diria "sem jspi"
+    // sobre uma execução que usou jspi, que foi exatamente o erro anterior.
+    jspiDisponivel: !!WebAssembly.Suspending,
+    buffers: {},
+};
+try {
+    const { Wllama } = await import('/wllama-cdn/index.js');
+    const eng = new Wllama(
+        { default: '/wllama-cdn/wasm/wllama.wasm' },
+        {
+            // O ponto inteiro desta página: DEIXAR o llama.cpp falar.
+            suppressNativeLog: false,
+            logger: {
+                debug: (...a) => { const t = a.join(' '); if (interessa.test(t)) capturadas.push(t); },
+                log: (...a) => { const t = a.join(' '); if (interessa.test(t)) capturadas.push(t); },
+                warn: () => {},
+                error: (...a) => capturadas.push('ERRO ' + a.join(' ')),
+            },
+        },
+    );
+    const t0 = performance.now();
+    await eng.loadModelFromUrl(MODELO, CARGA);
+    resultado.cargaMs = Math.round(performance.now() - t0);
+    diz(`carga: ${resultado.cargaMs}ms · ${MODELO} · n_ctx=${N_CTX}`);
+    diz('');
+    diz('── o que o llama.cpp diz que alocou ──');
+    for (const l of capturadas) diz('  ' + l.trim());
+
+    // MiB de cada linha "... = N.NN MiB", somados por categoria.
+    const soma = (re) => capturadas
+        .filter((l) => re.test(l))
+        .map((l) => {
+            const m = l.match(/([\d.]+)\s*MiB/);
+            return m ? parseFloat(m[1]) : 0;
+        })
+        .reduce((a, b) => a + b, 0);
+    resultado.buffers = {
+        pesosMiB: +soma(/model buffer size|CPU_Mapped|CPU_REPACK|CPU buffer size/i).toFixed(1),
+        kvMiB: +soma(/KV self/i).toFixed(1),
+        computeMiB: +soma(/compute buffer/i).toFixed(1),
+    };
+    diz('');
+    diz('── soma ──');
+    for (const [k, v] of Object.entries(resultado.buffers)) diz(`  ${k.padEnd(12)} ${v} MiB`);
+    try { await eng.exit(); } catch { /* já morreu */ }
+    resultado.ok = true;
+} catch (erro) {
+    diz(`falhou: ${erro?.message ?? erro}`);
+    resultado.erro = String(erro?.message ?? erro);
+}
+resultado.linhas = capturadas;
+globalThis.__resultado = resultado;
+</script>

@@ -28,6 +28,7 @@ import {
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
+import { vigiarMemoria } from './npc/floor10Memoriametro';
 import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
 import { baixarMotor, precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
@@ -174,6 +175,13 @@ const Floor10NpcChat: React.FC = () => {
         // no celular emulado. Medir no aparelho de quem joga é o único caminho
         // que sobra, e o resultado sai no relatório copiável.
         vigiarEngasgos(() => npc.phase);
+        // ── E O MEDIDOR DE MEMÓRIA, PELO MESMO MOTIVO ─────────────────────
+        // O engasgo diz QUANTO o jogo parou; este diz o quanto ele estava
+        // pesando quando parou. "meu celular até desligou sozinho" é assinatura
+        // de memória, e até agora todo número de RAM desta sessão veio de um
+        // celular emulado. Custa uma leitura a cada 45 s, fora do caminho de
+        // qualquer geração.
+        vigiarMemoria(() => npc.phase);
         // ── ENTRAR NO CHAT DESLIGA A VONTADE E O MOTOR ────────────────────
         //
         // A metade que faltava do roteamento. Fechar o chat já descarregava a

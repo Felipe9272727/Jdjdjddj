@@ -23,6 +23,10 @@
 
 /** Teto do buffer circular. ~200 eventos cobrem vários minutos de Andar 10. */
 import { resumoDosEngasgos } from './floor10Engasgo';
+// Mesmo par de mão dupla do medidor de engasgo acima: ele anota aqui, este lê
+// o resumo de lá. O ciclo já existia com o engasgo e funciona porque nenhum dos
+// dois lados usa o outro em tempo de MÓDULO — só dentro de funções.
+import { resumoDeMemoria } from './floor10Memoriametro';
 
 export const CAIXA_PRETA_TETO = 200;
 
@@ -119,6 +123,12 @@ export function relatorioCaixaPreta(contexto: ContextoCaixaPreta = {}): string {
         // caminho até esse dado — e ele precisa estar na primeira tela de quem
         // lê, não enterrado numa lista de cinquenta eventos.
         resumoDosEngasgos(),
+        // ── E A MEMÓRIA, QUE É O QUE DERRUBA A ABA ────────────────────────
+        // "meu celular até desligou sozinho" é assinatura de memória, não de
+        // calor — calor degrada devagar, o OOM killer mata sem aviso. Tudo o
+        // que eu sabia de RAM até aqui veio de um celular EMULADO numa caixa
+        // x86; esta linha é o primeiro número vindo do aparelho de quem joga.
+        resumoDeMemoria(),
         '',
     ];
     if (eventos.length === 0) {
