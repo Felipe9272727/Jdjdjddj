@@ -761,9 +761,33 @@ export type DeliberateInput = {
 };
 
 function conversationHasPriority(): boolean {
-    // O Mini pode formar intenções com o painel aberto, enquanto o jogador
-    // pensa no que escrever. Ele só para durante carga/geração real do Smol.
-    return npc.phase === 'thinking' || npc.phase === 'loading';
+    // ── O PAINEL ABERTO É PARADA, E ISTO CUSTOU CARO PARA APRENDER ────────
+    //
+    // Aqui dizia: "O Mini pode formar intenções com o painel aberto, enquanto o
+    // jogador pensa no que escrever. Ele só para durante carga/geração real do
+    // Smol." A ideia é boa e o efeito no aparelho é péssimo, porque pausar
+    // ENCERRA o Worker e voltar custa reabrir 1,32 GB:
+    //
+    //   jogador abre o chat  -> a vontade continua liberada e REABRE 1,32 GB
+    //   jogador digita       -> a fala pausa a vontade e MATA o que reabriu
+    //   jogador fecha        -> reabre de novo
+    //
+    // Cada abre-e-fecha do chat pagava uma ou duas inicializações completas de
+    // modelo. O relato foi exatamente esse: "quando eu saio do chat, e entro,
+    // LAGA TUDO".
+    //
+    // Com o painel aberto contando como prioridade da conversa, nenhuma rodada
+    // NOVA começa — logo não há reabertura para matar depois. É a arquitetura
+    // que o dono do jogo descreveu: com o chat aberto ficam de pé só o SmolLM3
+    // e o embedding; a vontade e o motor esperam a vez.
+    //
+    // O que ele pediu e NÃO dá para fazer é a suspensão de verdade (runtime
+    // vivo, zero CPU, volta instantânea). Medido nesta caixa, com o modelo e o
+    // runtime reais: o glue do wllama não expõe ação de parar, e picar a
+    // geração em pedaços — a única saída sem recompilar — custa 1,93x em
+    // pedaços de 16 tokens e 9,33x em pedaços de 8, com cada pedaço mais lento
+    // que o anterior. O remédio sai mais caro que a doença.
+    return npc.open || npc.phase === 'thinking' || npc.phase === 'loading';
 }
 
 /**

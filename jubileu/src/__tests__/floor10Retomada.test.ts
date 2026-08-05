@@ -279,3 +279,38 @@ describe('a caixa-preta conta a história que eu não conseguia ver', () => {
         controle.tokens = original;
     });
 });
+
+describe('o painel aberto para a vontade — sem reabrir 1,32 GB', () => {
+    beforeEach(() => {
+        controle.reset();
+        pausa.limparPausas();
+        store.npcSet({
+            phase: 'ready', open: false, deliberationLive: '', deliberationPhase: 'off',
+        });
+    });
+
+    // O RELATO: "quando eu saio do chat, e entro, LAGA TUDO".
+    //
+    // Com o painel aberto liberado para deliberar, cada abre-e-fecha pagava
+    // uma reabertura completa do modelo (os pesos ficam no OPFS, mas o Worker
+    // é encerrado na pausa e voltar custa ler 1,32 GB para o WASM).
+    it('com o chat aberto, nenhuma rodada nova começa', async () => {
+        expect(await brain.precarregarVontade()).toBe(true);
+        store.npcSet({ open: true, phase: 'ready' });
+        const construidosAntes = controle.construidos;
+        await brain.deliberateFloor10(entrada());
+        // O ponto: NÃO gerou e NÃO construiu runtime. Sem reabertura, sem lag.
+        expect(controle.geracoes).toBe(0);
+        expect(controle.construidos).toBe(construidosAntes);
+        // Ceder a vez não é fracasso: sem isto a espera vira castigo de 300s.
+        expect(brain.deliberationYieldedTurn()).toBe(true);
+    });
+
+    it('com o chat fechado, ela volta a pensar', async () => {
+        // A vontade nunca baixa por conta própria: quem carrega é a fila.
+        expect(await brain.precarregarVontade()).toBe(true);
+        store.npcSet({ open: false, phase: 'ready' });
+        await brain.deliberateFloor10(entrada());
+        expect(controle.geracoes).toBeGreaterThanOrEqual(1);
+    });
+});
