@@ -99,6 +99,14 @@ const pagina = await contexto.newPage();
 await pagina.addInitScript(() => {
   Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
   globalThis.__npcModelUrl = '/modelo.gguf';
+  // O Chromium desta caixa NÃO passa pelo proxy do agente, então nenhum CDN
+  // externo carrega — foi por isso que a 4ª execução morreu em
+  // "Failed to fetch dynamically imported module: cdn.jsdelivr.net/.../wllama".
+  // O runtime vem do próprio dist. RESSALVA HONESTA: este é o binário
+  // remendado, que o aparelho do dono do jogo reprovou. Serve para medir a
+  // LÓGICA do jogo (quem roda junto com quem, quantas threads), não para
+  // concluir nada sobre a velocidade do runtime que vai para o ar.
+  globalThis.__wllamaCdn = '/wllama-espec';
 });
 const cdp = await contexto.newCDPSession(pagina);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -156,6 +164,8 @@ try {
     // Espera a resposta assentar antes da próxima. Mensagens SEGUIDAS são o
     // roteiro que derrubava o aparelho, mas atropelar não é: o jogador lê.
     await pagina.waitForTimeout(25_000);
+    const saiu = await pagina.evaluate(() => document.body.innerText).catch(() => '');
+    if (/saindo:\s*\S/.test(saiu)) resultado.falouAlgumaCoisa = true;
   }
 } catch (e) {
   resultado.roteiroFalhou = String(e.message).slice(0, 200);
@@ -167,6 +177,13 @@ try {
 // morreu em globais que não existem, na segunda o campo do chat nunca
 // apareceu — o jogo abre no saguão do andar 3, e o Nilo está no 10º. Medição
 // sem roteiro é medição de tela inicial, e agora ela se denuncia.
+// E MANDAR NÃO É GERAR. A 4ª execução mandou as quatro mensagens para um motor
+// que nunca subiu (CDN inalcançável) e a guarda antiga deixou passar, porque
+// ela só contava envios. Agora a saída do próprio Nilo é a prova.
+if (!resultado.falouAlgumaCoisa) {
+  console.log('\n!! NINGUÉM FALOU: nenhuma resposta saiu do modelo.');
+  console.log('!! os números abaixo são do jogo PARADO e não provam nada.');
+}
 if ((resultado.enviadas ?? 0) < MENSAGENS.length) {
   console.log(`\n!! O ROTEIRO NÃO RODOU: ${resultado.enviadas ?? 0} de ${MENSAGENS.length} mensagens`);
   console.log(`!! motivo: ${resultado.roteiroFalhou ?? 'campo do chat nunca apareceu'}`);
