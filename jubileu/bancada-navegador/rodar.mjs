@@ -36,6 +36,22 @@ try {
 }
 
 const resultado = await pagina.evaluate(() => globalThis.__resultado);
+// ── O RELATÓRIO VAI PARA ARQUIVO, SEMPRE ──────────────────────────────────
+// Duas vezes hoje eu rodei uma medição de 13 minutos, ela imprimiu o resultado
+// certo, e o meu próprio `| tail -N` cortou a parte que interessava: o veredito
+// dos quadros na primeira, os dados do Llama 1B na segunda. O dado existiu e
+// morreu no encanamento.
+//
+// Console pode ser truncado por quem lê; arquivo não. O caminho é fixo e
+// previsível para não depender de eu lembrar de redirecionar.
+const RELATORIO = process.env.RELATORIO
+  ?? `/tmp/bancada-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+try {
+  (await import('node:fs')).writeFileSync(RELATORIO, JSON.stringify(resultado, null, 2));
+  console.log(`\n>>> relatório completo em ${RELATORIO}`);
+} catch (e) {
+  console.log(`não consegui gravar o relatório: ${e?.message}`);
+}
 console.log('\n===== RESULTADO =====');
 console.log(JSON.stringify(resultado, null, 2));
 await navegador.close();
