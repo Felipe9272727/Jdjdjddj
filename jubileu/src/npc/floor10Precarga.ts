@@ -173,10 +173,27 @@ export function precargaCompleta(): boolean { return etapa === 'pronto'; }
  * runtime aberto é efeito colateral. Liberar quem não vai trabalhar agora
  * devolve metade da memória e não rebaixa nada — a reabertura lê do disco.
  *
- * ATRÁS DE FLAG, e de propósito: liberar custa reabertura, e reabertura foi o
- * que travava o aparelho entre mensagens. As duas forças se opõem e o ponto de
- * equilíbrio depende do aparelho. `?poupamemoria` deixa medir os dois lados
- * em vez de eu escolher por palpite.
+ * ── E PASSOU A SER O PADRÃO ──────────────────────────────────────────────
+ *
+ * Nasceu atrás de flag porque liberar custa reabertura, e reabertura era o que
+ * travava o aparelho entre mensagens: as duas forças se opõem e eu não tinha
+ * número para escolher. Agora tenho os dois lados.
+ *
+ * A aditividade foi PROVADA por medição direta (dois cérebros de pé: previsto
+ * 3,89 GB, medido 4,03 — erro de 3,6%; a hipótese de memória compartilhada
+ * erraria por 1,35 GB). Logo os cinco residentes somam 9,59 GB de verdade.
+ *
+ * E o Chrome no Android não tem esse teto: aplicações web usam rotineiramente
+ * 500 MB a 2 GB por aba, e o renderer é morto SEM AVISO ao bater no limite —
+ * quando a RAM física acaba, o OOM killer do sistema mata o maior processo,
+ * que é exatamente a aba do jogo.
+ *
+ * Com 9,59 GB o padrão anterior não é arriscado, é INVIÁVEL: a aba morre. Não
+ * existe troca a pesar quando um dos lados simplesmente não funciona. 5,68 GB
+ * continua alto e pode não bastar — mas é estritamente melhor que garantir a
+ * morte, e o conserto de verdade (a cópia duplicada de 2,00x) segue em aberto.
+ *
+ * `?semopoupamemoria` volta ao comportamento antigo, para comparar no aparelho.
  */
 export function pouparMemoriaLigado(busca?: string): boolean {
     // Override para teste, no mesmo padrão de `__f10TetoEsperaMs`: sem ele o
@@ -184,7 +201,9 @@ export function pouparMemoriaLigado(busca?: string): boolean {
     // exatamente como as conclusões que caíram hoje.
     const forcado = (globalThis as { __f10PoupaMemoria?: boolean }).__f10PoupaMemoria;
     if (busca === undefined && typeof forcado === 'boolean') return forcado;
-    return /[?&]poupamemoria\b/i.test(busca ?? globalThis.location?.search ?? '');
+    const alvo = busca ?? globalThis.location?.search ?? '';
+    if (/[?&]semopoupamemoria\b/i.test(alvo)) return false;
+    return true;
 }
 
 type Passo = {
