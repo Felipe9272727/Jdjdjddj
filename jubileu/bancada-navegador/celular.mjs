@@ -51,6 +51,13 @@ const servidor = http.createServer((req, res) => {
     fs.createReadStream(alvo).pipe(res);
     return;
   }
+  if (p === '/modelo2.gguf') {
+    const alvo = process.env.MODELO2;
+    const tam = fs.statSync(alvo).size;
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(tam) });
+    fs.createReadStream(alvo).pipe(res);
+    return;
+  }
   if (p === '/modelo.gguf') {
     const tam = fs.statSync(MODELO).size;
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(tam) });
@@ -131,6 +138,7 @@ const pagina = await contexto.newPage();
 await pagina.addInitScript(() => {
   Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
   globalThis.__npcModelUrl = '/modelo.gguf';
+  globalThis.__smallBrainModelUrl = '/modelo2.gguf';
   // O Chromium desta caixa NÃO passa pelo proxy do agente, então nenhum CDN
   // externo carrega — foi por isso que a 4ª execução morreu em
   // "Failed to fetch dynamically imported module: cdn.jsdelivr.net/.../wllama".
@@ -254,6 +262,26 @@ try {
   // jogo (81 MB de assets em base64 sendo decodificados). Seis execuções de 13
   // minutos tentaram localizar esse bloqueio DENTRO da carga; nenhuma testou
   // se ele estava lá.
+  // ── DOIS CÉREBROS VIVOS, PARA PROVAR A ADITIVIDADE ────────────────────
+  // A projeção dos cinco (9,59 GB / 5,68 GB) assume que o custo de cada modelo
+  // SOMA. Assumir foi o que me obrigou a desdizer uma conclusão hoje. A página
+  // ?mente publica __f10mente com initLLM e precarregarVontade: dá para ter a
+  // FALA e a VONTADE de pé na mesma sessão e medir de verdade.
+  if (process.env.DOIS_MODELOS === '1') {
+    console.log('DOIS_MODELOS=1 — carregando fala e vontade pela ?mente');
+    const ok = await pagina.evaluate(async () => {
+      const m = globalThis.__f10mente;
+      if (!m) return 'sem __f10mente';
+      await m.initLLM();
+      await m.precarregarVontade();
+      return 'ok';
+    }).catch((e) => String(e.message).slice(0, 120));
+    console.log(`  resultado: ${ok}`);
+    resultado.enviadas = MENSAGENS.length;
+    resultado.falouAlgumaCoisa = ok === 'ok';
+    await pagina.waitForTimeout(30_000);
+    throw new Error('__so_abertura__');
+  }
   if (process.env.SEM_MODELO === '1') {
     console.log('SEM_MODELO=1 — nenhum cérebro será carregado; só a abertura.');
     await pagina.waitForTimeout(Number(process.env.OBSERVAR_MS ?? 40_000));
