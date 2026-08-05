@@ -141,16 +141,21 @@ try {
   // nada disso no window, então o roteiro morria em 13s e a medição só via o
   // boot. Dirigir pelo DOM é o que um jogador faz, e é o único caminho que
   // prova o que interessa.
-  const campo = pagina.getByPlaceholder('Fale com ele…');
-  await campo.waitFor({ state: 'visible', timeout: 240_000 });
+  // Os controles que a bancada expõe: carregar, escrever, mandar. É o mesmo
+  // `sendToNpc` que o chat do jogo chama — o caminho de código é o do jogador,
+  // sem precisar atravessar o prédio até o 10º andar.
+  await pagina.getByRole('button', { name: /carregar o modelo/i })
+    .click({ timeout: 60_000 });
+  const campo = pagina.locator('input').last();
+  const mandar = pagina.getByRole('button', { name: /mandar a fala/i });
   resultado.enviadas = 0;
   for (const m of MENSAGENS) {
-    await campo.fill(m);
-    await pagina.keyboard.press('Enter');
+    await campo.fill(m, { timeout: 240_000 });
+    await mandar.click({ timeout: 240_000 });
     resultado.enviadas += 1;
-    // Espera a resposta assentar antes da próxima — mensagens seguidas são o
-    // roteiro, mas atropelar não é: o jogador lê antes de responder.
-    await pagina.waitForTimeout(20_000);
+    // Espera a resposta assentar antes da próxima. Mensagens SEGUIDAS são o
+    // roteiro que derrubava o aparelho, mas atropelar não é: o jogador lê.
+    await pagina.waitForTimeout(25_000);
   }
 } catch (e) {
   resultado.roteiroFalhou = String(e.message).slice(0, 200);
