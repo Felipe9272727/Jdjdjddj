@@ -152,6 +152,18 @@ const relogio = setInterval(() => {
     threads: a.threads,
     cpu: a.jiffies,
   });
+  // ── VIGIAR, NÃO ESPIAR UMA VEZ ────────────────────────────────────────
+  // A prova de que o modelo falou era lida UMA vez, no fim da espera de cada
+  // mensagem. Mas a bancada mostra `saindo:` só ENQUANTO o stream corre — uma
+  // resposta que começou e terminou entre duas leituras já tinha sumido dali.
+  // Ou seja: o "ninguém falou" da 7ª execução pode ter sido falso, e um
+  // detector em que não dá para confiar nem no "não" não serve para nada.
+  // Amostrando a cada segundo, junto da CPU, nenhuma resposta escapa.
+  void pagina.evaluate(() => document.body.innerText).then((txt) => {
+    if (/saindo:\s*\S/.test(txt)) resultado.falouAlgumaCoisa = true;
+    const m = txt.match(/saindo:\s*(.{0,60})/);
+    if (m && m[1].trim() && !resultado.amostraDaFala) resultado.amostraDaFala = m[1].trim();
+  }).catch(() => undefined);
 }, 1000);
 
 try {
@@ -181,9 +193,9 @@ try {
     // que faz ~3 tok/s nesta caixa cai para menos de 1, e o teto de saída são
     // 96 tokens: passa de dois minutos por fala. Esperar menos que isso é
     // garantir uma medição vazia.
+    // Quem confere se o Nilo falou é o vigia de 1s lá em cima; aqui só se
+    // espera. Conferir de novo no fim era exatamente o erro.
     await pagina.waitForTimeout(ESPERA_POR_FALA_MS);
-    const saiu = await pagina.evaluate(() => document.body.innerText).catch(() => '');
-    if (/saindo:\s*\S/.test(saiu)) resultado.falouAlgumaCoisa = true;
   }
 } catch (e) {
   resultado.roteiroFalhou = String(e.message).slice(0, 200);
@@ -224,7 +236,8 @@ console.log(`CPU consumida ...... ${cpuTotal.toFixed(1)}s`);
 console.log(`ocupação média ..... ${(cpuTotal / duracao).toFixed(2)} núcleos de 8`);
 console.log(`erros de página .... ${erros.length ? erros.slice(0, 3).join(' | ') : 'nenhum'}`);
 globalThis.__saida = { picoThreads, cpuTotal, duracao };
-console.log(JSON.stringify({ picoThreads, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), erros: erros.slice(0, 5) }, null, 2));
+console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
+console.log(JSON.stringify({ picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), erros: erros.slice(0, 5) }, null, 2));
 
 await navegador.close();
 servidor.close();
