@@ -56,6 +56,27 @@
  */
 export const FLOOR10_INATIVIDADE_MS = 180_000;
 
+/**
+ * QUANTO ESPERAR ENTRE DESCARREGAR UM CÉREBRO E SUBIR O PRÓXIMO.
+ *
+ * `await unload...` devolve quando o pedido foi feito, não quando o sistema
+ * reclamou a memória. Medido no celular emulado, com o cérebro de fala:
+ *
+ *     de pé ............ 4,51 GB anônimos
+ *     descarregada ..... 4,51 GB   (4s depois: NADA voltou)
+ *     30s depois ....... 2,49 GB   (-2,02 GB)
+ *
+ * O Worker leva tempo para morrer e o navegador para devolver a ArrayBuffer do
+ * WASM. Sem este respiro, o roteamento somaria o cérebro novo por cima do
+ * antigo que ainda não saiu — o oposto do que ele existe para fazer, e uma
+ * medição de 4s me faria jurar que "descarregar devolve 0%".
+ *
+ * 12s é o meio do caminho medido: bem além dos 4 que não bastaram, bem aquém
+ * dos 30 que já tinham devolvido dois terços. Quem espera é o jogador que
+ * acabou de FECHAR o chat — ele não está olhando.
+ */
+export const RESPIRO_APOS_DESCARGA_MS = 12_000;
+
 /** Quantas vezes tentar, contando a primeira. */
 export const FLOOR10_TENTATIVAS = 3;
 

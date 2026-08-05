@@ -305,10 +305,22 @@ try {
     });
     console.log(`  resultado: ${r}`);
     const dePe = await marco('com a fala');
-    await pagina.evaluate(async () => {
-      await globalThis.__f10mente?.unloadConversationBrain?.();
+    // CONFIRMA que o descarregamento ACONTECEU, em vez de supor. Seis
+    // instrumentos meus hoje devolveram número sem medir o que eu pensava.
+    const conf = await pagina.evaluate(async () => {
+      const m = globalThis.__f10mente;
+      const antes = m?.npc?.phase;
+      await m?.unloadConversationBrain?.();
+      return { antes, depois: m?.npc?.phase, tem: typeof m?.unloadConversationBrain };
     });
+    console.log(`  descarregou: ${JSON.stringify(conf)}`);
     const depois = await marco('descarregada');
+    // E ESPERA DE VERDADE. Se a memória voltar em 30s e não em 4, a causa é o
+    // tempo de o Worker morrer, não o WASM que não encolhe — e as duas pedem
+    // consertos completamente diferentes.
+    await pagina.waitForTimeout(30_000);
+    const tarde = await marco('30s depois');
+    resultado.tarde = tarde.anonMB;
     const subiu = dePe.anonMB - antes.anonMB;
     const voltou = dePe.anonMB - depois.anonMB;
     console.log(`\n  subiu ao carregar .... ${(subiu / 1024).toFixed(2)} GB anônimos`);

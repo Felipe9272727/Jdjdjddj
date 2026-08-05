@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
+import { esperar, RESPIRO_APOS_DESCARGA_MS } from './npc/floor10Carga';
 // Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
 import {
     FLOOR10_MODEL, initLLM, sendToNpc, unloadConversationBrain,
@@ -235,6 +236,24 @@ const Floor10NpcChat: React.FC = () => {
             //
             // Se o jogador reabriu o chat nesse meio tempo, desiste: a mente
             // volta a ser a dona do aparelho.
+            if (npc.open) return;
+            // ── E ESPERA A MEMÓRIA VOLTAR DE VERDADE ──────────────────────
+            //
+            // `await unload...` devolve quando o pedido foi feito, NÃO quando o
+            // sistema reclamou a memória. Medido, com o modelo de fala:
+            //
+            //     de pé ............ 4,51 GB anônimos
+            //     descarregada ..... 4,51 GB   (4s depois: nada)
+            //     30s depois ....... 2,49 GB   (-2,02 GB)
+            //
+            // O Worker leva tempo para morrer e o navegador para devolver a
+            // ArrayBuffer do WASM. Subir a vontade nesses 4s primeiros somaria
+            // 1,32 GB EM CIMA dos 4,51 que ainda não saíram — exatamente o pico
+            // que este roteamento existe para evitar.
+            //
+            // Esperar aqui não custa nada ao jogador: ele acabou de fechar o
+            // chat, e a vontade pensar 10s depois em vez de na hora é invisível.
+            await esperar(RESPIRO_APOS_DESCARGA_MS);
             if (npc.open) return;
             await precarregarVontade().catch(() => false);
         })();
