@@ -316,12 +316,13 @@ describe('poupar memória: baixar não é o mesmo que manter de pé', () => {
     // Os cinco residentes dão 9,59 GB; fala + memória dão 5,68 GB. O Chrome do
     // Android mata a aba muito antes do primeiro — e "desligou sozinho" é
     // súbito como falta de memória, não progressivo como calor.
-    it('LIGADA por padrão: 9,59 GB não é arriscado, é inviável', () => {
+    it('opt-in: a medição que a justificava está pela metade', () => {
         // Aditividade provada (previsto 3,89 / medido 4,03) + Chrome no Android
         // matando o renderer sem aviso acima de ~2 GB por aba. Não existe troca
         // a pesar quando um dos lados garante a morte da aba.
-        expect(pouparMemoriaLigado('')).toBe(true);
-        expect(pouparMemoriaLigado('?bancada')).toBe(true);
+        expect(pouparMemoriaLigado('')).toBe(false);
+        expect(pouparMemoriaLigado('?bancada')).toBe(false);
+        expect(pouparMemoriaLigado('?poupamemoria')).toBe(true);
         expect(pouparMemoriaLigado('?semopoupamemoria')).toBe(false);
     });
 

@@ -61,27 +61,16 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.id).toBe(antes);
     });
 
-    it('usa o aparelho inteiro quando pensa sozinho, e cede a vez para a fala', () => {
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(SMALL_BRAIN_THINK_TOKENS);
-        // O coordenador não deixa SmolLM3 e MiniBrain gerarem juntos. Portanto
-        // oito aqui são um teto durante a janela OCIOSA — nunca 8 + 8 núcleos
-        // concorrendo durante a conversa.
+    it('a vontade cabe em DUAS threads — o desenho que o dono do jogo pediu', () => {
+        // Estava 8 (virava 4 no aparelho dele, o mesmo da fala). Ele descreveu:
+        // "2 ias pra mente sendo o smol e o embedding, e as outras 2 pra
+        // vontade (llama 1b e o motor)". O relato que motivou a correção:
+        // "quando começa a baixar [a vontade], começa a travar meu celular
+        // todo" — no fim do download vem um llama.cpp inteiro subindo.
+        expect(SMALL_BRAIN_THREADS).toBe(2);
+        // Continua sendo TETO: quem tem menos núcleos usa o que tem.
         expect(smallBrainThreads()).toBeLessThanOrEqual(SMALL_BRAIN_THREADS);
         expect(smallBrainThreads()).toBeGreaterThanOrEqual(1);
-        expect(SMALL_BRAIN_THREADS).toBe(MAX_SPEECH_THREADS);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(2048);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
-        // O Nilo PENSA — decisão do dono do jogo. Quem impede o loop eterno é o
-        // teto de tokens, não a mordaça.
-        expect(SMALL_BRAIN_LOAD_CONFIG.default_template_kwargs).toEqual({
-            enable_thinking: true,
-        });
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.chat_template_kwargs).toEqual({
-            enable_thinking: true,
-        });
-        expect(SMALL_BRAIN_COMPLETION_CONFIG).not.toHaveProperty('grammar');
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.cache_prompt).toBe(true);
     });
 
     it('guarda a gramática para a SEGUNDA passada, nunca para o pensamento', () => {

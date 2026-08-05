@@ -203,7 +203,20 @@ export function pouparMemoriaLigado(busca?: string): boolean {
     if (busca === undefined && typeof forcado === 'boolean') return forcado;
     const alvo = busca ?? globalThis.location?.search ?? '';
     if (/[?&]semopoupamemoria\b/i.test(alvo)) return false;
-    return true;
+    // ── E VOLTOU A SER OPT-IN ─────────────────────────────────────────────
+    // Eu promovi isto a padrão por conta própria, e não devia: a medição que o
+    // justificava está pela metade. `RSS` soma memória ANÔNIMA (que mata a aba)
+    // com CACHE DE ARQUIVO (que o kernel descarta sob pressão), e o .gguf vive
+    // no OPFS — se metade dos 5,09 GB for cache, o "2,00x" não é cópia
+    // duplicada e o risco de OOM que eu apresentei está inflado no dobro. A
+    // medição que separa os dois (RssAnon) não chegou a terminar.
+    //
+    // Somado a isso, o dono do jogo desconfia da troca: "provavelmente vai
+    // deixar tudo lento". Ele conhece o aparelho, e liberar runtime custa
+    // reabertura — que foi o que travava o celular entre mensagens.
+    //
+    // Padrão volta a ser o comportamento conhecido. `?poupamemoria` liga.
+    return /[?&]poupamemoria\b/i.test(alvo);
 }
 
 type Passo = {

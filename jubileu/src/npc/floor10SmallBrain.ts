@@ -128,24 +128,25 @@ export async function setSmallBrain(id: SmallBrainId): Promise<void> {
 }
 
 /**
- * Os MESMOS núcleos da fala — hoje oito.
+ * DUAS, e o número é do dono do jogo, não meu.
  *
- * Foi 2 (medo de disputar com o SmolLM3), depois 4, e agora acompanha o teto da
- * fala. A razão é o coordenador: fala e vontade NUNCA geram ao mesmo tempo. A
- * fala preempta a deliberação antes de gerar, e a deliberação cede a vez
- * enquanto o painel está aberto. Deixar metade do aparelho parada durante uma
- * rodada que roda sozinha era desperdício puro.
+ * Estava 8 — que virava 4 pelo `cpuThreadCount`, o MESMO orçamento da fala. Ele
+ * descreveu a arquitetura que queria assim:
  *
- * Continua sendo TETO, não exigência: quem tem menos núcleos usa o que tem.
+ *   "2 ias pra mente sendo o smol e o embedding, e as outras 2 pra vontade
+ *    (llama 1b e o motor)"
  *
- * Uma ressalva honesta, porque ela é medível e eu não tenho o aparelho aqui:
- * em celular big.LITTLE (o Snapdragon 7s Gen 2 tem 4 núcleos grandes e 4
- * pequenos) o llama.cpp espera pela thread mais lenta, então mais threads nem
- * sempre é mais rápido. Por isso o painel de pensamento publica `CPU×N` e os
- * tok/s medidos: dá para ver, na hora, se 8 ficou melhor que 4 — e é um número
- * só para voltar atrás.
+ * O pipeline da vontade inteiro devia caber em ~2. O motor já estava em 2; a
+ * vontade sozinha levava 4, e é ela que faz o aparelho travar QUANDO BAIXA —
+ * porque no fim do download vem um llama.cpp inteiro subindo, com pool próprio,
+ * enquanto o jogador está no chat lendo a resposta anterior.
+ *
+ * O que se perde: a deliberação fica mais lenta. Ela acontece em segundo plano,
+ * o jogador não espera por ela, e nenhum pensamento dela chega à tela sem
+ * passar pelo motor antes. O que se ganha: metade dos núcleos de volta,
+ * exatamente na janela em que ele está usando o jogo.
  */
-export const SMALL_BRAIN_THREADS = 8;
+export const SMALL_BRAIN_THREADS = 2;
 
 export function smallBrainThreads(): number {
     return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));

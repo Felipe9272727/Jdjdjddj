@@ -92,7 +92,21 @@ function amostraDoProcesso(pid) {
     // que é `rsslim` — "ilimitado" — e a medição devolveu 2.530.106.750 GB.
     // Número absurdo é fácil de pegar; o perigoso teria sido um plausível.
     const rssMB = Math.round((Number(campos[21]) * 4096) / 1048576);
-    return { jiffies: utime + stime, threads, rssMB };
+    // ── E RSS NÃO É TUDO IGUAL ────────────────────────────────────────────
+    // RSS soma memória ANÔNIMA (alocada, insubstituível) com páginas de
+    // ARQUIVO (o .gguf que o OPFS deixou no cache de página). As duas pesam
+    // muito diferente numa crise: o kernel DESCARTA página de arquivo sob
+    // pressão; anônima ele não tem para onde mandar, e aí mata o processo.
+    //
+    // Se metade dos 5,09 GB for cache de arquivo, minha conclusão sobre OOM
+    // está inflada em 2x. `RssAnon` do /proc/pid/status separa os dois.
+    let anonMB = 0;
+    try {
+      const st = fs.readFileSync(`/proc/${pid}/status`, 'utf8');
+      const m = st.match(/RssAnon:\s+(\d+) kB/);
+      if (m) anonMB = Math.round(Number(m[1]) / 1024);
+    } catch { /* processo já saiu */ }
+    return { jiffies: utime + stime, threads, rssMB, anonMB };
   } catch { return null; }
 }
 
@@ -103,6 +117,7 @@ function arvore(pidRaiz) {
   let jiffies = 0;
   let threads = 0;
   let rssMB = 0;
+  let anonMB = 0;
   while (fila.length) {
     const pid = fila.pop();
     if (vistos.has(pid)) continue;
@@ -112,12 +127,13 @@ function arvore(pidRaiz) {
     jiffies += a.jiffies;
     threads += a.threads;
     rssMB += a.rssMB;
+    anonMB += a.anonMB ?? 0;
     try {
       const filhos = fs.readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf8').trim();
       if (filhos) for (const f of filhos.split(/\s+/)) fila.push(Number(f));
     } catch { /* processo já saiu */ }
   }
-  return { jiffies, threads, rssMB, processos: vistos.size };
+  return { jiffies, threads, rssMB, anonMB, processos: vistos.size };
 }
 
 const navegador = await chromium.launch({
@@ -231,6 +247,7 @@ const relogio = setInterval(() => {
     s: +((Date.now() - t0) / 1000).toFixed(1),
     threads: a.threads,
     rssMB: a.rssMB,
+    anonMB: a.anonMB,
     cpu: a.jiffies,
   });
   // ── VIGIAR, NÃO ESPIAR UMA VEZ ────────────────────────────────────────
@@ -442,6 +459,11 @@ const sustentado = metade.length
   : 0;
 console.log(`MEMÓRIA (pico) ..... ${(picoRSS / 1024).toFixed(2)} GB de RSS somado`);
 console.log(`MEMÓRIA sustentada . ${(sustentado / 1024).toFixed(2)} GB (média da 2ª metade)`);
+const anonMetade = metade.length
+  ? Math.round(metade.reduce((s, a) => s + (a.anonMB ?? 0), 0) / metade.length)
+  : 0;
+console.log(`  dos quais ANÔNIMA . ${(anonMetade / 1024).toFixed(2)} GB  <- é esta que mata a aba`);
+console.log(`  cache de arquivo .. ${((sustentado - anonMetade) / 1024).toFixed(2)} GB  (o kernel descarta sob pressão)`);
 console.log(`MEMÓRIA no fim ..... ${(finalRSS / 1024).toFixed(2)} GB`);
 console.log(`natureza do 2x ..... ${picoRSS > sustentado * 1.3
   ? 'PICO TRANSITÓRIO — heap do WASM crescendo; reservar de uma vez resolve'
