@@ -23,6 +23,7 @@ import {
     vigiarInatividade,
 } from './floor10Carga';
 import { floor10Fila, FILA_MOTOR } from './floor10Fila';
+import { baixarSemSubir, type CofreDeModelos } from './floor10Roteamento';
 import type { F10PrisonState } from './f10Prison';
 import {
     FLOOR10_MOTOR_GRAMMAR,
@@ -493,6 +494,60 @@ export async function translateFloor10MotorThought(
  * sem uma porta assim, este modelo só começava a descer no primeiro pensamento
  * a traduzir — e a fila ficava eternamente em "2 de 3".
  */
+/**
+ * BAIXA E PARA POR AÍ. Mesmo desenho de `baixarVontade`, mesma razão: a etapa
+ * da fila não pode subir um llama.cpp enquanto o jogador usa o chat. Construir
+ * a instância não abre Worker — ele nasce em `loadModelFromUrl`.
+ */
+export async function baixarMotor(): Promise<boolean> {
+    if (residentEngine) return true;
+    try {
+        const backend = await probeModelStorageBackend();
+        if (!backend.ok) return false;
+        const plano = planModelCache(await readStorageEstimate(), FLOOR10_MOTOR_MODEL.bytes);
+        if (!plano.ok) {
+            npcSet({
+                motorPhase: 'unavailable',
+                motorLoadText: `${FLOOR10_MOTOR_MODEL.label} não cabe: ${plano.message}`,
+            });
+            return false;
+        }
+        const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as
+            Promise<{ Wllama: MotorCtor }>);
+        const cofre = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
+        medidorMotor.reset();
+        npcSet({ motorPhase: 'loading', motorDownload: DOWNLOAD_ZERO });
+        const baixou = await baixarSemSubir(
+            (cofre as { cacheManager?: CofreDeModelos }).cacheManager,
+            FLOOR10_MOTOR_MODEL.url,
+            (loaded, total) => {
+                const amostra = medidorMotor.push(loaded, total);
+                floor10Fila.progresso(FILA_MOTOR, amostra);
+                npcSet({
+                    motorDownload: amostra,
+                    motorLoadProgress: total ? Math.min(1, loaded / total) : 0,
+                    motorLoadText:
+                        `baixando ${FLOOR10_MOTOR_MODEL.label} · ${downloadLine(amostra)}`,
+                });
+            },
+        );
+        try { await (cofre as { exit?: () => Promise<void> }).exit?.(); } catch { /* nada subiu */ }
+        if (!baixou) return false;
+        npcSet({
+            motorPhase: 'off',
+            motorLoadProgress: 1,
+            motorLoadText: `${FLOOR10_MOTOR_MODEL.label} no aparelho · em espera`,
+        });
+        anotar('motor:no-aparelho');
+        return true;
+    } catch (erro) {
+        anotar('motor:download-falhou', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        });
+        return false;
+    }
+}
+
 export async function precarregarMotor(): Promise<boolean> {
     const engine = await floor10ModelCoordinator.activate(
         'deliberation',

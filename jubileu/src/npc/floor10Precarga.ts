@@ -378,7 +378,9 @@ export function passosDoAndar10(carregadores: {
             id: FILA_MOTOR,
             etapa: 'motor',
             carregar: carregadores.motor,
-            adiarEnquanto: conversaOcupaOAparelho,
+            // Como a vontade: a etapa agora só BAIXA, então não espera mais o
+            // chat fechar — só sai da frente de uma geração.
+            adiarEnquanto: falaGerandoAgora,
             liberar: carregadores.liberarMotor,
         },
     ];

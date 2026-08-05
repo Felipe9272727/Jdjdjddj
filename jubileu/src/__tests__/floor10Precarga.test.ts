@@ -70,8 +70,8 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
         // contrário era o defeito que o dono do jogo relatou — "a vontade só
         // baixa pós a primeira mensagem ser respondida".
         await vi.waitFor(() => expect(ordem).toContain('inicio:vontade'));
-        // O MOTOR continua esperando: a etapa dele ainda SOBE runtime.
-        expect(ordem).not.toContain('inicio:motor');
+        // O MOTOR também começa: a etapa dele agora só baixa.
+        await vi.waitFor(() => expect(ordem).toContain('inicio:motor'));
 
         // Fechou: os dois pesados sobem inteiros, sem cancelamento nenhum.
         npcSet({ open: false });
@@ -247,8 +247,8 @@ describe('nenhuma etapa carrega por cima de uma geração', () => {
         // BAIXA (`baixarVontade`), e download é rede, não núcleo. O relato era
         // "a vontade só baixa pós a primeira mensagem ser respondida".
         expect(por(FILA_VONTADE)?.adiarEnquanto).toBe(falaGerandoAgora);
-        // O motor ainda SOBE runtime na etapa dele, então continua esperando.
-        expect(por(FILA_MOTOR)?.adiarEnquanto).toBe(conversaOcupaOAparelho);
+        // O motor também: a etapa dele agora só baixa.
+        expect(por(FILA_MOTOR)?.adiarEnquanto).toBe(falaGerandoAgora);
 
         // A fala nunca espera: é ela que o jogador está olhando.
         expect(por(FILA_FALA)?.adiarEnquanto).toBeUndefined();

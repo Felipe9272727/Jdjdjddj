@@ -51,6 +51,7 @@ import {
     vigiarInatividade,
 } from './floor10Carga';
 import { floor10Fila, FILA_MEMORIA } from './floor10Fila';
+import { baixarSemSubir, type CofreDeModelos } from './floor10Roteamento';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     FLOOR10_MEMORIA_VETORES,
@@ -402,6 +403,56 @@ async function ensureMemoriaEngine(
 }
 
 /** SÓ BAIXA — a fila de pré-carga chama isto, como nos outros três cérebros. */
+/**
+ * BAIXA E PARA POR AÍ. A memória é a menor dos quatro (334 MB), mas o fim do
+ * download dela também é um llama.cpp subindo — e era ela que subia por cima
+ * da primeira mensagem do jogador.
+ */
+export async function baixarMemoria(): Promise<boolean> {
+    if (residentEngine) return true;
+    try {
+        const backend = await probeModelStorageBackend();
+        if (!backend.ok) return false;
+        const plano = planModelCache(await readStorageEstimate(), FLOOR10_MEMORIA_MODEL.bytes);
+        if (!plano.ok) {
+            npcSet({
+                memoriaPhase: 'unavailable',
+                memoriaLoadText: `${FLOOR10_MEMORIA_MODEL.label} não cabe: ${plano.message}`,
+            });
+            return false;
+        }
+        const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as
+            Promise<{ Wllama: MemoriaCtor }>);
+        const cofre = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
+        medidor.reset();
+        npcSet({ memoriaPhase: 'loading', memoriaDownload: DOWNLOAD_ZERO });
+        const baixou = await baixarSemSubir(
+            (cofre as { cacheManager?: CofreDeModelos }).cacheManager,
+            FLOOR10_MEMORIA_MODEL.url,
+            (loaded, total) => {
+                const amostra = medidor.push(loaded, total);
+                floor10Fila.progresso(FILA_MEMORIA, amostra);
+                npcSet({
+                    memoriaDownload: amostra,
+                    memoriaLoadProgress: total ? Math.min(1, loaded / total) : 0,
+                    memoriaLoadText:
+                        `baixando ${FLOOR10_MEMORIA_MODEL.label} · ${downloadLine(amostra)}`,
+                });
+            },
+        );
+        try { await (cofre as { exit?: () => Promise<void> }).exit?.(); } catch { /* nada subiu */ }
+        if (!baixou) return false;
+        npcSet({
+            memoriaPhase: 'off',
+            memoriaLoadProgress: 1,
+            memoriaLoadText: `${FLOOR10_MEMORIA_MODEL.label} no aparelho · em espera`,
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export async function precarregarMemoria(): Promise<boolean> {
     const engine = await floor10ModelCoordinator.activate(
         'memory',

@@ -25,10 +25,11 @@ import {
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
-import { precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
+import { baixarMotor, precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
     FLOOR10_MEMORIA_MODEL,
     FLOOR10_MEMORIA_SIZE_LABEL,
+    baixarMemoria,
     precarregarMemoria,
 } from './npc/floor10Memoria';
 
@@ -177,8 +178,10 @@ const Floor10NpcChat: React.FC = () => {
             // runtime sobe quando a vontade for de fato usada, que é fora do
             // chat, com o aparelho livre.
             vontade: () => baixarVontade(),
-            motor: () => precarregarMotor(),
-            memoria: () => precarregarMemoria(),
+            // Mesmo desenho da vontade: a fila traz os pesos, o runtime sobe
+            // quando o cérebro for usado.
+            motor: () => baixarMotor(),
+            memoria: () => baixarMemoria(),
             // O quinto e último: o reflexo em ONNX. Desce depois de tudo de que
             // a conversa depende — se falhar, a única coisa que se perde é o
             // preenchimento do primeiro segundo.
