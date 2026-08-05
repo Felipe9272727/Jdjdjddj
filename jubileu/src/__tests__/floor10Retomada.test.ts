@@ -18,6 +18,8 @@ const PASTA_FAKE = pathToFileURL(
 type Controle = {
     construidos: number;
     geracoes: number;
+    emVoo: number;
+    picoSimultaneo: number;
     encerrados: number;
     prompts: string[];
     tokens: string[];
@@ -147,7 +149,12 @@ describe('a vontade volta a pensar depois que a fala interrompe', () => {
         controle.atrasoMs = 30;
         controle.travarApos = 12;
         const primeira = brain.deliberateFloor10(entrada());
-        expect(await ate(() => store.npc.deliberationLive.length > 10)).toBe(true);
+        // 10 caracteres NÃO bastavam, e por isso este teste falhava em ~1 de 3
+        // execuções: `pausarPensamento` descarta qualquer parcial abaixo de
+        // MINIMO_UTIL (24) — "só ruído de meia palavra" — e devolve null. A
+        // janela entre 11 e 23 caracteres era o sorteio. Esperar passar do
+        // mínimo real fecha a janela, e um teste que pisca não prova nada.
+        expect(await ate(() => store.npc.deliberationLive.trim().length > 30)).toBe(true);
         const pensadoAntes = store.npc.deliberationLive;
         brain.abortDeliberation();
         await primeira;
@@ -312,5 +319,68 @@ describe('o painel aberto para a vontade — sem reabrir 1,32 GB', () => {
         store.npcSet({ open: false, phase: 'ready' });
         await brain.deliberateFloor10(entrada());
         expect(controle.geracoes).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe('DOIS RUNTIMES NUNCA GERAM AO MESMO TEMPO', () => {
+    // Esta é A invariante do andar. Não é sobre velocidade: é sobre o aparelho
+    // do dono do jogo desligar sozinho, o que já aconteceu duas vezes.
+    //
+    // O fake conta `picoSimultaneo` — quantas gerações estavam acontecendo no
+    // mesmo instante, em qualquer momento da sessão. Se esse número passar de
+    // 1, existe um caminho em que dois llama.cpp dividem os núcleos, e nenhum
+    // teste de tok/s enxergaria isso.
+    beforeEach(() => {
+        controle.reset();
+        pausa.limparPausas();
+        store.npcSet({
+            phase: 'ready', open: false, deliberationLive: '', deliberationPhase: 'off',
+        });
+    });
+
+    it('a vontade pensando + o jogador abrindo o chat e falando', async () => {
+        expect(await brain.precarregarVontade()).toBe(true);
+
+        // 1. Chat fechado: ela pensa, e o pensamento é longo (trava no meio).
+        controle.travarApos = 2;
+        const pensando = brain.deliberateFloor10(entrada());
+        expect(await ate(() => controle.emVoo >= 1)).toBe(true);
+
+        // 2. O jogador abre o chat. Nenhuma rodada NOVA pode começar.
+        store.npcSet({ open: true });
+        const geracoesAoAbrir = controle.geracoes;
+        await espera(60);
+        expect(controle.geracoes).toBe(geracoesAoAbrir);
+
+        // 3. E manda mensagem: a fala pausa a vontade ANTES de gerar.
+        store.npcSet({ phase: 'thinking' });
+        pausa.limparPausas();
+        brain.abortDeliberation();
+        await pensando;
+
+        // A vontade saiu de cena: nada mais está gerando.
+        expect(await ate(() => controle.emVoo === 0)).toBe(true);
+
+        // 4. Mensagens seguidas, que é a sequência que derrubava o aparelho.
+        for (let i = 0; i < 4; i += 1) {
+            store.npcSet({ phase: 'thinking' });
+            await brain.deliberateFloor10(entrada());   // deve CEDER, não gerar
+            store.npcSet({ phase: 'ready' });
+        }
+
+        // O VEREDITO: em nenhum instante houve duas gerações juntas.
+        expect(controle.picoSimultaneo).toBe(1);
+    });
+
+    it('com o chat aberto a vontade nem tenta, então o pico continua 1', async () => {
+        expect(await brain.precarregarVontade()).toBe(true);
+        store.npcSet({ open: true, phase: 'ready' });
+        await Promise.all([
+            brain.deliberateFloor10(entrada()),
+            brain.deliberateFloor10(entrada()),
+            brain.deliberateFloor10(entrada()),
+        ]);
+        expect(controle.geracoes).toBe(0);
+        expect(controle.picoSimultaneo).toBe(0);
     });
 });

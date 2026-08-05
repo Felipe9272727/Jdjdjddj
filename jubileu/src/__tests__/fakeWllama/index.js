@@ -12,6 +12,14 @@ export const controle = {
   construidos: 0,
   /** Quantas gerações começaram. */
   geracoes: 0,
+  /** Quantas gerações estão ACONTECENDO neste instante. */
+  emVoo: 0,
+  /**
+   * O pico de gerações simultâneas da sessão. É este número que decide se o
+   * celular do dono do jogo sobrevive: dois runtimes llama.cpp gerando ao
+   * mesmo tempo foi o que fez o aparelho desligar sozinho.
+   */
+  picoSimultaneo: 0,
   /** Quantos engines foram encerrados. */
   encerrados: 0,
   /** Prompts recebidos, para conferir a retomada. */
@@ -30,6 +38,8 @@ export const controle = {
   reset() {
     this.construidos = 0;
     this.geracoes = 0;
+    this.emVoo = 0;
+    this.picoSimultaneo = 0;
     this.encerrados = 0;
     this.prompts = [];
     this.travarApos = null;
@@ -59,6 +69,8 @@ export class Wllama {
 
   async createChatCompletion(opts) {
     controle.geracoes += 1;
+    controle.emVoo += 1;
+    controle.picoSimultaneo = Math.max(controle.picoSimultaneo, controle.emVoo);
     controle.prompts.push(
       (opts.messages ?? []).map((m) => m.content).join('\n'),
     );
@@ -68,7 +80,9 @@ export class Wllama {
     // O wllama para de entregar quando o sinal dispara ("o JS para de ler").
     const sinal = opts.abortSignal;
     const parou = () => engine.morto || !!sinal?.aborted;
+    const encerrar = () => { controle.emVoo = Math.max(0, controle.emVoo - 1); };
     return (async function* () {
+      try {
       // Abre a resposta como o wllama faz (delta.role), para o consumidor
       // exercitar o caminho do `chunkOpensReply`.
       yield { choices: [{ delta: { role: 'assistant' } }] };
@@ -83,6 +97,7 @@ export class Wllama {
           return;
         }
       }
+      } finally { encerrar(); }
     })();
   }
 
