@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
     baixarSemSubir, quemDevoDesligar, quemDevoLigar,
@@ -57,5 +58,39 @@ describe('o roteamento que o dono do jogo desenhou', () => {
             const ligados = new Set(quemDevoLigar(noChat));
             expect(quemDevoDesligar(noChat).some((c) => ligados.has(c))).toBe(false);
         }
+    });
+});
+
+describe('fechar o chat descarrega a mente — a metade que pesa', () => {
+    // Medido no celular emulado, separando memória ANÔNIMA de cache de arquivo:
+    // cada cérebro de pé custa ~2x o próprio arquivo, e 89% é anônimo. Com os
+    // quatro de pé a conta passa de 9 GB, e o Chrome no Android derruba muito
+    // antes. Descarregar não perde nada: os pesos ficam no OPFS.
+    it('o `close` do chat chama os dois descarregadores', () => {
+        const fonte = readFileSync(
+            new URL('../Floor10NpcChat.tsx', import.meta.url),
+            'utf8',
+        );
+        const i = fonte.indexOf('const close = useCallback');
+        const bloco = fonte.slice(i, i + 400);
+        expect(bloco).toContain("npcSet({ open: false })");
+        expect(bloco).toContain('unloadConversationBrain()');
+        expect(bloco).toContain('unloadFloor10Memoria()');
+    });
+
+    it('a fila NÃO sobe runtime: os quatro só baixam', () => {
+        // "baixe tudo de uma vez, sem ligar... eles não podem ter uma thread
+        // ativa enquanto não estão sendo usados"
+        const fonte = readFileSync(
+            new URL('../Floor10NpcChat.tsx', import.meta.url),
+            'utf8',
+        );
+        const i = fonte.indexOf('iniciarPrecarga(passosDoAndar10(');
+        const bloco = fonte.slice(i, i + 1200);
+        expect(bloco).toContain('baixarVontade()');
+        expect(bloco).toContain('baixarMotor()');
+        expect(bloco).toContain('baixarMemoria()');
+        // A fala é a única que sobe: é ela que o jogador está esperando.
+        expect(bloco).toContain('initLLM()');
     });
 });

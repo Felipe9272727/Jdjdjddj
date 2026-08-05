@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
 // Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
-import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
+import {
+    FLOOR10_MODEL, initLLM, sendToNpc, unloadConversationBrain,
+} from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
@@ -31,6 +33,7 @@ import {
     FLOOR10_MEMORIA_SIZE_LABEL,
     baixarMemoria,
     precarregarMemoria,
+    unloadFloor10Memoria,
 } from './npc/floor10Memoria';
 
 // A fila nasce sabendo os quatro tamanhos. Fica aqui porque este é o arquivo que
@@ -194,7 +197,28 @@ const Floor10NpcChat: React.FC = () => {
             liberarMotor: () => unloadFloor10MotorBrain(),
         }));
     }, []);
-    const close = useCallback(() => { npcSet({ open: false }); }, []);
+    // ── FECHAR O CHAT DESLIGA A MENTE ─────────────────────────────────────
+    //
+    // O desenho é do dono do jogo: "o player manda mensagem pra mente, ela liga
+    // automaticamente junto do embbending, processa, e manda a resposta, pós
+    // mandar a resposta, ela desliga dnv junto do embbending... aí, o player
+    // saiu do chat, automaticamente, liga a vontade (llama 1b) e o motor".
+    //
+    // Aqui vai a metade que mais pesa. Medido no celular emulado, separando
+    // memória ANÔNIMA de cache de arquivo: cada cérebro de pé custa ~2x o
+    // próprio arquivo, e 89% disso é anônimo — o kernel não tem para onde
+    // mandar, então sob pressão ele mata a ABA. Com os quatro de pé a conta
+    // passa de 9 GB, e o Chrome no Android derruba muito antes disso.
+    //
+    // Descarregar não perde nada: os pesos ficam no OPFS e a fala volta lendo
+    // do disco. Custa a reabertura — que é justamente o preço que ele aceitou
+    // ao descrever a arquitetura, e que aqui cai numa TROCA DE CONTEXTO (sair
+    // do chat), não no meio de uma conversa, que é onde ela doía.
+    const close = useCallback(() => {
+        npcSet({ open: false });
+        void unloadConversationBrain().catch(() => undefined);
+        void unloadFloor10Memoria().catch(() => undefined);
+    }, []);
 
     // tecla E abre (quando perto), Esc fecha
     useEffect(() => {
