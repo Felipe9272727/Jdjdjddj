@@ -717,11 +717,34 @@ export function formatTimings(timings: ChatTimings | null): string {
     const parts: string[] = [];
     const lidos = typeof timings.prompt_n === 'number' ? timings.prompt_n : 0;
     const reusados = typeof timings.cache_n === 'number' ? timings.cache_n : 0;
-    if (
-        lidos >= TIMINGS_MIN_PROMPT_N
-        && typeof timings.prompt_per_second === 'number'
+    // ── E A GUARDA TINHA UM FURO, QUE ASSUSTOU DE NOVO ────────────────────
+    //
+    // O parágrafo acima diagnosticou o artefato e criou o piso de 24 tokens.
+    // Só que ele contava `lidos`, e `lidos` INCLUI o que veio do cache. No
+    // aparelho do dono do jogo, hoje: "321 lidos · 273 reaproveitados" — 321
+    // passa folgado do piso, a etiqueta aparece, e mostra a taxa calculada
+    // sobre 48 tokens de trabalho real dividida pelo custo fixo da chamada.
+    // Deu "leitura 2 tok/s" outra vez, e outra vez mandou caçar um problema de
+    // prefill que não existe.
+    //
+    // O piso tem de olhar o trabalho DE VERDADE: lidos menos reaproveitados.
+    const processados = Math.max(0, lidos - reusados);
+    // E O SEGUNDO CRITÉRIO, QUE É O QUE TEM PRINCÍPIO: prefill é em LOTE
+    // (n_batch 512), geração é token a token. Ler NUNCA pode ser mais lento
+    // que falar. Medido nesta caixa, no mesmo modelo, cinco rodadas: a razão
+    // leitura/fala ficou entre 1,82x e 2,03x, nunca abaixo de 1.
+    //
+    // Quando a tela mostra leitura 2 e fala 2, o "2" da leitura não é vazão —
+    // é o custo fixo da chamada dividido por meia dúzia de tokens. Escolher um
+    // piso maior seria chutar outro número; esta regra sai da natureza das duas
+    // operações e não precisa de calibragem.
+    const fala = typeof timings.predicted_per_second === 'number'
+        ? timings.predicted_per_second
+        : 0;
+    const leituraCrivel = typeof timings.prompt_per_second === 'number'
         && timings.prompt_per_second > 0
-    ) {
+        && (fala <= 0 || timings.prompt_per_second > fala);
+    if (processados >= TIMINGS_MIN_PROMPT_N && leituraCrivel) {
         parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
     }
     if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {

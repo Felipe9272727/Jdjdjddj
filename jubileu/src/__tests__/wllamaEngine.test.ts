@@ -645,3 +645,26 @@ describe('o reflexo não pode gerar junto com a fala', () => {
         expect(fonte).toContain('numThreads = REFLEXO_THREADS');
     });
 });
+
+describe('a etiqueta de leitura não pode assustar com o melhor caso', () => {
+    // Do aparelho, hoje: "leitura 2 tok/s · 273 reaproveitados · 321 lidos".
+    // O piso de 24 tokens existia justamente para esconder esse artefato, mas
+    // contava `lidos`, que INCLUI o cache. 321 passava, a etiqueta aparecia, e
+    // a taxa era o custo fixo da chamada dividido por 48 tokens reais.
+    it('esconde a taxa quando quase tudo veio do cache', () => {
+        const txt = formatTimings({
+            prompt_n: 321, cache_n: 273, prompt_per_second: 2, predicted_per_second: 2,
+        } as never);
+        expect(txt).not.toContain('leitura');
+        // O que importa continua na tela: o trabalho economizado.
+        expect(txt).toContain('273 reaproveitados');
+        expect(txt).toContain('fala 2 tok/s');
+    });
+
+    it('mostra a taxa quando houve prompt de verdade para ler', () => {
+        const txt = formatTimings({
+            prompt_n: 321, cache_n: 0, prompt_per_second: 6, predicted_per_second: 3,
+        } as never);
+        expect(txt).toContain('leitura 6 tok/s');
+    });
+});
