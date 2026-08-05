@@ -41,6 +41,15 @@ const CHAVE_JOGO = new URL('__jogo__', self.registration.scope).href;
 const CHAVE_VERSAO = new URL('__versao__', self.registration.scope).href;
 /** Tempo máximo esperando o version.json antes de servir o que já existe. */
 const ESPERA_VERSAO_MS = 2_500;
+/**
+ * "O servidor respondeu, e não há carimbo lá." Diferente de `null`, que é "não
+ * deu para perguntar". Um deploy sem version.json NUNCA pode significar "fique
+ * com o cache para sempre": o version.json só existia na raiz do repositório e
+ * a Vercel publica `jubileu/dist`, então lá ele dava 404 em toda checagem — e o
+ * aparelho ficou preso num build antigo por dias, com o dono do jogo testando
+ * de boa fé e relatando, com razão, que nada tinha mudado.
+ */
+const SEM_CARIMBO = '__sem-carimbo__';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -103,6 +112,9 @@ async function versaoNoAr(scope) {
       signal: controle.signal,
     });
     clearTimeout(timer);
+    // 404 NÃO É "ESTOU OFFLINE". `null` faz quem chama servir o cache, o que é
+    // certo para rede caída e fatal para um arquivo que não está publicado.
+    if (res.status === 404 || res.status === 410) return SEM_CARIMBO;
     if (!res.ok) return null;
     return identidade(await res.json());
   } catch {
@@ -148,7 +160,10 @@ self.addEventListener('fetch', (event) => {
       if (isolada.ok) {
         await cache.put(CHAVE_JOGO, isolada.clone());
         const build = await versaoNoAr(self.registration.scope);
-        if (build) await anotarVersao(cache, build);
+        // SEM_CARIMBO nunca vira identidade guardada: se virasse, a próxima
+        // checagem compararia SEM_CARIMBO com SEM_CARIMBO, daria "igual", e a
+        // armadilha do cache eterno voltaria pela porta dos fundos.
+        if (build && build !== SEM_CARIMBO) await anotarVersao(cache, build);
       }
       return isolada;
     } catch (erro) {

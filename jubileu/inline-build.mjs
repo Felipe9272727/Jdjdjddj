@@ -229,4 +229,25 @@ for (const arquivo of [
 }
 
 fs.writeFileSync(path.join(raiz, 'version.json'), JSON.stringify(carimbo, null, 2) + '\n');
+// ── E TAMBÉM DENTRO DO DIST, QUE É O QUE A VERCEL PUBLICA ─────────────────
+//
+// Este arquivo só existia na RAIZ do repositório. A Vercel serve `jubileu/dist`,
+// então lá `GET /version.json` respondia 404 — e o Service Worker lê isso assim:
+//
+//     if (!res.ok) return null;                              // 404 -> null
+//     if (noAr === null || noAr === daqui) return guardado;  // serve o cache
+//
+// Ou seja: depois de guardar UM documento, ele servia aquele documento para
+// sempre. O HTML guardado aponta para `assets/index-<hash>.js`, então o
+// jogador ficava preso ao bundle daquele dia — e nenhum deploy posterior
+// chegava nele. Foi assim que uma bateria inteira de correções não apareceu no
+// aparelho do dono do jogo: ele testava, de boa fé, um build da época do
+// N-grama, e relatava (com razão) que nada tinha mudado.
+//
+// O `dist` é o que vai para o ar; o carimbo precisa viajar junto com ele.
+const distDir = path.join(scriptDir, 'dist');
+if (fs.existsSync(distDir)) {
+  fs.writeFileSync(path.join(distDir, 'version.json'), JSON.stringify(carimbo, null, 2) + '\n');
+  console.log('Wrote dist/version.json (é este que a Vercel serve)');
+}
 console.log('Wrote version.json', carimbo.commit, carimbo.ref);
