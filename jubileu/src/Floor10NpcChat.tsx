@@ -216,8 +216,28 @@ const Floor10NpcChat: React.FC = () => {
     // do chat), não no meio de uma conversa, que é onde ela doía.
     const close = useCallback(() => {
         npcSet({ open: false });
-        void unloadConversationBrain().catch(() => undefined);
-        void unloadFloor10Memoria().catch(() => undefined);
+        void (async () => {
+            await unloadConversationBrain().catch(() => undefined);
+            await unloadFloor10Memoria().catch(() => undefined);
+            // ── E A OUTRA METADE: LIGA A VONTADE ──────────────────────────
+            //
+            // "aí, o player saiu do chat, automaticamente, liga a vontade
+            //  (llama 1b) e o motor"
+            //
+            // DEPOIS dos descarregamentos, e não junto: subir o 1B enquanto o
+            // 3B ainda está de pé é exatamente a sobreposição que enche a
+            // memória — e é a que a tabela de roteamento proíbe (os dois grupos
+            // são disjuntos, ver floor10Roteamento).
+            //
+            // O motor não entra aqui de propósito: ele só serve DEPOIS de a
+            // vontade ter pensado, e subi-lo antes disso seria manter 640 MB de
+            // pé sem nada para traduzir.
+            //
+            // Se o jogador reabriu o chat nesse meio tempo, desiste: a mente
+            // volta a ser a dona do aparelho.
+            if (npc.open) return;
+            await precarregarVontade().catch(() => false);
+        })();
     }, []);
 
     // tecla E abre (quando perto), Esc fecha

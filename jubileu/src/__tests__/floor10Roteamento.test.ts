@@ -78,6 +78,24 @@ describe('fechar o chat descarrega a mente — a metade que pesa', () => {
         expect(bloco).toContain('unloadFloor10Memoria()');
     });
 
+    it('a vontade sobe DEPOIS dos descarregamentos, nunca junto', () => {
+        // A tabela proíbe sobreposição, e aqui é onde ela vira código: subir o
+        // 1B enquanto o 3B ainda está de pé é exatamente a soma de memória que
+        // derruba a aba. A ordem no `close` é a prova.
+        const fonte = readFileSync(
+            new URL('../Floor10NpcChat.tsx', import.meta.url),
+            'utf8',
+        );
+        const i = fonte.indexOf('const close = useCallback');
+        const bloco = fonte.slice(i, i + 1600);
+        const descarrega = bloco.indexOf('unloadFloor10Memoria()');
+        const liga = bloco.indexOf('precarregarVontade()');
+        expect(descarrega).toBeGreaterThan(-1);
+        expect(liga).toBeGreaterThan(descarrega);
+        // E desiste se o jogador reabriu o chat no meio.
+        expect(bloco).toContain('if (npc.open) return;');
+    });
+
     it('a fila NÃO sobe runtime: os quatro só baixam', () => {
         // "baixe tudo de uma vez, sem ligar... eles não podem ter uma thread
         // ativa enquanto não estão sendo usados"
