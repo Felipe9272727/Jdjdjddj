@@ -31,6 +31,15 @@ const servidor = http.createServer((req, res) => {
   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  // O jogo monta `${CDN}/wasm/wllama.wasm`, e o dist guarda o arquivo em
+  // `/wllama-espec/wllama.wasm`. A 5ª execução morreu exatamente aí: o 404
+  // virou HTML e o WebAssembly.instantiate reclamou de "expected 4 bytes".
+  if (p === '/wllama-espec/wasm/wllama.wasm') {
+    const alvo = path.join(RAIZ, 'wllama-espec', 'wllama.wasm');
+    res.writeHead(200, { 'Content-Type': 'application/wasm' });
+    fs.createReadStream(alvo).pipe(res);
+    return;
+  }
   if (p === '/modelo.gguf') {
     const tam = fs.statSync(MODELO).size;
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(tam) });
