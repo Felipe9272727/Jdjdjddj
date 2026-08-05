@@ -386,7 +386,24 @@ console.log(`ocupação média ..... ${(cpuTotal / duracao).toFixed(2)} núcleos
 console.log(`PICO sustentado .... ${picoSustentado.toFixed(2)} núcleos de 8  (média móvel de 10s)`);
 console.log(`pico instantâneo ... ${picoInstantaneo.toFixed(2)} núcleos de 8`);
 const picoRSS = Math.max(...resultado.amostras.map((a) => a.rssMB ?? 0), 0);
+// ── PICO NÃO É O MESMO QUE SUSTENTADO, E A DIFERENÇA DECIDE O CONSERTO ────
+// Se o 2x do tamanho do arquivo for um PICO TRANSITÓRIO, ele é o heap do WASM
+// crescendo: o motor aloca um buffer maior e copia o antigo, ficando com os
+// dois por um instante. Conserto: reservar a memória de uma vez.
+// Se for SUSTENTADO, há uma cópia que ninguém libera. Conserto: achar e soltar.
+// Concluir "não cabe" olhando só o pico seria condenar o desenho por um
+// instante que talvez dure milissegundos.
+const finalRSS = resultado.amostras.length ? (resultado.amostras.at(-1).rssMB ?? 0) : 0;
+const metade = resultado.amostras.slice(Math.floor(resultado.amostras.length / 2));
+const sustentado = metade.length
+  ? Math.round(metade.reduce((s, a) => s + (a.rssMB ?? 0), 0) / metade.length)
+  : 0;
 console.log(`MEMÓRIA (pico) ..... ${(picoRSS / 1024).toFixed(2)} GB de RSS somado`);
+console.log(`MEMÓRIA sustentada . ${(sustentado / 1024).toFixed(2)} GB (média da 2ª metade)`);
+console.log(`MEMÓRIA no fim ..... ${(finalRSS / 1024).toFixed(2)} GB`);
+console.log(`natureza do 2x ..... ${picoRSS > sustentado * 1.3
+  ? 'PICO TRANSITÓRIO — heap do WASM crescendo; reservar de uma vez resolve'
+  : 'SUSTENTADO — há cópia que ninguém libera'}`);
 console.log(`erros de página .... ${erros.length ? erros.slice(0, 3).join(' | ') : 'nenhum'}`);
 globalThis.__saida = { picoThreads, cpuTotal, duracao };
 console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
