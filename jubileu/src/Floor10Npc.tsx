@@ -95,9 +95,40 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         };
     }, []);
 
-    useFrame(({ clock }, dt) => {
-        const t = clock.elapsedTime;
+    // ── O RELÓGIO DESTE ANDAR É NOSSO, E ISSO NÃO É PREFERÊNCIA ─────────────
+    //
+    // Aqui se lia `clock.elapsedTime`, e no Andar 10 esse relógio VOLTA A ZERO
+    // sozinho. O App troca o `frameloop` do Canvas quando o painel de conversa
+    // abre e fecha:
+    //
+    //     frameloop={... (currentLevel === 10 && npcChatOpen) ? 'demand' : 'always'}
+    //
+    // e o `setFrameloop` do react-three-fiber faz, literalmente,
+    // `clock.stop(); clock.elapsedTime = 0; clock.start(); clock.elapsedTime = 0`.
+    // Ou seja: CADA abrir e fechar do chat zera o tempo do andar.
+    //
+    // Tudo aqui usa esse número como marco ABSOLUTO — `nextDeliberationAt`,
+    // `playerQuietSince`, `autonomousTalkUntil` — e a vontade também
+    // (`goalLockedUntil`, `lastSeenPlayer.at`, `deliberation.at`). Com o relógio
+    // andando para trás:
+    //
+    //   `t >= nextDeliberationAt` vira falso pelo tanto de tempo que o jogador
+    //   tinha passado no andar — ele simplesmente PARA DE PENSAR, e de fora
+    //   isso é indistinguível de travado;
+    //
+    //   `input.time >= this.goalLockedUntil` idem: a vontade congela na última
+    //   meta, e as idades (`time - ...at`) ficam negativas, então tudo parece
+    //   ter acabado de acontecer.
+    //
+    // O acumulador não volta atrás nunca. E ele PARA junto com os quadros: com
+    // o painel aberto o andar está congelado de propósito, e é certo que os
+    // cooldowns não corram enquanto ninguém se mexe.
+    const tempoDoAndar = useRef(0);
+
+    useFrame((_, dt) => {
         const safeDt = Math.min(0.1, Math.max(0, dt));
+        tempoDoAndar.current += safeDt;
+        const t = tempoDoAndar.current;
         const pp = playerPositionRef?.current;
         const g = root.current;
 

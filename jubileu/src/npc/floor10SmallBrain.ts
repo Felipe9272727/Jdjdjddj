@@ -51,6 +51,7 @@ import {
 } from './floor10Carga';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { floor10Fila, FILA_VONTADE } from './floor10Fila';
+import { conversaOcupaOAparelho } from './floor10Precarga';
 import {
     CACHE_HEADROOM,
     deleteCachedModel,
@@ -787,7 +788,12 @@ function conversationHasPriority(): boolean {
     // geração em pedaços — a única saída sem recompilar — custa 1,93x em
     // pedaços de 16 tokens e 9,33x em pedaços de 8, com cada pedaço mais lento
     // que o anterior. O remédio sai mais caro que a doença.
-    return npc.open || npc.phase === 'thinking' || npc.phase === 'loading';
+    //
+    // A REGRA MORA NA PRÉ-CARGA, e não é um detalhe de arrumação. Esta função
+    // segurava as RODADAS de deliberação, mas quem estava subindo 1,32 GB no
+    // meio da conversa era a FILA — que perguntava a si mesma, ou seja, não
+    // perguntava nada. Duas cópias da mesma regra é como o buraco existiu.
+    return conversaOcupaOAparelho();
 }
 
 /**

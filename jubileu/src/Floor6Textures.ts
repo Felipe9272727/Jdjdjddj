@@ -10,6 +10,7 @@
  * All textures are built ONCE at module scope and shared.
  */
 import * as THREE from 'three';
+import { comCanvasPreguicoso } from './texturaPreguicosa';
 import carpetDiffUrl from './assets/f6/carpet-diff.jpg';
 import carpetNorUrl from './assets/f6/carpet-nor.jpg';
 import carpetRoughUrl from './assets/f6/carpet-rough.jpg';
@@ -63,45 +64,46 @@ export { default as hdrUrl } from './assets/f6/hotel_room_1k.hdr';
 
 /** Vertical AO strip (dark at ceiling line and baseboard) for wall faces —
  *  photo textures tile in Y, so the grounding shadow lives in this aoMap. */
-export const wallAoTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = 4; c.height = 256;
-    const ctx = c.getContext('2d')!;
+export const wallAoTex = comCanvasPreguicoso(4, 256, (ctx) => {
     const g = ctx.createLinearGradient(0, 0, 0, 256);
     g.addColorStop(0, '#9a9a9a'); g.addColorStop(0.18, '#ffffff');
     g.addColorStop(0.8, '#ffffff'); g.addColorStop(1, '#787878');
     ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256);
-    const t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    return t;
-})();
+}, (t) => { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 type Draw = (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
 
-function makeCanvas(w: number, h: number, draw: Draw): HTMLCanvasElement {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    draw(c.getContext('2d')!, w, h);
-    return c;
-}
+// AS DUAS FÁBRICAS ABAIXO SÃO O PONTO DE ESTRANGULAMENTO DO BOOT.
+//
+// Este arquivo (25 texturas), o Floor8Room (12), o Floor9Forest e o
+// Floor8Arquivista chamam `colorTex`/`dataTex` no ESCOPO DE MÓDULO — e módulo
+// é avaliado na abertura do jogo, não na entrada do andar. Somavam 15 MB de
+// buffer RGBA e mais de cem mil operações de canvas antes do menu principal
+// aparecer, no aparelho que já estava lendo um HTML de 91 MB. Era o custo de
+// boot que derrubava celular.
+//
+// `comCanvasPreguicoso` devolve a MESMA CanvasTexture com os mesmos ajustes; o
+// que muda é que o desenho só acontece quando o renderizador for buscar os
+// pixels — isto é, no primeiro frame em que o material aparece. Nenhum ponto
+// de uso precisou mudar. Ver `texturaPreguicosa.ts`.
 
 export function colorTex(w: number, h: number, draw: Draw, rx = 1, ry = 1): THREE.CanvasTexture {
-    const t = new THREE.CanvasTexture(makeCanvas(w, h, draw));
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(rx, ry);
-    t.anisotropy = 4;
-    return t;
+    return comCanvasPreguicoso(w, h, draw, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(rx, ry);
+        t.anisotropy = 4;
+    });
 }
 
 /** Linear-space data texture (bump / roughness). */
 export function dataTex(w: number, h: number, draw: Draw, rx = 1, ry = 1): THREE.CanvasTexture {
-    const t = new THREE.CanvasTexture(makeCanvas(w, h, draw));
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(rx, ry);
-    t.anisotropy = 4;
-    return t;
+    return comCanvasPreguicoso(w, h, draw, (t) => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(rx, ry);
+        t.anisotropy = 4;
+    });
 }
 
 /** Deterministic PRNG so the grime never reshuffles between sessions. */
@@ -893,34 +895,26 @@ export const F6M = {
 };
 
 // ── contact-shadow blob (radial gradient, multiplied onto the floor) ─────────
-export const blobTex = (() => {
-    const t = new THREE.CanvasTexture(makeCanvas(128, 128, (ctx) => {
-        const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
-        g.addColorStop(0, 'rgba(0,0,0,0.42)');
-        g.addColorStop(0.65, 'rgba(0,0,0,0.2)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
-    }));
-    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    return t;
-})();
+export const blobTex = comCanvasPreguicoso(128, 128, (ctx) => {
+    const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
+    g.addColorStop(0, 'rgba(0,0,0,0.42)');
+    g.addColorStop(0.65, 'rgba(0,0,0,0.2)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+}, (t) => { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; });
 export const blobMat = new THREE.MeshBasicMaterial({
     map: blobTex, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -1,
 });
 
 /** Soft white puff — steam, smoke, cold fridge air (tint via material color). */
-export const puffTex = (() => {
-    const t = new THREE.CanvasTexture(makeCanvas(64, 64, (ctx) => {
-        const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
-        g.addColorStop(0, 'rgba(255,255,255,0.85)');
-        g.addColorStop(0.55, 'rgba(255,255,255,0.32)');
-        g.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
-    }));
-    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    return t;
-})();
+export const puffTex = comCanvasPreguicoso(64, 64, (ctx) => {
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    g.addColorStop(0, 'rgba(255,255,255,0.85)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.32)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+}, (t) => { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; });
 
 // ── dynamic canvases ─────────────────────────────────────────────────────────
 

@@ -4,25 +4,32 @@
  * so everything renders offline in the dev workbench too.
  */
 import * as THREE from 'three';
+import { texturaPreguicosa } from './texturaPreguicosa';
 
 /** Build a CanvasTexture of pixel art. `draw` paints on a w×h grid; NearestFilter
- *  keeps it crisp/pixelated at any scale. */
+ *  keeps it crisp/pixelated at any scale.
+ *
+ *  O Floor4Scene2D chama isto 52 vezes no escopo de módulo — ou seja, na
+ *  abertura do jogo, mesmo para quem nunca desce no Andar 4. O desenho é
+ *  adiado até o renderizador buscar os pixels; ver `texturaPreguicosa.ts`. */
 export function pixelTex(
     w: number,
     h: number,
     draw: (ctx: CanvasRenderingContext2D) => void,
 ): THREE.CanvasTexture {
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d')!;
-    ctx.imageSmoothingEnabled = false;
-    draw(ctx);
-    const t = new THREE.CanvasTexture(cv);
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.generateMipmaps = false;
-    return t;
+    return texturaPreguicosa(() => {
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false;
+        draw(ctx);
+        return cv;
+    }, (t) => {
+        t.magFilter = THREE.NearestFilter;
+        t.minFilter = THREE.NearestFilter;
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.generateMipmaps = false;
+    });
 }
 
 /** Fill one pixel rect. */

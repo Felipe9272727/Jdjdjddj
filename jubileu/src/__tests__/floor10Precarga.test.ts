@@ -16,16 +16,23 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
     beforeEach(() => {
         ordem.length = 0;
         resetPrecargaForTests();
+        // A conversa fechada é o estado neutro: com ela aberta os passos
+        // pesados esperam, e um teste vizinho herdaria a espera.
+        npcSet({ open: false, phase: 'cold' });
         definirFilaDoAndar10({
             fala: 1_915_305_312, vontade: 1_321_083_008,
             motor: 639_446_688, memoria: 333_590_944,
         });
     });
 
-    it('baixa UM DE CADA VEZ, na ordem do jogador', async () => {
+    it('baixa UM DE CADA VEZ, com os leves antes dos dois pesados', async () => {
         // Em paralelo eles dividiriam a mesma banda e a mesma CPU — e o wllama
         // ainda tem de ler cada arquivo de volta do cache para dentro do WASM
         // ao terminar. Dois fazendo isso junto num celular é a travada.
+        //
+        // A ordem põe a memória (333 MB, usada em TODA mensagem) antes da
+        // vontade (1,32 GB) e do motor (640 MB): estes dois esperam a conversa
+        // fechar, e atrás deles a memória demoraria a chegar sem precisar.
         await iniciarPrecarga(passosDoAndar10({
             fala: carregador('fala'),
             vontade: carregador('vontade'),
@@ -34,10 +41,56 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
         }));
         expect(ordem).toEqual([
             'inicio:fala', 'fim:fala',
+            'inicio:memoria', 'fim:memoria',
             'inicio:vontade', 'fim:vontade',
             'inicio:motor', 'fim:motor',
-            'inicio:memoria', 'fim:memoria',
         ]);
+    });
+
+    it('com o chat ABERTO, a vontade e o motor não sobem', async () => {
+        // O defeito: `precarregar*` não baixa, ele chama `activate()` e SOBE um
+        // runtime inteiro. Com o painel aberto isso punha 1,32 GB + 640 MB em pé
+        // por cima do SmolLM3 de 1,92 GB — e a primeira mensagem do jogador
+        // matava, via `pausarDeliberacao()`, exatamente o que tinha acabado de
+        // subir. É o ciclo reabre-e-mata, pela metade que faltava consertar.
+        npcSet({ open: true, phase: 'ready' });
+        const fila = iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: carregador('vontade'),
+            motor: carregador('motor'),
+            memoria: carregador('memoria'),
+        }));
+        await vi.waitFor(() => expect(ordem).toContain('fim:memoria'));
+        expect(ordem).not.toContain('inicio:vontade');
+        expect(ordem).not.toContain('inicio:motor');
+
+        // Fechou: os dois pesados sobem inteiros, sem cancelamento nenhum.
+        npcSet({ open: false });
+        await fila;
+        expect(ordem).toEqual([
+            'inicio:fala', 'fim:fala',
+            'inicio:memoria', 'fim:memoria',
+            'inicio:vontade', 'fim:vontade',
+            'inicio:motor', 'fim:motor',
+        ]);
+    });
+
+    it('gerar uma resposta também segura os dois pesados', async () => {
+        // `phase: 'thinking'` é o 3B escrevendo. Subir outro llama.cpp aqui é a
+        // mesma disputa de núcleos, com o painel aberto ou não.
+        npcSet({ open: false, phase: 'thinking' });
+        const fila = iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: carregador('vontade'),
+            motor: carregador('motor'),
+            memoria: carregador('memoria'),
+        }));
+        await vi.waitFor(() => expect(ordem).toContain('fim:memoria'));
+        expect(ordem).not.toContain('inicio:vontade');
+
+        npcSet({ phase: 'ready' });
+        await fila;
+        expect(ordem).toContain('fim:motor');
     });
 
     it('a fila chega a 100% — era isto que não acontecia', async () => {
@@ -105,6 +158,9 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
     beforeEach(() => {
         ordem.length = 0;
         resetPrecargaForTests();
+        // A conversa fechada é o estado neutro: com ela aberta os passos
+        // pesados esperam, e um teste vizinho herdaria a espera.
+        npcSet({ open: false, phase: 'cold' });
         definirFilaDoAndar10({
             fala: 1_915_305_312, vontade: 1_321_083_008,
             motor: 639_446_688, memoria: 333_590_944,

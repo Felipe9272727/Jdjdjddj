@@ -23,12 +23,47 @@
 // mesma CPU, e o wllama ainda tem de LER cada arquivo de volta do cache para
 // dentro do WASM ao terminar. Dois modelos fazendo isso ao mesmo tempo num
 // celular é a receita da travada que já aconteceu aqui.
-import { npc } from './npcStore';
+import { npc, npcSubscribe } from './npcStore';
 import {
     floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA, FILA_REFLEXO,
 } from './floor10Fila';
 
 export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'pronto';
+
+/**
+ * A CONVERSA ESTÁ OCUPANDO O APARELHO?
+ *
+ * Mesma pergunta que o `conversationHasPriority` do cérebro de vontade faz
+ * antes de começar uma rodada — e ela precisa ser feita aqui também, porque
+ * quem estava subindo 1,32 GB no meio da conversa não era a rodada: era a
+ * FILA.
+ */
+export function conversaOcupaOAparelho(): boolean {
+    return npc.open || npc.phase === 'thinking' || npc.phase === 'loading';
+}
+
+/**
+ * Espera a conversa desocupar. Acorda a cada mudança da loja (que é quem
+ * publica `open`/`phase`), com um relógio de folga para o caso de a mudança
+ * que interessa vir de fora dela.
+ */
+function esperarAVez(adiar: () => boolean): Promise<void> {
+    if (!adiar()) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+        let pronto = false;
+        const terminar = () => {
+            if (pronto) return;
+            pronto = true;
+            cancelarInscricao();
+            globalThis.clearInterval(relogio);
+            resolve();
+        };
+        const conferir = () => { if (!adiar()) terminar(); };
+        const cancelarInscricao = npcSubscribe(conferir);
+        const relogio = globalThis.setInterval(conferir, 2000);
+        conferir();
+    });
+}
 
 /**
  * Quando o carregador devolve `false` sem exceção, o motivo já está escrito na
@@ -56,6 +91,11 @@ type Passo = {
     id: string;
     etapa: PrecargaEtapa;
     carregar: () => Promise<unknown>;
+    /**
+     * Segura este passo enquanto devolver `true`. Sem isto a fila subia os
+     * runtimes pesados por cima da conversa — ver `passosDoAndar10`.
+     */
+    adiarEnquanto?: () => boolean;
 };
 
 /**
@@ -69,6 +109,10 @@ type Passo = {
 export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
     emCurso ??= (async () => {
         for (const passo of passos) {
+            // A VEZ ANTES DA ETAPA. `etapa` só muda depois da espera: enquanto o
+            // passo está segurado, a tela continua mostrando o que de fato está
+            // acontecendo, e não um passo que ainda não começou.
+            if (passo.adiarEnquanto) await esperarAVez(passo.adiarEnquanto);
             etapa = passo.etapa;
             let ok = false;
             let motivo = '';
@@ -99,7 +143,43 @@ export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
     return emCurso;
 }
 
-/** A ordem canônica, montada por quem tem acesso aos motores. */
+/**
+ * A ordem canônica, montada por quem tem acesso aos motores.
+ *
+ * ── A ORDEM MUDOU, E O MOTIVO É O APARELHO ──────────────────────────────────
+ *
+ * Era fala → vontade → motor → memória → reflexo. Parece a ordem da
+ * importância, e é — mas não é a ordem do CUSTO, e a fila roda com o painel de
+ * conversa aberto na frente do jogador.
+ *
+ * `precarregar*` não baixa: cada um chama `activate()` e SOBE UM RUNTIME
+ * INTEIRO. Então, com a ordem antiga, abrir o chat fazia isto:
+ *
+ *     fala pronta (1,92 GB residentes)  -> o jogador começa a escrever
+ *     a fila segue para a vontade       -> +1,32 GB subindo por baixo
+ *     o jogador manda a mensagem        -> `pausarDeliberacao()` MATA
+ *                                          exatamente o que acabou de subir
+ *     a fila segue para o motor         -> +640 MB, mesma história
+ *
+ * São 3,9 GB de peso disputando a RAM e todos os núcleos do celular enquanto a
+ * única coisa que o jogador quer é uma resposta — e o que ele sente é o
+ * aparelho parando. É o mesmo ciclo de reabre-e-mata que o commit anterior
+ * consertou para as RODADAS de deliberação; faltava a metade da FILA.
+ *
+ * A ordem nova é a que o dono do jogo descreveu: com o chat aberto ficam de pé
+ * só o SmolLM3 e o embedding.
+ *
+ *   fala     — é por ela que ele está esperando.
+ *   memória  — 333 MB, e TODA mensagem passa por ela (`lembrarPorSignificado`).
+ *              Segurá-la seria fazer a conversa esperar por ela depois.
+ *   reflexo  — 135M em ONNX, fora do wllama; é quem cobre o primeiro segundo
+ *              enquanto o 3B lê o prompt. Não segurar é o ponto dele.
+ *   vontade  — 1,32 GB. ESPERA o chat fechar.
+ *   motor    — 640 MB, e só serve depois de a vontade ter pensado. ESPERA junto.
+ *
+ * Nada é cancelado: os dois pesados sobem inteiros assim que a conversa fecha,
+ * que é quando o aparelho tem o que dar a eles.
+ */
 export function passosDoAndar10(carregadores: {
     fala: () => Promise<unknown>;
     vontade: () => Promise<unknown>;
@@ -110,12 +190,22 @@ export function passosDoAndar10(carregadores: {
 }): Passo[] {
     return [
         { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
-        { id: FILA_VONTADE, etapa: 'vontade', carregar: carregadores.vontade },
-        { id: FILA_MOTOR, etapa: 'motor', carregar: carregadores.motor },
         { id: FILA_MEMORIA, etapa: 'memoria', carregar: carregadores.memoria },
         ...(carregadores.reflexo
             ? [{ id: FILA_REFLEXO, etapa: 'reflexo' as const, carregar: carregadores.reflexo }]
             : []),
+        {
+            id: FILA_VONTADE,
+            etapa: 'vontade',
+            carregar: carregadores.vontade,
+            adiarEnquanto: conversaOcupaOAparelho,
+        },
+        {
+            id: FILA_MOTOR,
+            etapa: 'motor',
+            carregar: carregadores.motor,
+            adiarEnquanto: conversaOcupaOAparelho,
+        },
     ];
 }
 

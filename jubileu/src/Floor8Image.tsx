@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f8, f8Subscribe, f8ReachDoor21, f8EnterDoor21, f8Objective, F8_DOORS } from './f8Arquivo';
+import { comCanvasPreguicoso } from './texturaPreguicosa';
 
 const DOOR0 = 3;
 const DOOR_GAP = 2.4;
@@ -23,12 +24,13 @@ const DOOR21_X = DOOR0 + F8_DOORS * DOOR_GAP + 1.6;
 const END_X = DOOR21_X + 2.5;
 
 // ── texturas procedurais ─────────────────────────────────────────────────────
+// Preguiçosa: metade destas texturas nasce em `const` de módulo, o que as
+// desenhava na abertura do jogo. Ver `texturaPreguicosa.ts`.
 function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void, rep?: [number, number]) {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    draw(c.getContext('2d')!);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
-    return t;
+    return comCanvasPreguicoso(w, h, (ctx) => draw(ctx), (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
+    });
 }
 const rnd = () => Math.random();
 
