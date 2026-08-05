@@ -98,6 +98,14 @@ type TransformersModule = {
     env?: { allowLocalModels?: boolean; backends?: Record<string, unknown> };
 };
 
+/**
+ * UMA thread para o reflexo. Ele é um modelo de 135M em int8 que completa meia
+ * frase enquanto o SmolLM3 ainda está pensando — trabalho de milissegundos.
+ * Deixá-lo abrir um pool do tamanho do aparelho era dar a ele o mesmo peso que
+ * o cérebro de fala tem, para um décimo do serviço.
+ */
+export const REFLEXO_THREADS = 1;
+
 let modulePromise: Promise<TransformersModule> | null = null;
 let geradorPromise: Promise<Gerador | null> | null = null;
 let gerador: Gerador | null = null;
@@ -147,6 +155,27 @@ async function carregar(): Promise<Gerador | null> {
         modulePromise ??= import(/* @vite-ignore */ TRANSFORMERS_ESM) as
             unknown as Promise<TransformersModule>;
         const mod = await modulePromise;
+        // ── O QUINTO RUNTIME TAMBÉM TEM POOL DE THREADS ───────────────────
+        //
+        // `env.backends` estava declarado no tipo e NUNCA era configurado. Sem
+        // isto o onnxruntime-web usa o padrão dele — `navigator.hardware-
+        // Concurrency` — e abre um pool do tamanho do aparelho. Num celular de
+        // 8 núcleos são OITO threads de ONNX por cima das quatro do llama.cpp,
+        // e ninguém no jogo sabia dessas oito: o coordenador dos cérebros nem
+        // enxerga este runtime.
+        //
+        // O reflexo é um modelo de 135M em int8 que escreve meia frase. Ele não
+        // precisa da máquina inteira; precisa de um núcleo e de sair da frente.
+        // Este é o mesmo erro de orçamento de CPU que já custou caro na fala,
+        // agora no único runtime que tinha escapado da conta.
+        try {
+            const backends = (mod.env ??= {}).backends ??= {};
+            const onnx = (backends as { onnx?: Record<string, unknown> }).onnx ??= {};
+            const wasm = (onnx as { wasm?: Record<string, unknown> }).wasm ??= {};
+            (wasm as { numThreads?: number }).numThreads = REFLEXO_THREADS;
+            // `proxy` tiraria o ONNX da thread principal, mas ele já roda pouco
+            // e o proxy custa outra cópia dos pesos na memória do aparelho.
+        } catch { /* build do transformers.js sem env: segue com o padrão */ }
         const criado = await mod.pipeline('text-generation', FLOOR10_REFLEXO_MODEL.repo, {
             dtype: FLOOR10_REFLEXO_MODEL.dtype,
             // CPU de propósito. A GPU deste andar já custou duas falas perdidas
