@@ -593,7 +593,19 @@ export async function unloadFloor10MotorBrain(): Promise<void> {
     const engine = residentEngine ?? (pending ? await pending.catch(() => null) : null);
     residentEngine = null;
     terminate(engine);
-    npcSet({ motorPhase: 'off', motorLoadText: '' });
+    // ── DESCARREGAR NÃO APAGA "OS PESOS ESTÃO AQUI" ───────────────────────
+    //
+    // O texto era zerado sempre. Passou a importar quando ABRIR o chat passou a
+    // chamar esta função (roteamento): na primeira abertura o painel perdia o
+    // "no aparelho · em espera" e não o recuperava mais, então o jogador via um
+    // tradutor em branco — indistinguível de um que nunca baixou. Descarregar o
+    // runtime não tira o .gguf do OPFS, e a tela tem de dizer isso.
+    npcSet({
+        motorPhase: 'off',
+        motorLoadText: npc.motorLoadProgress >= 1
+            ? `${FLOOR10_MOTOR_MODEL.label} no aparelho · em espera`
+            : '',
+    });
 }
 
 export function resetFloor10MotorBrainForTests(): void {

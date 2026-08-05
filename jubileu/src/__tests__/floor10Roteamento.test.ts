@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
-    baixarSemSubir, quemDevoDesligar, quemDevoLigar,
+    baixarSemSubir, desligarQuemNaoEDaVez, quemDevoDesligar, quemDevoLigar,
 } from '../npc/floor10Roteamento';
 
 describe('baixar não é ligar', () => {
@@ -61,6 +61,96 @@ describe('o roteamento que o dono do jogo desenhou', () => {
     });
 });
 
+describe('a tabela vira ação: desligarQuemNaoEDaVez', () => {
+    it('no chat, desliga a vontade e o motor — nunca a fala nem a memória', async () => {
+        const saiu: string[] = [];
+        const chamados = await desligarQuemNaoEDaVez(true, {
+            fala: async () => { saiu.push('fala'); },
+            memoria: async () => { saiu.push('memoria'); },
+            vontade: async () => { saiu.push('vontade'); },
+            motor: async () => { saiu.push('motor'); },
+        });
+        expect(saiu).toEqual(['vontade', 'motor']);
+        expect(chamados).toEqual(['vontade', 'motor']);
+    });
+
+    it('fora do chat, desliga a fala e a memória', async () => {
+        const saiu: string[] = [];
+        await desligarQuemNaoEDaVez(false, {
+            fala: async () => { saiu.push('fala'); },
+            memoria: async () => { saiu.push('memoria'); },
+            vontade: async () => { saiu.push('vontade'); },
+            motor: async () => { saiu.push('motor'); },
+        });
+        expect(saiu).toEqual(['fala', 'memoria']);
+    });
+
+    it('um cérebro que se recusa a sair não impede o outro', async () => {
+        // Descarregar já custou uma sessão inteira de livre-arbítrio quando uma
+        // promessa ficou pendurada. Aqui: se a vontade estourar, o motor SAI
+        // mesmo assim, e quem chama sabe quem de fato saiu.
+        const saiu: string[] = [];
+        const chamados = await desligarQuemNaoEDaVez(true, {
+            vontade: async () => { throw new Error('worker já morreu'); },
+            motor: async () => { saiu.push('motor'); },
+        });
+        expect(saiu).toEqual(['motor']);
+        expect(chamados).toEqual(['motor']);
+    });
+
+    it('um de cada vez, nunca em paralelo', async () => {
+        // Dois workers de 1 GB morrendo juntos é pico de memória, não economia.
+        let vivos = 0;
+        let pico = 0;
+        const lento = async () => {
+            vivos += 1;
+            pico = Math.max(pico, vivos);
+            await new Promise((r) => { setTimeout(r, 5); });
+            vivos -= 1;
+        };
+        await desligarQuemNaoEDaVez(true, { vontade: lento, motor: lento });
+        expect(pico).toBe(1);
+    });
+
+    it('cérebro sem manobra é pulado, não quebra', async () => {
+        expect(await desligarQuemNaoEDaVez(true, {})).toEqual([]);
+    });
+});
+
+describe('ABRIR o chat desliga a vontade e o motor', () => {
+    // O defeito nº 1 do relatório: "quando eu saio do chat, e entro, LAGA
+    // TUDO". Fechar já descarregava a dupla da conversa; abrir não desligava
+    // nada, e a vontade fica RESIDENTE entre rodadas — `abortDeliberation` só
+    // encerra o worker que está gerando naquele instante. Então a fala reabria
+    // 3,9 GB por cima de 1,32 GB parados mais 640 MB parados.
+    const fonte = readFileSync(new URL('../Floor10NpcChat.tsx', import.meta.url), 'utf8');
+    const bloco = fonte.slice(
+        fonte.indexOf('const open = useCallback'),
+        fonte.indexOf('const close = useCallback'),
+    );
+
+    it('o `open` chama o roteamento com noChat = true', () => {
+        expect(bloco).toContain('desligarQuemNaoEDaVez(true, {');
+        expect(bloco).toContain('unloadSmallBrain()');
+        expect(bloco).toContain('unloadFloor10MotorBrain()');
+    });
+
+    it('desliga ANTES de mandar a fila subir a fala', () => {
+        const desliga = bloco.indexOf('desligarQuemNaoEDaVez(true');
+        const fila = bloco.indexOf('iniciarPrecarga(');
+        expect(desliga).toBeGreaterThan(-1);
+        expect(fila).toBeGreaterThan(desliga);
+    });
+
+    it('não espera: quem esperaria seria o jogador', () => {
+        // O lado de fechar dorme 12s antes de subir a vontade, porque o sistema
+        // demora a devolver a memória. Do lado de abrir, a folga vem de graça —
+        // a fala só reabre no ENVIO da mensagem, não na abertura do painel.
+        expect(bloco).toContain('void desligarQuemNaoEDaVez(true');
+        expect(bloco).not.toContain('await desligarQuemNaoEDaVez');
+    });
+});
+
 describe('fechar o chat descarrega a mente — a metade que pesa', () => {
     // Medido no celular emulado, separando memória ANÔNIMA de cache de arquivo:
     // cada cérebro de pé custa ~2x o próprio arquivo, e 89% é anônimo. Com os
@@ -72,7 +162,8 @@ describe('fechar o chat descarrega a mente — a metade que pesa', () => {
             'utf8',
         );
         const i = fonte.indexOf('const close = useCallback');
-        const bloco = fonte.slice(i, i + 400);
+        // Mesma lição do teste abaixo: a janela mede PRESENÇA, não distância.
+        const bloco = fonte.slice(i, i + 1200);
         expect(bloco).toContain("npcSet({ open: false })");
         expect(bloco).toContain('unloadConversationBrain()');
         expect(bloco).toContain('unloadFloor10Memoria()');

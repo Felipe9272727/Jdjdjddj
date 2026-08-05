@@ -85,3 +85,46 @@ export function quemDevoLigar(noChat: boolean): readonly Cerebro[] {
 export function quemDevoDesligar(noChat: boolean): readonly Cerebro[] {
     return quemDevoLigar(!noChat);
 }
+
+/** Como devolver a memória de cada cérebro. Só quem está na tabela é desligado. */
+export type Manobras = Partial<Record<Cerebro, () => Promise<unknown>>>;
+
+/**
+ * ── A TABELA PASSA A MANDAR DE VERDADE ────────────────────────────────────
+ *
+ * `quemDevoLigar`/`quemDevoDesligar` existiam há vários commits e NINGUÉM as
+ * chamava: a tela implementava a metade de baixo à mão (fechar o chat descarrega
+ * fala e memória e sobe a vontade) e a metade de cima simplesmente não existia.
+ *
+ * O buraco que isso deixou é o defeito que o dono do jogo relatou primeiro:
+ *
+ *     "quando eu saio do chat, e entro, LAGA TUDO"
+ *
+ * E lagava mesmo. Saindo do chat a vontade sobe (1,32 GB) e, terminada a rodada,
+ * fica RESIDENTE — `abortDeliberation` só encerra o worker quando ele está
+ * gerando naquele instante; parado entre rodadas, nada o tira. Voltando ao chat,
+ * nada o desligava. Então a fala reabria 3,9 GB EM CIMA da vontade parada e do
+ * motor parado, no exato momento em que o jogador está esperando uma resposta.
+ *
+ * Aqui a tabela vira ação. Um de cada vez, e nunca lançando: descarregar quem já
+ * saiu não é erro, e um cérebro que se recusa a sair não pode impedir o outro.
+ *
+ * O QUE ESTA FUNÇÃO NÃO FAZ: ligar. Desligar é simétrico e pode ser tabelado;
+ * ligar não é — o motor, por exemplo, só serve depois de a vontade ter pensado,
+ * então subi-lo junto seria manter 640 MB de pé sem nada para traduzir.
+ */
+export async function desligarQuemNaoEDaVez(
+    noChat: boolean,
+    desligar: Manobras,
+): Promise<Cerebro[]> {
+    const saiu: Cerebro[] = [];
+    for (const cerebro of quemDevoDesligar(noChat)) {
+        const acao = desligar[cerebro];
+        if (!acao) continue;
+        try {
+            await acao();
+            saiu.push(cerebro);
+        } catch { /* já estava fora, ou o worker morreu antes de responder */ }
+    }
+    return saiu;
+}

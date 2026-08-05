@@ -26,6 +26,7 @@ import {
     FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
+import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
 import { baixarMotor, precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
@@ -173,6 +174,24 @@ const Floor10NpcChat: React.FC = () => {
         // no celular emulado. Medir no aparelho de quem joga é o único caminho
         // que sobra, e o resultado sai no relatório copiável.
         vigiarEngasgos(() => npc.phase);
+        // ── ENTRAR NO CHAT DESLIGA A VONTADE E O MOTOR ────────────────────
+        //
+        // A metade que faltava do roteamento. Fechar o chat já descarregava a
+        // fala e subia a vontade; ABRIR não desligava nada, e a vontade fica
+        // residente entre rodadas (ver floor10Roteamento). Resultado: a fala
+        // reabria 3,9 GB por cima de 1,32 GB de vontade parada mais 640 MB de
+        // motor parado — o "saio do chat, e entro, LAGA TUDO" do relatório.
+        //
+        // NÃO ESPERAMOS AQUI, e é de propósito. O caminho de fechar dorme 12s
+        // antes de subir a vontade porque o sistema demora a devolver a memória;
+        // do lado de abrir, quem espera seria o jogador. A folga vem de graça:
+        // depois da primeira vez a fila já terminou, então nada sobe ao abrir —
+        // a fala só reabre quando a mensagem é ENVIADA, e entre abrir o painel e
+        // terminar de digitar passam justamente esses segundos.
+        void desligarQuemNaoEDaVez(true, {
+            vontade: () => unloadSmallBrain(),
+            motor: () => unloadFloor10MotorBrain(),
+        });
         void iniciarPrecarga(passosDoAndar10({
             fala: () => initLLM(),
             // BAIXA SEM LIGAR. O relato foi "quando começa a baixar [a
@@ -218,8 +237,13 @@ const Floor10NpcChat: React.FC = () => {
     const close = useCallback(() => {
         npcSet({ open: false });
         void (async () => {
-            await unloadConversationBrain().catch(() => undefined);
-            await unloadFloor10Memoria().catch(() => undefined);
+            // A mesma tabela, do outro lado: fora do chat quem sai é a dupla da
+            // conversa. Escrito assim para os dois lados NÃO PODEREM divergir —
+            // era exatamente por estarem escritos à mão que só existia um.
+            await desligarQuemNaoEDaVez(false, {
+                fala: () => unloadConversationBrain(),
+                memoria: () => unloadFloor10Memoria(),
+            });
             // ── E A OUTRA METADE: LIGA A VONTADE ──────────────────────────
             //
             // "aí, o player saiu do chat, automaticamente, liga a vontade
