@@ -44,6 +44,15 @@ The options, and what each one means for you:
 
 const OPCOES = ['inspect-elevator','wander','idle','observe-player','approach-player','make-space','seek-player','talk-player'];
 
+const GRAMATICA = 'root ::= "CHOICE: " goal\ngoal ::= ' + OPCOES.map((g) => '"' + g + '"').join(' | ');
+const EXTRACAO = (p) => [
+  'A man trapped alone in a room just thought this:',
+  '"""', p.trim().slice(-400), '"""',
+  'Which of these is he about to do? Answer with one line only.',
+  'Options: ' + OPCOES.join(', '),
+].join('\n');
+
+
 // Estados de mundo, no formato que buildDeliberationPrompt emite.
 const SITUACOES = [
   { nome: 'jogador perto e visível',
@@ -123,25 +132,49 @@ try {
       const ms = Math.round(performance.now() - ti);
       const t = texto(r);
       const tm = r?.timings ?? {};
-      const escolha = assinou(t);
+      let escolha = assinou(t);
+      // ── E O RESGATE, QUE É O QUE O JOGO REALMENTE FAZ ─────────────────
+      // Medir só a primeira passada descreve um jogo que não existe: quando o
+      // raciocínio sai sem a linha final, `assinarEscolha` faz uma SEGUNDA
+      // chamada de ~16 tokens, presa por gramática, pedindo só a assinatura.
+      // Sem isto, "2 de 5" pareceria falha de 60% — e não é.
+      //
+      // O que este número revela é outro custo: cada resgate é uma geração a
+      // mais por rodada, e ninguém a contabilizou no orçamento de CPU do andar.
+      let resgatou = false;
+      let resgateMs = 0;
+      if (!escolha && t.trim()) {
+        const tr = performance.now();
+        const rr = await eng.createChatCompletion({
+          messages: [{ role: 'user', content: EXTRACAO(t) }],
+          max_tokens: 16, temperature: 0, grammar: GRAMATICA, cache_prompt: true,
+        });
+        resgateMs = Math.round(performance.now() - tr);
+        escolha = assinou(texto(rr));
+        resgatou = !!escolha;
+      }
       rodadas.push({
-        situacao: s.nome, ms, escolha,
+        situacao: s.nome, ms, escolha, resgatou, resgateMs,
         tokens: tm.predicted_n ?? null,
         tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
         texto: t.trim().slice(0, 400),
       });
-      diz(`  ${s.nome.padEnd(26)} ${String(ms).padStart(6)}ms  ${String(tm.predicted_per_second ? tm.predicted_per_second.toFixed(1) : '?').padStart(5)} tok/s  → ${escolha ?? 'NÃO ASSINOU'}`);
+      diz(`  ${s.nome.padEnd(26)} ${String(ms).padStart(6)}ms  ${String(tm.predicted_per_second ? tm.predicted_per_second.toFixed(1) : '?').padStart(5)} tok/s  → ${escolha ?? 'NÃO ASSINOU'}${resgatou ? ` (RESGATE +${resgateMs}ms)` : ''}`);
       diz(`    "${t.trim().replace(/\n/g, ' | ').slice(0, 220)}"`);
     }
     try { await eng.exit(); } catch { /* já morreu */ }
 
     const assinadas = rodadas.filter((r) => r.escolha).length;
+    const naPrimeira = rodadas.filter((r) => r.escolha && !r.resgatou).length;
+    const resgatadas = rodadas.filter((r) => r.resgatou).length;
+    const custoResgate = rodadas.reduce((s2, r) => s2 + (r.resgateMs ?? 0), 0);
     const tpsMedio = +(rodadas.reduce((s, r) => s + (r.tps ?? 0), 0) / rodadas.length).toFixed(2);
     resultado.modelos[nome] = {
-      cargaMs, assinadas, total: rodadas.length, tpsMedio,
+      cargaMs, assinadas, naPrimeira, resgatadas, custoResgate,
+      total: rodadas.length, tpsMedio,
       escolhas: rodadas.map((r) => r.escolha), rodadas,
     };
-    diz(`  ── assinou ${assinadas}/${rodadas.length} · ${tpsMedio} tok/s médio`);
+    diz(`  ── assinou ${assinadas}/${rodadas.length} (${naPrimeira} na 1a, ${resgatadas} por resgate) · ${tpsMedio} tok/s · resgate custou ${custoResgate}ms`);
   }
 
   const a = resultado.modelos['llama-1b'];
