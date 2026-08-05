@@ -269,16 +269,21 @@ try {
   // FALA e a VONTADE de pé na mesma sessão e medir de verdade.
   if (process.env.DOIS_MODELOS === '1') {
     console.log('DOIS_MODELOS=1 — carregando fala e vontade pela ?mente');
+    // EXIGIR PROVA, não só que a promessa resolveu. `precarregarVontade`
+    // devolve `false` quando falha, e `await false` é tão silencioso quanto
+    // `await true` — foi assim que a primeira tentativa mediu DOIS cérebros
+    // custando menos que UM, porque o segundo nunca subiu.
     const ok = await pagina.evaluate(async () => {
       const m = globalThis.__f10mente;
       if (!m) return 'sem __f10mente';
-      await m.initLLM();
-      await m.precarregarVontade();
-      return 'ok';
-    }).catch((e) => String(e.message).slice(0, 120));
+      try { await m.initLLM(); } catch (e) { return 'fala falhou: ' + e.message; }
+      const v = await m.precarregarVontade();
+      if (v !== true) return 'vontade devolveu ' + JSON.stringify(v);
+      return 'ok · fala + vontade de pé';
+    }).catch((e) => String(e.message).slice(0, 160));
     console.log(`  resultado: ${ok}`);
     resultado.enviadas = MENSAGENS.length;
-    resultado.falouAlgumaCoisa = ok === 'ok';
+    resultado.falouAlgumaCoisa = String(ok).startsWith('ok');
     await pagina.waitForTimeout(30_000);
     throw new Error('__so_abertura__');
   }
