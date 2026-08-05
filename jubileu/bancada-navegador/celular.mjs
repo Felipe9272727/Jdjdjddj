@@ -145,6 +145,32 @@ pagina.on('console', (m) => {
   }
 });
 
+// ── O QUE TRAVA: BLOQUEIO OU DISPUTA? ─────────────────────────────────────
+// O relato é "ao enviar, o jogo fica travado uns 10s e volta". Duas causas
+// possíveis, e o conserto de cada uma é diferente:
+//
+//   thread principal BLOQUEADA -> os quadros PARAM. Um buraco único e grande
+//                                 entre dois requestAnimationFrame.
+//   núcleos DISPUTADOS ........ -> os quadros ficam lentos, mas continuam.
+//                                 Muitos buracos médios, nenhum enorme.
+//
+// Teorizar sobre isso já me custou uma mensagem inteira. O navegador sabe a
+// resposta; basta perguntar.
+await pagina.addInitScript(() => {
+  globalThis.__quadros = { buracos: [], pior: 0 };
+  let ultimo = 0;
+  const tique = (t) => {
+    if (ultimo > 0) {
+      const dt = t - ultimo;
+      if (dt > 100) globalThis.__quadros.buracos.push(Math.round(dt));
+      if (dt > globalThis.__quadros.pior) globalThis.__quadros.pior = Math.round(dt);
+    }
+    ultimo = t;
+    requestAnimationFrame(tique);
+  };
+  requestAnimationFrame(tique);
+});
+
 console.log('abrindo o jogo…');
 // `?bancada` é a rota que o projeto criou justamente para alcançar o Nilo sem
 // atravessar o jogo — o chat do 10º sem precisar andar do saguão até lá.
@@ -262,7 +288,18 @@ const cpuTotal = resultado.amostras.length
   : 0;
 const duracao = (Date.now() - t0) / 1000;
 
+const quadros = await pagina.evaluate(() => globalThis.__quadros).catch(() => null);
 console.log('\n===== O APARELHO EMULADO =====');
+if (quadros) {
+  const b = quadros.buracos;
+  const enormes = b.filter((x) => x >= 3000);
+  console.log(`buracos de quadro ... ${b.length} acima de 100ms · pior ${quadros.pior}ms`);
+  console.log(`buracos >= 3s ....... ${enormes.length}  ${enormes.length ? JSON.stringify(enormes.slice(0, 6)) : ''}`);
+  console.log(`veredito ............ ${enormes.length
+    ? 'THREAD PRINCIPAL BLOQUEADA (buraco único e grande)'
+    : 'sem bloqueio longo; se travar, é disputa de núcleo'}`);
+  resultado.quadros = { total: b.length, pior: quadros.pior, enormes: enormes.length };
+}
 console.log(`duração ............ ${duracao.toFixed(0)}s`);
 console.log(`threads (pico) ..... ${picoThreads}`);
 console.log(`CPU consumida ...... ${cpuTotal.toFixed(1)}s`);
