@@ -364,7 +364,14 @@ export function passosDoAndar10(carregadores: {
             id: FILA_VONTADE,
             etapa: 'vontade',
             carregar: carregadores.vontade,
-            adiarEnquanto: conversaOcupaOAparelho,
+            // ── E ELA DEIXOU DE ESPERAR O CHAT FECHAR ────────────────────
+            // Esperava porque a etapa SUBIA um llama.cpp no fim do download.
+            // Agora ela só traz os pesos (`baixarVontade`), e download é rede,
+            // não núcleo. O relato era "a vontade só baixa pós a primeira
+            // mensagem ser respondida" — verdade, e desenho meu.
+            // Continua fora do caminho de uma GERAÇÃO, que é quando os núcleos
+            // e a thread principal estão de fato ocupados.
+            adiarEnquanto: falaGerandoAgora,
             liberar: carregadores.liberarVontade,
         },
         {

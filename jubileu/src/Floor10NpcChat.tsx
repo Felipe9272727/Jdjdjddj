@@ -24,7 +24,7 @@ import {
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
-import { precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
+import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
 import { precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
     FLOOR10_MEMORIA_MODEL,
@@ -170,7 +170,13 @@ const Floor10NpcChat: React.FC = () => {
         vigiarEngasgos(() => npc.phase);
         void iniciarPrecarga(passosDoAndar10({
             fala: () => initLLM(),
-            vontade: () => precarregarVontade(),
+            // BAIXA SEM LIGAR. O relato foi "quando começa a baixar [a
+            // vontade], começa a travar meu celular todo" — e travava porque no
+            // fim do download vinha um llama.cpp inteiro subindo enquanto o
+            // jogador lia a resposta anterior. Agora a fila só traz os pesos; o
+            // runtime sobe quando a vontade for de fato usada, que é fora do
+            // chat, com o aparelho livre.
+            vontade: () => baixarVontade(),
             motor: () => precarregarMotor(),
             memoria: () => precarregarMemoria(),
             // O quinto e último: o reflexo em ONNX. Desce depois de tudo de que

@@ -52,6 +52,7 @@ import {
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { floor10Fila, FILA_VONTADE } from './floor10Fila';
 import { conversaOcupaOAparelho } from './floor10Precarga';
+import { baixarSemSubir, type CofreDeModelos } from './floor10Roteamento';
 import {
     CACHE_HEADROOM,
     deleteCachedModel,
@@ -1300,6 +1301,77 @@ export async function deliberarObservando(
  * `cederParaFala: false` porque quem chama isto é a fila, que já esperou a
  * fala terminar — a trava de "a fala vem primeiro" já foi respeitada lá fora.
  */
+/**
+ * BAIXA E PARA POR AÍ — sem subir llama.cpp nenhum.
+ *
+ * É o pedido do dono do jogo: "baixe tudo de uma vez, sem ligar, deixe os pesos
+ * desses modelos na memória... eles não podem ter uma thread ativa enquanto não
+ * estão sendo usados".
+ *
+ * O relato que motivou isto foi dele, sobre este cérebro: "quando começa a
+ * baixar, começa a travar meu celular todo". E travava mesmo — o download é
+ * rede, mas no FIM dele vinha um llama.cpp inteiro subindo, com pool próprio,
+ * enquanto ele estava no chat lendo a resposta anterior.
+ *
+ * Construir a instância NÃO sobe worker: o `cacheManager` é do objeto, e o
+ * Worker do wllama só nasce em `loadModelFromUrl`. É essa distinção que torna
+ * "baixar sem ligar" possível sem tocar no wllama.
+ *
+ * Falha ou runtime sem `download` devolve `false`, e a fila segue para o passo
+ * seguinte — quem precisar do cérebro sobe pelo caminho normal, baixando na
+ * hora. Degradar é aceitável; ficar sem vontade não é.
+ */
+export async function baixarVontade(): Promise<boolean> {
+    if (pesosNoAparelho) return true;
+    try {
+        const backend = await probeModelStorageBackend();
+        if (!backend.ok) return false;
+        const plano = planModelCache(await readStorageEstimate(), SMALL_BRAIN_MODEL.bytes);
+        if (!plano.ok) {
+            npcSet({
+                deliberationPhase: 'unavailable',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} não cabe: ${plano.message}`,
+            });
+            return false;
+        }
+        const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as
+            Promise<{ Wllama: SmallCtor }>);
+        const cofre = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
+        medidorVontade.reset();
+        npcSet({ deliberationPhase: 'loading', deliberationDownload: DOWNLOAD_ZERO });
+        const baixou = await baixarSemSubir(
+            (cofre as { cacheManager?: CofreDeModelos }).cacheManager,
+            SMALL_BRAIN_MODEL.url,
+            (loaded, total) => {
+                const amostra = medidorVontade.push(loaded, total);
+                floor10Fila.progresso(FILA_VONTADE, amostra);
+                npcSet({
+                    deliberationDownload: amostra,
+                    deliberationLoadProgress: total ? Math.min(1, loaded / total) : 0,
+                    deliberationLoadText:
+                        `baixando ${SMALL_BRAIN_MODEL.label} · ${downloadLine(amostra)}`,
+                });
+            },
+        );
+        try { await (cofre as { exit?: () => Promise<void> }).exit?.(); } catch { /* nada subiu */ }
+        if (!baixou) return false;
+        // OS PESOS ESTÃO NO APARELHO, e nada está de pé por causa deles.
+        pesosNoAparelho = true;
+        npcSet({
+            deliberationPhase: 'off',
+            deliberationLoadProgress: 1,
+            deliberationLoadText: `${SMALL_BRAIN_MODEL.label} no aparelho · em espera`,
+        });
+        anotar('vontade:no-aparelho');
+        return true;
+    } catch (erro) {
+        anotar('vontade:download-falhou', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        });
+        return false;
+    }
+}
+
 export async function precarregarVontade(): Promise<boolean> {
     const engine = await floor10ModelCoordinator.activate(
         'deliberation',

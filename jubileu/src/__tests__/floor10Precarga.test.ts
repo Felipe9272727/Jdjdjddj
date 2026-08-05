@@ -65,7 +65,12 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             memoria: carregador('memoria'),
         }));
         await vi.waitFor(() => expect(ordem).toContain('fim:memoria'));
-        expect(ordem).not.toContain('inicio:vontade');
+        // A VONTADE AGORA COMEÇA: a etapa dela só BAIXA (`baixarVontade`), e
+        // download é rede, não núcleo. Este teste exigia o contrário, e o
+        // contrário era o defeito que o dono do jogo relatou — "a vontade só
+        // baixa pós a primeira mensagem ser respondida".
+        await vi.waitFor(() => expect(ordem).toContain('inicio:vontade'));
+        // O MOTOR continua esperando: a etapa dele ainda SOBE runtime.
         expect(ordem).not.toContain('inicio:motor');
 
         // Fechou: os dois pesados sobem inteiros, sem cancelamento nenhum.
@@ -238,8 +243,11 @@ describe('nenhuma etapa carrega por cima de uma geração', () => {
         expect(por(FILA_MEMORIA)?.adiarEnquanto).toBe(falaGerandoAgora);
         expect(por(FILA_REFLEXO)?.adiarEnquanto).toBe(falaGerandoAgora);
 
-        // Os dois pesados continuam esperando o chat inteiro desocupar.
-        expect(por(FILA_VONTADE)?.adiarEnquanto).toBe(conversaOcupaOAparelho);
+        // A VONTADE deixou de esperar o chat fechar: a etapa dela agora só
+        // BAIXA (`baixarVontade`), e download é rede, não núcleo. O relato era
+        // "a vontade só baixa pós a primeira mensagem ser respondida".
+        expect(por(FILA_VONTADE)?.adiarEnquanto).toBe(falaGerandoAgora);
+        // O motor ainda SOBE runtime na etapa dele, então continua esperando.
         expect(por(FILA_MOTOR)?.adiarEnquanto).toBe(conversaOcupaOAparelho);
 
         // A fala nunca espera: é ela que o jogador está olhando.
