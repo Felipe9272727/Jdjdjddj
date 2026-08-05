@@ -19,6 +19,8 @@ import path from 'node:path';
 const RAIZ = process.argv[2] ?? path.join(import.meta.dirname, '..', 'dist');
 const PORTA = Number(process.argv[3] ?? 8930);
 const MODELO = process.argv[4] ?? path.join(import.meta.dirname, 'smollm3.gguf');
+/** Uma fala do 3B com CPU 4x throttled passa de dois minutos. */
+const ESPERA_POR_FALA_MS = Number(process.env.ESPERA_MS ?? 180_000);
 const MENSAGENS = ['oi', 'quem é você?', 'faz quanto tempo que você está aqui?', 'o que tem atrás da porta?'];
 
 const TIPOS = {
@@ -172,7 +174,14 @@ try {
     resultado.enviadas += 1;
     // Espera a resposta assentar antes da próxima. Mensagens SEGUIDAS são o
     // roteiro que derrubava o aparelho, mas atropelar não é: o jogador lê.
-    await pagina.waitForTimeout(25_000);
+    // ── QUANTO ESPERAR: A CONTA, NÃO O CHUTE ──────────────────────────────
+    // 25s não bastavam e a 6ª execução provou: zero erros, WASM carregado,
+    // 2,52 núcleos de ocupação — o motor TRABALHOU — e mesmo assim nenhuma
+    // resposta saiu. Com `Emulation.setCPUThrottlingRate: 4`, um SmolLM3-3B
+    // que faz ~3 tok/s nesta caixa cai para menos de 1, e o teto de saída são
+    // 96 tokens: passa de dois minutos por fala. Esperar menos que isso é
+    // garantir uma medição vazia.
+    await pagina.waitForTimeout(ESPERA_POR_FALA_MS);
     const saiu = await pagina.evaluate(() => document.body.innerText).catch(() => '');
     if (/saindo:\s*\S/.test(saiu)) resultado.falouAlgumaCoisa = true;
   }
