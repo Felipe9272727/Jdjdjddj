@@ -43,6 +43,27 @@ export function conversaOcupaOAparelho(): boolean {
 }
 
 /**
+ * A FALA ESTÁ QUEIMANDO CPU NESTE INSTANTE? Regra mais estreita que a de cima:
+ * ignora o painel apenas aberto e olha só para carga e geração de verdade.
+ *
+ * Existe porque a memória e o reflexo precisam das duas coisas ao mesmo tempo:
+ *
+ *   - NÃO disputar núcleos com a fala — a memória termina num llama.cpp
+ *     inteiro subindo, e o reflexo num runtime ONNX;
+ *   - estar prontos JUNTO com a conversa, não depois dela. A memória é quem
+ *     acha o fato do cânone (sem ela o Nilo responde só com a persona, que é
+ *     de onde saem as invenções) e o reflexo é quem cobre o primeiro segundo.
+ *
+ * Esperar o chat FECHAR, como a vontade e o motor fazem, resolveria a CPU e
+ * custaria exatamente a qualidade que esses dois existem para dar. Esperar só
+ * a fala parar de gerar entrega as duas: eles sobem nas frestas em que o
+ * jogador está lendo ou digitando, e nunca por cima de uma geração.
+ */
+export function falaGerandoAgora(): boolean {
+    return npc.phase === 'thinking' || npc.phase === 'loading';
+}
+
+/**
  * Espera a conversa desocupar. Acorda a cada mudança da loja (que é quem
  * publica `open`/`phase`), com um relógio de folga para o caso de a mudança
  * que interessa vir de fora dela.
@@ -190,9 +211,25 @@ export function passosDoAndar10(carregadores: {
 }): Passo[] {
     return [
         { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
-        { id: FILA_MEMORIA, etapa: 'memoria', carregar: carregadores.memoria },
+        // ── OS DOIS LEVES TAMBÉM ESPERAM, MAS SÓ A GERAÇÃO ───────────────
+        // Eles não tinham `adiarEnquanto` NENHUM: carregavam no instante em que
+        // o chat abria — que é exatamente quando o jogador digita a primeira
+        // mensagem. Resultado no aparelho: SmolLM3 gerando com 4 threads,
+        // memória subindo um llama.cpp com 2, e o reflexo abrindo um runtime
+        // ONNX por cima. Ninguém pausava: a memória nem preemptor tem.
+        {
+            id: FILA_MEMORIA,
+            etapa: 'memoria',
+            carregar: carregadores.memoria,
+            adiarEnquanto: falaGerandoAgora,
+        },
         ...(carregadores.reflexo
-            ? [{ id: FILA_REFLEXO, etapa: 'reflexo' as const, carregar: carregadores.reflexo }]
+            ? [{
+                id: FILA_REFLEXO,
+                etapa: 'reflexo' as const,
+                carregar: carregadores.reflexo,
+                adiarEnquanto: falaGerandoAgora,
+            }]
             : []),
         {
             id: FILA_VONTADE,

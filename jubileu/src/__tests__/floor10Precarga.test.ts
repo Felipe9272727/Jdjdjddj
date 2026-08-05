@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    conversaLiberada, iniciarPrecarga, passosDoAndar10, precargaCompleta,
-    precargaEtapa, resetPrecargaForTests,
+    conversaLiberada, conversaOcupaOAparelho, falaGerandoAgora, iniciarPrecarga,
+    passosDoAndar10, precargaCompleta, precargaEtapa, resetPrecargaForTests,
 } from '../npc/floor10Precarga';
-import { definirFilaDoAndar10, floor10Fila } from '../npc/floor10Fila';
+import {
+    definirFilaDoAndar10, floor10Fila,
+    FILA_FALA, FILA_MEMORIA, FILA_MOTOR, FILA_REFLEXO, FILA_VONTADE,
+} from '../npc/floor10Fila';
 import { npcSet } from '../npc/npcStore';
 
 const ordem: string[] = [];
@@ -75,9 +78,15 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
         ]);
     });
 
-    it('gerar uma resposta também segura os dois pesados', async () => {
+    it('gerar uma resposta segura TODOS os outros, não só os pesados', async () => {
         // `phase: 'thinking'` é o 3B escrevendo. Subir outro llama.cpp aqui é a
         // mesma disputa de núcleos, com o painel aberto ou não.
+        //
+        // ANTES este teste exigia o oposto para a memória: que ela terminasse
+        // DURANTE o `thinking`. Era o comportamento real, e era o defeito — a
+        // memória termina num llama.cpp inteiro subindo, e ela subia por cima
+        // da geração porque não tinha `adiarEnquanto` nenhum. O aparelho do
+        // dono do jogo desligou sozinho com isso.
         npcSet({ open: false, phase: 'thinking' });
         const fila = iniciarPrecarga(passosDoAndar10({
             fala: carregador('fala'),
@@ -85,7 +94,8 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             motor: carregador('motor'),
             memoria: carregador('memoria'),
         }));
-        await vi.waitFor(() => expect(ordem).toContain('fim:memoria'));
+        await vi.waitFor(() => expect(ordem).toContain('fim:fala'));
+        expect(ordem).not.toContain('inicio:memoria');
         expect(ordem).not.toContain('inicio:vontade');
 
         npcSet({ phase: 'ready' });
@@ -206,5 +216,43 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
         // Sem a vontade ele anda no reflexo; parar seria virar pane.
         expect(ordem).toContain('inicio:motor');
         expect(floor10Fila.estado().prontos).toContain('motor');
+    });
+});
+
+describe('nenhuma etapa carrega por cima de uma geração', () => {
+    // O aparelho do dono do jogo desligou sozinho. A fila baixava em sequência,
+    // mas a sequência não sabia da FALA — e a fila começa quando o chat abre,
+    // que é quando o jogador digita a primeira mensagem.
+    it('memória e reflexo esperam a geração, não o chat fechar', () => {
+        const passos = passosDoAndar10({
+            fala: async () => true,
+            vontade: async () => true,
+            motor: async () => true,
+            memoria: async () => true,
+            reflexo: async () => true,
+        });
+        const por = (id: string) => passos.find((p) => p.id === id);
+
+        // Tinham `adiarEnquanto` NENHUM: subiam junto com a primeira mensagem.
+        expect(por(FILA_MEMORIA)?.adiarEnquanto).toBe(falaGerandoAgora);
+        expect(por(FILA_REFLEXO)?.adiarEnquanto).toBe(falaGerandoAgora);
+
+        // Os dois pesados continuam esperando o chat inteiro desocupar.
+        expect(por(FILA_VONTADE)?.adiarEnquanto).toBe(conversaOcupaOAparelho);
+        expect(por(FILA_MOTOR)?.adiarEnquanto).toBe(conversaOcupaOAparelho);
+
+        // A fala nunca espera: é ela que o jogador está olhando.
+        expect(por(FILA_FALA)?.adiarEnquanto).toBeUndefined();
+    });
+
+    it('a regra estreita ignora o painel só aberto — senão custaria qualidade', () => {
+        // Fazer a memória esperar o chat FECHAR tiraria o fato do cânone da
+        // primeira conversa, que é de onde saem as invenções do Nilo.
+        npcSet({ open: true, phase: 'ready' });
+        expect(falaGerandoAgora()).toBe(false);
+        expect(conversaOcupaOAparelho()).toBe(true);
+
+        npcSet({ open: true, phase: 'thinking' });
+        expect(falaGerandoAgora()).toBe(true);
     });
 });
