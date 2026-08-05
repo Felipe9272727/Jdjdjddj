@@ -256,3 +256,47 @@ describe('nenhuma etapa carrega por cima de uma geração', () => {
         expect(falaGerandoAgora()).toBe(true);
     });
 });
+
+describe('esperar não pode virar nunca', () => {
+    // Sem isto, `emCurso` da suíte anterior ainda está de pé e
+    // `iniciarPrecarga` devolve a promessa VELHA — os passos deste teste nunca
+    // rodam e a falha parece ser do conserto, não do arranjo.
+    beforeEach(() => {
+        ordem.length = 0;
+        resetPrecargaForTests();
+    });
+
+    // DO APARELHO: "só baixou a smollm3 e a de embedding, a vontade e o motor
+    // não baixaram". Quem testa o Nilo deixa o chat ABERTO — e a vontade e o
+    // motor esperavam `conversaOcupaOAparelho`, que inclui o painel aberto.
+    // Aberto o tempo todo, os dois esperavam para sempre: eu troquei um
+    // travamento por uma funcionalidade que nunca chega.
+    it('o chat aberto e parado deixa de segurar depois do teto', async () => {
+        (globalThis as Record<string, unknown>).__f10TetoEsperaMs = 200;
+        npcSet({ open: true, phase: 'ready' });
+        const fila = iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: carregador('vontade'),
+            motor: carregador('motor'),
+            memoria: carregador('memoria'),
+        }));
+        // Com o painel aberto, os pesados começam mesmo assim — depois do teto.
+        // A afirmação é sobre a VONTADE começar apesar do painel aberto —
+        // esperar pelo motor era esperar por um passo a mais e tornava o teste
+        // dependente de tempo que não é o objeto da prova.
+        await vi.waitFor(
+            () => expect(ordem).toContain('inicio:vontade'),
+            { timeout: 10_000 },
+        );
+        npcSet({ open: false });
+        await fila;
+        delete (globalThis as Record<string, unknown>).__f10TetoEsperaMs;
+    }, 15_000);
+
+    it('mas uma geração em curso ainda segura, teto ou não', () => {
+        // O teto solta o painel aberto; NUNCA solta uma geração. É a invariante
+        // que mantém o pico em 4 de 8 núcleos.
+        npcSet({ open: true, phase: 'thinking' });
+        expect(falaGerandoAgora()).toBe(true);
+    });
+});

@@ -68,8 +68,50 @@ export function falaGerandoAgora(): boolean {
  * publica `open`/`phase`), com um relógio de folga para o caso de a mudança
  * que interessa vir de fora dela.
  */
-function esperarAVez(adiar: () => boolean): Promise<void> {
+/**
+ * ── ESPERAR NÃO PODE VIRAR NUNCA ──────────────────────────────────────────
+ *
+ * A vontade e o motor esperam `conversaOcupaOAparelho`, que inclui o painel
+ * simplesmente ABERTO. A intenção era certa — nada pesado subindo durante a
+ * conversa — mas o efeito, relatado do aparelho, foi este:
+ *
+ *     "só baixou a smollm3 e a de embedding, a vontade e o motor não baixaram"
+ *
+ * Quem está testando o Nilo deixa o chat aberto. Aberto o tempo todo, esses
+ * dois esperam PARA SEMPRE, e o andar fica sem livre-arbítrio e sem movimento.
+ * Eu troquei um travamento por uma funcionalidade que nunca chega.
+ *
+ * Daí este teto: depois dele, o passo desiste de esperar a conversa fechar e
+ * passa a esperar só a fala PARAR DE GERAR — a mesma régua da memória e do
+ * reflexo. Nunca sobe por cima de uma geração; apenas deixa de exigir que o
+ * jogador feche o painel para o jogo terminar de se montar.
+ *
+ * Dois minutos: tempo de sobra para uma conversa curta acontecer inteira e
+ * curto o bastante para ninguém ficar sem vontade numa sessão de verdade.
+ */
+export const TETO_DE_ESPERA_MS = 120_000;
+
+/** O teto em vigor; um teste pode encurtá-lo em vez de esperar dois minutos. */
+function tetoEmVigor(): number {
+    const forcado = (globalThis as { __f10TetoEsperaMs?: number }).__f10TetoEsperaMs;
+    return typeof forcado === 'number' && forcado > 0 ? forcado : TETO_DE_ESPERA_MS;
+}
+
+function esperarAVez(
+    adiar: () => boolean,
+    tetoMs = tetoEmVigor(),
+    agora: () => number = Date.now,
+): Promise<void> {
     if (!adiar()) return Promise.resolve();
+    const limite = agora() + tetoMs;
+    // Passado o teto, a única coisa que ainda segura é uma geração em curso.
+    // `original` precisa ser uma referência SEPARADA: reatribuir `adiar` a uma
+    // função que chama `adiar` é recursão infinita, e foi o que eu escrevi na
+    // primeira versão — os testes estouraram a pilha na hora.
+    const original = adiar;
+    const adiarComTeto = () => (agora() >= limite ? falaGerandoAgora() : original());
+    if (!adiarComTeto()) return Promise.resolve();
+    adiar = adiarComTeto;
     return new Promise<void>((resolve) => {
         let pronto = false;
         const terminar = () => {
