@@ -78,6 +78,16 @@ try {
             },
         },
     );
+    // `compat` NÃO é opção do construtor — é `setCompat(obj)`, e o construtor
+    // já chamou `setCompat('default')` apontando para o CDN. A bancada roda
+    // offline, então redireciono para a cópia local do MESMO pacote
+    // (@wllama/wllama-compat@3.5.1) antes de carregar qualquer coisa.
+    if (SEM_JSPI) {
+        eng.setCompat({
+            worker: '/wllama-cdn/compat/wllama.js',
+            wasm: '/wllama-cdn/compat/wllama.wasm',
+        });
+    }
     const t0 = performance.now();
     await eng.loadModelFromUrl(MODELO, CARGA);
     resultado.cargaMs = Math.round(performance.now() - t0);
@@ -99,6 +109,32 @@ try {
         kvMiB: +soma(/KV self/i).toFixed(1),
         computeMiB: +soma(/compute buffer/i).toFixed(1),
     };
+    // ── E GERAR, PORQUE CARREGAR NÃO É A QUEIXA ───────────────────────────
+    // A carga dos dois runtimes deu igual — mesmos buffers, mesmo tempo. Mas a
+    // queixa dele não é "demora a abrir", é o aparelho travando ENQUANTO o Nilo
+    // responde. Se o compat for mais lento a GERAR, é aí que aparece, e medir
+    // só a carga teria fechado a investigação com a metade certa e a metade
+    // que interessa faltando.
+    const t1 = performance.now();
+    const r = await eng.createChatCompletion({
+        messages: [{ role: 'user', content: 'Conte até dez, um número por linha.' }],
+        max_tokens: 48,
+        temperature: 0,
+        cache_prompt: false,
+    });
+    resultado.geracaoMs = Math.round(performance.now() - t1);
+    const tm = (r && typeof r === 'object' && 'timings' in r) ? r.timings ?? {} : {};
+    resultado.tokens = tm.predicted_n ?? null;
+    resultado.tokensPorSegundo = tm.predicted_per_second
+        ? +tm.predicted_per_second.toFixed(2)
+        : null;
+    resultado.prefillPorSegundo = tm.prompt_per_second
+        ? +tm.prompt_per_second.toFixed(2)
+        : null;
+    diz('');
+    diz(`geração: ${resultado.geracaoMs}ms · ${resultado.tokens} tokens · `
+        + `${resultado.tokensPorSegundo} tok/s · prefill ${resultado.prefillPorSegundo} tok/s`);
+
     diz('');
     diz('── soma ──');
     for (const [k, v] of Object.entries(resultado.buffers)) diz(`  ${k.padEnd(12)} ${v} MiB`);
