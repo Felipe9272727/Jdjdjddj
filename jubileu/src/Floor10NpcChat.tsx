@@ -23,6 +23,7 @@ import {
     FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
+import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { precarregarVontade } from './npc/floor10SmallBrain';
 import { precarregarMotor } from './npc/floor10MotorBrain';
 import {
@@ -162,6 +163,11 @@ const Floor10NpcChat: React.FC = () => {
         // alguém precisar deles — e por isso a barra da fila parava em "1 de 4"
         // e ficava lá. Agora os quatro descem em sequência, e a conversa libera
         // assim que o primeiro chega, sem esperar os 3,9 GB.
+        // ── O MEDIDOR DE ENGASGO LIGA COM A CONVERSA ──────────────────────
+        // A queixa "trava uns 10s ao enviar" não reproduziu em nove execuções
+        // no celular emulado. Medir no aparelho de quem joga é o único caminho
+        // que sobra, e o resultado sai no relatório copiável.
+        vigiarEngasgos(() => npc.phase);
         void iniciarPrecarga(passosDoAndar10({
             fala: () => initLLM(),
             vontade: () => precarregarVontade(),

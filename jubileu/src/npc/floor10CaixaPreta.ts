@@ -22,6 +22,8 @@
 // - Sobrevive à falha: se o registro quebrar, o jogo não pode nem piscar.
 
 /** Teto do buffer circular. ~200 eventos cobrem vários minutos de Andar 10. */
+import { resumoDosEngasgos } from './floor10Engasgo';
+
 export const CAIXA_PRETA_TETO = 200;
 
 export type EventoCaixaPreta = {
@@ -111,6 +113,12 @@ export function relatorioCaixaPreta(contexto: ContextoCaixaPreta = {}): string {
         `armazenamento: ${contexto.usoGB ?? '?'} GB usados de ${contexto.cotaGB ?? '?'} GB`
         + ` · persistido: ${contexto.persistido ?? '?'}`,
         `eventos: ${eventos.length}${eventos.length >= CAIXA_PRETA_TETO ? ' (buffer cheio, só o fim)' : ''}`,
+        // ── O ENGASGO ENTRA NO CABEÇALHO, NÃO NO MEIO DOS EVENTOS ─────────
+        // "o jogo trava uns 10s ao enviar" é a queixa que nove execuções em
+        // celular emulado NÃO reproduziram. O relatório copiável é o único
+        // caminho até esse dado — e ele precisa estar na primeira tela de quem
+        // lê, não enterrado numa lista de cinquenta eventos.
+        resumoDosEngasgos(),
         '',
     ];
     if (eventos.length === 0) {
