@@ -61,3 +61,18 @@ describe('floor10CaixaPreta — o que faltava para parar de adivinhar', () => {
         expect(relatorioCaixaPreta()).toContain('não chegou a rodar');
     });
 });
+
+describe('o engasgo chega ao relatório que o jogador copia', () => {
+    // Hoje dois instrumentos meus falharam em SILÊNCIO: um lia uma variável
+    // que nunca era publicada, outro procurava na tela palavras que aquela
+    // tela não usa. Os dois devolveram "nada", e "nada" parecia resultado.
+    // Este teste existe para o medidor de engasgo não ser o terceiro.
+    it('o resumo aparece no cabeçalho, mesmo sem nenhum engasgo', () => {
+        const texto = relatorioCaixaPreta({ build: 'teste' });
+        expect(texto).toContain('engasgos:');
+        // No cabeçalho, não enterrado: quem lê precisa da conclusão na
+        // primeira tela, não depois de cinquenta eventos.
+        const antesDosEventos = texto.split('\n').slice(0, 10).join('\n');
+        expect(antesDosEventos).toContain('engasgos:');
+    });
+});
