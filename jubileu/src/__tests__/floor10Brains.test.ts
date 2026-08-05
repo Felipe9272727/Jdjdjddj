@@ -20,6 +20,29 @@ describe('npc/floor10Brains — a lista que os DOIS cérebros precisam ver', () 
         expect(SMALL_BRAIN_CATALOG.some((m) => m.id === SMALL_BRAIN_DEFAULT)).toBe(true);
     });
 
+    it('o padrão continua sendo o que o DONO do jogo escolheu', () => {
+        // "Não aceito a proposta pra trocar de modelo, pq todos llms que estão
+        //  aqui, foram escolhidos a dedo"
+        //
+        // O LFM2.5 ganhou a bancada em tudo que dá para medir — 5/5 contra 2/5
+        // assinando de primeira, rodada 1,45× mais rápida, duas execuções
+        // independentes. Isso o qualifica para ENTRAR na lista, e nada mais:
+        // trocar o padrão é decisão de quem joga, no aparelho de quem joga.
+        // Este teste existe para que a próxima boa medição também não vire uma
+        // troca silenciosa.
+        expect(SMALL_BRAIN_DEFAULT).toBe('llama32-1b');
+    });
+
+    it('o candidato novo está lá, e não custa cota a mais que o titular', () => {
+        const titular = SMALL_BRAIN_CATALOG.find((m) => m.id === 'llama32-1b');
+        const novo = SMALL_BRAIN_CATALOG.find((m) => m.id === 'lfm2-1b');
+        expect(novo).toBeDefined();
+        // 75 MB menor que o Q8 do Llama. Um candidato que ganhasse em velocidade
+        // e perdesse em cota não serviria: a cota já recusou 2,07 GB uma vez no
+        // aparelho dele, e quem paga essa conta é a FALA.
+        expect(novo!.bytes).toBeLessThan(titular!.bytes);
+    });
+
     it('nenhum candidato é grande a ponto de sufocar a fala', () => {
         // O SmolLM3 da conversa pede ~2,07 GB de cota, e o teto aqui subiu para
         // 1,4 GB por causa de uma MEDIÇÃO: em Q4 o Llama 1B assinava escolha em

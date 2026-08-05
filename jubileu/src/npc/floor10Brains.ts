@@ -9,7 +9,8 @@
 // Nilo simplesmente parava de falar. A vontade é opcional por construção; a
 // fala, não. Então a fala pode reciclar isto aqui, e só isto.
 
-export type SmallBrainId = 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b';
+export type SmallBrainId =
+    | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b' | 'lfm2-1b';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -52,6 +53,45 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
         bytes: 807_694_464,
         nota: 'mesma cabeça comprimida: 513 MB menor, mas assina escolha em 5/15 e quase não fala em 1ª pessoa',
+    },
+    {
+        // ── O CANDIDATO DE 2026, E POR QUE ELE ENTROU NA LISTA ────────────
+        //
+        // Entra como OPÇÃO, não como padrão: o dono do jogo escolheu os outros
+        // a dedo e disse "não aceito a proposta pra trocar de modelo". Trocar
+        // por conta própria seria decidir por ele. O que eu posso fazer é
+        // colocá-lo ao lado, com o número, para ele julgar no aparelho dele.
+        //
+        // Medido na bancada da vontade, DUAS execuções independentes, mesmas 5
+        // situações do jogo, mesmo prompt de deliberação, mesmo llama.cpp:
+        //
+        //                    assina na 1ª   resgates   tok/s   ms por rodada
+        //     Llama 3.2 1B       2/5           3        4,8       64.800
+        //     LFM2.5-1.2B        5/5           0        5,9       44.800
+        //
+        // O 5/5 e o 2/5 saíram IDÊNTICOS nas duas execuções — não é sorte de
+        // uma rodada. Assinar de primeira é o que apaga o resgate inteiro
+        // (13,7 s por 5 rodadas no Llama, 0 aqui), e é por isso que a rodada
+        // fica 1,45× mais rápida com só 1,2× de tok/s.
+        //
+        // As ESCOLHAS também foram mais estáveis: entre as duas execuções ele
+        // repetiu 4 das 5, contra 1 das 5 do Llama. Para uma vontade isso
+        // importa — o mesmo mundo não devia produzir intenções diferentes toda
+        // vez. O que NÃO afirmo é que ele escolhe MELHOR: cinco situações com
+        // uma rodada cada não decidem isso, e ambos deram respostas defensáveis.
+        //
+        // Arquitetura híbrida (convolução curta + atenção) feita para CPU, GGUF
+        // publicado pela própria Liquid e marcado `llama.cpp`. E é 75 MB MENOR
+        // que o Llama Q8, então não custa cota nenhuma a mais.
+        //
+        // O irmão `LFM2.5-1.2B-Thinking` foi medido junto e REPROVOU: 0/5 de
+        // primeira, 5 resgates, 107,7 s por rodada. O traço de raciocínio come
+        // os 320 tokens do orçamento e a linha CHOICE nunca chega.
+        id: 'lfm2-1b',
+        label: 'LFM2.5 1.2B (o mais rápido a assinar)',
+        url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q8_0.gguf',
+        bytes: 1_246_253_888,
+        nota: 'assina a escolha de primeira em 5/5 (o Llama faz 2/5) e a rodada inteira cai de 64,8s para 44,8s',
     },
     {
         id: 'minicpm5-1b',
