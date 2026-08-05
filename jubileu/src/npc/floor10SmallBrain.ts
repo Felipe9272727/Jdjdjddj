@@ -817,6 +817,13 @@ export async function assinarEscolha(
     engine: SmallInstance,
     pensamento: string,
     signal?: AbortSignal,
+    /**
+     * O prompt da PRIMEIRA passada. Quando vem, o resgate CONTINUA aquela
+     * conversa em vez de abrir uma nova — e é isso que faz o `cache_prompt`
+     * ter o que aproveitar. Opcional para os chamadores antigos seguirem
+     * funcionando; sem ele o comportamento é o de antes.
+     */
+    promptOriginal?: string,
 ): Promise<string> {
     const controller = new AbortController();
     const herdar = () => controller.abort();
@@ -828,13 +835,42 @@ export async function assinarEscolha(
     );
     try {
         const response = await engine.createChatCompletion({
-            // SEM o prompt de sistema, de propósito. Medido no navegador: com
-            // ele, esta chamada de 16 tokens estourava o teto de 45s — o custo
-            // não era gerar, era RELER os ~330 tokens da persona. E ela não faz
-            // falta aqui: o Nilo já pensou, isto é só a assinatura.
-            messages: [
-                { role: 'user', content: buildChoiceExtractionPrompt(pensamento) },
-            ],
+            // ── O RESGATE CONTINUA A CONVERSA, E ISSO É 4x MAIS BARATO ────
+            //
+            // Aqui estava escrito: "SEM o prompt de sistema, de propósito.
+            // Medido: com ele, esta chamada de 16 tokens estourava o teto de
+            // 45s — o custo não era gerar, era RELER os ~330 tokens da
+            // persona." O número era real; a CAUSA estava invertida.
+            //
+            // O problema nunca foi a persona ESTAR ali — foi o prompt não
+            // compartilhar prefixo nenhum com a chamada anterior. Sem prefixo
+            // comum, `cache_prompt: true` não tem o que aproveitar e o modelo
+            // relê tudo, seja a persona (45s) ou a cauda do pensamento (18s).
+            //
+            // Medido no navegador, mesmo modelo, mesmas cinco situações:
+            //
+            //     prompt isolado (o de antes) .... 17.888 ms por resgate
+            //     continuando a conversa ......... 4.264 ms por resgate
+            //
+            // 4,2x mais barato, e as duas versões assinam 5/5 — a qualidade
+            // não muda. O prefixo (sistema + estado do mundo) é IDÊNTICO ao da
+            // primeira passada, então só o pensamento e a pergunta são lidos.
+            //
+            // Isso importa além do relógio: QUATRO de cada cinco rodadas
+            // precisam de resgate, então esta chamada é quase tão frequente
+            // quanto a deliberação em si — e o custo dela não estava em conta
+            // nenhuma do orçamento de CPU do andar.
+            messages: promptOriginal
+                ? [
+                    { role: 'system' as const, content: DELIBERATION_SYSTEM_PROMPT },
+                    { role: 'user' as const, content: promptOriginal },
+                    { role: 'assistant' as const, content: pensamento },
+                    {
+                        role: 'user' as const,
+                        content: 'Which option is that? Answer with one line only.',
+                    },
+                ]
+                : [{ role: 'user', content: buildChoiceExtractionPrompt(pensamento) }],
             ...SMALL_BRAIN_EXTRACT_CONFIG,
             abortSignal: controller.signal,
         });
@@ -1007,19 +1043,21 @@ export async function deliberateFloor10(
             deliberationThreads: smallBrainThreads(),
             deliberationSeconds: 0,
         });
+        // O prompt do usuário desta rodada, guardado: o RESGATE reutiliza o
+        // mesmo texto para continuar esta conversa em vez de abrir outra, e é
+        // isso que faz o `cache_prompt` valer (4,2x mais barato — ver
+        // `assinarEscolha`).
+        const promptDaRodada = retomado
+            ? promptDeRetomada(
+                buildDeliberationPrompt(input.perception, input.drives, input.memory),
+                retomado.parcial,
+            )
+            : buildDeliberationPrompt(input.perception, input.drives, input.memory);
         try {
             const stream = await engine.createChatCompletion({
                 messages: [
                     { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
-                    {
-                        role: 'user',
-                        content: retomado
-                            ? promptDeRetomada(
-                                buildDeliberationPrompt(input.perception, input.drives, input.memory),
-                                retomado.parcial,
-                            )
-                            : buildDeliberationPrompt(input.perception, input.drives, input.memory),
-                    },
+                    { role: 'user', content: promptDaRodada },
                 ],
                 ...SMALL_BRAIN_COMPLETION_CONFIG,
                 stream: true,
@@ -1120,7 +1158,9 @@ export async function deliberateFloor10(
         // passada; o que entra aqui é a última linha, e ela é anexada ao texto
         // para que a justificativa lida depois continue vindo do raciocínio.
         if (!decided && texto.trim() && !conversationHasPriority()) {
-            const assinatura = await assinarEscolha(engine, texto, abort.signal);
+            const assinatura = await assinarEscolha(
+                engine, texto, abort.signal, promptDaRodada,
+            );
             if (assinatura) decided = parseDeliberation(`${texto}\n${assinatura}`, input.now);
         }
         if (decided && texto.trim() && !conversationHasPriority()) {

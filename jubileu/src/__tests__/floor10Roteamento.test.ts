@@ -87,7 +87,11 @@ describe('fechar o chat descarrega a mente — a metade que pesa', () => {
             'utf8',
         );
         const i = fonte.indexOf('const close = useCallback');
-        const bloco = fonte.slice(i, i + 1600);
+        // Janela generosa: o que se prova aqui é a ORDEM das chamadas, não a
+        // proximidade delas. Estava em 1600 e um comentário novo empurrou
+        // `precarregarVontade` para fora — o teste acusou uma regressão que não
+        // existia. Contar caracteres é frágil; a ordem é o que importa.
+        const bloco = fonte.slice(i, i + 4000);
         const descarrega = bloco.indexOf('unloadFloor10Memoria()');
         const liga = bloco.indexOf('precarregarVontade()');
         expect(descarrega).toBeGreaterThan(-1);

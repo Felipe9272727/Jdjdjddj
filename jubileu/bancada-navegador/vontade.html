@@ -42,6 +42,7 @@ The options, and what each one means for you:
 - seek-player: go looking for him, because he is not in sight
 - talk-player: say something to him out loud`;
 
+const MODO_RESGATE = new URLSearchParams(location.search).get('resgate') ?? 'jogo';
 const OPCOES = ['inspect-elevator','wander','idle','observe-player','approach-player','make-space','seek-player','talk-player'];
 
 const GRAMATICA = 'root ::= "CHOICE: " goal\ngoal ::= ' + OPCOES.map((g) => '"' + g + '"').join(' | ');
@@ -115,7 +116,7 @@ try {
   const { Wllama } = await import('/wllama-cdn/index.js');
 
   for (const [nome, url] of [['llama-1b', '/llama1b.gguf'], ['granite-1b-moe', '/granite1b.gguf']]) {
-    diz(`\n═══ ${nome} ═══`);
+    diz(`\n═══ ${nome} (resgate: ${MODO_RESGATE}) ═══`);
     const eng = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
     const t0 = performance.now();
     await eng.loadModelFromUrl(url, CARGA);
@@ -144,9 +145,31 @@ try {
       let resgatou = false;
       let resgateMs = 0;
       if (!escolha && t.trim()) {
+        // ── DOIS RESGATES, E A DIFERENÇA É O CACHE ────────────────────────
+        // O do jogo manda um prompt NOVO (a cauda do pensamento) que não
+        // compartilha prefixo nenhum com a primeira passada: `cache_prompt`
+        // fica sem nada para aproveitar e o modelo relê tudo. Medido, custa
+        // ~18s por resgate — 16 tokens presos por gramática que deviam ser
+        // instantâneos.
+        //
+        // O alternativo CONTINUA a mesma conversa: sistema + mundo +
+        // pensamento + pergunta. É mais longo em tokens, mas o prefixo
+        // (sistema + mundo) é IDÊNTICO ao da primeira chamada e deveria bater
+        // no cache. Se bater, só o pensamento e a pergunta são lidos.
+        //
+        // O comentário do jogo diz que incluir o sistema já foi tentado e ficou
+        // PIOR (45s). Vale medir de novo: o que estava errado pode ter sido a
+        // ausência de cache, não a presença da persona.
         const tr = performance.now();
         const rr = await eng.createChatCompletion({
-          messages: [{ role: 'user', content: EXTRACAO(t) }],
+          messages: MODO_RESGATE === 'continua'
+            ? [
+                { role: 'system', content: SISTEMA },
+                { role: 'user', content: s.txt },
+                { role: 'assistant', content: t },
+                { role: 'user', content: 'Which option is that? Answer with one line only.' },
+              ]
+            : [{ role: 'user', content: EXTRACAO(t) }],
           max_tokens: 16, temperature: 0, grammar: GRAMATICA, cache_prompt: true,
         });
         resgateMs = Math.round(performance.now() - tr);
