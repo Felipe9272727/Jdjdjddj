@@ -106,6 +106,25 @@ export type Manobras = Partial<Record<Cerebro, () => Promise<unknown>>>;
  * nada o desligava. Então a fala reabria 3,9 GB EM CIMA da vontade parada e do
  * motor parado, no exato momento em que o jogador está esperando uma resposta.
  *
+ * ── QUANTO ISSO VALE, COM A CONTA INTEIRA ────────────────────────────────
+ *
+ * Pela reta medida nesta caixa — `RSS = 2,00 × (GB de arquivo) + 1,49 GB`, com
+ * a aditividade PROVADA por medição direta (dois cérebros de pé: previsto 3,89,
+ * medido 4,03) — e pelos tamanhos reais do catálogo:
+ *
+ *     fala 1,915 · vontade 1,321 · motor 0,639 · memória 0,334 (GB de arquivo)
+ *
+ *     voltando ao chat, ANTES ... 1,49 + 2×4,209 = 9,91 GB  (+0,28 do reflexo)
+ *     voltando ao chat, AGORA ... 1,49 + 2×2,249 = 5,99 GB  (+0,28 do reflexo)
+ *
+ * Quase 4 GB a menos no caminho que ele mais usa. E os ~10 GB de antes não são
+ * "arriscado": o Chrome no Android mata o renderer SEM AVISO muito antes disso,
+ * que é o "meu celular até desligou sozinho" do relatório.
+ *
+ * (A primeira versão desta conta, na mensagem do commit, dizia 6,81 → 4,85 GB.
+ * Estava errada: misturava custo residente com tamanho de arquivo e esquecia a
+ * base de 1,49 GB. A conta certa é esta, e ela favorece mais o conserto.)
+ *
  * Aqui a tabela vira ação. Um de cada vez, e nunca lançando: descarregar quem já
  * saiu não é erro, e um cérebro que se recusa a sair não pode impedir o outro.
  *
