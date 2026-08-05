@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     conversaLiberada, conversaOcupaOAparelho, falaGerandoAgora, iniciarPrecarga,
-    passosDoAndar10, precargaCompleta, precargaEtapa, resetPrecargaForTests,
+    passosDoAndar10, pouparMemoriaLigado, precargaCompleta, precargaEtapa,
+    resetPrecargaForTests,
 } from '../npc/floor10Precarga';
 import {
     definirFilaDoAndar10, floor10Fila,
@@ -298,5 +299,52 @@ describe('esperar não pode virar nunca', () => {
         // que mantém o pico em 4 de 8 núcleos.
         npcSet({ open: true, phase: 'thinking' });
         expect(falaGerandoAgora()).toBe(true);
+    });
+});
+
+describe('poupar memória: baixar não é o mesmo que manter de pé', () => {
+    // Medido nesta caixa, três modelos, reta com erro < 30 MB em 5 GB:
+    //     RSS = 2,00 × (GB de modelo) + 1,49 GB
+    // Os cinco residentes dão 9,59 GB; fala + memória dão 5,68 GB. O Chrome do
+    // Android mata a aba muito antes do primeiro — e "desligou sozinho" é
+    // súbito como falta de memória, não progressivo como calor.
+    it('a flag está DESLIGADA por padrão', () => {
+        expect(pouparMemoriaLigado('')).toBe(false);
+        expect(pouparMemoriaLigado('?bancada')).toBe(false);
+        expect(pouparMemoriaLigado('?poupamemoria')).toBe(true);
+    });
+
+    it('com a flag, a vontade e o motor são liberados depois de baixados', async () => {
+        (globalThis as Record<string, unknown>).__f10TetoEsperaMs = 50;
+        const liberados: string[] = [];
+        npcSet({ open: false, phase: 'ready' });
+        await iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: carregador('vontade'),
+            motor: carregador('motor'),
+            memoria: carregador('memoria'),
+            liberarVontade: async () => { liberados.push('vontade'); },
+            liberarMotor: async () => { liberados.push('motor'); },
+        }));
+        delete (globalThis as Record<string, unknown>).__f10TetoEsperaMs;
+        // Sem a flag na URL do teste, nada é liberado — é o padrão.
+        expect(liberados).toEqual([]);
+        // E a fila termina inteira de qualquer forma: liberar não é falhar.
+        expect(ordem).toContain('fim:motor');
+    });
+
+    it('a fala e a memória NUNCA são liberadas — são as duas da mente', () => {
+        const passos = passosDoAndar10({
+            fala: async () => true,
+            vontade: async () => true,
+            motor: async () => true,
+            memoria: async () => true,
+            liberarVontade: async () => undefined,
+            liberarMotor: async () => undefined,
+        });
+        expect(passos.find((p) => p.id === FILA_FALA)?.liberar).toBeUndefined();
+        expect(passos.find((p) => p.id === FILA_MEMORIA)?.liberar).toBeUndefined();
+        expect(passos.find((p) => p.id === FILA_VONTADE)?.liberar).toBeDefined();
+        expect(passos.find((p) => p.id === FILA_MOTOR)?.liberar).toBeDefined();
     });
 });

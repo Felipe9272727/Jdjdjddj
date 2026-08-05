@@ -150,6 +150,38 @@ export function precargaEtapa(): PrecargaEtapa { return etapa; }
 /** Já baixou tudo nesta sessão? */
 export function precargaCompleta(): boolean { return etapa === 'pronto'; }
 
+/**
+ * ── POUPAR MEMÓRIA: A FILA BAIXA, MAS NÃO PRECISA MANTER TUDO DE PÉ ───────
+ *
+ * Medido nesta caixa, com três modelos de tamanhos diferentes, reta com erro
+ * menor que 30 MB em 5 GB:
+ *
+ *     RSS = 2,00 × (GB de modelo) + 1,49 GB
+ *
+ * Cada modelo custa o DOBRO do próprio arquivo em memória, e de forma
+ * sustentada — pico e média diferem em 1%. Daí:
+ *
+ *     os cinco residentes ..... 9,59 GB   <- estado depois que a fila termina
+ *     fala + memória .......... 5,68 GB   <- o que o dono do jogo descreveu
+ *
+ * O Chrome no Android mata a aba muito antes de 9,59 GB, e o relato foi "meu
+ * celular até desligou sozinho" — súbito, como falta de memória, e não
+ * progressivo como calor.
+ *
+ * O TRABALHO DA FILA É COLOCAR OS PESOS NO APARELHO, não manter runtimes
+ * vivos. Depois de `loadModelFromUrl`, o .gguf está no OPFS e lá fica; o
+ * runtime aberto é efeito colateral. Liberar quem não vai trabalhar agora
+ * devolve metade da memória e não rebaixa nada — a reabertura lê do disco.
+ *
+ * ATRÁS DE FLAG, e de propósito: liberar custa reabertura, e reabertura foi o
+ * que travava o aparelho entre mensagens. As duas forças se opõem e o ponto de
+ * equilíbrio depende do aparelho. `?poupamemoria` deixa medir os dois lados
+ * em vez de eu escolher por palpite.
+ */
+export function pouparMemoriaLigado(busca = globalThis.location?.search ?? ''): boolean {
+    return /[?&]poupamemoria\b/i.test(busca);
+}
+
 type Passo = {
     id: string;
     etapa: PrecargaEtapa;
@@ -159,6 +191,11 @@ type Passo = {
      * runtimes pesados por cima da conversa — ver `passosDoAndar10`.
      */
     adiarEnquanto?: () => boolean;
+    /**
+     * Como devolver a memória deste cérebro depois de baixado. Só é chamado
+     * com `?poupamemoria`, e só para quem não é preciso agora.
+     */
+    liberar?: () => Promise<unknown>;
 };
 
 /**
@@ -190,6 +227,11 @@ export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
             }
             if (ok) {
                 floor10Fila.concluir(passo.id);
+                // Baixou; agora devolve a memória se este cérebro não vai
+                // trabalhar tão cedo. Os pesos ficam no OPFS.
+                if (pouparMemoriaLigado() && passo.liberar) {
+                    try { await passo.liberar(); } catch { /* já saiu */ }
+                }
             } else {
                 // FALHA ≠ CONCLUÍDO. Marcar como concluído somava à barra bytes
                 // que nunca desceram, e ela pulava para o próximo como se
@@ -250,6 +292,14 @@ export function passosDoAndar10(carregadores: {
     memoria: () => Promise<unknown>;
     /** Opcional: o reflexo é a única etapa que o jogo não sente falta. */
     reflexo?: () => Promise<unknown>;
+    /**
+     * Como devolver a memória da vontade e do motor depois de baixados. Só a
+     * vontade e o motor: a fala e a memória são exatamente os dois que o dono
+     * do jogo descreveu como devendo ficar de pé com o chat aberto, e o
+     * reflexo custa 0,28 GB — libertá-lo pagaria reabertura por quase nada.
+     */
+    liberarVontade?: () => Promise<unknown>;
+    liberarMotor?: () => Promise<unknown>;
 }): Passo[] {
     return [
         { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
@@ -278,12 +328,14 @@ export function passosDoAndar10(carregadores: {
             etapa: 'vontade',
             carregar: carregadores.vontade,
             adiarEnquanto: conversaOcupaOAparelho,
+            liberar: carregadores.liberarVontade,
         },
         {
             id: FILA_MOTOR,
             etapa: 'motor',
             carregar: carregadores.motor,
             adiarEnquanto: conversaOcupaOAparelho,
+            liberar: carregadores.liberarMotor,
         },
     ];
 }

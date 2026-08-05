@@ -24,8 +24,8 @@ import {
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
-import { precarregarVontade } from './npc/floor10SmallBrain';
-import { precarregarMotor } from './npc/floor10MotorBrain';
+import { precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
+import { precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
     FLOOR10_MEMORIA_MODEL,
     FLOOR10_MEMORIA_SIZE_LABEL,
@@ -177,6 +177,12 @@ const Floor10NpcChat: React.FC = () => {
             // a conversa depende — se falhar, a única coisa que se perde é o
             // preenchimento do primeiro segundo.
             reflexo: () => precarregarReflexo(),
+            // Só com `?poupamemoria`. Ver floor10Precarga: cada modelo custa
+            // 2,00× o próprio arquivo em RAM, medido, e os cinco residentes dão
+            // 9,59 GB — que o Chrome do Android não tolera. Baixar é o trabalho
+            // da fila; manter de pé quem não vai pensar agora, não.
+            liberarVontade: () => unloadSmallBrain(),
+            liberarMotor: () => unloadFloor10MotorBrain(),
         }));
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
