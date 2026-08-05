@@ -172,21 +172,34 @@ export function especulativaLigada(busca?: string): boolean {
 }
 
 /**
- * O BINÁRIO REMENDADO — e ele NÃO é o n-grama.
+ * O BINÁRIO REMENDADO — DESLIGADO por padrão. `?wllamaespec` liga.
  *
- * Vale por padrão para todo mundo, com ou sem especulação, porque o que ele
- * carrega não tem nada a ver com rascunhar tokens:
+ * ── O TESTE QUE DECIDIU ISTO ─────────────────────────────────────────────
+ * Eu tinha deixado este binário como padrão porque ele mede +51% na fala:
  *
- *   kernels SIMD de WASM do ggml ...... +51% na fala, medidos no Chromium
+ *   kernels SIMD de WASM do ggml ...... +51% no Chromium desta caixa
  *   ponte de pthread (__emPthreadUrl) .. sem ela a carga NUNCA terminava
  *   erro clonável no postMessage ....... sem ele, QuotaExceeded travava tudo
  *
- * `?wllamacdn` é a saída de emergência que o `?semngram` costumava ser: se um
- * aparelho implicar com o nosso binário, o jogador volta ao wllama de
- * prateleira sem esperar commit nenhum — pagando os 51%, conscientemente.
+ * O dono do jogo abriu a mesma build com `?wllamacdn` e sem ela, no aparelho
+ * dele (Snapdragon 7s Gen 2, Adreno 710, 8 núcleos). Com o wllama de
+ * prateleira, o travamento sumiu. Com o nosso binário, voltou.
+ *
+ * Os +51% eram reais — e eram reais NUM CONTAINER x86. Nunca rodaram no
+ * celular dele até agora, e no celular o saldo é negativo a ponto de o jogo
+ * ficar injogável. Medição feita na máquina errada não vale mais que a
+ * medição feita na certa, e a certa é o aparelho de quem joga.
+ *
+ * As duas correções de carga (pthread e erro clonável) consertavam defeitos
+ * que só ESTE binário tinha; o wllama do CDN nunca precisou delas. Voltar ao
+ * CDN não devolve bug nenhum — devolve o runtime que sempre funcionou ali.
+ *
+ * `?wllamaespec` continua ligando o nosso, para quando houver como investigar
+ * por que ele castiga esse aparelho.
  */
 export function runtimeEspecLigado(busca = globalThis.location?.search ?? ''): boolean {
-    return !/[?&]wllamacdn\b/i.test(busca);
+    if (/[?&]wllamacdn\b/i.test(busca)) return false;
+    return /[?&]wllamaespec\b/i.test(busca);
 }
 
 /**

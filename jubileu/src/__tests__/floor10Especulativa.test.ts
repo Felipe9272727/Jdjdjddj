@@ -83,11 +83,17 @@ describe('floor10Especulativa — n-gramas ligados pelo wllama recompilado', () 
         // remendado carrega os kernels SIMD (+51%), a ponte de pthread e o
         // erro clonável — nada disso é n-grama. Amarrados, "tirar o n-grama"
         // trocaria um custo de 10% por uma perda de 51%.
-        expect(runtimeEspecLigado('')).toBe(true);
-        expect(runtimeEspecLigado('?semngram')).toBe(true);
-        expect(runtimeEspecLigado('?bancada')).toBe(true);
-        // A saída de emergência de verdade, para o aparelho que implicar.
+        // E o aparelho reprovou o binário: com `?wllamacdn` o travamento
+        // sumiu, sem ela voltou. Os +51% foram medidos num container x86 e
+        // nunca no celular; no celular o saldo é negativo. Padrão volta a ser
+        // o wllama de prateleira.
+        expect(runtimeEspecLigado('')).toBe(false);
+        expect(runtimeEspecLigado('?bancada')).toBe(false);
         expect(runtimeEspecLigado('?wllamacdn')).toBe(false);
+        expect(runtimeEspecLigado('?wllamaespec')).toBe(true);
+        // `?wllamacdn` ganha de `?wllamaespec`: a saída de emergência não pode
+        // ser anulada por outra flag na mesma URL.
+        expect(runtimeEspecLigado('?wllamaespec&wllamacdn')).toBe(false);
     });
 
     it('a bancada alterna os runtimes sem adulterar consultas explícitas à URL', () => {

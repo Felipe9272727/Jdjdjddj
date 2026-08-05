@@ -1,0 +1,115 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada · gerar em pedaços custa quanto?</title>
+<pre id="saida">medindo…</pre>
+<script>globalThis.__resultado = null;</script>
+<script type="module">
+// A PERGUNTA QUE DECIDE O DESENHO DA PAUSA
+//
+// Hoje "pausar a vontade" ENCERRA o Worker, porque o glue do wllama não tem
+// ação de parar: `abortSignal` só faz o JS parar de ler e o C++ segue gerando
+// até o teto. Encerrar devolve a CPU, mas voltar custa reabrir 1,32 GB — e é
+// isso que faz o celular travar ao abrir e fechar o chat.
+//
+// A saída é gerar em PEDAÇOS: em vez de pedir 320 tokens de uma vez, pedir N
+// por vez e simplesmente não pedir o próximo quando a fala precisar da CPU. O
+// Worker fica ocioso (zero CPU), os pesos e o KV ficam na memória, e voltar é
+// instantâneo.
+//
+// Só que isso só vale se emendar um pedaço no outro for BARATO. Se cada
+// chamada reprocessar o prompt inteiro, o remédio é pior que a doença. É
+// exatamente isso que esta página mede, com o modelo e o runtime de verdade.
+const saida = document.getElementById('saida');
+const linhas = [];
+const diz = (t) => { linhas.push(t); saida.textContent = linhas.join('\n'); console.log(t); };
+
+const MODELO = '/modelo.gguf';
+const CARGA = { n_ctx: 2048, n_batch: 256, n_threads: 4, useCache: true };
+const SISTEMA = 'You are Nilo, a guest who has lived on the 10th floor of a strange hotel for years.';
+const PERGUNTA = 'Think out loud about what you want to do next, in detail.';
+const TOTAL = 64;
+
+function texto(r) {
+  if (typeof r === 'string') return r;
+  return r?.choices?.[0]?.message?.content ?? r?.choices?.[0]?.text ?? '';
+}
+
+async function inteiro(engine) {
+  const t0 = performance.now();
+  const r = await engine.createChatCompletion({
+    messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: PERGUNTA }],
+    max_tokens: TOTAL, temperature: 0, cache_prompt: true,
+  });
+  return { ms: Math.round(performance.now() - t0), texto: texto(r) };
+}
+
+// Emenda igual à do jogo: o que já foi pensado volta como início da resposta.
+async function pedacos(engine, porVez) {
+  const t0 = performance.now();
+  let acumulado = '';
+  const marcos = [];
+  for (let feitos = 0; feitos < TOTAL; feitos += porVez) {
+    const tp = performance.now();
+    const r = await engine.createChatCompletion({
+      messages: [
+        { role: 'system', content: SISTEMA },
+        { role: 'user', content: PERGUNTA },
+        ...(acumulado ? [{ role: 'assistant', content: acumulado }] : []),
+      ],
+      max_tokens: porVez, temperature: 0, cache_prompt: true,
+    });
+    acumulado += texto(r);
+    marcos.push(Math.round(performance.now() - tp));
+  }
+  return { ms: Math.round(performance.now() - t0), texto: acumulado, marcos };
+}
+
+const resultado = { ok: false };
+try {
+  const { Wllama } = await import('/wllama-espec/index.js');
+  const engine = new Wllama({ default: '/wllama-espec/wllama.wasm' }, { suppressNativeLog: true });
+  const tc = performance.now();
+  await engine.loadModelFromUrl(MODELO, CARGA);
+  diz(`modelo carregado em ${Math.round(performance.now() - tc)}ms`);
+
+  // Aquece: a primeira passada paga cache frio e mentiria na comparação.
+  await engine.createChatCompletion({
+    messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: 'oi' }],
+    max_tokens: 4, temperature: 0, cache_prompt: true,
+  });
+  diz('aquecido');
+
+  const a = await inteiro(engine);
+  diz(`inteiro (${TOTAL} de uma vez) ......... ${a.ms}ms`);
+  const b = await pedacos(engine, 16);
+  diz(`em pedaços de 16 (4 chamadas) ...... ${b.ms}ms  [${b.marcos.join(', ')}]`);
+  const c = await pedacos(engine, 8);
+  diz(`em pedaços de 8 (8 chamadas) ....... ${c.ms}ms  [${c.marcos.join(', ')}]`);
+  const d = await inteiro(engine);
+  diz(`inteiro de novo (controle) ......... ${d.ms}ms`);
+
+  await engine.exit();
+
+  const baseMs = (a.ms + d.ms) / 2;
+  resultado.inteiroMs = a.ms;
+  resultado.inteiroControleMs = d.ms;
+  resultado.pedacos16Ms = b.ms;
+  resultado.pedacos8Ms = c.ms;
+  resultado.marcos16 = b.marcos;
+  resultado.marcos8 = c.marcos;
+  resultado.custo16 = +(b.ms / baseMs).toFixed(2);
+  resultado.custo8 = +(c.ms / baseMs).toFixed(2);
+  // O veredito: pedaços só servem se o pedágio for pequeno. Acima de ~1,5x
+  // pausar sem matar sai mais caro que a reabertura que ele evita.
+  resultado.ok = resultado.custo16 < 1.5;
+  diz('');
+  diz(`pedágio de picar em 16: ${resultado.custo16}x   em 8: ${resultado.custo8}x`);
+  diz(resultado.ok
+    ? 'VIÁVEL: dá para pausar sem matar o Worker'
+    : 'CARO DEMAIS: emendar reprocessa o prompt; outro desenho é preciso');
+} catch (erro) {
+  diz(`falhou: ${erro?.message ?? erro}`);
+  resultado.erro = String(erro?.message ?? erro);
+}
+globalThis.__resultado = resultado;
+</script>
