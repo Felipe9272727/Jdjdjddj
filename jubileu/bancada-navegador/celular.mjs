@@ -223,6 +223,25 @@ if ((resultado.enviadas ?? 0) < MENSAGENS.length) {
 await new Promise((r) => setTimeout(r, 5000));
 clearInterval(relogio);
 
+// ── O PICO, QUE É O QUE ESQUENTA ──────────────────────────────────────────
+// A média de 806s dilui exatamente o que importa: 1,57 núcleos de 8 pode ser
+// o aparelho tranquilo o tempo todo OU quatro minutos a 6 núcleos com longos
+// silêncios entre eles. O celular não esquenta pela média — esquenta pelo
+// trecho sustentado. As amostras de 1 em 1 segundo já estavam sendo colhidas
+// para a CPU acumulada; faltava derivá-las.
+const deltas = [];
+for (let i = 1; i < resultado.amostras.length; i += 1) {
+  const dt = (resultado.amostras[i].s - resultado.amostras[i - 1].s) || 1;
+  const dcpu = (resultado.amostras[i].cpu - resultado.amostras[i - 1].cpu) / HZ;
+  deltas.push(dcpu / dt);
+}
+/** Média móvel de 10s: um pico de 1s é ruído, 10s sustentados são calor. */
+const janelas = [];
+for (let i = 9; i < deltas.length; i += 1) {
+  janelas.push(deltas.slice(i - 9, i + 1).reduce((x, y) => x + y, 0) / 10);
+}
+const picoSustentado = janelas.length ? Math.max(...janelas) : 0;
+const picoInstantaneo = deltas.length ? Math.max(...deltas) : 0;
 const picoThreads = Math.max(...resultado.amostras.map((a) => a.threads), 0);
 const cpuTotal = resultado.amostras.length
   ? (resultado.amostras.at(-1).cpu - base.jiffies) / HZ
@@ -234,10 +253,12 @@ console.log(`duração ............ ${duracao.toFixed(0)}s`);
 console.log(`threads (pico) ..... ${picoThreads}`);
 console.log(`CPU consumida ...... ${cpuTotal.toFixed(1)}s`);
 console.log(`ocupação média ..... ${(cpuTotal / duracao).toFixed(2)} núcleos de 8`);
+console.log(`PICO sustentado .... ${picoSustentado.toFixed(2)} núcleos de 8  (média móvel de 10s)`);
+console.log(`pico instantâneo ... ${picoInstantaneo.toFixed(2)} núcleos de 8`);
 console.log(`erros de página .... ${erros.length ? erros.slice(0, 3).join(' | ') : 'nenhum'}`);
 globalThis.__saida = { picoThreads, cpuTotal, duracao };
 console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
-console.log(JSON.stringify({ picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), erros: erros.slice(0, 5) }, null, 2));
+console.log(JSON.stringify({ picoSustentado: +picoSustentado.toFixed(2), picoInstantaneo: +picoInstantaneo.toFixed(2), picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), erros: erros.slice(0, 5) }, null, 2));
 
 await navegador.close();
 servidor.close();
