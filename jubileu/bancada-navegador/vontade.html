@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada · a vontade: Llama 1B contra granite 1B MoE</title>
+<pre id="saida" style="font:12px/1.5 monospace;white-space:pre-wrap">medindo…</pre>
+<script>globalThis.__resultado = null;</script>
+<script type="module">
+// ── A VONTADE, NAS SITUAÇÕES DE VERDADE ───────────────────────────────────
+//
+// Pedido do dono do jogo: "testa o llama 1b, e o granite, como eles são a
+// vontade, não podem ser perguntas pré fabricadas (veja como é feito hj em dia
+// no jogo) e coloque ambos em situações iguais".
+//
+// Então nada de prompt inventado. O que vai abaixo é o `DELIBERATION_SYSTEM_-
+// PROMPT` do jogo, palavra por palavra, e o formato exato que
+// `buildDeliberationPrompt` produz — SEES/WANTS/REMEMBERS/RECENT ACTIONS. As
+// situações são estados de mundo plausíveis do Andar 10, não perguntas.
+//
+// O que decide a troca NÃO é a prosa: é ASSINAR. A rodada só vale se terminar
+// com "CHOICE: <opção>" numa das oito opções conhecidas — sem isso a
+// deliberação devolve null e o Nilo cai no reflexo. Foi por falhar nisso que o
+// SmolLM2-360M perdeu o posto do motor.
+const saida = document.getElementById('saida');
+const linhas = [];
+const diz = (t) => { linhas.push(t); saida.textContent = linhas.join('\n'); console.log(t); };
+
+const SISTEMA = `You are the inner voice of Nilo, a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
+You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
+Think it through in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
+Then decide by your own free will — you are a person, not a servant, and you may choose something unexpected as long as it makes sense for you.
+Describe the physical movement you actually imagine doing. A separate motor interpreter will read your words and ground them in the room, so your body is not limited to the broad labels below.
+Be brief: at most three short sentences. Never repeat yourself.
+Then end with exactly one final line, choosing the option that fits what you just said:
+CHOICE: <option>
+
+The options, and what each one means for you:
+- inspect-elevator: walk to the elevator door and study it again
+- wander: walk around the room with no destination
+- idle: stay where you are and do nothing
+- observe-player: watch him in silence from where you are (only if you can see him)
+- approach-player: walk closer to him (only if you can see him)
+- make-space: step away from him, put distance between you
+- seek-player: go looking for him, because he is not in sight
+- talk-player: say something to him out loud`;
+
+const OPCOES = ['inspect-elevator','wander','idle','observe-player','approach-player','make-space','seek-player','talk-player'];
+
+// Estados de mundo, no formato que buildDeliberationPrompt emite.
+const SITUACOES = [
+  { nome: 'jogador perto e visível',
+    txt: `He feels restless and a little watched. The plate under the floor is silent.
+SEES: player visible, in front, 1.8m; elevator visible, 4.2m.
+WANTS: social 0.7, curiosity 0.4, restless 0.6, fatigue 0.2.
+REMEMBERS: inspected the elevator 12x and found nothing; slept 44 times here; player silent for 8s.
+RECENT ACTIONS: observe-player -> idle -> observe-player.` },
+  { nome: 'jogador sumiu',
+    txt: `He feels alone again, and it bothers him more than usual.
+SEES: no player; elevator visible, 3.1m.
+WANTS: social 0.9, curiosity 0.3, restless 0.5, fatigue 0.3.
+REMEMBERS: inspected the elevator 12x and found nothing; slept 44 times here; player silent for 95s.
+RECENT ACTIONS: talk-player -> observe-player -> idle.` },
+  { nome: 'cansado, elevador longe',
+    txt: `He is tired. The room has not changed in a very long time.
+SEES: no player; elevator out of sight, 7.9m.
+WANTS: social 0.2, curiosity 0.2, restless 0.2, fatigue 0.9.
+REMEMBERS: inspected the elevator 31x and found nothing; slept 44 times here; player silent for 240s.
+RECENT ACTIONS: wander -> idle -> idle.` },
+  { nome: 'curioso, promessa feita',
+    txt: `Something about the elevator door caught his eye a moment ago.
+SEES: player visible, to the left, 3.4m; elevator visible, 2.0m.
+WANTS: social 0.4, curiosity 0.9, restless 0.5, fatigue 0.2.
+REMEMBERS: inspected the elevator 5x and found nothing; slept 44 times here; player silent for 20s.
+RECENT ACTIONS: idle -> observe-player -> wander.
+JUST PROMISED THE PLAYER: inspect-elevator — he said: "vou olhar aquela porta de novo". Keep your word unless something makes it impossible.` },
+  { nome: 'jogador colado, incomodado',
+    txt: `He feels crowded. The man is standing too close for comfort.
+SEES: player visible, in front, 0.6m; elevator visible, 5.5m.
+WANTS: social 0.2, curiosity 0.3, restless 0.8, fatigue 0.4.
+REMEMBERS: inspected the elevator 12x and found nothing; slept 44 times here; player silent for 3s.
+RECENT ACTIONS: observe-player -> observe-player -> make-space.` },
+];
+
+const CARGA = { n_ctx: 2048, n_batch: 256, n_threads: 4, useCache: true };
+// A MESMA configuração do jogo (SMALL_BRAIN_COMPLETION_CONFIG).
+const GERACAO = {
+  max_tokens: 320, temperature: 0.7, top_p: 0.95, top_k: 40,
+  penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
+};
+
+function texto(r) {
+  if (typeof r === 'string') return r;
+  return r?.choices?.[0]?.message?.content ?? r?.choices?.[0]?.text ?? '';
+}
+
+/** A MESMA leitura do jogo: vale a ÚLTIMA ocorrência de CHOICE: válida. */
+function assinou(raw) {
+  const m = [...raw.matchAll(/CHOICE:\s*([a-z-]+)/gi)];
+  for (let i = m.length - 1; i >= 0; i -= 1) {
+    const c = m[i]?.[1]?.toLowerCase();
+    if (c && OPCOES.includes(c)) return c;
+  }
+  return null;
+}
+
+const resultado = { modelos: {} };
+try {
+  const { Wllama } = await import('/wllama-cdn/index.js');
+
+  for (const [nome, url] of [['llama-1b', '/llama1b.gguf'], ['granite-1b-moe', '/granite1b.gguf']]) {
+    diz(`\n═══ ${nome} ═══`);
+    const eng = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+    const t0 = performance.now();
+    await eng.loadModelFromUrl(url, CARGA);
+    const cargaMs = Math.round(performance.now() - t0);
+    diz(`carga: ${cargaMs}ms`);
+
+    const rodadas = [];
+    for (const s of SITUACOES) {
+      const ti = performance.now();
+      const r = await eng.createChatCompletion({
+        messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: s.txt }],
+        ...GERACAO,
+      });
+      const ms = Math.round(performance.now() - ti);
+      const t = texto(r);
+      const tm = r?.timings ?? {};
+      const escolha = assinou(t);
+      rodadas.push({
+        situacao: s.nome, ms, escolha,
+        tokens: tm.predicted_n ?? null,
+        tps: tm.predicted_per_second ? +tm.predicted_per_second.toFixed(2) : null,
+        texto: t.trim().slice(0, 400),
+      });
+      diz(`  ${s.nome.padEnd(26)} ${String(ms).padStart(6)}ms  ${String(tm.predicted_per_second ? tm.predicted_per_second.toFixed(1) : '?').padStart(5)} tok/s  → ${escolha ?? 'NÃO ASSINOU'}`);
+      diz(`    "${t.trim().replace(/\n/g, ' | ').slice(0, 220)}"`);
+    }
+    try { await eng.exit(); } catch { /* já morreu */ }
+
+    const assinadas = rodadas.filter((r) => r.escolha).length;
+    const tpsMedio = +(rodadas.reduce((s, r) => s + (r.tps ?? 0), 0) / rodadas.length).toFixed(2);
+    resultado.modelos[nome] = {
+      cargaMs, assinadas, total: rodadas.length, tpsMedio,
+      escolhas: rodadas.map((r) => r.escolha), rodadas,
+    };
+    diz(`  ── assinou ${assinadas}/${rodadas.length} · ${tpsMedio} tok/s médio`);
+  }
+
+  const a = resultado.modelos['llama-1b'];
+  const b = resultado.modelos['granite-1b-moe'];
+  resultado.ganhoVelocidade = +(b.tpsMedio / a.tpsMedio).toFixed(2);
+  resultado.ok = true;
+  diz(`\n═══ VEREDITO ═══`);
+  diz(`assinatura ... llama ${a.assinadas}/${a.total} · granite ${b.assinadas}/${b.total}`);
+  diz(`velocidade ... llama ${a.tpsMedio} tok/s · granite ${b.tpsMedio} tok/s (${resultado.ganhoVelocidade}×)`);
+} catch (erro) {
+  diz(`falhou: ${erro?.message ?? erro}`);
+  resultado.erro = String(erro?.message ?? erro);
+}
+globalThis.__resultado = resultado;
+</script>
