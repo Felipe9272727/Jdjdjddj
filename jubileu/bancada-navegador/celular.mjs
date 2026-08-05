@@ -319,7 +319,17 @@ try {
     // tempo de o Worker morrer, não o WASM que não encolhe — e as duas pedem
     // consertos completamente diferentes.
     await pagina.waitForTimeout(30_000);
-    const tarde = await marco('30s depois');
+    // A CURVA, e não dois pontos. Os 12s do RESPIRO_APOS_DESCARGA_MS foram
+    // INTERPOLADOS entre "4s não bastou" e "30s devolveu dois terços". Um
+    // número escolhido no meio de dois pontos não é um número medido — e hoje
+    // já apresentei três desses como se fossem.
+    for (const s of [4, 8, 12, 20, 30]) {
+      await pagina.waitForTimeout(s === 4 ? 4000 : 4000);
+      const a = arvore(pid);
+      console.log(`  +${String(s).padStart(2)}s ............ anônima ${(a.anonMB / 1024).toFixed(2)} GB`);
+      resultado[`t${s}`] = a.anonMB;
+    }
+    const tarde = arvore(pid);
     resultado.tarde = tarde.anonMB;
     const subiu = dePe.anonMB - antes.anonMB;
     const voltou = dePe.anonMB - depois.anonMB;
