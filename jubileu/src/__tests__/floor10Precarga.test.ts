@@ -303,6 +303,14 @@ describe('esperar não pode virar nunca', () => {
 });
 
 describe('poupar memória: baixar não é o mesmo que manter de pé', () => {
+    // Pela SEGUNDA vez hoje: sem isto, `emCurso` da suíte anterior continua de
+    // pé, `iniciarPrecarga` devolve a promessa VELHA, os passos deste teste
+    // nunca rodam — e a falha parece ser do conserto, não do arranjo.
+    beforeEach(() => {
+        ordem.length = 0;
+        resetPrecargaForTests();
+    });
+
     // Medido nesta caixa, três modelos, reta com erro < 30 MB em 5 GB:
     //     RSS = 2,00 × (GB de modelo) + 1,49 GB
     // Os cinco residentes dão 9,59 GB; fala + memória dão 5,68 GB. O Chrome do
@@ -327,10 +335,36 @@ describe('poupar memória: baixar não é o mesmo que manter de pé', () => {
             liberarMotor: async () => { liberados.push('motor'); },
         }));
         delete (globalThis as Record<string, unknown>).__f10TetoEsperaMs;
-        // Sem a flag na URL do teste, nada é liberado — é o padrão.
+        // Sem a flag, nada é liberado — é o padrão.
         expect(liberados).toEqual([]);
         // E a fila termina inteira de qualquer forma: liberar não é falhar.
         expect(ordem).toContain('fim:motor');
+    });
+
+    it('COM a flag, os dois pesados são liberados — e a fila termina inteira', async () => {
+        // O caso positivo. Sem ele eu teria provado só que o padrão não mudou,
+        // que é o teste que nunca falha e nunca prova nada.
+        (globalThis as Record<string, unknown>).__f10TetoEsperaMs = 50;
+        (globalThis as Record<string, unknown>).__f10PoupaMemoria = true;
+        const liberados: string[] = [];
+        npcSet({ open: false, phase: 'ready' });
+        await iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: carregador('vontade'),
+            motor: carregador('motor'),
+            memoria: carregador('memoria'),
+            liberarVontade: async () => { liberados.push('vontade'); },
+            liberarMotor: async () => { liberados.push('motor'); },
+        }));
+        delete (globalThis as Record<string, unknown>).__f10TetoEsperaMs;
+        delete (globalThis as Record<string, unknown>).__f10PoupaMemoria;
+        expect(liberados).toEqual(['vontade', 'motor']);
+        // Liberar acontece DEPOIS de concluir: baixou de verdade, e a barra
+        // não pode voltar atrás por causa de uma economia de memória.
+        expect(ordem).toContain('fim:vontade');
+        expect(ordem).toContain('fim:motor');
+        // A fila chegou ao fim: 'pronto' é o estado final da pré-carga.
+        expect(precargaCompleta()).toBe(true);
     });
 
     it('a fala e a memória NUNCA são liberadas — são as duas da mente', () => {

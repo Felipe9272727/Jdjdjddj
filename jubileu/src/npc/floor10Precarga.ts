@@ -178,8 +178,13 @@ export function precargaCompleta(): boolean { return etapa === 'pronto'; }
  * equilíbrio depende do aparelho. `?poupamemoria` deixa medir os dois lados
  * em vez de eu escolher por palpite.
  */
-export function pouparMemoriaLigado(busca = globalThis.location?.search ?? ''): boolean {
-    return /[?&]poupamemoria\b/i.test(busca);
+export function pouparMemoriaLigado(busca?: string): boolean {
+    // Override para teste, no mesmo padrão de `__f10TetoEsperaMs`: sem ele o
+    // caso POSITIVO ficaria sem cobertura, e testar só o negativo é
+    // exatamente como as conclusões que caíram hoje.
+    const forcado = (globalThis as { __f10PoupaMemoria?: boolean }).__f10PoupaMemoria;
+    if (busca === undefined && typeof forcado === 'boolean') return forcado;
+    return /[?&]poupamemoria\b/i.test(busca ?? globalThis.location?.search ?? '');
 }
 
 type Passo = {
