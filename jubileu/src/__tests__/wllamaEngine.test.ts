@@ -643,6 +643,11 @@ describe('o reflexo não pode gerar junto com a fala', () => {
             'utf8',
         );
         expect(fonte).toContain('numThreads = REFLEXO_THREADS');
+        // UMA thread não basta: com numThreads 1 o onnxruntime-web usa a build
+        // single-thread, que roda na thread principal. Medido no emulador, um
+        // buraco de 6.016ms entre dois quadros. `proxy` move para um Worker sem
+        // mexer no orçamento de CPU.
+        expect(fonte).toContain('.proxy = true');
     });
 });
 

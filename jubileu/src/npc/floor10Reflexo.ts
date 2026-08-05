@@ -173,8 +173,31 @@ async function carregar(): Promise<Gerador | null> {
             const onnx = (backends as { onnx?: Record<string, unknown> }).onnx ??= {};
             const wasm = (onnx as { wasm?: Record<string, unknown> }).wasm ??= {};
             (wasm as { numThreads?: number }).numThreads = REFLEXO_THREADS;
-            // `proxy` tiraria o ONNX da thread principal, mas ele já roda pouco
-            // e o proxy custa outra cópia dos pesos na memória do aparelho.
+            // ── E `proxy` PRECISOU SER LIGADO ─────────────────────────────
+            //
+            // Aqui estava escrito: "`proxy` tiraria o ONNX da thread principal,
+            // mas ele já roda pouco e o proxy custa outra cópia dos pesos". A
+            // primeira metade é verdade; a segunda era palpite meu, e errado.
+            //
+            // Com `numThreads: 1` o onnxruntime-web usa a build SINGLE-THREAD,
+            // que roda na thread que chamou — a principal. Somado ao `await`
+            // que eu mesmo pus antes da fala, o jogo congela enquanto o reflexo
+            // escreve.
+            //
+            // MEDIDO no celular emulado, quatro mensagens, quadro a quadro:
+            //
+            //     61 buracos acima de 100ms · o pior deles 6.016 ms
+            //     buracos >= 3s: 1
+            //     veredito: THREAD PRINCIPAL BLOQUEADA
+            //
+            // Um buraco só, enorme, é assinatura de trabalho síncrono — e não
+            // de disputa de núcleo, que daria muitos buracos médios. Bate com o
+            // relato: "ao enviar, trava uns 10s e volta".
+            //
+            // `proxy: true` põe o ONNX num Worker. Continua com UMA thread — o
+            // orçamento de CPU não muda; o que muda é que ele para de segurar a
+            // thread que desenha o jogo.
+            (wasm as { proxy?: boolean }).proxy = true;
         } catch { /* build do transformers.js sem env: segue com o padrão */ }
         const criado = await mod.pipeline('text-generation', FLOOR10_REFLEXO_MODEL.repo, {
             dtype: FLOOR10_REFLEXO_MODEL.dtype,
