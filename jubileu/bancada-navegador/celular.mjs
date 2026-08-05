@@ -75,7 +75,17 @@ function amostraDoProcesso(pid) {
     const utime = Number(campos[11]);
     const stime = Number(campos[12]);
     const threads = Number(campos[17]);
-    return { jiffies: utime + stime, threads };
+    // ── E A MEMÓRIA, QUE EU NUNCA TINHA MEDIDO ────────────────────────────
+    // Celular não desliga só por calor: desliga por falta de memória, e aí o
+    // sistema mata a aba ou reinicia. São CINCO runtimes e 4,35 GB de pesos
+    // num aparelho de 12 GB — vetor de crash tão real quanto a CPU, e eu passei
+    // o dia inteiro medindo só núcleos.
+    // rss é o campo 24 do /proc/pid/stat, em páginas de 4 KB. `campos` começa
+    // no campo 3 (state), então 24 -> índice 21. Na primeira versão usei 23,
+    // que é `rsslim` — "ilimitado" — e a medição devolveu 2.530.106.750 GB.
+    // Número absurdo é fácil de pegar; o perigoso teria sido um plausível.
+    const rssMB = Math.round((Number(campos[21]) * 4096) / 1048576);
+    return { jiffies: utime + stime, threads, rssMB };
   } catch { return null; }
 }
 
@@ -85,6 +95,7 @@ function arvore(pidRaiz) {
   const fila = [pidRaiz];
   let jiffies = 0;
   let threads = 0;
+  let rssMB = 0;
   while (fila.length) {
     const pid = fila.pop();
     if (vistos.has(pid)) continue;
@@ -93,12 +104,13 @@ function arvore(pidRaiz) {
     if (!a) continue;
     jiffies += a.jiffies;
     threads += a.threads;
+    rssMB += a.rssMB;
     try {
       const filhos = fs.readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf8').trim();
       if (filhos) for (const f of filhos.split(/\s+/)) fila.push(Number(f));
     } catch { /* processo já saiu */ }
   }
-  return { jiffies, threads, processos: vistos.size };
+  return { jiffies, threads, rssMB, processos: vistos.size };
 }
 
 const navegador = await chromium.launch({
@@ -210,6 +222,7 @@ const relogio = setInterval(() => {
   resultado.amostras.push({
     s: +((Date.now() - t0) / 1000).toFixed(1),
     threads: a.threads,
+    rssMB: a.rssMB,
     cpu: a.jiffies,
   });
   // ── VIGIAR, NÃO ESPIAR UMA VEZ ────────────────────────────────────────
@@ -372,10 +385,12 @@ console.log(`CPU consumida ...... ${cpuTotal.toFixed(1)}s`);
 console.log(`ocupação média ..... ${(cpuTotal / duracao).toFixed(2)} núcleos de 8`);
 console.log(`PICO sustentado .... ${picoSustentado.toFixed(2)} núcleos de 8  (média móvel de 10s)`);
 console.log(`pico instantâneo ... ${picoInstantaneo.toFixed(2)} núcleos de 8`);
+const picoRSS = Math.max(...resultado.amostras.map((a) => a.rssMB ?? 0), 0);
+console.log(`MEMÓRIA (pico) ..... ${(picoRSS / 1024).toFixed(2)} GB de RSS somado`);
 console.log(`erros de página .... ${erros.length ? erros.slice(0, 3).join(' | ') : 'nenhum'}`);
 globalThis.__saida = { picoThreads, cpuTotal, duracao };
 console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
-console.log(JSON.stringify({ picoSustentado: +picoSustentado.toFixed(2), picoInstantaneo: +picoInstantaneo.toFixed(2), picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), quadros: resultado.quadros ?? null, erros: erros.slice(0, 5) }, null, 2));
+console.log(JSON.stringify({ picoSustentado: +picoSustentado.toFixed(2), picoInstantaneo: +picoInstantaneo.toFixed(2), picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), quadros: resultado.quadros ?? null, picoRSS_GB: +(picoRSS / 1024).toFixed(2), erros: erros.slice(0, 5) }, null, 2));
 
 await navegador.close();
 servidor.close();
