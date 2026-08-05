@@ -128,25 +128,23 @@ export async function setSmallBrain(id: SmallBrainId): Promise<void> {
 }
 
 /**
- * DUAS, e o número é do dono do jogo, não meu.
+ * ── E VOLTOU A SER O TETO DA FALA ─────────────────────────────────────────
  *
- * Estava 8 — que virava 4 pelo `cpuThreadCount`, o MESMO orçamento da fala. Ele
- * descreveu a arquitetura que queria assim:
+ * Cortei para 2 lendo ao pé da letra o "2 pra vontade" que ele tinha dito, e
+ * ele corrigiu na hora: "a vontade tem que ser mais RÁPIDA que a mente". Faz
+ * sentido — ela roda quando o jogador NÃO está no chat, ou seja, sozinha no
+ * aparelho. Dar metade dos núcleos a quem tem a máquina inteira à disposição é
+ * desperdício, e foi exatamente esse o erro que eu já tinha consertado antes e
+ * refiz ao contrário.
  *
- *   "2 ias pra mente sendo o smol e o embedding, e as outras 2 pra vontade
- *    (llama 1b e o motor)"
+ * O "2 pra vontade" dele descrevia QUANTOS MODELOS ficam de pé por vez (llama
+ * 1b + motor), não quantas threads. Eu confundi as duas coisas.
  *
- * O pipeline da vontade inteiro devia caber em ~2. O motor já estava em 2; a
- * vontade sozinha levava 4, e é ela que faz o aparelho travar QUANDO BAIXA —
- * porque no fim do download vem um llama.cpp inteiro subindo, com pool próprio,
- * enquanto o jogador está no chat lendo a resposta anterior.
- *
- * O que se perde: a deliberação fica mais lenta. Ela acontece em segundo plano,
- * o jogador não espera por ela, e nenhum pensamento dela chega à tela sem
- * passar pelo motor antes. O que se ganha: metade dos núcleos de volta,
- * exatamente na janela em que ele está usando o jogo.
+ * A trava que ele relatou ao baixar a vontade tem outra causa e outro conserto:
+ * ela não devia estar SUBINDO enquanto ele usa o chat. Isso é roteamento, não
+ * orçamento de thread.
  */
-export const SMALL_BRAIN_THREADS = 2;
+export const SMALL_BRAIN_THREADS = 8;
 
 export function smallBrainThreads(): number {
     return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));

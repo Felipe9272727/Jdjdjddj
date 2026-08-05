@@ -61,14 +61,12 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.id).toBe(antes);
     });
 
-    it('a vontade cabe em DUAS threads — o desenho que o dono do jogo pediu', () => {
-        // Estava 8 (virava 4 no aparelho dele, o mesmo da fala). Ele descreveu:
-        // "2 ias pra mente sendo o smol e o embedding, e as outras 2 pra
-        // vontade (llama 1b e o motor)". O relato que motivou a correção:
-        // "quando começa a baixar [a vontade], começa a travar meu celular
-        // todo" — no fim do download vem um llama.cpp inteiro subindo.
-        expect(SMALL_BRAIN_THREADS).toBe(2);
-        // Continua sendo TETO: quem tem menos núcleos usa o que tem.
+    it('a vontade usa o teto da fala: ela roda SOZINHA', () => {
+        // Cortei para 2 e o dono do jogo corrigiu: "a vontade tem que ser mais
+        // RÁPIDA que a mente". Ela pensa quando o jogador não está no chat —
+        // sozinha no aparelho. O "2 pra vontade" dele contava MODELOS de pé
+        // (llama 1b + motor), não threads; eu confundi as duas coisas.
+        expect(SMALL_BRAIN_THREADS).toBe(8);
         expect(smallBrainThreads()).toBeLessThanOrEqual(SMALL_BRAIN_THREADS);
         expect(smallBrainThreads()).toBeGreaterThanOrEqual(1);
     });
