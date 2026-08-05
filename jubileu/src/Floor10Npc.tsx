@@ -14,7 +14,9 @@ import {
     speedForWillGoal,
     stepFloor10Movement,
 } from './npc/floor10Will';
-import { deliberateFloor10, deliberationYieldedTurn } from './npc/floor10SmallBrain';
+import {
+    deliberateFloor10, deliberationYieldedTurn, vontadeRuntimeAberto,
+} from './npc/floor10SmallBrain';
 import { describeMood, readClock } from './npc/floor10Drives';
 import { describePrison, f10prison, prisonReward, prisonTick } from './npc/f10Prison';
 import { initLLM } from './npc/wllamaEngine';
@@ -22,7 +24,7 @@ import { Cadencia, CADENCIA_PERCEPCAO, CADENCIA_VONTADE } from './npc/floor10Cad
 import { yawDaVarredura } from './npc/floor10Olhar';
 import {
     deliberationRetryDelay,
-    REARME_APOS_FALA_SEG,
+    rearmeAposFala,
     type Floor10Deliberation,
 } from './npc/floor10Deliberation';
 
@@ -154,9 +156,14 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // fracasso, e o castigo exponencial não pode sobreviver à conversa.
             const falaOcupa = npc.phase === 'thinking' || npc.phase === 'loading';
             if (falaOcupando.current && !falaOcupa) {
+                // O PREÇO DEPENDE DE O RUNTIME AINDA ESTAR ABERTO. Se a fala
+                // encerrou o Worker da vontade, voltar custa reabrir 1,32 GB —
+                // e cobrar isso 6s depois de CADA resposta era o que fazia o
+                // celular do dono do jogo quase reiniciar. Ver
+                // floor10Deliberation.rearmeAposFala.
                 nextDeliberationAt.current = Math.min(
                     nextDeliberationAt.current,
-                    t + REARME_APOS_FALA_SEG,
+                    t + rearmeAposFala(vontadeRuntimeAberto()),
                 );
                 deliberationFailures.current = 0;
             }

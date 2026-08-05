@@ -347,5 +347,50 @@ export function deliberationRetryDelay(consecutiveFailures: number): number {
  * cada conversa, e quem estava jogando concluía (com razão) que ele tinha
  * parado de pensar. Seis segundos é o bastante para a fala terminar de assentar
  * e curto o suficiente para o retorno ser visível.
+ *
+ * ISSO VALE SÓ QUANDO O RUNTIME CONTINUA ABERTO. Ver abaixo.
  */
 export const REARME_APOS_FALA_SEG = 6;
+
+/**
+ * ── O PREÇO QUE ESTES 6 SEGUNDOS ESCONDIAM ────────────────────────────────
+ *
+ * "meu celular quase reinicia de tanto lag". Fui atrás comparando o código de
+ * antes do N-grama com o de agora, e o defeito é meu, de duas mudanças que se
+ * combinaram:
+ *
+ *   1. a pausa da vontade passou a valer em TODA fala (antes valia uma vez só);
+ *   2. pausar ENCERRA o Worker — os pesos ficam, o runtime não.
+ *
+ * Junte com o rearme de 6s e o celular passa a viver assim:
+ *
+ *   jogador manda mensagem  → vontade morre no meio do pensamento
+ *   fala responde (30–60s no aparelho dele)
+ *   +6s                     → vontade REABRE 1,32 GB do OPFS para o WASM
+ *   pensa um pouco
+ *   jogador manda a próxima → morre de novo
+ *
+ * Ou seja: UMA INICIALIZAÇÃO COMPLETA DE MODELO ENTRE CADA DUAS MENSAGENS.
+ * Medido nesta caixa (modelo de 1,92 GB já em cache): 7,5–8,2 s de CPU cheia
+ * por reabertura. Num celular, vários múltiplos disso — e é justamente o perfil
+ * de "quase reiniciar": todos os núcleos a 100% alocando 1,3 GB, repetidamente.
+ *
+ * Eu tinha escrito no código, em letra de forma, que "pausar aqui não custa
+ * nada à vontade". Custa. Custa a coisa mais cara do andar inteiro.
+ *
+ * O CONSERTO: se o runtime ainda está aberto, 6s continuam certos — não há
+ * preço a pagar. Se ele foi encerrado, a volta só acontece quando a conversa
+ * realmente esfriar. Numa conversa em andamento a vontade fica parada, que é
+ * exatamente a arquitetura que o dono do jogo descreveu: quando a mente
+ * trabalha, as outras ficam paradas.
+ */
+export const REARME_COM_REABERTURA_SEG = 45;
+
+/**
+ * Quanto esperar antes de deixar a vontade voltar, depois de a fala terminar.
+ * Pura de propósito: é a regra que decide se o celular paga uma reabertura de
+ * 1,32 GB entre duas mensagens ou não.
+ */
+export function rearmeAposFala(runtimeAberto: boolean): number {
+    return runtimeAberto ? REARME_APOS_FALA_SEG : REARME_COM_REABERTURA_SEG;
+}

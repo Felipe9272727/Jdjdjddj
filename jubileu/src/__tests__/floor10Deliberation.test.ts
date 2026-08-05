@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+    REARME_APOS_FALA_SEG,
+    REARME_COM_REABERTURA_SEG,
+    rearmeAposFala,
     DELIBERATION_GOALS,
     DELIBERATION_GRAMMAR,
     DELIBERATION_SYSTEM_PROMPT,
@@ -201,5 +204,28 @@ I must choose from the given options: ${DELIBERATION_GOALS.join(', ')}.`;
         expect(parseDeliberation(eco)).toBeNull();
         // Com a assinatura da segunda passada anexada, aí sim decide.
         expect(parseDeliberation(`${eco}\nCHOICE: idle`)?.goal).toBe('idle');
+    });
+});
+
+describe('o rearme depois da fala paga (ou não) uma reabertura de 1,32 GB', () => {
+    // O DEFEITO QUE ISTO IMPEDE: "meu celular quase reinicia de tanto lag".
+    // A pausa da vontade passou a valer em toda fala, e pausar ENCERRA o
+    // Worker. Com rearme fixo de 6s, o aparelho pagava uma inicialização
+    // completa de modelo ENTRE CADA DUAS MENSAGENS — medido nesta caixa,
+    // 7,5-8,2s de CPU cheia por reabertura, e num celular vários múltiplos.
+    it('runtime aberto: volta rápido, porque não há preço a pagar', () => {
+        expect(rearmeAposFala(true)).toBe(REARME_APOS_FALA_SEG);
+        expect(rearmeAposFala(true)).toBeLessThanOrEqual(6);
+    });
+
+    it('runtime encerrado: só volta quando a conversa esfriar', () => {
+        expect(rearmeAposFala(false)).toBe(REARME_COM_REABERTURA_SEG);
+        // Tem de ser folgado o bastante para uma conversa em andamento não
+        // disparar reabertura nenhuma entre uma mensagem e outra.
+        expect(rearmeAposFala(false)).toBeGreaterThanOrEqual(30);
+    });
+
+    it('reabrir é sempre mais caro que continuar aberto', () => {
+        expect(rearmeAposFala(false)).toBeGreaterThan(rearmeAposFala(true));
     });
 });

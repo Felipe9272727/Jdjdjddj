@@ -858,6 +858,23 @@ export function vontadeJaCarregada(): boolean {
     return enginePromise !== null || pesosNoAparelho;
 }
 
+/**
+ * O RUNTIME ESTÁ ABERTO AGORA? — pergunta diferente de `vontadeJaCarregada`, e
+ * a diferença custou o aparelho do dono do jogo quase reiniciando.
+ *
+ * `vontadeJaCarregada` responde "os pesos estão no celular", que continua
+ * verdadeiro depois de uma pausa. Mas a pausa ENCERRA o Worker, e voltar a
+ * pensar exige reabrir: ler 1,32 GB do OPFS para dentro do WASM, alocar tudo
+ * de novo e subir o pool de threads. Medido nesta caixa, com o modelo de
+ * 1,92 GB já em cache, isso custa 7,5–8,2 s de CPU cheia; num celular é vários
+ * múltiplos disso.
+ *
+ * Quem decide QUANDO voltar precisa saber se vai pagar esse preço ou não.
+ */
+export function vontadeRuntimeAberto(): boolean {
+    return enginePromise !== null;
+}
+
 export async function deliberateFloor10(
     input: DeliberateInput,
 ): Promise<Floor10Deliberation | null> {
