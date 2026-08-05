@@ -278,7 +278,16 @@ try {
       if (!m) return 'sem __f10mente';
       try { await m.initLLM(); } catch (e) { return 'fala falhou: ' + e.message; }
       const v = await m.precarregarVontade();
-      if (v !== true) return 'vontade devolveu ' + JSON.stringify(v);
+      // A RAZÃO DA RECUSA JÁ É PUBLICADA. `precarregarVontade` devolve só um
+      // booleano, mas quem recusou escreveu o motivo na tela antes de sair —
+      // "não cabe: ...", "cache incompleto", "a fala vem primeiro: ...".
+      // Perguntar "por quê" custa uma linha e evita a próxima rodada às cegas.
+      if (v !== true) {
+        const st = globalThis.__npcEstado ?? m.npc ?? {};
+        return 'vontade devolveu ' + JSON.stringify(v)
+          + ' · fase=' + st.deliberationPhase
+          + ' · motivo="' + String(st.deliberationLoadText ?? '').slice(0, 160) + '"';
+      }
       return 'ok · fala + vontade de pé';
     }).catch((e) => String(e.message).slice(0, 160));
     console.log(`  resultado: ${ok}`);
