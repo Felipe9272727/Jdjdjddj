@@ -30,7 +30,8 @@ import {
     FLOOR10_MOTOR_SIZE_LABEL,
 } from './npc/floor10MotorBrain';
 import {
-    cpuThreadCount, initLLM, sendToNpc, prepareFloor10SystemPrompt,
+    cpuThreadCount, initLLM, sendToNpc, unloadConversationBrain,
+    prepareFloor10SystemPrompt,
 } from './npc/wllamaEngine';
 import {
     FLOOR10_CANON, buildFloor10SystemPrompt, retrieveFloor10Canon,
@@ -473,7 +474,7 @@ const Mente: React.FC = () => {
     // O caminho do JOGO (não o observado): é ele que a sonda do pensamento
     // ao vivo precisa medir.
     deliberateFloor10, precarregarVontade, smallBrainThreads,
-    initLLM, sendToNpc, prepareFloor10SystemPrompt,
+    initLLM, sendToNpc, unloadConversationBrain, prepareFloor10SystemPrompt,
     buildFloor10SystemPrompt, retrieveFloor10Canon, FLOOR10_CANON,
     memoria,
 };

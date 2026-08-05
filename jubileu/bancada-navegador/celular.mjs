@@ -284,7 +284,40 @@ try {
   // SOMA. Assumir foi o que me obrigou a desdizer uma conclusão hoje. A página
   // ?mente publica __f10mente com initLLM e precarregarVontade: dá para ter a
   // FALA e a VONTADE de pé na mesma sessão e medir de verdade.
-  if (process.env.DOIS_MODELOS === '1') {
+  if (process.env.DESCARGA === '1') {
+    // ── DESCARREGAR DEVOLVE A MEMÓRIA? ────────────────────────────────────
+    // A arquitetura inteira assume que sim: fechar o chat descarrega a mente
+    // para a vontade caber. Se o RSS não cair, nada disso adianta e o desenho
+    // precisa mudar. Mede três marcos: antes, com o modelo de pé, e depois de
+    // descarregar.
+    const marco = async (nome) => {
+      await pagina.waitForTimeout(4000);
+      const a = arvore(pid);
+      console.log(`  ${nome.padEnd(14)} RSS ${(a.rssMB / 1024).toFixed(2)} GB · anônima ${(a.anonMB / 1024).toFixed(2)} GB`);
+      return a;
+    };
+    const antes = await marco('antes');
+    const r = await pagina.evaluate(async () => {
+      const m = globalThis.__f10mente;
+      if (!m?.initLLM) return 'sem __f10mente';
+      await m.initLLM();
+      return 'fala de pé';
+    });
+    console.log(`  resultado: ${r}`);
+    const dePe = await marco('com a fala');
+    await pagina.evaluate(async () => {
+      await globalThis.__f10mente?.unloadConversationBrain?.();
+    });
+    const depois = await marco('descarregada');
+    const subiu = dePe.anonMB - antes.anonMB;
+    const voltou = dePe.anonMB - depois.anonMB;
+    console.log(`\n  subiu ao carregar .... ${(subiu / 1024).toFixed(2)} GB anônimos`);
+    console.log(`  voltou ao descarregar  ${(voltou / 1024).toFixed(2)} GB`);
+    console.log(`  devolveu ............. ${subiu > 0 ? Math.round((voltou / subiu) * 100) : 0}%`);
+    resultado.descarga = { subiu, voltou };
+    resultado.falouAlgumaCoisa = true;
+    resultado.enviadas = MENSAGENS.length;
+  } else if (process.env.DOIS_MODELOS === '1') {
     console.log('DOIS_MODELOS=1 — carregando fala e vontade pela ?mente');
     // EXIGIR PROVA, não só que a promessa resolveu. `precarregarVontade`
     // devolve `false` quando falha, e `await false` é tão silencioso quanto
