@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { chromium } from 'playwright';
 
 const URL_BASE = process.argv[2] ?? 'http://127.0.0.1:8710/ngram.html';
@@ -6,7 +8,30 @@ const LIMITE_MS = Number(process.argv[3] ?? 600_000);
 // Em máquina com o Chromium do Playwright instalado normalmente, deixe vazio.
 // Em ambiente com o binário fora do lugar (como o container onde isto nasceu),
 // aponte CHROMIUM_BIN para o executável.
-const executablePath = process.env.CHROMIUM_BIN || undefined;
+//
+// ── E ELE PROCURA SOZINHO ────────────────────────────────────────────────
+// O container troca a versão do Chromium entre sessões (era o 1223, virou o
+// 1194) e o playwright morre pedindo `npx playwright install` — que aqui não
+// resolve, porque o binário existe, só está com outro número. Uma medição
+// perdida por isso é uma medição perdida à toa.
+function acharChromium() {
+    if (process.env.CHROMIUM_BIN) return process.env.CHROMIUM_BIN;
+    const raiz = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
+    let pastas = [];
+    try { pastas = fs.readdirSync(raiz); } catch { return undefined; }
+    const candidatos = pastas
+        .filter((p) => p.startsWith('chromium'))
+        // headless_shell por último: ele não abre o mesmo runtime gráfico.
+        .sort((a, b) => Number(a.includes('headless')) - Number(b.includes('headless')));
+    for (const pasta of candidatos) {
+        for (const rel of ['chrome-linux/chrome', 'chrome-headless-shell-linux64/chrome-headless-shell']) {
+            const alvo = path.join(raiz, pasta, rel);
+            if (fs.existsSync(alvo)) return alvo;
+        }
+    }
+    return undefined;
+}
+const executablePath = acharChromium();
 
 const navegador = await chromium.launch({
   ...(executablePath ? { executablePath } : {}),

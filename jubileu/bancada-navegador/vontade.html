@@ -115,7 +115,21 @@ const resultado = { modelos: {} };
 try {
   const { Wllama } = await import('/wllama-cdn/index.js');
 
-  for (const [nome, url] of [['llama-1b', '/llama1b.gguf'], ['granite-1b-moe', '/granite1b.gguf']]) {
+  // ── QUEM ENTRA NA BANCADA VEM DA URL ──────────────────────────────────
+  // `?modelos=llama-1b:/llama1b.gguf,lfm2-1.2b:/lfm2-1b.gguf`. O padrão é o
+  // par que originou este arquivo. Sem isto, cada candidato novo pedia uma
+  // edição no HTML — e editar o instrumento entre medições é como se compara
+  // duas coisas que nunca estiveram nas mesmas condições.
+  const PADRAO = 'llama-1b:/llama1b.gguf,granite-1b-moe:/granite1b.gguf';
+  const CANDIDATOS = (new URLSearchParams(location.search).get('modelos') ?? PADRAO)
+    .split(',')
+    .map((par) => {
+      const corte = par.lastIndexOf(':');
+      return [par.slice(0, corte), par.slice(corte + 1)];
+    });
+  const ORDEM = [];
+
+  for (const [nome, url] of CANDIDATOS) {
     diz(`\n═══ ${nome} (resgate: ${MODO_RESGATE}) ═══`);
     const eng = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
     const t0 = performance.now();
@@ -197,16 +211,20 @@ try {
       total: rodadas.length, tpsMedio,
       escolhas: rodadas.map((r) => r.escolha), rodadas,
     };
+    ORDEM.push(nome);
     diz(`  ── assinou ${assinadas}/${rodadas.length} (${naPrimeira} na 1a, ${resgatadas} por resgate) · ${tpsMedio} tok/s · resgate custou ${custoResgate}ms`);
   }
 
-  const a = resultado.modelos['llama-1b'];
-  const b = resultado.modelos['granite-1b-moe'];
-  resultado.ganhoVelocidade = +(b.tpsMedio / a.tpsMedio).toFixed(2);
+  // O primeiro da lista é o TITULAR: todo ganho é relativo a quem está no jogo.
+  const base = resultado.modelos[ORDEM[0]];
+  resultado.titular = ORDEM[0];
   resultado.ok = true;
   diz(`\n═══ VEREDITO ═══`);
-  diz(`assinatura ... llama ${a.assinadas}/${a.total} · granite ${b.assinadas}/${b.total}`);
-  diz(`velocidade ... llama ${a.tpsMedio} tok/s · granite ${b.tpsMedio} tok/s (${resultado.ganhoVelocidade}×)`);
+  for (const nome of ORDEM) {
+    const m = resultado.modelos[nome];
+    m.ganhoVelocidade = +(m.tpsMedio / base.tpsMedio).toFixed(2);
+    diz(`${nome.padEnd(18)} ${m.assinadas}/${m.total} assinadas · ${String(m.tpsMedio).padStart(6)} tok/s (${m.ganhoVelocidade}× do titular) · carga ${m.cargaMs}ms`);
+  }
 } catch (erro) {
   diz(`falhou: ${erro?.message ?? erro}`);
   resultado.erro = String(erro?.message ?? erro);
