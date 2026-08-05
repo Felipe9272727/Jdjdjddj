@@ -113,7 +113,10 @@ pagina.on('console', (m) => {
 });
 
 console.log('abrindo o jogo…');
-await pagina.goto(`http://127.0.0.1:${PORTA}/?fresh=1`, { waitUntil: 'load', timeout: 180_000 });
+// `?bancada` é a rota que o projeto criou justamente para alcançar o Nilo sem
+// atravessar o jogo — o chat do 10º sem precisar andar do saguão até lá.
+const ROTA = process.env.ROTA ?? '?bancada&fresh=1';
+await pagina.goto(`http://127.0.0.1:${PORTA}/${ROTA}`, { waitUntil: 'load', timeout: 180_000 });
 
 const base = arvore(pid);
 console.log(`processos=${base.processos} threads=${base.threads}`);
@@ -151,6 +154,18 @@ try {
   }
 } catch (e) {
   resultado.roteiroFalhou = String(e.message).slice(0, 200);
+}
+
+// ── UM ROTEIRO QUE NÃO RODOU NÃO PODE PARECER SUCESSO ────────────────────
+// Duas execuções mediram "1,02 núcleos de 8" e eu quase apresentei isso como
+// prova de que o aparelho aguenta. Era o jogo PARADO: na primeira o roteiro
+// morreu em globais que não existem, na segunda o campo do chat nunca
+// apareceu — o jogo abre no saguão do andar 3, e o Nilo está no 10º. Medição
+// sem roteiro é medição de tela inicial, e agora ela se denuncia.
+if ((resultado.enviadas ?? 0) < MENSAGENS.length) {
+  console.log(`\n!! O ROTEIRO NÃO RODOU: ${resultado.enviadas ?? 0} de ${MENSAGENS.length} mensagens`);
+  console.log(`!! motivo: ${resultado.roteiroFalhou ?? 'campo do chat nunca apareceu'}`);
+  console.log('!! os números abaixo são do jogo PARADO e não provam nada.');
 }
 
 await new Promise((r) => setTimeout(r, 5000));
