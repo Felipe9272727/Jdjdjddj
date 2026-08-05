@@ -27,6 +27,7 @@ import { resumoDosEngasgos } from './floor10Engasgo';
 // o resumo de lá. O ciclo já existia com o engasgo e funciona porque nenhum dos
 // dois lados usa o outro em tempo de MÓDULO — só dentro de funções.
 import { resumoDeMemoria } from './floor10Memoriametro';
+import { resumoDoRuntime } from './floor10Runtime';
 
 export const CAIXA_PRETA_TETO = 200;
 
@@ -114,6 +115,13 @@ export function relatorioCaixaPreta(contexto: ContextoCaixaPreta = {}): string {
         `build: ${contexto.build ?? '?'}`,
         `aparelho: ${contexto.aparelho ?? '?'}`,
         `núcleos: ${contexto.nucleos ?? '?'} · isolado: ${contexto.isolado ?? '?'}`,
+        // ── QUAL BINÁRIO, ANTES DE QUALQUER MEDIÇÃO ───────────────────────
+        // O wllama tem dois, e quem escolhe é o navegador: sem JSPI ou sem
+        // memory64 ele busca o pacote compat no CDN, que é outro binário com
+        // outro desempenho. Dez execuções minhas mediram só o padrão. Se o
+        // aparelho dele roda o compat, nada do que eu medi vale para ele — e
+        // esta linha é o que responde isso em um segundo.
+        resumoDoRuntime(),
         `armazenamento: ${contexto.usoGB ?? '?'} GB usados de ${contexto.cotaGB ?? '?'} GB`
         + ` · persistido: ${contexto.persistido ?? '?'}`,
         `eventos: ${eventos.length}${eventos.length >= CAIXA_PRETA_TETO ? ' (buffer cheio, só o fim)' : ''}`,
