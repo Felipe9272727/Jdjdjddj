@@ -449,3 +449,59 @@ mesmo do roteamento deste andar. O que não dá para trazer:
 
 A granularidade que funciona no browser é a de CÉREBRO, não a de camada, e é a
 que o `floor10Roteamento` implementa: só quem vai trabalhar agora fica na RAM.
+
+## A ESCADA DO LFM2.5: onde o tamanho compra julgamento, e onde para de comprar
+
+Três tamanhos da MESMA família, mesmas 5 situações, mesmo prompt do jogo:
+
+```
+                  arquivo   assina 1ª   tok/s   ms/rodada   RSS previsto (2x)
+LFM2.5-350M Q8     379 MB      5/5       17,6     12.965        0,76 GB
+LFM2.5-1.2B Q8    1,25 GB      5/5        5,9     43.957        2,49 GB
+LFM2.5-2.6B Q4    1,67 GB      0/5        3,65   160.039        3,34 GB
+```
+
+### O 350M separou duas coisas que eu tratava como uma
+
+Ele assina 5/5 — formato perfeito — e escolhe `observe-player` em 4 das 5:
+
+```
+jogador sumiu               → observe-player   (observar o quê?)
+curioso, promessa feita     → observe-player   (devia inspecionar o elevador)
+jogador colado, incomodado  → observe-player   (irritado, colado, e ele olha)
+```
+
+Mesmo colapso do granite-a400m e do Huihui-MoE. **Assinar o formato não é
+escolher bem**: a instrução ele obedece, a situação ele não entende. É por isso
+que "5/5 de assinatura" nunca pode ser lido sozinho — precisa vir com as
+escolhas ao lado, ou vira um número que aprova um modelo cego.
+
+O 1.2B, nas mesmas cinco, acerta as três que discriminam: `inspect-elevator`
+com promessa pendente, `make-space` com o jogador colado, `approach-player`
+quando ele some.
+
+### O 2.6B: o teste está CONFUNDIDO, e ele está fora por outro motivo
+
+0/5 e 160 s por rodada parece decidir, mas **não decide**: ele foi medido em
+Q4_K_M contra dois Q8. E este projeto já tem a medição de que Q4 destrói
+exatamente esta capacidade — o Llama 1B assinava 5 de 15 rodadas em Q4 e 14 de
+15 em Q8 (ver `floor10Brains.test.ts`). Atribuir o 0/5 ao TAMANHO seria ler o
+efeito da quantização como efeito de parâmetros.
+
+O que decide é o teto do runtime, e esse é objetivo:
+
+```
+2.6B Q8_0    2,87 GB   > 2 GiB — não carrega
+2.6B Q6_K    2,22 GB   > 2 GiB — não carrega
+2.6B Q5_K_M  1,94 GB   cabe, e custaria ~3,88 GB de RSS
+```
+
+Ou seja: no único formato que cabe, ele sozinho pesa mais que a fala e a memória
+JUNTAS. Está fora por orçamento de memória, não por burrice — e a diferença
+importa, porque se um dia o teto de 2 GiB cair, este candidato volta.
+
+### Conclusão da escada
+
+O 1,2B é o ponto ótimo, e agora a curva tem forma: **abaixo dele o modelo
+colapsa numa opção só; acima, ou não cabe, ou custa memória que este jogo não
+tem.** Não é preferência — é o intervalo onde há julgamento e ele cabe.
