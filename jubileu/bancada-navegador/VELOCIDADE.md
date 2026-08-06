@@ -505,3 +505,51 @@ importa, porque se um dia o teto de 2 GiB cair, este candidato volta.
 O 1,2B é o ponto ótimo, e agora a curva tem forma: **abaixo dele o modelo
 colapsa numa opção só; acima, ou não cabe, ou custa memória que este jogo não
 tem.** Não é preferência — é o intervalo onde há julgamento e ele cabe.
+
+## O A/B DO ROTEAMENTO, MEDIDO — e a regra do "2x" estava inflada
+
+`ROTEAMENTO=1 CENARIO=sem|com` monta os dois cenários com os três modelos reais
+e lê o RSS. A folga entre desligar e subir a fala é 5s, e não os 12s do
+RESPIRO_APOS_DESCARGA_MS: no jogo quem separa as duas coisas é o jogador
+digitando, então 12s mediria um caso melhor do que o que ele vive.
+
+```
+                       SEM o roteamento   COM o roteamento
+aba vazia .............     1,35 GB           1,36 GB
+vontade+motor de pé ...     3,59 GB           3,60 GB
+PICO (fala de pé) .....     5,61 GB           3,36 GB    -2,25 GB (40%)
+anônima no pico .......     4,97 GB           2,73 GB
+```
+
+O pico do cenário novo (3,36) fica ABAIXO do marco de vontade+motor de pé
+(3,60): a fala não sobe por cima de ninguém, sobe no lugar deles. É a tabela de
+`floor10Roteamento` fazendo exatamente o que promete, com número.
+
+### A contaminação que inflou tudo: perfil efêmero guarda storage na RAM
+
+A reta `RSS = 2,00 x (GB de arquivo) + 1,49 GB`, que sustentou as projeções de
+9,59 GB e 9,91 GB, saiu de medições feitas com `newContext()` — perfil efêmero.
+O Chrome trata perfil efêmero como anônimo, e **perfil anônimo guarda o
+armazenamento do site na memória**. O .gguf que eu achava que estava no OPFS
+(disco) estava na RAM, e entrou na conta como se fosse custo do runtime.
+
+Com perfil persistente (`PERFIL=<dir>`), o mesmo trabalho:
+
+```
+vontade+motor .... +2,24 GB para 1,960 GB de arquivo = 1,14x
+fala por cima .... +2,02 GB para 1,915 GB de arquivo = 1,05x
+fala sozinha ..... +2,00 GB para 1,915 GB de arquivo = 1,04x
+```
+
+**Um cérebro de pé custa ~1,05x o próprio arquivo, não 2x.** O que muda:
+
+  - o estado ANTES do conserto era ~6 GB, não ~10 GB. Eu exagerei o perigo;
+  - "os cinco residentes dão 9,59 GB" (em floor10Precarga) é pelo mesmo motivo
+    exagerado — a conta certa fica perto de 5,7 GB;
+  - o GANHO do conserto (2,25 GB, 40%) é medido diretamente e não depende da
+    reta, então ele sobrevive à correção;
+  - e `?poupamemoria` perde parte da urgência que eu tinha atribuído a ele.
+
+A lição de método é a mesma que já apareceu duas vezes hoje: o instrumento
+precisa ser conferido contra o que ele afirma medir. "RSS somado da árvore de
+processos" era verdade; "isto é o custo do modelo" não era.
