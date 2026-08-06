@@ -281,38 +281,64 @@ type Passo = {
 export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
     emCurso ??= (async () => {
         for (const passo of passos) {
-            // A VEZ ANTES DA ETAPA. `etapa` só muda depois da espera: enquanto o
-            // passo está segurado, a tela continua mostrando o que de fato está
-            // acontecendo, e não um passo que ainda não começou.
-            if (passo.adiarEnquanto) await esperarAVez(passo.adiarEnquanto);
-            etapa = passo.etapa;
-            let ok = false;
-            let motivo = '';
+            // ── UM PASSO NÃO PODE DERRUBAR A FILA ─────────────────────────
+            //
+            // O `try` cobria só `passo.carregar()`. A espera da vez e a
+            // contabilidade da fila ficavam de fora — e uma exceção em qualquer
+            // uma delas rejeitaria ESTA função, que é o valor guardado em
+            // `emCurso`. Duas consequências, as duas ruins:
+            //
+            //   - `void iniciarPrecarga(...)` vira rejeição não tratada;
+            //   - toda chamada seguinte devolve a MESMA promessa rejeitada, e a
+            //     fila nunca mais roda nesta sessão.
+            //
+            // É o formato que já custou a vontade dele hoje: fracasso guardado
+            // numa promessa que ninguém zera. Aqui o `try` passa a cobrir o
+            // passo INTEIRO, e o `catch` de fora fecha a última fresta.
             try {
-                // O RETORNO IMPORTA. `precarregarVontade` devolve `false`
-                // quando não consegue — e `false` não é exceção, então um
-                // `try/catch` sozinho não via nada. Foi assim que a fila deu
-                // por baixado um modelo que nunca chegou.
-                ok = await passo.carregar() !== false;
-            } catch (erro) {
-                motivo = erro instanceof Error ? erro.message : String(erro);
-            }
-            if (ok) {
-                floor10Fila.concluir(passo.id);
-                // Baixou; agora devolve a memória se este cérebro não vai
-                // trabalhar tão cedo. Os pesos ficam no OPFS.
-                if (pouparMemoriaLigado() && passo.liberar) {
-                    try { await passo.liberar(); } catch { /* já saiu */ }
+                // A VEZ ANTES DA ETAPA. `etapa` só muda depois da espera: enquanto o
+                // passo está segurado, a tela continua mostrando o que de fato está
+                // acontecendo, e não um passo que ainda não começou.
+                if (passo.adiarEnquanto) await esperarAVez(passo.adiarEnquanto);
+                etapa = passo.etapa;
+                let ok = false;
+                let motivo = '';
+                try {
+                    // O RETORNO IMPORTA. `precarregarVontade` devolve `false`
+                    // quando não consegue — e `false` não é exceção, então um
+                    // `try/catch` sozinho não via nada. Foi assim que a fila deu
+                    // por baixado um modelo que nunca chegou.
+                    ok = await passo.carregar() !== false;
+                } catch (erro) {
+                    motivo = erro instanceof Error ? erro.message : String(erro);
                 }
-            } else {
-                // FALHA ≠ CONCLUÍDO. Marcar como concluído somava à barra bytes
-                // que nunca desceram, e ela pulava para o próximo como se
-                // estivesse tudo bem — que foi exatamente o que quem joga viu.
-                //
-                // A fila SEGUE assim mesmo: sem a vontade ele anda no reflexo,
-                // sem o motor a intenção continua ampla. Parar transformaria
-                // degradação em pane. Mas segue DIZENDO que falhou.
-                floor10Fila.falhar(passo.id, motivo || motivoDaTela(passo.etapa));
+                if (ok) {
+                    floor10Fila.concluir(passo.id);
+                    // Baixou; agora devolve a memória se este cérebro não vai
+                    // trabalhar tão cedo. Os pesos ficam no OPFS.
+                    if (pouparMemoriaLigado() && passo.liberar) {
+                        try { await passo.liberar(); } catch { /* já saiu */ }
+                    }
+                } else {
+                    // FALHA ≠ CONCLUÍDO. Marcar como concluído somava à barra bytes
+                    // que nunca desceram, e ela pulava para o próximo como se
+                    // estivesse tudo bem — que foi exatamente o que quem joga viu.
+                    //
+                    // A fila SEGUE assim mesmo: sem a vontade ele anda no reflexo,
+                    // sem o motor a intenção continua ampla. Parar transformaria
+                    // degradação em pane. Mas segue DIZENDO que falhou.
+                    floor10Fila.falhar(passo.id, motivo || motivoDaTela(passo.etapa));
+                }
+            } catch (erro) {
+                // Chegou aqui = a espera ou a contabilidade estourou, não o
+                // carregamento. Segue para o próximo passo: um passo perdido é
+                // um cérebro a menos; uma promessa rejeitada é a fila inteira.
+                try {
+                    floor10Fila.falhar(
+                        passo.id,
+                        erro instanceof Error ? erro.message : String(erro),
+                    );
+                } catch { /* até a fila pode estar quebrada; não é motivo para parar */ }
             }
         }
         etapa = 'pronto';

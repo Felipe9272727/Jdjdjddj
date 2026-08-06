@@ -462,3 +462,48 @@ describe('a fila não pode esperar para sempre', () => {
         expect(rodou).toBe(true);
     });
 });
+
+describe('um passo quebrado não derruba a fila inteira', () => {
+    // O `try` cobria só `passo.carregar()`. A espera da vez e a contabilidade
+    // ficavam de fora, e uma exceção ali rejeitaria a promessa guardada em
+    // `emCurso` — virando rejeição não tratada E fazendo toda chamada seguinte
+    // devolver a mesma promessa rejeitada. Mesmo formato que custou a vontade
+    // dele hoje: fracasso guardado numa promessa que ninguém zera.
+    beforeEach(() => {
+        resetPrecargaForTests();
+        npcSet({ open: false, phase: 'cold' });
+    });
+
+    it('exceção na ESPERA não impede os passos seguintes', async () => {
+        let segundoRodou = false;
+        await iniciarPrecarga([
+            {
+                id: FILA_VONTADE,
+                etapa: 'vontade',
+                carregar: async () => true,
+                // Estoura antes de carregar: é o caminho que ficava sem rede.
+                adiarEnquanto: () => { throw new Error('loja quebrou'); },
+            },
+            {
+                id: FILA_MOTOR,
+                etapa: 'motor',
+                carregar: async () => { segundoRodou = true; return true; },
+            },
+        ]);
+        // Sem o try de fora, a promessa rejeitaria aqui e este expect nunca
+        // rodaria — o `await` estouraria antes.
+        expect(segundoRodou).toBe(true);
+        expect(precargaCompleta()).toBe(true);
+    });
+
+    it('e a fila registra a falha em vez de engolir', async () => {
+        await iniciarPrecarga([{
+            id: FILA_VONTADE,
+            etapa: 'vontade',
+            carregar: async () => true,
+            adiarEnquanto: () => { throw new Error('loja quebrou'); },
+        }]);
+        const falhado = floor10Fila.estado().falhados.find((f) => f.id === FILA_VONTADE);
+        expect(falhado?.motivo).toContain('loja quebrou');
+    });
+});
