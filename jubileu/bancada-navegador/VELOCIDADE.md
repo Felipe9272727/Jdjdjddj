@@ -659,3 +659,46 @@ A execução do Llama foi feita por `ROTA='?mente&fresh=1&vontade=llama32-1b'` e
 sonda reportou `"Llama 3.2 1B (Q8) pronto"`. O parâmetro que troca o cérebro
 pela URL — o único caminho que existe num celular — está testado de ponta a
 ponta, e não só em teste unitário.
+
+## O CUSTO DO ROTEAMENTO, MEDIDO — 36 s por visita ao chat, fora do chat
+
+O roteamento desliga a vontade quando o chat ABRE. Ela reinicia a cada visita, e
+um reinício paga de novo o prefill da persona. Eu tinha ESTIMADO esse custo pela
+diferença entre a rodada 1 (134 s) e as quentes (63 s), ou seja ~70 s de prefill
+mais ~33 s de carga — quase 100 s. Estimativa é o que já me derrubou várias
+vezes nesta sessão, então medi (`DELIBERACAO=1 RECOBRO=1`):
+
+```
+1a carga (baixa/prepara) ......  30.891 ms
+rodada 1 (fria) ............... 128.345 ms
+rodada 2 (quente) .............  57.124 ms
+rodada 3 (quente) .............  57.686 ms
+--- descarrega e recarrega ---
+descarga ......................       6 ms
+recarga (do cache) ............   7.580 ms   <- NÃO 33 s
+rodada 4 (após reinício) ......  85.333 ms   <- +28 s sobre a quente, NÃO +70 s
+```
+
+**Custo real por visita ao chat: ~36 s** (7,6 de recarga + 28 de prefill), e não
+os ~100 s que a estimativa dava. Duas coisas que a dedução errou:
+
+  - a recarga do cache custa 7,6 s, um quarto da primeira carga (30,9 s). A
+    primeira paga preparação que não se repete;
+  - o prefill recobrado é ~28 s, não ~70 s. A rodada 1 é mais cara que um
+    reinício porque inclui aquecimento que só acontece uma vez (compilar o WASM,
+    subir o pool de threads, a página ainda fria).
+
+### O balanço do conserto, com os dois lados medidos
+
+```
+ganho ..... -2,2 GB de pico, no instante em que o jogador espera resposta
+custo ..... ~36 s de dormência do NPC por visita ao chat, FORA do chat
+```
+
+O custo é pago onde ninguém espera: o jogador acabou de fechar a conversa. O
+ganho é colhido onde ele está esperando. A troca é boa — mas ela É uma troca, e
+o número dela existe agora em vez de ser suposto.
+
+(Se um dia o custo incomodar, a saída que não mexe no desenho dele é desligar a
+vontade ao abrir o chat SÓ quando a memória estiver apertada. Aí o caso comum
+fica de graça e o aperto continua protegido. É decisão de quem joga.)

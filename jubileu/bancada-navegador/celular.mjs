@@ -361,6 +361,8 @@ try {
   // "reprovou" uma integração que funcionava porque a sonda media outro
   // módulo). Aqui roda a função DE VERDADE, pela porta das sondas.
   if (process.env.DELIBERACAO === '1') {
+    await pagina.evaluate((liga) => { globalThis.__medirRecobro = liga; },
+      process.env.RECOBRO === '1');
     const r = await pagina.evaluate(async () => {
       const m = globalThis.__f10mente;
       if (!m?.deliberateFloor10) return { erro: 'sem __f10mente' };
@@ -391,6 +393,37 @@ try {
           goal: d?.goal ?? null,
           motivo: (d?.reason ?? '').slice(0, 70),
           decidiu: !!d,
+        });
+      }
+      // ── O CUSTO DA MINHA PRÓPRIA MUDANÇA ──────────────────────────
+      // O roteamento desliga a vontade quando o chat ABRE. Ou seja: a cada
+      // visita ao chat ela reinicia, e um reinício paga de novo o prefill da
+      // persona — que é a diferença entre a rodada 1 (134s) e as quentes
+      // (63s). Isto MEDE esse recobro em vez de deduzi-lo do primeiro número.
+      if (globalThis.__medirRecobro) {
+        const t1 = Date.now();
+        await m.unloadSmallBrain();
+        const descarga = Date.now() - t1;
+        const t2 = Date.now();
+        await m.precarregarVontade();
+        const recarga = Date.now() - t2;
+        const t3 = Date.now();
+        const d = await m.deliberateFloor10({
+          perception,
+          drives: { social: 0.6, curiosity: 0.7, restlessness: 0.4, fatigue: 0.2 },
+          memory: {
+            inspectedElevatorCount: 3, sleeps: 44, playerSilentSeconds: 30,
+            lastGoals: [], agreedAction: null, agreedReason: null,
+          },
+          now: Date.now() / 1000,
+        });
+        saida.push({
+          ms: Date.now() - t3,
+          goal: d?.goal ?? null,
+          motivo: 'APOS REINICIO',
+          decidiu: !!d,
+          descarga,
+          recarga,
         });
       }
       return { modelo: m.npc?.deliberationLoadText ?? modelo, carga, rodadas: saida };
