@@ -150,18 +150,44 @@ function arvore(pidRaiz) {
   return { jiffies, threads, rssMB, anonMB, processos: vistos.size };
 }
 
-const navegador = await chromium.launch({
-  executablePath: process.env.CHROMIUM_BIN,
-  args: ['--no-sandbox', '--enable-features=SharedArrayBuffer', '--unlimited-storage'],
-});
-const pid = navegador.__pid ?? process.pid;
-
-const contexto = await navegador.newContext({
+// ── PERFIL EM DISCO: SEM ELE A COTA MATA A MEDIÇÃO ────────────────────────
+//
+// `newContext()` cria um perfil efêmero, e o Chrome trata perfil efêmero como
+// anônimo: a cota de armazenamento é limitada por um teto próprio e IGNORA
+// `--unlimited-storage`. Medido aqui, com 17 GB de disco livre:
+//
+//     "o navegador só libera 1.38 GB para este site e o modelo precisa de 2.07"
+//
+// A fala foi RECUSADA nos dois cenários do A/B, e o pico — que era o objeto da
+// medição — nunca aconteceu. Não era falta de disco: era o perfil.
+//
+// `PERFIL=<dir>` sobe com perfil persistente, que recebe cota proporcional ao
+// disco. De quebra o OPFS sobrevive entre execuções, então o modelo não desce
+// de novo a cada rodada — que é, aliás, o estado real do aparelho de quem joga.
+const opcoesDoAparelho = {
   viewport: { width: 412, height: 915 },
   deviceScaleFactor: 2,
   isMobile: true,
   hasTouch: true,
-});
+};
+const argsDoChrome = ['--no-sandbox', '--enable-features=SharedArrayBuffer', '--unlimited-storage'];
+const perfilDir = process.env.PERFIL;
+let navegador = null;
+let contexto;
+if (perfilDir) {
+  contexto = await chromium.launchPersistentContext(perfilDir, {
+    executablePath: process.env.CHROMIUM_BIN,
+    args: argsDoChrome,
+    ...opcoesDoAparelho,
+  });
+} else {
+  navegador = await chromium.launch({
+    executablePath: process.env.CHROMIUM_BIN,
+    args: argsDoChrome,
+  });
+  contexto = await navegador.newContext(opcoesDoAparelho);
+}
+const pid = navegador?.__pid ?? process.pid;
 const pagina = await contexto.newPage();
 
 // O aparelho: 8 núcleos e CPU 4x mais lenta.
@@ -632,5 +658,5 @@ globalThis.__saida = { picoThreads, cpuTotal, duracao };
 console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
 console.log(JSON.stringify({ picoSustentado: +picoSustentado.toFixed(2), picoInstantaneo: +picoInstantaneo.toFixed(2), picoThreads, falou: !!resultado.falouAlgumaCoisa, amostraDaFala: resultado.amostraDaFala, cpuTotal: +cpuTotal.toFixed(1), duracao: +duracao.toFixed(0), quadros: resultado.quadros ?? null, picoRSS_GB: +(picoRSS / 1024).toFixed(2), erros: erros.slice(0, 5) }, null, 2));
 
-await navegador.close();
+await (navegador ?? contexto).close();
 servidor.close();
