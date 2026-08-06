@@ -780,9 +780,26 @@ const anonMetade = metade.length
 console.log(`  dos quais ANÔNIMA . ${(anonMetade / 1024).toFixed(2)} GB  <- é esta que mata a aba`);
 console.log(`  cache de arquivo .. ${((sustentado - anonMetade) / 1024).toFixed(2)} GB  (o kernel descarta sob pressão)`);
 console.log(`MEMÓRIA no fim ..... ${(finalRSS / 1024).toFixed(2)} GB`);
-console.log(`natureza do 2x ..... ${picoRSS > sustentado * 1.3
-  ? 'PICO TRANSITÓRIO — heap do WASM crescendo; reservar de uma vez resolve'
-  : 'SUSTENTADO — há cópia que ninguém libera'}`);
+// ── ESTA LINHA PRESSUPUNHA A PRÓPRIA CONCLUSÃO ──────────────────────────
+//
+// Ela se chamava "natureza do 2x" e imprimia, nos DOIS ramos, uma explicação
+// para um 2x — "heap do WASM crescendo" ou "há cópia que ninguém libera".
+// Nunca perguntava se o 2x existia. E ele não existe: era artefato de perfil
+// EFÊMERO do Chrome, que guarda o armazenamento do site na RAM e fazia o .gguf
+// entrar na conta como custo de runtime. Com perfil persistente o custo real de
+// um cérebro de pé é ~1,05x o próprio arquivo.
+//
+// Eu citei a saída dela duas vezes nesta sessão como se fosse achado — uma
+// delas de uma execução que a própria sonda marcou como inválida. Um
+// instrumento que responde "de que tipo é o X?" sem nunca perguntar "existe
+// X?" produz exatamente esse tipo de erro.
+//
+// O que os dois números REALMENTE distinguem é só isto: se o pico é um instante
+// ou é o estado normal. É o que a linha diz agora.
+const excesso = sustentado > 0 ? Math.round((picoRSS / sustentado - 1) * 100) : 0;
+console.log(`forma do pico ...... ${picoRSS > sustentado * 1.3
+  ? `TRANSITÓRIO — o pico fica ${excesso}% acima do sustentado e é devolvido`
+  : `SUSTENTADO — o pico é o estado normal (${excesso}% acima da média), não um instante`}`);
 console.log(`erros de página .... ${erros.length ? erros.slice(0, 3).join(' | ') : 'nenhum'}`);
 globalThis.__saida = { picoThreads, cpuTotal, duracao };
 console.log(`falou ............... ${resultado.falouAlgumaCoisa ? `sim — "${resultado.amostraDaFala ?? ''}"` : 'NÃO'}`);
