@@ -609,3 +609,53 @@ resolve não descarregando a fala — e com a conta corrigida (~1,05x o arquivo)
 manter fala+vontade+motor de pé daria 1,35 + 1,05x3,875 = 5,42 GB, que é demais
 para um celular. A troca continua sendo a certa; o custo é este e agora tem
 número.
+
+## A VONTADE NO CAMINHO DO JOGO — e por que os números de bancada não serviam
+
+`vontade.html` replica o prompt de deliberação, mas não é `deliberateFloor10`:
+sem gramática GBNF, sem `SMALL_BRAIN_COMPLETION_CONFIG`, sem resgate, sem
+preemptor. `DELIBERACAO=1` roda a função de verdade, pela porta das sondas do
+`?mente`, com a MESMA percepção nas três rodadas.
+
+```
+                  rodada 1    rodada 2    rodada 3      total    quentes(2-3)
+LFM2.5-1.2B        134.302      62.715      65.001    262.018        63.858
+Llama 3.2 1B       170.740     153.250      52.094    376.084       102.672
+
+ganho no total ...... 1,44x        (bancada dizia 1,45x)
+ganho nas quentes ... 1,61x
+```
+
+**A vantagem sobrevive à gramática**, e o 1,44x bate quase exatamente com o
+1,45x medido na bancada. A troca de padrão está verificada no caminho que o jogo
+usa, e não só no que a bancada usa.
+
+O QUE MUDA NO NÚMERO ABSOLUTO: uma deliberação custa ~64 s no jogo, não os
+44,7 s da bancada. Eu vinha citando o número de bancada como se fosse do jogo —
+todos os tempos de vontade desta sessão anteriores a esta seção são de bancada e
+estão ~1,4x otimistas. Os de MEMÓRIA não: aqueles foram medidos no caminho real
+desde o começo.
+
+### A consistência aparece de novo, e mais forte
+
+As três rodadas usam a MESMA percepção, então a variação entre elas é do modelo,
+não da situação:
+
+```
+LFM2.5 ..... 62.715 e 65.001 ms    dispersão 3,6%
+Llama ...... 153.250 e 52.094 ms   dispersão 194%
+```
+
+Uma vontade que leva 52 s numa rodada e 153 s na seguinte, para o mesmo estado
+de mundo, é imprevisível para quem joga — e imprevisível é o que faz o aparelho
+parecer travado sem motivo. O LFM2.5 varia 3,6%.
+
+Ressalva: n=3 por modelo neste caminho. A direção bate com três execuções de
+bancada por modelo, mas o número absoluto merece mais repetições.
+
+### De quebra: `?vontade=<id>` verificado do jeito que ele vai ser usado
+
+A execução do Llama foi feita por `ROTA='?mente&fresh=1&vontade=llama32-1b'` e a
+sonda reportou `"Llama 3.2 1B (Q8) pronto"`. O parâmetro que troca o cérebro
+pela URL — o único caminho que existe num celular — está testado de ponta a
+ponta, e não só em teste unitário.
