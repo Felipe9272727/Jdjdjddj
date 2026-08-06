@@ -391,10 +391,26 @@ try {
         saida.push({
           ms: Date.now() - t,
           goal: d?.goal ?? null,
-          motivo: (d?.reason ?? '').slice(0, 70),
+          // `reason` NUNCA EXISTIU: o campo do tipo é `rationale`. Era por isso
+          // que o relatório saía com `motivo: ""` em toda rodada — eu vi o vazio
+          // três vezes, achei estranho, e não fui atrás. Um campo lido com o
+          // nome errado não avisa nada; ele só devolve vazio para sempre.
+          motivo: (d?.rationale ?? '').slice(0, 70),
+          // De onde veio a meta: do motor (desenho novo) ou da linha CHOICE.
+          motor: d?.motion ? `${d.motion.verb} ${d.motion.target}` : null,
           decidiu: !!d,
         });
       }
+      // ── A PROVA DE QUE O CAMINHO NOVO RODOU ─────────────────────────
+      // Eu tentei conferir isto com `grep` no console e achei zero — porque
+      // `anotar` escreve na caixa-preta, não no console. Quase li o zero como
+      // "o motor não roda", quando era eu olhando no lugar errado.
+      try {
+        const eventos = m.eventosDaCaixaPreta?.() ?? [];
+        saida.eventos = eventos
+          .map((e) => e.tipo ?? e.nome ?? '')
+          .filter((t) => /motor|meta-veio|decidiu/.test(t));
+      } catch { /* sonda velha sem a porta */ }
       // ── O CUSTO DA MINHA PRÓPRIA MUDANÇA ──────────────────────────
       // O roteamento desliga a vontade quando o chat ABRE. Ou seja: a cada
       // visita ao chat ela reinicia, e um reinício paga de novo o prefill da

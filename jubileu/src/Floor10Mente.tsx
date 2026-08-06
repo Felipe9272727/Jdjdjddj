@@ -13,6 +13,7 @@
  * Abre em:  /?mente
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { eventosDaCaixaPreta } from './npc/floor10CaixaPreta';
 import { npc, useNpc } from './npc/npcStore';
 import { DOWNLOAD_STALL_SEC, downloadLine } from './npc/floor10Download';
 import {
@@ -488,6 +489,13 @@ const Mente: React.FC = () => {
     // desligá-los (como é agora) — e lê o RSS real dos dois.
     unloadSmallBrain, precarregarMotor, unloadFloor10MotorBrain,
     desligarQuemNaoEDaVez,
+    // ── A CAIXA-PRETA, PARA A SONDA PODER LER O QUE ACONTECEU ─────────────
+    // Eu tentei conferir se a meta veio do MOTOR fazendo `grep` no console —
+    // e `anotar` não escreve no console, escreve aqui. O grep achou zero e eu
+    // quase li isso como "o caminho novo não roda", quando na verdade eu tinha
+    // olhado no lugar errado. Sem esta porta, a única prova do desenho novo
+    // seria teste unitário.
+    eventosDaCaixaPreta,
 };
 
 export default Mente;
