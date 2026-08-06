@@ -28,6 +28,11 @@ import {
     resetFloor10MotorBrainForTests,
     translateFloor10MotorThought,
 } from './floor10MotorBrain';
+import {
+    metaDoPlanoMotor,
+} from './floor10MotorCortex';
+import {
+} from './floor10MotorBrain';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
@@ -1207,21 +1212,54 @@ export async function deliberateFloor10(
         // gramática, ~16 tokens. O pensamento continua sendo o da primeira
         // passada; o que entra aqui é a última linha, e ela é anexada ao texto
         // para que a justificativa lida depois continue vindo do raciocínio.
+        // ── O MOTOR SAI DE TRÁS DO PORTÃO ────────────────────────────────
+        //
+        // "o motor serviria justamente pra não ficar dependendo do 'choice' e a
+        //  gente está procurando velocidade e inteligência"
+        //
+        // Era o contrário: o motor só rodava DEPOIS de `decided` existir, e
+        // `decided` só existia com a linha "CHOICE: x". Sem ela vinha o
+        // RESGATE — uma geração completa do modelo grande — e, se ele também
+        // falhasse, a rodada inteira ia fora. Um pensamento bom era descartado
+        // com um tradutor de 0,6B preso por gramática esperando ao lado.
+        //
+        // Agora o motor roda sempre que há pensamento, e a meta vem dele quando
+        // a linha não veio. Três coisas mudam:
+        //
+        //   - o resgate deixa de ser o caminho comum (era 3 de 5 rodadas com o
+        //     Llama, 13,7 s por 5 rodadas medidos na bancada);
+        //   - modelos que pensam em `<think>` param de perder a rodada por não
+        //     assinarem a tempo — o "thinking infinito" do relatório dele;
+        //   - a escolha de modelo volta a ser decidida por qualidade de
+        //     pensamento e velocidade, e não por "assina a linha de primeira",
+        //     que é exigência do andaime e não do NPC.
+        //
+        // O RESGATE CONTINUA EXISTINDO, como última tentativa antes de perder a
+        // rodada: ele lê o pensamento com o modelo que o escreveu, o que é mais
+        // fiel que a leitura do tradutor. Só deixou de ser o primeiro recurso.
+        const motion = texto.trim() && !conversationHasPriority()
+            ? await translateFloor10MotorThought(
+                texto, input.perception, input.prison, abort.signal,
+            )
+            : null;
+        if (!decided && motion) {
+            decided = {
+                goal: metaDoPlanoMotor(motion),
+                // A justificativa é o PENSAMENTO, não a linha do tradutor: é
+                // ela que vira cor na fala, e o raciocínio do modelo grande é
+                // muito mais rico que "approach player normal 6".
+                rationale: texto.trim(),
+                at: input.now,
+            };
+            anotar('vontade:meta-veio-do-motor', { meta: decided.goal, plano: motion.raw });
+        }
         if (!decided && texto.trim() && !conversationHasPriority()) {
             const assinatura = await assinarEscolha(
                 engine, texto, abort.signal, promptDaRodada,
             );
             if (assinatura) decided = parseDeliberation(`${texto}\n${assinatura}`, input.now);
         }
-        if (decided && texto.trim() && !conversationHasPriority()) {
-            const motion = await translateFloor10MotorThought(
-                texto,
-                input.perception,
-                input.prison,
-                abort.signal,
-            );
-            if (motion) decided = { ...decided, motion };
-        }
+        if (decided && motion) decided = { ...decided, motion };
         if (decided) {
             descartarPensamento('vontade');
             anotar('vontade:decidiu', { meta: decided.goal, motor: !!decided.motion });

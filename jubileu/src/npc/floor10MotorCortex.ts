@@ -365,3 +365,83 @@ export function motorPlanFeatures(plan: Floor10MotorPlan | null | undefined): nu
     features[paceIndex + 1] = plan.duration / 12;
     return features;
 }
+
+// ── O MOTOR PODE DAR A META, E NÃO SÓ O MOVIMENTO ─────────────────────────
+//
+// O desenho é do dono do jogo, e ele o disse assim:
+//
+//   "o motor serviria justamente pra não ficar dependendo do 'choice' e a gente
+//    está procurando velocidade e inteligência"
+//
+// Ele está certo, e o código estava fazendo o contrário. O fluxo era:
+//
+//     pensamento -> tem "CHOICE: x"?  -> sim: decidiu, e AÍ o motor traduz
+//                                     -> não: RESGATE (outra geração do 1.2B)
+//                                              -> falhou: joga a rodada fora
+//
+// Ou seja: o motor ficava ATRÁS do portão do CHOICE em vez de no lugar dele. Um
+// pensamento bom que não terminasse na linha certa era descartado inteiro —
+// mesmo com um tradutor de 0,6B, preso por gramática, pronto para lê-lo.
+//
+// O que isso custava, medido:
+//   - o resgate é uma geração COMPLETA do modelo grande: 13,7 s a cada 5
+//     rodadas na bancada, e ele roda em 3 de 5 rodadas com o Llama;
+//   - com o LFM2.5, que pensa em `<think>` por padrão, a linha CHOICE
+//     frequentemente não chega dentro do orçamento — e a rodada morria. É o
+//     "thinking infinito" que ele viu no aparelho.
+//
+// E fazia a ESCOLHA DE MODELO ser decidida pela métrica errada: eu comparei
+// candidatos por "assina a linha de primeira", que é uma exigência do
+// andaime, não da inteligência do NPC.
+//
+// A TRADUÇÃO É DIRETA porque os dois vocabulários foram desenhados para o mesmo
+// mundo. O que o motor já devolve (verbo + alvo, preso por gramática) determina
+// a meta em quase todos os pares:
+//
+//     approach + player     -> approach-player
+//     withdraw + player     -> make-space
+//     hold/orbit + player   -> observe-player
+//     * + elevator          -> inspect-elevator
+//     explore + lugar       -> wander
+//     stay/hold + self      -> idle
+//
+// O QUE ESTA FUNÇÃO NÃO RESOLVE, e é honesto dizer: o motor é preso por
+// gramática, então ele SEMPRE devolve um par válido. Um pensamento confuso vira
+// uma meta confiante em vez de virar nada. A troca é aceitar uma decisão
+// possivelmente ruim no lugar de uma rodada perdida — e para um NPC que precisa
+// se mexer, agir errado de vez em quando é melhor que congelar.
+export type MetaDoMotor =
+    | 'inspect-elevator' | 'wander' | 'idle' | 'observe-player'
+    | 'approach-player' | 'make-space' | 'seek-player' | 'talk-player';
+
+/** Lugares do andar: alvo de deslocamento que não é pessoa nem máquina. */
+const LUGARES = new Set<Floor10MotorTarget>([
+    'room-center', 'north-side', 'south-side', 'east-side', 'west-side',
+]);
+
+/**
+ * A meta que este plano motor implica. Pura: é a regra inteira, e ela precisa
+ * ser lida e testada sem subir modelo nenhum.
+ */
+export function metaDoPlanoMotor(plano: Floor10MotorPlan): MetaDoMotor {
+    const { verb, target } = plano;
+    // O elevador manda no resto: qualquer movimento em direção a ele é a mesma
+    // intenção, e é a única meta do andar ligada a um objeto específico.
+    if (target === 'elevator') return 'inspect-elevator';
+    if (target === 'player') {
+        if (verb === 'approach') return 'approach-player';
+        if (verb === 'withdraw') return 'make-space';
+        // hold, orbit, explore, stay perto do jogador: está de olho, não age.
+        return 'observe-player';
+    }
+    if (target === 'self') return 'idle';
+    // Máquinas do andar são "coisa para examinar"; o jogo não tem meta própria
+    // para elas, e vagar é o comportamento que mais se aproxima de investigar
+    // sem prometer nada.
+    if (target === 'nearest-device' || target === 'active-device') return 'wander';
+    if (LUGARES.has(target)) {
+        // Parar num canto é ficar quieto; ir até ele é vagar.
+        return verb === 'stay' || verb === 'hold' ? 'idle' : 'wander';
+    }
+    return 'idle';
+}
