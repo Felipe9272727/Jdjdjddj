@@ -31,14 +31,17 @@ const PERCEPTION = perceiveFloor10({
 });
 
 describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => {
-    it('começa no Llama 3.2 1B — escolha de quem joga, não da minha planilha', () => {
-        // Nos meus 8 cenários o Gemma ia melhor (assinou 16/16, 7,6s). Jogando,
-        // o Felipe viu o que a medição não pega: o Gemma repete a mesma
-        // abertura e usa 4 das 8 metas, o Llama varia mais. Os três continuam
-        // no catálogo, trocáveis no ?mente.
-        expect(SMALL_BRAIN_MODEL.label).toBe('Llama 3.2 1B (Q8)');
+    it('começa no LFM2.5 — escolha de quem joga, não da minha planilha', () => {
+        // A regra deste teste nunca foi "é este modelo": é "o padrão é o que o
+        // DONO do jogo escolheu, e não o que a minha medição preferiu". Já
+        // guardou o Llama contra o Gemma (que ganhava nos meus 8 cenários e
+        // perdia jogando: repetia a mesma abertura e usava 4 das 8 metas).
+        // Agora guarda o LFM2.5, que ele mandou pôr no lugar do Llama depois de
+        // ver 15/15 contra 4/10 de assinatura e 1,45x por decisão.
+        // Todos continuam no catálogo, e `?vontade=<id>` troca sem código.
+        expect(SMALL_BRAIN_MODEL.label).toContain('LFM2.5');
         expect(SMALL_BRAIN_MODEL.url).toMatch(/\.gguf$/i);
-        expect(SMALL_BRAIN_MODEL.id).toBe('llama32-1b');
+        expect(SMALL_BRAIN_MODEL.id).toBe('lfm2-1b');
     });
 
     it('o catálogo continua oferecendo o antigo, para o dono do jogo comparar', () => {

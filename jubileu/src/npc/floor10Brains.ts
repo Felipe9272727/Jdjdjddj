@@ -119,7 +119,29 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
  */
 export const SPEECH_BRAIN_BYTES = 1_915_305_312;
 
-export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'llama32-1b';
+/**
+ * ── O PADRÃO PASSOU A SER O LFM2.5, E QUEM DECIDIU FOI O DONO DO JOGO ─────
+ *
+ * "Deixe o lfm como principal, e fds o llama"
+ *
+ * Eu tinha deixado o Llama por instrução anterior dele ("todos llms que estão
+ * aqui, foram escolhidos a dedo"), e até com um teste travando isso para eu não
+ * trocar sozinho. A troca é dele, com os números na mão:
+ *
+ *                    assina na 1ª   escolhas repetidas   ms por decisão
+ *     Llama 3.2 1B      4/10          1 de 5 entre runs      64.735
+ *     LFM2.5-1.2B      15/15          5 de 5 entre runs      44.733
+ *
+ * Três execuções cada. O ganho de 1,45x por decisão não vem do tok/s (1,2x):
+ * vem de o RESGATE deixar de acontecer — assinar de primeira apaga uma geração
+ * inteira por rodada.
+ *
+ * E é 75 MB MENOR que o Llama Q8, então não custa cota. Quem paga a cota é a
+ * fala, que já foi recusada uma vez no aparelho dele.
+ *
+ * `?vontade=llama32-1b` volta ao anterior sem mexer em código.
+ */
+export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'lfm2-1b';
 
 /** Todo cache que a FALA pode reciclar quando faltar espaço para ela. */
 export function smallBrainUrls(): string[] {

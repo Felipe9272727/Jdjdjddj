@@ -342,7 +342,57 @@ try {
   // DIGITANDO (abrir o painel desliga, enviar a mensagem sobe). 5s é uma
   // digitação curta — se eu medisse com 12s estaria medindo um caso melhor do
   // que o que ele vai viver.
-  if (process.env.ROTEAMENTO === '1') {
+  // ── QUANTO CUSTA REABRIR UM CÉREBRO, LENDO DO DISCO DE VERDADE ────────
+  //
+  // A travada que ele relata nunca reproduziu aqui — dez execuções. Só que TODAS
+  // rodaram com `newContext()`, perfil efêmero, e perfil efêmero guarda o
+  // armazenamento do site NA MEMÓRIA. Ou seja: o OPFS de onde o wllama relê o
+  // .gguf era RAM. No aparelho dele é flash.
+  //
+  // Se reabrir custa muito mais lendo do disco, esse é o mecanismo que faltava —
+  // e o roteamento, que troca cérebro a cada abre/fecha do chat, paga esse preço
+  // toda vez. Rodar este modo com e sem PERFIL responde.
+  if (process.env.REABERTURA === '1') {
+    const t = async (nome, fn) => {
+      const a = Date.now();
+      const r = await fn();
+      const ms = Date.now() - a;
+      console.log(`  ${nome.padEnd(22)} ${String(ms).padStart(7)}ms   ${r ?? ''}`);
+      return ms;
+    };
+    console.log(`\n  perfil: ${process.env.PERFIL ? 'PERSISTENTE (OPFS em disco)' : 'EFÊMERO (OPFS na RAM)'}`);
+    const primeira = await t('1a carga (baixa)', () => pagina.evaluate(async () => {
+      await globalThis.__f10mente?.initLLM?.();
+      return globalThis.__f10mente?.npc?.phase;
+    }));
+    await t('descarrega', () => pagina.evaluate(async () => {
+      await globalThis.__f10mente?.unloadConversationBrain?.();
+      return globalThis.__f10mente?.npc?.phase;
+    }));
+    await pagina.waitForTimeout(12_000);
+    // A REABERTURA: nada é baixado, tudo vem do OPFS. É este número que o
+    // jogador paga a cada vez que fecha e abre o chat.
+    const reabertura = await t('REABRE (só lê)', () => pagina.evaluate(async () => {
+      await globalThis.__f10mente?.initLLM?.();
+      return globalThis.__f10mente?.npc?.phase;
+    }));
+    await t('descarrega 2', () => pagina.evaluate(async () => {
+      await globalThis.__f10mente?.unloadConversationBrain?.();
+      return globalThis.__f10mente?.npc?.phase;
+    }));
+    await pagina.waitForTimeout(12_000);
+    const reabertura2 = await t('REABRE 2', () => pagina.evaluate(async () => {
+      await globalThis.__f10mente?.initLLM?.();
+      return globalThis.__f10mente?.npc?.phase;
+    }));
+    resultado.reabertura = {
+      perfil: process.env.PERFIL ? 'persistente' : 'efemero',
+      primeiraMs: primeira, reaberturaMs: reabertura, reabertura2Ms: reabertura2,
+    };
+    console.log(`\n  média das reaberturas: ${Math.round((reabertura + reabertura2) / 2)}ms`);
+    resultado.falouAlgumaCoisa = true;
+    resultado.enviadas = 0;
+  } else if (process.env.ROTEAMENTO === '1') {
     const CENARIO = process.env.CENARIO ?? 'com';
     const marco = async (nome) => {
       await pagina.waitForTimeout(4000);
