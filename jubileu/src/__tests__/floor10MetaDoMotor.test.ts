@@ -181,3 +181,45 @@ describe('o motor DECLARA a intenção, não só o movimento', () => {
         expect([...FLOOR10_MOTOR_GOALS].sort()).toEqual([...DELIBERATION_GOALS].sort());
     });
 });
+
+describe('a gramática é GBNF válida, não só uma string bonita', () => {
+    // O teste que faltava e que deixou passar uma regressão silenciosa: eu
+    // acrescentei a linha GOAL à gramática e conferi só o TEXTO. Escrito como
+    // `"\nMOTION: "` num template literal, o `\n` vira quebra de linha DE
+    // VERDADE — e um literal GBNF não pode conter quebra crua. A gramática
+    // ficava malformada, `createChatCompletion` estourava, e o `catch` do motor
+    // devolvia null: o jogo perdia a tradução EM SILÊNCIO. Medido no caminho
+    // real: `motor: null` nas 3 rodadas, onde antes vinha `stay | self`.
+    const g = buildMotorGrammar(
+        { playerVisible: true, playerDistance: 2 } as never,
+        null,
+    );
+
+    it('nenhum literal entre aspas contém quebra de linha crua', () => {
+        for (const linha of g.split('\n')) {
+            // Aspas em número par por linha = nenhum literal atravessa a quebra.
+            const aspas = (linha.match(/"/g) ?? []).length;
+            expect(aspas % 2).toBe(0);
+        }
+    });
+
+    it('a quebra pedida ao modelo vai ESCAPADA', () => {
+        // Duas letras (barra + n), não o caractere 0x0A.
+        expect(g).toContain('\\n');
+        // A raiz tem de caber numa linha só: se o `\n` tivesse virado quebra
+        // crua, ela se partiria em duas e o literal ficaria aberto.
+        expect(g.split('\n')[0]).toContain('MOTION: ');
+    });
+
+    it('toda regra referenciada existe', () => {
+        // Uma regra órfã também derruba o parser dentro do worker, longe daqui.
+        const definidas = new Set(
+            [...g.matchAll(/^([a-z][a-z0-9-]*)\s*::=/gm)].map((m) => m[1]),
+        );
+        const raiz = g.split('\n')[0];
+        for (const ref of raiz.replace(/"[^"]*"/g, ' ').matchAll(/[a-z][a-z0-9-]*/g)) {
+            if (ref[0] === 'root') continue;
+            expect(definidas.has(ref[0])).toBe(true);
+        }
+    });
+});

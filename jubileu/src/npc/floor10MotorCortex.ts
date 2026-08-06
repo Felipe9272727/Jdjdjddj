@@ -138,7 +138,15 @@ export function buildMotorGrammar(
     prison?: F10PrisonState | null,
 ): string {
     const targets = availableMotorTargets(perception, prison);
-    return `root ::= "GOAL: " goal "\nMOTION: " verb " | " target " | " pace " | " duration
+    // ── A QUEBRA DE LINHA PRECISA CHEGAR ESCAPADA NA GBNF ────────────────
+    // Escrito como `"\nMOTION: "` dentro de um template literal, o `\n` vira
+    // uma quebra de linha DE VERDADE no runtime — e um literal da GBNF não pode
+    // conter quebra crua. A gramática ficava malformada e `createChatCompletion`
+    // estourava; o `catch` do motor devolvia `null` e o jogo perdia a tradução
+    // EM SILÊNCIO. Medido: `motor: null` nas 3 rodadas, onde antes vinha
+    // `stay | self`. Um erro que nenhum teste de string pegava, porque a string
+    // parecia certa — quem reprovava era o parser da GBNF, dentro do worker.
+    return `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration
 goal ::= ${FLOOR10_MOTOR_GOALS.map((value) => `"${value}"`).join(' | ')}
 verb ::= ${FLOOR10_MOTOR_VERBS.map((value) => `"${value}"`).join(' | ')}
 target ::= ${targets.map((value) => `"${value}"`).join(' | ')}
