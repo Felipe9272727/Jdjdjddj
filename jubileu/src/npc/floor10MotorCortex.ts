@@ -32,6 +32,35 @@ export const FLOOR10_MOTOR_TARGETS = [
     'self',
 ] as const;
 
+/**
+ * ── O MOTOR PASSA A DIZER A INTENÇÃO, E NÃO SÓ O MOVIMENTO ────────────────
+ *
+ * Medido no caminho real do jogo, duas rodadas em que a vontade e o motor
+ * responderam sobre o MESMO pensamento:
+ *
+ *     vontade: approach-player   motor: stay | self
+ *     vontade: inspect-elevator  motor: stay | self
+ *
+ * Pela regra de inferência (`metaDoPlanoMotor`), `stay + self` vira `idle`. Ou
+ * seja: quando a linha CHOICE faltasse e a meta viesse do motor, o Nilo ficaria
+ * PARADO onde ele queria se aproximar. A ideia do dono do jogo — "o motor
+ * serviria justamente pra não ficar dependendo do choice" — está certa; a minha
+ * primeira execução dela é que era um canal com perda, porque o prompt do motor
+ * pergunta COMO ELE SE MOVE e eu tentei ler DALI o que ele QUER.
+ *
+ * O conserto é pedir as duas coisas. A saída já é presa por gramática, então
+ * acrescentar a meta não abre espaço para invenção: o modelo escolhe entre as
+ * oito, e não escreve mais nada.
+ *
+ * A lista vive AQUI, e não é importada de floor10Deliberation, porque aquele
+ * módulo importa o tipo daqui — importar de volta fecharia um ciclo. Um teste
+ * garante que as duas listas continuem iguais.
+ */
+export const FLOOR10_MOTOR_GOALS = [
+    'inspect-elevator', 'wander', 'idle', 'observe-player',
+    'approach-player', 'make-space', 'seek-player', 'talk-player',
+] as const;
+
 export const FLOOR10_MOTOR_PACES = ['slow', 'normal', 'fast'] as const;
 export const FLOOR10_MOTOR_DURATIONS = [3, 6, 9, 12] as const;
 
@@ -41,6 +70,12 @@ export type Floor10MotorPace = (typeof FLOOR10_MOTOR_PACES)[number];
 export type Floor10MotorDuration = (typeof FLOOR10_MOTOR_DURATIONS)[number];
 
 export type Floor10MotorPlan = {
+    /**
+     * A intenção que o motor leu no pensamento. Opcional porque respostas
+     * antigas (e o caminho sem gramática) não a trazem — quem consome cai na
+     * inferência por verbo+alvo.
+     */
+    goal?: MetaDoMotor;
     verb: Floor10MotorVerb;
     target: Floor10MotorTarget;
     pace: Floor10MotorPace;
@@ -103,7 +138,8 @@ export function buildMotorGrammar(
     prison?: F10PrisonState | null,
 ): string {
     const targets = availableMotorTargets(perception, prison);
-    return `root ::= "MOTION: " verb " | " target " | " pace " | " duration
+    return `root ::= "GOAL: " goal "\nMOTION: " verb " | " target " | " pace " | " duration
+goal ::= ${FLOOR10_MOTOR_GOALS.map((value) => `"${value}"`).join(' | ')}
 verb ::= ${FLOOR10_MOTOR_VERBS.map((value) => `"${value}"`).join(' | ')}
 target ::= ${targets.map((value) => `"${value}"`).join(' | ')}
 pace ::= ${FLOOR10_MOTOR_PACES.map((value) => `"${value}"`).join(' | ')}
@@ -117,7 +153,14 @@ export function parseMotorPlan(raw: string): Floor10MotorPlan | null {
     if (!match) return null;
     const duration = Number(match[4]);
     if (!(FLOOR10_MOTOR_DURATIONS as readonly number[]).includes(duration)) return null;
+    // A meta vem ANTES do MOTION na gramática; sem ela (respostas antigas, ou
+    // um caminho sem gramática) quem consome cai na inferência por verbo+alvo.
+    const metaCrua = /GOAL:\s*([a-z-]+)/i.exec(raw)?.[1]?.toLowerCase();
+    const goal = (FLOOR10_MOTOR_GOALS as readonly string[]).includes(metaCrua ?? '')
+        ? metaCrua as MetaDoMotor
+        : undefined;
     return {
+        ...(goal ? { goal } : {}),
         verb: match[1] as Floor10MotorVerb,
         target: match[2] as Floor10MotorTarget,
         pace: match[3] as Floor10MotorPace,
@@ -140,17 +183,19 @@ export function buildMotorTranslationPrompt(
     const tail = thinking.trim().slice(-MOTOR_TEXT_TAIL);
     const targets = availableMotorTargets(perception, prison).join(', ');
     const examples = [
-        'I should stay still and listen. => MOTION: stay | self | slow | 3',
-        'I want to cross toward the right wall. => MOTION: explore | east-side | normal | 6',
+        'I should stay still and listen. => GOAL: idle / MOTION: stay | self | slow | 3',
+        'I want to cross toward the right wall. => GOAL: wander / MOTION: explore | east-side | normal | 6',
         perception.player
-            ? 'I want to get closer to him. => MOTION: approach | player | normal | 6'
-            : 'I want another angle on the door. => MOTION: orbit | elevator | slow | 6',
+            ? 'I want to get closer to him. => GOAL: approach-player / MOTION: approach | player | normal | 6'
+            : 'I want another angle on the door. => GOAL: inspect-elevator / MOTION: orbit | elevator | slow | 6',
         prison
-            ? 'I should keep my weight on that thing. => MOTION: hold | nearest-device | slow | 9'
+            ? 'I should keep my weight on that thing. => GOAL: wander / MOTION: hold | nearest-device | slow | 9'
             : null,
     ].filter(Boolean).join('\n');
-    return `Translate Nilo's own thought into one feasible body movement.
+    return `Read Nilo's own thought and report TWO things: the intention behind it
+and one feasible body movement that serves that intention.
 Do not invent a new desire and do not solve the room for him.
+INTENTIONS: ${FLOOR10_MOTOR_GOALS.join(', ')}.
 AVAILABLE TARGETS: ${targets}.
 VERBS: approach, withdraw, hold, orbit, explore, stay.
 PACE: slow, normal, fast. DURATION: 3, 6, 9, 12 seconds.
@@ -165,6 +210,7 @@ ${tail}
 """
 
 Answer with exactly:
+GOAL: <intention>
 MOTION: <verb> | <target> | <pace> | <duration>`;
 }
 
@@ -424,6 +470,10 @@ const LUGARES = new Set<Floor10MotorTarget>([
  * ser lida e testada sem subir modelo nenhum.
  */
 export function metaDoPlanoMotor(plano: Floor10MotorPlan): MetaDoMotor {
+    // A meta DECLARADA pelo motor manda: ela sai do pensamento inteiro, e não
+    // de um par verbo+alvo que descreve só o corpo. A inferência abaixo é a
+    // rede para quando ela não veio.
+    if (plano.goal) return plano.goal;
     const { verb, target } = plano;
     // O elevador manda no resto: qualquer movimento em direção a ele é a mesma
     // intenção, e é a única meta do andar ligada a um objeto específico.

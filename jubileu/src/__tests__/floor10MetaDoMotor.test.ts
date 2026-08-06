@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-    FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS, metaDoPlanoMotor,
+    FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
+    buildMotorGrammar, metaDoPlanoMotor, parseMotorPlan,
 } from '../npc/floor10MotorCortex';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
 import type { Floor10MotorPlan } from '../npc/floor10MotorCortex';
@@ -128,5 +129,55 @@ describe('a geração respeita o próprio teto', () => {
         // Cortar por tempo é a rede; assinar cedo continua sendo o caminho bom,
         // e ele economiza tokens de verdade.
         expect(laco).toContain('cortadoNaEscolha = true');
+    });
+});
+
+describe('o motor DECLARA a intenção, não só o movimento', () => {
+    // Medido no caminho real, duas rodadas sobre o MESMO pensamento:
+    //     vontade: approach-player    motor: stay | self
+    //     vontade: inspect-elevator   motor: stay | self
+    // `stay + self` infere `idle`. Ou seja: quando a meta viesse do motor, o
+    // Nilo ficaria PARADO onde queria se aproximar. A ideia dele estava certa;
+    // a minha primeira execução é que lia o corpo para adivinhar a vontade.
+    it('a meta declarada manda sobre a inferida', () => {
+        const p = plano('stay', 'self');
+        expect(metaDoPlanoMotor(p)).toBe('idle');
+        expect(metaDoPlanoMotor({ ...p, goal: 'approach-player' })).toBe('approach-player');
+    });
+
+    it('a gramática prende a meta às oito válidas', () => {
+        const g = buildMotorGrammar(
+            { playerVisible: true, playerDistance: 2 } as never,
+            null,
+        );
+        expect(g).toContain('goal ::=');
+        for (const meta of FLOOR10_MOTOR_GOALS) expect(g).toContain(`"${meta}"`);
+        // Sem isto o modelo poderia escrever qualquer palavra na linha GOAL.
+        expect(g.startsWith('root ::= "GOAL: " goal')).toBe(true);
+    });
+
+    it('lê a meta da resposta, e ignora lixo fora do vocabulário', () => {
+        const bom = parseMotorPlan('GOAL: make-space\nMOTION: withdraw | player | slow | 6');
+        expect(bom?.goal).toBe('make-space');
+        expect(metaDoPlanoMotor(bom!)).toBe('make-space');
+
+        const invalido = parseMotorPlan('GOAL: fugir-do-hotel\nMOTION: stay | self | slow | 3');
+        // Meta fora do vocabulário não vira meta: cai na inferência.
+        expect(invalido?.goal).toBeUndefined();
+        expect(metaDoPlanoMotor(invalido!)).toBe('idle');
+    });
+
+    it('resposta SEM linha GOAL continua funcionando', () => {
+        // Compatibilidade: o caminho sem gramática e respostas antigas.
+        const antigo = parseMotorPlan('MOTION: approach | player | normal | 6');
+        expect(antigo?.goal).toBeUndefined();
+        expect(metaDoPlanoMotor(antigo!)).toBe('approach-player');
+    });
+
+    it('as duas listas de metas não podem divergir', () => {
+        // `FLOOR10_MOTOR_GOALS` vive no cortex para não fechar ciclo com
+        // floor10Deliberation. Duas cópias da mesma lista é como um vocabulário
+        // some sem ninguém perceber.
+        expect([...FLOOR10_MOTOR_GOALS].sort()).toEqual([...DELIBERATION_GOALS].sort());
     });
 });

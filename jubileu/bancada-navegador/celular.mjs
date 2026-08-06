@@ -407,8 +407,11 @@ try {
       // "o motor não roda", quando era eu olhando no lugar errado.
       try {
         const eventos = m.eventosDaCaixaPreta?.() ?? [];
-        saida.eventos = eventos
-          .map((e) => e.tipo ?? e.nome ?? '')
+        // `saida` é um ARRAY: `JSON.stringify` descarta propriedade nomeada
+        // nele. Guardar aqui era escrever num campo que nunca chegaria ao
+        // relatório — mais um instrumento que "funciona" e não reporta.
+        globalThis.__eventosDaRodada = eventos
+          .map((e) => e.tipo ?? '')
           .filter((t) => /motor|meta-veio|decidiu/.test(t));
       } catch { /* sonda velha sem a porta */ }
       // ── O CUSTO DA MINHA PRÓPRIA MUDANÇA ──────────────────────────
