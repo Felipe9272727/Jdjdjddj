@@ -352,7 +352,54 @@ try {
   // Se reabrir custa muito mais lendo do disco, esse é o mecanismo que faltava —
   // e o roteamento, que troca cérebro a cada abre/fecha do chat, paga esse preço
   // toda vez. Rodar este modo com e sem PERFIL responde.
-  if (process.env.REABERTURA === '1') {
+  // ── O CAMINHO DO JOGO, NÃO O DA BANCADA ───────────────────────────────
+  //
+  // Troquei o padrão da vontade para o LFM2.5 com base em três execuções de
+  // `vontade.html` — que replica o prompt mas NÃO é `deliberateFloor10`: não
+  // tem a gramática, nem o SMALL_BRAIN_COMPLETION_CONFIG, nem o resgate, nem o
+  // preemptor. Esta base já pagou por essa distinção antes (uma medição
+  // "reprovou" uma integração que funcionava porque a sonda media outro
+  // módulo). Aqui roda a função DE VERDADE, pela porta das sondas.
+  if (process.env.DELIBERACAO === '1') {
+    const r = await pagina.evaluate(async () => {
+      const m = globalThis.__f10mente;
+      if (!m?.deliberateFloor10) return { erro: 'sem __f10mente' };
+      const modelo = m.npc?.deliberationLoadText ?? '';
+      const t0 = Date.now();
+      const carregou = await m.precarregarVontade();
+      const carga = Date.now() - t0;
+      if (!carregou) return { erro: 'a vontade não carregou', modelo, carga };
+      const perception = m.perceiveFloor10({
+        npcPosition: { x: 0, y: 0, z: 2.2 },
+        npcYaw: Math.PI,
+        playerPosition: { x: 0.5, y: 0, z: -0.5 },
+      });
+      const saida = [];
+      for (let i = 0; i < 3; i += 1) {
+        const t = Date.now();
+        const d = await m.deliberateFloor10({
+          perception,
+          drives: { social: 0.6, curiosity: 0.7, restlessness: 0.4, fatigue: 0.2 },
+          memory: {
+            inspectedElevatorCount: 3, sleeps: 44, playerSilentSeconds: 30,
+            lastGoals: [], agreedAction: null, agreedReason: null,
+          },
+          now: Date.now() / 1000,
+        });
+        saida.push({
+          ms: Date.now() - t,
+          goal: d?.goal ?? null,
+          motivo: (d?.reason ?? '').slice(0, 70),
+          decidiu: !!d,
+        });
+      }
+      return { modelo: m.npc?.deliberationLoadText ?? modelo, carga, rodadas: saida };
+    });
+    console.log('\n  ' + JSON.stringify(r, null, 2).replace(/\n/g, '\n  '));
+    resultado.deliberacao = r;
+    resultado.falouAlgumaCoisa = true;
+    resultado.enviadas = 0;
+  } else if (process.env.REABERTURA === '1') {
     const t = async (nome, fn) => {
       const a = Date.now();
       const r = await fn();
