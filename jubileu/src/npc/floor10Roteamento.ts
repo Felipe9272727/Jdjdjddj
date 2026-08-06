@@ -35,6 +35,8 @@
 // O QUE ESTE MÓDULO NÃO FAZ: decidir quem liga e quando. Isso é o roteador, e
 // ele vem depois — sobre esta separação.
 
+import { vigiarInatividade } from './floor10Carga';
+
 /** O contrato mínimo do CacheManager do wllama que o download usa. */
 export type CofreDeModelos = {
     download?: (
@@ -59,10 +61,47 @@ export async function baixarSemSubir(
     aoProgredir?: ProgressoDoDownload,
 ): Promise<boolean> {
     if (typeof cofre?.download !== 'function') return false;
-    await cofre.download(url, {
-        progressCallback: ({ loaded, total }) => aoProgredir?.(loaded, total),
-    });
-    return true;
+    // ── E ESTE DOWNLOAD PRECISA DE CÃO DE GUARDA ──────────────────────────
+    //
+    // Buraco que EU abri nesta sessão. A fila chamava `precarregar*`, e esses
+    // passavam por `ensureSmallEngine`, que tem `vigiarInatividade` desde que
+    // uma carga silenciosa deixou a vontade "carregando" até a página ser
+    // recarregada. Ao trocar a fila para `baixar*` — que é o certo, "baixar não
+    // é ligar" — eu levei o download para fora dessa proteção e não levei a
+    // proteção junto.
+    //
+    // O `cacheManager.download` do wllama 3.5.1 não aceita AbortSignal: se a
+    // rede do celular morrer no meio, a promessa não resolve nem rejeita. E a
+    // fila roda os passos em SEQUÊNCIA, então travar aqui não custa um cérebro,
+    // custa TODOS OS SEGUINTES:
+    //
+    //     memória trava  -> reflexo, vontade e motor nunca baixam
+    //     vontade trava  -> o motor nunca baixa
+    //
+    // É o mesmo defeito que acabou de aparecer no reflexo, no arquivo ao lado,
+    // pela mesma causa: uma espera sem prazo dentro de uma fila sequencial.
+    //
+    // Como não dá para abortar, o vigia DESISTE DE ESPERAR e devolve `false`.
+    // Quem chama já trata `false` como "não deu" e a fila segue para o próximo
+    // — e os bytes que chegaram continuam no OPFS para a próxima tentativa.
+    let vivo = true;
+    let desistir: (v: boolean) => void = () => {};
+    const desistencia = new Promise<boolean>((resolve) => { desistir = resolve; });
+    const vigia = vigiarInatividade(() => { vivo = false; desistir(false); });
+    try {
+        const chegou = await Promise.race([
+            desistencia,
+            cofre.download(url, {
+                progressCallback: ({ loaded, total }) => {
+                    vigia.avancou();
+                    aoProgredir?.(loaded, total);
+                },
+            }).then(() => true),
+        ]);
+        return chegou && vivo;
+    } finally {
+        vigia.parar();
+    }
 }
 
 /**

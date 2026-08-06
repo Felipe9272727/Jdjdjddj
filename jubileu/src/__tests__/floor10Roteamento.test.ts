@@ -29,6 +29,49 @@ describe('baixar não é ligar', () => {
         expect(await baixarSemSubir(undefined, 'https://x/m.gguf')).toBe(false);
     });
 
+    it('desiste de um download travado em vez de prender a fila', async () => {
+        // Buraco que a troca de `precarregar*` por `baixar*` abriu: os
+        // `precarregar*` passavam por `ensureSmallEngine`, que tem vigia; os
+        // `baixar*` não tinham nenhum. E a fila roda em SEQUÊNCIA, então travar
+        // aqui não custa um cérebro, custa todos os seguintes.
+        const alvo = globalThis as { __f10InatividadeMs?: number };
+        alvo.__f10InatividadeMs = 60;
+        // Nunca resolve nem rejeita: é o que o wllama faz quando a rede morre,
+        // porque `cacheManager.download` não aceita AbortSignal.
+        const cofre = { download: () => new Promise<void>(() => {}) };
+        const comecou = Date.now();
+        const ok = await baixarSemSubir(cofre, 'https://x/m.gguf');
+        const levou = Date.now() - comecou;
+        delete alvo.__f10InatividadeMs;
+        // Sem o vigia esta linha nunca seria alcançada — o teste morreria no
+        // timeout do vitest, que é o sintoma no aparelho: a fila parada.
+        expect(ok).toBe(false);
+        expect(levou).toBeLessThan(3000);
+    });
+
+    it('um download LENTO mas vivo não é morto pelo vigia', async () => {
+        // O outro lado. Sem ele eu estaria aprovando um vigia que mata download
+        // saudável — e num celular, download saudável é lento.
+        const alvo = globalThis as { __f10InatividadeMs?: number };
+        alvo.__f10InatividadeMs = 120;
+        const cofre = {
+            download: async (
+                _u: string,
+                o?: { progressCallback?: (p: { loaded: number; total: number }) => void },
+            ) => {
+                for (let i = 1; i <= 6; i += 1) {
+                    await new Promise((r) => { setTimeout(r, 40); });
+                    o?.progressCallback?.({ loaded: i * 10, total: 60 });
+                }
+            },
+        };
+        const ok = await baixarSemSubir(cofre, 'https://x/m.gguf');
+        delete alvo.__f10InatividadeMs;
+        // 240ms de download com teto de 120ms de INATIVIDADE: passa, porque o
+        // que conta é o intervalo entre sinais, não o total.
+        expect(ok).toBe(true);
+    });
+
     it('propaga a falha do download em vez de engolir', async () => {
         const cofre = { download: async () => { throw new Error('rede caiu'); } };
         await expect(baixarSemSubir(cofre, 'https://x/m.gguf')).rejects.toThrow('rede caiu');
@@ -52,8 +95,11 @@ describe('o roteamento que o dono do jogo desenhou', () => {
 
     it('nunca há sobreposição: os dois grupos são disjuntos', () => {
         // É esta a invariante que segura o aparelho — nunca dois pipelines de
-        // pé ao mesmo tempo. Medido: cada cérebro de pé custa ~2x o arquivo em
-        // memória ANÔNIMA (4,52 de 5,09 GB), então sobreposição é RAM real.
+        // pé ao mesmo tempo. Medido com perfil PERSISTENTE: um cérebro de pé
+        // custa ~1,05x o próprio arquivo, quase tudo em memória anônima, que o
+        // kernel não tem para onde mandar. Sobreposição é RAM real. (O "~2x"
+        // que estava escrito aqui saiu de perfil efêmero, que guarda o
+        // armazenamento do site na RAM e inflava a conta — ver floor10Roteamento.)
         for (const noChat of [true, false]) {
             const ligados = new Set(quemDevoLigar(noChat));
             expect(quemDevoDesligar(noChat).some((c) => ligados.has(c))).toBe(false);
