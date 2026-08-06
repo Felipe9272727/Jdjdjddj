@@ -702,3 +702,46 @@ o número dela existe agora em vez de ser suposto.
 (Se um dia o custo incomodar, a saída que não mexe no desenho dele é desligar a
 vontade ao abrir o chat SÓ quando a memória estiver apertada. Aí o caso comum
 fica de graça e o aperto continua protegido. É decisão de quem joga.)
+
+## TUDO JUNTO, NA ROTA DO JOGO — 20 min, 4 mensagens, 3,40 GB de pico
+
+Tudo o que eu medi hoje foi peça isolada. Esta execução roda o sistema inteiro
+na rota real (`?bancada`), com perfil persistente (disco de verdade), a fila
+baixando os cinco cérebros, o roteamento agindo e mensagens enviadas pelo campo
+de texto:
+
+```
+duração ................ 1.206 s (20 min), 4 mensagens
+falou .................. sim — "Sou"        <- prova de fala: os números valem
+MEMÓRIA (pico) ......... 3,40 GB
+  dos quais anônima .... 2,70 GB
+  cache de arquivo ..... 0,65 GB
+CPU (pico sustentado) .. 3,99 de 8 núcleos
+buracos de quadro ...... 27 acima de 100 ms · pior 5.683 ms
+buracos >= 3 s ......... 1, em t=18.520 ms
+envios em .............. 31.0s · 331.5s · 631.6s · 931.8s
+veredito ............... bloqueio ÚNICO e longe dos envios — carga de modelo,
+                         NÃO o envio
+erros de página ........ nenhum
+```
+
+### O pico bate com o A/B por um caminho independente
+
+```
+A/B do roteamento, cenário "com" .... 3,36 GB e 3,38 GB
+sistema inteiro, rota do jogo ....... 3,40 GB
+```
+
+Três medições, dois caminhos diferentes (sonda `?mente` chamando as funções vs.
+jogo real com fila, reflexo, memória e UI), 1% de diferença. O 3,4 GB não é
+artefato do jeito de medir.
+
+### A travada por mensagem não reproduziu — 11ª tentativa
+
+O único buraco grande está em t=18,5 s, ou seja 12 s ANTES do primeiro envio, e
+é carga de modelo. Nenhum dos quatro envios produziu buraco perto de si. Agora
+com o sistema completo, a rota real e disco de verdade — que eram as três
+diferenças que eu tinha para explicar o não-reproduzir.
+
+Sobra o aparelho dele: OOM killer do Android e comportamento térmico, que não
+existem em nada que eu alcance daqui.
