@@ -180,3 +180,48 @@ describe('o reflexo não pode prender a fila', () => {
         expect(store.npc.reflexoPhase).toBe('ready');
     });
 });
+
+describe('uma falha do reflexo não pode ser permanente', () => {
+    // Mesma família do defeito que matou a vontade: promessa guardada com o
+    // fracasso dentro. Aqui em DOIS lugares — `geradorPromise` (a carga) e
+    // `modulePromise` (o import do CDN).
+    // RESSALVA DE COBERTURA: o conserto do `modulePromise` (limpar a promessa do
+    // `import()` quando ela REJEITA) não tem teste que o discrimine. O módulo
+    // fake sempre importa com sucesso — quem falha é o `pipeline()` — e a URL do
+    // CDN é capturada numa `const` no topo do módulo, então não dá para trocá-la
+    // entre duas tentativas sem reimportar tudo. O raciocínio é o mesmo do
+    // `geradorPromise`, que ESTÁ coberto abaixo: promessa guardada com o
+    // fracasso dentro faz um soluço de rede virar "sem reflexo até recarregar a
+    // página". Fica anotado como conserto por raciocínio, não por medição.
+    it('depois de o CDN falhar, a próxima tentativa ACONTECE', async () => {
+        controle.falharAoCriar = true;
+        expect(await reflexo.precarregarReflexo()).toBe(false);
+        const criadosAposFalha = controle.criados;
+
+        // Agora o CDN volta. Sem limpar as promessas, esta chamada devolveria o
+        // null guardado sem tocar em nada, e `criados` não subiria.
+        controle.falharAoCriar = false;
+        const ok = await reflexo.precarregarReflexo();
+
+        expect(controle.criados).toBeGreaterThan(criadosAposFalha);
+        expect(ok).toBe(true);
+        expect(store.npc.reflexoPhase).toBe('ready');
+    });
+
+    it('depois de o vigia desistir, a próxima tentativa ACONTECE', async () => {
+        // O vigia sai por um `return null` que NÃO passa pelo catch — foi o
+        // buraco que eu abri ao escrevê-lo.
+        controle.travarAoCriar = true;
+        (globalThis as { __f10ReflexoInatividadeMs?: number })
+            .__f10ReflexoInatividadeMs = 60;
+        expect(await reflexo.precarregarReflexo()).toBe(false);
+        delete (globalThis as { __f10ReflexoInatividadeMs?: number })
+            .__f10ReflexoInatividadeMs;
+        const criadosAposDesistir = controle.criados;
+
+        controle.travarAoCriar = false;
+        const ok = await reflexo.precarregarReflexo();
+        expect(controle.criados).toBeGreaterThan(criadosAposDesistir);
+        expect(ok).toBe(true);
+    });
+});

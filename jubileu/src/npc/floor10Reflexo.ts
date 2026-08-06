@@ -283,7 +283,17 @@ async function carregar(): Promise<Gerador | null> {
         )]);
         // Desistir não é falhar em silêncio: a fase e o texto já foram
         // publicados pelo vigia, e sobrescrevê-los com "pronto" seria mentir.
-        if (!criado || desistiu) return null;
+        if (!criado || desistiu) {
+            // ── E A PRÓXIMA TENTATIVA PRECISA PODER ACONTECER ─────────────
+            // Defeito que EU criei junto com o vigia: este `return null` sai
+            // sem passar pelo `catch`, que é quem zerava `geradorPromise`. Sem
+            // esta linha, `precarregarReflexo` guardaria a promessa resolvida
+            // com null e o reflexo morreria pelo resto da sessão — exatamente o
+            // defeito que eu tinha acabado de consertar na vontade, recriado
+            // por mim no arquivo ao lado, no mesmo dia.
+            geradorPromise = null;
+            return null;
+        }
         gerador = criado;
         pesosNoAparelho = true;
         floor10Fila.concluir(FILA_REFLEXO);
@@ -297,6 +307,13 @@ async function carregar(): Promise<Gerador | null> {
     } catch (erro) {
         const motivo = erro instanceof Error ? erro.message : String(erro);
         geradorPromise = null;
+        // ── E O MÓDULO TAMBÉM ─────────────────────────────────────────────
+        // `modulePromise ??= import(...)` guarda a promessa do IMPORT. Se o CDN
+        // estiver fora do ar no instante da primeira tentativa, ela fica
+        // guardada REJEITADA, e toda tentativa seguinte morre nela sem sequer
+        // tocar na rede. Um soluço de rede de celular virava "sem reflexo até
+        // recarregar a página".
+        modulePromise = null;
         npcSet({
             reflexoPhase: 'unavailable',
             reflexoLoadText: `${FLOOR10_REFLEXO_MODEL.label} indisponível: ${motivo}`,
