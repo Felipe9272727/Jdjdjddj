@@ -105,3 +105,28 @@ describe('o fluxo da rodada põe o motor ANTES do descarte', () => {
         expect(bloco).toContain('assinarEscolha(');
     });
 });
+
+describe('a geração respeita o próprio teto', () => {
+    // `DELIBERATION_TIMEOUT_MS` existia e chamava `abort()` desde sempre — e não
+    // adiantava, porque o laço de leitura nunca olhava o sinal. A única saída
+    // antecipada era `escolhaAssinada`. Ou seja: o teto valia para quem
+    // terminava cedo e NÃO valia para quem demorava, que é o caso inteiro.
+    const fonte = readFileSync(
+        new URL('../npc/floor10SmallBrain.ts', import.meta.url),
+        'utf8',
+    );
+    const laco = fonte.slice(
+        fonte.indexOf('for await (const chunk of stream)'),
+        fonte.indexOf('        } catch {', fonte.indexOf('for await (const chunk of stream)')),
+    );
+
+    it('o laço de leitura sai quando o sinal é abortado', () => {
+        expect(laco).toContain('if (abort.signal.aborted) break;');
+    });
+
+    it('e a assinatura continua sendo saída antecipada', () => {
+        // Cortar por tempo é a rede; assinar cedo continua sendo o caminho bom,
+        // e ele economiza tokens de verdade.
+        expect(laco).toContain('cortadoNaEscolha = true');
+    });
+});

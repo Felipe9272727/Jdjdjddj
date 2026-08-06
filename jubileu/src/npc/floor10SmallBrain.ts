@@ -1144,6 +1144,28 @@ export async function deliberateFloor10(
                     });
                 }
                 if (escolhaAssinada(texto)) { cortadoNaEscolha = true; break; }
+                // ── O TETO PRECISAVA SER OLHADO AQUI ──────────────────────
+                //
+                // `DELIBERATION_TIMEOUT_MS` já existia e já chamava `abort()` —
+                // e não adiantava nada, porque este laço nunca olhava o sinal.
+                // A única saída antecipada era `escolhaAssinada`. Ou seja: o
+                // teto valia para quem TERMINAVA cedo, e não valia justamente
+                // para quem demorava, que é o caso que ele existe para cobrir.
+                //
+                // Com um modelo que não assina cedo, a rodada ia até os 320
+                // tokens SEMPRE. No meu emulador isso é ~60 s e ninguém nota;
+                // no celular dele, mais lento, são minutos — rodada atrás de
+                // rodada, com o painel dizendo "pensando" o tempo todo. É o
+                // "thinking infinito" que ele relatou, e não tem nada a ver com
+                // o bloco `<think>` que eu tinha acusado (medido: com o prompt
+                // de deliberação o LFM2.5 nem abre `<think>`, e assina em 23
+                // caracteres — a acusação estava errada).
+                //
+                // Sair aqui NÃO perde a rodada, e é isso que torna o corte
+                // barato agora: o motor lê o pensamento PARCIAL e tira a meta
+                // dele. Antes desta mesma leva de mudanças, cortar no meio
+                // significava jogar tudo fora.
+                if (abort.signal.aborted) break;
             }
         } catch {
             // Cortado pela fala, pelo teto ou pelo worker. O que já saiu vale:

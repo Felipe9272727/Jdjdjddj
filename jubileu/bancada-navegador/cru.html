@@ -1,7 +1,9 @@
 <!doctype html><meta charset=utf8><body><script type=module>
 const { Wllama } = await import('/wllama-cdn/index.js');
-const w = new Wllama({ 'single-thread/wllama.wasm':'/wllama-cdn/wasm/wllama.wasm',
-  'multi-thread/wllama.wasm':'/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog:true });
+// Esta versão do wllama quer `{ default }`, como o jogo usa. A forma antiga
+// ('single-thread/...') estoura "default is missing from pathConfig" — e sem o
+// ouvinte de `pageerror` isso morria mudo por 15 minutos.
+const w = new Wllama({ default:'/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog:true });
 await w.loadModelFromUrl('/modelo.gguf', { n_ctx: 2048, n_threads: 8 });
 const r = await w.createChatCompletion({
   messages:[{role:'system',content:'You are Nilo. Decide one action.'},
