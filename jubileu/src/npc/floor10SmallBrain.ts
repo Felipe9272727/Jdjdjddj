@@ -1021,6 +1021,22 @@ export async function deliberateFloor10(
                     deliberationPhase: 'unavailable',
                     deliberationLoadText: unavailableText,
                 });
+            } else if (npc.deliberationPhase === 'reopening'
+                || npc.deliberationPhase === 'loading') {
+                // REDE DE SEGURANÇA, não o conserto.
+                //
+                // O conserto do "voltando a pensar… para sempre" está em
+                // `ensureSmallEngine` (limpa a promessa, devolve a fase) e em
+                // `abortDeliberation` (aceita 'reopening'). Isto aqui é a última
+                // porta: se a rodada terminar sem motor por QUALQUER caminho —
+                // inclusive um que ainda não existe, como o coordenador recusar
+                // sem chamar o carregador —, a tela não pode continuar anunciando
+                // uma reabertura que não está acontecendo.
+                //
+                // O defeito custou a vontade inteira de uma sessão dele, e o que
+                // o tornou permanente foi justamente ninguém ter fechado a porta
+                // depois da fase nova.
+                npcSet({ deliberationPhase: 'off' });
             }
             return null;
         }
