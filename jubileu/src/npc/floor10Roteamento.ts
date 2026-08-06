@@ -93,6 +93,17 @@ export async function baixarSemSubir(
             desistencia,
             cofre.download(url, {
                 progressCallback: ({ loaded, total }) => {
+                    // ── O ZUMBI NÃO PODE ESCREVER NA FILA ─────────────────
+                    //
+                    // Desistir de esperar não para o download: `download` não
+                    // aceita AbortSignal, então ele segue chamando este
+                    // callback. Sem esta guarda, um download já dado como
+                    // falhado continuava mexendo em `floor10Fila` e no npcStore
+                    // — roubava a barra do passo que estava rodando AGORA e,
+                    // ao chegar a 100%, se marcava como pronto enquanto ainda
+                    // constava como falhado. Contabilidade de duas fontes para
+                    // o mesmo id, que é como uma barra volta a mentir.
+                    if (!vivo) return;
                     vigia.avancou();
                     aoProgredir?.(loaded, total);
                 },

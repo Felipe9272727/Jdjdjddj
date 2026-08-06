@@ -1504,7 +1504,19 @@ export async function baixarVontade(): Promise<boolean> {
             },
         );
         try { await (cofre as { exit?: () => Promise<void> }).exit?.(); } catch { /* nada subiu */ }
-        if (!baixou) return false;
+        // ── DESISTIR TAMBÉM PRECISA LIMPAR A TELA ─────────────────────────
+        // `baixarSemSubir` devolve `false` quando o vigia desiste de um download
+        // travado. A fase ficava em 'loading' e o texto no último "baixando …
+        // 45%" — o painel anunciava um download que ninguém está fazendo, e pior:
+        // `motivoDaTela()` entregava ESSA string de progresso ao `floor10Fila`
+        // como se fosse o motivo da falha.
+        if (!baixou) {
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} não respondeu; a fila seguiu sem ele`,
+            });
+            return false;
+        }
         // OS PESOS ESTÃO NO APARELHO, e nada está de pé por causa deles.
         pesosNoAparelho = true;
         npcSet({

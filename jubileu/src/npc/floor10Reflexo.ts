@@ -224,7 +224,16 @@ async function carregar(): Promise<Gerador | null> {
     try {
         modulePromise ??= import(/* @vite-ignore */ TRANSFORMERS_ESM) as
             unknown as Promise<TransformersModule>;
-        const mod = await modulePromise;
+        // ── O IMPORT TAMBÉM ENTRA NA CORRIDA ──────────────────────────────
+        //
+        // Eu escrevi o vigia e depois comemorei que "a fila não pode mais ser
+        // presa" — e tinha corrido o `render` só contra `pipeline()`. Um
+        // `import()` pendurado (o CDN aceita a conexão e não responde) parava
+        // AQUI, antes do `pipeline`, e a fila ficava presa exatamente como
+        // antes. O comentário lá em cima jurava fechar esse buraco; o código
+        // fechava metade dele.
+        const mod = await Promise.race([render, modulePromise]);
+        if (!mod || desistiu) { geradorPromise = null; return null; }
         // ── O QUINTO RUNTIME TAMBÉM TEM POOL DE THREADS ───────────────────
         //
         // `env.backends` estava declarado no tipo e NUNCA era configurado. Sem

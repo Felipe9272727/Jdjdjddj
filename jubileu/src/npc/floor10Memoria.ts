@@ -441,7 +441,19 @@ export async function baixarMemoria(): Promise<boolean> {
             },
         );
         try { await (cofre as { exit?: () => Promise<void> }).exit?.(); } catch { /* nada subiu */ }
-        if (!baixou) return false;
+        // ── DESISTIR TAMBÉM PRECISA LIMPAR A TELA ─────────────────────────
+        // `baixarSemSubir` devolve `false` quando o vigia desiste de um download
+        // travado. A fase ficava em 'loading' e o texto no último "baixando …
+        // 45%" — o painel anunciava um download que ninguém está fazendo, e pior:
+        // `motivoDaTela()` entregava ESSA string de progresso ao `floor10Fila`
+        // como se fosse o motivo da falha.
+        if (!baixou) {
+            npcSet({
+                memoriaPhase: 'off',
+                memoriaLoadText: `${FLOOR10_MEMORIA_MODEL.label} não respondeu; a fila seguiu sem ele`,
+            });
+            return false;
+        }
         npcSet({
             memoriaPhase: 'off',
             memoriaLoadProgress: 1,
