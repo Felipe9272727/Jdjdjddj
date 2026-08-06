@@ -20,7 +20,7 @@ import {
 } from './npc/floor10Drives';
 import { perceiveFloor10 } from './npc/floor10Perception';
 import {
-    deliberarObservando, deliberateFloor10, precarregarVontade,
+    deliberarObservando, deliberateFloor10, precarregarVontade, unloadSmallBrain,
     setSmallBrain, smallBrainThreads,
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
     type PensamentoAoVivo, type SmallBrainId,
@@ -28,7 +28,10 @@ import {
 import {
     FLOOR10_MOTOR_MODEL,
     FLOOR10_MOTOR_SIZE_LABEL,
+    precarregarMotor,
+    unloadFloor10MotorBrain,
 } from './npc/floor10MotorBrain';
+import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import {
     cpuThreadCount, initLLM, sendToNpc, unloadConversationBrain,
     prepareFloor10SystemPrompt,
@@ -477,6 +480,14 @@ const Mente: React.FC = () => {
     initLLM, sendToNpc, unloadConversationBrain, prepareFloor10SystemPrompt,
     buildFloor10SystemPrompt, retrieveFloor10Canon, FLOOR10_CANON,
     memoria,
+    // ── O QUE O A/B DO ROTEAMENTO PRECISA ─────────────────────────────────
+    // Sem estes quatro, a única forma de conferir o conserto era a ARITMÉTICA
+    // (1,49 + 2×soma), e projeção já me obrigou a desdizer conclusão aqui. Com
+    // eles a sonda monta os dois cenários de verdade — a fala subindo POR CIMA
+    // da vontade e do motor (como era) e a fala subindo depois de o roteamento
+    // desligá-los (como é agora) — e lê o RSS real dos dois.
+    unloadSmallBrain, precarregarMotor, unloadFloor10MotorBrain,
+    desligarQuemNaoEDaVez,
 };
 
 export default Mente;

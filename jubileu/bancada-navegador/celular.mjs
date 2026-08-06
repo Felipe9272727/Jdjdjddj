@@ -51,8 +51,22 @@ const servidor = http.createServer((req, res) => {
     fs.createReadStream(alvo).pipe(res);
     return;
   }
+  if (p === '/modelo3.gguf') {
+    // O MOTOR. Sem esta rota `precarregarMotor` ia buscar o CDN, que não existe
+    // nesta caixa, e o cenário "três cérebros de pé" mediria dois.
+    const alvo = process.env.MODELO3 ?? path.join(import.meta.dirname, 'qwen06b.gguf');
+    if (!fs.existsSync(alvo)) { res.writeHead(404).end('404'); return; }
+    const tam = fs.statSync(alvo).size;
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(tam) });
+    fs.createReadStream(alvo).pipe(res);
+    return;
+  }
   if (p === '/modelo2.gguf') {
-    const alvo = process.env.MODELO2;
+    // MODELO2 sem valor derrubava o SERVIDOR inteiro (statSync(undefined)), e o
+    // sintoma aparecia como "a sonda parou depois do primeiro marco" — longe da
+    // causa. Um default explícito e um 404 em vez de exceção.
+    const alvo = process.env.MODELO2 ?? path.join(import.meta.dirname, 'llama1b.gguf');
+    if (!fs.existsSync(alvo)) { res.writeHead(404).end('404'); return; }
     const tam = fs.statSync(alvo).size;
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(tam) });
     fs.createReadStream(alvo).pipe(res);
@@ -155,6 +169,7 @@ await pagina.addInitScript(() => {
   Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
   globalThis.__npcModelUrl = '/modelo.gguf';
   globalThis.__smallBrainModelUrl = '/modelo2.gguf';
+  globalThis.__motorBrainModelUrl = '/modelo3.gguf';
   // O Chromium desta caixa NÃO passa pelo proxy do agente, então nenhum CDN
   // externo carrega — foi por isso que a 4ª execução morreu em
   // "Failed to fetch dynamically imported module: cdn.jsdelivr.net/.../wllama".
@@ -284,7 +299,73 @@ try {
   // SOMA. Assumir foi o que me obrigou a desdizer uma conclusão hoje. A página
   // ?mente publica __f10mente com initLLM e precarregarVontade: dá para ter a
   // FALA e a VONTADE de pé na mesma sessão e medir de verdade.
-  if (process.env.DESCARGA === '1') {
+  // ── O A/B DO ROTEAMENTO: a projeção vira medição ──────────────────────
+  //
+  // O conserto de "saio do chat, e entro, LAGA TUDO" foi justificado por
+  // ARITMÉTICA: 1,49 + 2x(soma dos arquivos), 9,91 GB antes e 5,99 GB depois.
+  // Aritmética em cima de um modelo medido continua sendo projeção, e projeção
+  // já me obrigou a desdizer conclusão nesta sessão mais de uma vez.
+  //
+  // Aqui os dois cenários são montados de verdade e o RSS é lido dos dois:
+  //
+  //   CENARIO=sem  vontade + motor de pe, e a fala sobe POR CIMA   (como era)
+  //   CENARIO=com  o roteamento desliga os dois, depois a fala sobe (como é)
+  //
+  // A folga entre desligar e subir a fala é de 5s de propósito, e não os 12s do
+  // RESPIRO_APOS_DESCARGA_MS: no jogo quem separa as duas coisas é o jogador
+  // DIGITANDO (abrir o painel desliga, enviar a mensagem sobe). 5s é uma
+  // digitação curta — se eu medisse com 12s estaria medindo um caso melhor do
+  // que o que ele vai viver.
+  if (process.env.ROTEAMENTO === '1') {
+    const CENARIO = process.env.CENARIO ?? 'com';
+    const marco = async (nome) => {
+      await pagina.waitForTimeout(4000);
+      const a = arvore(pid);
+      console.log(`  ${nome.padEnd(22)} RSS ${(a.rssMB / 1024).toFixed(2)} GB · anônima ${(a.anonMB / 1024).toFixed(2)} GB`);
+      return a;
+    };
+    console.log(`\n  cenário: ${CENARIO === 'com' ? 'COM o roteamento (como está no ar)' : 'SEM o roteamento (como era)'}`);
+    const vazio = await marco('aba vazia');
+    // FORA DO CHAT: é aqui que a vontade e o motor ficam de pé.
+    const r1 = await pagina.evaluate(async () => {
+      const m = globalThis.__f10mente;
+      if (!m?.precarregarVontade) return 'sem __f10mente';
+      const v = await m.precarregarVontade();
+      const t = await m.precarregarMotor();
+      return `vontade=${v} motor=${t}`;
+    });
+    console.log(`  fora do chat: ${r1}`);
+    const foraDoChat = await marco('vontade+motor de pé');
+    // O JOGADOR ABRE O CHAT.
+    if (CENARIO === 'com') {
+      const r2 = await pagina.evaluate(async () => {
+        const m = globalThis.__f10mente;
+        return await m.desligarQuemNaoEDaVez(true, {
+          vontade: () => m.unloadSmallBrain(),
+          motor: () => m.unloadFloor10MotorBrain(),
+        });
+      });
+      console.log(`  abriu o chat, desligou: ${JSON.stringify(r2)}`);
+      await pagina.waitForTimeout(5000); // o jogador digitando
+    }
+    // ENVIOU A MENSAGEM: a fala sobe.
+    const r3 = await pagina.evaluate(async () => {
+      await globalThis.__f10mente?.initLLM?.();
+      return globalThis.__f10mente?.npc?.phase;
+    });
+    console.log(`  enviou, fala subiu: fase=${r3}`);
+    const pico = await marco('PICO (fala de pé)');
+    resultado.roteamento = {
+      cenario: CENARIO,
+      vazioMB: vazio.rssMB,
+      foraDoChatMB: foraDoChat.rssMB,
+      picoMB: pico.rssMB,
+      picoAnonMB: pico.anonMB,
+    };
+    console.log(`\n  PICO ${CENARIO}: ${(pico.rssMB / 1024).toFixed(2)} GB RSS · ${(pico.anonMB / 1024).toFixed(2)} GB anônimos`);
+    resultado.falouAlgumaCoisa = true;
+    resultado.enviadas = 0;
+  } else if (process.env.DESCARGA === '1') {
     // ── DESCARREGAR DEVOLVE A MEMÓRIA? ────────────────────────────────────
     // A arquitetura inteira assume que sim: fechar o chat descarrega a mente
     // para a vontade caber. Se o RSS não cair, nada disso adianta e o desenho
