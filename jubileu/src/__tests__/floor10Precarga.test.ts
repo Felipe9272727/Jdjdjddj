@@ -396,3 +396,69 @@ describe('poupar memória: baixar não é o mesmo que manter de pé', () => {
         expect(passos.find((p) => p.id === FILA_MOTOR)?.liberar).toBeDefined();
     });
 });
+
+describe('a fila não pode esperar para sempre', () => {
+    // O formato dos três defeitos de hoje é o mesmo: espera sem prazo dentro de
+    // uma fila SEQUENCIAL. `TETO_DE_ESPERA_MS` parecia fechar a porta, mas só
+    // trocava a condição — passado ele, o passo esperava `falaGerandoAgora()`,
+    // que não tem prazo nenhum. Fase presa em 'thinking' = tudo depois daquele
+    // passo nunca baixa.
+    //
+    // RESSALVA: aqui eu não tenho relato de que aconteceu no aparelho. Estou
+    // fechando pelo FORMATO, não pelo sintoma.
+    beforeEach(() => {
+        resetPrecargaForTests();
+        npcSet({ open: false, phase: 'cold' });
+    });
+
+    it('com a fala eternamente "pensando", o passo ainda acontece', async () => {
+        const alvo = globalThis as { __f10TetoEsperaMs?: number; __f10TetoAbsolutoMs?: number };
+        alvo.__f10TetoEsperaMs = 20;
+        alvo.__f10TetoAbsolutoMs = 60;
+        // Nunca sai de 'thinking': é a fase travada que o teto absoluto existe
+        // para sobreviver.
+        npcSet({ phase: 'thinking' });
+
+        let rodou = false;
+        await iniciarPrecarga([{
+            id: FILA_VONTADE,
+            etapa: 'vontade',
+            carregar: async () => { rodou = true; return true; },
+            adiarEnquanto: () => true,   // adia sempre, como uma fase presa
+        }]);
+
+        delete alvo.__f10TetoEsperaMs;
+        delete alvo.__f10TetoAbsolutoMs;
+        npcSet({ phase: 'cold' });
+        // Sem o teto absoluto isto nunca retornaria e o teste morreria no
+        // timeout — que é o sintoma: a fila parada.
+        expect(rodou).toBe(true);
+    });
+
+    it('antes do teto absoluto, a espera continua valendo', async () => {
+        // O outro lado: um teto que dispara cedo demais desmonta a proteção
+        // inteira e devolve o "1,32 GB subindo no meio da conversa".
+        const alvo = globalThis as { __f10TetoEsperaMs?: number; __f10TetoAbsolutoMs?: number };
+        alvo.__f10TetoEsperaMs = 10_000;
+        alvo.__f10TetoAbsolutoMs = 10_000;
+        npcSet({ phase: 'thinking' });
+
+        let rodou = false;
+        const fila = iniciarPrecarga([{
+            id: FILA_VONTADE,
+            etapa: 'vontade',
+            carregar: async () => { rodou = true; return true; },
+            // Condição REAL, que solta quando a fala termina — se eu usasse
+            // `() => true` aqui, o teste mediria só o teto e não a espera.
+            adiarEnquanto: falaGerandoAgora,
+        }]);
+        await new Promise((r) => { setTimeout(r, 60); });
+        expect(rodou).toBe(false);   // ainda segurando, como deve
+
+        npcSet({ phase: 'cold' });   // a fala terminou de verdade
+        await fila;
+        delete alvo.__f10TetoEsperaMs;
+        delete alvo.__f10TetoAbsolutoMs;
+        expect(rodou).toBe(true);
+    });
+});

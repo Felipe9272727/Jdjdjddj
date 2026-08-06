@@ -91,6 +91,34 @@ export function falaGerandoAgora(): boolean {
  */
 export const TETO_DE_ESPERA_MS = 120_000;
 
+/**
+ * ── E O SEGUNDO TETO, PORQUE O PRIMEIRO NÃO FECHAVA A PORTA ───────────────
+ *
+ * Passado `TETO_DE_ESPERA_MS`, o passo deixava de exigir o chat fechado e
+ * passava a esperar só `falaGerandoAgora()`. A intenção continua certa — nunca
+ * subir por cima de uma geração. O problema é que essa segunda condição não tem
+ * prazo NENHUM: se `npc.phase` ficar preso em 'thinking' ou 'loading' por
+ * qualquer motivo, a fila espera para sempre, e tudo depois daquele passo nunca
+ * baixa.
+ *
+ * É o mesmo formato dos dois defeitos de hoje (o reflexo e os `baixar*`): uma
+ * espera sem prazo dentro de uma fila sequencial. A diferença é que aqui eu não
+ * tenho relato de que aconteceu — estou fechando a porta pelo formato, não pelo
+ * sintoma, e é honesto dizer isso.
+ *
+ * 10 minutos é folgado de propósito. A deliberação tem teto de 300 s e a fala
+ * tem cão de guarda próprio, então qualquer geração viva termina muito antes.
+ * Chegar aqui significa que a fase está presa, e nesse caso continuar esperando
+ * não protege ninguém: só garante que o resto do andar nunca carregue.
+ */
+export const TETO_ABSOLUTO_MS = 600_000;
+
+/** O teto absoluto em vigor; um teste pode encurtá-lo. */
+function tetoAbsolutoEmVigor(): number {
+    const forcado = (globalThis as { __f10TetoAbsolutoMs?: number }).__f10TetoAbsolutoMs;
+    return typeof forcado === 'number' && forcado > 0 ? forcado : TETO_ABSOLUTO_MS;
+}
+
 /** O teto em vigor; um teste pode encurtá-lo em vez de esperar dois minutos. */
 function tetoEmVigor(): number {
     const forcado = (globalThis as { __f10TetoEsperaMs?: number }).__f10TetoEsperaMs;
@@ -101,15 +129,22 @@ function esperarAVez(
     adiar: () => boolean,
     tetoMs = tetoEmVigor(),
     agora: () => number = Date.now,
+    tetoAbsolutoMs = tetoAbsolutoEmVigor(),
 ): Promise<void> {
     if (!adiar()) return Promise.resolve();
     const limite = agora() + tetoMs;
+    const limiteAbsoluto = agora() + Math.max(tetoMs, tetoAbsolutoMs);
     // Passado o teto, a única coisa que ainda segura é uma geração em curso.
     // `original` precisa ser uma referência SEPARADA: reatribuir `adiar` a uma
     // função que chama `adiar` é recursão infinita, e foi o que eu escrevi na
     // primeira versão — os testes estouraram a pilha na hora.
     const original = adiar;
-    const adiarComTeto = () => (agora() >= limite ? falaGerandoAgora() : original());
+    const adiarComTeto = () => {
+        // Nada segura depois do teto absoluto — nem uma geração, que a essa
+        // altura não está gerando, está travada.
+        if (agora() >= limiteAbsoluto) return false;
+        return agora() >= limite ? falaGerandoAgora() : original();
+    };
     if (!adiarComTeto()) return Promise.resolve();
     adiar = adiarComTeto;
     return new Promise<void>((resolve) => {

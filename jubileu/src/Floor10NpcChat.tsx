@@ -30,7 +30,7 @@ import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { vigiarMemoria } from './npc/floor10Memoriametro';
 import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
-import { baixarMotor, precarregarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
+import { baixarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
     FLOOR10_MEMORIA_MODEL,
     FLOOR10_MEMORIA_SIZE_LABEL,
