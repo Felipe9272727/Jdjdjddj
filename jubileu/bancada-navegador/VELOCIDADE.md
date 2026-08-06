@@ -398,3 +398,54 @@ sobrecarga aritmética — mas é o mesmo mecanismo com outro nome:
 Por isso `cpuThreadCount` passou a usar METADE dos núcleos (no 7s Gen 2: 4, que
 é exatamente o grupo rápido). O override manual continua valendo para quem
 quiser provar outro número no próprio aparelho.
+
+## FECHADO: o binário compat é inocente — carga, memória E geração
+
+Eu levantei o compat como "candidato número um" para explicar por que a travada
+que ele relata nunca reproduz aqui: o aparelho dele poderia estar rodando o
+outro binário do wllama (wasm32, sem JSPI) enquanto a bancada roda o padrão.
+
+Medido dos dois lados, mesmo modelo (SmolLM3-3B Q4_K_M), mesmas opções do jogo,
+com `delete WebAssembly.Suspending` forçando o caminho sem JSPI e o relatório
+carregando a PROVA de que o desligamento pegou (`jspiDisponivel: false`):
+
+```
+                  carga        geração      tok/s    prefill
+padrão (JSPI)     67.470 ms    71.620 ms    3,58     4,44
+compat (wasm32)   65.093 ms    70.472 ms    3,67     4,51
+
+alocação: 1819,10 MiB de modelo · 57,38 KV · 78,09 compute — IDÊNTICA
+```
+
+Iguais dentro do ruído nas três dimensões. **A hipótese está morta**, e o
+resultado negativo vale: significa que o que se mede aqui vale para o aparelho
+dele independentemente da versão do Chrome. As únicas diferenças reais do compat
+são 14,19 MB baixados em vez de 7,66 MB, e wasm32 em vez de memory64 — é daí que
+vem o teto de 2 GiB por GGUF.
+
+### Duas armadilhas de método que este teste custou
+
+1. **`--js-flags=--experimental-wasm-jspi` não desliga nada.** Nas versões atuais
+   o JSPI já vem ligado de fábrica, então tirar a flag é inócuo. A primeira
+   execução do experimento comparou o caminho padrão com ele mesmo e deu "sem
+   diferença" — conclusão certa por acaso, método errado. O jeito honesto é
+   tirar o símbolo que `isSupportJSPI()` testa.
+2. **A carga do MESMO modelo varia 28% entre execuções idênticas** (74,3 s vs
+   58,0 s no mesmo caminho). Nenhuma conclusão sobre tempo de carga sobrevive a
+   uma execução só.
+
+## AirLLM: pesquisado, e não é portável para cá
+
+Ele mantém UMA camada na GPU por vez, lendo o resto do disco a cada passo — é
+assim que roda um 70B em 4 GB de VRAM. O princípio é o mesmo do Colibri, e é o
+mesmo do roteamento deste andar. O que não dá para trazer:
+
+  - é Python + PyTorch + CUDA; não há caminho para browser nem WASM;
+  - custa 5-30x em velocidade (0,5-2 tok/s), porque cada passo relê o modelo;
+  - **WASM não tem mmap**: a memória do módulo é um ArrayBuffer linear. Streaming
+    por camada viraria reler o GGUF inteiro do OPFS a cada token;
+  - e o problema deste jogo nunca foi "o modelo não cabe" — o 1,2B cabe folgado.
+    Era QUATRO cérebros de pé ao mesmo tempo, que é problema de roteamento.
+
+A granularidade que funciona no browser é a de CÉREBRO, não a de camada, e é a
+que o `floor10Roteamento` implementa: só quem vai trabalhar agora fica na RAM.
