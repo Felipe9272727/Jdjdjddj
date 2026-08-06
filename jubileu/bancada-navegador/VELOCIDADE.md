@@ -564,3 +564,48 @@ economia ....  2,25 GB    2,20 GB
 ```
 
 Reprodutível dentro de 1%. O ganho do roteamento não é ruído.
+
+## REABRIR UM CÉREBRO: ~18 s, e o disco NÃO é mais lento que a RAM
+
+A descoberta de que perfil efêmero guarda o armazenamento na RAM levantou uma
+suspeita forte: as dez execuções que falharam em reproduzir a travada dele leram
+o .gguf da MEMÓRIA, enquanto o aparelho dele lê da flash. Se reabrir custasse
+muito mais em disco, esse seria o mecanismo que faltava.
+
+Medido, duas reaberturas em cada perfil (`REABERTURA=1`):
+
+```
+                        1a carga    REABRE    REABRE 2    média
+efêmero (OPFS na RAM)    78.032ms   21.514    18.425     19.970ms
+persistente (em disco)   57.135ms   19.646    16.042     17.844ms
+```
+
+**O disco é igual ou ligeiramente mais rápido.** A hipótese está morta: ler o
+modelo de volta não é o que diferencia a bancada do aparelho dele. Descarto mais
+um suspeito, e sobra menos lugar para o defeito se esconder.
+
+### O número que importa para o DESENHO: 18 s por reabertura
+
+Descarregar custa 5-8 ms. Reabrir custa ~18 s. É assimétrico, e é o preço da
+arquitetura de trocar cérebro conforme o jogador entra e sai do chat.
+
+Onde esse preço é pago, no desenho atual:
+
+```
+fecha o chat   -> descarrega fala+memória, 12s, sobe a vontade   (fora do chat)
+abre o chat    -> desliga vontade+motor                          (~0, é descarga)
+envia          -> a fala REABRE                    ~18s  <- ele espera aqui
+```
+
+Ou seja: os 18 s já existiam ANTES do roteamento — quem descarrega a fala é o
+fechamento do chat, que é anterior. O que o roteamento acrescentou (desligar a
+vontade ao abrir) custa uma reabertura DA VONTADE, e ela acontece depois do
+próximo fechamento, fora do chat, onde ninguém espera. **O conserto de memória
+não comprou espera nenhuma para o jogador.**
+
+E os 18 s de reabertura da fala continuam sendo o candidato número um para a
+queixa "ao enviar, trava e volta". Não é bug: é o modelo sendo relido. Só se
+resolve não descarregando a fala — e com a conta corrigida (~1,05x o arquivo)
+manter fala+vontade+motor de pé daria 1,35 + 1,05x3,875 = 5,42 GB, que é demais
+para um celular. A troca continua sendo a certa; o custo é este e agora tem
+número.
