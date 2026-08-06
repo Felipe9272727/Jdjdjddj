@@ -69,6 +69,9 @@ import {
 } from './wllamaEngine';
 
 export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
+import {
+    cerebroEscolhido, definirCerebroEscolhido, SMALL_BRAIN_STORAGE_KEY,
+} from './floor10Brains';
 
 const WLLAMA_V = '3.5.1';
 // Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
@@ -80,58 +83,13 @@ const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 
-const SMALL_BRAIN_STORAGE_KEY = 'floor10-small-brain';
-
-/**
- * ── `?vontade=<id>` — TROCAR O CÉREBRO SEM SER PROGRAMADOR ────────────────
- *
- * Eu pus o LFM2.5 no catálogo, mostrei os números e disse a ele: "ele aparece
- * na lista de cérebros do painel; é só selecionar e testar no teu aparelho".
- * Estava ERRADO. O seletor existe só em `?mente`, a página de depuração — no
- * JOGO não há nenhum. Ou seja, eu entreguei uma escolha que ele não tinha como
- * fazer, e o relato veio na hora: "o lfm não está baixando, ao invés disso quem
- * tá baixando é o llama". Estava certo, e era isso mesmo que o código fazia.
- *
- * A URL é o caminho que funciona num celular: nada de menu novo, e ele já testa
- * o jogo por URL (`?fresh=1`). Vale para esta aba e FICA GUARDADO, então basta
- * uma vez; `?vontade=llama32-1b` volta atrás.
- *
- * Lido ANTES do `localStorage` de propósito: quem escreveu na URL agora está
- * mandando mais que a escolha de ontem.
- */
-function readBrainFromUrl(): SmallBrainId | null {
-    try {
-        const busca = globalThis.location?.search ?? '';
-        const pedido = new URLSearchParams(busca).get('vontade');
-        if (!pedido) return null;
-        const achado = SMALL_BRAIN_CATALOG.find((m) => m.id === pedido);
-        if (!achado) return null;
-        // Guarda, para a próxima abertura não precisar do parâmetro. Se falhar
-        // (modo privado, por exemplo), a escolha ainda vale para esta sessão.
-        try {
-            globalThis.localStorage?.setItem(SMALL_BRAIN_STORAGE_KEY, achado.id);
-        } catch { /* sem localStorage: vale só nesta aba */ }
-        return achado.id;
-    } catch {
-        return null;
-    }
-}
-
-function readSavedBrain(): SmallBrainId | null {
-    try {
-        const saved = globalThis.localStorage?.getItem(SMALL_BRAIN_STORAGE_KEY);
-        return SMALL_BRAIN_CATALOG.some((m) => m.id === saved)
-            ? (saved as SmallBrainId)
-            : null;
-    } catch {
-        return null;
-    }
-}
-
-let escolhido: SmallBrainId = readBrainFromUrl() ?? readSavedBrain() ?? SMALL_BRAIN_DEFAULT;
-
+// A resolução de QUAL cérebro está escolhido mora em floor10Brains, e não aqui,
+// porque o wllamaEngine também precisa dela — ele tem de saber qual NÃO apagar
+// quando falta cota para a fala. Duas cópias da mesma regra é como este projeto
+// já criou buraco antes (a fila perguntando a si mesma se a conversa estava
+// ocupada). floor10Brains não importa motor nenhum, então não há ciclo.
 function brainAtual() {
-    return SMALL_BRAIN_CATALOG.find((m) => m.id === escolhido) ?? SMALL_BRAIN_CATALOG[0];
+    return SMALL_BRAIN_CATALOG.find((m) => m.id === cerebroEscolhido()) ?? SMALL_BRAIN_CATALOG[0];
 }
 
 /**
@@ -154,10 +112,10 @@ export const SMALL_BRAIN_MODEL = Object.freeze({
  * vivos ao mesmo tempo é exatamente como o aparelho do Felipe trava.
  */
 export async function setSmallBrain(id: SmallBrainId): Promise<void> {
-    if (id === escolhido) return;
+    if (id === cerebroEscolhido()) return;
     if (!SMALL_BRAIN_CATALOG.some((m) => m.id === id)) return;
     await unloadSmallBrain();
-    escolhido = id;
+    definirCerebroEscolhido(id);
     try {
         globalThis.localStorage?.setItem(SMALL_BRAIN_STORAGE_KEY, id);
     } catch { /* sem localStorage a escolha só vale para esta sessão */ }

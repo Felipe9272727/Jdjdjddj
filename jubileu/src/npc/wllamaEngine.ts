@@ -28,7 +28,7 @@ import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
-import { smallBrainUrls } from './floor10Brains';
+import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
 import { conferirModeloCarregado } from './floor10Carga';
 import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
 import {
@@ -960,12 +960,34 @@ async function isModelCached(mod: WllamaModule, url: string): Promise<boolean> {
  * devolvidos. Nada de varrer o cache por dedução — a lista de URLs é fechada e
  * conhecida, e ela volta sozinha no próximo ciclo de deliberação.
  */
+/**
+ * ── OS DESCARTADOS PRIMEIRO, O EM USO SÓ SE NÃO SOBRAR JEITO ──────────────
+ *
+ * Esta função apagava TODOS os cérebros pequenos de uma vez, inclusive o que
+ * está em uso. Funciona — a fala volta a caber — e é caro à toa: o único que o
+ * jogo vai querer de novo em seguida é justamente o que estava selecionado, e
+ * ele desce inteiro outra vez.
+ *
+ * Passou a importar de verdade quando o dono do jogo trocou a vontade para o
+ * LFM2.5: o Llama de 1,32 GB continua no OPFS ocupando cota que agora não serve
+ * para nada. Sem esta ordem, a primeira aperto de espaço apagaria os dois e ele
+ * pagaria 1,25 GB de download por um problema causado por 1,32 GB de lixo.
+ *
+ * Ordem: os NÃO selecionados primeiro. Se isso bastar, quem chama refaz a conta
+ * e nem chega a pedir o resto — a vontade em uso fica onde está.
+ */
 async function reclaimSmallBrains(mod: WllamaModule): Promise<number> {
+    const emUso = urlDoCerebroEscolhido();
+    const descartados = cachesDescartaveis();
     let liberados = 0;
-    for (const url of smallBrainUrls()) {
+    for (const url of descartados) {
         if (!await isModelCached(mod, url)) continue;
         if (await forgetCachedModel(mod, url)) liberados += 1;
     }
+    if (liberados > 0) return liberados;
+    // Não havia lixo para jogar fora: aí sim a vontade em uso cede o lugar. Ela
+    // é opcional por construção; a fala não é.
+    if (await isModelCached(mod, emUso) && await forgetCachedModel(mod, emUso)) liberados += 1;
     return liberados;
 }
 

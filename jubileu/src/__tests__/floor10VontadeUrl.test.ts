@@ -35,7 +35,9 @@ async function carregarCom(busca: string) {
         value: { search: busca }, writable: true, configurable: true,
     });
     try {
-        return await import('../npc/floor10SmallBrain');
+        const pequeno = await import('../npc/floor10SmallBrain');
+        const catalogo = await import('../npc/floor10Brains');
+        return { ...pequeno, ...catalogo };
     } finally {
         Object.defineProperty(globalThis, 'location', {
             value: original, writable: true, configurable: true,
@@ -83,5 +85,33 @@ describe('?vontade=<id> troca o cérebro da vontade', () => {
             const m = await carregarCom(`?vontade=${cerebro.id}`);
             expect(m.SMALL_BRAIN_MODEL.id).toBe(cerebro.id);
         }
+    });
+});
+
+describe('a troca de modelo deixa lixo no OPFS — e a fala não pode pagar por ele', () => {
+    // "o llama de 1,32 GB que já baixou continua ocupando o OPFS"
+    //
+    // O cofre do site é o mesmo para os dois cérebros, e a fala já foi recusada
+    // uma vez no aparelho dele por causa disso ("o navegador só libera 1.87 GB e
+    // o modelo precisa de 2.07 GB" → o Nilo emudeceu). Depois de uma troca de
+    // vontade, o modelo antigo é lixo puro: cota gasta por nada.
+    it('o descartável é tudo menos o que está em uso', async () => {
+        const m = await carregarCom('?vontade=lfm2-1b');
+        const descartaveis = m.cachesDescartaveis();
+        expect(descartaveis).not.toContain(m.urlDoCerebroEscolhido());
+        // E o Llama, que acabou de sair de uso, ESTÁ na lista de descarte.
+        expect(descartaveis.some((u: string) => u.includes('Llama-3.2-1B'))).toBe(true);
+    });
+
+    it('trocar de volta inverte quem é lixo — a regra segue a escolha', async () => {
+        const m = await carregarCom('?vontade=llama32-1b');
+        const descartaveis = m.cachesDescartaveis();
+        expect(descartaveis.some((u: string) => u.includes('LFM2.5'))).toBe(true);
+        expect(descartaveis).not.toContain(m.urlDoCerebroEscolhido());
+    });
+
+    it('nunca sobra a lista inteira: o em uso sai de fora sempre', async () => {
+        const m = await carregarCom('');
+        expect(m.cachesDescartaveis().length).toBe(m.SMALL_BRAIN_CATALOG.length - 1);
     });
 });

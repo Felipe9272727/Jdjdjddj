@@ -143,6 +143,90 @@ export const SPEECH_BRAIN_BYTES = 1_915_305_312;
  */
 export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'lfm2-1b';
 
+export const SMALL_BRAIN_STORAGE_KEY = 'floor10-small-brain';
+
+/**
+ * ── `?vontade=<id>` — TROCAR O CÉREBRO SEM SER PROGRAMADOR ────────────────
+ *
+ * Eu pus o LFM2.5 no catálogo, mostrei os números e disse a ele: "ele aparece
+ * na lista de cérebros do painel; é só selecionar e testar no teu aparelho".
+ * Estava ERRADO. O seletor existe só em `?mente`, a página de depuração — no
+ * JOGO não há nenhum. Ou seja, eu entreguei uma escolha que ele não tinha como
+ * fazer, e o relato veio na hora: "o lfm não está baixando, ao invés disso quem
+ * tá baixando é o llama". Estava certo, e era isso mesmo que o código fazia.
+ *
+ * A URL é o caminho que funciona num celular: nada de menu novo, e ele já testa
+ * o jogo por URL (`?fresh=1`). Vale para esta aba e FICA GUARDADO, então basta
+ * uma vez; `?vontade=llama32-1b` volta atrás.
+ *
+ * Lido ANTES do `localStorage` de propósito: quem escreveu na URL agora está
+ * mandando mais que a escolha de ontem.
+ */
+function readBrainFromUrl(): SmallBrainId | null {
+    try {
+        const busca = globalThis.location?.search ?? '';
+        const pedido = new URLSearchParams(busca).get('vontade');
+        if (!pedido) return null;
+        const achado = SMALL_BRAIN_CATALOG.find((m) => m.id === pedido);
+        if (!achado) return null;
+        // Guarda, para a próxima abertura não precisar do parâmetro. Se falhar
+        // (modo privado, por exemplo), a escolha ainda vale para esta sessão.
+        try {
+            globalThis.localStorage?.setItem(SMALL_BRAIN_STORAGE_KEY, achado.id);
+        } catch { /* sem localStorage: vale só nesta aba */ }
+        return achado.id;
+    } catch {
+        return null;
+    }
+}
+
+function readSavedBrain(): SmallBrainId | null {
+    try {
+        const saved = globalThis.localStorage?.getItem(SMALL_BRAIN_STORAGE_KEY);
+        return SMALL_BRAIN_CATALOG.some((m) => m.id === saved)
+            ? (saved as SmallBrainId)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+let escolhido: SmallBrainId = readBrainFromUrl() ?? readSavedBrain() ?? SMALL_BRAIN_DEFAULT;
+
+/** O id da vontade em vigor. Fonte única — o motor da fala lê daqui também. */
+export function cerebroEscolhido(): SmallBrainId { return escolhido; }
+
+/** Troca a escolha. Quem descarrega o cérebro anterior é floor10SmallBrain. */
+export function definirCerebroEscolhido(id: SmallBrainId): void { escolhido = id; }
+
+/**
+ * A URL do .gguf da vontade EM USO.
+ *
+ * Existe para o cérebro da fala saber qual cache NÃO apagar quando precisa de
+ * espaço: apagar o que está em uso custa um download inteiro de volta, e o
+ * que sobra dos outros candidatos é lixo puro — especialmente depois de uma
+ * troca de modelo, quando o antigo fica ocupando cota sem servir para nada.
+ */
+export function urlDoCerebroEscolhido(): string {
+    const achado = SMALL_BRAIN_CATALOG.find((m) => m.id === escolhido) ?? SMALL_BRAIN_CATALOG[0];
+    return (globalThis as { __smallBrainModelUrl?: string }).__smallBrainModelUrl ?? achado.url;
+}
+
+
+/**
+ * Os caches de vontade que são LIXO: todos os candidatos menos o em uso.
+ *
+ * Passou a existir quando o dono do jogo trocou a vontade para o LFM2.5 — o
+ * Llama de 1,32 GB ficou no OPFS ocupando cota que não serve mais para nada.
+ * Apagar tudo de uma vez resolveria a cota e cobraria um download inteiro do
+ * modelo que o jogo vai querer em seguida; apagar o lixo primeiro resolve de
+ * graça na maioria das vezes.
+ */
+export function cachesDescartaveis(): string[] {
+    const emUso = urlDoCerebroEscolhido();
+    return smallBrainUrls().filter((u) => u !== emUso);
+}
+
 /** Todo cache que a FALA pode reciclar quando faltar espaço para ela. */
 export function smallBrainUrls(): string[] {
     return SMALL_BRAIN_CATALOG.map((m) => m.url);
