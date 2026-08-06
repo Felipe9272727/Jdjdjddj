@@ -553,3 +553,14 @@ fala sozinha ..... +2,00 GB para 1,915 GB de arquivo = 1,04x
 A lição de método é a mesma que já apareceu duas vezes hoje: o instrumento
 precisa ser conferido contra o que ele afirma medir. "RSS somado da árvore de
 processos" era verdade; "isto é o custo do modelo" não era.
+
+### Repetido, porque uma execução só já me enganou três vezes hoje
+
+```
+                 1a          2a       variação
+PICO sem ....  5,61 GB    5,58 GB      0,5%
+PICO com ....  3,36 GB    3,38 GB      0,6%
+economia ....  2,25 GB    2,20 GB
+```
+
+Reprodutível dentro de 1%. O ganho do roteamento não é ruído.

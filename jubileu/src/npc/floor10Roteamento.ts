@@ -18,8 +18,16 @@
 //     anônima ............ 4,52 GB   <- alocada, o kernel não tem para onde mandar
 //     cache de arquivo ... 0,57 GB   <- descartável sob pressão
 //
-// Ou seja: 89% do custo é memória de verdade. Um cérebro de pé pesa mesmo, e
-// descarregá-lo devolve mesmo. O Colibri (744B em 25 GB de RAM) chega ao mesmo
+// RESSALVA, escrita depois: estes três números saíram de perfil EFÊMERO do
+// Chrome, que guarda o armazenamento do site na RAM — ou seja, o .gguf entrou
+// na conta como se fosse custo do runtime. Os valores absolutos estão inflados
+// (ver a correção lá embaixo, em `desligarQuemNaoEDaVez`: o custo real de um
+// cérebro de pé é ~1,05x o arquivo, não 2x). O que a medição continua provando
+// é a PROPORÇÃO: a maior parte do custo é memória anônima, que o kernel não tem
+// para onde mandar. Um cérebro de pé pesa mesmo, e descarregá-lo devolve mesmo —
+// isso foi confirmado depois com perfil persistente, medindo 2,25 GB de volta.
+//
+// O Colibri (744B em 25 GB de RAM) chega ao mesmo
 // princípio por outro caminho — disco como fonte, RAM só para o que está ativo.
 // Ele fatia por especialista de MoE; aqui a granularidade é o cérebro inteiro,
 // que é mais simples e serve.
@@ -116,6 +124,13 @@ export type Manobras = Partial<Record<Cerebro, () => Promise<unknown>>>;
  *     vontade+motor de pé .      3,59 GB            3,60 GB
  *     PICO (fala de pé) ...      5,61 GB            3,36 GB   <- -2,25 GB
  *     anônima no pico .....      4,97 GB            2,73 GB
+ *
+ * DUAS EXECUÇÕES, porque uma só já me enganou três vezes nesta sessão:
+ *
+ *                    1a          2a       variação
+ *     PICO sem .... 5,61 GB    5,58 GB     0,5%
+ *     PICO com .... 3,36 GB    3,38 GB     0,6%
+ *     economia .... 2,25 GB    2,20 GB
  *
  * **40% a menos no pico**, no caminho que ele mais usa. E repare que o pico do
  * cenário novo (3,36) fica ABAIXO do marco de vontade+motor de pé (3,60): a
