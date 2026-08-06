@@ -386,7 +386,16 @@ export function abortDeliberation(): void {
         // uma folga.
         cedeuAVez = true;
     }
-    if (npc.deliberationPhase === 'thinking' || npc.deliberationPhase === 'loading') {
+    // 'reopening' PRECISAVA ESTAR NESTA LISTA.
+    //
+    // Ela nasceu com 'thinking' e 'loading', e 'reopening' foi acrescentado ao
+    // vocabulário DEPOIS, quando a pausa passou a encerrar o worker. Ninguém
+    // voltou aqui. Resultado: interromper uma REABERTURA deixava a fase
+    // congelada, e a tela ficava dizendo "Nilo está voltando a pensar…" para
+    // sempre — que é a foto que ele mandou do aparelho dele.
+    if (npc.deliberationPhase === 'thinking'
+        || npc.deliberationPhase === 'loading'
+        || npc.deliberationPhase === 'reopening') {
         npcSet({
             deliberationPhase: 'off',
             deliberationLoadText: interruptedDownload
@@ -734,7 +743,39 @@ function ensureSmallEngine(
                     deliberationLoadText:
                         `não foi possível carregar ${SMALL_BRAIN_MODEL.label} — ${motivo.slice(0, 200)}`,
                 });
+            } else {
+                // ── ABORTADO NÃO É "MORTO PARA SEMPRE" ────────────────────
+                //
+                // Sem este ramo a fase ficava em 'reopening' e o jogador via
+                // "Nilo está voltando a pensar…" PARA SEMPRE. Foi exatamente o
+                // que ele fotografou: o balão preso, e "ele nunca mais pensa".
+                npcSet({
+                    deliberationPhase: 'off',
+                    deliberationLoadText: `${SMALL_BRAIN_MODEL.label} no aparelho · em espera`,
+                });
             }
+            // ── E O `null` NÃO PODE FICAR EM CACHE ────────────────────────
+            //
+            // Este é o defeito de verdade. `ensureSmallEngine` começa com
+            // `enginePromise ??= (async () => …)()`, então uma promessa que
+            // resolveu `null` fica GUARDADA: toda chamada seguinte devolve o
+            // mesmo `null` na hora, sem tentar nada. A vontade morre pelo resto
+            // da sessão, e nada na tela diz por quê.
+            //
+            // Os ramos de retentativa acima já limpavam (`enginePromise = null`)
+            // — só o ramo final não limpava, que é o que sobra quando a carga é
+            // ABORTADA ou quando as três tentativas acabam. E abortar deixou de
+            // ser raro: `unloadSmallBrain` chama `abortDeliberation`, e o
+            // roteamento que eu instalei chama `unloadSmallBrain` A CADA
+            // ABERTURA DE CHAT. Se ele abrir o chat enquanto a vontade está
+            // reabrindo — janela de vários segundos, logo depois de fechar —
+            // a vontade morre ali e não volta mais.
+            //
+            // Ou seja: o defeito era latente e a minha mudança o tornou
+            // alcançável em uso normal. `deliberateFloor10` já chama
+            // `markUnloaded` "para a próxima tentativa poder acontecer"; sem
+            // esta linha, essa próxima tentativa nunca existiu.
+            enginePromise = null;
             return null;
         } finally {
             vigia.parar();
