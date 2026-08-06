@@ -37,6 +37,7 @@ import { npcSet } from './npcStore';
 import { floor10Fila, FILA_REFLEXO } from './floor10Fila';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { anotar } from './floor10CaixaPreta';
+import { vigiarInatividade } from './floor10Carga';
 
 /** Versão fixada, como a do wllama: `main` mudar não pode quebrar o jogo. */
 const TRANSFORMERS_V = '3.8.1';
@@ -122,10 +123,21 @@ export function reflexoJaCarregado(): boolean {
  * config). Só o arquivo grande interessa para a barra — os outros somam alguns
  * KB e fariam a fração pular para trás.
  */
+/**
+ * O vigia da carga em curso. Módulo, e não parâmetro, porque quem recebe os
+ * eventos de progresso é o `progress_callback` que o transformers.js chama de
+ * dentro — não há por onde passar contexto.
+ */
+let vigiaAtual: { avancou: () => void; parar: () => void } | null = null;
+
 function aoProgredir(evento: {
     status?: string; file?: string; loaded?: number; total?: number;
 }): void {
     if (evento.status !== 'progress') return;
+    // QUALQUER byte de QUALQUER arquivo conta como sinal de vida — inclusive do
+    // tokenizer, que a barra ignora de propósito. Confundir "não interessa para
+    // a barra" com "não é progresso" faria o vigia matar um download saudável.
+    vigiaAtual?.avancou();
     if (!evento.file || !/\.onnx$/i.test(evento.file)) return;
     const amostra = medidor.push(evento.loaded ?? 0, evento.total ?? 0);
     floor10Fila.progresso(FILA_REFLEXO, amostra);
@@ -136,6 +148,44 @@ function aoProgredir(evento: {
             : 0,
         reflexoLoadText: `baixando ${FLOOR10_REFLEXO_MODEL.label} · ${downloadLine(amostra)}`,
     });
+}
+
+/**
+ * ── O ÚNICO CÉREBRO SEM CÃO DE GUARDA, E ELE FICA NO MEIO DA FILA ─────────
+ *
+ * A vontade, o motor e a memória têm `vigiarInatividade` desde que uma carga
+ * silenciosa deixou a vontade "carregando" até a página ser recarregada. Aqui
+ * não havia nada — e este é o cérebro com MAIS motivo para ter:
+ *
+ *   - baixa de `huggingface.co`, host diferente de todos os outros (jsdelivr),
+ *     ou seja, um ponto de falha que nenhum outro compartilha;
+ *   - `mod.pipeline()` não aceita AbortSignal: se a rede do celular morrer no
+ *     meio, a promessa não resolve nem rejeita. Fica.
+ *
+ * E o preço não é perder o reflexo. É perder a FILA: `iniciarPrecarga` roda os
+ * passos em sequência com `await`, e o reflexo é o 3º de 5. Um download travado
+ * aqui significa que A VONTADE E O MOTOR NUNCA BAIXAM — que é, palavra por
+ * palavra, um relato que ele já fez ("só baixou a smollm3 e a de embedding").
+ * Eu tinha atribuído aquilo inteiro ao `adiarEnquanto`; esta era a outra porta,
+ * e ela continuava aberta.
+ *
+ * Como o `pipeline()` não pode ser abortado, o vigia não interrompe o download
+ * de verdade — ele DESISTE DE ESPERAR, devolve `null` e libera a fila. O
+ * download segue em segundo plano e, se um dia terminar, o cache do navegador
+ * fica quente para a próxima tentativa. Perder o reflexo custa o primeiro
+ * segundo de uma resposta; perder a vontade custa o livre-arbítrio do NPC.
+ */
+export const REFLEXO_INATIVIDADE_MS = 90_000;
+
+/**
+ * O teto em vigor. Mesmo padrão de `limiteDeInatividade`: sem um atalho, provar
+ * que o vigia reprova custaria 90 s de relógio de verdade por caso — e um teste
+ * caro é um teste que ninguém roda.
+ */
+export function limiteDoReflexo(): number {
+    const forcado = (globalThis as { __f10ReflexoInatividadeMs?: number })
+        .__f10ReflexoInatividadeMs;
+    return typeof forcado === 'number' && forcado > 0 ? forcado : REFLEXO_INATIVIDADE_MS;
 }
 
 async function carregar(): Promise<Gerador | null> {
@@ -151,6 +201,26 @@ async function carregar(): Promise<Gerador | null> {
             : `preparando o ${FLOOR10_REFLEXO_MODEL.label}…`,
         reflexoDownload: DOWNLOAD_ZERO,
     });
+    // O vigia começa ANTES do import: o próprio `import()` do transformers.js
+    // sai pela rede, e travar ali é tão fatal para a fila quanto travar no
+    // download dos pesos.
+    let desistiu = false;
+    // `Promise.withResolvers` só existe a partir do ES2024, e o alvo deste
+    // projeto é anterior. A forma antiga faz o mesmo.
+    let desistir: (v: null) => void = () => {};
+    const render = new Promise<null>((resolve) => { desistir = resolve; });
+    vigiaAtual = vigiarInatividade(() => {
+        desistiu = true;
+        anotar('reflexo:desistiu', { ms: Date.now() - comecou });
+        npcSet({
+            reflexoPhase: 'unavailable',
+            reflexoLoadText:
+                `${FLOOR10_REFLEXO_MODEL.label} sem resposta; a fila segue sem ele`,
+        });
+        // A FILA É LIBERADA AQUI, e é este o ponto do vigia. `pipeline()` não
+        // aceita AbortSignal, então o download não para — o que para é a ESPERA.
+        desistir(null);
+    }, limiteDoReflexo());
     try {
         modulePromise ??= import(/* @vite-ignore */ TRANSFORMERS_ESM) as
             unknown as Promise<TransformersModule>;
@@ -199,14 +269,21 @@ async function carregar(): Promise<Gerador | null> {
             // thread que desenha o jogo.
             (wasm as { proxy?: boolean }).proxy = true;
         } catch { /* build do transformers.js sem env: segue com o padrão */ }
-        const criado = await mod.pipeline('text-generation', FLOOR10_REFLEXO_MODEL.repo, {
+        const criado = await Promise.race([render, mod.pipeline(
+            'text-generation',
+            FLOOR10_REFLEXO_MODEL.repo,
+            {
             dtype: FLOOR10_REFLEXO_MODEL.dtype,
             // CPU de propósito. A GPU deste andar já custou duas falas perdidas
             // e um gerente inteiro para administrar; o reflexo não vai reabrir
             // essa porta por 135M de parâmetros.
             device: 'wasm',
             progress_callback: aoProgredir,
-        });
+            },
+        )]);
+        // Desistir não é falhar em silêncio: a fase e o texto já foram
+        // publicados pelo vigia, e sobrescrevê-los com "pronto" seria mentir.
+        if (!criado || desistiu) return null;
         gerador = criado;
         pesosNoAparelho = true;
         floor10Fila.concluir(FILA_REFLEXO);
@@ -226,6 +303,9 @@ async function carregar(): Promise<Gerador | null> {
         });
         anotar('reflexo:falhou', { motivo: motivo.slice(0, 80) });
         return null;
+    } finally {
+        vigiaAtual?.parar();
+        vigiaAtual = null;
     }
 }
 

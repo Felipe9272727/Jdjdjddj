@@ -15,6 +15,8 @@ type Controle = {
     resposta: string;
     atrasoMs: number;
     falharAoCriar: boolean;
+    /** `pipeline()` que nunca resolve: a rede do celular morrendo no meio. */
+    travarAoCriar: boolean;
     ultimoModelo?: string;
     ultimasOpcoes?: Record<string, unknown>;
     ultimasMensagens?: Array<{ role: string; content: string }>;
@@ -135,5 +137,46 @@ describe('lerTextoGerado — o transformers.js já devolveu três formatos', () 
     it('formato desconhecido não derruba nada', () => {
         expect(reflexo.lerTextoGerado(null)).toBe('');
         expect(reflexo.lerTextoGerado([{}])).toBe('');
+    });
+});
+
+describe('o reflexo não pode prender a fila', () => {
+    // A fila roda os cinco passos em SEQUÊNCIA, com `await`, e o reflexo é o 3º
+    // de 5. Ele baixa de huggingface.co — host que nenhum outro cérebro usa — e
+    // `pipeline()` não aceita AbortSignal: se a rede do celular morrer no meio,
+    // a promessa não resolve nem rejeita.
+    //
+    // Sem cão de guarda, o preço não é ficar sem reflexo: é A VONTADE E O MOTOR
+    // NUNCA BAIXAREM. Que é, palavra por palavra, um relato que ele já fez —
+    // "só baixou a smollm3 e a de embedding". Eu tinha creditado aquilo inteiro
+    // ao `adiarEnquanto` da pré-carga; esta porta continuava aberta.
+    it('desiste de esperar uma carga travada e libera quem vem depois', async () => {
+        controle.travarAoCriar = true;
+        (globalThis as { __f10ReflexoInatividadeMs?: number }).__f10ReflexoInatividadeMs = 60;
+
+        const começou = Date.now();
+        const ok = await reflexo.precarregarReflexo();
+        const levou = Date.now() - começou;
+
+        delete (globalThis as { __f10ReflexoInatividadeMs?: number }).__f10ReflexoInatividadeMs;
+        controle.travarAoCriar = false;
+
+        // O que se prova: a chamada RETORNOU. Sem o vigia ela nunca retornaria,
+        // e o teste morreria no timeout do vitest em vez de falhar com clareza.
+        expect(ok).toBe(false);
+        expect(levou).toBeLessThan(3000);
+        // E a tela diz a verdade em vez de "carregando" para sempre.
+        expect(store.npc.reflexoPhase).toBe('unavailable');
+        expect(store.npc.reflexoLoadText).toContain('a fila segue sem ele');
+    });
+
+    it('uma carga saudável não é morta pelo vigia', async () => {
+        // O outro lado, sem o qual o teste acima aprovaria um vigia que mata
+        // tudo. `atrasoMs` deixa a criação lenta mas COM progresso.
+        (globalThis as { __f10ReflexoInatividadeMs?: number }).__f10ReflexoInatividadeMs = 400;
+        const ok = await reflexo.precarregarReflexo();
+        delete (globalThis as { __f10ReflexoInatividadeMs?: number }).__f10ReflexoInatividadeMs;
+        expect(ok).toBe(true);
+        expect(store.npc.reflexoPhase).toBe('ready');
     });
 });
