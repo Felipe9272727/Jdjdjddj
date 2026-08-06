@@ -507,3 +507,36 @@ describe('um passo quebrado não derruba a fila inteira', () => {
         expect(falhado?.motivo).toContain('loja quebrou');
     });
 });
+
+describe('a espera sobrevive a uma condição que estoura num tique tardio', () => {
+    // `conferir` roda em duas fontes sem try/catch por baixo: `npcSubscribe`
+    // (via `npcBump`) e o relógio de 2 s. Uma exceção num tique TARDIO escapa do
+    // try da chamada síncrona e deixa a promessa pendente para sempre — a fila
+    // inteira parada atrás dela.
+    beforeEach(() => {
+        resetPrecargaForTests();
+        npcSet({ open: false, phase: 'cold' });
+    });
+
+    it('condição que passa a estourar deixa o passo seguir', async () => {
+        let chamadas = 0;
+        let rodou = false;
+        await iniciarPrecarga([{
+            id: FILA_VONTADE,
+            etapa: 'vontade',
+            carregar: async () => { rodou = true; return true; },
+            adiarEnquanto: () => {
+                chamadas += 1;
+                // As duas primeiras chamadas são SÍNCRONAS (a checagem de
+                // entrada e a do teto) e já estão cobertas pelo try externo da
+                // fila. O que este teste exercita é o TIQUE — a partir da
+                // terceira, que roda dentro da promessa, via `conferir`.
+                if (chamadas <= 2) return true;
+                throw new Error('loja quebrou no tique');
+            },
+        }]);
+        // Sem a guarda, este `await` nunca retornaria.
+        expect(rodou).toBe(true);
+        expect(chamadas).toBeGreaterThan(1);
+    });
+});

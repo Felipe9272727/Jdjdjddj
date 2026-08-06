@@ -129,25 +129,35 @@ export function reflexoJaCarregado(): boolean {
  * dentro — não há por onde passar contexto.
  */
 let vigiaAtual: { avancou: () => void; parar: () => void } | null = null;
+/**
+ * Qual carga é a da vez. `progress_callback` é registrado DENTRO do
+ * `pipeline()`, e uma carga abandonada continua chamando o dela: sem esta
+ * senha, o zumbi alimentava `vigiaAtual` — que já é o vigia da tentativa
+ * SEGUINTE — e a mantinha viva para sempre. O vigia deixava de vigiar
+ * exatamente quando mais precisava.
+ */
+let cargaDaVez = 0;
 
-function aoProgredir(evento: {
-    status?: string; file?: string; loaded?: number; total?: number;
-}): void {
-    if (evento.status !== 'progress') return;
-    // QUALQUER byte de QUALQUER arquivo conta como sinal de vida — inclusive do
-    // tokenizer, que a barra ignora de propósito. Confundir "não interessa para
-    // a barra" com "não é progresso" faria o vigia matar um download saudável.
-    vigiaAtual?.avancou();
-    if (!evento.file || !/\.onnx$/i.test(evento.file)) return;
-    const amostra = medidor.push(evento.loaded ?? 0, evento.total ?? 0);
-    floor10Fila.progresso(FILA_REFLEXO, amostra);
-    npcSet({
-        reflexoPhase: 'loading',
-        reflexoLoadProgress: amostra.totalBytes > 0
-            ? Math.min(1, amostra.bytes / amostra.totalBytes)
-            : 0,
-        reflexoLoadText: `baixando ${FLOOR10_REFLEXO_MODEL.label} · ${downloadLine(amostra)}`,
-    });
+function criarAoProgredir(minhaCarga: number) {
+    return function aoProgredir(evento: {
+        status?: string; file?: string; loaded?: number; total?: number;
+    }): void {
+        if (evento.status !== 'progress') return;
+        // QUALQUER byte de QUALQUER arquivo conta como sinal de vida — inclusive do
+        // tokenizer, que a barra ignora de propósito. Confundir "não interessa para
+        // a barra" com "não é progresso" faria o vigia matar um download saudável.
+        if (minhaCarga === cargaDaVez) vigiaAtual?.avancou();
+        if (!evento.file || !/\.onnx$/i.test(evento.file)) return;
+        const amostra = medidor.push(evento.loaded ?? 0, evento.total ?? 0);
+        floor10Fila.progresso(FILA_REFLEXO, amostra);
+        npcSet({
+            reflexoPhase: 'loading',
+            reflexoLoadProgress: amostra.totalBytes > 0
+                ? Math.min(1, amostra.bytes / amostra.totalBytes)
+                : 0,
+            reflexoLoadText: `baixando ${FLOOR10_REFLEXO_MODEL.label} · ${downloadLine(amostra)}`,
+        });
+    };
 }
 
 /**
@@ -175,7 +185,24 @@ function aoProgredir(evento: {
  * fica quente para a próxima tentativa. Perder o reflexo custa o primeiro
  * segundo de uma resposta; perder a vontade custa o livre-arbítrio do NPC.
  */
-export const REFLEXO_INATIVIDADE_MS = 90_000;
+// ── E 90 s ERAM POUCOS, PELO MOTIVO QUE EU NÃO CONSIDEREI ────────────────
+//
+// Eu escolhi 90 s "porque o arquivo é pequeno". O vigia não mede tamanho: mede
+// SILÊNCIO. E a parte silenciosa daqui não é o download — é o que vem depois,
+// que não emite `progress` nenhum:
+//
+//   criar a sessão ONNX · compilar o WASM · subir o worker do `proxy: true` ·
+//   e, quando os pesos já estão no cache do navegador, a carga inteira, que
+//   não gera evento de progresso porque não há rede.
+//
+// Num celular lento, esse trecho mudo passa de 90 s com facilidade — e aí o
+// vigia mata uma carga SAUDÁVEL e o andar perde o reflexo sem motivo. É o
+// oposto do que ele existe para fazer.
+//
+// 180 s é o mesmo número que `floor10Carga` escolheu para o caso análogo, e
+// aquele foi calibrado contra rede de celular de verdade. Alinhar os dois vale
+// mais que um palpite meu novo.
+export const REFLEXO_INATIVIDADE_MS = 180_000;
 
 /**
  * O teto em vigor. Mesmo padrão de `limiteDeInatividade`: sem um atalho, provar
@@ -204,6 +231,7 @@ async function carregar(): Promise<Gerador | null> {
     // O vigia começa ANTES do import: o próprio `import()` do transformers.js
     // sai pela rede, e travar ali é tão fatal para a fila quanto travar no
     // download dos pesos.
+    const minhaCarga = ++cargaDaVez;
     let desistiu = false;
     // `Promise.withResolvers` só existe a partir do ES2024, e o alvo deste
     // projeto é anterior. A forma antiga faz o mesmo.
@@ -287,7 +315,7 @@ async function carregar(): Promise<Gerador | null> {
             // e um gerente inteiro para administrar; o reflexo não vai reabrir
             // essa porta por 135M de parâmetros.
             device: 'wasm',
-            progress_callback: aoProgredir,
+            progress_callback: criarAoProgredir(minhaCarga),
             },
         )]);
         // Desistir não é falhar em silêncio: a fase e o texto já foram

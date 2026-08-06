@@ -156,7 +156,26 @@ function esperarAVez(
             globalThis.clearInterval(relogio);
             resolve();
         };
-        const conferir = () => { if (!adiar()) terminar(); };
+        // ── UMA EXCEÇÃO NUM TIQUE NÃO PODE PENDURAR A ESPERA ──────────
+        //
+        // `conferir` roda em duas fontes que NÃO têm try/catch por baixo: a
+        // inscrição na loja (`npcSubscribe`, chamada por `npcBump`) e o relógio
+        // de 2 s. Uma exceção em `adiar()` num tique tardio escapa do `try` que
+        // envolve a chamada síncrona lá em cima e deixa esta promessa PENDENTE
+        // para sempre — e a fila inteira parada atrás dela.
+        //
+        // Se a condição não pode ser avaliada, o certo é DEIXAR PASSAR: um
+        // passo que sobe cedo demais é um pico de memória; um passo que nunca
+        // sobe é um cérebro a menos pelo resto da sessão.
+        const conferir = () => {
+            let segurar: boolean;
+            try {
+                segurar = adiar();
+            } catch {
+                segurar = false;
+            }
+            if (!segurar) terminar();
+        };
         const cancelarInscricao = npcSubscribe(conferir);
         const relogio = globalThis.setInterval(conferir, 2000);
         conferir();
