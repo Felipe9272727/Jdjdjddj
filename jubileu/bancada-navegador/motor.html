@@ -108,7 +108,57 @@ target ::= ${ALVOS.map((v) => `"${v}"`).join(' | ')}
 pace ::= "slow" | "normal" | "fast"
 duration ::= "3" | "6" | "9" | "12"`;
 
-const prompt = (pensamento) => `Read Nilo's own thought and report THREE things: the intention behind it,
+// ── O PENSAMENTO NO FIM É UMA HIPÓTESE TESTÁVEL ─────────────────────────
+//
+// A medição limpa (4 núcleos, 4 threads) mostrou uma coisa muito mais grave
+// que um ranking: OS TRÊS CANDIDATOS COLAPSAM. Cada um usa 2 alvos dos 12, e
+// o alvo campeão é constante dentro do modelo:
+//
+//     lfm2.5-350m ... to-my-left em 6/7 · e `orbit` em 7/7 dos verbos
+//     lfm2.5-230m ... to-my-left em 6/7
+//     qwen3-0.6b .... west-side  em 4/7
+//
+// Quando três modelos de duas famílias e três tamanhos falham do MESMO jeito,
+// o defeito não é do modelo — é da tarefa. E o suspeito é a ordem: hoje o
+// pensamento fica no MEIO do prompt e o molde da resposta é a última coisa
+// que o modelo lê. Num modelo de 350M a recência manda: ele copia o formato e
+// preenche os buracos com o token mais barato, sem voltar 200 tokens atrás
+// para buscar o que o Nilo pensou.
+//
+// `?pensamentofim` põe o pensamento colado na resposta. Não custa um token a
+// mais — só troca de lugar.
+const PENSAMENTO_NO_FIM = url0.has('pensamentofim');
+
+const MOLDE = !COM_META
+  ? `MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>`
+  : MOTION_PRIMEIRO
+  ? `MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>
+GOAL: <intention>`
+  : `GOAL: <intention>
+MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>`;
+
+const promptFim = (pensamento) => `You translate Nilo's thought into one body movement and one gesture.
+Do not invent a new desire and do not solve the room for him.
+GESTURES: ${GESTOS.join(', ')}. Use none when his thought is only movement.
+AVAILABLE TARGETS: ${ALVOS.join(', ')}.
+VERBS: ${VERBOS.join(', ')}.
+PACE: slow, normal, fast. DURATION: 3, 6, 9, 12 seconds.
+Map his words to a target: a wall is that side of the room (the west wall is west-side);
+"left"/"right"/"forward"/"back" without a landmark are to-my-left / to-my-right / ahead / behind.
+If he says he MOVES, never answer stay — pick the verb and target that carry him there.
+Answer with exactly:
+${MOLDE}
+
+HIS THOUGHT, translate THIS one:
+"""
+${pensamento}
+"""
+`;
+
+const promptMeio = (pensamento) => `Read Nilo's own thought and report THREE things: the intention behind it,
 one feasible body movement, and one gesture he makes (or none).
 Do not invent a new desire and do not solve the room for him.
 INTENTIONS: ${METAS.join(', ')}.
@@ -126,16 +176,9 @@ ${pensamento}
 """
 
 Answer with exactly:
-${!COM_META
-  ? `MOTION: <verb> | <target> | <pace> | <duration>
-ACT: <gesture> | <target>`
-  : MOTION_PRIMEIRO
-  ? `MOTION: <verb> | <target> | <pace> | <duration>
-ACT: <gesture> | <target>
-GOAL: <intention>`
-  : `GOAL: <intention>
-MOTION: <verb> | <target> | <pace> | <duration>
-ACT: <gesture> | <target>`}`;
+${MOLDE}`;
+
+const prompt = PENSAMENTO_NO_FIM ? promptFim : promptMeio;
 
 const url = url0;
 const modelos = (url.get('modelos') ?? 'qwen3-0.6b:/qwen06b.gguf').split(',').map((p) => {
