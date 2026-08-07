@@ -78,8 +78,21 @@ const GESTOS = ['none','listen','touch','knock','crouch','jump','look-around','w
 // de escrever. É a ordem natural do raciocínio e não custa um token a mais.
 // `?ordem=motion` roda assim; sem o parâmetro, a ordem atual.
 const url0 = new URLSearchParams(location.search);
+// A PRODUÇÃO NÃO PEDE MAIS A META: o modelo travava num rótulo e repetia
+// (approach-player em 5/7, inspect-elevator em 7/7). A bancada tem de medir o
+// que o jogo FAZ, senão volto a comparar candidatos numa tarefa que ninguém
+// executa. `?commeta` roda a forma antiga, para comparar se um candidato novo
+// mudar esse quadro.
+const COM_META = url0.has('commeta');
 const MOTION_PRIMEIRO = url0.get('ordem') === 'motion';
-const GRAMATICA = MOTION_PRIMEIRO
+const GRAMATICA = !COM_META
+  ? `root ::= "MOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
+act ::= ${GESTOS.map((v) => `"${v}"`).join(' | ')}
+verb ::= ${VERBOS.map((v) => `"${v}"`).join(' | ')}
+target ::= ${ALVOS.map((v) => `"${v}"`).join(' | ')}
+pace ::= "slow" | "normal" | "fast"
+duration ::= "3" | "6" | "9" | "12"`
+  : MOTION_PRIMEIRO
   ? `root ::= "MOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target "\\nGOAL: " goal
 goal ::= ${METAS.map((v) => `"${v}"`).join(' | ')}
 act ::= ${GESTOS.map((v) => `"${v}"`).join(' | ')}
@@ -113,7 +126,10 @@ ${pensamento}
 """
 
 Answer with exactly:
-${MOTION_PRIMEIRO
+${!COM_META
+  ? `MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>`
+  : MOTION_PRIMEIRO
   ? `MOTION: <verb> | <target> | <pace> | <duration>
 ACT: <gesture> | <target>
 GOAL: <intention>`
