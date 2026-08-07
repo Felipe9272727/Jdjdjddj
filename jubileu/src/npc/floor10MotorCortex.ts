@@ -85,6 +85,40 @@ export const FLOOR10_MOTOR_GOALS = [
     'approach-player', 'make-space', 'seek-player', 'talk-player',
 ] as const;
 
+/**
+ * ── O QUE ELE FAZ QUE NÃO É ANDAR ─────────────────────────────────────────
+ *
+ * Fechando o desenho dele:
+ *
+ *   "vamos supor que a vontade quer fazer algo que não tenha na choice, como
+ *    pular, ou explorar"
+ *
+ * O motor só sabia falar de DESLOCAMENTO: seis verbos que são todos formas de
+ * ir e vir. "Encostar o ouvido na porta", "bater na parede", "pular" não
+ * existiam em lugar nenhum — nem no vocabulário, nem no corpo. Um personagem
+ * que só translada não age sobre o mundo, ele passeia por ele.
+ *
+ * A LISTA É CURTA DE PROPÓSITO, e a régua foi: só entra o que a SALA permite.
+ * Não há janela para abrir, não há objeto para pegar. Um vocabulário maior que
+ * o mundo é um convite à alucinação — o modelo pediria coisas impossíveis e o
+ * corpo teria de recusar, que é pior que nunca ter oferecido.
+ *
+ * `none` existe e é o normal: a maior parte das rodadas é só movimento, e
+ * forçar um gesto a cada rodada faria o Nilo parecer um autômato de tiques.
+ */
+export const FLOOR10_MOTOR_ACTS = [
+    'none',
+    'listen',      // encostar o ouvido — o gesto do homem preso, e o mais dele
+    'touch',       // pôr a mão em algo
+    'knock',       // bater, chamar atenção da matéria
+    'crouch',      // abaixar-se para olhar de perto
+    'jump',        // literalmente o exemplo dele
+    'look-around', // varrer a sala com os olhos, sem sair do lugar
+    'wave',        // um gesto para o jogador
+] as const;
+
+export type Floor10MotorAct = (typeof FLOOR10_MOTOR_ACTS)[number];
+
 export const FLOOR10_MOTOR_PACES = ['slow', 'normal', 'fast'] as const;
 export const FLOOR10_MOTOR_DURATIONS = [3, 6, 9, 12] as const;
 
@@ -94,6 +128,13 @@ export type Floor10MotorPace = (typeof FLOOR10_MOTOR_PACES)[number];
 export type Floor10MotorDuration = (typeof FLOOR10_MOTOR_DURATIONS)[number];
 
 export type Floor10MotorPlan = {
+    /**
+     * O gesto que acompanha o movimento. `none` na maioria das rodadas — ver
+     * FLOOR10_MOTOR_ACTS. Opcional para respostas antigas continuarem válidas.
+     */
+    act?: Floor10MotorAct;
+    /** Sobre o que o gesto é feito. Só faz sentido com `act` diferente de none. */
+    actTarget?: Floor10MotorTarget;
     /**
      * A intenção que o motor leu no pensamento. Opcional porque respostas
      * antigas (e o caminho sem gramática) não a trazem — quem consome cai na
@@ -170,8 +211,9 @@ export function buildMotorGrammar(
     // EM SILÊNCIO. Medido: `motor: null` nas 3 rodadas, onde antes vinha
     // `stay | self`. Um erro que nenhum teste de string pegava, porque a string
     // parecia certa — quem reprovava era o parser da GBNF, dentro do worker.
-    return `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration
+    return `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
 goal ::= ${FLOOR10_MOTOR_GOALS.map((value) => `"${value}"`).join(' | ')}
+act ::= ${FLOOR10_MOTOR_ACTS.map((value) => `"${value}"`).join(' | ')}
 verb ::= ${FLOOR10_MOTOR_VERBS.map((value) => `"${value}"`).join(' | ')}
 target ::= ${targets.map((value) => `"${value}"`).join(' | ')}
 pace ::= ${FLOOR10_MOTOR_PACES.map((value) => `"${value}"`).join(' | ')}
@@ -188,11 +230,22 @@ export function parseMotorPlan(raw: string): Floor10MotorPlan | null {
     // A meta vem ANTES do MOTION na gramática; sem ela (respostas antigas, ou
     // um caminho sem gramática) quem consome cai na inferência por verbo+alvo.
     const metaCrua = /GOAL:\s*([a-z-]+)/i.exec(raw)?.[1]?.toLowerCase();
+    // O gesto é opcional em toda a cadeia: respostas antigas, o caminho sem
+    // gramática e o `none` (que é o normal) chegam todos aqui como ausência.
+    const atoCru = /ACT:\s*([a-z-]+)\s*\|\s*([a-z-]+)/i.exec(raw);
+    const ato = (FLOOR10_MOTOR_ACTS as readonly string[]).includes(atoCru?.[1]?.toLowerCase() ?? '')
+        ? atoCru![1].toLowerCase() as Floor10MotorAct
+        : undefined;
+    const atoAlvo = (FLOOR10_MOTOR_TARGETS as readonly string[])
+        .includes(atoCru?.[2]?.toLowerCase() ?? '')
+        ? atoCru![2].toLowerCase() as Floor10MotorTarget
+        : undefined;
     const goal = (FLOOR10_MOTOR_GOALS as readonly string[]).includes(metaCrua ?? '')
         ? metaCrua as MetaDoMotor
         : undefined;
     return {
         ...(goal ? { goal } : {}),
+        ...(ato && ato !== 'none' ? { act: ato, actTarget: atoAlvo } : {}),
         verb: match[1] as Floor10MotorVerb,
         target: match[2] as Floor10MotorTarget,
         pace: match[3] as Floor10MotorPace,
@@ -215,19 +268,20 @@ export function buildMotorTranslationPrompt(
     const tail = thinking.trim().slice(-MOTOR_TEXT_TAIL);
     const targets = availableMotorTargets(perception, prison).join(', ');
     const examples = [
-        'I should stay still and listen. => GOAL: idle / MOTION: stay | self | slow | 3',
-        'I want to cross toward the right wall. => GOAL: wander / MOTION: explore | east-side | normal | 6',
+        'I should stay still and listen. => GOAL: idle / MOTION: stay | self | slow | 3 / ACT: listen | elevator',
+        'I want to cross toward the right wall. => GOAL: wander / MOTION: explore | east-side | normal | 6 / ACT: none | self',
         perception.player
-            ? 'I want to get closer to him. => GOAL: approach-player / MOTION: approach | player | normal | 6'
+            ? 'I want to get closer to him. => GOAL: approach-player / MOTION: approach | player | normal | 6 / ACT: wave | player'
             : 'I want another angle on the door. => GOAL: inspect-elevator / MOTION: orbit | elevator | slow | 6',
         prison
             ? 'I should keep my weight on that thing. => GOAL: wander / MOTION: hold | nearest-device | slow | 9'
             : null,
     ].filter(Boolean).join('\n');
-    return `Read Nilo's own thought and report TWO things: the intention behind it
-and one feasible body movement that serves that intention.
+    return `Read Nilo's own thought and report THREE things: the intention behind it,
+one feasible body movement, and one gesture he makes (or none).
 Do not invent a new desire and do not solve the room for him.
 INTENTIONS: ${FLOOR10_MOTOR_GOALS.join(', ')}.
+GESTURES: ${FLOOR10_MOTOR_ACTS.join(', ')}. Use none when his thought is only movement.
 AVAILABLE TARGETS: ${targets}.
 VERBS: approach, withdraw, hold, orbit, explore, stay.
 PACE: slow, normal, fast. DURATION: 3, 6, 9, 12 seconds.
@@ -243,7 +297,8 @@ ${tail}
 
 Answer with exactly:
 GOAL: <intention>
-MOTION: <verb> | <target> | <pace> | <duration>`;
+MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>`;
 }
 
 function clamp(value: number, min: number, max: number): number {

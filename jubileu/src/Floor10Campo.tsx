@@ -446,6 +446,14 @@ const Floor10Campo: React.FC = () => {
                         {r.plano
                             ? `${r.plano.verb} ${r.plano.target} ${r.plano.pace} ${r.plano.duration}s`
                             : <span style={{ color: '#ff9c9c' }}>sem plano motor</span>}
+                        {/* O GESTO É A METADE NÃO-LOCOMOTORA, e sem mostrá-lo
+                            a bancada diria "sem plano" para uma rodada em que
+                            ele encostou o ouvido na porta. */}
+                        {r.plano?.act && (
+                            <span style={{ color: '#c39bf0', marginLeft: 6 }}>
+                                · {r.plano.act} {r.plano.actTarget ?? ''}
+                            </span>
+                        )}
                         {' · '}
                         {(r.ms / 1000).toFixed(1)}s
                         {r.resultado !== undefined && (

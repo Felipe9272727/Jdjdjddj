@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-    FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
+    FLOOR10_MOTOR_ACTS, FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
     buildMotorGrammar, metaDoPlanoMotor, parseMotorPlan,
 } from '../npc/floor10MotorCortex';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
@@ -221,5 +221,56 @@ describe('a gramática é GBNF válida, não só uma string bonita', () => {
             if (ref[0] === 'root') continue;
             expect(definidas.has(ref[0])).toBe(true);
         }
+    });
+});
+
+describe('o motor entende o que NÃO é andar', () => {
+    // "vamos supor que a vontade quer fazer algo que não tenha na choice, como
+    //  pular, ou explorar"
+    //
+    // O motor só sabia falar de deslocamento: seis verbos que são todos formas
+    // de ir e vir. "Encostar o ouvido na porta", "bater na parede", "pular" não
+    // existiam nem no vocabulário nem no corpo. Um personagem que só translada
+    // não age sobre o mundo, passeia por ele.
+    it('lê o gesto e o alvo dele', () => {
+        const p = parseMotorPlan(
+            'GOAL: inspect-elevator\nMOTION: approach | elevator | slow | 6\nACT: listen | elevator',
+        );
+        expect(p?.act).toBe('listen');
+        expect(p?.actTarget).toBe('elevator');
+    });
+
+    it('`none` NÃO vira gesto — é o caso normal', () => {
+        // A maior parte das rodadas é só movimento. Forçar um gesto sempre
+        // faria o Nilo parecer um autômato de tiques.
+        const p = parseMotorPlan(
+            'GOAL: wander\nMOTION: explore | room-center | normal | 6\nACT: none | self',
+        );
+        expect(p?.act).toBeUndefined();
+    });
+
+    it('gesto inventado é ignorado, não vira ação', () => {
+        // Sem isto, uma alucinação do tradutor viraria comportamento — e o
+        // corpo teria de recusar uma ordem que ele mesmo aceitou.
+        const p = parseMotorPlan(
+            'GOAL: idle\nMOTION: stay | self | slow | 3\nACT: teleport | elevator',
+        );
+        expect(p?.act).toBeUndefined();
+    });
+
+    it('resposta SEM linha ACT continua válida', () => {
+        const p = parseMotorPlan('GOAL: idle\nMOTION: stay | self | slow | 3');
+        expect(p).not.toBeNull();
+        expect(p?.act).toBeUndefined();
+    });
+
+    it('a gramática prende o gesto às oito palavras', () => {
+        const g = buildMotorGrammar({ playerVisible: true, playerDistance: 2 } as never, null);
+        expect(g).toContain('act ::=');
+        for (const a of FLOOR10_MOTOR_ACTS) expect(g).toContain(`"${a}"`);
+        // E a raiz continua numa linha só: `\n` escapado, não quebra crua —
+        // foi assim que a gramática ficou malformada uma vez e o motor
+        // desligou em silêncio.
+        expect(g.split('\n')[0]).toContain('ACT: ');
     });
 });
