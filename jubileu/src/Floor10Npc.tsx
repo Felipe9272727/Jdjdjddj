@@ -26,6 +26,10 @@ import { initLLM } from './npc/wllamaEngine';
 import { Cadencia, CADENCIA_PERCEPCAO, CADENCIA_VONTADE } from './npc/floor10Cadencia';
 import { yawDaVarredura } from './npc/floor10Olhar';
 import {
+    DURACAO_DO_GESTO, POSE_PARADA, gestoPrendeOsPes, poseDoGesto,
+} from './npc/floor10Gesto';
+import type { Floor10MotorAct } from './npc/floor10MotorCortex';
+import {
     deliberationRetryDelay,
     rearmeAposFala,
     type Floor10Deliberation,
@@ -93,6 +97,12 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // Vive AQUI, e não dentro do cérebro, porque quem OBSERVA o mundo é a tela
     // do andar. Misturar as duas coisas já fez a fila perguntar a si mesma.
     const memoriaConsequencia = useRef(new MemoriaDeConsequencia());
+    // ── O GESTO EM CURSO ──────────────────────────────────────────────────
+    // O motor escolhe `ACT:` desde que a gramática ganhou a linha do gesto, e
+    // até aqui isso só aparecia no texto do `?campo`: ele decidia bater na
+    // porta e continuava andando de braço solto. Guarda-se o quê e QUANDO
+    // começou; a pose sai de floor10Gesto, que é puro e testado.
+    const gesto = useRef<{ act: Floor10MotorAct; comecou: number } | null>(null);
 
     /**
      * O mundo como a memória de consequência precisa vê-lo. Lido da loja no
@@ -254,6 +264,15 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     if (decided) {
                         deliberation.current = decided;
                         deliberationFailures.current = 0;
+                        // ── O GESTO COMEÇA AQUI ───────────────────────────
+                        // `tempoDoAndar.current` e não o `t` do fecho: este
+                        // `.then` resolve muitos quadros depois da chamada, e
+                        // usar o `t` velho faria o gesto nascer no passado —
+                        // ou seja, já terminado, invisível.
+                        const ato = decided.motion?.act;
+                        if (ato && ato !== 'none') {
+                            gesto.current = { act: ato, comecou: tempoDoAndar.current };
+                        }
                         // ── AGENDA A CONFERÊNCIA ──────────────────────────
                         // Julgar agora diria sempre "ignorado": o gesto ainda
                         // não aconteceu. A janela é a duração do plano mais uma
@@ -347,7 +366,18 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // no primeiro quadro. O corpo segue respirando e piscando abaixo.
             const will = ultimaVontade.current;
 
-            if (will && !npc.open && !npc.speaking && will.snapshot.target) {
+            // ── O GESTO PODE SEGURAR OS PÉS ───────────────────────────────
+            // Bater, tocar e agachar acontecem CONTRA alguma coisa: continuar
+            // andando durante um deles arrasta a mão pela sala. Acenar, escutar
+            // e olhar em volta combinam com o passo.
+            const gestoAtivo = gesto.current
+                && tempoDoAndar.current - gesto.current.comecou < DURACAO_DO_GESTO[gesto.current.act]
+                ? gesto.current
+                : null;
+            if (!gestoAtivo) gesto.current = null;
+            const pesPresos = gestoPrendeOsPes(gestoAtivo?.act);
+
+            if (will && !npc.open && !npc.speaking && will.snapshot.target && !pesPresos) {
                 const step = stepFloor10Movement(
                     g.position,
                     will.snapshot.target,
@@ -400,18 +430,29 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         // decisão, não um loop visual desconectado do deslocamento.
         const walkPhase = t * 7.2;
         const walkAmount = moving ? 1 : 0;
+        // ── O GESTO SOMA, NÃO SUBSTITUI ───────────────────────────────────
+        // Ele acena ENQUANTO caminha. Trocar a animação pela pose faria o corpo
+        // congelar no meio do passo, que é pior que não ter gesto nenhum.
+        const pose = gesto.current
+            ? poseDoGesto(gesto.current.act, t - gesto.current.comecou)
+            : POSE_PARADA;
         if (torso.current) {
             torso.current.scale.y = 1 + Math.sin(t * 1.6) * 0.02;
             torso.current.rotation.z = Math.sin(t * 0.5) * 0.02
                 + Math.sin(walkPhase * 0.5) * 0.025 * walkAmount;
+            torso.current.rotation.x = pose.troncoX;
         }
+        if (root.current) root.current.position.y = NPC_START.y + pose.altura;
         if (armL.current) {
             armL.current.rotation.x = Math.sin(t * 0.8) * 0.05
-                + Math.sin(walkPhase + Math.PI) * 0.34 * walkAmount;
+                + Math.sin(walkPhase + Math.PI) * 0.34 * walkAmount
+                + pose.bracoEsqX;
         }
         if (armR.current) {
             armR.current.rotation.x = Math.sin(t * 0.8 + Math.PI) * 0.05
-                + Math.sin(walkPhase) * 0.34 * walkAmount;
+                + Math.sin(walkPhase) * 0.34 * walkAmount
+                + pose.bracoDirX;
+            armR.current.rotation.z = pose.bracoDirZ;
         }
         if (legL.current) legL.current.rotation.x = Math.sin(walkPhase) * 0.38 * walkAmount;
         if (legR.current) legR.current.rotation.x = Math.sin(walkPhase + Math.PI) * 0.38 * walkAmount;
@@ -437,7 +478,9 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         if (head.current) {
             const talking = npc.speaking || t < autonomousTalkUntil.current;
             const talk = talking ? Math.sin(t * 9) * 0.05 + Math.sin(t * 13) * 0.03 : 0;
-            head.current.rotation.x = talk;
+            head.current.rotation.x = talk + pose.cabecaX;
+            head.current.rotation.y = pose.cabecaY;
+            head.current.rotation.z = pose.cabecaZ;
             head.current.position.y = 1.52 + (talking ? Math.abs(Math.sin(t * 7)) * 0.01 : 0);
         }
 
