@@ -53,6 +53,12 @@ export type Floor10Perception = {
     position: { x: number; y: number; z: number };
     zone: Floor10Zone;
     heading: CompassDirection;
+    /**
+     * O rumo em radianos, além do ponto cardeal. `heading` tem oito valores e
+     * serve para o texto; medir o ângulo até uma parede — para dizer "a parede
+     * norte está à sua esquerda" — precisa do número. Ver floor10Mapa.
+     */
+    yaw: number;
     locationDescription: string;
     player: null | {
         visible: boolean;
@@ -303,6 +309,7 @@ export function perceiveFloor10(input: {
         },
         zone,
         heading: compassFromYaw(npcYaw),
+        yaw: npcYaw,
         locationDescription: absoluteLocation(npcPosition, zone),
         player,
         elevator: {

@@ -14,6 +14,7 @@
 //   assina a escolha ampla. Uma terceira LLM de 135M traduz as palavras em
 //   movimento executável, sem pedir outro trabalho ao MiniBrain.
 
+import { mapaEmTexto } from './floor10Mapa';
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives, Floor10WillGoal } from './floor10Will';
 import type { Floor10MotorPlan } from './floor10MotorCortex';
@@ -182,7 +183,13 @@ export function buildDeliberationPrompt(
         : 'nothing yet';
     const lines = [
         ...(memory.mood ? [memory.mood] : []),
-        `SEES: ${sees}; ${elevator}.`,
+        // ── O MAPA INTEIRO, E NÃO DUAS DISTÂNCIAS ────────────────────────
+        // Era só `SEES: player visible, ahead, 3m; elevator visible, 9m.` — dois
+        // objetos e dois números. Com um mundo desses não dá para querer nada
+        // além de "chegar perto" ou "afastar", e não por falta de inteligência
+        // do modelo: um jogador de RPG de texto com essa descrição também só
+        // saberia se aproximar ou recuar. Ver floor10Mapa.
+        mapaEmTexto(perception, perception.yaw ?? 0),
         `WANTS: social ${round1(drives.social)}, curiosity ${round1(drives.curiosity)}, restless ${round1(drives.restlessness)}, fatigue ${round1(drives.fatigue)}.`,
         `REMEMBERS: inspected the elevator ${memory.inspectedElevatorCount}x and found nothing; slept ${memory.sleeps} times here; player silent for ${Math.round(memory.playerSilentSeconds)}s.`,
         `RECENT ACTIONS: ${recent}.`,

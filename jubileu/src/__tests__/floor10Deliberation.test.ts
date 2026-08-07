@@ -45,14 +45,23 @@ CHOICE: wander`;
 describe('npc/floor10Deliberation — o segundo cérebro pequeno e privado', () => {
     it('descreve o mundo em estrutura, não em prosa', () => {
         const prompt = buildDeliberationPrompt(PERCEPTION, INITIAL_FLOOR10_WILL.drives, MEMORY);
-        expect(prompt).toContain('SEES:');
+        // `SEES: player 3m; elevator 9m` virou um MAPA — dois objetos e duas
+        // distâncias não davam ao modelo mundo suficiente para querer outra
+        // coisa além de aproximar ou afastar. Ver floor10Mapa.
+        expect(prompt).toContain('YOU ARE:');
+        expect(prompt).toContain('AROUND YOU:');
+        expect(prompt).toContain('YOU CAN MOVE:');
         expect(prompt).toContain('WANTS:');
         expect(prompt).toContain('REMEMBERS:');
         expect(prompt).toContain('inspected the elevator 3x');
         expect(prompt).toContain('slept 44 times');
         expect(prompt).toContain('wander -> idle');
-        // Compacto: o modelo pequeno lê bem estrutura e mal literatura.
-        expect(prompt.length).toBeLessThan(420);
+        // COMPACTO CONTINUA VALENDO, com o teto reajustado ao mapa: 568
+        // caracteres medidos contra 420 antes, ou seja ~37 tokens a mais de
+        // prefill. Prefill é o que custa caro no celular dele (rodadas de 60s
+        // são quase todas prefill), então o teto existe para essa conta não
+        // crescer de novo sem alguém decidir que vale.
+        expect(prompt.length).toBeLessThan(700);
     });
 
     it('pede livre arbítrio e lista as metas válidas', () => {

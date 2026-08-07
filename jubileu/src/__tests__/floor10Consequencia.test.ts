@@ -127,9 +127,17 @@ describe('e ele é mandado parar de insistir', () => {
 });
 
 describe('o resultado chega ao PROMPT — senão não muda nada', () => {
+    // A percepção precisa do que o MAPA lê: posição, zona, rumo e yaw. Um
+    // fixture magro passava enquanto o prompt só usava duas distâncias.
     const percepcao = {
-        player: { visible: true, distance: 3, direction: 'ahead' },
-        elevator: { visible: true, distance: 9 },
+        position: { x: 0, y: 0, z: 0 },
+        zone: 'center',
+        heading: 'north',
+        yaw: 0,
+        locationDescription: 'no centro',
+        player: { visible: true, distance: 3, direction: 'front' },
+        elevator: { visible: true, distance: 9, direction: 'left' },
+        visibleObjects: [],
     } as never;
     const impulsos = {
         social: 0.5, curiosity: 0.5, restlessness: 0.5, fatigue: 0.1,
