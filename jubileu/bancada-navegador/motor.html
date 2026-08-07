@@ -254,22 +254,43 @@ for (const m of modelos) {
   const linhas = [];
   let acertos = 0; let proibidos = 0; let semPlano = 0; let tokens = 0; let ms = 0;
 
-  for (const caso of CASOS) {
+  // `?casos=2` roda só os dois primeiros: para diagnosticar encanamento não
+  // faz sentido pagar as sete rodadas de 46 s cada.
+  const QUANTOS = Number(url0.get('casos') ?? CASOS.length);
+  for (const caso of CASOS.slice(0, QUANTOS)) {
     const t1 = performance.now();
     let texto = '';
+    let forma = '';
     try {
       const r = await w.createChatCompletion({
         messages: [{ role: 'user', content: prompt(caso.pensamento) }],
         stream: false,
         // Solto precisa de mais espaço: preso à gramática 48 tokens sobram,
         // em texto livre o modelo gasta tokens escrevendo a frase inteira.
-        max_tokens: SEM_GRAMATICA ? 96 : 48,
+        // Solto, o modelo raciocina antes de concluir: 96 tokens acabavam no
+        // meio do raciocínio (`finish_reason: "length"`) e a conclusão nunca
+        // saía. Medir a leitura dele exige deixar a leitura terminar.
+        max_tokens: SEM_GRAMATICA ? 220 : 48,
         temperature: 0.1, top_p: 0.9,
         ...(SEM_GRAMATICA ? {} : { grammar: GRAMATICA }),
         cache_prompt: false,
       });
-      texto = typeof r === 'string' ? r : (r?.choices?.[0]?.message?.content ?? '');
+      // ── O TEXTO PODE VIR EM `reasoning_content` ────────────────────────
+      //
+      // O Qwen3-0.6B é um modelo de RACIOCÍNIO. O wllama separa o pensamento
+      // dele em `reasoning_content` e deixa `content` vazio enquanto ele não
+      // conclui. Foi por isso que o teste sem gramática deu "0 alvos em 7
+      // casos": não é que o modelo não respondeu — é que eu lia o campo
+      // errado, e o campo certo estava cheio de leitura CORRETA da frase.
+      const msg = r?.choices?.[0]?.message ?? {};
+      texto = typeof r === 'string' ? r : (msg.content || msg.reasoning_content || '');
       tokens += r?.timings?.predicted_n ?? 0;
+      // ── QUANDO NÃO VEM TEXTO, GUARDA A RESPOSTA INTEIRA ─────────────────
+      // Sem gramática o `content` voltou VAZIO nos 7 casos, com 96 tokens
+      // gerados em cada um. Ou seja: o modelo escreveu, e eu estava lendo o
+      // campo errado. Adivinhar o formato de novo custaria mais 20 minutos por
+      // tentativa — então quando o texto sai vazio, o objeto cru vai junto.
+      if (!texto) forma = JSON.stringify(r)?.slice(0, 400) ?? String(r);
     } catch (e) { texto = `ERRO ${String(e).slice(0, 60)}`; }
     ms += performance.now() - t1;
 
@@ -281,11 +302,38 @@ for (const m of modelos) {
     // O primeiro alvo citado vale; citar `player` no meio de uma explicação
     // não deve ganhar de um `west-side` dito na conclusão, então varre-se na
     // ordem em que aparecem no texto.
+    // ── DE PROSA PARA ALVO ──────────────────────────────────────────────
+    //
+    // Em texto livre o modelo escreve "the target is the north wall", não
+    // "north-side". Procurar a string do enum era garantir zero — e foi o que
+    // deu. Este mapa é o TRADUTOR determinístico: o modelo faz o que sabe
+    // (ler e raciocinar em prosa) e o código faz o que sabe (prosa -> enum).
+    const SINONIMOS = [
+      [/north\s*wall|north\s*side|northern/, 'north-side'],
+      [/south\s*wall|south\s*side|southern/, 'south-side'],
+      [/east\s*wall|east\s*side|eastern/, 'east-side'],
+      [/west\s*wall|west\s*side|western/, 'west-side'],
+      [/elevator|the door/, 'elevator'],
+      [/\bplayer\b|toward him|up to him|\bhim\b/, 'player'],
+      [/center of the room|room.?center|middle of the room/, 'room-center'],
+      [/stay(s|ing)? (still|put)|does not move|doesn't move|remain(s|ing)? still|only listen/, 'self'],
+      [/to (his|my) left|sideways.{0,12}left|steps? to .{0,6}left|leftward/, 'to-my-left'],
+      [/to (his|my) right|sideways.{0,12}right|steps? to .{0,6}right|rightward/, 'to-my-right'],
+      [/\bforward\b|straight ahead|\bahead\b/, 'ahead'],
+      [/\bbackward|behind (him|me)\b/, 'behind'],
+    ];
     const solto = () => {
+      const t = texto.toLowerCase();
+      // Primeiro o enum literal, se o modelo tiver usado; depois a prosa.
       let melhor = null; let onde = Infinity;
       for (const a of ALVOS) {
-        const i = texto.toLowerCase().indexOf(a);
+        const i = t.indexOf(a);
         if (i >= 0 && i < onde) { onde = i; melhor = a; }
+      }
+      if (melhor) return melhor;
+      for (const [re, alvoDoMapa] of SINONIMOS) {
+        const achou = re.exec(t);
+        if (achou && achou.index < onde) { onde = achou.index; melhor = alvoDoMapa; }
       }
       return melhor;
     };
@@ -305,6 +353,7 @@ for (const m of modelos) {
     linhas.push({
       pensamento: caso.pensamento.slice(0, 46), meta, alvo,
       verbo: mm?.[1] ?? null, marca, bruto: texto.slice(0, 220),
+      ...(forma ? { forma } : {}),
     });
     diz(`  ${marca.padEnd(11)} ${String(alvo).padEnd(13)} meta=${String(meta).padEnd(17)} "${caso.pensamento.slice(0, 42)}…"`);
     // ── O PARCIAL É POR CASO, NÃO POR MODELO ──────────────────────────────
