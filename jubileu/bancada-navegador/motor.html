@@ -146,12 +146,35 @@ const modelos = (url.get('modelos') ?? 'qwen3-0.6b:/qwen06b.gguf').split(',').ma
 const { Wllama } = await import('/wllama-cdn/index.js');
 const relatorio = { modelos: {} };
 
+// ── NUNCA MAIS THREADS DO QUE NÚCLEOS ─────────────────────────────────────
+//
+// Estava fixo em 8. A caixa onde isto roda tem QUATRO núcleos, e o llama.cpp
+// com o dobro de threads não fica duas vezes mais lento — as threads brigam
+// pelo mesmo núcleo e o load médio foi a 15. Todo número de velocidade que saiu
+// daqui até agora mediu essa briga, não o modelo.
+//
+// A ACERTIVIDADE não sofria (saída presa à gramática não depende de thread),
+// mas velocidade era o critério do pedido — era justamente o número errado.
+const nucleos = Math.max(1, navigator.hardwareConcurrency || 4);
+relatorio.nucleos = nucleos;
+diz(`(${nucleos} núcleos → ${nucleos} threads)`);
+
 for (const m of modelos) {
   const w = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
   const t0 = performance.now();
   let carga = 0;
   try {
-    await w.loadModelFromUrl(m.arquivo, { n_ctx: 2048, n_threads: 8 });
+    // ── NUNCA MAIS THREADS DO QUE NÚCLEOS ─────────────────────────────────
+    //
+    // Estava fixo em 8. A caixa onde isto roda tem QUATRO núcleos, e o llama.cpp
+    // com o dobro de threads não fica duas vezes mais lento — as threads brigam
+    // pelo mesmo núcleo e o load médio foi a 15. Todo número de velocidade que
+    // saiu daqui até agora mediu essa briga, não o modelo.
+    //
+    // A ACERTIVIDADE não sofria (saída presa à gramática não depende de
+    // thread), mas velocidade era o critério do pedido — e era justamente o
+    // número errado.
+    await w.loadModelFromUrl(m.arquivo, { n_ctx: 2048, n_threads: nucleos });
     carga = Math.round(performance.now() - t0);
   } catch (e) {
     diz(`${m.nome}: NÃO CARREGOU — ${String(e).slice(0, 90)}`);
@@ -187,12 +210,23 @@ for (const m of modelos) {
     const marca = ok ? '✓' : ruim ? '✗ PROIBIDO' : alvo === null ? '— sem plano' : '~';
     linhas.push({ pensamento: caso.pensamento.slice(0, 46), meta, alvo, verbo: mm?.[1] ?? null, marca });
     diz(`  ${marca.padEnd(11)} ${String(alvo).padEnd(13)} meta=${String(meta).padEnd(17)} "${caso.pensamento.slice(0, 42)}…"`);
+    // ── O PARCIAL É POR CASO, NÃO POR MODELO ──────────────────────────────
+    // Publicar só ao fim do modelo não salvou nada quando o Granite MoE fez 5
+    // dos 7 casos em 40 minutos: o relógio estourou no meio e o arquivo saiu
+    // vazio de novo. Um caso medido é um caso que não se perde.
+    relatorio.modelos[m.nome] = {
+      acertos, proibidos, semPlano, carga, total: CASOS.length, incompleto: true,
+      msPorCaso: Math.round(ms / linhas.length),
+      tps: tokens > 0 ? +(tokens / (ms / 1000)).toFixed(2) : 0,
+      linhas: [...linhas],
+    };
+    globalThis.__parcial = relatorio;
   }
 
   const tps = tokens > 0 ? (tokens / (ms / 1000)) : 0;
   diz(`  → ${acertos}/${CASOS.length} certos · ${proibidos} proibidos · ${semPlano} sem plano · ${tps.toFixed(1)} tok/s`);
   relatorio.modelos[m.nome] = {
-    acertos, total: CASOS.length, proibidos, semPlano, carga,
+    acertos, total: CASOS.length, proibidos, semPlano, carga, nucleos,
     tps: +tps.toFixed(2), msPorCaso: Math.round(ms / CASOS.length), linhas,
   };
   // ── O RESULTADO DE CADA MODELO É PUBLICADO ASSIM QUE EXISTE ─────────────
