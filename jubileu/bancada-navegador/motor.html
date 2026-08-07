@@ -314,7 +314,7 @@ for (const m of modelos) {
       [/east\s*wall|east\s*side|eastern/, 'east-side'],
       [/west\s*wall|west\s*side|western/, 'west-side'],
       [/elevator|the door/, 'elevator'],
-      [/\bplayer\b|toward him|up to him|\bhim\b/, 'player'],
+      [/\bplayer\b|\bhim\b|\bher\b|\bthem\b/, 'player'],
       [/center of the room|room.?center|middle of the room/, 'room-center'],
       [/stay(s|ing)? (still|put)|does not move|doesn't move|remain(s|ing)? still|only listen/, 'self'],
       [/to (his|my) left|sideways.{0,12}left|steps? to .{0,6}left|leftward/, 'to-my-left'],
@@ -337,7 +337,22 @@ for (const m of modelos) {
       }
       return melhor;
     };
-    const alvo = mm?.[2]?.toLowerCase() ?? (SEM_GRAMATICA ? solto() : null);
+    // ── A LINHA `MOTION:` TAMBÉM PRECISA DE TRADUÇÃO ────────────────────
+    //
+    // Solto, o Qwen3 escreve `MOTION: walk | him | slow | 3` — leitura CERTA
+    // do caso ("I walk right up to him and wave"), em palavra natural em vez
+    // de palavra do enum. Pegar o grupo do regex cru dava `him`, que não é
+    // alvo nenhum, e contava como erro do modelo. Era erro meu.
+    const normalizar = (bruto) => {
+      if (!bruto) return null;
+      const b = bruto.toLowerCase();
+      if (ALVOS.includes(b)) return b;
+      for (const [re, alvoDoMapa] of SINONIMOS) if (re.test(b)) return alvoDoMapa;
+      return null;
+    };
+    const alvo = SEM_GRAMATICA
+      ? (normalizar(mm?.[2]) ?? solto())
+      : (mm?.[2]?.toLowerCase() ?? null);
     const meta = /GOAL:\s*([a-z-]+)/i.exec(texto)?.[1]?.toLowerCase() ?? null;
     const ok = alvo !== null && caso.aceita.includes(alvo);
     const ruim = alvo !== null && caso.proibido.includes(alvo);
