@@ -28,6 +28,9 @@ import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
 import { passoDoPlano, type CorpoDoNilo } from './npc/floor10Passo';
+import {
+    MemoriaDeConsequencia, type Consequencia, type MundoObservado,
+} from './npc/floor10Consequencia';
 
 /** Metade do lado da sala, igual ao `FLOOR_BOUNDS` da percepção. */
 const LIMITE = 22;
@@ -38,6 +41,8 @@ type Registro = {
     plano: Floor10MotorPlan | null;
     ms: number;
     pensamento: string;
+    /** Preenchido DEPOIS, quando a janela de conferência fecha. */
+    resultado?: Consequencia;
 };
 
 /** Mundo → tela: a sala inteira cabe no menor lado, com margem. */
@@ -57,6 +62,11 @@ const Floor10Campo: React.FC = () => {
     const plano = useRef<Floor10MotorPlan | null>(null);
     const planoAte = useRef(0);
     const [historico, setHistorico] = useState<Registro[]>([]);
+    // ── A MEMÓRIA DE CONSEQUÊNCIA ─────────────────────────────────────────
+    // Aqui ela é fácil de julgar à mão: arraste-se para PERTO do Nilo depois de
+    // ele se aproximar e o resultado vira "atendido"; fique parado e vira
+    // "ignorado". É o experimento que ele descreveu, com o dedo.
+    const memoria = useRef(new MemoriaDeConsequencia());
     const [rodando, setRodando] = useState(false);
     const [erro, setErro] = useState('');
     // ── A VONTADE NÃO VEM DE GRAÇA NESTA ROTA ─────────────────────────────
@@ -79,6 +89,23 @@ const Floor10Campo: React.FC = () => {
             setCarregando(false);
         }
     }, []);
+
+    /** O mundo como a memória de consequência precisa vê-lo. */
+    const observar = useCallback((): MundoObservado => ({
+        distanciaDoJogador: Math.hypot(
+            jogador.current.x - corpo.current.x,
+            jogador.current.z - corpo.current.z,
+        ),
+        distanciaDoElevador: Math.hypot(
+            ELEVADOR.x - corpo.current.x,
+            ELEVADOR.z - corpo.current.z,
+        ),
+        // Nesta rota não há painel de conversa: o único sinal disponível é o
+        // jogador se APROXIMAR. Menos sinais que no jogo, e de propósito — o
+        // caso difícil é justamente "nada aconteceu".
+        conversaAberta: false,
+        mensagensDoJogador: 0,
+    }), []);
 
     const percepcao = useCallback((): Floor10Perception => perceiveFloor10({
         npcPosition: { x: corpo.current.x, y: 0, z: corpo.current.z },
@@ -172,6 +199,10 @@ const Floor10Campo: React.FC = () => {
                 memory: {
                     inspectedElevatorCount: 1, sleeps: 0, playerSilentSeconds: 20,
                     lastGoals: historico.slice(0, 3).map((r) => r.meta),
+                    // O QUE DEU. Sem estas duas linhas o modelo relê as próprias
+                    // ações sem nunca saber se funcionaram.
+                    outcomes: memoria.current.linhas(),
+                    stopRepeating: memoria.current.aviso(),
                 },
                 now: Date.now() / 1000,
             });
@@ -180,12 +211,34 @@ const Floor10Campo: React.FC = () => {
             // A duração do plano é do próprio plano: é ela que decide por
             // quanto tempo o corpo obedece antes de voltar a esperar ordem.
             planoAte.current = performance.now() / 1000 + (d.motion?.duration ?? 4);
+            const antes = observar();
             setHistorico((h) => [{
                 meta: d.goal,
                 plano: d.motion ?? null,
                 ms: Date.now() - t0,
                 pensamento: d.rationale.slice(0, 220),
             }, ...h].slice(0, 12));
+            // ── A CONFERÊNCIA ACONTECE DEPOIS, E TEM DE ESPERAR O CORPO ────
+            // Julgar no instante da decisão diria sempre "ignorado": o gesto
+            // ainda não aconteceu. A janela é a duração do plano mais uma folga
+            // para o jogador reagir — reagir é coisa de humano, e humano demora.
+            const janela = ((d.motion?.duration ?? 4) + 3) * 1000;
+            globalThis.setTimeout(() => {
+                const r = memoria.current.conferir(d.goal, antes, observar(), Date.now() / 1000);
+                setHistorico((h) => {
+                    // A lista é do mais NOVO para o mais velho, e as rodadas
+                    // terminam na ordem em que começaram: logo, o veredito é do
+                    // último item ainda sem veredito (o mais antigo pendente).
+                    let i = -1;
+                    for (let k = h.length - 1; k >= 0; k -= 1) {
+                        if (h[k].resultado === undefined) { i = k; break; }
+                    }
+                    if (i < 0) return h;
+                    const copia = [...h];
+                    copia[i] = { ...copia[i], resultado: r };
+                    return copia;
+                });
+            }, janela);
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
         } finally {
@@ -316,6 +369,17 @@ const Floor10Campo: React.FC = () => {
                             : <span style={{ color: '#ff9c9c' }}>sem plano motor</span>}
                         {' · '}
                         {(r.ms / 1000).toFixed(1)}s
+                        {r.resultado !== undefined && (
+                            <span style={{
+                                marginLeft: 8,
+                                color: r.resultado === 'atendido' ? '#7fe0b0'
+                                    : r.resultado === 'ignorado' ? '#ff9c9c' : '#7a8598',
+                            }}
+                            >
+                                {r.resultado === 'atendido' ? '✓ funcionou'
+                                    : r.resultado === 'ignorado' ? '✗ ignorado' : '— sem veredito'}
+                            </span>
+                        )}
                     </div>
                     <div style={{ opacity: 0.7, fontSize: 13 }}>{r.pensamento}</div>
                 </div>

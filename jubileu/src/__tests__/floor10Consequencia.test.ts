@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     MemoriaDeConsequencia, avaliarConsequencia, avisoDeInsistencia,
@@ -178,5 +179,38 @@ describe('a memória guarda, envelhece e não cresce sem fim', () => {
         const linhas = m.linhas();
         expect(linhas.length).toBeLessThanOrEqual(4);
         expect(linhas[0]).toContain('make-space');
+    });
+});
+
+describe('a memória está LIGADA nos dois lugares que decidem', () => {
+    // A regra do dia: teste unitário prova a função, não o caminho. Estas
+    // asserções leem a fonte — se alguém remover a ligação, os testes de cima
+    // continuariam verdes e o Nilo voltaria a repetir sem ninguém notar.
+    const jogo = readFileSync(new URL('../Floor10Npc.tsx', import.meta.url), 'utf8');
+    const campo = readFileSync(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8');
+
+    it('o jogo manda os resultados no prompt e agenda a conferência', () => {
+        expect(jogo).toContain('outcomes: memoriaConsequencia.current.linhas()');
+        expect(jogo).toContain('stopRepeating: memoriaConsequencia.current.aviso()');
+        expect(jogo).toContain('memoriaConsequencia.current.conferir(');
+    });
+
+    it('a conferência do jogo espera o corpo agir antes de julgar', () => {
+        // Conferir no instante da decisão diria SEMPRE "ignorado": o gesto
+        // ainda não aconteceu. A janela sai da duração do plano.
+        const i = jogo.indexOf('const espera =');
+        expect(i).toBeGreaterThan(-1);
+        expect(jogo.slice(i, i + 90)).toContain('motion?.duration');
+    });
+
+    it('o `?campo` faz o mesmo, para dar para julgar à mão', () => {
+        expect(campo).toContain('outcomes: memoria.current.linhas()');
+        expect(campo).toContain('memoria.current.conferir(');
+    });
+
+    it('o jogo conta só as mensagens DO JOGADOR como sinal de atenção', () => {
+        // As respostas do Nilo não são atenção recebida; contá-las faria toda
+        // aproximação parecer bem-sucedida.
+        expect(jogo).toContain("m.role === 'user'");
     });
 });

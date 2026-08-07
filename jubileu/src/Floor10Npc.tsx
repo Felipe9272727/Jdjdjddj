@@ -1,4 +1,7 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import {
+    MemoriaDeConsequencia, type MundoObservado,
+} from './npc/floor10Consequencia';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
@@ -84,6 +87,26 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const elevatorInspections = useRef(0);
     const lastGoalTrail = useRef<string[]>([]);
     const playerQuietSince = useRef(0);
+    // ── O QUE DEU CERTO E O QUE NÃO DEU ───────────────────────────────────
+    // "ele se aproximou do player, e o player ignorou (não abriu o chat ou sla)
+    //  ele vai saber disso entendeu?"
+    // Vive AQUI, e não dentro do cérebro, porque quem OBSERVA o mundo é a tela
+    // do andar. Misturar as duas coisas já fez a fila perguntar a si mesma.
+    const memoriaConsequencia = useRef(new MemoriaDeConsequencia());
+
+    /**
+     * O mundo como a memória de consequência precisa vê-lo. Lido da loja no
+     * instante da chamada — é justamente a diferença entre dois instantes que
+     * responde "ele me deu atenção?".
+     */
+    const observarMundo = useCallback((): MundoObservado => ({
+        distanciaDoJogador: npc.perception.player?.distance ?? null,
+        distanciaDoElevador: npc.perception.elevator.distance,
+        conversaAberta: npc.open,
+        // Só as mensagens DELE: as respostas do Nilo não são sinal de atenção
+        // recebida, são o Nilo falando sozinho do ponto de vista desta conta.
+        mensagensDoJogador: npc.history.filter((m) => m.role === 'user').length,
+    }), []);
 
     // Sonda: colocar o Nilo num ponto para testar a prisão sem esperar a
     // vontade dele escolher ir. Não muda nada do jogo — só existe para o teste
@@ -211,6 +234,12 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         sleeps: 44,
                         playerSilentSeconds: Math.max(0, t - playerQuietSince.current),
                         lastGoals: lastGoalTrail.current.slice(-3) as never,
+                        // ── O QUE DEU DE CADA UMA ─────────────────────────
+                        // `lastGoals` sozinho é a metade que causava a
+                        // repetição: ele relia as próprias ações sem nunca
+                        // saber se funcionaram. Ver floor10Consequencia.
+                        outcomes: memoriaConsequencia.current.linhas(),
+                        stopRepeating: memoriaConsequencia.current.aviso(),
                         // Os dois cérebros conversando: o que o 3B prometeu ao
                         // jogador chega aqui e a deliberação honra a palavra.
                         agreedAction: npc.willCommand?.action ?? npc.autonomy.commitment ?? null,
@@ -225,6 +254,19 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     if (decided) {
                         deliberation.current = decided;
                         deliberationFailures.current = 0;
+                        // ── AGENDA A CONFERÊNCIA ──────────────────────────
+                        // Julgar agora diria sempre "ignorado": o gesto ainda
+                        // não aconteceu. A janela é a duração do plano mais uma
+                        // folga para o jogador reagir — reagir é coisa de
+                        // humano, e humano demora.
+                        const antes = observarMundo();
+                        const meta = decided.goal;
+                        const espera = ((decided.motion?.duration ?? 6) + 4) * 1000;
+                        globalThis.setTimeout(() => {
+                            memoriaConsequencia.current.conferir(
+                                meta, antes, observarMundo(), Date.now() / 1000,
+                            );
+                        }, espera);
                     } else if (
                         npc.deliberationPhase !== 'unavailable'
                         // CEDER A VEZ NÃO É FALHAR. Enquanto o modelo de fala
