@@ -67,7 +67,27 @@ const VERBOS = ['approach','withdraw','hold','orbit','explore','stay'];
 const METAS = ['inspect-elevator','wander','idle','observe-player','approach-player','make-space','seek-player','talk-player'];
 const GESTOS = ['none','listen','touch','knock','crouch','jump','look-around','wave'];
 
-const GRAMATICA = `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
+// ── A ORDEM DAS LINHAS É UMA HIPÓTESE TESTÁVEL ──────────────────────────
+//
+// Na gramática de hoje `GOAL:` vem PRIMEIRO: o modelo tem de declarar a
+// intenção antes de raciocinar sobre o movimento. E foi exatamente a meta que
+// colapsou nos dados — `approach-player` em 5 de 7 casos do Qwen3, mesmo com o
+// ALVO do movimento certo.
+//
+// Invertendo, ele decide o movimento primeiro e deduz a intenção do que acabou
+// de escrever. É a ordem natural do raciocínio e não custa um token a mais.
+// `?ordem=motion` roda assim; sem o parâmetro, a ordem atual.
+const url0 = new URLSearchParams(location.search);
+const MOTION_PRIMEIRO = url0.get('ordem') === 'motion';
+const GRAMATICA = MOTION_PRIMEIRO
+  ? `root ::= "MOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target "\\nGOAL: " goal
+goal ::= ${METAS.map((v) => `"${v}"`).join(' | ')}
+act ::= ${GESTOS.map((v) => `"${v}"`).join(' | ')}
+verb ::= ${VERBOS.map((v) => `"${v}"`).join(' | ')}
+target ::= ${ALVOS.map((v) => `"${v}"`).join(' | ')}
+pace ::= "slow" | "normal" | "fast"
+duration ::= "3" | "6" | "9" | "12"`
+  : `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
 goal ::= ${METAS.map((v) => `"${v}"`).join(' | ')}
 act ::= ${GESTOS.map((v) => `"${v}"`).join(' | ')}
 verb ::= ${VERBOS.map((v) => `"${v}"`).join(' | ')}
@@ -93,11 +113,15 @@ ${pensamento}
 """
 
 Answer with exactly:
-GOAL: <intention>
+${MOTION_PRIMEIRO
+  ? `MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>
+GOAL: <intention>`
+  : `GOAL: <intention>
 MOTION: <verb> | <target> | <pace> | <duration>
-ACT: <gesture> | <target>`;
+ACT: <gesture> | <target>`}`;
 
-const url = new URLSearchParams(location.search);
+const url = url0;
 const modelos = (url.get('modelos') ?? 'qwen3-0.6b:/qwen06b.gguf').split(',').map((p) => {
   const i = p.indexOf(':');
   return { nome: p.slice(0, i), arquivo: p.slice(i + 1) };
