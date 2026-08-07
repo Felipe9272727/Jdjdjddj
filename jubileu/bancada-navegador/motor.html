@@ -129,6 +129,32 @@ duration ::= "3" | "6" | "9" | "12"`;
 // mais — só troca de lugar.
 const PENSAMENTO_NO_FIM = url0.has('pensamentofim');
 
+// ── O RESULTADO: HIPÓTESE REJEITADA ──────────────────────────────────────
+//
+// Medido, mesmas 7 frases, mesmos 3 modelos:
+//
+//                        alvos distintos      campeão
+//     lfm2.5-350m ....... 2 -> 1              west-side 7/7   (PIOROU)
+//     qwen3-0.6b ........ 2 -> 2              west-side 4/7 -> 6/7 (PIOROU)
+//     lfm2.5-230m ....... 3/7 -> 2/7 certos                   (PIOROU)
+//
+// Não é recência. Deixo a bandeira porque o dado negativo vale: quem vier
+// depois não precisa gastar meia hora repetindo isto.
+//
+// ── A PRÓXIMA SUSPEITA: A PRÓPRIA GRAMÁTICA ──────────────────────────────
+//
+// A GBNF obriga o modelo a cuspir `MOTION: <verbo> | <alvo>` como os PRIMEIROS
+// tokens. Não existe um passo onde ele releia a frase — o alvo tem de sair
+// pronto na primeira posição, e com temperatura 0,1 isso é praticamente o
+// argmax sobre os 12 alvos permitidos. Se a crença do modelo for difusa, UM
+// alvo ganha quase sempre. É exatamente o que os dados mostram.
+//
+// `?semgramatica` solta o modelo: texto livre, e a pontuação procura o alvo no
+// que ele escreveu. Se o texto livre acertar, a inteligência ESTÁ lá e quem
+// está errado é o arreio — e aí a saída é duas etapas (escrever, depois
+// encaixar), não trocar de modelo pela quinta vez.
+const SEM_GRAMATICA = url0.has('semgramatica');
+
 const MOLDE = !COM_META
   ? `MOTION: <verb> | <target> | <pace> | <duration>
 ACT: <gesture> | <target>`
@@ -234,8 +260,13 @@ for (const m of modelos) {
     try {
       const r = await w.createChatCompletion({
         messages: [{ role: 'user', content: prompt(caso.pensamento) }],
-        stream: false, max_tokens: 48, temperature: 0.1, top_p: 0.9,
-        grammar: GRAMATICA, cache_prompt: false,
+        stream: false,
+        // Solto precisa de mais espaço: preso à gramática 48 tokens sobram,
+        // em texto livre o modelo gasta tokens escrevendo a frase inteira.
+        max_tokens: SEM_GRAMATICA ? 96 : 48,
+        temperature: 0.1, top_p: 0.9,
+        ...(SEM_GRAMATICA ? {} : { grammar: GRAMATICA }),
+        cache_prompt: false,
       });
       texto = typeof r === 'string' ? r : (r?.choices?.[0]?.message?.content ?? '');
       tokens += r?.timings?.predicted_n ?? 0;
@@ -243,7 +274,22 @@ for (const m of modelos) {
     ms += performance.now() - t1;
 
     const mm = /MOTION:\s*([a-z-]+)\s*\|\s*([a-z-]+)/i.exec(texto);
-    const alvo = mm?.[2]?.toLowerCase() ?? null;
+    // ── SOLTO, O ALVO PODE ESTAR EM QUALQUER LUGAR DO TEXTO ──────────────
+    // Sem gramática o modelo escreve prosa. Procurar o nome do alvo no que ele
+    // escreveu mede o que interessa (ele ENTENDEU a frase?) sem exigir que
+    // acerte também o formato — que é justamente a outra metade do problema.
+    // O primeiro alvo citado vale; citar `player` no meio de uma explicação
+    // não deve ganhar de um `west-side` dito na conclusão, então varre-se na
+    // ordem em que aparecem no texto.
+    const solto = () => {
+      let melhor = null; let onde = Infinity;
+      for (const a of ALVOS) {
+        const i = texto.toLowerCase().indexOf(a);
+        if (i >= 0 && i < onde) { onde = i; melhor = a; }
+      }
+      return melhor;
+    };
+    const alvo = mm?.[2]?.toLowerCase() ?? (SEM_GRAMATICA ? solto() : null);
     const meta = /GOAL:\s*([a-z-]+)/i.exec(texto)?.[1]?.toLowerCase() ?? null;
     const ok = alvo !== null && caso.aceita.includes(alvo);
     const ruim = alvo !== null && caso.proibido.includes(alvo);
