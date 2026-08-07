@@ -24,6 +24,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { perceiveFloor10, type Floor10Perception } from './npc/floor10Perception';
 import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
+import { precarregarMotor } from './npc/floor10MotorBrain';
 import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
@@ -83,6 +84,22 @@ const Floor10Campo: React.FC = () => {
             const ok = await precarregarVontade();
             setTemModelo(ok);
             if (!ok) setErro('a vontade não carregou — veja a linha de estado abaixo');
+            // ── O MOTOR SOBE JUNTO, E ANTES DA PRIMEIRA RODADA ────────────
+            //
+            // O tradutor tem 640 MB e sobe sob demanda: na primeira
+            // deliberação ele ainda está carregando e devolve `null`. Medido
+            // três vezes: `rodada 1: motor null`.
+            //
+            // Eu tinha "resolvido" isso fazendo o corpo andar sem ele — e o
+            // dono do jogo cobrou, com razão: o motor existe JUSTAMENTE para
+            // traduzir pensamento em movimento, e contorná-lo é esvaziar a
+            // peça em vez de consertar o problema. A causa é o atraso; então
+            // se conserta o atraso.
+            //
+            // Aqui dá para subir junto sem custo de memória relevante: esta
+            // tela não tem a fala de 1,9 GB de pé. No jogo a conta é outra, e
+            // por isso lá a decisão continua sendo do roteamento.
+            else await precarregarMotor().catch(() => false);
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
         } finally {
