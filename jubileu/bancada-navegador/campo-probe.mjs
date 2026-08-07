@@ -5,9 +5,14 @@ import http from 'node:http'; import fs from 'node:fs'; import path from 'node:p
 const RAIZ = process.argv[2];
 const srv = http.createServer((req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
+  // O RUNTIME VEM DE CASA. O Chromium desta caixa não alcança CDN externo, e
+  // sem esta rota a página morre em "Failed to fetch dynamically imported
+  // module: cdn.jsdelivr.net/.../wllama" — que foi exatamente o que ela fez.
   const f = p === '/modelo2.gguf' ? process.env.MODELO2
     : p === '/modelo3.gguf' ? process.env.MODELO3
-      : path.join(RAIZ, p === '/' ? 'index.html' : p);
+      : p.startsWith('/wllama-cdn/')
+        ? path.join(import.meta.dirname, p.replace('/wllama-cdn/', 'wllama-cdn/'))
+        : path.join(RAIZ, p === '/' ? 'index.html' : p);
   if (!f || !fs.existsSync(f)) { res.writeHead(404).end(); return; }
   res.writeHead(200, {
     'Content-Length': String(fs.statSync(f).size),
@@ -28,6 +33,7 @@ const pg = await ctx.newPage();
 pg.setDefaultTimeout(900000);
 pg.on('pageerror', (e) => console.log('!! PAGEERROR:', String(e).slice(0, 300)));
 await pg.addInitScript(() => {
+  globalThis.__wllamaCdn = '/wllama-cdn';
   globalThis.__smallBrainModelUrl = '/modelo2.gguf';
   globalThis.__motorBrainModelUrl = '/modelo3.gguf';
 });
