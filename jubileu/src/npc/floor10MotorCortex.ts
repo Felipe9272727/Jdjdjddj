@@ -190,6 +190,22 @@ function availableMotorTargets(
         'east-side',
         'west-side',
         'self',
+        // ── AS RELATIVAS PRECISAM ESTAR AQUI, E NÃO ESTAVAM ──────────────
+        //
+        // Eu acrescentei `ahead/behind/to-my-left/to-my-right` a
+        // FLOOR10_MOTOR_TARGETS e esta função monta a lista À MÃO. Resultado:
+        // a gramática nunca as oferecia, e o motor não podia escolhê-las nem
+        // querendo. O passo do "5 passos à esquerda" nasceu morto.
+        //
+        // Apareceu no aparelho dele, com o pensamento na tela:
+        //     "I step sideways, left, toward the wall"  ->  sem plano motor
+        // Ele disse exatamente a coisa que o vocabulário novo existe para
+        // dizer, e o vocabulário não estava lá.
+        //
+        // Duas listas para a mesma coisa é como um vocabulário some sem
+        // ninguém notar; um teste agora exige que esta contenha todas as
+        // relativas.
+        ...FLOOR10_MOTOR_RELATIVE,
     ];
 }
 
@@ -283,6 +299,9 @@ Do not invent a new desire and do not solve the room for him.
 INTENTIONS: ${FLOOR10_MOTOR_GOALS.join(', ')}.
 GESTURES: ${FLOOR10_MOTOR_ACTS.join(', ')}. Use none when his thought is only movement.
 AVAILABLE TARGETS: ${targets}.
+Map his words to a target: a wall is that side of the room (the west wall is west-side);
+"left"/"right"/"forward"/"back" without a landmark are to-my-left / to-my-right / ahead / behind.
+If he says he MOVES, never answer stay — pick the verb and target that carry him there.
 VERBS: approach, withdraw, hold, orbit, explore, stay.
 PACE: slow, normal, fast. DURATION: 3, 6, 9, 12 seconds.
 Use stay | self when his thought does not imply movement.

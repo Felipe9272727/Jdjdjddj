@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     FLOOR10_MOTOR_ACTS, FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
-    buildMotorGrammar, metaDoPlanoMotor, parseMotorPlan,
+    buildMotorGrammar, buildMotorTranslationPrompt, metaDoPlanoMotor, parseMotorPlan,
 } from '../npc/floor10MotorCortex';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
 import type { Floor10MotorPlan } from '../npc/floor10MotorCortex';
@@ -272,5 +272,45 @@ describe('o motor entende o que NÃO é andar', () => {
         // foi assim que a gramática ficou malformada uma vez e o motor
         // desligou em silêncio.
         expect(g.split('\n')[0]).toContain('ACT: ');
+    });
+});
+
+describe('a gramática oferece TUDO que o vocabulário tem', () => {
+    // O defeito que apareceu no aparelho dele: eu acrescentei quatro direções
+    // relativas a FLOOR10_MOTOR_TARGETS e `availableMotorTargets` monta a lista
+    // À MÃO. A gramática nunca as oferecia, e o motor não podia escolhê-las nem
+    // querendo. O pensamento na tela era exatamente
+    //     "I step sideways, left, toward the wall"  ->  sem plano motor
+    // — ele disse a coisa que o vocabulário novo existe para dizer.
+    const g = buildMotorGrammar(
+        { playerVisible: true, playerDistance: 2, player: {} } as never,
+        null,
+    );
+
+    it('as quatro direções relativas estão na gramática', () => {
+        for (const alvo of ['ahead', 'behind', 'to-my-left', 'to-my-right']) {
+            expect(g).toContain(`"${alvo}"`);
+        }
+    });
+
+    it('os lados da sala continuam lá — "west wall" precisa de west-side', () => {
+        for (const alvo of ['west-side', 'east-side', 'north-side', 'south-side']) {
+            expect(g).toContain(`"${alvo}"`);
+        }
+    });
+
+    it('o prompt ENSINA a correspondência entre a palavra e o alvo', () => {
+        // Sem isto o 0,6B tinha de adivinhar que "the west wall" é `west-side`
+        // — e, medido no aparelho, ele respondia `stay | self` a um pensamento
+        // que dizia "I move toward the west wall".
+        const p = buildMotorTranslationPrompt(
+            'I move toward the west wall.',
+            { player: null, elevator: { visible: true, distance: 9 } } as never,
+            null,
+        );
+        expect(p).toContain('west wall is west-side');
+        expect(p).toContain('to-my-left');
+        // E a regra que impede a resposta preguiçosa.
+        expect(p).toContain('never answer stay');
     });
 });
