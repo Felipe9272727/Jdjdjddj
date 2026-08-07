@@ -77,6 +77,19 @@ try {
 } catch {
   console.log('TIMEOUT — último texto da página:');
   console.log(await pagina.textContent('#saida'));
+  // ── O QUE JÁ FOI MEDIDO NÃO SE PERDE COM O ESTOURO DO RELÓGIO ──────────
+  // Uma bateria de dois modelos que trava no segundo levava embora o primeiro
+  // junto. Se a página publicou parcial, ele vai para o arquivo do mesmo jeito
+  // — com a marca `parcial: true`, para ninguém ler isto como bateria inteira.
+  const parcial = await pagina.evaluate(() => globalThis.__parcial ?? null).catch(() => null);
+  if (parcial) {
+    const destino = process.env.RELATORIO
+      ?? `/tmp/bancada-parcial-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    try {
+      (await import('node:fs')).writeFileSync(destino, JSON.stringify({ ...parcial, parcial: true }, null, 2));
+      console.log(`\n>>> PARCIAL gravado em ${destino}`);
+    } catch (e) { console.log(`não consegui gravar o parcial: ${e?.message}`); }
+  }
   await navegador.close();
   process.exit(2);
 }

@@ -195,6 +195,12 @@ for (const m of modelos) {
     acertos, total: CASOS.length, proibidos, semPlano, carga,
     tps: +tps.toFixed(2), msPorCaso: Math.round(ms / CASOS.length), linhas,
   };
+  // ── O RESULTADO DE CADA MODELO É PUBLICADO ASSIM QUE EXISTE ─────────────
+  // Sem isto, uma bateria com dois modelos que estoura o tempo no segundo
+  // joga fora TAMBÉM o primeiro: `__resultado` só era escrito no fim, e o
+  // `rodar.mjs` saía por timeout sem JSON nenhum. Aconteceu comigo em duas
+  // corridas seguidas — 28 minutos de medição, zero dado gravado.
+  globalThis.__parcial = relatorio;
   try { await w.exit(); } catch { /* já saiu */ }
 }
 
