@@ -61,6 +61,11 @@ export type NpcState = {
     deliberationDownload: DownloadSample;
     deliberationGoal: string;   // a intenção que ele assinou
     deliberationCount: number;  // quantas vezes já deliberou nesta sessão
+    // ── A BOLHA QUE O MICRO ESCREVEU ───────────────────────────────────────
+    // Vazio = use a frase pronta da meta. Não é enfeite: era a mesma frase por
+    // meta, para sempre, e como `approach-player` domina as rodadas o jogador
+    // lia "acho que vou chegar mais perto." dezenas de vezes por partida.
+    deliberationBubble: string;
     // ── O PENSAMENTO CRU, AO VIVO ──────────────────────────────────────────
     // O texto que o cérebro de vontade está escrevendo NESTE instante, token a
     // token. Existe porque, de fora, "pensando…" e "travado" eram a mesma
@@ -112,7 +117,7 @@ const s: NpcState = {
     reflexoDownload: DOWNLOAD_ZERO, reflexo: '',
     deliberationDownload: DOWNLOAD_ZERO,
     storage: { quota: null, usage: 0, needBytes: 0 },
-    deliberationGoal: '', deliberationCount: 0,
+    deliberationGoal: '', deliberationCount: 0, deliberationBubble: '',
     deliberationLive: '', deliberationTps: 0, deliberationThreads: 0,
     deliberationSeconds: 0,
     motorPhase: 'off', motorLoadText: '', motorLoadProgress: 0,

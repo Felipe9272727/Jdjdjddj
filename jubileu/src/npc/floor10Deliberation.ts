@@ -317,14 +317,23 @@ const DELIBERATION_THOUGHT: Record<DeliberationGoal, string> = {
     'talk-player': 'tem algo que eu queria te dizer.',
 };
 
-/** Texto da bolha de pensamento; vazio quando não há nada a mostrar. */
-export function deliberationThought(phase: string, goal: string): string {
+/**
+ * Texto da bolha de pensamento; vazio quando não há nada a mostrar.
+ *
+ * `escrita` é a linha que o micro compôs para ESTA decisão (`floor10Bolha`).
+ * Quando ela existe, manda — foi feita a partir do pensamento real da rodada.
+ * Quando não existe (micro fora do ar, geração recusada pela peneira, tempo
+ * estourado), a frase pronta da meta entra, exatamente como antes: a bolha
+ * nunca fica em branco por causa de um modelo que não respondeu.
+ */
+export function deliberationThought(phase: string, goal: string, escrita = ''): string {
     if (phase === 'thinking') return 'pensando…';
     // Sem esta linha havia um buraco visível de dezenas de segundos entre a
     // conversa acabar e o pensamento voltar — e de fora isso é indistinguível
     // de "ele morreu".
     if (phase === 'reopening') return 'voltando a pensar…';
     if (phase !== 'decided') return '';
+    if (escrita.trim()) return escrita.trim();
     return DELIBERATION_THOUGHT[goal as DeliberationGoal] ?? 'decidi o que fazer.';
 }
 

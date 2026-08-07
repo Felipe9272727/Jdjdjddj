@@ -31,8 +31,8 @@ import {
 import {
     metaDoPlanoMotor,
 } from './floor10MotorCortex';
-import {
-} from './floor10MotorBrain';
+import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
+import { completar as completarNoMicro } from './floor10Reflexo';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
 import {
@@ -980,6 +980,48 @@ export function vontadeRuntimeAberto(): boolean {
     return enginePromise !== null;
 }
 
+// ── A LINHA QUE O JOGADOR LÊ ──────────────────────────────────────────────
+//
+// Uma memória só, viva enquanto a página existe: é a mesma pessoa falando a
+// partida inteira, e o ponto do pedido era justamente ele não repetir.
+const bolhas = new MemoriaDeBolhas();
+
+/**
+ * Escreve a bolha desta decisão no micro (135M, ONNX, já residente fora da
+ * conversa) e publica — se ela ainda for a decisão vigente.
+ *
+ * NUNCA lança e nunca segura o passeio: é chamada com `void`. O `selo` é o
+ * contador de deliberações no instante da decisão; se ele mudou, uma rodada
+ * nova já entrou e esta linha descreve o passado.
+ */
+async function escreverBolha(meta: string, pensamento: string, selo: number): Promise<void> {
+    try {
+        const { linha, doModelo } = await gerarBolha({
+            meta,
+            pensamento,
+            memoria: bolhas,
+            completar: (prompt, teto) => completarNoMicro(
+                prompt, teto, { amostrar: true, maxTokens: 32 },
+            ),
+        });
+        if (npc.deliberationCount !== selo || npc.deliberationPhase !== 'decided') {
+            anotar('bolha:tarde-demais', { meta, selo });
+            return;
+        }
+        npcSet({ deliberationBubble: linha });
+        anotar('bolha:escreveu', { meta, doModelo, letras: linha.length });
+    } catch (erro) {
+        // A frase pronta já está na tela desde o `npcSet` da decisão: não há o
+        // que consertar aqui, só o que não derrubar.
+        anotar('bolha:erro', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 60),
+        });
+    }
+}
+
+/** Só para os testes: a memória de bolhas atravessa a página inteira. */
+export function resetBolhasForTests(): void { bolhas.limpar(); }
+
 export async function deliberateFloor10(
     input: DeliberateInput,
 ): Promise<Floor10Deliberation | null> {
@@ -1292,7 +1334,15 @@ export async function deliberateFloor10(
                     : `${SMALL_BRAIN_MODEL.label} pronto no cache`,
                 deliberationGoal: decided.goal,
                 deliberationCount: npc.deliberationCount + 1,
+                // Zera a linha da rodada anterior AGORA: uma bolha velha
+                // pendurada numa decisão nova é pior que a frase pronta, porque
+                // descreve algo que ele já não está fazendo.
+                deliberationBubble: '',
             });
+            // A bolha não segura a decisão. O corpo já pode andar; a linha
+            // chega quando o micro terminar, e se não terminar a frase pronta
+            // já está na tela desde o `npcSet` acima.
+            void escreverBolha(decided.goal, decided.rationale, npc.deliberationCount);
         } else {
             npcSet({
                 deliberationPhase: 'off',

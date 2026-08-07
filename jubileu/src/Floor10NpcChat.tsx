@@ -365,7 +365,9 @@ const Floor10NpcChat: React.FC = () => {
         // Pensamento do 2º cérebro: bolha no mundo, não linha no painel — dá
         // para ver que ele tem vida própria SEM abrir a conversa. Some quando
         // ele fala de verdade: a fala manda mais que o pensamento.
-        const thought = deliberationThought(st.deliberationPhase, st.deliberationGoal);
+        const thought = deliberationThought(
+            st.deliberationPhase, st.deliberationGoal, st.deliberationBubble,
+        );
         const thoughtVisible = !baixandoCerebro && thought !== '' && !speechAudible
             && (st.perception.player?.distance ?? Infinity) <= 9;
         // O pensamento cru NÃO depende de estar perto: ele pensa o tempo todo, e

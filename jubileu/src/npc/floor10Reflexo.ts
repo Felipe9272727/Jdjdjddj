@@ -480,6 +480,13 @@ export const RESUMO_MAX_TOKENS = 64;
 export async function completar(
     prompt: string,
     tetoMs = RESUMO_TIMEOUT_MS,
+    // ── QUANDO REPETIR É O DEFEITO, A GANÂNCIA TEM DE SAIR ────────────────
+    //
+    // O resumo do compressor quer ser estável: mesmo texto, mesmo resumo, e
+    // por isso o padrão continua guloso. A BOLHA quer o contrário — ela existe
+    // porque o dono do jogo viu a mesma frase dezenas de vezes, e decodificação
+    // gulosa com prompt parecido devolve saída parecida por construção.
+    opcoes: { amostrar?: boolean; maxTokens?: number } = {},
 ): Promise<string> {
     if (!gerador) return '';
     try {
@@ -487,8 +494,10 @@ export async function completar(
             gerador(
                 [{ role: 'user', content: prompt }],
                 {
-                    max_new_tokens: RESUMO_MAX_TOKENS,
-                    do_sample: false,
+                    max_new_tokens: opcoes.maxTokens ?? RESUMO_MAX_TOKENS,
+                    ...(opcoes.amostrar
+                        ? { do_sample: true, temperature: 0.9, top_p: 0.95 }
+                        : { do_sample: false }),
                     return_full_text: false,
                 },
             ),
