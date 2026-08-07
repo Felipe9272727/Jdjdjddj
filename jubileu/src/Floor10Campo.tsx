@@ -1,0 +1,339 @@
+// ── ?campo — A RÉPLICA SIMPLES DO ANDAR 10, PARA TESTAR VONTADE + MOTOR ────
+//
+// Pedido do dono do jogo:
+//
+//   "queria que tu fizesse um novo /? Que seja uma réplica simples do floor 10,
+//    e nessa replica a gente vai testar a vontade + motor, além de que, eu
+//    queria que vc fizesse o utility aí mais inteligente, principalmente porque
+//    ele só fica rondando de um lado pro outro"
+//
+// POR QUE UMA RÉPLICA, E POR QUE 2D
+// O andar de verdade é Three.js com física, cânone, prisão e conversa. Para
+// julgar se o Nilo se move como alguém que QUER alguma coisa, tudo isso é
+// ruído: o que precisa ficar visível é o triângulo pensamento → meta → plano
+// motor → posição. Visto de cima, num quadrado, isso se lê num relance; dentro
+// do jogo em primeira pessoa, não.
+//
+// O QUE AQUI É DE VERDADE, e não simulado:
+//   - `perceiveFloor10` — a MESMA função que o jogo usa, alimentada pelas
+//     posições desta tela;
+//   - `deliberateFloor10` — a rodada real, com o modelo real;
+//   - `translateFloor10MotorThought` dentro dela — o tradutor real.
+// Só o corpo e a sala são desenhados aqui. Se o comportamento for burro nesta
+// tela, ele é burro no jogo — e o contrário também vale, que é o ponto.
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { perceiveFloor10, type Floor10Perception } from './npc/floor10Perception';
+import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
+import { useNpc } from './npc/npcStore';
+import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
+import type { DeliberationGoal } from './npc/floor10Deliberation';
+import { passoDoPlano, type CorpoDoNilo } from './npc/floor10Passo';
+
+/** Metade do lado da sala, igual ao `FLOOR_BOUNDS` da percepção. */
+const LIMITE = 22;
+const ELEVADOR = { x: 0, y: 0, z: -10 };
+
+type Registro = {
+    meta: DeliberationGoal;
+    plano: Floor10MotorPlan | null;
+    ms: number;
+    pensamento: string;
+};
+
+/** Mundo → tela: a sala inteira cabe no menor lado, com margem. */
+function paraTela(v: { x: number; z: number }, lado: number) {
+    const escala = (lado - 24) / (LIMITE * 2);
+    return {
+        x: lado / 2 + v.x * escala,
+        y: lado / 2 + v.z * escala,
+    };
+}
+
+const Floor10Campo: React.FC = () => {
+    const st = useNpc();
+    const telaRef = useRef<HTMLCanvasElement>(null);
+    const corpo = useRef<CorpoDoNilo>({ x: 4, z: 4, yaw: 0 });
+    const jogador = useRef({ x: -6, z: 6 });
+    const plano = useRef<Floor10MotorPlan | null>(null);
+    const planoAte = useRef(0);
+    const [historico, setHistorico] = useState<Registro[]>([]);
+    const [rodando, setRodando] = useState(false);
+    const [erro, setErro] = useState('');
+    // ── A VONTADE NÃO VEM DE GRAÇA NESTA ROTA ─────────────────────────────
+    // No jogo quem manda baixar é a fila, que começa no botão de conversar.
+    // Aqui não há conversa — e sem isto `deliberateFloor10` desiste em SILÊNCIO
+    // (`vontadeJaCarregada()` falso = cede a vez), o que na tela seria um botão
+    // que não faz nada e nenhuma explicação.
+    const [carregando, setCarregando] = useState(false);
+    const [temModelo, setTemModelo] = useState(() => vontadeJaCarregada());
+    const carregar = useCallback(async () => {
+        setCarregando(true);
+        setErro('');
+        try {
+            const ok = await precarregarVontade();
+            setTemModelo(ok);
+            if (!ok) setErro('a vontade não carregou — veja a linha de estado abaixo');
+        } catch (e) {
+            setErro(e instanceof Error ? e.message : String(e));
+        } finally {
+            setCarregando(false);
+        }
+    }, []);
+
+    const percepcao = useCallback((): Floor10Perception => perceiveFloor10({
+        npcPosition: { x: corpo.current.x, y: 0, z: corpo.current.z },
+        npcYaw: corpo.current.yaw,
+        playerPosition: { x: jogador.current.x, y: 0, z: jogador.current.z },
+    }), []);
+
+    // ── O CORPO ANDA A 60 QUADROS, A CABEÇA PENSA A CADA RODADA ───────────
+    // Separados de propósito: no jogo é assim, e juntá-los aqui esconderia
+    // justamente o defeito que ele descreveu — um plano bom que o corpo executa
+    // mal parece um plano ruim.
+    useEffect(() => {
+        let vivo = true;
+        let anterior = performance.now();
+        const quadro = (agora: number) => {
+            if (!vivo) return;
+            const dt = Math.min(0.05, (agora - anterior) / 1000);
+            anterior = agora;
+            const alvoAtivo = agora / 1000 < planoAte.current ? plano.current : null;
+            passoDoPlano(corpo.current, alvoAtivo, {
+                jogador: jogador.current,
+                elevador: ELEVADOR,
+                limite: LIMITE,
+                dt,
+            });
+            desenhar();
+            requestAnimationFrame(quadro);
+        };
+        requestAnimationFrame(quadro);
+        return () => { vivo = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const desenhar = useCallback(() => {
+        const tela = telaRef.current;
+        if (!tela) return;
+        const ctx = tela.getContext('2d');
+        if (!ctx) return;
+        const lado = tela.width;
+        ctx.clearRect(0, 0, lado, lado);
+
+        // sala
+        ctx.fillStyle = '#11151d';
+        ctx.fillRect(0, 0, lado, lado);
+        ctx.strokeStyle = '#2b3444';
+        ctx.lineWidth = 2;
+        const a = paraTela({ x: -LIMITE, z: -LIMITE }, lado);
+        const b = paraTela({ x: LIMITE, z: LIMITE }, lado);
+        ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+
+        // elevador
+        const e = paraTela(ELEVADOR, lado);
+        ctx.fillStyle = '#c58a22';
+        ctx.fillRect(e.x - 14, e.y - 5, 28, 10);
+        ctx.fillStyle = '#f5c96b';
+        ctx.font = '11px system-ui';
+        ctx.fillText('elevador', e.x - 22, e.y - 10);
+
+        // jogador
+        const j = paraTela(jogador.current, lado);
+        ctx.fillStyle = '#3a6df0';
+        ctx.beginPath(); ctx.arc(j.x, j.y, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#a8bcf0';
+        ctx.fillText('você', j.x - 12, j.y - 12);
+
+        // Nilo, com a direção do olhar: sem ela não dá para dizer se ele está
+        // "observando" ou apenas parado de costas.
+        const n = paraTela(corpo.current, lado);
+        ctx.fillStyle = '#7fe0b0';
+        ctx.beginPath(); ctx.arc(n.x, n.y, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#7fe0b0';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(n.x, n.y);
+        ctx.lineTo(n.x + Math.sin(corpo.current.yaw) * 18, n.y + Math.cos(corpo.current.yaw) * 18);
+        ctx.stroke();
+        ctx.fillStyle = '#7fe0b0';
+        ctx.fillText('Nilo', n.x - 11, n.y - 13);
+    }, []);
+
+    /** Uma rodada de verdade: percepção real, modelo real, motor real. */
+    const pensar = useCallback(async () => {
+        if (rodando) return;
+        setRodando(true);
+        setErro('');
+        const t0 = Date.now();
+        try {
+            const d = await deliberateFloor10({
+                perception: percepcao(),
+                drives: { social: 0.6, curiosity: 0.7, restlessness: 0.5, fatigue: 0.2 },
+                memory: {
+                    inspectedElevatorCount: 1, sleeps: 0, playerSilentSeconds: 20,
+                    lastGoals: historico.slice(0, 3).map((r) => r.meta),
+                },
+                now: Date.now() / 1000,
+            });
+            if (!d) { setErro('a rodada não decidiu (veja o painel da vontade)'); return; }
+            plano.current = d.motion ?? null;
+            // A duração do plano é do próprio plano: é ela que decide por
+            // quanto tempo o corpo obedece antes de voltar a esperar ordem.
+            planoAte.current = performance.now() / 1000 + (d.motion?.duration ?? 4);
+            setHistorico((h) => [{
+                meta: d.goal,
+                plano: d.motion ?? null,
+                ms: Date.now() - t0,
+                pensamento: d.rationale.slice(0, 220),
+            }, ...h].slice(0, 12));
+        } catch (e) {
+            setErro(e instanceof Error ? e.message : String(e));
+        } finally {
+            setRodando(false);
+        }
+    }, [historico, percepcao, rodando]);
+
+    // ── LAÇO AUTOMÁTICO ───────────────────────────────────────────────────
+    // Sem ele o teste vira "aperte o botão e veja uma rodada", que não mostra o
+    // que ele reclamou: a REPETIÇÃO. "só fica rondando de um lado pro outro" é
+    // um padrão entre rodadas, e só aparece quando elas se sucedem sozinhas.
+    const [auto, setAuto] = useState(false);
+    useEffect(() => {
+        if (!auto) return;
+        let vivo = true;
+        const ciclo = async () => {
+            while (vivo) {
+                await pensar();
+                await new Promise((r) => { setTimeout(r, 1500); });
+            }
+        };
+        void ciclo();
+        return () => { vivo = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [auto]);
+
+    const arrastar = useCallback((ev: React.PointerEvent<HTMLCanvasElement>) => {
+        if (ev.buttons === 0 && ev.type !== 'pointerdown') return;
+        const tela = telaRef.current;
+        if (!tela) return;
+        const r = tela.getBoundingClientRect();
+        const lado = tela.width;
+        const escala = (lado - 24) / (LIMITE * 2);
+        const px = ((ev.clientX - r.left) * (lado / r.width) - lado / 2) / escala;
+        const pz = ((ev.clientY - r.top) * (lado / r.height) - lado / 2) / escala;
+        jogador.current = {
+            x: Math.max(-LIMITE, Math.min(LIMITE, px)),
+            z: Math.max(-LIMITE, Math.min(LIMITE, pz)),
+        };
+    }, []);
+
+    const metas = historico.map((r) => r.meta);
+    const repetida = metas.length >= 3 && new Set(metas.slice(0, 3)).size === 1;
+
+    return (
+        <div style={{
+            minHeight: '100vh', background: '#0a0c11', color: '#cfd6e4',
+            font: '14px/1.5 system-ui', padding: 12,
+        }}
+        >
+            <h1 style={{ font: '600 17px system-ui', margin: '4px 0 10px' }}>
+                campo de provas · vontade + motor
+            </h1>
+            <canvas
+                ref={telaRef}
+                width={520}
+                height={520}
+                onPointerDown={arrastar}
+                onPointerMove={arrastar}
+                style={{
+                    width: '100%', maxWidth: 520, aspectRatio: '1', touchAction: 'none',
+                    border: '1px solid #2b3444', borderRadius: 10, display: 'block',
+                }}
+            />
+            <p style={{ opacity: 0.7, margin: '6px 0 10px' }}>
+                arraste na sala para mover <b style={{ color: '#a8bcf0' }}>você</b>;
+                o Nilo se move sozinho, seguindo o plano do motor.
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                {!temModelo && (
+                    <button type="button" onClick={() => void carregar()} disabled={carregando} style={botao}>
+                        {carregando ? 'carregando a vontade…' : 'carregar a vontade'}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={() => void pensar()}
+                    disabled={rodando || !temModelo}
+                    style={botao}
+                >
+                    {rodando ? 'pensando…' : 'pensar uma vez'}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setAuto((v) => !v)}
+                    disabled={!temModelo}
+                    style={botao}
+                >
+                    {auto ? 'parar o laço' : 'laço automático'}
+                </button>
+            </div>
+
+            {erro !== '' && (
+                <div style={{ color: '#ff9c9c', marginBottom: 8 }}>{erro}</div>
+            )}
+
+            <div style={{ opacity: 0.85, marginBottom: 8 }}>
+                vontade: {st.deliberationPhase} · {st.deliberationLoadText}
+                {st.deliberationTps > 0 && ` · ${st.deliberationTps.toFixed(1)} tok/s`}
+            </div>
+            {st.deliberationLive !== '' && (
+                <div style={caixa}>
+                    <div style={rotulo}>pensando agora</div>
+                    <div style={{ opacity: 0.9 }}>{st.deliberationLive.slice(-400)}</div>
+                </div>
+            )}
+
+            {/* A REPETIÇÃO É O DEFEITO QUE ELE RELATOU, então ela tem de ser
+                visível como AVISO e não só deduzível da lista. */}
+            {repetida && (
+                <div style={{ ...caixa, borderColor: '#8a2f2f', color: '#ff9c9c' }}>
+                    três rodadas seguidas com a mesma meta ({metas[0]}) — é o
+                    “rondando de um lado pro outro”.
+                </div>
+            )}
+
+            <div style={rotulo}>últimas rodadas</div>
+            {historico.length === 0 && <div style={{ opacity: 0.6 }}>nenhuma ainda.</div>}
+            {historico.map((r, i) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <div key={i} style={caixa}>
+                    <div>
+                        <b style={{ color: '#f5c96b' }}>{r.meta}</b>
+                        {' · '}
+                        {r.plano
+                            ? `${r.plano.verb} ${r.plano.target} ${r.plano.pace} ${r.plano.duration}s`
+                            : <span style={{ color: '#ff9c9c' }}>sem plano motor</span>}
+                        {' · '}
+                        {(r.ms / 1000).toFixed(1)}s
+                    </div>
+                    <div style={{ opacity: 0.7, fontSize: 13 }}>{r.pensamento}</div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const botao: React.CSSProperties = {
+    background: '#1b2230', color: '#cfd6e4', border: '1px solid #2b3444',
+    borderRadius: 8, padding: '8px 14px', font: '14px system-ui',
+};
+const caixa: React.CSSProperties = {
+    border: '1px solid #2b3444', borderRadius: 8, padding: 8, marginBottom: 8,
+};
+const rotulo: React.CSSProperties = {
+    opacity: 0.6, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+    margin: '4px 0',
+};
+
+export default Floor10Campo;

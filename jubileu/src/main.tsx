@@ -69,6 +69,10 @@ const Floor10Comparacao = lazy(() => import('./Floor10Comparacao.tsx'));
 // única forma de flagrar uma cadeia de pensamento circular.
 const Floor10Prisao = lazy(() => import('./Floor10Prisao'));
 const Floor10Mente = lazy(() => import('./Floor10Mente.tsx'));
+// `?campo` é a réplica simples do Andar 10 vista de cima, feita para julgar
+// VONTADE + MOTOR juntos: o triângulo pensamento -> meta -> plano -> posição.
+// No jogo em primeira pessoa esse triângulo é invisível.
+const Floor10Campo = lazy(() => import('./Floor10Campo.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
@@ -79,13 +83,16 @@ const isMente = search.includes('mente');
 // cima, os aparelhos, e o Nilo tentando. Existe porque o andar ainda não é
 // alcançável pelo elevador — sem ela o campo de provas seria invisível.
 const isPrisao = search.includes('prisao');
+const isCampo = search.includes('campo');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isComparacao ? (
+    {isCampo ? (
+      <Suspense fallback={null}><Floor10Campo /></Suspense>
+    ) : isComparacao ? (
       <Suspense fallback={null}><Floor10Comparacao /></Suspense>
     ) : isPrisao ? (
       <Suspense fallback={null}><Floor10Prisao /></Suspense>
