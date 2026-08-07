@@ -251,6 +251,23 @@ const Floor10Campo: React.FC = () => {
     // que ele reclamou: a REPETIÇÃO. "só fica rondando de um lado pro outro" é
     // um padrão entre rodadas, e só aparece quando elas se sucedem sozinhas.
     const [auto, setAuto] = useState(false);
+    // Espelho da posição para a TELA. Os refs mudam 60x por segundo sem
+    // re-renderizar (de propósito: re-render a cada quadro derrubaria o
+    // celular); este espelho anda a 5 Hz, que é o bastante para ler um número.
+    const [nilo, setNilo] = useState({ x: 4, z: 4 });
+    const [voce, setVoce] = useState({ x: -6, z: 6 });
+    const [emMovimento, setEmMovimento] = useState(false);
+    useEffect(() => {
+        let ultima = { x: corpo.current.x, z: corpo.current.z };
+        const t = globalThis.setInterval(() => {
+            const agora = { x: corpo.current.x, z: corpo.current.z };
+            setEmMovimento(Math.hypot(agora.x - ultima.x, agora.z - ultima.z) > 0.02);
+            ultima = agora;
+            setNilo(agora);
+            setVoce({ x: jogador.current.x, z: jogador.current.z });
+        }, 200);
+        return () => globalThis.clearInterval(t);
+    }, []);
     useEffect(() => {
         if (!auto) return;
         let vivo = true;
@@ -303,6 +320,21 @@ const Floor10Campo: React.FC = () => {
                     border: '1px solid #2b3444', borderRadius: 10, display: 'block',
                 }}
             />
+            {/* ── A POSIÇÃO EM NÚMERO ──────────────────────────────────────
+                Um ponto que anda devagar numa tela pequena é indistinguível de
+                um ponto parado. O número desfaz a dúvida — e foi a primeira
+                pergunta que ele fez sobre esta tela: "ele realmente está
+                conseguindo andar né?". */}
+            <div
+                data-teste="posicao"
+                style={{ font: '12px ui-monospace, monospace', opacity: 0.75, margin: '6px 0 0' }}
+            >
+                nilo {nilo.x.toFixed(1)}, {nilo.z.toFixed(1)} · você{' '}
+                {voce.x.toFixed(1)}, {voce.z.toFixed(1)} · distância{' '}
+                {Math.hypot(nilo.x - voce.x, nilo.z - voce.z).toFixed(1)}m
+                {' · '}
+                {emMovimento ? 'andando' : 'parado'}
+            </div>
             <p style={{ opacity: 0.7, margin: '6px 0 10px' }}>
                 arraste na sala para mover <b style={{ color: '#a8bcf0' }}>você</b>;
                 o Nilo se move sozinho, seguindo o plano do motor.
