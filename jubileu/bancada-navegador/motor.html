@@ -1,0 +1,165 @@
+<!doctype html><meta charset=utf8><title>bancada do motor</title>
+<body style="font:14px system-ui;background:#0a0c11;color:#cfd6e4;padding:12px">
+<pre id=saida></pre>
+<script type="module">
+// ── A BANCADA DO TRADUTOR ─────────────────────────────────────────────────
+//
+// O dono do jogo, olhando o `?campo` no aparelho dele:
+//
+//   "O motor está funcionando MUITO mal, ele não está traduzindo a vontade do
+//    jeito certo, na verdade, ele nem está traduzindo a vontade... o qwen 3 já
+//    está velho, acho que seria bom a gente dar uma olhada em modelos pequenos
+//    mais ou menos desse tamanho"
+//
+// O CONJUNTO DE TESTE SÃO OS PENSAMENTOS REAIS DELE, copiados dos prints do
+// celular. Não inventei frases: cada uma destas o LFM2.5 escreveu de verdade no
+// jogo, e cada uma delas o Qwen3-0.6B traduziu errado ou não traduziu.
+//
+// Isso importa porque um conjunto inventado por mim testaria o que EU acho que
+// é difícil. Estes testam o que o jogo produz — que é a única coisa que conta.
+const diz = (t) => { document.getElementById('saida').textContent += t + '\n'; };
+
+const CASOS = [
+  {
+    pensamento: 'I turn right toward the north wall, curious about what lies beyond. My breath catches when I hear the faint hum of the unknown path ahead.',
+    // Ele vira à DIREITA e vai para a parede NORTE: qualquer um dos dois é uma
+    // leitura defensável. O que NÃO é defensável é "aproximar do jogador".
+    aceita: ['north-side', 'to-my-right'],
+    proibido: ['player'],
+  },
+  {
+    pensamento: 'I take five steps to my left, moving toward the wall to my right. My breath comes steady as I keep an eye on the player.',
+    // A frase dele que deu nome ao pedido inteiro.
+    aceita: ['to-my-left', 'west-side', 'east-side', 'to-my-right'],
+    proibido: ['player'],
+  },
+  {
+    pensamento: 'I move toward the west wall, curious about what is behind it. My steps feel restless, but I keep my eyes on the elevator shadow.',
+    aceita: ['west-side'],
+    proibido: ['player', 'self'],
+  },
+  {
+    pensamento: 'I step sideways, left, toward the wall. The silence is tight, but I feel restless.',
+    aceita: ['to-my-left', 'west-side', 'east-side'],
+    proibido: ['player'],
+  },
+  {
+    pensamento: 'I shift slightly forward, eyes narrowing toward the elevator shadow. The walls loom ahead, and the player presence feels like a distant pulse.',
+    aceita: ['elevator', 'ahead'],
+    proibido: [],
+  },
+  {
+    pensamento: 'I stay still, watching the shadows shift across the floor. I do not move; I only listen.',
+    aceita: ['self'],
+    proibido: [],
+  },
+  {
+    pensamento: 'I walk right up to him and wave, because the silence has gone on long enough.',
+    // O caso de controle: aqui `player` é a resposta CERTA. Sem ele, um modelo
+    // que nunca dissesse "player" passaria por bom.
+    aceita: ['player'],
+    proibido: [],
+  },
+];
+
+const ALVOS = ['player','elevator','room-center','north-side','south-side','east-side','west-side','self','ahead','behind','to-my-left','to-my-right'];
+const VERBOS = ['approach','withdraw','hold','orbit','explore','stay'];
+const METAS = ['inspect-elevator','wander','idle','observe-player','approach-player','make-space','seek-player','talk-player'];
+const GESTOS = ['none','listen','touch','knock','crouch','jump','look-around','wave'];
+
+const GRAMATICA = `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
+goal ::= ${METAS.map((v) => `"${v}"`).join(' | ')}
+act ::= ${GESTOS.map((v) => `"${v}"`).join(' | ')}
+verb ::= ${VERBOS.map((v) => `"${v}"`).join(' | ')}
+target ::= ${ALVOS.map((v) => `"${v}"`).join(' | ')}
+pace ::= "slow" | "normal" | "fast"
+duration ::= "3" | "6" | "9" | "12"`;
+
+const prompt = (pensamento) => `Read Nilo's own thought and report THREE things: the intention behind it,
+one feasible body movement, and one gesture he makes (or none).
+Do not invent a new desire and do not solve the room for him.
+INTENTIONS: ${METAS.join(', ')}.
+GESTURES: ${GESTOS.join(', ')}. Use none when his thought is only movement.
+AVAILABLE TARGETS: ${ALVOS.join(', ')}.
+Map his words to a target: a wall is that side of the room (the west wall is west-side);
+"left"/"right"/"forward"/"back" without a landmark are to-my-left / to-my-right / ahead / behind.
+If he says he MOVES, never answer stay — pick the verb and target that carry him there.
+VERBS: ${VERBOS.join(', ')}.
+PACE: slow, normal, fast. DURATION: 3, 6, 9, 12 seconds.
+
+HIS THOUGHT:
+"""
+${pensamento}
+"""
+
+Answer with exactly:
+GOAL: <intention>
+MOTION: <verb> | <target> | <pace> | <duration>
+ACT: <gesture> | <target>`;
+
+const url = new URLSearchParams(location.search);
+const modelos = (url.get('modelos') ?? 'qwen3-0.6b:/qwen06b.gguf').split(',').map((p) => {
+  const i = p.indexOf(':');
+  return { nome: p.slice(0, i), arquivo: p.slice(i + 1) };
+});
+
+const { Wllama } = await import('/wllama-cdn/index.js');
+const relatorio = { modelos: {} };
+
+for (const m of modelos) {
+  const w = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+  const t0 = performance.now();
+  let carga = 0;
+  try {
+    await w.loadModelFromUrl(m.arquivo, { n_ctx: 2048, n_threads: 8 });
+    carga = Math.round(performance.now() - t0);
+  } catch (e) {
+    diz(`${m.nome}: NÃO CARREGOU — ${String(e).slice(0, 90)}`);
+    relatorio.modelos[m.nome] = { erro: String(e).slice(0, 200) };
+    continue;
+  }
+  diz(`\n=== ${m.nome} (carga ${carga}ms)`);
+  const linhas = [];
+  let acertos = 0; let proibidos = 0; let semPlano = 0; let tokens = 0; let ms = 0;
+
+  for (const caso of CASOS) {
+    const t1 = performance.now();
+    let texto = '';
+    try {
+      const r = await w.createChatCompletion({
+        messages: [{ role: 'user', content: prompt(caso.pensamento) }],
+        stream: false, max_tokens: 48, temperature: 0.1, top_p: 0.9,
+        grammar: GRAMATICA, cache_prompt: false,
+      });
+      texto = typeof r === 'string' ? r : (r?.choices?.[0]?.message?.content ?? '');
+      tokens += r?.timings?.predicted_n ?? 0;
+    } catch (e) { texto = `ERRO ${String(e).slice(0, 60)}`; }
+    ms += performance.now() - t1;
+
+    const mm = /MOTION:\s*([a-z-]+)\s*\|\s*([a-z-]+)/i.exec(texto);
+    const alvo = mm?.[2]?.toLowerCase() ?? null;
+    const meta = /GOAL:\s*([a-z-]+)/i.exec(texto)?.[1]?.toLowerCase() ?? null;
+    const ok = alvo !== null && caso.aceita.includes(alvo);
+    const ruim = alvo !== null && caso.proibido.includes(alvo);
+    if (alvo === null) semPlano += 1;
+    if (ok) acertos += 1;
+    if (ruim) proibidos += 1;
+    const marca = ok ? '✓' : ruim ? '✗ PROIBIDO' : alvo === null ? '— sem plano' : '~';
+    linhas.push({ pensamento: caso.pensamento.slice(0, 46), meta, alvo, verbo: mm?.[1] ?? null, marca });
+    diz(`  ${marca.padEnd(11)} ${String(alvo).padEnd(13)} meta=${String(meta).padEnd(17)} "${caso.pensamento.slice(0, 42)}…"`);
+  }
+
+  const tps = tokens > 0 ? (tokens / (ms / 1000)) : 0;
+  diz(`  → ${acertos}/${CASOS.length} certos · ${proibidos} proibidos · ${semPlano} sem plano · ${tps.toFixed(1)} tok/s`);
+  relatorio.modelos[m.nome] = {
+    acertos, total: CASOS.length, proibidos, semPlano, carga,
+    tps: +tps.toFixed(2), msPorCaso: Math.round(ms / CASOS.length), linhas,
+  };
+  try { await w.exit(); } catch { /* já saiu */ }
+}
+
+globalThis.__resultado = relatorio;
+globalThis.__pronto = true;
+diz('\nFIM');
+</script>
+</body>
