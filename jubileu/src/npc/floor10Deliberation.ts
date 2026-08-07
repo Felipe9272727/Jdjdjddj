@@ -51,6 +51,27 @@ export type DeliberationMemory = {
     playerSilentSeconds: number;
     lastGoals: readonly Floor10WillGoal[];
     /**
+     * ── O QUE DEU CERTO E O QUE NÃO DEU ───────────────────────────────────
+     *
+     * `lastGoals` diz o que ele FEZ. Isto diz o que ACONTECEU depois — e sem
+     * essa metade o modelo lê "approach-player -> approach-player ->
+     * approach-player" sem nenhuma razão para parar: do ponto de vista dele,
+     * cada rodada é a primeira. A repetição que o dono do jogo vê na tela não é
+     * teimosia do modelo, é amnésia que nós causamos.
+     *
+     * Vem pronto de `floor10Consequencia`, em inglês, já filtrado: resultados
+     * `indefinido` não entram, porque "você vagou e nada aconteceu" é ruído que
+     * ensina o modelo a desconfiar do que lê.
+     */
+    outcomes?: readonly string[];
+    /**
+     * A instrução que fecha o laço. Saber que falhou não basta — um modelo
+     * pequeno diante de um histórico sem conclusão tende a tentar de novo. Só
+     * aparece quando a MESMA meta falhou DUAS vezes seguidas: uma falha é
+     * acaso, duas é padrão.
+     */
+    stopRepeating?: string | null;
+    /**
      * O QUE FOI COMBINADO NA CONVERSA. É por aqui que os dois cérebros se
      * falam: o 3B aceita um pedido do jogador ("entra no elevador"), a Utility
      * AI passa a cumprir, e a deliberação FICA SABENDO — sem isto ela poderia
@@ -166,6 +187,12 @@ export function buildDeliberationPrompt(
         `REMEMBERS: inspected the elevator ${memory.inspectedElevatorCount}x and found nothing; slept ${memory.sleeps} times here; player silent for ${Math.round(memory.playerSilentSeconds)}s.`,
         `RECENT ACTIONS: ${recent}.`,
     ];
+    // O RESULTADO vem logo depois das ações, porque é a leitura delas: separá-lo
+    // por outras linhas faria o modelo ter de casar duas listas de longe.
+    if (memory.outcomes && memory.outcomes.length > 0) {
+        lines.push(`WHAT CAME OF THEM: ${memory.outcomes.join('; ')}.`);
+    }
+    if (memory.stopRepeating) lines.push(memory.stopRepeating);
     // A palavra dada na conversa vale mais que qualquer impulso: entra por
     // último, logo antes da decisão, e diz explicitamente para honrá-la.
     if (memory.agreedAction) {
