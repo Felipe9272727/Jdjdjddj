@@ -24,10 +24,28 @@
 // Puro de propósito: recebe o corpo e devolve o corpo mexido. Dá para testar
 // cem passos em milissegundos, sem tela e sem modelo — que é como se descobre
 // que "orbit" nunca completa uma volta.
+import { FLOOR10_MOTOR_RELATIVE } from './floor10MotorCortex';
 import type { Floor10MotorPlan, Floor10MotorTarget } from './floor10MotorCortex';
 import type { DeliberationGoal } from './floor10Deliberation';
 
-export type CorpoDoNilo = { x: number; z: number; yaw: number };
+export type CorpoDoNilo = {
+    x: number;
+    z: number;
+    yaw: number;
+    /**
+     * ── O DESTINO DE UMA ORDEM RELATIVA FICA TRAVADO ──────────────────────
+     *
+     * "5 passos à esquerda" significa a esquerda de ONDE ELE ESTAVA quando
+     * decidiu — não uma direção que gira junto com ele. Sem travar, o alvo era
+     * recalculado a cada quadro: ele virava para a esquerda, a esquerda virava
+     * junto, e o resultado era um Nilo rodando no lugar (medido: 0,09 m em seis
+     * segundos, quando devia atravessar cinco passos).
+     *
+     * Guardado no CORPO porque é estado do corpo, não do plano: o plano diz
+     * "para a minha esquerda", e o corpo é quem sabe onde isso era.
+     */
+    destino?: { x: number; z: number; de: string } | null;
+};
 
 export type MundoDoPasso = {
     jogador: { x: number; z: number } | null;
@@ -68,6 +86,28 @@ function alvoNoMundo(
         case 'west-side': return { x: -L + 4, z: 0 };
         // Sem catálogo de aparelhos nesta réplica: o corpo trata como "aqui
         // mesmo" em vez de inventar uma posição que não existe no mundo real.
+        // ── AS RELATIVAS SE RESOLVEM CONTRA O YAW DELE ───────────────────
+        // "Esquerda" é a esquerda do NILO, não a do mapa — e por isso o alvo
+        // tem de ser calculado no instante do passo, não uma vez. Sem estas
+        // quatro, "5 passos à esquerda" era inexprimível e ele só sabia ir até
+        // objetos: um corpo que pula de âncora em âncora, nunca um que anda
+        // pela sala.
+        case 'ahead':
+        case 'behind':
+        case 'to-my-left':
+        case 'to-my-right': {
+            // Um gesto de deslocamento: longe o bastante para ser visível,
+            // perto o bastante para caber na sala sem bater na parede.
+            const PASSOS = 5;
+            const giro = alvo === 'ahead' ? 0
+                : alvo === 'behind' ? Math.PI
+                    : alvo === 'to-my-left' ? -Math.PI / 2 : Math.PI / 2;
+            const a = corpo.yaw + giro;
+            return {
+                x: corpo.x + Math.sin(a) * PASSOS,
+                z: corpo.z + Math.cos(a) * PASSOS,
+            };
+        }
         case 'nearest-device':
         case 'active-device':
         case 'self':
@@ -110,7 +150,22 @@ export function passoDoPlano(
         return corpo;
     }
 
-    const alvo = alvoNoMundo(plano.target, corpo, mundo);
+    const relativa = (FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(plano.target);
+    let alvo: { x: number; z: number } | null;
+    if (relativa) {
+        // Trava na primeira vez que ESTE plano é visto, e destrava quando vem
+        // outro. `raw` identifica o plano; dois planos iguais em sequência são
+        // a mesma ordem repetida, e repetir "5 passos à esquerda" deve andar
+        // mais cinco a partir de onde ele parou.
+        if (!corpo.destino || corpo.destino.de !== plano.raw) {
+            const p = alvoNoMundo(plano.target, corpo, mundo);
+            corpo.destino = p ? { ...p, de: plano.raw } : null;
+        }
+        alvo = corpo.destino;
+    } else {
+        corpo.destino = null;
+        alvo = alvoNoMundo(plano.target, corpo, mundo);
+    }
     const v = VELOCIDADE[plano.pace] ?? VELOCIDADE.normal;
 
     if (!alvo) {

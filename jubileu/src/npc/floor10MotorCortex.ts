@@ -19,6 +19,29 @@ export const FLOOR10_MOTOR_VERBS = [
     'stay',
 ] as const;
 
+/**
+ * ── DIREÇÕES RELATIVAS AO CORPO ───────────────────────────────────────────
+ *
+ * O dono do jogo descrevendo o desenho que ele quer:
+ *
+ *   "vamos supor que a vontade quer fazer algo que não tenha na choice, como
+ *    pular, ou explorar... o lfm fala, vou andar 5 passos a esquerda, e o motor
+ *    traduz em movimento, a vontade vai ficar jogando como se fosse um RPG de
+ *    texto"
+ *
+ * "5 passos à esquerda" não era EXPRIMÍVEL. Os alvos eram todos absolutos
+ * (player, elevator, north-side…), então a única forma de o Nilo ir para a
+ * esquerda era existir alguma COISA à esquerda dele. Um corpo que só sabe ir
+ * até objetos não anda pela sala, ele pula de âncora em âncora — e isso é parte
+ * do "rondando de um lado pro outro".
+ *
+ * Estes quatro se resolvem contra o `yaw` dele no instante do passo, que é o
+ * que faz "esquerda" significar a esquerda DELE e não a do mapa.
+ */
+export const FLOOR10_MOTOR_RELATIVE = [
+    'ahead', 'behind', 'to-my-left', 'to-my-right',
+] as const;
+
 export const FLOOR10_MOTOR_TARGETS = [
     'player',
     'elevator',
@@ -30,6 +53,7 @@ export const FLOOR10_MOTOR_TARGETS = [
     'east-side',
     'west-side',
     'self',
+    ...FLOOR10_MOTOR_RELATIVE,
 ] as const;
 
 /**
@@ -323,6 +347,12 @@ const TARGET_PT: Record<Floor10MotorTarget, string> = {
     'east-side': 'do lado leste',
     'west-side': 'do lado oeste',
     self: 'aqui',
+    // As relativas dizem respeito ao CORPO dele, e por isso a tradução em
+    // português é possessiva: é a esquerda do Nilo, não a do mapa.
+    ahead: 'para a frente',
+    behind: 'para trás',
+    'to-my-left': 'para a minha esquerda',
+    'to-my-right': 'para a minha direita',
 };
 
 /**

@@ -216,3 +216,39 @@ describe('a meta sozinha já move o corpo — sem depender do tradutor', () => {
         }
     });
 });
+
+describe('direções relativas ao corpo — "5 passos à esquerda"', () => {
+    // "vamos supor que a vontade quer fazer algo que não tenha na choice...
+    //  o lfm fala, vou andar 5 passos a esquerda, e o motor traduz em movimento"
+    //
+    // Antes disto os alvos eram todos ABSOLUTOS: a única forma de o Nilo ir para
+    // a esquerda era existir alguma coisa à esquerda dele. Um corpo que só sabe
+    // ir até objetos pula de âncora em âncora — nunca anda pela sala.
+    it('esquerda é a esquerda DELE, não a do mapa', () => {
+        // Olhando para +z (yaw 0), a esquerda dele é -x.
+        const a: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        correr(a, plano('explore', 'to-my-left'), 60 * 6, { x: 99, z: 99 });
+        expect(a.x).toBeLessThan(-1);
+
+        // Virado para +x (yaw = PI/2), a MESMA ordem leva para +z.
+        const b: CorpoDoNilo = { x: 0, z: 0, yaw: Math.PI / 2 };
+        correr(b, plano('explore', 'to-my-left'), 60 * 6, { x: 99, z: 99 });
+        expect(b.z).toBeGreaterThan(1);
+    });
+
+    it('frente e trás são opostos', () => {
+        const frente: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        const tras: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        correr(frente, plano('explore', 'ahead'), 60 * 6, { x: 99, z: 99 });
+        correr(tras, plano('explore', 'behind'), 60 * 6, { x: 99, z: 99 });
+        expect(frente.z).toBeGreaterThan(1);
+        expect(tras.z).toBeLessThan(-1);
+    });
+
+    it('as relativas continuam respeitando a parede', () => {
+        const corpo: CorpoDoNilo = { x: 21, z: 21, yaw: Math.PI / 4 };
+        correr(corpo, plano('explore', 'ahead', 'fast'), 60 * 30, { x: 99, z: 99 });
+        expect(Math.abs(corpo.x)).toBeLessThanOrEqual(21.5);
+        expect(Math.abs(corpo.z)).toBeLessThanOrEqual(21.5);
+    });
+});

@@ -410,6 +410,15 @@ const Floor10Campo: React.FC = () => {
                 vontade: {st.deliberationPhase} · {st.deliberationLoadText}
                 {st.deliberationTps > 0 && ` · ${st.deliberationTps.toFixed(1)} tok/s`}
             </div>
+            {/* ── O MOTOR PRECISA APARECER NUMA BANCADA CHAMADA "VONTADE +
+                MOTOR" ────────────────────────────────────────────────────────
+                Ela não mostrava o estado dele. Quando o plano veio nulo três
+                execuções seguidas, não havia nada na tela que dissesse por quê —
+                a bancada não instrumentava justamente a metade que ela existe
+                para testar. */}
+            <div style={{ opacity: 0.85, marginBottom: 8 }}>
+                motor: {st.motorPhase} · {st.motorLoadText || '—'}
+            </div>
             {st.deliberationLive !== '' && (
                 <div style={caixa}>
                     <div style={rotulo}>pensando agora</div>
