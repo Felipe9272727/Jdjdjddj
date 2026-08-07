@@ -38,10 +38,27 @@ await pg.waitForSelector('[data-teste="posicao"]');
 console.log('montou   :', await ler());
 
 await pg.getByText('carregar a vontade').click();
-await pg.waitForFunction(
-  () => !document.body.innerText.includes('carregando a vontade'),
-  { timeout: 900000 },
-);
+// A espera anterior era frouxa: o texto "carregando" some no SUCESSO e na
+// FALHA, então o roteiro seguia e batia num botão desabilitado por 15 minutos
+// sem nunca dizer por quê. Esperar o botão FICAR HABILITADO é a condição certa
+// — e, se não ficar, a mensagem de erro da tela é impressa.
+try {
+  await pg.getByText('pensar uma vez').waitFor({ state: 'attached', timeout: 5000 });
+  await pg.waitForFunction(
+    () => {
+      const b = [...document.querySelectorAll('button')]
+        .find((x) => x.textContent?.includes('pensar uma vez'));
+      return !!b && !b.disabled;
+    },
+    { timeout: 900000 },
+  );
+} catch {
+  const texto = await pg.evaluate(() => document.body.innerText);
+  console.log('!! A VONTADE NÃO FICOU PRONTA. Tela diz:');
+  console.log(texto.split('\n').filter((l) => l.trim()).slice(0, 14).join('\n'));
+  await ctx.close(); srv.close();
+  process.exit(1);
+}
 console.log('carregou :', await ler());
 
 await pg.getByText('pensar uma vez').click();
