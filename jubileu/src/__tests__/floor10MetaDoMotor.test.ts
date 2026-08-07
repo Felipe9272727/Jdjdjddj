@@ -145,15 +145,20 @@ describe('o motor DECLARA a intenção, não só o movimento', () => {
         expect(metaDoPlanoMotor({ ...p, goal: 'approach-player' })).toBe('approach-player');
     });
 
-    it('a gramática prende a meta às oito válidas', () => {
+    it('a META saiu da gramática — a medição mandou', () => {
+        // Eu pus `GOAL:` na gramática para o motor DECLARAR a intenção. A
+        // bancada, com os pensamentos reais do aparelho dele, derrubou:
+        //     Qwen3, GOAL primeiro ..... approach-player em 5 de 7
+        //     Qwen3, MOTION primeiro ... inspect-elevator em 7 de 7
+        // Inverter a ordem só trocou QUAL rótulo ele repete. Esses modelos não
+        // escolhem entre oito rótulos; travam num. O MOVIMENTO eles acertam
+        // (4/7, zero proibidos), então o motor volta a fazer uma coisa só.
         const g = buildMotorGrammar(
             { playerVisible: true, playerDistance: 2 } as never,
             null,
         );
-        expect(g).toContain('goal ::=');
-        for (const meta of FLOOR10_MOTOR_GOALS) expect(g).toContain(`"${meta}"`);
-        // Sem isto o modelo poderia escrever qualquer palavra na linha GOAL.
-        expect(g.startsWith('root ::= "GOAL: " goal')).toBe(true);
+        expect(g).not.toContain('goal ::=');
+        expect(g.startsWith('root ::= "MOTION: "')).toBe(true);
     });
 
     it('lê a meta da resposta, e ignora lixo fora do vocabulário', () => {

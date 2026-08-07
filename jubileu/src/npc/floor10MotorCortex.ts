@@ -227,8 +227,35 @@ export function buildMotorGrammar(
     // EM SILÊNCIO. Medido: `motor: null` nas 3 rodadas, onde antes vinha
     // `stay | self`. Um erro que nenhum teste de string pegava, porque a string
     // parecia certa — quem reprovava era o parser da GBNF, dentro do worker.
-    return `root ::= "GOAL: " goal "\\nMOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
-goal ::= ${FLOOR10_MOTOR_GOALS.map((value) => `"${value}"`).join(' | ')}
+    // ── A META SAIU DA GRAMÁTICA, E A MEDIÇÃO MANDOU ─────────────────────
+    //
+    // Eu pus `GOAL:` aqui para o motor declarar a intenção em vez de eu
+    // inferi-la do par verbo+alvo. A bancada, com os pensamentos REAIS do
+    // aparelho dele, derrubou a ideia:
+    //
+    //     Qwen3, GOAL primeiro ....... approach-player em 5 de 7
+    //     Qwen3, MOTION primeiro ..... inspect-elevator em 7 de 7
+    //     LFM2-700M .................. observe-player na maioria
+    //
+    // Inverter a ordem não consertou: só trocou QUAL rótulo ele repete. Esses
+    // modelos não escolhem entre oito rótulos de intenção — travam num e
+    // repetem. E era exatamente isso que aparecia na tela dele: cinco rodadas
+    // seguidas de `approach-player`.
+    //
+    // O MOVIMENTO, esse eles acertam: 4 de 7 e zero proibidos no Qwen3, com os
+    // alvos difíceis certos (`north-side` para "the north wall", `west-side`
+    // para "five steps to my left").
+    //
+    // Então o motor volta a fazer UMA coisa, a que ele faz bem, e a meta passa
+    // a ser CALCULADA do par verbo+alvo — determinística, correta por
+    // construção, e de graça. `approach+player` é approach-player; nenhum
+    // modelo precisa adivinhar isso.
+    //
+    // (A razão de eu ter posto o GOAL aqui foi o motor responder `stay|self` a
+    // um pensamento de aproximação — mas aquilo era o movimento errado, e o
+    // conserto foi no PROMPT. Consertei o sintoma no lugar errado e a medição
+    // me devolveu ao lugar certo.)
+    return `root ::= "MOTION: " verb " | " target " | " pace " | " duration "\\nACT: " act " | " target
 act ::= ${FLOOR10_MOTOR_ACTS.map((value) => `"${value}"`).join(' | ')}
 verb ::= ${FLOOR10_MOTOR_VERBS.map((value) => `"${value}"`).join(' | ')}
 target ::= ${targets.map((value) => `"${value}"`).join(' | ')}
@@ -284,19 +311,18 @@ export function buildMotorTranslationPrompt(
     const tail = thinking.trim().slice(-MOTOR_TEXT_TAIL);
     const targets = availableMotorTargets(perception, prison).join(', ');
     const examples = [
-        'I should stay still and listen. => GOAL: idle / MOTION: stay | self | slow | 3 / ACT: listen | elevator',
-        'I want to cross toward the right wall. => GOAL: wander / MOTION: explore | east-side | normal | 6 / ACT: none | self',
+        'I should stay still and listen. => MOTION: stay | self | slow | 3 / ACT: listen | elevator',
+        'I want to cross toward the right wall. => MOTION: explore | east-side | normal | 6 / ACT: none | self',
         perception.player
-            ? 'I want to get closer to him. => GOAL: approach-player / MOTION: approach | player | normal | 6 / ACT: wave | player'
-            : 'I want another angle on the door. => GOAL: inspect-elevator / MOTION: orbit | elevator | slow | 6',
+            ? 'I want to get closer to him. => MOTION: approach | player | normal | 6 / ACT: wave | player'
+            : 'I want another angle on the door. => MOTION: orbit | elevator | slow | 6',
         prison
-            ? 'I should keep my weight on that thing. => GOAL: wander / MOTION: hold | nearest-device | slow | 9'
+            ? 'I should keep my weight on that thing. => MOTION: hold | nearest-device | slow | 9'
             : null,
     ].filter(Boolean).join('\n');
-    return `Read Nilo's own thought and report THREE things: the intention behind it,
-one feasible body movement, and one gesture he makes (or none).
+    return `Read Nilo's own thought and report TWO things: one feasible body movement,
+and one gesture he makes (or none).
 Do not invent a new desire and do not solve the room for him.
-INTENTIONS: ${FLOOR10_MOTOR_GOALS.join(', ')}.
 GESTURES: ${FLOOR10_MOTOR_ACTS.join(', ')}. Use none when his thought is only movement.
 AVAILABLE TARGETS: ${targets}.
 Map his words to a target: a wall is that side of the room (the west wall is west-side);
@@ -315,7 +341,6 @@ ${tail}
 """
 
 Answer with exactly:
-GOAL: <intention>
 MOTION: <verb> | <target> | <pace> | <duration>
 ACT: <gesture> | <target>`;
 }
