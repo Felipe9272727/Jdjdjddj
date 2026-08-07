@@ -102,25 +102,51 @@ export type DeliberationMemory = {
  * não interferem no conteúdo: teto de tokens, teto de tempo e o descarte de
  * texto que gira no lugar.
  */
+/**
+ * ── SEM MENU: ELE DIZ O QUE VAI FAZER ─────────────────────────────────────
+ *
+ * O desenho é do dono do jogo:
+ *
+ *   "o choice limita e muito o que a vontade pode fazer, tipo, vamos supor que
+ *    a vontade quer fazer algo que não tenha na choice, como pular, ou
+ *    explorar... o lfm fala, vou andar 5 passos a esquerda, e o motor traduz em
+ *    movimento, a vontade vai ficar jogando como se fosse um RPG de texto"
+ *
+ * O prompt antigo tinha uma contradição escrita nele mesmo. Uma linha dizia:
+ *
+ *     "A separate motor interpreter will read your words and ground them in the
+ *      room, so your body is not limited to the broad labels below."
+ *
+ * E a linha seguinte exigia `CHOICE: <option>` com oito rótulos. Ou seja: eu
+ * prometia liberdade e cobrava o formulário. O modelo obedecia ao formulário,
+ * porque formulário é instrução dura e promessa é conversa.
+ *
+ * A prova disso apareceu numa medição, com o pensamento inteiro dele:
+ *
+ *     "I check the elevator again, tension building. I should move, but staying
+ *      still might be safer. I take a step back, then shift closer.
+ *      CHOICE: approach-player"
+ *
+ * Ele QUIS dar um passo atrás e depois se aproximar. Tudo isso virou
+ * `approach-player`. O menu jogou fora justamente o que ele tinha de próprio.
+ *
+ * Agora não há lista. Ele descreve o movimento, o motor traduz — e a meta que o
+ * resto do jogo lê sai do motor, presa por gramática, não de um rótulo que a
+ * vontade teve de escolher.
+ *
+ * O `CHOICE:` CONTINUA SENDO ACEITO se ele resolver escrevê-lo por conta
+ * própria: é grátis quando vem, e o resgate ainda o usa como última tentativa.
+ * Deixou de ser exigido, não de ser entendido.
+ */
 export const DELIBERATION_SYSTEM_PROMPT =
 `You are the inner voice of Nilo, a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
-You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
+You receive a map of what he SEES right now, what he WANTS, and what he REMEMBERS trying.
 Think it through in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
 Then decide by your own free will — you are a person, not a servant, and you may choose something unexpected as long as it makes sense for you.
-Describe the physical movement you actually imagine doing. A separate motor interpreter will read your words and ground them in the room, so your body is not limited to the broad labels below.
-Be brief: at most three short sentences. Never repeat yourself.
-Then end with exactly one final line, choosing the option that fits what you just said:
-CHOICE: <option>
-
-The options, and what each one means for you:
-- inspect-elevator: walk to the elevator door and study it again
-- wander: walk around the room with no destination
-- idle: stay where you are and do nothing
-- observe-player: watch him in silence from where you are (only if you can see him)
-- approach-player: walk closer to him (only if you can see him)
-- make-space: step away from him, put distance between you
-- seek-player: go looking for him, because he is not in sight
-- talk-player: say something to him out loud`;
+Say what you do with your body, in your own words, like someone playing a text adventure:
+"I take five steps to my left." / "I walk to the elevator and put my ear against the door." / "I stay where I am and watch him."
+Do not pick from a list and do not name a category — describe the movement. A separate motor interpreter reads your words and grounds them in the room.
+Be brief: at most three short sentences. Never repeat yourself.`
 
 /**
  * A gramática força UMA linha e, com isso, torna o raciocínio impossível.

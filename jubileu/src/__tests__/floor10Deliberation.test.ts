@@ -64,16 +64,33 @@ describe('npc/floor10Deliberation — o segundo cérebro pequeno e privado', () 
         expect(prompt.length).toBeLessThan(700);
     });
 
-    it('pede livre arbítrio e lista as metas válidas', () => {
+    it('pede livre arbítrio e NÃO oferece menu', () => {
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('free will');
-        expect(DELIBERATION_SYSTEM_PROMPT).toContain('CHOICE:');
-        // O Nilo PENSA antes de assinar — antes este teste exigia o contrário.
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('Think it through');
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('motor interpreter');
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('Never repeat yourself');
         expect(DELIBERATION_SYSTEM_PROMPT).not.toContain('Do not narrate reasoning');
+    });
+
+    it('o MENU sumiu — era a jaula que o dono do jogo apontou', () => {
+        // O prompt antigo se contradizia: prometia "your body is not limited to
+        // the broad labels below" e na linha seguinte exigia `CHOICE: <option>`
+        // com oito rótulos. Formulário é instrução dura, promessa é conversa —
+        // e o modelo obedecia ao formulário.
+        expect(DELIBERATION_SYSTEM_PROMPT).not.toContain('CHOICE:');
         for (const goal of DELIBERATION_GOALS) {
-            expect(DELIBERATION_SYSTEM_PROMPT).toContain(goal);
+            expect(DELIBERATION_SYSTEM_PROMPT).not.toContain(goal);
+        }
+        // Em lugar do menu, o pedido do RPG de texto.
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('text adventure');
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('describe the movement');
+    });
+
+    it('a GRAMÁTICA das metas continua existindo — o resgate ainda a usa', () => {
+        // Tirar a exigência do menu não é aposentar o vocabulário: o resgate
+        // (última tentativa antes de perder a rodada) pergunta "qual das oito
+        // é essa?" e precisa da gramática para prender a resposta.
+        for (const goal of DELIBERATION_GOALS) {
             expect(DELIBERATION_GRAMMAR).toContain(`"${goal}"`);
         }
     });
