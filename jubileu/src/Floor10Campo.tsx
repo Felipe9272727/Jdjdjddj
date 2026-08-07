@@ -124,7 +124,24 @@ const Floor10Campo: React.FC = () => {
             if (!vivo) return;
             const dt = Math.min(0.05, (agora - anterior) / 1000);
             anterior = agora;
-            const alvoAtivo = agora / 1000 < planoAte.current ? plano.current : null;
+            // ── O PLANO VALE ATÉ CHEGAR OU ATÉ VIR OUTRO ─────────────────
+            //
+            // Antes ele expirava em `duration` segundos (3 a 12). Só que uma
+            // rodada de deliberação leva ~60 s no celular: o Nilo andaria seis
+            // segundos por minuto e ficaria parado os outros cinquenta e
+            // quatro. Tecnicamente "andando"; na prática, uma estátua que
+            // treme de vez em quando.
+            //
+            // O movimento já se limita sozinho, e é por isso que o relógio não
+            // era necessário: `approach` para a 1,6 m, `withdraw` para a 4,5 m,
+            // `explore` para ao chegar. Ele anda até CHEGAR e depois espera —
+            // que é o que uma pessoa faz, e é legível de fora.
+            //
+            // A exceção é `orbit`: circular não tem fim natural. Só ele ainda
+            // respeita a duração, senão o Nilo daria voltas para sempre.
+            const p = plano.current;
+            const expirou = p?.verb === 'orbit' && agora / 1000 >= planoAte.current;
+            const alvoAtivo = expirou ? null : p;
             passoDoPlano(corpo.current, alvoAtivo, {
                 jogador: jogador.current,
                 elevador: ELEVADOR,

@@ -132,3 +132,34 @@ describe('o ritmo importa, e a parede segura', () => {
         expect(corpo.z).toBe(2);
     });
 });
+
+describe('andar até CHEGAR, e só então parar', () => {
+    // "Eu quero que o corpo ande de verdade." O relógio de `duration` (3 a 12s)
+    // expirava muito antes da rodada seguinte (~60s no celular): ele andaria
+    // seis segundos por minuto. O movimento já se limita sozinho — é a chegada
+    // que encerra o gesto, não o cronômetro.
+    it('approach percorre uma distância GRANDE se o alvo estiver longe', () => {
+        const corpo: CorpoDoNilo = { x: -18, z: -18, yaw: 0 };
+        const j = { x: 18, z: 18 };
+        // 40s de caminhada a 1,6 m/s: tempo de sobra para atravessar a sala.
+        correr(corpo, plano('approach', 'player'), 60 * 40, j);
+        expect(dist(corpo, j)).toBeLessThan(2.2);
+    });
+
+    it('e depois de chegar ele PARA — não fica tremendo no alvo', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        const j = { x: 0, z: 10 };
+        correr(corpo, plano('approach', 'player'), 60 * 20, j);
+        const parado = { x: corpo.x, z: corpo.z };
+        correr(corpo, plano('approach', 'player'), 60 * 20, j);
+        // Sem o freio, aqui apareceria oscilação em torno do jogador.
+        expect(dist(corpo, parado)).toBeLessThan(0.05);
+    });
+
+    it('explore atravessa a sala até o lado pedido', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        correr(corpo, plano('explore', 'north-side'), 60 * 30);
+        // O alvo do lado norte é z = limite - 4 = 18.
+        expect(corpo.z).toBeGreaterThan(16);
+    });
+});
