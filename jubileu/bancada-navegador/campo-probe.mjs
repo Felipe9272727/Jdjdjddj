@@ -3,6 +3,9 @@
 import { chromium } from 'playwright';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 const RAIZ = process.argv[2];
+// Porta por ambiente: duas sondas ao mesmo tempo davam EADDRINUSE, e matar por
+// nome matava também a que eu estava subindo.
+const PORTA = Number(process.env.PORTA ?? 8801);
 const srv = http.createServer((req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
   // O RUNTIME VEM DE CASA. O Chromium desta caixa não alcança CDN externo, e
@@ -23,7 +26,7 @@ const srv = http.createServer((req, res) => {
   });
   fs.createReadStream(f).pipe(res);
 });
-await new Promise((r) => srv.listen(8801, '127.0.0.1', r));
+await new Promise((r) => srv.listen(PORTA, '127.0.0.1', r));
 const ctx = await chromium.launchPersistentContext(process.env.PERFIL, {
   executablePath: process.env.CHROMIUM_BIN,
   args: ['--no-sandbox', '--enable-features=SharedArrayBuffer', '--unlimited-storage'],
@@ -37,7 +40,7 @@ await pg.addInitScript(() => {
   globalThis.__smallBrainModelUrl = '/modelo2.gguf';
   globalThis.__motorBrainModelUrl = '/modelo3.gguf';
 });
-await pg.goto('http://127.0.0.1:8801/index.html?campo&fresh=1', { waitUntil: 'domcontentloaded' });
+await pg.goto(`http://127.0.0.1:${PORTA}/index.html?campo&fresh=1`, { waitUntil: 'domcontentloaded' });
 
 const ler = () => pg.locator('[data-teste="posicao"]').innerText();
 await pg.waitForSelector('[data-teste="posicao"]');
