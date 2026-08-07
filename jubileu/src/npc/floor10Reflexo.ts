@@ -261,7 +261,14 @@ async function carregar(): Promise<Gerador | null> {
         // antes. O comentário lá em cima jurava fechar esse buraco; o código
         // fechava metade dele.
         const mod = await Promise.race([render, modulePromise]);
-        if (!mod || desistiu) { geradorPromise = null; return null; }
+        if (!mod || desistiu) {
+            geradorPromise = null;
+            // E O IMPORT TAMBÉM. Se foi ELE que pendurou, guardá-lo faz toda
+            // tentativa seguinte esperar a mesma promessa morta — o vigia
+            // dispararia de novo, e de novo, sem nunca tocar na rede.
+            modulePromise = null;
+            return null;
+        }
         // ── O QUINTO RUNTIME TAMBÉM TEM POOL DE THREADS ───────────────────
         //
         // `env.backends` estava declarado no tipo e NUNCA era configurado. Sem
