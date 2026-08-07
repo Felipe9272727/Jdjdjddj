@@ -297,7 +297,15 @@ for (const m of modelos) {
     if (ok) acertos += 1;
     if (ruim) proibidos += 1;
     const marca = ok ? '✓' : ruim ? '✗ PROIBIDO' : alvo === null ? '— sem plano' : '~';
-    linhas.push({ pensamento: caso.pensamento.slice(0, 46), meta, alvo, verbo: mm?.[1] ?? null, marca });
+    // ── O TEXTO CRU VAI JUNTO, SEMPRE ───────────────────────────────────
+    // Eu já tirei conclusão de um parser sem olhar o que ele parseava, e o
+    // campo estava vazio o tempo todo. Se o alvo sair `null`, a única pergunta
+    // que importa é "o que o modelo escreveu?" — e a resposta tem de estar no
+    // relatório, não numa próxima corrida de 20 minutos.
+    linhas.push({
+      pensamento: caso.pensamento.slice(0, 46), meta, alvo,
+      verbo: mm?.[1] ?? null, marca, bruto: texto.slice(0, 220),
+    });
     diz(`  ${marca.padEnd(11)} ${String(alvo).padEnd(13)} meta=${String(meta).padEnd(17)} "${caso.pensamento.slice(0, 42)}…"`);
     // ── O PARCIAL É POR CASO, NÃO POR MODELO ──────────────────────────────
     // Publicar só ao fim do modelo não salvou nada quando o Granite MoE fez 5
