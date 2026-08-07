@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { passoDoPlano, type CorpoDoNilo } from '../npc/floor10Passo';
+import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from '../npc/floor10Passo';
+import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
+import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
 import type { Floor10MotorPlan } from '../npc/floor10MotorCortex';
 
 const plano = (verb: string, target: string, pace = 'normal'): Floor10MotorPlan => ({
@@ -161,5 +163,56 @@ describe('andar até CHEGAR, e só então parar', () => {
         correr(corpo, plano('explore', 'north-side'), 60 * 30);
         // O alvo do lado norte é z = limite - 4 = 18.
         expect(corpo.z).toBeGreaterThan(16);
+    });
+});
+
+describe('a meta sozinha já move o corpo — sem depender do tradutor', () => {
+    // Medido na réplica: uma rodada, `deslocamento total: 0.00 m`. A vontade
+    // decidiu e o Nilo não saiu do lugar, porque `motion` veio nulo — e na
+    // PRIMEIRA rodada ele sempre vem nulo: o tradutor tem 640 MB e ainda está
+    // subindo. Eu tinha anotado isso como "conhecido"; para quem olha a tela,
+    // "conhecido" era um NPC que nasce paralisado.
+    it('approach-player faz o corpo ir até o jogador', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        const j = { x: 0, z: 14 };
+        correr(corpo, planoDaMeta('approach-player'), 60 * 20, j);
+        expect(dist(corpo, j)).toBeLessThan(2.2);
+    });
+
+    it('inspect-elevator leva o corpo até a porta', () => {
+        const corpo: CorpoDoNilo = { x: 10, z: 10, yaw: 0 };
+        correr(corpo, planoDaMeta('inspect-elevator'), 60 * 30);
+        expect(Math.hypot(corpo.x - 0, corpo.z - (-10))).toBeLessThan(1.5);
+    });
+
+    it('make-space afasta', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 9, yaw: 0 };
+        const j = { x: 0, z: 10 };
+        correr(corpo, planoDaMeta('make-space'), 60 * 20, j);
+        expect(dist(corpo, j)).toBeGreaterThan(4);
+    });
+
+    it('observe-player NÃO desloca: observar é ficar de olho, não avançar', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        correr(corpo, planoDaMeta('observe-player'), 60 * 20, { x: 0, z: 10 });
+        expect(corpo.x).toBe(0);
+        expect(corpo.z).toBe(0);
+    });
+
+    it('idle também não desloca', () => {
+        const corpo: CorpoDoNilo = { x: 3, z: -3, yaw: 0 };
+        correr(corpo, planoDaMeta('idle'), 60 * 20);
+        expect(corpo.x).toBe(3);
+        expect(corpo.z).toBe(-3);
+    });
+
+    it('TODA meta devolve um plano válido', () => {
+        // Sem isto, uma meta nova cairia num `default` e o corpo pararia sem
+        // ninguém entender por quê.
+        for (const meta of DELIBERATION_GOALS) {
+            const p = planoDaMeta(meta);
+            expect(FLOOR10_MOTOR_VERBS).toContain(p.verb);
+            expect(FLOOR10_MOTOR_TARGETS).toContain(p.target);
+        }
     });
 });

@@ -77,6 +77,12 @@ for (let i = 0; i < 120; i += 1) {
   if (/andando/.test(t)) { console.log('ANDOU em', i * 2, 's :', t); break; }
 }
 console.log('final    :', vistos.at(-1));
+// SEM ISTO A SONDA DIZ "não andou" E NÃO DIZ POR QUÊ — e "não andou" tem pelo
+// menos quatro causas diferentes (rodada não decidiu, motor não traduziu, alvo
+// que não existe no mundo, laço de animação morto). A tela já sabe qual é.
+console.log('--- tela no fim ---');
+console.log((await pg.evaluate(() => document.body.innerText))
+  .split('\n').filter((l) => l.trim()).slice(0, 20).join('\n'));
 console.log('andou alguma vez?', vistos.some((v) => /andando/.test(v)));
 const nums = vistos.map((v) => v.match(/nilo (-?[\d.]+), (-?[\d.]+)/)).filter(Boolean);
 if (nums.length > 1) {

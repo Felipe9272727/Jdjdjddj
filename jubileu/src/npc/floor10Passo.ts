@@ -25,6 +25,7 @@
 // cem passos em milissegundos, sem tela e sem modelo — que é como se descobre
 // que "orbit" nunca completa uma volta.
 import type { Floor10MotorPlan, Floor10MotorTarget } from './floor10MotorCortex';
+import type { DeliberationGoal } from './floor10Deliberation';
 
 export type CorpoDoNilo = { x: number; z: number; yaw: number };
 
@@ -174,4 +175,46 @@ export function passoDoPlano(
     corpo.x = Math.max(-L, Math.min(L, corpo.x + mx));
     corpo.z = Math.max(-L, Math.min(L, corpo.z + mz));
     return corpo;
+}
+
+// ── O CORPO NÃO PODE DEPENDER DO TRADUTOR PARA EXISTIR ────────────────────
+//
+// Medido na réplica: uma rodada, `deslocamento total: 0.00 m`. A vontade
+// decidiu, e o Nilo não saiu do lugar — porque `motion` veio nulo e o corpo só
+// obedecia a plano motor.
+//
+// E `motion` nulo na PRIMEIRA rodada não é acidente: o tradutor tem 640 MB e
+// ainda está subindo quando a primeira decisão sai. Eu já tinha visto isso
+// ("rodada 1: motor null") e anotado como conhecido — sem perceber que, para
+// quem olha a tela, "conhecido" significa um NPC que nasce paralisado.
+//
+// A meta sozinha já diz o suficiente para andar. `approach-player` é um destino
+// completo: o tradutor acrescenta ritmo e duração, não a direção. Então o corpo
+// passa a ter um plano SEMPRE, e o do tradutor apenas o refina quando chega.
+//
+// É a inversa de `metaDoPlanoMotor`, e as duas juntas fecham o ciclo:
+// pensamento -> meta -> plano -> corpo, sem nenhum elo que possa faltar.
+export function planoDaMeta(meta: DeliberationGoal): Floor10MotorPlan {
+    const base = { pace: 'normal' as const, duration: 6 as const, raw: `fallback ${meta}` };
+    switch (meta) {
+        case 'approach-player':
+        case 'talk-player':
+            return { ...base, verb: 'approach', target: 'player' };
+        case 'seek-player':
+            // Procurar não é aproximar: ele não sabe onde o jogador está, então
+            // varre a sala em vez de mirar numa posição que pode não existir.
+            return { ...base, verb: 'explore', target: 'room-center' };
+        case 'make-space':
+            return { ...base, verb: 'withdraw', target: 'player' };
+        case 'observe-player':
+            // Observar é ficar de olho SEM avançar — `hold` não desloca.
+            return { ...base, verb: 'hold', target: 'player' };
+        case 'inspect-elevator':
+            return { ...base, verb: 'approach', target: 'elevator' };
+        case 'wander':
+            return { ...base, verb: 'explore', target: 'room-center' };
+        case 'idle':
+        default:
+            return { ...base, verb: 'stay', target: 'self' };
+    }
 }

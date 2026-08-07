@@ -27,7 +27,7 @@ import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc
 import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
-import { passoDoPlano, type CorpoDoNilo } from './npc/floor10Passo';
+import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from './npc/floor10Passo';
 import {
     MemoriaDeConsequencia, type Consequencia, type MundoObservado,
 } from './npc/floor10Consequencia';
@@ -224,7 +224,11 @@ const Floor10Campo: React.FC = () => {
                 now: Date.now() / 1000,
             });
             if (!d) { setErro('a rodada não decidiu (veja o painel da vontade)'); return; }
-            plano.current = d.motion ?? null;
+            // O CORPO SEMPRE TEM UM PLANO. Quando o tradutor não respondeu —
+            // e na primeira rodada ele nunca responde, porque os 640 MB dele
+            // ainda estão subindo —, a meta sozinha já dá o destino. O plano do
+            // tradutor apenas REFINA (ritmo, duração); a direção vem da meta.
+            plano.current = d.motion ?? planoDaMeta(d.goal);
             // A duração do plano é do próprio plano: é ela que decide por
             // quanto tempo o corpo obedece antes de voltar a esperar ordem.
             planoAte.current = performance.now() / 1000 + (d.motion?.duration ?? 4);
