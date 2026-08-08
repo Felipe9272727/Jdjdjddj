@@ -31,7 +31,9 @@ import {
     buildMotorTranslationPrompt,
     parseMotorPlan,
     type Floor10MotorPlan,
+    type Floor10MotorTarget,
 } from './floor10MotorCortex';
+import { classificarPensamento, planoDoVetor } from './floor10MotorVetor';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     deleteCachedModel,
@@ -415,6 +417,8 @@ export async function translateWithMotorEngine(
     perception: Floor10Perception,
     prison?: F10PrisonState | null,
     parentSignal?: AbortSignal,
+    /** Alvos que o vetor aprovou. Ausente = a lista inteira, como antes. */
+    candidatos?: readonly Floor10MotorTarget[],
 ): Promise<Floor10MotorPlan | null> {
     if (parentSignal?.aborted) return null;
     const controller = new AbortController();
@@ -436,7 +440,7 @@ export async function translateWithMotorEngine(
             ...FLOOR10_MOTOR_COMPLETION_CONFIG,
             // A gramática base documenta o protocolo; esta versão por rodada
             // exclui alvos que os olhos não detectaram.
-            grammar: buildMotorGrammar(perception, prison),
+            grammar: buildMotorGrammar(perception, prison, candidatos),
             abortSignal: controller.signal,
         }), controller.signal);
         return parseMotorPlan(readCompletionText(response));
@@ -462,6 +466,36 @@ export async function translateFloor10MotorThought(
     if (inFlight || signal?.aborted) return null;
     inFlight = true;
     try {
+        // ── PRIMEIRO O VETOR, QUE É 86x MAIS BARATO ───────────────────────
+        //
+        // Medido nos sete pensamentos reais do dono do jogo: o vetor sozinho
+        // acerta 5/7 em 838 ms; o Qwen preso à gramática acerta 4/7 em 32.000
+        // ms e escolhe SEMPRE o mesmo alvo (colapso: 1 a 2 alvos distintos de
+        // 12, em seis modelos de cinco famílias).
+        //
+        // Quando o vetor está confiante, a resposta dele é a resposta. O Qwen
+        // nem acorda — e é isso que devolve o tempo do passeio.
+        const veredito = await classificarPensamento(thinking);
+        if (veredito && !veredito.naDuvida && !signal?.aborted) {
+            const plan = planoDoVetor(veredito.alvo, thinking);
+            npcSet({
+                motorPhase: 'ready',
+                motorLoadText: `vetor · ${plan.verb} ${plan.target}`,
+            });
+            anotar('motor:decidiu-sem-llm', {
+                alvo: plan.target, margem: +veredito.margem.toFixed(3),
+            });
+            return plan;
+        }
+
+        // ── NA DÚVIDA, O QWEN DESEMPATA ───────────────────────────────────
+        //
+        // Só aqui, e só entre os candidatos que o VETOR aprovou. É o desenho
+        // que o dono do jogo propôs e que ganhou a bancada (6/7): gastar o
+        // segundo modelo apenas onde o primeiro admite não saber. Obrigar o
+        // Qwen a opinar em toda rodada mediu 4/7 — ele conserta um caso e
+        // quebra dois, atropelando os acertos confiantes do vetor.
+        //
         // O motor pertence ao pipeline de deliberação. Passar pelo mesmo
         // coordenador serializa o download de 386 MB contra uma carga da fala;
         // se a fala chegar, o preemptor da deliberação aborta este Worker.
@@ -476,6 +510,10 @@ export async function translateFloor10MotorThought(
         });
         const plan = await translateWithMotorEngine(
             engine, thinking, perception, prison, signal,
+            // O DESEMPATE VÊ SÓ O QUE O VETOR APROVOU. Sem esta lista o Qwen
+            // volta a escolher entre 12 e volta a colapsar — foi medido em
+            // seis modelos de cinco famílias, sempre o mesmo alvo.
+            veredito?.candidatos,
         );
         npcSet({
             motorPhase: 'ready',

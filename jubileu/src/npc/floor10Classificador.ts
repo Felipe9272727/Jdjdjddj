@@ -54,14 +54,16 @@ export const CANDIDATOS_DO_MOTOR = 3;
 /** Abaixo disto ninguém se parece com nada — devolve lista vazia. */
 export const PISO_DO_MOTOR = 0.30;
 
-export function normalizar(v: readonly number[]): number[] {
+export function normalizar(v: ArrayLike<number>): number[] {
     let soma = 0;
-    for (const x of v) soma += x * x;
+    for (let i = 0; i < v.length; i += 1) soma += (v[i] ?? 0) * (v[i] ?? 0);
     const n = Math.sqrt(soma) || 1;
-    return v.map((x) => x / n);
+    const saida = new Array<number>(v.length);
+    for (let i = 0; i < v.length; i += 1) saida[i] = (v[i] ?? 0) / n;
+    return saida;
 }
 
-export function cosseno(a: readonly number[], b: readonly number[]): number {
+export function cosseno(a: ArrayLike<number>, b: ArrayLike<number>): number {
     const n = Math.min(a.length, b.length);
     let s = 0;
     for (let i = 0; i < n; i += 1) s += (a[i] ?? 0) * (b[i] ?? 0);
@@ -74,7 +76,7 @@ export function cosseno(a: readonly number[], b: readonly number[]): number {
  * alvo para baixo.
  */
 export function ranquearAlvos(
-    pensamento: readonly number[],
+    pensamento: ArrayLike<number>,
     rotulos: readonly VetorDoRotulo[],
 ): CandidatoDoMotor[] {
     const melhor = new Map<Floor10MotorTarget, number>();
@@ -98,7 +100,7 @@ export function ranquearAlvos(
  * convicção).
  */
 export function candidatosDoMotor(
-    pensamento: readonly number[],
+    pensamento: ArrayLike<number>,
     rotulos: readonly VetorDoRotulo[],
     quantos = CANDIDATOS_DO_MOTOR,
 ): Floor10MotorTarget[] {

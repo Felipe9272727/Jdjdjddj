@@ -217,8 +217,19 @@ function availableMotorTargets(
 export function buildMotorGrammar(
     perception: Floor10Perception,
     prison?: F10PrisonState | null,
+    // ── O VETOR PODE ESTREITAR A LISTA ───────────────────────────────────
+    // Quando o classificador por vetor já ranqueou os alvos, a gramática desta
+    // rodada oferece só os melhores. É o que impede o colapso: com 12 opções o
+    // modelo responde sempre a mesma (medido em 6 modelos de 5 famílias); com
+    // 3 que VIERAM da frase, a mania dele não tem para onde fugir.
+    //
+    // A interseção com `availableMotorTargets` é obrigatória — um alvo que os
+    // olhos não veem não pode entrar só porque o vetor gostou dele.
+    candidatos?: readonly Floor10MotorTarget[],
 ): string {
-    const targets = availableMotorTargets(perception, prison);
+    const disponiveis = availableMotorTargets(perception, prison);
+    const estreitado = candidatos?.filter((c) => disponiveis.includes(c)) ?? [];
+    const targets = estreitado.length > 0 ? estreitado : disponiveis;
     // ── A QUEBRA DE LINHA PRECISA CHEGAR ESCAPADA NA GBNF ────────────────
     // Escrito como `"\nMOTION: "` dentro de um template literal, o `\n` vira
     // uma quebra de linha DE VERDADE no runtime — e um literal da GBNF não pode

@@ -477,6 +477,42 @@ export function memoriaJaCarregada(): boolean {
     return residentEngine !== null;
 }
 
+/**
+ * O VETOR DE UM TEXTO QUALQUER, para quem mais precisar do mesmo modelo.
+ *
+ * Existe porque o MOTOR passou a classificar o pensamento do Nilo por
+ * significado (ver floor10Rotulos / floor10Classificador) e seria absurdo
+ * baixar um segundo modelo de embedding para isso: este já está no aparelho,
+ * já está residente, e é 333 MB.
+ *
+ * O que NÃO se exporta é o `residentEngine`. Quem tem o motor na mão ganha
+ * também `loadModelFromUrl` e `exit` — e uma chamada distraída a `exit()` de
+ * fora derrubaria a memória do Nilo no meio de uma conversa. Aqui sai um
+ * vetor, e só.
+ *
+ * Devolve `null` — nunca lança e nunca demora além do teto — quando o modelo
+ * não está carregado (é o caso durante o passeio, se o roteamento o tiver
+ * desligado) ou quando a resposta vem torta. Quem chama decide o que fazer
+ * com o vazio; no motor, vazio significa "sem plano", que é a falha segura.
+ */
+export async function vetorDoTexto(texto: string): Promise<Vetor | null> {
+    const limpo = texto.trim();
+    if (!limpo || !residentEngine) return null;
+    try {
+        const resposta = await Promise.race([
+            residentEngine.createEmbedding({ input: limpo }),
+            new Promise<null>((resolve) => {
+                globalThis.setTimeout(() => resolve(null), FLOOR10_MEMORIA_TIMEOUT_MS);
+            }),
+        ]);
+        const bruto = resposta?.data?.[0]?.embedding;
+        if (!bruto || bruto.length !== FLOOR10_MEMORIA_DIM) return null;
+        return normalizar(bruto);
+    } catch {
+        return null;
+    }
+}
+
 export type FatoLembrado = {
     id: string;
     fact: string;
