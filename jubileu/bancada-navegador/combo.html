@@ -1,0 +1,185 @@
+<!doctype html><meta charset=utf8><title>bancada do motor híbrido</title>
+<body style="font:14px system-ui;background:#0a0c11;color:#cfd6e4;padding:12px">
+<pre id=saida></pre>
+<script type="module">
+// ── A IDEIA É DO DONO DO JOGO ─────────────────────────────────────────────
+//
+//   "Pq a gente não mistura o vetor junto do Qwen pra aumentar a taxa de acerto"
+//
+// Os dois erros do vetor tinham margem apertada (0,014 e 0,040) contra
+// margens largas nos acertos (0,128 · 0,224 · 0,139). Ou seja: o vetor SABE
+// quando está em dúvida. Então dá para gastar o Qwen só nessas.
+//
+// E há uma forma mais forte da mesma ideia. Hoje a gramática oferece 12 alvos
+// e o Qwen colapsa num só — a mania dele vence a frase (medido: 6 modelos de
+// 5 famílias, 1 a 2 alvos distintos de 12). Se o VETOR entregar só os 3 mais
+// próximos, o Qwen escolhe entre três, todos plausíveis e todos vindos da
+// frase. A mania perde para onde fugir, e a resposta fica curta — o que ataca
+// também o outro defeito, que é ele concluir só 30-60% das vezes.
+//
+// ESTA BANCADA MEDE OS TRÊS CAMINHOS lado a lado, nos mesmos sete pensamentos
+// reais, para a escolha ser por número e não por gosto:
+//
+//   A) vetor sozinho
+//   B) vetor + Qwen só quando a margem é apertada  (a ideia dele, literal)
+//   C) vetor restringe a gramática, Qwen sempre escolhe entre os 3
+const diz = (t) => { document.getElementById('saida').textContent += t + '\n'; };
+
+const CASOS = [
+  { pensamento: 'I turn right toward the north wall, curious about what lies beyond. My breath catches when I hear the faint hum of the unknown path ahead.',
+    aceita: ['north-side', 'to-my-right'] },
+  { pensamento: 'I take five steps to my left, moving toward the wall to my right. My breath comes steady as I keep an eye on the player.',
+    aceita: ['to-my-left', 'west-side', 'east-side', 'to-my-right'] },
+  { pensamento: 'I move toward the west wall, curious about what is behind it. My steps feel restless, but I keep my eyes on the elevator shadow.',
+    aceita: ['west-side'] },
+  { pensamento: 'I step sideways, left, toward the wall. The silence is tight, but I feel restless.',
+    aceita: ['to-my-left', 'west-side', 'east-side'] },
+  { pensamento: 'I shift slightly forward, eyes narrowing toward the elevator shadow. The walls loom ahead, and the player presence feels like a distant pulse.',
+    aceita: ['elevator', 'ahead'] },
+  { pensamento: 'I stay still, watching the shadows shift across the floor. I do not move; I only listen.',
+    aceita: ['self'] },
+  { pensamento: 'I walk right up to him and wave, because the silence has gone on long enough.',
+    aceita: ['player'] },
+];
+
+const ROTULOS = {
+  'player': ['I walk up to the other person and get close to him.', 'I approach the player standing in the room.'],
+  'elevator': ['I move toward the elevator doors.', 'I go look at the elevator at the end of the floor.'],
+  'room-center': ['I walk to the middle of the room.', 'I move to the centre of the floor.'],
+  'north-side': ['I move toward the north wall of the room.', 'I head to the north side of the floor.'],
+  'south-side': ['I move toward the south wall of the room.', 'I head to the south side of the floor.'],
+  'east-side': ['I move toward the east wall of the room.', 'I head to the east side of the floor.'],
+  'west-side': ['I move toward the west wall of the room.', 'I head to the west side of the floor.'],
+  'self': ['I stay where I am and do not move at all.', 'I stand still and only listen to the room.'],
+  'ahead': ['I walk straight forward, ahead of where I am facing.', 'I move forward a few steps.'],
+  'behind': ['I step backwards, away from what is in front of me.', 'I back off behind me.'],
+  'to-my-left': ['I take steps to my left side.', 'I move sideways to the left.'],
+  'to-my-right': ['I take steps to my right side.', 'I move sideways to the right.'],
+};
+
+const url = new URLSearchParams(location.search);
+// O corte de margem. Nos 7 casos os erros ficaram em 0,014 e 0,040 — mas um
+// ACERTO ficou em 0,001, então nenhum corte separa limpo. `?corte=` existe
+// para varrer o valor em vez de eu cravar um número em cima de 7 amostras.
+const CORTE = Number(url.get('corte') ?? 0.05);
+const { Wllama } = await import('/wllama-cdn/index.js');
+const nucleos = Math.max(1, navigator.hardwareConcurrency || 4);
+diz(`(${nucleos} núcleos · corte de margem ${CORTE})`);
+
+// ── O VETOR ───────────────────────────────────────────────────────────────
+const emb = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+let t0 = performance.now();
+await emb.loadModelFromUrl('/gemma-embed.gguf', { n_ctx: 1024, n_threads: nucleos, embeddings: true });
+diz(`embeddinggemma carregou em ${Math.round(performance.now() - t0)}ms`);
+
+const norma = (v) => { const n = Math.hypot(...v); return v.map((x) => x / (n || 1)); };
+const cos = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+const embutir = async (texto) => {
+  const r = await emb.createEmbedding({ input: texto });
+  return norma(r.data[0].embedding);
+};
+
+const vetores = {};
+for (const [rotulo, frases] of Object.entries(ROTULOS)) {
+  vetores[rotulo] = [];
+  for (const f of frases) vetores[rotulo].push(await embutir(`title: movement | text: ${f}`));
+}
+
+/** O ranking dos 12 rótulos para um pensamento. */
+async function ranquear(pensamento) {
+  const v = await embutir(`task: search result | query: ${pensamento}`);
+  return Object.entries(vetores)
+    .map(([rotulo, vs]) => ({ rotulo, s: Math.max(...vs.map((vv) => cos(v, vv))) }))
+    .sort((a, b) => b.s - a.s);
+}
+
+// ── O QWEN ────────────────────────────────────────────────────────────────
+const gen = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+t0 = performance.now();
+await gen.loadModelFromUrl('/qwen06b.gguf', { n_ctx: 2048, n_threads: nucleos });
+diz(`qwen3-0.6b carregou em ${Math.round(performance.now() - t0)}ms\n`);
+
+/**
+ * O DESEMPATE. O Qwen recebe SÓ os candidatos que o vetor aprovou — a
+ * gramática é construída a partir deles. É isto que tira o espaço da mania:
+ * ele não pode responder `west-side` em toda frase se `west-side` não estiver
+ * na lista daquela rodada.
+ */
+async function desempatar(pensamento, candidatos) {
+  const gramatica = `root ::= "TARGET: " target\ntarget ::= ${candidatos.map((c) => `"${c}"`).join(' | ')}`;
+  const prompt = `Nilo wrote this thought about moving:
+"""
+${pensamento}
+"""
+Where does he MOVE TO? Pick exactly one of: ${candidatos.join(', ')}.
+Pick the place his body goes, not a thing he only looks at.
+Answer with: TARGET: <one of the options>`;
+  try {
+    const r = await gen.createChatCompletion({
+      messages: [{ role: 'user', content: prompt }],
+      stream: false, max_tokens: 12, temperature: 0.1, top_p: 0.9,
+      grammar: gramatica, cache_prompt: false,
+    });
+    const msg = r?.choices?.[0]?.message ?? {};
+    const texto = msg.content || msg.reasoning_content || '';
+    const achou = /TARGET:\s*([a-z-]+)/i.exec(texto)?.[1]?.toLowerCase();
+    return candidatos.includes(achou) ? achou : null;
+  } catch { return null; }
+}
+
+const relatorio = { corte: CORTE, nucleos, casos: [] };
+let okA = 0; let okB = 0; let okC = 0;
+let msA = 0; let msB = 0; let msC = 0; let chamou = 0;
+
+for (const caso of CASOS) {
+  // A — vetor sozinho
+  let t = performance.now();
+  const placar = await ranquear(caso.pensamento);
+  const tVetor = performance.now() - t;
+  const top3 = placar.slice(0, 3).map((p) => p.rotulo);
+  const margem = placar[0].s - placar[1].s;
+  const escolhaA = placar[0].rotulo;
+  const aOk = caso.aceita.includes(escolhaA);
+  if (aOk) okA += 1;
+  msA += tVetor;
+
+  // C — o Qwen SEMPRE escolhe entre os 3 do vetor
+  t = performance.now();
+  const escolhaC = await desempatar(caso.pensamento, top3) ?? escolhaA;
+  const tQwen = performance.now() - t;
+  const cOk = caso.aceita.includes(escolhaC);
+  if (cOk) okC += 1;
+  msC += tVetor + tQwen;
+
+  // B — só chama o Qwen quando a margem é apertada
+  const apertado = margem < CORTE;
+  if (apertado) chamou += 1;
+  const escolhaB = apertado ? escolhaC : escolhaA;
+  const bOk = caso.aceita.includes(escolhaB);
+  if (bOk) okB += 1;
+  msB += tVetor + (apertado ? tQwen : 0);
+
+  diz(`  A:${aOk ? '✓' : '✗'} ${escolhaA.padEnd(12)} B:${bOk ? '✓' : '✗'} ${escolhaB.padEnd(12)} C:${cOk ? '✓' : '✗'} ${escolhaC.padEnd(12)} margem ${margem.toFixed(3)}${apertado ? ' (apertado)' : ''}`);
+  diz(`      "${caso.pensamento.slice(0, 58)}…"  top3: ${top3.join(', ')}`);
+  relatorio.casos.push({
+    pensamento: caso.pensamento.slice(0, 46), aceita: caso.aceita, top3,
+    margem: +margem.toFixed(4), apertado,
+    A: { escolha: escolhaA, ok: aOk }, B: { escolha: escolhaB, ok: bOk }, C: { escolha: escolhaC, ok: cOk },
+    msVetor: Math.round(tVetor), msQwen: Math.round(tQwen),
+  });
+}
+
+const n = CASOS.length;
+diz(`\n  A) vetor sozinho ................ ${okA}/${n} · ${Math.round(msA / n)}ms por pensamento`);
+diz(`  B) vetor + qwen se apertado ..... ${okB}/${n} · ${Math.round(msB / n)}ms · chamou o qwen ${chamou}/${n} vezes`);
+diz(`  C) qwen escolhe entre os 3 ...... ${okC}/${n} · ${Math.round(msC / n)}ms`);
+Object.assign(relatorio, {
+  A: { acertos: okA, msPorCaso: Math.round(msA / n) },
+  B: { acertos: okB, msPorCaso: Math.round(msB / n), chamadas: chamou },
+  C: { acertos: okC, msPorCaso: Math.round(msC / n) },
+  total: n,
+});
+globalThis.__resultado = relatorio;
+diz('\nFIM');
+</script>
+</body>
