@@ -1,0 +1,174 @@
+<!doctype html><meta charset=utf8><title>bancada do motor por vetor</title>
+<body style="font:14px system-ui;background:#0a0c11;color:#cfd6e4;padding:12px">
+<pre id=saida></pre>
+<script type="module">
+// ── O MOTOR SEM GERAR TEXTO ───────────────────────────────────────────────
+//
+// Seis modelos de cinco famílias colapsam sob a gramática, incluindo o melhor
+// <=1B que existe (MiniCPM5-1B, `west-side` 7/7). Solto, o Qwen3 lê certo mas
+// gasta 70 s e só conclui em 30-60% das rodadas. Os dois caminhos são ruins.
+//
+// A literatura de NLU chama esta tarefa pelo nome: `intent classification` +
+// `slot filling`. Frase natural -> um rótulo de uma lista fechada. E a
+// ferramenta padrão para isso NÃO é um decoder generativo — é um EMBEDDING e
+// a distância ao rótulo mais próximo.
+//
+// POR QUE ISSO NÃO PODE COLAPSAR: não há autoregressão. Não existe "primeiro
+// token" onde o modelo aposta antes de ler. A resposta é um ranking sobre a
+// frase inteira, então ela depende da frase por construção — que é
+// exatamente o que faltava.
+//
+// E O CUSTO É ZERO DE MEMÓRIA NOVA: o `embeddinggemma-300M` JÁ está no jogo,
+// é o cérebro de memória (floor10Memoria.ts, 333 MB, `embeddings: true`).
+// Trocar o motor de 386 MB por um classificador que roda num modelo já pago
+// devolve memória em vez de gastar.
+//
+// ── O RISCO QUE ESTE TESTE EXISTE PARA MEDIR ─────────────────────────────
+//
+// Embedding é semântica, e antônimos moram perto: "esquerda" e "direita"
+// aparecem nos mesmos contextos e podem ter vetores quase iguais. Se for
+// assim, este caminho morre aqui — e é melhor descobrir em cinco minutos de
+// bancada do que depois de reescrever o motor.
+const diz = (t) => { document.getElementById('saida').textContent += t + '\n'; };
+
+// Os MESMOS sete pensamentos reais dos prints do celular dele.
+const CASOS = [
+  { pensamento: 'I turn right toward the north wall, curious about what lies beyond. My breath catches when I hear the faint hum of the unknown path ahead.',
+    aceita: ['north-side', 'to-my-right'] },
+  { pensamento: 'I take five steps to my left, moving toward the wall to my right. My breath comes steady as I keep an eye on the player.',
+    aceita: ['to-my-left', 'west-side', 'east-side', 'to-my-right'] },
+  { pensamento: 'I move toward the west wall, curious about what is behind it. My steps feel restless, but I keep my eyes on the elevator shadow.',
+    aceita: ['west-side'] },
+  { pensamento: 'I step sideways, left, toward the wall. The silence is tight, but I feel restless.',
+    aceita: ['to-my-left', 'west-side', 'east-side'] },
+  { pensamento: 'I shift slightly forward, eyes narrowing toward the elevator shadow. The walls loom ahead, and the player presence feels like a distant pulse.',
+    aceita: ['elevator', 'ahead'] },
+  { pensamento: 'I stay still, watching the shadows shift across the floor. I do not move; I only listen.',
+    aceita: ['self'] },
+  { pensamento: 'I walk right up to him and wave, because the silence has gone on long enough.',
+    aceita: ['player'] },
+];
+
+// ── OS RÓTULOS SÃO FRASES, NÃO PALAVRAS ──────────────────────────────────
+//
+// `west-side` não quer dizer nada para um modelo de linguagem. A frase que
+// alguém escreveria querendo aquilo, sim. Cada rótulo tem várias redações
+// porque o pensamento pode chegar de vários jeitos, e o melhor par ganha.
+const ROTULOS = {
+  'player': [
+    'I walk up to the other person and get close to him.',
+    'I approach the player standing in the room.',
+  ],
+  'elevator': [
+    'I move toward the elevator doors.',
+    'I go look at the elevator at the end of the floor.',
+  ],
+  'room-center': [
+    'I walk to the middle of the room.',
+    'I move to the centre of the floor.',
+  ],
+  'north-side': [
+    'I move toward the north wall of the room.',
+    'I head to the north side of the floor.',
+  ],
+  'south-side': [
+    'I move toward the south wall of the room.',
+    'I head to the south side of the floor.',
+  ],
+  'east-side': [
+    'I move toward the east wall of the room.',
+    'I head to the east side of the floor.',
+  ],
+  'west-side': [
+    'I move toward the west wall of the room.',
+    'I head to the west side of the floor.',
+  ],
+  'self': [
+    'I stay where I am and do not move at all.',
+    'I stand still and only listen to the room.',
+  ],
+  'ahead': [
+    'I walk straight forward, ahead of where I am facing.',
+    'I move forward a few steps.',
+  ],
+  'behind': [
+    'I step backwards, away from what is in front of me.',
+    'I back off behind me.',
+  ],
+  'to-my-left': [
+    'I take steps to my left side.',
+    'I move sideways to the left.',
+  ],
+  'to-my-right': [
+    'I take steps to my right side.',
+    'I move sideways to the right.',
+  ],
+};
+
+const url = new URLSearchParams(location.search);
+const arquivo = url.get('modelo') ?? '/gemma-embed.gguf';
+const { Wllama } = await import('/wllama-cdn/index.js');
+const nucleos = Math.max(1, navigator.hardwareConcurrency || 4);
+diz(`(${nucleos} núcleos)`);
+
+const w = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+const t0 = performance.now();
+await w.loadModelFromUrl(arquivo, { n_ctx: 1024, n_threads: nucleos, embeddings: true });
+const carga = Math.round(performance.now() - t0);
+diz(`carga ${carga}ms`);
+
+const norma = (v) => { const n = Math.hypot(...v); return v.map((x) => x / (n || 1)); };
+const cos = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+
+// O embeddinggemma espera prefixos de tarefa; sem eles a qualidade cai (foi
+// medido no floor10Memoria: 9/12 -> 11/12 com o prefixo certo).
+const comoDocumento = (t) => `title: movement | text: ${t}`;
+const comoPergunta = (t) => `task: search result | query: ${t}`;
+
+// A ASSINATURA É `{ input }` E A RESPOSTA VEM EM `data[0].embedding`.
+// Passar a string crua fez o wllama tentar alocar um Uint8Array de 1,16 GB e
+// morrer com RangeError. O jogo já chamava certo em floor10Memoria.ts — copiar
+// de onde funciona custa menos que adivinhar a API.
+const embutir = async (texto) => {
+  const r = await w.createEmbedding({ input: texto });
+  const bruto = r?.data?.[0]?.embedding;
+  if (!bruto) throw new Error('sem embedding na resposta: ' + JSON.stringify(r).slice(0, 200));
+  return norma(bruto);
+};
+
+const t1 = performance.now();
+const vetores = {};
+for (const [rotulo, frases] of Object.entries(ROTULOS)) {
+  vetores[rotulo] = [];
+  for (const f of frases) vetores[rotulo].push(await embutir(comoDocumento(f)));
+}
+const msRotulos = Math.round(performance.now() - t1);
+diz(`${Object.keys(ROTULOS).length} rótulos embutidos em ${msRotulos}ms (isso é feito UMA vez, na compilação)\n`);
+
+let acertos = 0; let msTotal = 0;
+const linhas = [];
+for (const caso of CASOS) {
+  const t2 = performance.now();
+  const v = await embutir(comoPergunta(caso.pensamento));
+  const placar = Object.entries(vetores)
+    .map(([rotulo, vs]) => ({ rotulo, s: Math.max(...vs.map((vv) => cos(v, vv))) }))
+    .sort((a, b) => b.s - a.s);
+  const ms = performance.now() - t2;
+  msTotal += ms;
+  const escolhido = placar[0].rotulo;
+  const ok = caso.aceita.includes(escolhido);
+  if (ok) acertos += 1;
+  const top3 = placar.slice(0, 3).map((p) => `${p.rotulo} ${p.s.toFixed(3)}`).join(' · ');
+  diz(`  ${ok ? '✓' : '✗'} ${escolhido.padEnd(13)} ${Math.round(ms)}ms  "${caso.pensamento.slice(0, 40)}…"`);
+  diz(`      ${top3}`);
+  linhas.push({ pensamento: caso.pensamento.slice(0, 46), escolhido, ok, aceita: caso.aceita, top3, ms: Math.round(ms) });
+}
+
+diz(`\n→ ${acertos}/${CASOS.length} certos · ${Math.round(msTotal / CASOS.length)}ms por pensamento`);
+globalThis.__resultado = {
+  modelo: arquivo, carga, msRotulos, acertos, total: CASOS.length,
+  msPorCaso: Math.round(msTotal / CASOS.length), nucleos, linhas,
+};
+diz('\nFIM');
+</script>
+</body>
