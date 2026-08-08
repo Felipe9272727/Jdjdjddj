@@ -350,8 +350,20 @@ for (const m of modelos) {
       for (const [re, alvoDoMapa] of SINONIMOS) if (re.test(b)) return alvoDoMapa;
       return null;
     };
+    // ── SÓ A CONCLUSÃO CONTA, NUNCA O RASCUNHO ──────────────────────────
+    //
+    // Quando o modelo não termina dentro do teto de tokens, o que sobra é ele
+    // repetindo o enunciado: "Okay, let's tackle this. The user wants me to
+    // analyze Nilo's thought...". Varrer ESSE texto atrás de um alvo achava
+    // `player` no meio da paráfrase da instrução e marcava um movimento que o
+    // modelo nunca decidiu — dois PROIBIDOS que eram invenção da bancada.
+    //
+    // A regra passa a ser: existe linha `MOTION:`? Vale ela. Não existe? Não
+    // há plano. Ficar sem plano é honesto — o corpo mantém o que já fazia. Um
+    // alvo raspado do rascunho é o NPC andando para o lugar errado com
+    // convicção, que é bem pior.
     const alvo = SEM_GRAMATICA
-      ? (normalizar(mm?.[2]) ?? solto())
+      ? normalizar(mm?.[2] ?? (/MOTION:\s*([^\n|]+)/i.exec(texto)?.[1] ?? null))
       : (mm?.[2]?.toLowerCase() ?? null);
     const meta = /GOAL:\s*([a-z-]+)/i.exec(texto)?.[1]?.toLowerCase() ?? null;
     const ok = alvo !== null && caso.aceita.includes(alvo);
