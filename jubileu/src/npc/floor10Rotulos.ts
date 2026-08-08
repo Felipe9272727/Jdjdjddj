@@ -47,6 +47,27 @@ export const FLOOR10_ROTULOS: readonly RotuloDoMotor[] = [
             'I walk to the lift and put my hand on it.',
         ],
     },
+    // ── OS DOIS ALVOS DA SALA TRANCADA ───────────────────────────────────
+    // Só existem quando há prisão (`availableMotorTargets` os inclui apenas
+    // com `prison`), mas os vetores vão sempre — filtrar é trabalho de quem
+    // ranqueia, e um rótulo faltando é um alvo que o Nilo nunca alcança.
+    // Foi um teste que pegou os dois: eu não sabia que existiam.
+    {
+        alvo: 'nearest-device',
+        frases: [
+            'I go to the nearest plate or lever and put my weight on it.',
+            'I walk over to the closest device on the floor.',
+            'I move to the pressure plate near me and hold it down.',
+        ],
+    },
+    {
+        alvo: 'active-device',
+        frases: [
+            'I go to the lever that is already glowing and hold it.',
+            'I move to the device that is currently active.',
+            'I walk to the one that is lit up and press it with him.',
+        ],
+    },
     {
         alvo: 'room-center',
         frases: [
