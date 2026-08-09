@@ -7,6 +7,10 @@ import {
   type ShopVfxMotion,
 } from './shop-sprite-assets';
 import { SpriteAnimator } from './SpriteEngine';
+import {
+  BellhopPerformanceAnimator,
+  preloadBellhopPerformanceAssets,
+} from './BellhopPerformanceAnimator';
 import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
 import { tokenize, splitPages, charCount, type Token } from './dialogue-engine';
 import { SHOP_SCENES, ROOT_SCENE, CLOSE_SCENE } from './shop-dialogues';
@@ -74,6 +78,14 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const musicRef = useRef<ReturnType<typeof createLobbyMusic> | null>(null);
   const charCountRef = useRef(0);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Start fetching the rig while the elevator doors are still closing. By the
+  // time the shop is revealed, all layers are decoded and the first canvas
+  // frame is ready instead of flashing an empty character slot.
+  useEffect(() => {
+    if (!open) return;
+    void preloadBellhopPerformanceAssets().catch(() => undefined);
+  }, [open]);
 
   const scene = SHOP_SCENES[sceneId] ?? SHOP_SCENES[ROOT_SCENE];
   const pages = useMemo(() => splitPages(tokenize(scene.text)), [scene.text]);
@@ -365,10 +377,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
   // ── Animation direction ───────────────────────────────────────────────
-  // A purchase is a complete one-shot performance. Ordinary speech uses
-  // the curated talk pose banks only while characters are appearing; finished
-  // pages settle into the scene's authored emotion instead of looping a
-  // generic mouth flap forever.
+  // A purchase is a complete one-shot performance. Ordinary speech and idle
+  // use the layered 60-fps rig; authored reactions keep their hand-drawn atlas.
   const isPurchaseScene = sceneId.startsWith('buy_');
   let spriteMotion: BellhopMotion = 'idle';
   if (isPurchaseScene && !purchaseAnimationDone) spriteMotion = 'service';
@@ -379,6 +389,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   else if (scene.mood === 'concerned') spriteMotion = 'concerned';
 
   const activeSpriteConfig = BELLHOP_MOTIONS[spriteMotion];
+  const performanceMotion = spriteMotion === 'idle' || spriteMotion === 'talk'
+    ? spriteMotion
+    : null;
   const actionVfx: Exclude<ShopVfxMotion, 'ambient'> | null = isPurchaseScene
     ? 'purchase'
     : sceneId.startsWith('post_death')
@@ -492,18 +505,32 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
                 style={{ pointerEvents: 'none' }}
               />
 
-              <SpriteAnimator
-                config={activeSpriteConfig}
-                restartKey={isPurchaseScene || spriteMotion === 'glitch' ? sceneId : undefined}
-                className="shop-character"
-                style={{
-                  filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
-                  opacity: showContent ? 1 : 0,
-                  transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                  pointerEvents: 'none',
-                }}
-              />
+              {performanceMotion ? (
+                <BellhopPerformanceAnimator
+                  motion={performanceMotion}
+                  className="shop-character"
+                  style={{
+                    filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
+                    opacity: showContent ? 1 : 0,
+                    transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                    transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                    pointerEvents: 'none',
+                  }}
+                />
+              ) : (
+                <SpriteAnimator
+                  config={activeSpriteConfig}
+                  restartKey={isPurchaseScene || spriteMotion === 'glitch' ? sceneId : undefined}
+                  className="shop-character"
+                  style={{
+                    filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
+                    opacity: showContent ? 1 : 0,
+                    transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                    transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
 
               {actionVfx && (
                 <SpriteAnimator
