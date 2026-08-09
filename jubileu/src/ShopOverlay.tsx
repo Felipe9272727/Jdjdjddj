@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
-  BELLHOP_MOTIONS,
   SHOP_VFX_MOTIONS,
   shopBackdrop,
   type BellhopMotion,
@@ -8,9 +7,9 @@ import {
 } from './shop-sprite-assets';
 import { SpriteAnimator } from './SpriteEngine';
 import {
-  BellhopPerformanceAnimator,
-  preloadBellhopPerformanceAssets,
-} from './BellhopPerformanceAnimator';
+  BellhopAnimationDirector,
+  preloadBellhopAnimationAssets,
+} from './BellhopAnimationDirector';
 import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
 import { tokenize, splitPages, charCount, type Token } from './dialogue-engine';
 import { SHOP_SCENES, ROOT_SCENE, CLOSE_SCENE } from './shop-dialogues';
@@ -79,12 +78,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const charCountRef = useRef(0);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Start fetching the rig while the elevator doors are still closing. By the
-  // time the shop is revealed, all layers are decoded and the first canvas
-  // frame is ready instead of flashing an empty character slot.
+  // Start decoding every authored performance while the elevator doors are
+  // still closed, so the first character frame cannot flash in late.
   useEffect(() => {
     if (!open) return;
-    void preloadBellhopPerformanceAssets().catch(() => undefined);
+    void preloadBellhopAnimationAssets().catch(() => undefined);
   }, [open]);
 
   const scene = SHOP_SCENES[sceneId] ?? SHOP_SCENES[ROOT_SCENE];
@@ -199,21 +197,16 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     setSelectedChoice(0);
   }, [sceneId]);
 
-  // The delivery performance is a one-shot. Once the tray/gift reaches its
-  // final pose, hand control back to TALK/IDLE instead of freezing the final
-  // drawing for every remaining dialogue page.
+  // A purchase remains in service mode until the animation director confirms
+  // that the delivery atlas really finished. This includes any handoff bridge
+  // from the previous emotion; a blind timer could expire before service began.
   useEffect(() => {
-    if (!sceneId.startsWith('buy_')) {
-      setPurchaseAnimationDone(true);
-      return;
-    }
-    setPurchaseAnimationDone(false);
-    const timer = window.setTimeout(
-      () => setPurchaseAnimationDone(true),
-      BELLHOP_MOTIONS.service.cycleMs,
-    );
-    return () => window.clearTimeout(timer);
+    setPurchaseAnimationDone(!sceneId.startsWith('buy_'));
   }, [sceneId]);
+
+  const handleBellhopMotionComplete = useCallback((motion: BellhopMotion) => {
+    if (motion === 'service') setPurchaseAnimationDone(true);
+  }, []);
 
   // Typewriter — walks tokens of currentPage one at a time, respecting pauses
   useEffect(() => {
@@ -377,8 +370,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
   // ── Animation direction ───────────────────────────────────────────────
-  // A purchase is a complete one-shot performance. Ordinary speech and idle
-  // use the layered 60-fps rig; authored reactions keep their hand-drawn atlas.
+  // Every state is now a complete hand-redrawn performance. The animation
+  // director finishes the current gesture and inserts a five-frame cartoon
+  // bridge before it hands off to the next requested emotion.
   const isPurchaseScene = sceneId.startsWith('buy_');
   let spriteMotion: BellhopMotion = 'idle';
   if (isPurchaseScene && !purchaseAnimationDone) spriteMotion = 'service';
@@ -388,10 +382,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   else if (scene.mood === 'sweat') spriteMotion = 'sweat';
   else if (scene.mood === 'concerned') spriteMotion = 'concerned';
 
-  const activeSpriteConfig = BELLHOP_MOTIONS[spriteMotion];
-  const performanceMotion = spriteMotion === 'idle' || spriteMotion === 'talk'
-    ? spriteMotion
-    : null;
   const actionVfx: Exclude<ShopVfxMotion, 'ambient'> | null = isPurchaseScene
     ? 'purchase'
     : sceneId.startsWith('post_death')
@@ -505,32 +495,19 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
                 style={{ pointerEvents: 'none' }}
               />
 
-              {performanceMotion ? (
-                <BellhopPerformanceAnimator
-                  motion={performanceMotion}
-                  className="shop-character"
-                  style={{
-                    filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
-                    opacity: showContent ? 1 : 0,
-                    transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                    transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                    pointerEvents: 'none',
-                  }}
-                />
-              ) : (
-                <SpriteAnimator
-                  config={activeSpriteConfig}
-                  restartKey={isPurchaseScene || spriteMotion === 'glitch' ? sceneId : undefined}
-                  className="shop-character"
-                  style={{
-                    filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
-                    opacity: showContent ? 1 : 0,
-                    transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                    transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                    pointerEvents: 'none',
-                  }}
-                />
-              )}
+              <BellhopAnimationDirector
+                motion={spriteMotion}
+                restartKey={isPurchaseScene || spriteMotion === 'glitch' ? sceneId : undefined}
+                onMotionComplete={handleBellhopMotionComplete}
+                className="shop-character"
+                style={{
+                  filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
+                  opacity: showContent ? 1 : 0,
+                  transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                  pointerEvents: 'none',
+                }}
+              />
 
               {actionVfx && (
                 <SpriteAnimator

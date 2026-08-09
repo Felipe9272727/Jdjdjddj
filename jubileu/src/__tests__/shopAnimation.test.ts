@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BELLHOP_MOTIONS } from '../shop-sprite-assets';
+import { resolveBellhopHandoffDelay } from '../BellhopAnimationDirector';
+import { BELLHOP_BRIDGE, BELLHOP_MOTIONS } from '../shop-sprite-assets';
 import { resolveSpriteTimeline } from '../sprite-timeline';
 
 describe('sprite timeline da loja', () => {
@@ -27,24 +28,44 @@ describe('sprite timeline da loja', () => {
     expect(pose).toEqual({ index: 2, nextIndex: 2, mix: 0, done: true });
   });
 
-  it('mantém ciclos longos, legíveis e completos para cada emoção', () => {
-    expect(BELLHOP_MOTIONS.idle.frameCount).toBeGreaterThan(32);
-    expect(BELLHOP_MOTIONS.talk.frameCount).toBeGreaterThan(32);
-    expect(BELLHOP_MOTIONS.service.frameCount).toBe(16);
-    for (const motion of ['wink', 'sweat', 'concerned', 'glitch'] as const) {
-      expect(BELLHOP_MOTIONS[motion].frameCount).toBeGreaterThan(16);
+  it('usa todos os 130 desenhos novos, na ordem exata de cada atlas', () => {
+    expect(BELLHOP_MOTIONS.idle.frameCount).toBe(25);
+    expect(BELLHOP_MOTIONS.talk.frameCount).toBe(25);
+    for (const motion of ['service', 'wink', 'sweat', 'concerned', 'glitch'] as const) {
+      expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
     }
 
     for (const config of Object.values(BELLHOP_MOTIONS)) {
       expect(config.frameSequence).toHaveLength(config.frameCount);
       expect(config.frameDurationsMs).toHaveLength(config.frameCount);
-      expect(config.cycleMs).toBeGreaterThan(3_000);
+      expect(new Set(config.frameSequence).size).toBe(config.frameCount);
+      expect(Math.min(...config.frameDurationsMs!)).toBeGreaterThanOrEqual(70);
+      expect(config.cycleMs).toBeGreaterThan(2_000);
       expect(config.blendRatio).toBe(0);
     }
 
-    expect(new Set(BELLHOP_MOTIONS.idle.frameSequence).size).toBeGreaterThanOrEqual(20);
-    expect(new Set(BELLHOP_MOTIONS.talk.frameSequence).size).toBe(32);
-    expect(BELLHOP_MOTIONS.idle.cycleMs).toBeGreaterThan(7_000);
-    expect(BELLHOP_MOTIONS.talk.cycleMs).toBeGreaterThan(7_000);
+    expect(BELLHOP_MOTIONS.idle.columns).toBe(5);
+    expect(BELLHOP_MOTIONS.talk.columns).toBe(5);
+    expect(BELLHOP_MOTIONS.service.loop).toBe(false);
+    expect(BELLHOP_MOTIONS.wink.columns).toBe(4);
+  });
+
+  it('insere uma ponte curta de antecipação e assentamento', () => {
+    expect(BELLHOP_BRIDGE.frameSequence).toEqual([20, 21, 22, 23, 24]);
+    expect(BELLHOP_BRIDGE.frameCount).toBe(5);
+    expect(BELLHOP_BRIDGE.columns).toBe(5);
+    expect(BELLHOP_BRIDGE.loop).toBe(false);
+    expect(BELLHOP_BRIDGE.blendRatio).toBe(0);
+    expect(BELLHOP_BRIDGE.cycleMs).toBeGreaterThanOrEqual(500);
+    expect(BELLHOP_BRIDGE.cycleMs).toBeLessThan(800);
+    expect(BELLHOP_BRIDGE.imageUrl).toBe(BELLHOP_MOTIONS.idle.imageUrl);
+  });
+
+  it('espera o quadro neutro antes de trocar uma atuação expressiva', () => {
+    const talkCycle = BELLHOP_MOTIONS.talk.cycleMs;
+    expect(resolveBellhopHandoffDelay('idle', 1_234)).toBe(0);
+    expect(resolveBellhopHandoffDelay('talk', 100)).toBe(talkCycle - 100);
+    expect(resolveBellhopHandoffDelay('talk', talkCycle)).toBe(0);
+    expect(resolveBellhopHandoffDelay('service', BELLHOP_MOTIONS.service.cycleMs + 1)).toBe(0);
   });
 });

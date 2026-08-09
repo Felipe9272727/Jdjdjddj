@@ -89,6 +89,20 @@ function getCachedImage(url: string): CacheEntry {
   return entry;
 }
 
+/** Preload into the same decoded-image cache later consumed by the canvas. */
+export const preloadSpriteImages = (urls: readonly string[]): Promise<void> => (
+  Promise.all([...new Set(urls)].map((url) => new Promise<void>((resolve, reject) => {
+    const entry = getCachedImage(url);
+    if (entry.status === 'loaded') { resolve(); return; }
+    if (entry.status === 'error') { reject(new Error(`Sprite offline: ${url}`)); return; }
+    const listener = (status: 'loaded' | 'error') => {
+      if (status === 'loaded') resolve();
+      else reject(new Error(`Sprite offline: ${url}`));
+    };
+    entry.listeners.add(listener);
+  }))).then(() => undefined)
+);
+
 // ─── Animator ─────────────────────────────────────────────────────────────
 export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
   config,
