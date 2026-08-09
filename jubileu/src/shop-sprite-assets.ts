@@ -21,9 +21,7 @@ export type ShopVfxMotion = 'ambient' | 'bell' | 'purchase' | 'glitch';
 
 const FRAME = 314;
 const ALL_16 = Array.from({ length: 16 }, (_, index) => index);
-const ALL_32 = Array.from({ length: 32 }, (_, index) => index);
-const WINK_16 = [0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23];
-const SWEAT_16 = [8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31];
+type PoseStep = readonly [frame: number, exposureMs: number];
 
 const atlas = (
   imageUrl: string,
@@ -45,69 +43,119 @@ const atlas = (
   pixelated: true,
 });
 
+const poseAtlas = (
+  imageUrl: string,
+  steps: readonly PoseStep[],
+  loop: boolean,
+): SpriteAnimationConfig => atlas(
+  imageUrl,
+  steps.map(([frame]) => frame),
+  steps.map(([, exposureMs]) => exposureMs),
+  loop,
+  // These are pixel-art key poses, not video frames. Cross-fading them creates
+  // double arms/faces and looks like a flash; timed holds read as intentional
+  // pose-to-pose animation and remain smooth at any display refresh rate.
+  0,
+);
+
+const gestureRow = (
+  firstFrame: number,
+  stepMs = 145,
+  accentMs = 210,
+): PoseStep[] => [
+  [firstFrame, stepMs],
+  [firstFrame + 1, stepMs],
+  [firstFrame + 2, stepMs],
+  [firstFrame + 3, accentMs],
+  [firstFrame + 2, stepMs],
+  [firstFrame + 1, stepMs],
+];
+
+const IDLE_STEPS: PoseStep[] = [
+  [0, 520],
+  ...gestureRow(0, 170, 230),
+  [0, 620],
+  ...gestureRow(4, 150, 230),
+  [0, 760],
+  ...gestureRow(12, 180, 280),
+  [0, 720],
+  ...gestureRow(20, 185, 300),
+  [0, 760],
+  ...gestureRow(28, 185, 320),
+  [0, 900],
+];
+
+// Each generated atlas row is one gesture bank. Playing the whole 4x8 sheet
+// linearly made the bellhop jump from wave to shrug to pointing in ~2 seconds.
+// We now play every row forward/back (anticipation -> accent -> settle), with a
+// tiny neutral beat between gestures. All 32 drawings still appear, just with
+// enough exposure for a human eye to read them.
+const TALK_STEPS: PoseStep[] = [
+  [0, 220],
+  ...gestureRow(0, 135, 185), [0, 180],
+  ...gestureRow(4, 140, 195), [0, 180],
+  ...gestureRow(8, 145, 205), [0, 190],
+  ...gestureRow(12, 140, 200), [0, 180],
+  ...gestureRow(16, 145, 205), [0, 190],
+  ...gestureRow(20, 140, 200), [0, 180],
+  ...gestureRow(24, 145, 210), [0, 190],
+  ...gestureRow(28, 140, 205), [0, 260],
+];
+
+const reactionSteps = (
+  rowStarts: readonly number[],
+  homeFrame: number,
+  stepMs = 155,
+  accentMs = 240,
+): PoseStep[] => [
+  [homeFrame, 360],
+  ...rowStarts.flatMap((rowStart) => [
+    ...gestureRow(rowStart, stepMs, accentMs),
+    [homeFrame, 280] as PoseStep,
+  ]),
+  [homeFrame, 520],
+];
+
+const GLITCH_STEPS: PoseStep[] = [
+  [8, 620],
+  ...gestureRow(8, 105, 150), [8, 460],
+  ...gestureRow(12, 90, 135), [8, 720],
+  ...gestureRow(24, 100, 145), [8, 520],
+  ...gestureRow(28, 90, 130), [8, 900],
+];
+
 export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
-  // Moving holds are deliberately longer than breakdowns: the character feels
-  // alive without vibrating constantly, while the blink still reads crisply.
-  idle: atlas(
-    bellhopIdleAtlas,
-    ALL_32,
-    [
-      122, 92, 82, 78, 68, 60, 58, 62, 68, 78, 88, 96, 86, 80, 78, 94,
-      96, 84, 82, 76, 70, 66, 72, 88, 82, 76, 74, 88, 78, 80, 86, 104,
-    ],
-    true,
-    0.34,
-  ),
-  talk: atlas(
-    bellhopTalkAtlas,
-    ALL_32,
-    [
-      68, 62, 58, 64, 62, 66, 70, 56, 52, 64, 60, 62, 72, 64, 60, 72,
-      62, 58, 60, 64, 58, 62, 68, 60, 56, 62, 60, 64, 68, 62, 58, 74,
-    ],
-    true,
-    0.46,
-  ),
-  service: atlas(
+  idle: poseAtlas(bellhopIdleAtlas, IDLE_STEPS, true),
+  talk: poseAtlas(bellhopTalkAtlas, TALK_STEPS, true),
+  service: poseAtlas(
     bellhopServiceAtlas,
-    ALL_16,
-    [95, 90, 88, 86, 82, 95, 94, 100, 105, 120, 105, 145, 96, 92, 90, 160],
+    ALL_16.map((frame, index) => [
+      frame,
+      index === 0 ? 280 : index === 15 ? 520 : index >= 6 && index <= 12 ? 220 : 190,
+    ] as PoseStep),
     false,
-    0.48,
   ),
-  wink: atlas(
+  wink: poseAtlas(
     bellhopReactionsAAtlas,
-    WINK_16,
-    [112, 82, 72, 70, 98, 84, 78, 104, 88, 78, 72, 94, 80, 84, 90, 110],
+    reactionSteps([0, 4, 16, 20], 0),
     true,
-    0.42,
   ),
-  sweat: atlas(
+  sweat: poseAtlas(
     bellhopReactionsAAtlas,
-    SWEAT_16,
-    [116, 82, 76, 84, 102, 78, 82, 108, 90, 80, 76, 88, 82, 76, 86, 116],
+    reactionSteps([8, 12, 24, 28], 8, 165, 255),
     true,
-    0.42,
   ),
-  concerned: atlas(
+  concerned: poseAtlas(
     bellhopReactionsBAtlas,
-    WINK_16,
-    [118, 84, 78, 82, 108, 88, 84, 112, 92, 84, 80, 90, 84, 82, 92, 124],
+    reactionSteps([0, 4, 16, 20], 0, 165, 260),
     true,
-    0.42,
   ),
-  glitch: atlas(
-    bellhopReactionsBAtlas,
-    SWEAT_16,
-    [150, 82, 74, 70, 92, 70, 76, 130, 180, 72, 66, 62, 86, 78, 96, 520],
-    true,
-    0.3,
-  ),
+  glitch: poseAtlas(bellhopReactionsBAtlas, GLITCH_STEPS, true),
 };
 
 export const SHOP_VFX_MOTIONS: Record<ShopVfxMotion, SpriteAnimationConfig> = {
-  ambient: atlas(shopVfxAtlas, [0, 1, 2, 3], [520, 420, 460, 560], true, 0.62),
-  bell: atlas(shopVfxAtlas, [4, 5, 6, 7], [90, 105, 125, 180], false, 0.58),
-  purchase: atlas(shopVfxAtlas, [8, 9, 10, 11], [135, 115, 165, 240], false, 0.58),
-  glitch: atlas(shopVfxAtlas, [12, 13, 14, 15], [90, 75, 115, 145], false, 0.42),
+  ambient: atlas(shopVfxAtlas, [0, 1, 2, 3], [900, 760, 820, 980], true, 0.2),
+  bell: atlas(shopVfxAtlas, [4, 5, 6, 7], [120, 145, 175, 260], false, 0.24),
+  purchase: atlas(shopVfxAtlas, [8, 9, 10, 11], [170, 155, 220, 320], false, 0.24),
+  glitch: atlas(shopVfxAtlas, [12, 13, 14, 15], [120, 100, 150, 220], false, 0.18),
 };

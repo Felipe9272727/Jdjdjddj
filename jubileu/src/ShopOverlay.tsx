@@ -366,7 +366,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
 
   // ── Animation direction ───────────────────────────────────────────────
   // A purchase is a complete one-shot performance. Ordinary speech uses
-  // the 16-pose talk atlas only while characters are appearing; finished
+  // the curated talk pose banks only while characters are appearing; finished
   // pages settle into the scene's authored emotion instead of looping a
   // generic mouth flap forever.
   const isPurchaseScene = sceneId.startsWith('buy_');
@@ -493,8 +493,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
               />
 
               <SpriteAnimator
-                key={`${spriteMotion}:${isPurchaseScene || spriteMotion === 'glitch' ? sceneId : ''}`}
                 config={activeSpriteConfig}
+                restartKey={isPurchaseScene || spriteMotion === 'glitch' ? sceneId : undefined}
                 className="shop-character"
                 style={{
                   filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.78))',
@@ -507,8 +507,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
 
               {actionVfx && (
                 <SpriteAnimator
-                  key={`${actionVfx}:${sceneId}`}
                   config={SHOP_VFX_MOTIONS[actionVfx]}
+                  restartKey={`${actionVfx}:${sceneId}`}
                   className="shop-action-vfx"
                   style={{ pointerEvents: 'none' }}
                 />

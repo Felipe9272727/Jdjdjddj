@@ -27,18 +27,24 @@ describe('sprite timeline da loja', () => {
     expect(pose).toEqual({ index: 2, nextIndex: 2, mix: 0, done: true });
   });
 
-  it('mantém ciclos longos e completos para cada emoção do recepcionista', () => {
-    expect(BELLHOP_MOTIONS.idle.frameCount).toBe(32);
-    expect(BELLHOP_MOTIONS.talk.frameCount).toBe(32);
+  it('mantém ciclos longos, legíveis e completos para cada emoção', () => {
+    expect(BELLHOP_MOTIONS.idle.frameCount).toBeGreaterThan(32);
+    expect(BELLHOP_MOTIONS.talk.frameCount).toBeGreaterThan(32);
     expect(BELLHOP_MOTIONS.service.frameCount).toBe(16);
     for (const motion of ['wink', 'sweat', 'concerned', 'glitch'] as const) {
-      expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
+      expect(BELLHOP_MOTIONS[motion].frameCount).toBeGreaterThan(16);
     }
 
     for (const config of Object.values(BELLHOP_MOTIONS)) {
       expect(config.frameSequence).toHaveLength(config.frameCount);
       expect(config.frameDurationsMs).toHaveLength(config.frameCount);
-      expect(config.cycleMs).toBeGreaterThan(500);
+      expect(config.cycleMs).toBeGreaterThan(3_000);
+      expect(config.blendRatio).toBe(0);
     }
+
+    expect(new Set(BELLHOP_MOTIONS.idle.frameSequence).size).toBeGreaterThanOrEqual(20);
+    expect(new Set(BELLHOP_MOTIONS.talk.frameSequence).size).toBe(32);
+    expect(BELLHOP_MOTIONS.idle.cycleMs).toBeGreaterThan(7_000);
+    expect(BELLHOP_MOTIONS.talk.cycleMs).toBeGreaterThan(7_000);
   });
 });

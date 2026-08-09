@@ -52,6 +52,8 @@ interface SpriteAnimatorProps {
   className?: string;
   style?: React.CSSProperties;
   paused?: boolean;
+  /** Restart the timeline without remounting (and briefly blanking) canvas. */
+  restartKey?: string | number;
 }
 
 // ─── Module-level image cache ─────────────────────────────────────────────
@@ -93,6 +95,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
   className,
   style,
   paused = false,
+  restartKey,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -190,7 +193,12 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
 
     const drawPose = (index: number, nextIndex: number, mix: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawCell(index, mix > 0 ? 1 - mix : 1);
+      // Keep the current drawing fully opaque, then dissolve the next one on
+      // top. Fading BOTH layers on a transparent canvas made their combined
+      // alpha fall to 75% at the midpoint, so the bellhop visibly blinked dark
+      // several times per second. Source-over on an opaque sprite area gives
+      // the desired interpolation while never exposing the empty canvas.
+      drawCell(index, 1);
       if (mix > 0 && nextIndex !== index) drawCell(nextIndex, mix);
       ctx.globalAlpha = 1;
     };
@@ -232,6 +240,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     loop,
     pixelated,
     paused,
+    restartKey,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────
