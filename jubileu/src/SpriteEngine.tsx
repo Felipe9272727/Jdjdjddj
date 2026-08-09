@@ -17,12 +17,14 @@
  *     placeholder box instead of throwing — the shop UI still works.
  *
  * Frame layout:
- *   Frames are placed left-to-right starting at (sourceX, sourceY) inside
- *   the source image. This lets us use a master spritesheet that has many
- *   animation rows, picking just the row we need.
+ *   Legacy strips still work left-to-right. New animations can use a grid
+ *   atlas, a custom frame order and per-pose exposure times. The final part
+ *   of each pose can cross-fade into the next breakdown, evaluated from the
+ *   RAF timestamp so 60/90/120 Hz screens all play at the same speed.
  */
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import { resolveSpriteTimeline } from './sprite-timeline';
 
 export interface SpriteAnimationConfig {
   imageUrl: string;
@@ -33,6 +35,14 @@ export interface SpriteAnimationConfig {
   /** Top-left of the strip inside the source image. Defaults (0, 0). */
   sourceX?: number;
   sourceY?: number;
+  /** Number of cells per atlas row. Defaults to frameCount (legacy strip). */
+  columns?: number;
+  /** Atlas-cell indices in playback order. Defaults to 0..frameCount - 1. */
+  frameSequence?: readonly number[];
+  /** Exposure time for each logical pose. Falls back to cycleMs / frameCount. */
+  frameDurationsMs?: readonly number[];
+  /** Portion at the end of a pose used to ease into the next one (0..0.85). */
+  blendRatio?: number;
   loop?: boolean;
   pixelated?: boolean;
 }
@@ -86,8 +96,6 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
-  const frameIndexRef = useRef(0);
-  const lastTimeRef = useRef(0);
 
   const [status, setStatus] = useState<'pending' | 'loaded' | 'error'>('pending');
 
@@ -99,14 +107,13 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     cycleMs,
     sourceX = 0,
     sourceY = 0,
+    columns = frameCount,
+    frameSequence,
+    frameDurationsMs,
+    blendRatio = 0,
     loop = true,
     pixelated = true,
   } = config;
-
-  const frameDuration = useMemo(
-    () => (cycleMs > 0 && frameCount > 0 ? cycleMs / frameCount : 0),
-    [cycleMs, frameCount]
-  );
 
   // Subscribe to image load status — never throws, just flips to 'error'
   // on failure so the placeholder renders.
@@ -140,10 +147,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
 
     canvas.width = frameWidth;
     canvas.height = frameHeight;
-    if (pixelated) ctx.imageSmoothingEnabled = false;
-
-    frameIndexRef.current = 0;
-    lastTimeRef.current = 0;
+    ctx.imageSmoothingEnabled = !pixelated;
 
     const cancelRaf = () => {
       if (rafRef.current !== null) {
@@ -152,13 +156,31 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       }
     };
 
-    const drawFrame = (idx: number) => {
-      const safeIdx = ((idx % frameCount) + frameCount) % frameCount;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const logicalFrameCount = Math.max(1, Math.floor(frameCount));
+    const safeColumns = Math.max(1, Math.floor(columns));
+    const sequence = Array.from({ length: logicalFrameCount }, (_, index) => {
+      const candidate = frameSequence?.[index] ?? index;
+      return Number.isFinite(candidate) ? Math.max(0, Math.floor(candidate)) : index;
+    });
+    const fallbackDuration = cycleMs > 0 ? cycleMs / logicalFrameCount : 0;
+    const durations = Array.from({ length: logicalFrameCount }, (_, index) => {
+      const candidate = frameDurationsMs?.[index] ?? fallbackDuration;
+      return Number.isFinite(candidate) ? Math.max(1, candidate) : 1;
+    });
+
+    const drawCell = (logicalIndex: number, alpha: number) => {
+      const safeIndex = Math.max(0, Math.min(sequence.length - 1, logicalIndex));
+      const atlasIndex = sequence[safeIndex];
+      const column = atlasIndex % safeColumns;
+      const row = Math.floor(atlasIndex / safeColumns);
       try {
+        ctx.globalAlpha = alpha;
         ctx.drawImage(
           img,
-          sourceX + safeIdx * frameWidth, sourceY, frameWidth, frameHeight,
+          sourceX + column * frameWidth,
+          sourceY + row * frameHeight,
+          frameWidth,
+          frameHeight,
           0, 0, frameWidth, frameHeight
         );
       } catch {
@@ -166,36 +188,51 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       }
     };
 
-    drawFrame(0);
+    const drawPose = (index: number, nextIndex: number, mix: number) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawCell(index, mix > 0 ? 1 - mix : 1);
+      if (mix > 0 && nextIndex !== index) drawCell(nextIndex, mix);
+      ctx.globalAlpha = 1;
+    };
+
+    drawPose(0, 0, 0);
 
     // Static sprite — no animation needed.
-    if (frameCount <= 1 || frameDuration <= 0) {
+    if (logicalFrameCount <= 1 || (cycleMs <= 0 && !frameDurationsMs?.length)) {
       return cancelRaf;
     }
 
-    const tick = (t: number) => {
+    let startedAt: number | null = null;
+    const tick = (timestamp: number) => {
       if (paused) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
-      if (lastTimeRef.current === 0) lastTimeRef.current = t;
-      const elapsed = t - lastTimeRef.current;
-      if (elapsed >= frameDuration) {
-        const advance = Math.floor(elapsed / frameDuration);
-        const next = frameIndexRef.current + advance;
-        const looped = !loop && next >= frameCount;
-        frameIndexRef.current = looped
-          ? frameCount - 1
-          : ((next % frameCount) + frameCount) % frameCount;
-        lastTimeRef.current = t - (elapsed % frameDuration);
-        drawFrame(frameIndexRef.current);
-        if (looped) { rafRef.current = null; return; }
-      }
+      if (startedAt === null) startedAt = timestamp;
+      const pose = resolveSpriteTimeline(timestamp - startedAt, durations, loop, blendRatio);
+      drawPose(pose.index, pose.nextIndex, pose.mix);
+      if (pose.done) { rafRef.current = null; return; }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return cancelRaf;
-  }, [status, imageUrl, frameCount, frameWidth, frameHeight, sourceX, sourceY, frameDuration, loop, pixelated, paused]);
+  }, [
+    status,
+    imageUrl,
+    frameCount,
+    frameWidth,
+    frameHeight,
+    cycleMs,
+    sourceX,
+    sourceY,
+    columns,
+    frameSequence,
+    frameDurationsMs,
+    blendRatio,
+    loop,
+    pixelated,
+    paused,
+  ]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   if (status === 'error') {
