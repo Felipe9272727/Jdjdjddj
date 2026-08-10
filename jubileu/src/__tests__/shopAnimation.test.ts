@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { resolveBellhopHandoffDelay } from '../BellhopAnimationDirector';
-import { BELLHOP_BRIDGE, BELLHOP_MOTIONS } from '../shop-sprite-assets';
+import { shouldBeginBellhopBridgeImmediately } from '../BellhopAnimationDirector';
+import {
+  BELLHOP_BRIDGE,
+  BELLHOP_MOTIONS,
+  BELLHOP_PURCHASE_MOTIONS,
+} from '../shop-sprite-assets';
+import {
+  isShopNarrationPage,
+  purchaseMotionForScene,
+  resolveShopBellhopMotion,
+} from '../shop-animation-direction';
+import { tokenize } from '../dialogue-engine';
 import { resolveSpriteTimeline } from '../sprite-timeline';
 
 describe('sprite timeline da loja', () => {
@@ -28,11 +38,16 @@ describe('sprite timeline da loja', () => {
     expect(pose).toEqual({ index: 2, nextIndex: 2, mix: 0, done: true });
   });
 
-  it('usa todos os 130 desenhos novos, na ordem exata de cada atlas', () => {
+  it('usa todos os 235 desenhos, na ordem exata de cada atuação', () => {
     expect(BELLHOP_MOTIONS.idle.frameCount).toBe(25);
-    expect(BELLHOP_MOTIONS.talk.frameCount).toBe(25);
-    for (const motion of ['service', 'wink', 'sweat', 'concerned', 'glitch'] as const) {
+    expect(BELLHOP_MOTIONS.presentation.frameCount).toBe(25);
+    expect(BELLHOP_MOTIONS.conversation.frameCount).toBe(25);
+    for (const motion of ['wink', 'sweat', 'concerned', 'glitch'] as const) {
       expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
+    }
+    for (const motion of BELLHOP_PURCHASE_MOTIONS) {
+      expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
+      expect(BELLHOP_MOTIONS[motion].loop).toBe(false);
     }
 
     for (const config of Object.values(BELLHOP_MOTIONS)) {
@@ -44,10 +59,19 @@ describe('sprite timeline da loja', () => {
       expect(config.blendRatio).toBe(0);
     }
 
+    expect(
+      Object.values(BELLHOP_MOTIONS)
+        .reduce((sum, config) => sum + config.frameCount, 0),
+    ).toBe(235);
     expect(BELLHOP_MOTIONS.idle.columns).toBe(5);
-    expect(BELLHOP_MOTIONS.talk.columns).toBe(5);
-    expect(BELLHOP_MOTIONS.service.loop).toBe(false);
+    expect(BELLHOP_MOTIONS.presentation.columns).toBe(5);
+    expect(BELLHOP_MOTIONS.presentation.frameWidth).toBe(400);
+    expect(BELLHOP_MOTIONS.presentation.loop).toBe(false);
+    expect(BELLHOP_MOTIONS.presentation.displayScale).toBe(1.035);
+    expect(BELLHOP_MOTIONS.conversation.columns).toBe(5);
+    expect(BELLHOP_MOTIONS.conversation.frameWidth).toBe(314);
     expect(BELLHOP_MOTIONS.wink.columns).toBe(4);
+    expect(BELLHOP_MOTIONS['buy-floor'].displayScale).toBe(1.18);
   });
 
   it('insere uma ponte curta de antecipação e assentamento', () => {
@@ -61,11 +85,71 @@ describe('sprite timeline da loja', () => {
     expect(BELLHOP_BRIDGE.imageUrl).toBe(BELLHOP_MOTIONS.idle.imageUrl);
   });
 
-  it('espera o quadro neutro antes de trocar uma atuação expressiva', () => {
-    const talkCycle = BELLHOP_MOTIONS.talk.cycleMs;
-    expect(resolveBellhopHandoffDelay('idle', 1_234)).toBe(0);
-    expect(resolveBellhopHandoffDelay('talk', 100)).toBe(talkCycle - 100);
-    expect(resolveBellhopHandoffDelay('talk', talkCycle)).toBe(0);
-    expect(resolveBellhopHandoffDelay('service', BELLHOP_MOTIONS.service.cycleMs + 1)).toBe(0);
+  it('só inicia uma ponte imediata quando já está numa pose segura', () => {
+    expect(shouldBeginBellhopBridgeImmediately('idle', false)).toBe(true);
+    expect(shouldBeginBellhopBridgeImmediately('conversation', false)).toBe(false);
+    expect(shouldBeginBellhopBridgeImmediately('buy-coffee', false)).toBe(false);
+    expect(shouldBeginBellhopBridgeImmediately('buy-coffee', true)).toBe(true);
+  });
+
+  it('dirige uma atuação exclusiva e uma expressão para cada item', () => {
+    expect(BELLHOP_PURCHASE_MOTIONS).toEqual([
+      'buy-flashlight',
+      'buy-cookie',
+      'buy-coffee',
+      'buy-key',
+      'buy-floor',
+      'buy-memory',
+    ]);
+    expect(purchaseMotionForScene('buy_flashlight')).toBe('buy-flashlight');
+    expect(purchaseMotionForScene('buy_floor')).toBe('buy-floor');
+    expect(purchaseMotionForScene('buy')).toBeUndefined();
+
+    expect(resolveShopBellhopMotion({
+      interactive: true,
+      sceneId: 'buy_floor',
+      mood: 'concerned',
+      purchaseAnimationDone: false,
+      introduction: false,
+      narration: false,
+    })).toBe('buy-floor');
+    expect(resolveShopBellhopMotion({
+      interactive: true,
+      sceneId: 'buy_floor',
+      mood: 'concerned',
+      purchaseAnimationDone: true,
+      introduction: false,
+      narration: false,
+    })).toBe('concerned');
+  });
+
+  it('reserva a apresentação ao primeiro olá e não fala sobre narração', () => {
+    expect(isShopNarrationPage(tokenize('* (Ele procura atrás do balcão.)'))).toBe(true);
+    expect(isShopNarrationPage(tokenize('* Eu encontrei sua lanterna.'))).toBe(false);
+
+    expect(resolveShopBellhopMotion({
+      interactive: true,
+      sceneId: 'main',
+      mood: 'talk',
+      purchaseAnimationDone: true,
+      introduction: true,
+      narration: false,
+    })).toBe('presentation');
+    expect(resolveShopBellhopMotion({
+      interactive: true,
+      sceneId: 'main',
+      mood: 'talk',
+      purchaseAnimationDone: true,
+      introduction: false,
+      narration: false,
+    })).toBe('conversation');
+    expect(resolveShopBellhopMotion({
+      interactive: true,
+      sceneId: 'talk',
+      mood: 'idle',
+      purchaseAnimationDone: true,
+      introduction: false,
+      narration: true,
+    })).toBe('idle');
   });
 });

@@ -1,23 +1,52 @@
 import type { SpriteAnimationConfig } from './SpriteEngine';
 import bellhopIdleAtlas from './assets/shop/bellhop-idle-atlas-v5.webp';
-import bellhopTalkAtlas from './assets/shop/bellhop-talk-atlas-v5.webp';
-import bellhopServiceAtlas from './assets/shop/bellhop-service-atlas-v5.webp';
+import bellhopPresentationAtlas from './assets/shop/bellhop-talk-atlas-v5.webp';
+import bellhopConversationAtlas from './assets/shop/bellhop-conversation-atlas-v6.webp';
 import bellhopWinkAtlas from './assets/shop/bellhop-wink-atlas-v5.webp';
 import bellhopSweatAtlas from './assets/shop/bellhop-sweat-atlas-v5.webp';
 import bellhopConcernedAtlas from './assets/shop/bellhop-concerned-atlas-v5.webp';
 import bellhopGlitchAtlas from './assets/shop/bellhop-glitch-atlas-v5.webp';
+import bellhopBuyFlashlightAtlas from './assets/shop/bellhop-buy-flashlight-atlas-v6.webp';
+import bellhopBuyCookieAtlas from './assets/shop/bellhop-buy-cookie-atlas-v6.webp';
+import bellhopBuyCoffeeAtlas from './assets/shop/bellhop-buy-coffee-atlas-v6.webp';
+import bellhopBuyKeyAtlas from './assets/shop/bellhop-buy-key-atlas-v6.webp';
+import bellhopBuyFloorAtlas from './assets/shop/bellhop-buy-floor-atlas-v6.webp';
+import bellhopBuyMemoryAtlas from './assets/shop/bellhop-buy-memory-atlas-v6.webp';
 import shopVfxAtlas from './assets/shop/shop-vfx-atlas-v1.webp';
 
 export { default as shopBackdrop } from './assets/shop/lobby-shop-bg-v1.webp';
 
 export type BellhopMotion =
   | 'idle'
-  | 'talk'
-  | 'service'
+  | 'presentation'
+  | 'conversation'
   | 'wink'
   | 'sweat'
   | 'concerned'
-  | 'glitch';
+  | 'glitch'
+  | 'buy-flashlight'
+  | 'buy-cookie'
+  | 'buy-coffee'
+  | 'buy-key'
+  | 'buy-floor'
+  | 'buy-memory';
+
+export const BELLHOP_PURCHASE_MOTIONS = [
+  'buy-flashlight',
+  'buy-cookie',
+  'buy-coffee',
+  'buy-key',
+  'buy-floor',
+  'buy-memory',
+] as const satisfies readonly BellhopMotion[];
+
+export type BellhopPurchaseMotion = typeof BELLHOP_PURCHASE_MOTIONS[number];
+
+export const isBellhopPurchaseMotion = (
+  motion: BellhopMotion,
+): motion is BellhopPurchaseMotion => (
+  (BELLHOP_PURCHASE_MOTIONS as readonly BellhopMotion[]).includes(motion)
+);
 
 export type ShopVfxMotion = 'ambient' | 'bell' | 'purchase' | 'glitch';
 
@@ -31,11 +60,13 @@ const atlas = (
   frameDurationsMs: readonly number[],
   loop: boolean,
   blendRatio = 0,
+  frameSize = FRAME,
+  displayScale = 1,
 ): SpriteAnimationConfig => ({
   imageUrl,
   frameCount: frameSequence.length,
-  frameWidth: FRAME,
-  frameHeight: FRAME,
+  frameWidth: frameSize,
+  frameHeight: frameSize,
   columns,
   frameSequence,
   frameDurationsMs,
@@ -43,6 +74,7 @@ const atlas = (
   loop,
   blendRatio,
   pixelated: true,
+  displayScale,
 });
 
 // Every bellhop sheet is a single, row-major, hand-redrawn performance. Most
@@ -57,7 +89,7 @@ const IDLE_DURATIONS = [
   85, 70, 85, 110, 240,
 ] as const;
 
-const TALK_DURATIONS = [
+const PRESENTATION_DURATIONS = [
   360, 110, 100, 90, 90,
   90, 85, 85, 80, 80,
   90, 100, 120, 150, 130,
@@ -65,11 +97,16 @@ const TALK_DURATIONS = [
   110, 120, 130, 150, 360,
 ] as const;
 
-const SERVICE_DURATIONS = [
-  260, 110, 110, 120,
-  120, 110, 100, 90,
-  110, 260, 130, 110,
-  110, 120, 140, 320,
+// A quieter two-beat speaking loop for ordinary dialogue. It deliberately
+// keeps both hands close to the counter; the broad presenting arm belongs to
+// the first hotel welcome only. Longer neutral exposures make the 25 unique
+// drawings read as conversational acting instead of a repeated sales pitch.
+const CONVERSATION_DURATIONS = [
+  300, 150, 115, 105, 100,
+  110, 100, 105, 115, 135,
+  170, 125, 115, 120, 135,
+  125, 110, 105, 110, 120,
+  115, 125, 145, 180, 340,
 ] as const;
 
 const WINK_DURATIONS = [
@@ -100,20 +137,100 @@ const GLITCH_DURATIONS = [
   110, 120, 150, 360,
 ] as const;
 
+// Complete counter performances: turn, reach behind the counter, retrieve the
+// scene-specific prop, return, react, and settle. Holds around the prop and
+// final expression keep the action readable on a phone without racing through
+// the 16 hand-drawn breakdowns.
+const PURCHASE_DURATIONS = [
+  280, 120, 110, 120,
+  140, 160, 180, 180,
+  150, 180, 220, 160,
+  170, 180, 220, 360,
+] as const;
+
 export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
   idle: atlas(bellhopIdleAtlas, 5, frames(25), IDLE_DURATIONS, true),
-  talk: atlas(bellhopTalkAtlas, 5, frames(25), TALK_DURATIONS, true),
-  service: atlas(bellhopServiceAtlas, 4, frames(16), SERVICE_DURATIONS, false),
+  // The open-arm atlas needs a wider 400px cell so its neutral body remains
+  // the same apparent size as the 314px emotional sheets. Previously bbox-fit
+  // shrank all 25 frames to accommodate the widest hand, producing a visible
+  // grow/shrink glitch every time the neutral bridge appeared.
+  presentation: atlas(
+    bellhopPresentationAtlas,
+    5,
+    frames(25),
+    PRESENTATION_DURATIONS,
+    false,
+    0,
+    400,
+    1.035,
+  ),
+  conversation: atlas(
+    bellhopConversationAtlas,
+    5,
+    frames(25),
+    CONVERSATION_DURATIONS,
+    true,
+  ),
   wink: atlas(bellhopWinkAtlas, 4, frames(16), WINK_DURATIONS, true),
   sweat: atlas(bellhopSweatAtlas, 4, frames(16), SWEAT_DURATIONS, true),
   concerned: atlas(bellhopConcernedAtlas, 4, frames(16), CONCERNED_DURATIONS, true),
   glitch: atlas(bellhopGlitchAtlas, 4, frames(16), GLITCH_DURATIONS, true),
+  'buy-flashlight': atlas(
+    bellhopBuyFlashlightAtlas,
+    4,
+    frames(16),
+    PURCHASE_DURATIONS,
+    false,
+  ),
+  'buy-cookie': atlas(
+    bellhopBuyCookieAtlas,
+    4,
+    frames(16),
+    PURCHASE_DURATIONS,
+    false,
+  ),
+  'buy-coffee': atlas(
+    bellhopBuyCoffeeAtlas,
+    4,
+    frames(16),
+    PURCHASE_DURATIONS,
+    false,
+  ),
+  'buy-key': atlas(
+    bellhopBuyKeyAtlas,
+    4,
+    frames(16),
+    PURCHASE_DURATIONS,
+    false,
+  ),
+  // An extra floor is the deliberate exception: he never turns to fetch an
+  // object. The same 16 beats instead escalate from a frozen smile to panic.
+  'buy-floor': {
+    ...atlas(
+      bellhopBuyFloorAtlas,
+      4,
+      frames(16),
+      PURCHASE_DURATIONS,
+      false,
+    ),
+    // The panic drawings use the full source width for flung-out arms. Shared
+    // atlas fitting therefore reduced the neutral body/counter by ~15%. This
+    // restores their on-stage size while retaining every fingertip.
+    displayScale: 1.18,
+  },
+  'buy-memory': atlas(
+    bellhopBuyMemoryAtlas,
+    4,
+    frames(16),
+    PURCHASE_DURATIONS,
+    false,
+  ),
 };
 
 // Frames 20-24 of the idle sheet were drawn specifically as a cartoon handoff:
 // neutral -> one-pixel compression -> rebound -> overshoot -> exact neutral.
 // The animation director inserts this short bridge between different emotions,
-// so a speaking arm never snaps directly into a worried or service pose.
+// so a speaking arm never snaps directly into a worried or purchase pose.
 export const BELLHOP_BRIDGE = atlas(
   bellhopIdleAtlas,
   5,

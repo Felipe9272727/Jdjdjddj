@@ -1,17 +1,21 @@
-import React, { useEffect, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import {
   BELLHOP_BRIDGE,
   BELLHOP_MOTIONS,
+  isBellhopPurchaseMotion,
   type BellhopMotion,
 } from './shop-sprite-assets';
 import { preloadSpriteImages, SpriteAnimator } from './SpriteEngine';
 
-const BELLHOP_ASSET_URLS = [
-  ...new Set(Object.values(BELLHOP_MOTIONS).map(({ imageUrl }) => imageUrl)),
-];
+const BELLHOP_CORE_MOTIONS = (Object.keys(BELLHOP_MOTIONS) as BellhopMotion[])
+  .filter((motion) => !isBellhopPurchaseMotion(motion));
 
-export const preloadBellhopAnimationAssets = (): Promise<void> => (
-  preloadSpriteImages(BELLHOP_ASSET_URLS)
+export const preloadBellhopAnimationAssets = (
+  motions: readonly BellhopMotion[] = BELLHOP_CORE_MOTIONS,
+): Promise<void> => (
+  preloadSpriteImages([
+    ...new Set(motions.map((motion) => BELLHOP_MOTIONS[motion].imageUrl)),
+  ])
 );
 
 type Target = {
@@ -24,12 +28,14 @@ type DirectorState = {
   active: Target;
   target: Target;
   startedAt: number;
+  activeComplete: boolean;
 };
 
 type DirectorAction =
   | { type: 'request'; target: Target }
   | { type: 'begin-bridge'; now: number }
-  | { type: 'finish-bridge'; target: Target; now: number };
+  | { type: 'finish-bridge'; target: Target; now: number }
+  | { type: 'mark-active-complete' };
 
 const now = (): number => (
   typeof performance === 'undefined' ? Date.now() : performance.now()
@@ -51,34 +57,37 @@ const reducer = (state: DirectorState, action: DirectorAction): DirectorState =>
 
   if (action.type === 'begin-bridge') {
     if (state.phase !== 'steady') return state;
-    return { ...state, phase: 'bridge', startedAt: action.now };
+    return {
+      ...state,
+      phase: 'bridge',
+      startedAt: action.now,
+      activeComplete: false,
+    };
   }
 
-  return {
-    phase: 'steady',
-    active: action.target,
-    target: action.target,
-    startedAt: action.now,
-  };
+  if (action.type === 'finish-bridge') {
+    return {
+      phase: 'steady',
+      active: action.target,
+      target: action.target,
+      startedAt: action.now,
+      activeComplete: false,
+    };
+  }
+
+  if (state.phase !== 'steady' || state.activeComplete) return state;
+  return { ...state, activeComplete: true };
 };
 
 /**
- * Wait for the current authored performance to reach its final neutral pose.
- * Idle is intentionally interruptible because its silhouette only moves by a
- * pixel; every expressive loop completes before the five-frame bridge begins.
+ * Idle already is the neutral handoff silhouette. Finished one-shots are also
+ * sitting on their authored final pose, so neither needs to wait for another
+ * cycle before starting the bridge.
  */
-export const resolveBellhopHandoffDelay = (
+export const shouldBeginBellhopBridgeImmediately = (
   motion: BellhopMotion,
-  elapsedMs: number,
-): number => {
-  if (motion === 'idle') return 0;
-  const config = BELLHOP_MOTIONS[motion];
-  const cycleMs = Math.max(1, config.cycleMs);
-  const safeElapsed = Math.max(0, elapsedMs);
-  if (config.loop === false && safeElapsed >= cycleMs) return 0;
-  const position = safeElapsed % cycleMs;
-  return position === 0 && safeElapsed > 0 ? 0 : cycleMs - position;
-};
+  activeComplete: boolean,
+): boolean => motion === 'idle' || activeComplete;
 
 export interface BellhopAnimationDirectorProps {
   motion: BellhopMotion;
@@ -114,6 +123,7 @@ export const BellhopAnimationDirector: React.FC<BellhopAnimationDirectorProps> =
     active: requested,
     target: requested,
     startedAt: now(),
+    activeComplete: false,
   }));
   const targetRef = useRef<Target>(requested);
   const completeRef = useRef(onMotionComplete);
@@ -128,45 +138,48 @@ export const BellhopAnimationDirector: React.FC<BellhopAnimationDirectorProps> =
     dispatch({ type: 'request', target });
   }, [motion, restartKey]);
 
-  // Decode every atlas while the elevator doors are moving. SpriteEngine's
-  // module cache then hands the exact same Image objects to the live canvas.
+  // Decode the always-used acting atlases while the elevator doors are moving.
+  // Purchase atlases are loaded individually only when selected, avoiding six
+  // extra decoded 1256px bitmaps sitting in mobile memory at shop entry.
   useEffect(() => {
     void preloadBellhopAnimationAssets().catch(() => undefined);
   }, []);
 
+  // Idle and completed one-shots are already safe to leave. Expressive loops
+  // wait for SpriteAnimator to report their *real* RAF cycle boundary below.
   useEffect(() => {
     if (state.phase !== 'steady') return;
     if (state.active.requestId === state.target.requestId) return;
-    const delay = resolveBellhopHandoffDelay(
+    if (!shouldBeginBellhopBridgeImmediately(
       state.active.motion,
-      now() - state.startedAt,
-    );
-    const timer = window.setTimeout(() => {
-      dispatch({ type: 'begin-bridge', now: now() });
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [state.active, state.phase, state.startedAt, state.target]);
+      state.activeComplete,
+    )) return;
+    dispatch({ type: 'begin-bridge', now: now() });
+  }, [state.active, state.activeComplete, state.phase, state.target]);
 
-  useEffect(() => {
-    if (state.phase !== 'bridge') return;
-    const timer = window.setTimeout(() => {
-      dispatch({ type: 'finish-bridge', target: targetRef.current, now: now() });
-    }, BELLHOP_BRIDGE.cycleMs);
-    return () => window.clearTimeout(timer);
-  }, [state.phase, state.startedAt]);
+  const handleCycleComplete = useCallback(() => {
+    if (state.phase === 'bridge') {
+      dispatch({
+        type: 'finish-bridge',
+        target: targetRef.current,
+        now: now(),
+      });
+      return;
+    }
 
-  // One-shot animations report their real completion. The shop therefore
-  // cannot dismiss a purchase performance before a delayed handoff has even
-  // allowed the service atlas to start.
-  useEffect(() => {
-    if (state.phase !== 'steady') return;
     const config = BELLHOP_MOTIONS[state.active.motion];
-    if (config.loop !== false) return;
-    const timer = window.setTimeout(() => {
+    if (config.loop === false && !state.activeComplete) {
       completeRef.current?.(state.active.motion);
-    }, config.cycleMs);
-    return () => window.clearTimeout(timer);
-  }, [state.active, state.phase, state.startedAt]);
+      dispatch({ type: 'mark-active-complete' });
+    }
+
+    // This callback is emitted by the canvas exactly when the authored loop
+    // reaches frame zero (or a one-shot reaches its final hold). Starting the
+    // bridge here prevents timer/image-decode drift from cutting a pose in two.
+    if (state.active.requestId !== targetRef.current.requestId) {
+      dispatch({ type: 'begin-bridge', now: now() });
+    }
+  }, [state.active, state.activeComplete, state.phase]);
 
   const config = state.phase === 'bridge'
     ? BELLHOP_BRIDGE
@@ -182,6 +195,7 @@ export const BellhopAnimationDirector: React.FC<BellhopAnimationDirectorProps> =
       className={className}
       style={style}
       paused={paused}
+      onCycleComplete={handleCycleComplete}
     />
   );
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   SHOP_VFX_MOTIONS,
+  isBellhopPurchaseMotion,
   shopBackdrop,
   type BellhopMotion,
   type ShopVfxMotion,
@@ -13,6 +14,12 @@ import {
 import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
 import { tokenize, splitPages, charCount, type Token } from './dialogue-engine';
 import { SHOP_SCENES, ROOT_SCENE, CLOSE_SCENE } from './shop-dialogues';
+import {
+  hasShopPurchaseVfx,
+  isShopNarrationPage,
+  purchaseMotionForScene,
+  resolveShopBellhopMotion,
+} from './shop-animation-direction';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
@@ -69,7 +76,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const [phase, setPhase] = useState<Phase>('closing');
   const [selectedChoice, setSelectedChoice] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
-  const [purchaseAnimationDone, setPurchaseAnimationDone] = useState(true);
+  const [purchaseAnimation, setPurchaseAnimation] = useState(() => ({
+    sceneId: initialScene,
+    done: !purchaseMotionForScene(initialScene),
+  }));
+  const [hasPresented, setHasPresented] = useState(initialScene !== ROOT_SCENE);
 
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
@@ -87,11 +98,24 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
 
   const scene = SHOP_SCENES[sceneId] ?? SHOP_SCENES[ROOT_SCENE];
   const pages = useMemo(() => splitPages(tokenize(scene.text)), [scene.text]);
-  const currentPage: Token[] = pages[pageIndex] ?? [];
+  const currentPage = useMemo<Token[]>(
+    () => pages[pageIndex] ?? [],
+    [pageIndex, pages],
+  );
   const pageCharTotal = useMemo(() => charCount(currentPage), [currentPage]);
+  const narrationPage = useMemo(
+    () => isShopNarrationPage(currentPage),
+    [currentPage],
+  );
   const isPageDone = revealed >= pageCharTotal;
   const isLastPage = pageIndex >= pages.length - 1;
   const showChoices = isPageDone && isLastPage;
+  const purchaseMotion = purchaseMotionForScene(sceneId);
+  // Scene id is part of the state so the very first render after navigating to
+  // an item cannot briefly inherit `done: true` from the catalog/previous item.
+  const purchaseAnimationDone = !purchaseMotion || (
+    purchaseAnimation.sceneId === sceneId && purchaseAnimation.done
+  );
 
   // Direct CSS-variable updates keep parallax off React's render path. Mouse
   // movement therefore stays cheap; touch input is ignored so scrolling and
@@ -159,6 +183,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     setRevealed(0);
     setSelectedChoice(0);
     setPhase('closing');
+    setHasPresented(initialScene !== ROOT_SCENE);
+    setPurchaseAnimation({
+      sceneId: initialScene,
+      done: !purchaseMotionForScene(initialScene),
+    });
 
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
@@ -197,16 +226,32 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     setSelectedChoice(0);
   }, [sceneId]);
 
-  // A purchase remains in service mode until the animation director confirms
-  // that the delivery atlas really finished. This includes any handoff bridge
-  // from the previous emotion; a blind timer could expire before service began.
+  // The open-arm performance belongs only to the very first welcome page.
+  // Once the player advances, returning to `main` uses normal conversation.
   useEffect(() => {
-    setPurchaseAnimationDone(!sceneId.startsWith('buy_'));
-  }, [sceneId]);
+    if (!open || hasPresented) return;
+    if (sceneId !== ROOT_SCENE || pageIndex > 0) setHasPresented(true);
+  }, [hasPresented, open, pageIndex, sceneId]);
+
+  // A purchase remains in its own one-shot performance until the canvas RAF
+  // confirms the final authored pose. A blind timer can expire before a large
+  // atlas has even finished decoding on a phone.
+  useEffect(() => {
+    setPurchaseAnimation({ sceneId, done: !purchaseMotion });
+    if (purchaseMotion) {
+      void preloadBellhopAnimationAssets([purchaseMotion]).catch(() => undefined);
+    }
+  }, [purchaseMotion, sceneId]);
 
   const handleBellhopMotionComplete = useCallback((motion: BellhopMotion) => {
-    if (motion === 'service') setPurchaseAnimationDone(true);
-  }, []);
+    if (motion === 'presentation') setHasPresented(true);
+    if (
+      isBellhopPurchaseMotion(motion)
+      && purchaseMotionForScene(sceneId) === motion
+    ) {
+      setPurchaseAnimation({ sceneId, done: true });
+    }
+  }, [sceneId]);
 
   // Typewriter — walks tokens of currentPage one at a time, respecting pauses
   useEffect(() => {
@@ -237,8 +282,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     };
     tick();
     return clearTyping;
-    // B3: depend on stable `pages` + `pageIndex` (memoised) instead of
-    // `currentPage` (fresh array fallback when pageIndex out of range).
+    // B3: `currentPage` is memoised above; the page identity only changes when
+    // `pages`/`pageIndex` really changes, so this timer cannot reset per render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, pages, pageIndex, pageCharTotal, phase, open]);
 
@@ -370,19 +415,21 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
   // ── Animation direction ───────────────────────────────────────────────
-  // Every state is now a complete hand-redrawn performance. The animation
-  // director finishes the current gesture and inserts a five-frame cartoon
-  // bridge before it hands off to the next requested emotion.
-  const isPurchaseScene = sceneId.startsWith('buy_');
-  let spriteMotion: BellhopMotion = 'idle';
-  if (isPurchaseScene && !purchaseAnimationDone) spriteMotion = 'service';
-  else if (phase === 'idle' && !isPageDone) spriteMotion = 'talk';
-  else if (sceneId.startsWith('post_death') && scene.mood === 'concerned') spriteMotion = 'glitch';
-  else if (scene.mood === 'wink') spriteMotion = 'wink';
-  else if (scene.mood === 'sweat') spriteMotion = 'sweat';
-  else if (scene.mood === 'concerned') spriteMotion = 'concerned';
+  // Large welcome gesture once; restrained daily speech afterwards; one
+  // unique turn/fetch/reaction performance for every catalog item.
+  const isPurchaseScene = Boolean(purchaseMotion);
+  const spriteMotion = resolveShopBellhopMotion({
+    interactive: phase === 'idle',
+    sceneId,
+    mood: scene.mood,
+    purchaseAnimationDone,
+    introduction: !hasPresented && sceneId === ROOT_SCENE && pageIndex === 0,
+    narration: narrationPage,
+  });
 
-  const actionVfx: Exclude<ShopVfxMotion, 'ambient'> | null = isPurchaseScene
+  const actionVfx: Exclude<ShopVfxMotion, 'ambient'> | null = (
+    hasShopPurchaseVfx(sceneId) && purchaseAnimationDone
+  )
     ? 'purchase'
     : sceneId.startsWith('post_death')
       ? 'glitch'

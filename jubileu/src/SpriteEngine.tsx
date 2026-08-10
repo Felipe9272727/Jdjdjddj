@@ -45,6 +45,8 @@ export interface SpriteAnimationConfig {
   blendRatio?: number;
   loop?: boolean;
   pixelated?: boolean;
+  /** Visual scale correction for atlases authored with unusually wide poses. */
+  displayScale?: number;
 }
 
 interface SpriteAnimatorProps {
@@ -54,6 +56,8 @@ interface SpriteAnimatorProps {
   paused?: boolean;
   /** Restart the timeline without remounting (and briefly blanking) canvas. */
   restartKey?: string | number;
+  /** Fired from the real RAF timeline, never from a parallel approximation. */
+  onCycleComplete?: () => void;
 }
 
 // ─── Module-level image cache ─────────────────────────────────────────────
@@ -110,11 +114,17 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
   style,
   paused = false,
   restartKey,
+  onCycleComplete,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
+  const cycleCompleteRef = useRef(onCycleComplete);
 
   const [status, setStatus] = useState<'pending' | 'loaded' | 'error'>('pending');
+
+  useEffect(() => {
+    cycleCompleteRef.current = onCycleComplete;
+  }, [onCycleComplete]);
 
   const {
     imageUrl,
@@ -130,6 +140,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     blendRatio = 0,
     loop = true,
     pixelated = true,
+    displayScale = 1,
   } = config;
 
   // Subscribe to image load status — never throws, just flips to 'error'
@@ -184,6 +195,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       const candidate = frameDurationsMs?.[index] ?? fallbackDuration;
       return Number.isFinite(candidate) ? Math.max(1, candidate) : 1;
     });
+    const totalDuration = durations.reduce((sum, duration) => sum + duration, 0);
 
     const drawCell = (logicalIndex: number, alpha: number) => {
       const safeIndex = Math.max(0, Math.min(sequence.length - 1, logicalIndex));
@@ -225,15 +237,34 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     }
 
     let startedAt: number | null = null;
+    let completedCycles = 0;
+    let completionNotified = false;
     const tick = (timestamp: number) => {
       if (paused) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
       if (startedAt === null) startedAt = timestamp;
-      const pose = resolveSpriteTimeline(timestamp - startedAt, durations, loop, blendRatio);
+      const elapsed = timestamp - startedAt;
+      const pose = resolveSpriteTimeline(elapsed, durations, loop, blendRatio);
       drawPose(pose.index, pose.nextIndex, pose.mix);
-      if (pose.done) { rafRef.current = null; return; }
+      if (loop && totalDuration > 0) {
+        const cycleIndex = Math.floor(elapsed / totalDuration);
+        if (cycleIndex > completedCycles) {
+          // A backgrounded tab can skip more than one cycle. One notification
+          // is sufficient: consumers only need the newly reached safe pose.
+          completedCycles = cycleIndex;
+          cycleCompleteRef.current?.();
+        }
+      }
+      if (pose.done) {
+        if (!completionNotified) {
+          completionNotified = true;
+          cycleCompleteRef.current?.();
+        }
+        rafRef.current = null;
+        return;
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -287,6 +318,9 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
         display: 'block',
         imageRendering: pixelated ? 'pixelated' : 'auto',
         ...style,
+        // `scale` is independent from the entrance/parallax `transform`
+        // supplied by the shop, so neither animation overwrites the other.
+        scale: displayScale,
       }}
     />
   );
