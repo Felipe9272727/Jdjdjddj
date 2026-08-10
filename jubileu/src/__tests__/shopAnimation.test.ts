@@ -38,17 +38,22 @@ describe('sprite timeline da loja', () => {
     expect(pose).toEqual({ index: 2, nextIndex: 2, mix: 0, done: true });
   });
 
-  it('usa todos os 235 desenhos, na ordem exata de cada atuação', () => {
+  it('usa todos os 243 desenhos, na ordem exata de cada atuação', () => {
     expect(BELLHOP_MOTIONS.idle.frameCount).toBe(25);
     expect(BELLHOP_MOTIONS.presentation.frameCount).toBe(25);
     expect(BELLHOP_MOTIONS.conversation.frameCount).toBe(25);
     for (const motion of ['wink', 'sweat', 'concerned', 'glitch'] as const) {
       expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
     }
-    for (const motion of BELLHOP_PURCHASE_MOTIONS) {
+    for (const motion of BELLHOP_PURCHASE_MOTIONS.filter(
+      (candidate) => candidate !== 'buy-key',
+    )) {
       expect(BELLHOP_MOTIONS[motion].frameCount).toBe(16);
       expect(BELLHOP_MOTIONS[motion].loop).toBe(false);
     }
+    expect(BELLHOP_MOTIONS['buy-key'].frameCount).toBe(24);
+    expect(BELLHOP_MOTIONS['buy-key'].columns).toBe(6);
+    expect(BELLHOP_MOTIONS['buy-key'].loop).toBe(false);
 
     for (const config of Object.values(BELLHOP_MOTIONS)) {
       expect(config.frameSequence).toHaveLength(config.frameCount);
@@ -62,7 +67,7 @@ describe('sprite timeline da loja', () => {
     expect(
       Object.values(BELLHOP_MOTIONS)
         .reduce((sum, config) => sum + config.frameCount, 0),
-    ).toBe(235);
+    ).toBe(243);
     expect(BELLHOP_MOTIONS.idle.columns).toBe(5);
     expect(BELLHOP_MOTIONS.presentation.columns).toBe(5);
     expect(BELLHOP_MOTIONS.presentation.frameWidth).toBe(400);

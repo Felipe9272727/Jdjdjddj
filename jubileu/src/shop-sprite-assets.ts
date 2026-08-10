@@ -9,7 +9,7 @@ import bellhopGlitchAtlas from './assets/shop/bellhop-glitch-atlas-v5.webp';
 import bellhopBuyFlashlightAtlas from './assets/shop/bellhop-buy-flashlight-atlas-v6.webp';
 import bellhopBuyCookieAtlas from './assets/shop/bellhop-buy-cookie-atlas-v6.webp';
 import bellhopBuyCoffeeAtlas from './assets/shop/bellhop-buy-coffee-atlas-v6.webp';
-import bellhopBuyKeyAtlas from './assets/shop/bellhop-buy-key-atlas-v6.webp';
+import bellhopBuyKeyAtlas from './assets/shop/bellhop-buy-key-atlas-v7.webp';
 import bellhopBuyFloorAtlas from './assets/shop/bellhop-buy-floor-atlas-v6.webp';
 import bellhopBuyMemoryAtlas from './assets/shop/bellhop-buy-memory-atlas-v6.webp';
 import shopVfxAtlas from './assets/shop/shop-vfx-atlas-v1.webp';
@@ -148,6 +148,16 @@ const PURCHASE_DURATIONS = [
   170, 180, 220, 360,
 ] as const;
 
+// SpriteCook-authored key refusal at its native 8 drawings per second. The
+// longer opening/final exposures keep the one-shot readable while all 24
+// unique in-betweens preserve the guarded pull-back and empty-handed refusal.
+const KEY_REFUSAL_DURATIONS = [
+  180, 110, 110, 110, 110, 125,
+  125, 125, 125, 125, 125, 125,
+  125, 125, 125, 125, 125, 125,
+  125, 125, 125, 140, 160, 320,
+] as const;
+
 export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
   idle: atlas(bellhopIdleAtlas, 5, frames(25), IDLE_DURATIONS, true),
   // The open-arm atlas needs a wider 400px cell so its neutral body remains
@@ -198,9 +208,9 @@ export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
   ),
   'buy-key': atlas(
     bellhopBuyKeyAtlas,
-    4,
-    frames(16),
-    PURCHASE_DURATIONS,
+    6,
+    frames(24),
+    KEY_REFUSAL_DURATIONS,
     false,
   ),
   // An extra floor is the deliberate exception: he never turns to fetch an
