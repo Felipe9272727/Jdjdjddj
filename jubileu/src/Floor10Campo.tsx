@@ -25,6 +25,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { perceiveFloor10, type Floor10Perception } from './npc/floor10Perception';
 import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
 import { precarregarMotor } from './npc/floor10MotorBrain';
+import { memoriaJaCarregada, precarregarMemoria } from './npc/floor10Memoria';
+import { classificarPensamento, type VeredictoDoVetor } from './npc/floor10MotorVetor';
 import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
@@ -42,6 +44,8 @@ type Registro = {
     plano: Floor10MotorPlan | null;
     ms: number;
     pensamento: string;
+    /** O que o classificador por vetor achou. `null` = ele não estava no ar. */
+    vetor?: VeredictoDoVetor | null;
     /** Preenchido DEPOIS, quando a janela de conferência fecha. */
     resultado?: Consequencia;
 };
@@ -77,6 +81,11 @@ const Floor10Campo: React.FC = () => {
     // que não faz nada e nenhuma explicação.
     const [carregando, setCarregando] = useState(false);
     const [temModelo, setTemModelo] = useState(() => vontadeJaCarregada());
+    // O classificador por vetor está no ar? Sem ele o `?campo` mede o motor
+    // ANTIGO e eu não perceberia — foi exatamente assim que o roteamento
+    // virou código morto uma vez nesta base.
+    const [temVetor, setTemVetor] = useState(() => memoriaJaCarregada());
+    const [vetor, setVetor] = useState<VeredictoDoVetor | null>(null);
     const carregar = useCallback(async () => {
         setCarregando(true);
         setErro('');
@@ -99,7 +108,22 @@ const Floor10Campo: React.FC = () => {
             // Aqui dá para subir junto sem custo de memória relevante: esta
             // tela não tem a fala de 1,9 GB de pé. No jogo a conta é outra, e
             // por isso lá a decisão continua sendo do roteamento.
-            else await precarregarMotor().catch(() => false);
+            else {
+                // ── E O EMBEDDINGGEMMA SOBE JUNTO ─────────────────────────
+                //
+                // Sem ele o motor NOVO não existe: `classificarPensamento`
+                // devolve null e tudo cai no caminho antigo, o da gramática
+                // que colapsa. No jogo o roteamento desliga este modelo fora
+                // do chat — é a peça que ainda falta decidir, e ela mexe no
+                // pico de memória medido. Aqui, que é a tela de teste, ele
+                // sobe à força para o comportamento novo ser VISÍVEL antes de
+                // eu encostar no roteamento.
+                await Promise.all([
+                    precarregarMotor().catch(() => false),
+                    precarregarMemoria().catch(() => false),
+                ]);
+                setTemVetor(memoriaJaCarregada());
+            }
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
         } finally {
@@ -250,11 +274,24 @@ const Floor10Campo: React.FC = () => {
             // quanto tempo o corpo obedece antes de voltar a esperar ordem.
             planoAte.current = performance.now() / 1000 + (d.motion?.duration ?? 4);
             const antes = observar();
+            // ── O VEREDITO DO VETOR, NA TELA ──────────────────────────────
+            //
+            // O motor já consultou o classificador lá dentro; isto aqui é para
+            // o veredito ficar VISÍVEL. É a mesma função sobre o mesmo texto,
+            // e ela é determinística, então mostra o que o motor viu — custa
+            // um segundo embedding (~800 ms) e esta tela existe para medir,
+            // não para ser rápida.
+            //
+            // O que interessa olhar: o alvo escolhido, a MARGEM e se ela foi
+            // apertada. Margem larga = o Qwen nem acordou.
+            const v = await classificarPensamento(d.rationale).catch(() => null);
+            setVetor(v);
             setHistorico((h) => [{
                 meta: d.goal,
                 plano: d.motion ?? null,
                 ms: Date.now() - t0,
                 pensamento: d.rationale.slice(0, 220),
+                vetor: v,
             }, ...h].slice(0, 12));
             // ── A CONFERÊNCIA ACONTECE DEPOIS, E TEM DE ESPERAR O CORPO ────
             // Julgar no instante da decisão diria sempre "ignorado": o gesto
@@ -419,6 +456,22 @@ const Floor10Campo: React.FC = () => {
             <div style={{ opacity: 0.85, marginBottom: 8 }}>
                 motor: {st.motorPhase} · {st.motorLoadText || '—'}
             </div>
+            {/* ── O MOTOR NOVO TEM DE SE ANUNCIAR ──────────────────────────
+                Sem esta linha, um `?campo` com o embeddinggemma fora do ar
+                mediria o motor ANTIGO e pareceria idêntico. Já perdi uma tabela
+                de roteamento inteira para código morto nesta base; aqui a tela
+                diz na cara qual dos dois motores está decidindo. */}
+            <div style={{
+                opacity: 0.85,
+                marginBottom: 8,
+                color: temVetor ? '#9ce6a4' : '#ff9c9c',
+            }} data-teste="vetor">
+                vetor: {temVetor ? 'no ar' : 'FORA DO AR — rodando o motor antigo'}
+                {vetor && ` · ${vetor.alvo} · margem ${vetor.margem.toFixed(3)}`}
+                {vetor && (vetor.naDuvida
+                    ? ' · apertado, o Qwen desempatou'
+                    : ' · folgado, sem LLM')}
+            </div>
             {st.deliberationLive !== '' && (
                 <div style={caixa}>
                     <div style={rotulo}>pensando agora</div>
@@ -440,6 +493,13 @@ const Floor10Campo: React.FC = () => {
             {historico.map((r, i) => (
                 // eslint-disable-next-line react/no-array-index-key
                 <div key={i} style={caixa}>
+                    {r.vetor && (
+                        <div style={{ opacity: 0.7, fontSize: 12 }}>
+                            vetor → {r.vetor.alvo} (margem {r.vetor.margem.toFixed(3)}
+                            {r.vetor.naDuvida ? ', desempatado' : ', direto'})
+                            {' · '}candidatos: {r.vetor.candidatos.join(', ')}
+                        </div>
+                    )}
                     <div>
                         <b style={{ color: '#f5c96b' }}>{r.meta}</b>
                         {' · '}

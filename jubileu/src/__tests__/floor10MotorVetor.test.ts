@@ -114,3 +114,21 @@ describe('floor10MotorVetor — a ligação chega no motor', () => {
         expect(/veredito\?\.candidatos/.test(fonte)).toBe(true);
     });
 });
+
+describe('?campo — a tela de teste mede o motor NOVO', () => {
+    it('o campo sobe o embeddinggemma e mostra se ele está no ar', async () => {
+        // ── POR QUE UM TESTE OLHA O FONTE ─────────────────────────────────
+        // O `?campo` existe para o dono do jogo testar no aparelho dele. Se o
+        // embeddinggemma não subir ali, a tela mede o motor ANTIGO e parece
+        // idêntica — ele testaria a coisa errada sem nenhum sinal disso.
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8'));
+        // O modelo sobe…
+        expect(/precarregarMemoria\(\)/.test(fonte)).toBe(true);
+        // …o veredito é consultado…
+        expect(/classificarPensamento\(/.test(fonte)).toBe(true);
+        // …e a tela DIZ qual motor está decidindo.
+        expect(fonte).toContain('FORA DO AR');
+        expect(/margem/.test(fonte)).toBe(true);
+    });
+});
