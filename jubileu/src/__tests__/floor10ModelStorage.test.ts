@@ -4,6 +4,7 @@ import {
     deleteCachedModel,
     formatGB,
     isBrokenModelCacheError,
+    nomeNoCacheDoWllama,
     planModelCache,
     probeModelStorageBackend,
 } from '../npc/floor10ModelStorage';
@@ -85,12 +86,45 @@ describe('floor10ModelStorage — backend e recuperação do GGUF', () => {
         expect(isBrokenModelCacheError(new Error('network offline'))).toBe(false);
     });
 
-    it('apaga precisamente a URL quebrada e nenhuma outra', async () => {
+    // ── ESTE TESTE CRAVAVA O DEFEITO ─────────────────────────────────────
+    //
+    // A versão anterior afirmava `expect(removidos).toEqual([url])` — ou seja,
+    // exigia exatamente a chamada que NUNCA apagou nada. O wllama guarda o
+    // arquivo como `sha1hex(url)_nome.gguf` e o `delete(key)` dele engole
+    // `NotFoundError` calado; passar a URL era um no-op que se declarava
+    // bem-sucedido.
+    //
+    // O efeito no aparelho de quem joga: um download interrompido deixava o
+    // cérebro morto PARA SEMPRE, porque a única rotina de conserto não
+    // consertava e dizia que sim. O teste verde ajudou a esconder isso.
+    it('apaga usando o NOME DO WLLAMA, não a URL', async () => {
         const removidos: string[] = [];
-        await expect(deleteCachedModel({
-            delete: async (url) => { removidos.push(url); },
-        }, 'https://models.test/broken.gguf')).resolves.toBe(true);
-        expect(removidos).toEqual(['https://models.test/broken.gguf']);
-        await expect(deleteCachedModel(null, 'outro.gguf')).resolves.toBe(false);
+        const url = 'https://models.test/broken.gguf';
+        await deleteCachedModel({
+            delete: async (chave) => { removidos.push(chave); },
+        }, url);
+        const nome = await nomeNoCacheDoWllama(url);
+        expect(nome).toMatch(/^[0-9a-f]{40}_broken\.gguf$/);
+        expect(removidos).toContain(nome);
+        expect(removidos).toContain(`__metadata__${nome}`);
+    });
+
+    it('o nome é o sha1 da URL — igual ao urlToFileName do wllama', async () => {
+        // Conferido contra o bundle do wllama em bancada-navegador/wllama-cdn:
+        //   return `${prefix}${hashHex}_${url.split("/").pop()}`
+        const a = await nomeNoCacheDoWllama('https://x.test/a.gguf');
+        const b = await nomeNoCacheDoWllama('https://x.test/a.gguf');
+        const c = await nomeNoCacheDoWllama('https://x.test/b.gguf');
+        expect(a).toBe(b);
+        expect(a).not.toBe(c);
+        expect(a?.endsWith('_a.gguf')).toBe(true);
+    });
+
+    it('sem cacheManager ainda tenta o OPFS — o engine pode nem ter nascido', async () => {
+        // O `engine` é criado antes do `loadModelFromUrl`, mas se a falha vier
+        // do import do módulo não há `cacheManager` nenhum. Nesse caso o
+        // arquivo parcial continua no OPFS e alguém tem de removê-lo.
+        await expect(deleteCachedModel(null, 'https://models.test/x.gguf'))
+            .resolves.toBe(true);
     });
 });

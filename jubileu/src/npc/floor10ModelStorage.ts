@@ -83,18 +83,108 @@ export function isBrokenModelCacheError(error: unknown): boolean {
         .test(message);
 }
 
-/** Apaga somente a URL que falhou; nunca varre os outros cérebros por dedução. */
+// ── O NOME QUE O WLLAMA DÁ AO ARQUIVO NO OPFS ─────────────────────────────
+//
+// Isto existe porque o conserto do cache quebrado NUNCA funcionou, e falhava
+// em silêncio, do pior jeito possível.
+//
+// O wllama não guarda o modelo sob a URL. Ele guarda sob
+// `sha1hex(url) + '_' + último pedaço da URL` (a função `urlToFileName` dele),
+// e os metadados sob `__metadata__` + esse mesmo nome. O `delete(key)` dele faz
+// `cacheDir.removeEntry(key)` e ENGOLE o `NotFoundError`:
+//
+//     delete(key) { try { ... removeEntry(key) } catch (e) {
+//         if (e?.name !== "NotFoundError") throw e; } }
+//
+// Ou seja: chamar `delete(url)` procurava uma entrada com o nome literal da
+// URL, não achava, não reclamava, e voltava como se tivesse apagado. O nosso
+// `deleteCachedModel` via "não lançou" e devolvia `true`; a vontade então
+// tentava de novo, lia O MESMO ARQUIVO QUEBRADO e falhava igual.
+//
+// O efeito no aparelho de quem joga: um download interrompido no lugar errado
+// DEIXA O CÉREBRO MORTO PARA SEMPRE. Recarregar a página não adianta, porque o
+// arquivo parcial continua lá e a única rotina que existia para removê-lo era
+// um `no-op` que se declarava bem-sucedido. Foi o que apareceu no print:
+// "unavailable · Model file not found", depois de o download ter chegado ao
+// fim.
+
+/** O mesmo nome que o `urlToFileName` do wllama produz. */
+export async function nomeNoCacheDoWllama(url: string): Promise<string | null> {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    try {
+        const digest = await subtle.digest('SHA-1', new TextEncoder().encode(url));
+        const hex = [...new Uint8Array(digest)]
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+        return `${hex}_${url.split('/').pop() ?? ''}`;
+    } catch {
+        return null;
+    }
+}
+
+/** O arquivo ainda está no OPFS? É a ÚNICA prova de que apagar funcionou. */
+async function aindaExiste(nome: string): Promise<boolean> {
+    try {
+        const raiz = await globalThis.navigator?.storage?.getDirectory?.();
+        if (!raiz) return false;
+        const dir = await raiz.getDirectoryHandle('cache', { create: false });
+        await dir.getFileHandle(nome, { create: false });
+        return true;
+    } catch {
+        // NotFoundError (o que queremos) ou OPFS indisponível: nos dois casos
+        // não há arquivo quebrado no caminho.
+        return false;
+    }
+}
+
+async function removerDoOpfs(nome: string): Promise<void> {
+    const raiz = await globalThis.navigator?.storage?.getDirectory?.();
+    if (!raiz) return;
+    const dir = await raiz.getDirectoryHandle('cache', { create: false });
+    await dir.removeEntry(nome);
+}
+
+/**
+ * Apaga somente o modelo que falhou; nunca varre os outros cérebros por
+ * dedução.
+ *
+ * Devolve `true` apenas quando o arquivo REALMENTE saiu. Quem chama usa esse
+ * booleano para decidir se vale tentar de novo — e tentar de novo por cima de
+ * um arquivo que continua lá é o laço infinito que este módulo existe para
+ * evitar.
+ */
 export async function deleteCachedModel(
     cache: ModelCacheDelete | null | undefined,
     url: string,
 ): Promise<boolean> {
-    if (!cache?.delete) return false;
-    try {
-        await cache.delete(url);
-        return true;
-    } catch {
-        return false;
+    const nome = await nomeNoCacheDoWllama(url);
+
+    // 1) O caminho oficial, agora com a CHAVE CERTA.
+    if (cache?.delete && nome) {
+        try {
+            await cache.delete(nome);
+            await cache.delete(`__metadata__${nome}`);
+        } catch { /* segue para o plano B */ }
     }
+
+    // 2) Plano B: remover direto do OPFS. O `cacheManager` pode não existir
+    //    (engine que nem chegou a nascer) ou ser de um backend sem `delete`.
+    if (nome && await aindaExiste(nome)) {
+        try {
+            await removerDoOpfs(nome);
+            await removerDoOpfs(`__metadata__${nome}`).catch(() => undefined);
+        } catch { /* confirmado abaixo */ }
+    }
+
+    // 3) A URL crua, por último. É o que fazíamos antes; fica como rede de
+    //    segurança para uma versão do wllama que nomeie de outro jeito.
+    if (cache?.delete && (!nome || await aindaExiste(nome))) {
+        try { await cache.delete(url); } catch { /* nada a fazer */ }
+    }
+
+    if (!nome) return false;
+    return !(await aindaExiste(nome));
 }
 
 /**

@@ -90,6 +90,21 @@ const Floor10Campo: React.FC = () => {
         setCarregando(true);
         setErro('');
         try {
+            // ── O VETOR NÃO DEPENDE DA VONTADE, E EU TINHA AMARRADO OS DOIS ──
+            //
+            // Estava dentro do `else` do sucesso da vontade. Quando o LFM2.5
+            // falhou no aparelho do dono do jogo, o embeddinggemma nem chegou a
+            // ser TENTADO — a tela dizia "vetor: FORA DO AR" e parecia defeito
+            // do vetor, quando o vetor nunca tinha sido chamado.
+            //
+            // São coisas independentes: o classificador lê o pensamento, venha
+            // ele de onde vier. Sobe primeiro, inclusive, porque é o menor
+            // (333 MB contra 1,25 GB) e é o que faz a tela mostrar algo útil
+            // enquanto o resto desce.
+            void precarregarMemoria()
+                .then(() => setTemVetor(memoriaJaCarregada()))
+                .catch(() => setTemVetor(false));
+
             const ok = await precarregarVontade();
             setTemModelo(ok);
             if (!ok) setErro('a vontade não carregou — veja a linha de estado abaixo');
@@ -108,22 +123,7 @@ const Floor10Campo: React.FC = () => {
             // Aqui dá para subir junto sem custo de memória relevante: esta
             // tela não tem a fala de 1,9 GB de pé. No jogo a conta é outra, e
             // por isso lá a decisão continua sendo do roteamento.
-            else {
-                // ── E O EMBEDDINGGEMMA SOBE JUNTO ─────────────────────────
-                //
-                // Sem ele o motor NOVO não existe: `classificarPensamento`
-                // devolve null e tudo cai no caminho antigo, o da gramática
-                // que colapsa. No jogo o roteamento desliga este modelo fora
-                // do chat — é a peça que ainda falta decidir, e ela mexe no
-                // pico de memória medido. Aqui, que é a tela de teste, ele
-                // sobe à força para o comportamento novo ser VISÍVEL antes de
-                // eu encostar no roteamento.
-                await Promise.all([
-                    precarregarMotor().catch(() => false),
-                    precarregarMemoria().catch(() => false),
-                ]);
-                setTemVetor(memoriaJaCarregada());
-            }
+            else await precarregarMotor().catch(() => false);
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
         } finally {
@@ -456,6 +456,27 @@ const Floor10Campo: React.FC = () => {
             <div style={{ opacity: 0.85, marginBottom: 8 }}>
                 motor: {st.motorPhase} · {st.motorLoadText || '—'}
             </div>
+            {/* ── A COTA DO APARELHO, NA TELA ──────────────────────────────
+                "Model file not found" DEPOIS de o download terminar é a cara de
+                cota estourada: o wllama grava no OPFS, o navegador corta no
+                meio, e o arquivo que ele tenta abrir não existe inteiro. Sem
+                estes números a mensagem culpa a rede e o print não diagnostica
+                nada — foi exatamente o que aconteceu no aparelho dele.
+
+                `precisa` é a soma dos cérebros desta rota. Se ele for MAIOR
+                que a cota, o defeito está aqui e nenhuma quantidade de
+                tentativas resolve. */}
+            <div style={{ opacity: 0.85, marginBottom: 8 }} data-teste="cota">
+                armazenamento: {st.storage.quota === null
+                    ? 'o navegador não informa a cota'
+                    : `${(st.storage.usage / 2 ** 30).toFixed(2)} GB usados de `
+                      + `${(st.storage.quota / 2 ** 30).toFixed(2)} GB`}
+                {st.storage.needBytes > 0
+                    && ` · precisa de ${(st.storage.needBytes / 2 ** 30).toFixed(2)} GB`}
+                {st.storage.quota !== null
+                    && st.storage.needBytes > st.storage.quota - st.storage.usage
+                    && ' · NÃO CABE'}
+            </div>
             {/* ── O MOTOR NOVO TEM DE SE ANUNCIAR ──────────────────────────
                 Sem esta linha, um `?campo` com o embeddinggemma fora do ar
                 mediria o motor ANTIGO e pareceria idêntico. Já perdi uma tabela
@@ -467,6 +488,7 @@ const Floor10Campo: React.FC = () => {
                 color: temVetor ? '#9ce6a4' : '#ff9c9c',
             }} data-teste="vetor">
                 vetor: {temVetor ? 'no ar' : 'FORA DO AR — rodando o motor antigo'}
+                {!temVetor && st.memoriaPhase !== 'off' && ` (${st.memoriaPhase})`}
                 {vetor && ` · ${vetor.alvo} · margem ${vetor.margem.toFixed(3)}`}
                 {vetor && (vetor.naDuvida
                     ? ' · apertado, o Qwen desempatou'
