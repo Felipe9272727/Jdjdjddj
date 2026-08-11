@@ -45,12 +45,21 @@ import { anotar } from './floor10CaixaPreta';
  * limpo, e cravar um número em cima de sete amostras é chute com cara de
  * dado.
  *
- * Então o corte é deliberadamente ALTO: na dúvida, pergunta. Errar para o
- * lado de chamar o Qwen custa tempo; errar para o outro lado custa o Nilo
- * andando para o lugar errado. Quando houver mais pensamentos reais colhidos
- * do `?campo`, este número se mede em vez de se supor.
+ * Eu cravei 0,08 assim mesmo, dizendo "na dúvida, pergunta". AS MARGENS
+ * REAIS DO APARELHO DELE derrubaram o número: 0,037 · 0,062 · 0,076 — as três
+ * abaixo do corte. O Qwen acordou em TODAS as rodadas, que é exatamente o
+ * caminho C que a bancada já tinha reprovado, e cada rodada custou ~100 s.
+ *
+ * Um limiar que dispara sempre não é um limiar, é um `if (true)`.
+ *
+ * 0,05 fica entre os erros medidos na bancada (0,014 e 0,040) e as margens
+ * confiantes do campo (0,062 e 0,076): as duas últimas passam direto, a
+ * apertada ainda pergunta. Continua sendo pouca amostra — por isso a margem
+ * de cada rodada vai para a caixa-preta e aparece na tela do `?campo`, para
+ * o número ser MEDIDO conforme mais pensamentos reais aparecem, e não
+ * chutado de novo.
  */
-export const MARGEM_SEGURA = 0.08;
+export const MARGEM_SEGURA = 0.05;
 
 let cache: VetorDoRotulo[] | null = null;
 

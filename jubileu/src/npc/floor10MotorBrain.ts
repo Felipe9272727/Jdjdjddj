@@ -499,11 +499,22 @@ export async function translateFloor10MotorThought(
         // O motor pertence ao pipeline de deliberação. Passar pelo mesmo
         // coordenador serializa o download de 386 MB contra uma carga da fala;
         // se a fala chegar, o preemptor da deliberação aborta este Worker.
+        // ── O PALPITE DO VETOR É A REDE DE SEGURANÇA, SEMPRE ──────────────
+        //
+        // Print do aparelho do dono do jogo: em 2 de 4 rodadas o motor dizia
+        // "sem plano motor" — DEPOIS de o vetor ter dado um veredito bom
+        // (`player`, margem 0,076; `west-side`, margem 0,062). O Qwen não
+        // concluía e eu jogava fora a resposta que já tinha na mão.
+        //
+        // Isso é o pior dos dois mundos: paga-se os ~100 s do Qwen E fica-se
+        // sem plano. O veredito do vetor é sempre melhor que nada.
+        const reserva = veredito ? planoDoVetor(veredito.alvo, thinking) : null;
+
         const engine = await floor10ModelCoordinator.activate(
             'deliberation',
             () => ensureMotorEngine(signal),
         );
-        if (!engine || signal?.aborted) return null;
+        if (!engine || signal?.aborted) return reserva;
         npcSet({
             motorPhase: 'translating',
             motorLoadText: `${FLOOR10_MOTOR_MODEL.label} · lendo o pensamento`,
@@ -515,13 +526,18 @@ export async function translateFloor10MotorThought(
             // seis modelos de cinco famílias, sempre o mesmo alvo.
             veredito?.candidatos,
         );
+        const escolhido = plan ?? reserva;
         npcSet({
             motorPhase: 'ready',
-            motorLoadText: plan
-                ? `${FLOOR10_MOTOR_MODEL.label} · ${plan.verb} ${plan.target}`
+            motorLoadText: escolhido
+                ? `${plan ? FLOOR10_MOTOR_MODEL.label : 'vetor (o qwen não concluiu)'}`
+                  + ` · ${escolhido.verb} ${escolhido.target}`
                 : `${FLOOR10_MOTOR_MODEL.label} pronto · sem ordem clara`,
         });
-        return plan;
+        if (!plan && reserva) {
+            anotar('motor:qwen-mudo-vetor-salvou', { alvo: reserva.target });
+        }
+        return escolhido;
     } finally {
         inFlight = false;
     }

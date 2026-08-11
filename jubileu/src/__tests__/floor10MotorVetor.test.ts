@@ -51,11 +51,15 @@ describe('floor10MotorVetor — os rótulos desempacotados', () => {
         expect(rotulosVetorizados()).toBe(a);
     });
 
-    it('o limiar é ALTO de propósito: na dúvida, pergunta', () => {
-        // Errar para o lado de acordar o Qwen custa tempo; errar para o outro
-        // custa o Nilo andando para o lugar errado. Os erros medidos ficaram em
-        // 0,014 e 0,040, então o corte tem de estar acima dos dois.
-        expect(MARGEM_SEGURA).toBeGreaterThan(0.04);
+    it('o limiar separa os erros medidos das margens confiantes', () => {
+        // Os ERROS do vetor na bancada ficaram em 0,014 e 0,040 — o corte tem
+        // de estar acima deles para que esses casos ainda peçam desempate.
+        expect(MARGEM_SEGURA).toBeGreaterThan(0.041);
+        // E as margens CONFIANTES medidas no aparelho do dono do jogo foram
+        // 0,062 e 0,076. Se o corte subir acima delas, o Qwen acorda em toda
+        // rodada e o limiar vira um `if (true)` de ~100 s cada — foi o que
+        // aconteceu com o 0,08 que eu tinha chutado.
+        expect(MARGEM_SEGURA).toBeLessThan(0.062);
     });
 });
 
@@ -130,5 +134,25 @@ describe('?campo — a tela de teste mede o motor NOVO', () => {
         // …e a tela DIZ qual motor está decidindo.
         expect(fonte).toContain('FORA DO AR');
         expect(/margem/.test(fonte)).toBe(true);
+    });
+});
+
+describe('floor10MotorVetor — o palpite do vetor nunca é jogado fora', () => {
+    it('o motor cai na reserva do vetor quando o Qwen não conclui', async () => {
+        // ── O DEFEITO QUE O PRINT MOSTROU ─────────────────────────────────
+        // Em 2 de 4 rodadas no aparelho do dono do jogo o motor dizia "sem
+        // plano motor" DEPOIS de o vetor ter dado um veredito bom (`player`
+        // margem 0,076; `west-side` margem 0,062). Pagava-se os ~100 s do Qwen
+        // E ficava-se sem plano — o pior dos dois mundos.
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../npc/floor10MotorBrain.ts', import.meta.url), 'utf8'));
+        // A reserva é construída ANTES de acordar o Qwen…
+        const iReserva = fonte.indexOf('const reserva =');
+        const iEngine = fonte.indexOf('floor10ModelCoordinator.activate');
+        expect(iReserva).toBeGreaterThan(0);
+        expect(iReserva).toBeLessThan(iEngine);
+        // …e é ela que vale quando o plano vem nulo, em TODAS as saídas.
+        expect(/plan \?\? reserva/.test(fonte)).toBe(true);
+        expect(/return reserva/.test(fonte)).toBe(true);
     });
 });
