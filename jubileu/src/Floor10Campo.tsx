@@ -26,6 +26,7 @@ import { perceiveFloor10, type Floor10Perception } from './npc/floor10Perception
 import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
 import { precarregarMotor } from './npc/floor10MotorBrain';
 import { memoriaJaCarregada, precarregarMemoria } from './npc/floor10Memoria';
+import { downloadLine } from './npc/floor10Download';
 import { classificarPensamento, type VeredictoDoVetor } from './npc/floor10MotorVetor';
 import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
@@ -86,6 +87,41 @@ const Floor10Campo: React.FC = () => {
     // virou código morto uma vez nesta base.
     const [temVetor, setTemVetor] = useState(() => memoriaJaCarregada());
     const [vetor, setVetor] = useState<VeredictoDoVetor | null>(null);
+    /** SÓ o classificador. Não toca na vontade nem no motor. */
+    const [baixandoVetor, setBaixandoVetor] = useState(false);
+    const baixarVetor = useCallback(async () => {
+        setBaixandoVetor(true);
+        try {
+            await precarregarMemoria();
+        } catch { /* a linha de estado abaixo conta o que houve */ } finally {
+            setTemVetor(memoriaJaCarregada());
+            setBaixandoVetor(false);
+        }
+    }, []);
+
+    // ── TESTAR O VETOR SOZINHO ───────────────────────────────────────────
+    //
+    // Baixar só o classificador não adiantaria nada se para exercitá-lo fosse
+    // preciso a vontade: o pensamento nasce nela. Com esta caixa dá para colar
+    // uma frase — das que ele viu no jogo, ou uma inventada para provocar — e
+    // ver o alvo, a margem e os candidatos na hora, com 333 MB em vez de
+    // 1,58 GB no aparelho.
+    //
+    // É também como se colhe amostra para calibrar o limiar. Eu já cravei esse
+    // número duas vezes no olho e errei as duas.
+    const [frase, setFrase] = useState('I take five steps to my left, toward the wall.');
+    const [testando, setTestando] = useState(false);
+    const testarFrase = useCallback(async () => {
+        setTestando(true);
+        try {
+            setVetor(await classificarPensamento(frase));
+        } catch {
+            setVetor(null);
+        } finally {
+            setTestando(false);
+        }
+    }, [frase]);
+
     const carregar = useCallback(async () => {
         setCarregando(true);
         setErro('');
@@ -416,9 +452,25 @@ const Floor10Campo: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                {/* ── O VETOR TEM DOWNLOAD PRÓPRIO ─────────────────────────
+                    Pedido do dono do jogo. A vontade tem 1,25 GB e leva
+                    minutos; o classificador tem 333 MB e é o que decide o
+                    movimento. Amarrar os dois no mesmo botão obrigava a
+                    esperar o arquivo grande para testar a peça pequena — e num
+                    plano de dados de celular isso é caro de repetir. */}
+                {!temVetor && (
+                    <button
+                        type="button"
+                        onClick={() => void baixarVetor()}
+                        disabled={baixandoVetor}
+                        style={botao}
+                    >
+                        {baixandoVetor ? 'baixando o vetor…' : 'baixar o vetor (333 MB)'}
+                    </button>
+                )}
                 {!temModelo && (
                     <button type="button" onClick={() => void carregar()} disabled={carregando} style={botao}>
-                        {carregando ? 'carregando a vontade…' : 'carregar a vontade'}
+                        {carregando ? 'carregando a vontade…' : 'carregar a vontade (1,25 GB)'}
                     </button>
                 )}
                 <button
@@ -438,6 +490,31 @@ const Floor10Campo: React.FC = () => {
                     {auto ? 'parar o laço' : 'laço automático'}
                 </button>
             </div>
+
+            {temVetor && (
+                <div style={{ ...caixa, marginBottom: 10 }}>
+                    <div style={rotulo}>testar o vetor com uma frase</div>
+                    <textarea
+                        value={frase}
+                        onChange={(e) => setFrase(e.target.value)}
+                        rows={2}
+                        style={{
+                            width: '100%', boxSizing: 'border-box', marginBottom: 6,
+                            background: '#0f141d', color: '#cfd6e4',
+                            border: '1px solid #2b3444', borderRadius: 6,
+                            padding: 6, font: '13px system-ui', resize: 'vertical',
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => void testarFrase()}
+                        disabled={testando || frase.trim() === ''}
+                        style={botao}
+                    >
+                        {testando ? 'classificando…' : 'classificar'}
+                    </button>
+                </div>
+            )}
 
             {erro !== '' && (
                 <div style={{ color: '#ff9c9c', marginBottom: 8 }}>{erro}</div>
@@ -488,7 +565,12 @@ const Floor10Campo: React.FC = () => {
                 color: temVetor ? '#9ce6a4' : '#ff9c9c',
             }} data-teste="vetor">
                 vetor: {temVetor ? 'no ar' : 'FORA DO AR — rodando o motor antigo'}
-                {!temVetor && st.memoriaPhase !== 'off' && ` (${st.memoriaPhase})`}
+                {!temVetor && st.memoriaPhase === 'loading' && ` · ${downloadLine(st.memoriaDownload)}`}
+                {!temVetor && st.memoriaPhase !== 'off' && st.memoriaPhase !== 'loading'
+                    && ` (${st.memoriaPhase})`}
+                {!temVetor && st.memoriaLoadText !== '' && (
+                    <div style={{ opacity: 0.75, fontSize: 12 }}>{st.memoriaLoadText}</div>
+                )}
                 {vetor && ` · ${vetor.alvo} · margem ${vetor.margem.toFixed(3)}`}
                 {vetor && (vetor.naDuvida
                     ? ' · apertado, o Qwen desempatou'

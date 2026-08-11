@@ -156,3 +156,23 @@ describe('floor10MotorVetor — o palpite do vetor nunca é jogado fora', () => 
         expect(/return reserva/.test(fonte)).toBe(true);
     });
 });
+
+describe('?campo — o vetor tem download próprio', () => {
+    it('botão e barra separados, e dá para testá-lo sem a vontade', async () => {
+        // Pedido do dono do jogo: "eu quero que no campo, tenha um download
+        // separado pra ele". A vontade tem 1,25 GB e leva minutos; o
+        // classificador tem 333 MB e é quem decide o movimento. Amarrar os dois
+        // no mesmo botão obriga a esperar o arquivo grande para testar a peça
+        // pequena — caro de repetir num plano de dados de celular.
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8'));
+        // Botão próprio, que não toca na vontade…
+        expect(/baixarVetor/.test(fonte)).toBe(true);
+        expect(fonte).toContain('baixar o vetor');
+        // …barra de progresso própria…
+        expect(/downloadLine\(st\.memoriaDownload\)/.test(fonte)).toBe(true);
+        // …e o teste de uma frase solta, senão o download separado não serve
+        // para nada: o pensamento nasce na vontade.
+        expect(/testarFrase/.test(fonte)).toBe(true);
+    });
+});
