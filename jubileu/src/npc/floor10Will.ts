@@ -1,3 +1,5 @@
+import { PR, wallsForState } from '../constants';
+import { resolveCollision } from '../physics';
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
 import {
@@ -1114,6 +1116,55 @@ export class Floor10WillBrain {
     }
 }
 
+/**
+ * As paredes do Andar 10, resolvidas UMA vez. `wallsForState` devolve listas
+ * pré-montadas, então isto não aloca — mas guardar a referência deixa explícito
+ * que o passo de 60 Hz não recalcula nada.
+ */
+const PAREDES_DO_10 = wallsForState(10, false, true);
+
+/**
+ * O raio do corpo do Nilo é o do jogador. Ele ocupa o mesmo tipo de espaço e
+ * atravessa as mesmas portas; um raio próprio seria um segundo número para
+ * alguém esquecer de atualizar.
+ */
+const RAIO_DO_NILO = PR;
+
+// ── A PORTA DO PRÉDIO DO ELEVADOR, E A FAIXA MORTA QUE PRENDIA O NILO ─────
+//
+// `ELEV_BLD` deixa o vão em x ∈ [−1,3, 1,3] na linha z = −10. Passar por ele é
+// a única forma de entrar no cab, e esta função o atravessa por dois pontos de
+// passagem: um fora, um dentro.
+//
+// O CÓDIGO ANTERIOR TRAVAVA O NILO PARA SEMPRE. Os três números não conversavam:
+//
+//     ponto de passagem de fora ...... z = −8,75
+//     "já estou na soleira" se ....... z ≤ −8,70
+//     "cheguei, paro de andar" se .... distância ≤ 0,08
+//
+// Vindo do norte ele para assim que fica a 0,08 do ponto — ou seja em z ≈ −8,67.
+// Aí −8,67 NÃO é ≤ −8,70, então ele continua mirando o ponto de fora; e como já
+// está a menos de 0,08 dele, não anda mais. Medido: trava em (0,0089, −8,6747)
+// e fica lá. Nas 103.362 rotas que eu varri, TODAS as 1.194 que tinham alvo
+// dentro do cab morriam nesse ponto — o Nilo nunca entrava no elevador.
+//
+// Faixa morta de 5 cm dentro de uma tolerância de 8 cm. Três constantes soltas,
+// escolhidas em momentos diferentes, e nenhuma sabendo das outras.
+//
+// O conserto é fazer o limiar SAIR da tolerância em vez de ser mais um número:
+// "estou na soleira" passa a significar "estou perto do ponto de passagem o
+// bastante para poder ter parado nele". Assim a troca acontece necessariamente
+// antes de o corpo poder congelar, e a relação fica escrita no código.
+const CHEGADA = 0.08;
+const SOLEIRA_FORA = -8.75;
+const SOLEIRA_DENTRO = -10.55;
+/** Meia largura da passagem que a navegação se permite usar. O vão real é 1,3. */
+const MEIA_PORTA = 0.38;
+
+function naSoleira(p: Pick<Vec3Like, 'x' | 'z'>, ponto: number): boolean {
+    return Math.abs(p.x) <= MEIA_PORTA && p.z <= ponto + CHEGADA * 2;
+}
+
 export type Floor10MovementStep = {
     x: number;
     z: number;
@@ -1124,6 +1175,33 @@ export type Floor10MovementStep = {
 /**
  * Navegação leve do mapa atual. Encaminha o NPC pela abertura real da porta
  * quando um alvo fica dentro/fora do elevador, em vez de atravessar a parede.
+ *
+ * ── O QUE FOI MEDIDO, E O QUE ISSO CORRIGIU ──────────────────────────────
+ *
+ * Esta função conhece UM obstáculo — a porta do prédio do elevador — por
+ * pontos de passagem cravados à mão. Eu desconfiei que ela atravessasse parede
+ * o tempo todo e fui medir, varrendo pares origem→destino no Andar 10 e
+ * marcando como falha todo quadro em que a FÍSICA DO JOGO (`resolveCollision`)
+ * empurraria o corpo:
+ *
+ *     amostra ingênua, incluindo chão onde o Nilo nunca esteve ... 32,4%
+ *     restrita ao que ele alcança A PÉ do berço dele ............. 0,03%
+ *
+ * A primeira medição era minha, e era enganosa: metade dos pontos ficava atrás
+ * do prédio do elevador, onde ele não chega. Os pontos de passagem cravados
+ * cobrem quase tudo o que importa, e eu ia trocá-los por um A* inteiro por
+ * causa de um número que eu mesmo tinha inflado.
+ *
+ * Sobraram 36 pares em 103.362, todos com a mesma assinatura: sair de dentro
+ * do cab rumo a um alvo bem lateral. Assim que ele cruza a soleira, os pontos
+ * de passagem soltam e ele corta em diagonal — raspando a QUINA do batente,
+ * que fica em (±1,3, −10) e exige o centro do corpo a |x| ≤ 0,8 na passagem.
+ *
+ * O conserto não é outro ponto cravado: é passar o resultado pela mesma física
+ * que o jogador sente. `resolveCollision` desliza o corpo pela parede em vez de
+ * deixá-lo entrar nela — em qualquer parede do andar, não só nesta porta. Custa
+ * uma chamada por quadro e vale para toda geometria que o Andar 10 ganhar
+ * depois, sem ninguém lembrar de acrescentar ponto de passagem nenhum.
  */
 export function stepFloor10Movement(
     position: Pick<Vec3Like, 'x' | 'z'>,
@@ -1139,15 +1217,10 @@ export function stepFloor10Movement(
     const npcInsideElevator = position.z < -9.65;
 
     if (targetInsideElevator && !npcInsideElevator) {
-        if (Math.abs(position.x) > 0.38 || position.z > -8.7) {
-            navX = 0;
-            navZ = -8.75;
-        } else {
-            navX = 0;
-            navZ = -10.55;
-        }
+        navX = 0;
+        navZ = naSoleira(position, SOLEIRA_FORA) ? SOLEIRA_DENTRO : SOLEIRA_FORA;
     } else if (!targetInsideElevator && npcInsideElevator) {
-        if (Math.abs(position.x) > 0.38 || position.z < -10.35) {
+        if (Math.abs(position.x) > MEIA_PORTA || position.z < -10.35) {
             navX = 0;
             navZ = -10.25;
         } else {
@@ -1160,14 +1233,24 @@ export function stepFloor10Movement(
     const dz = navZ - position.z;
     const distance = Math.hypot(dx, dz);
     const yaw = distance > 0.0001 ? Math.atan2(dx, dz) : 0;
-    if (distance <= 0.08) return { x: position.x, z: position.z, yaw, moving: false };
+    // A MESMA constante que `naSoleira` usa. Eram dois `0.08` independentes, e
+    // é justamente por serem independentes que a faixa morta pôde existir.
+    if (distance <= CHEGADA) return { x: position.x, z: position.z, yaw, moving: false };
 
     const amount = Math.min(distance, Math.max(0, speed * clamp(dt, 0, 0.1)));
-    return {
+    const bruto = {
         x: position.x + (dx / distance) * amount,
         z: position.z + (dz / distance) * amount,
+    };
+    const [x, z] = resolveCollision(bruto.x, bruto.z, RAIO_DO_NILO, PAREDES_DO_10);
+    return {
+        x,
+        z,
         yaw,
-        moving: amount > 0.0001,
+        // `moving` passa a ser o deslocamento REAL, não o pretendido. Encostado
+        // numa parede sem deslizar, ele para a animação de andar em vez de
+        // marchar no lugar — que é a cara de um NPC quebrado.
+        moving: Math.hypot(x - position.x, z - position.z) > 0.0001,
     };
 }
 
