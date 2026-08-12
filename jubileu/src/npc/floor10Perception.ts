@@ -6,6 +6,8 @@
 // marcos conhecidos. O módulo não baixa modelo e custa apenas algumas contas
 // vetoriais; portanto continua ativo mesmo enquanto o cérebro de fala carrega.
 
+import type { F10PrisonState } from './f10Prison';
+
 export type Vec3Like = Readonly<{ x: number; y: number; z: number }>;
 
 export type Floor10Zone =
@@ -44,7 +46,25 @@ export type Floor10VisibleObject =
     | 'grid-floor'
     | 'room-walls'
     | 'elevator-entrance'
-    | 'player';
+    | 'player'
+    // ── OS APARELHOS DA SALA TRANCADA, QUE OS OLHOS NÃO VIAM ─────────────
+    // O andar tem duas placas em cantos opostos e duas alavancas: é o
+    // quebra-cabeça cooperativo inteiro. A percepção não reportava nenhum.
+    | 'device';
+
+/** Um aparelho da prisão, do ponto de vista de quem está olhando para ele. */
+export type Floor10VisibleDevice = {
+    id: string;
+    kind: string;
+    distance: number;
+    direction: RelativeDirection;
+    visible: boolean;
+    /** O Nilo está em cima dele agora. */
+    heldByNpc: boolean;
+    /** O JOGADOR está em cima dele — é este o sinal que pede cooperação. */
+    heldByPlayer: boolean;
+    position: { x: number; z: number };
+};
 
 export type Floor10Perception = {
     source: 'floor10-engine-sensors';
@@ -73,6 +93,25 @@ export type Floor10Perception = {
         direction: RelativeDirection;
     };
     visibleObjects: readonly Floor10VisibleObject[];
+    /**
+     * ── O QUE ELE PODE TOCAR ──────────────────────────────────────────────
+     *
+     * Vazio quando não há prisão. Existe porque a falta dele era um buraco em
+     * cadeia, e cada elo escondia o seguinte:
+     *
+     *  - o MAPA que a vontade lê listava quatro coisas (jogador, elevador,
+     *    duas paredes). Com um mundo desses não dá para querer nada além de
+     *    chegar perto ou recuar — que é exatamente a repetição que o dono do
+     *    jogo relatou desde o começo;
+     *  - o MOTOR tinha os alvos `nearest-device` e `active-device` desde
+     *    sempre, e a vontade nunca podia querê-los, porque não sabia que
+     *    aparelho existia;
+     *  - a REDE de reforço tem as ações `try-device` e `call-player`, e não
+     *    tinha como aprender a usá-las: o estado nunca mostrava um aparelho.
+     *
+     * Três peças prontas, esperando um sentido que ninguém tinha ligado.
+     */
+    devices: readonly Floor10VisibleDevice[];
 };
 
 const FLOOR_BOUNDS = 22;
@@ -177,6 +216,7 @@ const OBJECT_PT: Record<Floor10VisibleObject, string> = {
     'room-walls': 'paredes da sala',
     'elevator-entrance': 'entrada do elevador',
     player: 'jogador',
+    device: 'placas e alavancas no chão',
 };
 
 const OBJECT_EN: Record<Floor10VisibleObject, string> = {
@@ -184,6 +224,7 @@ const OBJECT_EN: Record<Floor10VisibleObject, string> = {
     'room-walls': 'the room walls',
     'elevator-entrance': 'the elevator entrance',
     player: 'you',
+    device: 'plates and levers on the floor',
 };
 
 const OBJECT_ES: Record<Floor10VisibleObject, string> = {
@@ -191,6 +232,7 @@ const OBJECT_ES: Record<Floor10VisibleObject, string> = {
     'room-walls': 'las paredes de la sala',
     'elevator-entrance': 'la entrada del ascensor',
     player: 'a ti',
+    device: 'placas y palancas en el suelo',
 };
 
 function round1(value: number): number {
@@ -264,8 +306,14 @@ export function perceiveFloor10(input: {
     npcPosition: Vec3Like;
     npcYaw: number;
     playerPosition?: Vec3Like | null;
+    /**
+     * A sala trancada, quando existe. OPCIONAL de propósito: o `?campo` e os
+     * testes chamam sem ela, e um NPC que não vê aparelho nenhum tem de
+     * continuar funcionando exatamente como antes.
+     */
+    prison?: F10PrisonState | null;
 }): Floor10Perception {
-    const { npcPosition, npcYaw, playerPosition = null } = input;
+    const { npcPosition, npcYaw, playerPosition = null, prison = null } = input;
     const zone = classifyFloor10Zone(npcPosition);
     const elevatorDistance = round1(distanceXZ(npcPosition, ELEVATOR_ENTRANCE));
     const elevatorDirection = relationFromDelta(
@@ -294,7 +342,29 @@ export function perceiveFloor10(input: {
         }
         : null;
 
+    // ── OS APARELHOS ENTRAM PELA MESMA RÉGUA DOS OUTROS OBJETOS ─────────
+    // Mesma distância, mesma direção relativa, mesmo teste de visão. Eles não
+    // ganham um canal privilegiado: se o elevador precisa estar no campo de
+    // visão para contar, uma placa também precisa.
+    const devices: Floor10VisibleDevice[] = prison
+        ? Object.values(prison.devices).map((d) => {
+            const dx = d.x - npcPosition.x;
+            const dz = d.z - npcPosition.z;
+            return {
+                id: d.id,
+                kind: d.kind,
+                distance: round1(Math.hypot(dx, dz)),
+                direction: relationFromDelta(dx, dz, npcYaw),
+                visible: inViewCone(npcPosition, { x: d.x, y: 0, z: d.z }, npcYaw),
+                heldByNpc: d.heldByNpc,
+                heldByPlayer: d.heldByPlayer,
+                position: { x: d.x, z: d.z },
+            };
+        })
+        : [];
+
     const visibleObjects: Floor10VisibleObject[] = ['grid-floor', 'room-walls'];
+    if (devices.some((d) => d.visible)) visibleObjects.push('device');
     if (elevatorVisible) visibleObjects.push('elevator-entrance');
     if (player?.visible) visibleObjects.push('player');
 
@@ -318,6 +388,7 @@ export function perceiveFloor10(input: {
             direction: elevatorDirection,
         },
         visibleObjects,
+        devices,
     };
 }
 

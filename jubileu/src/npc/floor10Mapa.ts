@@ -108,6 +108,29 @@ export function mapaEmTexto(perception: Floor10Perception, yaw: number): string 
         ? linha('the elevator door', perception.elevator.direction, perception.elevator.distance)
         : `${linha('the elevator door', perception.elevator.direction, perception.elevator.distance)} (out of sight)`);
 
+    // ── OS APARELHOS DA SALA TRANCADA ─────────────────────────────────────
+    //
+    // Sem esta linha o mapa tinha QUATRO coisas: jogador, elevador e duas
+    // paredes. Com um mundo desses não dá para querer nada além de chegar
+    // perto ou recuar — e a repetição que o dono do jogo vê há semanas não é
+    // teimosia do modelo, é a pobreza do que a gente mostra a ele.
+    //
+    // O estado importa tanto quanto a posição: "o jogador está em cima da outra"
+    // é o que transforma um objeto de cenário em um CONVITE. É a única frase do
+    // mapa que pede duas pessoas.
+    // `?? []` NÃO é paranoia: percepções montadas à mão (testes, o `?campo`,
+    // qualquer chamador que antecede este campo) chegam sem `devices`, e um
+    // mapa que estoura derruba a deliberação inteira — o Nilo pararia de pensar
+    // por causa de um campo novo. O mapa degrada, não quebra.
+    for (const d of perception.devices ?? []) {
+        const onde = linha(`the ${d.kind}`, d.direction, d.distance);
+        const estado = d.heldByPlayer && d.heldByNpc ? ' (you are both on it right now)'
+            : d.heldByPlayer ? ' (HE is standing on it right now)'
+                : d.heldByNpc ? ' (you are standing on it)'
+                    : d.visible ? '' : ' (out of sight)';
+        linhas.push(`${onde}${estado}`);
+    }
+
     linhas.push(...paredes(perception, yaw));
 
     // ── O QUE ELE PODE FAZER COM ISSO ─────────────────────────────────────
@@ -117,6 +140,10 @@ export function mapaEmTexto(perception: Floor10Perception, yaw: number): string 
     linhas.push(
         'YOU CAN MOVE: forward, back, to your left, to your right, '
         + 'toward anything above, or away from it. You can also stay put.',
+        ...((perception.devices?.length ?? 0) > 0
+            ? ['YOU CAN ALSO: stand on a plate or pull a lever. '
+               + 'Two of them must be held at the SAME TIME, and you cannot reach two at once.']
+            : []),
     );
     return linhas.join('\n');
 }

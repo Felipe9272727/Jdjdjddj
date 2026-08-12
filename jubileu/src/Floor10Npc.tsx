@@ -183,6 +183,13 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 npcPosition: npcWorld,
                 npcYaw: worldYaw,
                 playerPosition: pp ?? null,
+                // ── SEM ISTO OS OLHOS NOVOS SERIAM CEGOS NO JOGO ──────────
+                // A percepção passou a enxergar as placas e alavancas, mas
+                // quem decide se ela as vê é quem CHAMA: sem a prisão aqui, o
+                // campo chega vazio e tudo continua como antes — mais uma peça
+                // pronta e desligada, que é o defeito que esta base já teve
+                // três vezes.
+                prison: f10prison,
             });
             npcPublishPerception(livePerception);
         }
