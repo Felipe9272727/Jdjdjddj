@@ -23,6 +23,28 @@
 //   A) vetor sozinho
 //   B) vetor + Qwen só quando a margem é apertada  (a ideia dele, literal)
 //   C) vetor restringe a gramática, Qwen sempre escolhe entre os 3
+// ── O RESULTADO DE TRÊS DESEMPATADORES, MEDIDO ───────────────────────────
+//
+// Mesmos sete pensamentos reais, mesma bancada, 4 núcleos:
+//
+//                        B(acerto)  B(ms)   C(acerto)  desempate  memória
+//   nenhum (vetor só) ..... 5/7     ~1.000     —           —         0
+//   Qwen3-0.6B ............ 6/7      4.761    4/7        ~9 s    +639 MB
+//   LFM2.5-350M ........... 5/7      3.873    4/7        ~6 s    +379 MB
+//   LFM2.5-1.2B ........... 5/7      9.392    3/7       ~20 s   +1,25 GB
+//
+// E O DETALHE IMPORTA MAIS QUE O PLACAR:
+//
+// O 350M ECOOU o vetor nos três casos apertados — devolveu o primeiro da
+// lista, que já era a escolha do vetor. Não julga.
+//
+// O 1.2B JULGA, e julga mal: discordou do vetor em 4 casos, consertou 1 e
+// quebrou 3 (`north-side`->`south-side`, `west-side`->`south-side`,
+// `player`->`self`). Piorou o C para 3/7, o pior número desta bancada inteira.
+//
+// CONCLUSÃO: nenhum modelo pequeno julga melhor que o vetor. O Qwen compra
+// UM caso em sete por 639 MB e 3,5 s por rodada — e sete amostras não
+// distinguem 5/7 de 6/7 com confiança nenhuma.
 const diz = (t) => { document.getElementById('saida').textContent += t + '\n'; };
 
 const CASOS = [
