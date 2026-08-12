@@ -35,7 +35,7 @@ export const RAIO_DO_CORPO = PR;
 export const PASSO = 0.06;
 
 /** Chegou perto o bastante do ponto do caminho para mirar o próximo. */
-const ALCANCE_DO_PONTO = CELULA * 0.9;
+export const ALCANCE_DO_PONTO = CELULA * 0.9;
 
 export type Tentativa = {
     /** Ele chegou ao destino? */
@@ -65,6 +65,17 @@ export function irAte(
     de: Ponto,
     ate: Ponto,
     tetoDePassos = 4000,
+    /**
+     * Quão perto do ÚLTIMO ponto conta como chegar. Os pontos do meio do
+     * caminho continuam usando `ALCANCE_DO_PONTO` — são marcos, e apertá-los
+     * só faria o corpo raspar em cada um.
+     *
+     * Existe porque "chegar" nem sempre é a mesma coisa. Andar até uma sala é
+     * uma tolerância; encostar num aparelho cujo raio de acionamento é 0,9 m é
+     * outra — parar 0,45 m antes do alvo, que é o padrão, pode ser a diferença
+     * entre acionar e não acionar. Quem sabe a folga aceitável é quem chamou.
+     */
+    chegadaEm = ALCANCE_DO_PONTO,
 ): Tentativa {
     const plano = caminho(grade, de, ate);
     if (plano.length === 0) {
@@ -93,7 +104,7 @@ export function irAte(
         const dx = p.x - x;
         const dz = p.z - z;
         const d = Math.hypot(dx, dz);
-        if (alvo === plano.length - 1 && d < ALCANCE_DO_PONTO) {
+        if (alvo === plano.length - 1 && d < chegadaEm) {
             return {
                 chegou: true, fim: { x, z },
                 faltou: Math.hypot(ate.x - x, ate.z - z),

@@ -79,7 +79,7 @@ import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
 import { f8StartBoss } from './f8Dev';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE, hasWalkInElevator } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, BED_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE, hasWalkInElevator } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
@@ -1192,8 +1192,7 @@ export default function App() {
       if (gameState !== 'indoor_day' || !canSleep) { setCanSleepNow(false); return; }
       const check = setInterval(() => {
           const p = sharedPlayerPositionRef.current;
-          const BED_X = -2.5, BED_Z = 12.5;
-          const d = Math.sqrt((p.x - BED_X) ** 2 + (p.z - BED_Z) ** 2);
+          const d = Math.sqrt((p.x - BED_POS.x) ** 2 + (p.z - BED_POS.z) ** 2);
           setCanSleepNow(d < BED_INTERACT_DIST);
       }, 200);
       return () => clearInterval(check);

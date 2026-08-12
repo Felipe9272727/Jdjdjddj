@@ -150,6 +150,13 @@ export const BARNEY_CATCH_DIST = 1.2;       // Distance to trigger jumpscare
 export const DOOR_INTERACT_DIST = 3.0;      // Distance to interact with house door
 export const NPC_INTERACT_DIST = 4.0;       // Distance to interact with lobby NPC
 export const BED_INTERACT_DIST = 3.0;       // Distance to interact with bed
+/**
+ * Onde a cama está. Era um literal solto dentro do App (`const BED_X = -2.5,
+ * BED_Z = 12.5`), e o agente-jogador precisa do MESMO número para saber andar
+ * até ela — duas cópias do mesmo ponto é a receita para o agente mirar onde a
+ * cama não está mais.
+ */
+export const BED_POS = { x: -2.5, z: 12.5 } as const;
 export const ELEVATOR_ZONE_X = 3.1;         // Half-width of elevator entrance
 export const ELEVATOR_ZONE_Z = -10;         // Z threshold for elevator interior
 /**
