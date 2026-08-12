@@ -14,6 +14,7 @@
 //   assina a escolha ampla. Uma terceira LLM de 135M traduz as palavras em
 //   movimento executável, sem pedir outro trabalho ao MiniBrain.
 
+import { fraseBase } from './floor10Bolha';
 import { mapaEmTexto } from './floor10Mapa';
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives, Floor10WillGoal } from './floor10Will';
@@ -304,18 +305,16 @@ function extractRationale(raw: string): string {
  * ordem: o reflexo continua livre para ignorá-la se a situação mudou (o jogador
  * chegou perto demais, por exemplo). É uma inclinação que dura um tempo.
  */
-// A intenção deliberada dita como o Nilo diria. A bolha no mundo é do
-// personagem: nenhum rótulo técnico pode vazar para a tela do jogador.
-const DELIBERATION_THOUGHT: Record<DeliberationGoal, string> = {
-    'inspect-elevator': 'preciso olhar aquela porta outra vez…',
-    'wander': 'não consigo ficar parado aqui.',
-    'idle': 'vou ficar quieto um pouco e escutar a sala.',
-    'observe-player': 'quero entender você antes de falar.',
-    'approach-player': 'acho que vou chegar mais perto.',
-    'make-space': 'preciso de um pouco de espaço.',
-    'seek-player': 'para onde foi você?',
-    'talk-player': 'tem algo que eu queria te dizer.',
-};
+// ── UMA TABELA SÓ DE FRASES, E ELA MORA EM floor10Bolha ──────────────────
+//
+// Aqui existia um `DELIBERATION_THOUGHT` com as oito frases — as MESMAS oito
+// que abrem cada lista de `FRASES_DA_META`. Duas tabelas com o mesmo conteúdo
+// em arquivos diferentes: editar uma e esquecer a outra é questão de tempo, e
+// o sintoma seria o pior possível — a bolha mudando de frase conforme o micro
+// esteja carregado ou não, sem ninguém entender por quê.
+//
+// `fraseBase` é a primeira redação de cada meta. Era código morto justamente
+// porque esta duplicata existia.
 
 /**
  * Texto da bolha de pensamento; vazio quando não há nada a mostrar.
@@ -334,7 +333,7 @@ export function deliberationThought(phase: string, goal: string, escrita = ''): 
     if (phase === 'reopening') return 'voltando a pensar…';
     if (phase !== 'decided') return '';
     if (escrita.trim()) return escrita.trim();
-    return DELIBERATION_THOUGHT[goal as DeliberationGoal] ?? 'decidi o que fazer.';
+    return fraseBase(goal);
 }
 
 export const DELIBERATION_BONUS = 0.55;

@@ -154,3 +154,34 @@ describe('floor10Prosa — o plano é sempre válido para o resto do jogo', () =
         expect(p?.duration).toBe(6);
     });
 });
+
+describe('floor10Prosa — o tradutor NÃO é órfão', () => {
+    it('o parser estrito cai na prosa quando recusa a saída', async () => {
+        // ── A ARMADILHA QUE EU MESMO CAÍ ──────────────────────────────────
+        // Este módulo nasceu com 21 testes verdes e NINGUÉM o chamava em
+        // produção. É exatamente o defeito de código morto que eu venho
+        // apontando nesta base desde a tabela de roteamento — cometido por mim,
+        // e descoberto só por uma varredura de exports sem uso.
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../npc/floor10MotorCortex.ts', import.meta.url), 'utf8'));
+        expect(/planoDaProsa\(raw\)/.test(fonte)).toBe(true);
+    });
+
+    it('a saída real que o parser estrito recusava agora vira plano', async () => {
+        const { parseMotorPlan } = await import('../npc/floor10MotorCortex');
+        // Saída REAL do Qwen3 solto, copiada do relatório. `walk` não é
+        // `approach` e `him` não é `player`, então o MOTOR_PATTERN devolvia
+        // null e a leitura certa do modelo ia para o lixo.
+        const p = parseMotorPlan('MOTION: walk | him | slow | 3  \nACT: wave | him');
+        expect(p?.verb).toBe('approach');
+        expect(p?.target).toBe('player');
+    });
+
+    it('e o caminho estrito continua tendo precedência', async () => {
+        const { parseMotorPlan } = await import('../npc/floor10MotorCortex');
+        const p = parseMotorPlan('MOTION: withdraw | elevator | fast | 12');
+        expect(p?.verb).toBe('withdraw');
+        expect(p?.target).toBe('elevator');
+        expect(p?.duration).toBe(12);
+    });
+});

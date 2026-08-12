@@ -1,3 +1,4 @@
+import { planoDaProsa } from './floor10Prosa';
 import type { F10PrisonState } from './f10Prison';
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 
@@ -278,7 +279,24 @@ duration ::= ${FLOOR10_MOTOR_DURATIONS.map((value) => `"${value}"`).join(' | ')}
 export function parseMotorPlan(raw: string): Floor10MotorPlan | null {
     const matches = [...raw.matchAll(MOTOR_PATTERN)];
     const match = matches.at(-1);
-    if (!match) return null;
+    // ── QUANDO O ESTRITO RECUSA, A PROSA SALVA ────────────────────────────
+    //
+    // `MOTOR_PATTERN` exige as palavras do enum exatas. Solto da gramática, o
+    // modelo escreve natural — medido, saída real do Qwen3:
+    //
+    //     MOTION: walk | him | slow | 3
+    //
+    // Leitura PERFEITA de "I walk right up to him", recusada pelo parser
+    // porque `walk` não é `approach` e `him` não é `player`. O tradutor de
+    // prosa (floor10Prosa) faz esse mapeamento e é testado contra saídas reais
+    // — mas estava ÓRFÃO: 21 testes verdes e ninguém o chamava. Exatamente a
+    // armadilha de código morto que eu venho apontando nesta base, agora
+    // cometida por mim.
+    //
+    // O import é adiado (`await import`) não daria: esta função é síncrona.
+    // Como `floor10Prosa` importa só TIPOS deste arquivo, não há ciclo em
+    // tempo de execução.
+    if (!match) return planoDaProsa(raw);
     const duration = Number(match[4]);
     if (!(FLOOR10_MOTOR_DURATIONS as readonly number[]).includes(duration)) return null;
     // A meta vem ANTES do MOTION na gramática; sem ela (respostas antigas, ou
