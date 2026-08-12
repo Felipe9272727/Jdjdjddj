@@ -308,7 +308,13 @@ const Floor10Campo: React.FC = () => {
                 drives: { social: 0.6, curiosity: 0.7, restlessness: 0.5, fatigue: 0.2 },
                 memory: {
                     inspectedElevatorCount: 1, sleeps: 0, playerSilentSeconds: 20,
-                    lastGoals: historico.slice(0, 3).map((r) => r.meta),
+                    // ── A ORDEM É CRONOLÓGICA, E ESTAVA INVERTIDA ─────
+                    // `historico` é do mais NOVO para o mais velho (a lista da
+                    // tela). O prompt escreve `RECENT ACTIONS: a -> b -> c`,
+                    // que se lê como uma sequência no tempo — então mandar a
+                    // lista crua contava a história de trás para frente. No
+                    // jogo o mesmo campo já vinha em ordem (`slice(-3)`).
+                    lastGoals: historico.slice(0, 3).map((r) => r.meta).reverse(),
                     // O QUE DEU. Sem estas duas linhas o modelo relê as próprias
                     // ações sem nunca saber se funcionaram.
                     outcomes: memoria.current.linhas(),

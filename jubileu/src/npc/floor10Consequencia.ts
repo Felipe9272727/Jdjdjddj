@@ -159,6 +159,50 @@ export function avisoDeInsistencia(
     return `"${ultimas[0].meta}" has failed twice in a row. Choose something else this time.`;
 }
 
+/** A partir de quantas repetições seguidas ele se cansa. */
+export const REPETICOES_ATE_ENJOAR = 3;
+
+/**
+ * ── O TÉDIO NÃO PRECISA DE FRACASSO ───────────────────────────────────────
+ *
+ * `avisoDeInsistencia` só fala quando a mesma meta FALHOU duas vezes seguidas:
+ *
+ *     if (ultimas.some((r) => r.resultado !== 'ignorado')) return null;
+ *
+ * Só que o defeito que o dono do jogo relatou desde o começo — "ele só fica
+ * rondando de um lado pro outro" — acontece com a meta DANDO CERTO. Ele se
+ * aproxima do jogador, o jogador reage, e ele se aproxima de novo. Nada nesse
+ * histórico é uma falha, e por isso nada avisava.
+ *
+ * Uma pessoa não repete a mesma coisa cinco vezes porque funcionou; ela enjoa.
+ * Este aviso é o enjoo, e ele não olha resultado nenhum: só quantas vezes
+ * seguidas a mesma intenção apareceu.
+ *
+ * Não é proibição. O prompt continua livre — se ele tiver um motivo forte para
+ * insistir, insiste. É a diferença entre um NPC teimoso e um NPC travado.
+ */
+export function avisoDeSaciedade(
+    historico: readonly RegistroDeConsequencia[],
+    quantas = REPETICOES_ATE_ENJOAR,
+): string | null {
+    if (historico.length < quantas) return null;
+    const ultimas = historico.slice(-quantas);
+    const meta = ultimas[0]?.meta;
+    if (!meta || ultimas.some((r) => r.meta !== meta)) return null;
+    return `You have done "${meta}" ${quantas} times in a row. `
+        + 'You are sick of it — do something different this time, even something small.';
+}
+
+/**
+ * O aviso que vai ao prompt: o enjoo manda quando os dois valem, porque
+ * repetir POR TÉDIO é o caso comum e o texto dele já cobre o outro.
+ */
+export function avisoDoHistorico(
+    historico: readonly RegistroDeConsequencia[],
+): string | null {
+    return avisoDeSaciedade(historico) ?? avisoDeInsistencia(historico);
+}
+
 /**
  * Guarda os resultados. Fica fora do módulo de deliberação de propósito: quem
  * OBSERVA o mundo é a tela do andar, e quem decide é o cérebro — misturar os
@@ -191,7 +235,7 @@ export class MemoriaDeConsequencia {
 
     linhas(): string[] { return linhasDeConsequencia(this.registros); }
 
-    aviso(): string | null { return avisoDeInsistencia(this.registros); }
+    aviso(): string | null { return avisoDoHistorico(this.registros); }
 
     limpar(): void { this.registros.length = 0; }
 }

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+    avisoDeSaciedade,
+    avisoDoHistorico,
     MemoriaDeConsequencia, avaliarConsequencia, avisoDeInsistencia,
     linhasDeConsequencia, type MundoObservado,
 } from '../npc/floor10Consequencia';
@@ -220,5 +222,97 @@ describe('a memória está LIGADA nos dois lugares que decidem', () => {
         // As respostas do Nilo não são atenção recebida; contá-las faria toda
         // aproximação parecer bem-sucedida.
         expect(jogo).toContain("m.role === 'user'");
+    });
+});
+
+describe('floor10Consequencia — o tédio não precisa de fracasso', () => {
+    const reg = (meta: string, resultado: string, em: number) =>
+        ({ meta, resultado, em } as never);
+
+    it('AVISA quando a mesma meta se repete, mesmo DANDO CERTO', () => {
+        // ── O DEFEITO ORIGINAL, O QUE ATRAVESSOU TUDO ─────────────────────
+        // "ele só fica rondando de um lado pro outro". O aviso antigo exigia
+        // que a meta tivesse FALHADO duas vezes. Só que a repetição que quem
+        // joga vê acontece com a meta dando certo: ele se aproxima, o jogador
+        // reage, e ele se aproxima de novo. Nada ali é falha, e nada avisava.
+        const aviso = avisoDeSaciedade([
+            reg('approach-player', 'atendido', 1),
+            reg('approach-player', 'atendido', 2),
+            reg('approach-player', 'atendido', 3),
+        ]);
+        expect(aviso).toContain('approach-player');
+        expect(aviso).toContain('3 times in a row');
+    });
+
+    it('e também quando o resultado é indefinido', () => {
+        // `indefinido` é o caso mais comum de todos, e o aviso antigo FILTRAVA
+        // esses registros fora antes de olhar — então a repetição mais frequente
+        // era justamente a invisível.
+        expect(avisoDeSaciedade([
+            reg('wander', 'indefinido', 1),
+            reg('wander', 'indefinido', 2),
+            reg('wander', 'indefinido', 3),
+        ])).toContain('wander');
+    });
+
+    it('NÃO avisa quando ele está variando', () => {
+        expect(avisoDeSaciedade([
+            reg('approach-player', 'atendido', 1),
+            reg('inspect-elevator', 'atendido', 2),
+            reg('approach-player', 'atendido', 3),
+        ])).toBeNull();
+    });
+
+    it('não avisa antes de haver repetição suficiente', () => {
+        expect(avisoDeSaciedade([
+            reg('approach-player', 'atendido', 1),
+            reg('approach-player', 'atendido', 2),
+        ])).toBeNull();
+        expect(avisoDeSaciedade([])).toBeNull();
+    });
+
+    it('o enjoo manda sobre a insistência quando os dois valem', () => {
+        // Repetir por tédio é o caso comum, e o texto dele já cobre o outro:
+        // "faça algo diferente" serve tanto para quem falhou quanto para quem
+        // acertou três vezes.
+        const tresFalhas = [
+            reg('approach-player', 'ignorado', 1),
+            reg('approach-player', 'ignorado', 2),
+            reg('approach-player', 'ignorado', 3),
+        ];
+        expect(avisoDoHistorico(tresFalhas)).toContain('sick of it');
+    });
+
+    it('a insistência continua valendo sozinha, com duas falhas', () => {
+        // Duas falhas seguidas ainda não são tédio (o corte é três), mas já são
+        // teimosia visível — e esse aviso não pode ter sumido na troca.
+        const duasFalhas = [
+            reg('approach-player', 'ignorado', 1),
+            reg('approach-player', 'ignorado', 2),
+        ];
+        expect(avisoDoHistorico(duasFalhas)).toContain('failed twice in a row');
+    });
+});
+
+describe('floor10Consequencia — o aviso CHEGA ao prompt', () => {
+    it('a memória usa o aviso de tédio, não só o de fracasso', () => {
+        // ── POR QUE ESTE TESTE EXISTE SEPARADO ────────────────────────────
+        // Os testes acima exercitam as funções puras. Eles passam mesmo que
+        // `MemoriaDeConsequencia.aviso()` continue chamando o aviso ANTIGO — e
+        // é `aviso()` que o prompt lê (`stopRepeating`). Ou seja: sem este
+        // teste, o conserto podia estar perfeito e desligado.
+        const m = new MemoriaDeConsequencia();
+        m.anotar('approach-player', 'atendido', 1);
+        m.anotar('approach-player', 'atendido', 2);
+        m.anotar('approach-player', 'atendido', 3);
+        expect(m.aviso()).toContain('sick of it');
+    });
+
+    it('sem repetição, a memória não inventa aviso', () => {
+        const m = new MemoriaDeConsequencia();
+        m.anotar('approach-player', 'atendido', 1);
+        m.anotar('wander', 'atendido', 2);
+        m.anotar('inspect-elevator', 'atendido', 3);
+        expect(m.aviso()).toBeNull();
     });
 });
