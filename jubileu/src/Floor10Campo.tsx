@@ -67,6 +67,8 @@ const Floor10Campo: React.FC = () => {
     const jogador = useRef({ x: -6, z: 6 });
     const plano = useRef<Floor10MotorPlan | null>(null);
     const planoAte = useRef(0);
+    /** Metros percorridos desde a ordem atual. Zera a cada plano novo. */
+    const andado = useRef(0);
     const [historico, setHistorico] = useState<Registro[]>([]);
     // ── A MEMÓRIA DE CONSEQUÊNCIA ─────────────────────────────────────────
     // Aqui ela é fácil de julgar à mão: arraste-se para PERTO do Nilo depois de
@@ -219,12 +221,26 @@ const Floor10Campo: React.FC = () => {
             const p = plano.current;
             const expirou = p?.verb === 'orbit' && agora / 1000 >= planoAte.current;
             const alvoAtivo = expirou ? null : p;
+            const antesX = corpo.current.x;
+            const antesZ = corpo.current.z;
             passoDoPlano(corpo.current, alvoAtivo, {
                 jogador: jogador.current,
                 elevador: ELEVADOR,
                 limite: LIMITE,
                 dt,
             });
+            // ── QUANTO ELE ANDOU DESDE A ÚLTIMA ORDEM ─────────────────────
+            //
+            // "o Nilo não anda realmente, ele simplesmente fica parado" — e eu
+            // não tinha como saber ONDE isso morria: a ordem não chegou, o
+            // verbo virou `stay`, o alvo virou `self`, ou ele chegou ao destino
+            // em dois segundos e o resto é espera legítima?
+            //
+            // Este número separa os quatro casos sem depender de palpite meu.
+            andado.current += Math.hypot(
+                corpo.current.x - antesX,
+                corpo.current.z - antesZ,
+            );
             desenhar();
             requestAnimationFrame(quadro);
         };
@@ -306,6 +322,7 @@ const Floor10Campo: React.FC = () => {
             // ainda estão subindo —, a meta sozinha já dá o destino. O plano do
             // tradutor apenas REFINA (ritmo, duração); a direção vem da meta.
             plano.current = d.motion ?? planoDaMeta(d.goal);
+            andado.current = 0;
             // A duração do plano é do próprio plano: é ela que decide por
             // quanto tempo o corpo obedece antes de voltar a esperar ordem.
             planoAte.current = performance.now() / 1000 + (d.motion?.duration ?? 4);
@@ -445,6 +462,18 @@ const Floor10Campo: React.FC = () => {
                 {Math.hypot(nilo.x - voce.x, nilo.z - voce.z).toFixed(1)}m
                 {' · '}
                 {emMovimento ? 'andando' : 'parado'}
+                {/* ── ONDE O MOVIMENTO MORRE ───────────────────────────────
+                    "o Nilo não anda realmente, ele simplesmente fica parado" —
+                    e eu não tinha como saber QUAL dos quatro casos era: a ordem
+                    não chegou (plano vazio), o verbo virou `stay`, o alvo virou
+                    `self`, ou ele chegou ao destino em dois segundos e o resto
+                    é espera legítima. Esta linha separa os quatro. */}
+                <div style={{ opacity: 0.75 }}>
+                    ordem: {plano.current
+                        ? `${plano.current.verb} ${plano.current.target} `
+                          + `(${plano.current.pace}) · andou ${andado.current.toFixed(1)}m`
+                        : 'NENHUMA — o corpo não recebeu plano'}
+                </div>
             </div>
             <p style={{ opacity: 0.7, margin: '6px 0 10px' }}>
                 arraste na sala para mover <b style={{ color: '#a8bcf0' }}>você</b>;

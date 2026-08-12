@@ -161,6 +161,8 @@ function duracaoDoTexto(texto: string): Floor10MotorDuration {
 export function planoDoVetor(
     alvo: Floor10MotorTarget,
     pensamento: string,
+    /** Identifica ESTA rodada. Ver a nota sobre `raw` no corpo da função. */
+    selo: number = Date.now(),
 ): Floor10MotorPlan {
     // `stay` quando o alvo é o próprio corpo: "aproximar-se de si mesmo" faria
     // o passo calcular um destino igual à posição e o corpo tremer no lugar.
@@ -172,6 +174,18 @@ export function planoDoVetor(
         target: alvo,
         pace: ritmoDoTexto(pensamento),
         duration: duracaoDoTexto(pensamento),
-        raw: `vetor: ${verbo} | ${alvo}`,
+        // ── O `raw` PRECISA SER ÚNICO POR RODADA ──────────────────────────
+        //
+        // `floor10Passo` usa o `raw` como identidade do plano para travar o
+        // destino dos alvos RELATIVOS: `to-my-left` vira uma coordenada fixa na
+        // primeira vez que aquele plano aparece, e só é recalculada quando
+        // chega um plano DIFERENTE.
+        //
+        // Sem o selo, duas rodadas seguidas que dessem `approach | to-my-left`
+        // produziriam o mesmo `raw` — e o corpo, já tendo chegado ao destino
+        // travado, ficaria PARADO na segunda, achando que a ordem era a mesma
+        // que ele já cumpriu. "Cinco passos à esquerda" duas vezes tem de andar
+        // dez, não cinco.
+        raw: `vetor#${selo}: ${verbo} | ${alvo}`,
     };
 }

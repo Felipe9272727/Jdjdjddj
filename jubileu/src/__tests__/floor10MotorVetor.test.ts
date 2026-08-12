@@ -176,3 +176,47 @@ describe('?campo — o vetor tem download próprio', () => {
         expect(/testarFrase/.test(fonte)).toBe(true);
     });
 });
+
+describe('floor10MotorVetor — a ordem repetida tem de andar de novo', () => {
+    it('duas rodadas iguais NÃO produzem o mesmo `raw`', () => {
+        // `floor10Passo` usa o `raw` como identidade do plano para travar o
+        // destino dos alvos RELATIVOS. Com `raw` igual, o corpo — já tendo
+        // chegado ao destino travado — ficava PARADO na segunda rodada,
+        // achando que era a mesma ordem que ele já cumpriu.
+        //
+        // "Cinco passos à esquerda" duas vezes tem de andar dez, não cinco.
+        const a = planoDoVetor('to-my-left', 'I step left.', 1);
+        const b = planoDoVetor('to-my-left', 'I step left.', 2);
+        expect(a.raw).not.toBe(b.raw);
+        // Mas o resto do plano continua igual: só a identidade muda.
+        expect(a.target).toBe(b.target);
+        expect(a.verb).toBe(b.verb);
+    });
+
+    it('o corpo ANDA de novo quando a mesma ordem volta', async () => {
+        const { passoDoPlano } = await import('../npc/floor10Passo');
+        const mundo = {
+            jogador: { x: -6, z: 6 }, elevador: { x: 0, z: -10 },
+            limite: 22, dt: 1 / 60,
+        };
+        const corpo = { x: 0, z: 0, yaw: 0 };
+        const andar = (selo: number) => {
+            const antes = { x: corpo.x, z: corpo.z };
+            const plano = planoDoVetor('to-my-left', 'I step left.', selo);
+            for (let i = 0; i < 600; i += 1) passoDoPlano(corpo, plano, mundo);
+            return Math.hypot(corpo.x - antes.x, corpo.z - antes.z);
+        };
+        expect(andar(1)).toBeGreaterThan(0.5);
+        // A segunda ordem, idêntica, tem de mover o corpo outra vez.
+        expect(andar(2)).toBeGreaterThan(0.5);
+    });
+});
+
+describe('?campo — a tela diz ONDE o movimento morre', () => {
+    it('mostra a ordem em vigor e os metros andados', async () => {
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8'));
+        expect(fonte).toContain('NENHUMA — o corpo não recebeu plano');
+        expect(/andado\.current/.test(fonte)).toBe(true);
+    });
+});
