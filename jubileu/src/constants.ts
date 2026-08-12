@@ -231,6 +231,16 @@ const FLOOR3_BND: number[][] = [
 
 // Platform definitions for the Floor 3 obby.
 // cx/cz = center, hw/hd = half-extents in XZ, topY = player foot level, h = visual height.
+// ── A FÍSICA DO PULO ──────────────────────────────────────────────────────
+//
+// Estavam soltos dentro do `useFrame` do Player.tsx. Saíram para cá porque o
+// agente-jogador precisa RESPONDER "eu alcanço aquela plataforma?", e a única
+// resposta honesta é a que usa os mesmos dois números que o corpo usa. Um
+// agente com uma cópia dessas constantes acerta hoje e mente no dia em que
+// alguém afinar o pulo.
+export const F3_GRAVITY = 22;
+export const F3_JUMP = 9.5;
+
 export interface F3Platform {
     cx: number; cz: number;
     hw: number; hd: number;

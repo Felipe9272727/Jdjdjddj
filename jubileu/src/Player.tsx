@@ -3,7 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, hasWalkInElevator } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, F3_GRAVITY, F3_JUMP, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, hasWalkInElevator } from './constants';
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
@@ -797,8 +797,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         } else if (currentLevel === 3) {
             // ── Floor 3 platform physics ──────────────────────────────────
             // 1. Apply gravity and integrate Y every frame.
-            const F3_GRAVITY = 22;
-            const F3_JUMP    = 9.5;
             jumpVelYRef.current -= F3_GRAVITY * safeDt;
             pos.current.y += jumpVelYRef.current * safeDt;
 
