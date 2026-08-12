@@ -47,7 +47,29 @@ const MINIMO_UTIL = 24;
 
 const pausados = new Map<DonoPausado, PensamentoPausado>();
 
-/** Guarda o que já foi pensado. Texto curto demais é descartado na hora. */
+/**
+ * Guarda o que já foi pensado. Texto curto demais não é guardado.
+ *
+ * ── SALVAR NUNCA PODE PIORAR O QUE JÁ ESTAVA SALVO ───────────────────────
+ *
+ * Aqui havia um `pausados.delete(dono)` no ramo do texto curto: uma tentativa
+ * de salvar ruído APAGAVA o pensamento bom que já estava guardado. E há dois
+ * lugares salvando a mesma pausa, um logo depois do outro:
+ *
+ *   floor10SmallBrain:365 — no `abortDeliberation`, com `deliberationLive`,
+ *                           que a loja publica a cada 150 ms
+ *   floor10SmallBrain:1222 — no `finally` da rodada, com o `texto` local
+ *
+ * Se o segundo chegasse com menos de 24 caracteres — outra rodada, ou uma que
+ * mal começou — ele deletava o que o primeiro tinha salvo direito. O sintoma
+ * era `floor10Retomada` falhando de vez em quando sob carga, com o teste
+ * cobrando `pensamentoPausado('vontade')` não-nulo: intermitente, porque
+ * dependia de qual das duas chamadas chegava por último e com o quê.
+ *
+ * "PAUSOU, NÃO PERDEU" é a promessa da funcionalidade inteira; deixar uma
+ * gravação ruim destruir uma boa é o contrário disso. Quem quer descartar de
+ * propósito tem `descartarPensamento`, que existe exatamente para isso.
+ */
 export function pausarPensamento(
     dono: DonoPausado,
     parcial: string,
@@ -55,8 +77,12 @@ export function pausarPensamento(
     agora = Date.now(),
 ): boolean {
     const limpo = parcial.trim();
-    if (limpo.length < MINIMO_UTIL) {
-        pausados.delete(dono);
+    if (limpo.length < MINIMO_UTIL) return false;
+    // Nem um texto VÁLIDO porém mais curto derruba um mais longo: entre duas
+    // gravações da mesma pausa, a que tem mais raciocínio é a que serve.
+    const antigo = pausados.get(dono);
+    if (antigo && antigo.parcial.length > limpo.length
+        && agora - antigo.em <= JANELA_RETOMADA_MS) {
         return false;
     }
     pausados.set(dono, { parcial: limpo, tokens, em: agora });

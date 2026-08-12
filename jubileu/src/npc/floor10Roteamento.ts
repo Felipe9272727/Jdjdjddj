@@ -135,6 +135,13 @@ export type EstadoDoCerebro = 'ausente' | 'baixando' | 'no-aparelho' | 'de-pe';
  */
 export type Cerebro = 'fala' | 'memoria' | 'vontade' | 'motor';
 
+/**
+ * TODOS os cérebros que podem estar ocupando memória. Não é decoração do tipo:
+ * é a lista sobre a qual o complemento é calculado, e foi a falta dela que
+ * deixou 639 MB residentes (ver `quemDevoDesligar`).
+ */
+export const CEREBROS: readonly Cerebro[] = ['fala', 'memoria', 'vontade', 'motor'];
+
 export function quemDevoLigar(noChat: boolean): readonly Cerebro[] {
     // ── A MEMÓRIA FICA DOS DOIS LADOS, E O MOTOR SAIU ─────────────────────
     //
@@ -177,9 +184,28 @@ export function quemDevoDesligar(noChat: boolean): readonly Cerebro[] {
     // ligar — o modelo subiria e cairia a cada abertura de chat, que é a
     // definição do lag que esta tabela existe para evitar.
     //
-    // Quem fica de pé nos dois lados não é desligado nunca.
+    // ── E O COMPLEMENTO PRECISA SER SOBRE TUDO, NÃO SOBRE O OUTRO GRUPO ──
+    //
+    // Aqui estava `quemDevoLigar(!noChat).filter(...)`: "o outro grupo, menos a
+    // interseção". Enquanto todo cérebro estava em algum dos dois grupos, isso
+    // dava no mesmo. Só que o MOTOR Qwen3 saiu da tabela quando o vetor assumiu
+    // a classificação — e sair da tabela do LIGAR significou sair também da
+    // conta do DESLIGAR. Ele não estava em grupo nenhum, então nunca era
+    // devolvido por esta função, e ninguém o descarregava.
+    //
+    // O efeito é o defeito que esta tabela existe para matar, de volta: o
+    // jogador passeia, a vontade pede um desempate, o motor de 639 MB sobe e
+    // fica residente; ele abre o chat e a FALA sobe por cima dele. "Laga tudo".
+    //
+    // O `Floor10NpcChat` até registrava `motor: () => unloadFloor10MotorBrain()`
+    // nas manobras — a função certa, escrita, e nunca invocada, porque o laço só
+    // percorre o que ESTA função devolve. Callback registrado que nunca é
+    // chamado é pior que callback ausente: parece coberto.
+    //
+    // Desligar é agora o complemento sobre `CEREBROS`. Quem não está escalado
+    // para ficar de pé, cai — inclusive quem ninguém lembrou de escalar.
     const ficam = quemDevoLigar(noChat);
-    return quemDevoLigar(!noChat).filter((c) => !ficam.includes(c));
+    return CEREBROS.filter((c) => !ficam.includes(c));
 }
 
 /** Como devolver a memória de cada cérebro. Só quem está na tabela é desligado. */

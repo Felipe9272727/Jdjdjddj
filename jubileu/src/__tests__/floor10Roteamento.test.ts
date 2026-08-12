@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
-    baixarSemSubir, desligarQuemNaoEDaVez, quemDevoDesligar, quemDevoLigar,
+    CEREBROS, baixarSemSubir, desligarQuemNaoEDaVez, quemDevoDesligar, quemDevoLigar,
 } from '../npc/floor10Roteamento';
 
 describe('baixar não é ligar', () => {
@@ -89,12 +89,28 @@ describe('o roteamento que o dono do jogo desenhou', () => {
         // pensamento contra as redações de movimento), então fica de pé nos
         // dois lados — e desligá-la ao abrir o chat a faria subir e cair a cada
         // abertura, que é exatamente o lag que esta tabela existe para evitar.
-        expect(quemDevoDesligar(true)).toEqual(['vontade']);
+        // ── E O MOTOR SAI JUNTO ───────────────────────────────────────
+        // Este teste dizia `['vontade']`, e era o bug escrito como asserção. O
+        // complemento era calculado sobre o OUTRO GRUPO, não sobre todos os
+        // cérebros; o motor Qwen3 tinha saído da tabela do LIGAR quando o vetor
+        // assumiu, e sair de lá o tirou também da conta do DESLIGAR. Ele podia
+        // subir em campo (a vontade pede desempate) e nunca mais descia.
+        expect(quemDevoDesligar(true)).toEqual(['vontade', 'motor']);
     });
 
-    it('fora do chat: vontade e memória de pé, só a fala sai', () => {
+    it('fora do chat: vontade e memória de pé, saem a fala e o motor', () => {
         expect(quemDevoLigar(false)).toEqual(['vontade', 'memoria']);
-        expect(quemDevoDesligar(false)).toEqual(['fala']);
+        expect(quemDevoDesligar(false)).toEqual(['fala', 'motor']);
+    });
+
+    it('TODO cérebro está escalado ou desligado — nenhum fica no limbo', () => {
+        // A regra que impede o bug de voltar por outra porta: se alguém
+        // acrescentar um cérebro novo e esquecer de pô-lo na tabela do LIGAR,
+        // ele cai no DESLIGAR em vez de ficar residente para sempre.
+        for (const noChat of [true, false]) {
+            const vistos = [...quemDevoLigar(noChat), ...quemDevoDesligar(noChat)].sort();
+            expect(vistos).toEqual([...CEREBROS].sort());
+        }
     });
 
     it('O MOTOR SAIU DA TABELA — o vetor faz o trabalho dele', () => {
@@ -102,9 +118,12 @@ describe('o roteamento que o dono do jogo desenhou', () => {
         // famílias: só o vetor 5/7 (~1 s, 0 MB); Qwen3-0.6B 6/7 (4,8 s,
         // +639 MB); LFM2.5-350M 5/7 ecoando o vetor; LFM2.5-1.2B 5/7 julgando
         // mal (quebrou 3, consertou 1). Um caso em sete não vale 639 MB.
+        // Ele não é LIGADO em lado nenhum — é isso que a medição comprou.
+        // Mas continua sendo DESLIGADO nos dois, que é coisa diferente: sair da
+        // escala não pode significar sair da faxina.
         for (const noChat of [true, false]) {
             expect(quemDevoLigar(noChat)).not.toContain('motor');
-            expect(quemDevoDesligar(noChat)).not.toContain('motor');
+            expect(quemDevoDesligar(noChat)).toContain('motor');
         }
     });
 
@@ -146,8 +165,10 @@ describe('a tabela vira ação: desligarQuemNaoEDaVez', () => {
             vontade: async () => { saiu.push('vontade'); },
             motor: async () => { saiu.push('motor'); },
         });
-        expect(saiu).toEqual(['vontade']);
-        expect(chamados).toEqual(['vontade']);
+        // O título deste teste já dizia "e o motor" enquanto a asserção provava
+        // o contrário. Título e asserção discordando é um bug com aviso prévio.
+        expect(saiu).toEqual(['vontade', 'motor']);
+        expect(chamados).toEqual(['vontade', 'motor']);
     });
 
     it('fora do chat, desliga a fala e a memória', async () => {
@@ -158,7 +179,7 @@ describe('a tabela vira ação: desligarQuemNaoEDaVez', () => {
             vontade: async () => { saiu.push('vontade'); },
             motor: async () => { saiu.push('motor'); },
         });
-        expect(saiu).toEqual(['fala']);
+        expect(saiu).toEqual(['fala', 'motor']);
     });
 
     it('um cérebro que se recusa a sair não derruba a chamada', async () => {

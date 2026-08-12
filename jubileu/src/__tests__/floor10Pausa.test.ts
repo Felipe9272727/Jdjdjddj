@@ -87,3 +87,45 @@ describe('emendarPensamento — a retomada não pode sair gaguejando', () => {
         expect(emendarPensamento('só a base', '')).toBe('só a base');
     });
 });
+
+describe('salvar nunca piora o que já estava salvo', () => {
+    // ── A CORRIDA QUE FAZIA `floor10Retomada` PISCAR ──────────────────────
+    //
+    // Dois lugares salvam a MESMA pausa, um logo após o outro: o
+    // `abortDeliberation` (com `deliberationLive`, publicado a cada 150 ms) e o
+    // `finally` da rodada (com o `texto` local). Havia um `delete` no ramo do
+    // texto curto, então a segunda chamada — se chegasse com ruído — apagava o
+    // pensamento bom que a primeira tinha guardado.
+    //
+    // O sintoma era um teste falhando sob carga e passando isolado: exatamente
+    // o tipo de coisa que se chama de "flake" e se ignora. Não era.
+    beforeEach(() => limparPausas());
+
+    it('uma gravação curta não apaga a boa que já estava lá', () => {
+        expect(pausarPensamento('vontade', 'o jogador está parado perto da porta há um tempo', 40)).toBe(true);
+        expect(pausarPensamento('vontade', 'oi', 1)).toBe(false);
+        expect(pensamentoPausado('vontade')?.parcial).toContain('jogador está parado');
+    });
+
+    it('uma gravação válida porém MAIS CURTA também não derruba a mais longa', () => {
+        const longo = 'ele se aproximou da placa oeste e ficou olhando para mim sem dizer nada';
+        expect(pausarPensamento('vontade', longo, 60)).toBe(true);
+        expect(pausarPensamento('vontade', 'ele se aproximou da placa', 12)).toBe(false);
+        expect(pensamentoPausado('vontade')?.parcial).toBe(longo);
+    });
+
+    it('mas uma gravação MAIOR substitui — a rodada continuou pensando', () => {
+        expect(pausarPensamento('vontade', 'ele se aproximou da placa', 12)).toBe(true);
+        const maior = 'ele se aproximou da placa oeste e ficou olhando para mim';
+        expect(pausarPensamento('vontade', maior, 30)).toBe(true);
+        expect(pensamentoPausado('vontade')?.parcial).toBe(maior);
+    });
+
+    it('descartar de propósito continua funcionando — é o que tem essa função', () => {
+        // O `delete` que saiu do `pausarPensamento` era redundante: quem quer
+        // esquecer chama `descartarPensamento`, que existe para isso.
+        pausarPensamento('vontade', 'o jogador está parado perto da porta há um tempo', 40);
+        descartarPensamento('vontade');
+        expect(pensamentoPausado('vontade')).toBeNull();
+    });
+});
