@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { wallsForState, PR } from '../constants';
-import { construirGrade, caminho, livreEm, paraCelula } from '../agente/agenteMapa';
+import {
+    construirGrade, livreEm, maisLonge, paraCelula,
+} from '../agente/agenteMapa';
 import { RAIO_DO_CORPO, irAte } from '../agente/agenteAndar';
 
 const LIMITES = { minX: -26, maxX: 26, minZ: -26, maxZ: 26 };
@@ -11,43 +13,58 @@ describe('o agente-jogador anda em QUALQUER andar', () => {
     //   "Eles tem que funcionar até em andares futuros"
     // Por isso o teste varre os andares REAIS pelo número, sem saber nada sobre
     // nenhum deles: o que descreve todos é `wallsForState`.
-    // ── O QUE FOI MEDIDO, E NÃO O QUE EU ESPERAVA ────────────────────────
+    // ── O QUE FOI MEDIDO, DEPOIS DE EU ERRAR A LEITURA UMA VEZ ───────────
     //
-    // Seis andares o agente atravessa a pé, do cab até o meio da sala, sem uma
-    // linha de código específica de andar. Três NÃO — e isso não é defeito do
-    // agente, é limite do vocabulário dele:
+    // Primeira versão deste teste dizia que o Andar 8 "é de plataforma, o meio
+    // é vão, exige pular". Errado: eu li `f8Platformer.test.ts` no nome de um
+    // arquivo e supus. Medindo o alcance real a partir do cab:
     //
-    //     andar 7 ... os dois pontos livres, nenhum caminho entre eles
-    //     andar 9 ... idem
-    //     andar 8 ... o CENTRO é bloqueado (é um andar de plataforma: o meio
-    //                 da sala é vão, e atravessar exige PULAR)
+    //     andar 8 ... alcança 77 pontos da amostra, até 10,9 m — inclusive
+    //                 (-1,8, -0,8), colado no centro. O que bloqueia o (0,0)
+    //                 exato é MOBÍLIA (`F8_FURNITURE`), e o agente contorna.
+    //     andar 7 ... alcança 3 pontos, no máximo 1,5 m
+    //     andar 9 ... alcança 25 pontos, no máximo 4,0 m
     //
-    // Andar não basta para jogar este jogo. Está aqui como número, e não como
-    // promessa, porque é ele que diz o que falta construir.
-    const A_PE = [0, 2, 3, 5, 6, 10];
-    const PRECISAM_DE_MAIS = [7, 8, 9];
+    // Nos 7 e 9 ele fica preso na área do cab — o ponto de partida que escolhi
+    // não está na área jogável desses andares. Isso é limite do MEU teste, não
+    // do agente, e a diferença importa: um manda consertar o agente, o outro
+    // manda descobrir por onde se entra naquele andar.
+    //
+    // Por isso o alvo aqui deixou de ser "o meio da sala" (que eu chutei) e
+    // passou a ser DERIVADO: o ponto alcançável mais distante. Se o agente
+    // consegue chegar a algum lugar longe do cab, ele sabe andar naquele andar.
+    const CAB = { x: 0, z: -11.5 };
 
-    for (const nivel of A_PE) {
-        it(`andar ${nivel}: atravessa a pé, do cab ao meio da sala`, () => {
+    // O ponto alcançável mais distante do cab. Uma inundação, não mil A*.
+    // Isto morava AQUI dentro, como função do teste. Uma primitiva de percepção
+    // presa no teste é uma que o jogo não pode usar — e o agente precisa
+    // exatamente dela para responder "e agora?" num andar que não conhece.
+    // Mudou para `agenteMapa.maisLonge`; o teste agora usa a mesma que o jogo.
+    const maisLongeQueEleAlcanca = (g: ReturnType<typeof grade>) => maisLonge(g, CAB);
+
+    for (const nivel of [0, 2, 3, 5, 6, 8, 10]) {
+        it(`andar ${nivel}: sai do cab e atravessa a área jogável`, () => {
             const paredes = wallsForState(nivel, false, true);
             const g = grade(paredes);
-            const r = irAte(g, paredes, { x: 0, z: -11.5 }, { x: 0, z: 0 });
+            const alvo = maisLongeQueEleAlcanca(g);
+            // Se ele só alcança o próprio cab, ou não sabe andar ali, ou o
+            // andar não se entra por aqui. Os dois merecem falhar.
+            expect(alvo.d, `andar ${nivel} só alcança ${alvo.d.toFixed(1)}m`)
+                .toBeGreaterThan(6);
+            const r = irAte(g, paredes, CAB, alvo.p);
             expect(r.motivo, `andar ${nivel} parou por ${r.motivo}`).toBe('chegou');
         });
     }
 
-    for (const nivel of PRECISAM_DE_MAIS) {
-        it(`andar ${nivel}: NÃO se atravessa só andando — e o agente admite`, () => {
-            // O valor deste teste é a honestidade: ele prende o limite medido.
-            // Se alguém der pulo ao agente e o andar 8 passar a ser atravessável,
-            // este teste quebra — e quebrar aqui é a notícia boa.
-            const paredes = wallsForState(nivel, false, true);
-            const g = grade(paredes);
-            const r = irAte(g, paredes, { x: 0, z: -11.5 }, { x: 0, z: 0 });
-            expect(r.chegou).toBe(false);
-            expect(r.motivo).toBe('sem-caminho');
-        });
-    }
+    it('andares 7 e 9: o agente fica na área do cab — limite CONHECIDO', () => {
+        // Prende o que foi medido. Quando alguém descobrir por onde se entra
+        // nesses andares (ou der pulo ao agente), isto quebra — e quebrar aqui
+        // é a notícia boa.
+        for (const nivel of [7, 9]) {
+            const g = grade(wallsForState(nivel, false, true));
+            expect(maisLongeQueEleAlcanca(g).d).toBeLessThan(6);
+        }
+    });
 
     it('o raio do corpo é o do jogo — a física não é uma cópia', () => {
         // Se este número divergir de `PR`, a grade aprova caminhos que o corpo
@@ -79,7 +96,7 @@ describe('ZERO conhecimento de andar específico', () => {
 
     it('nenhum caso especial por número de andar no código do agente', async () => {
         const fs = await import('node:fs/promises');
-        for (const nome of ['agenteMapa.ts', 'agenteAndar.ts']) {
+        for (const nome of ['agenteMapa.ts', 'agenteAndar.ts', 'agenteObjetivo.ts']) {
             const fonte = await fs.readFile(new URL(`../agente/${nome}`, import.meta.url), 'utf8');
             // Comentários podem citar andares; código não pode ramificar neles.
             const semComentarios = fonte

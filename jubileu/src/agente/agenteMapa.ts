@@ -79,6 +79,62 @@ export function construirGrade(
     return { minX: limites.minX, minZ: limites.minZ, largura, altura, livre };
 }
 
+/**
+ * Até onde o agente monta grade em volta de si, em metros. Uma sala inteira do
+ * jogo cabe nisto com sobra, e o teto de 120×120 células mantém o A* barato.
+ */
+export const RAIO_DA_VISTA = 30;
+
+/**
+ * ── O TAMANHO DA GRADE, E O NÚMERO QUE ME ENSINOU A NÃO CHUTAR ───────────
+ *
+ * Eu tinha escrito `LIMITES_DO_MUNDO = ±30`, um número escolhido por ser
+ * "grande o bastante" — e ele quebra calado no dia em que alguém fizer um
+ * andar maior. Troquei por "derivar das paredes", que parecia obviamente
+ * certo, e medi:
+ *
+ *     andar 3 → grade de 61 × 200037 células. Doze MILHÕES.
+ *
+ * O Andar 3 é o corredor de parkour, e `F3_CORRIDOR_FAR_Z = 100000` está lá
+ * de propósito: "effectively infinite — the climb never ends". Um único
+ * segmento honesto do jogo destrói qualquer plano de "mapear o andar todo".
+ *
+ * A lição é que a pergunta estava errada. O agente não precisa do andar
+ * inteiro — precisa do que dá para enxergar daqui, que é o que um jogador
+ * também tem. Então a grade é a interseção de duas coisas:
+ *
+ *     o que as paredes delimitam   ∩   uma janela de RAIO_DA_VISTA em volta dele
+ *
+ * Andar pequeno continua com grade pequena (o convés do 7 não vira 120×120);
+ * andar infinito vira uma janela finita; andar futuro de qualquer tamanho
+ * funciona sem ninguém mexer aqui. O preço é que um alvo a mais de 30 m não
+ * entra no plano — e o preço é justo, porque andando ele reposiciona a janela.
+ */
+export function limitesDaVista(
+    paredes: number[][],
+    de: Ponto,
+    raio = RAIO_DA_VISTA,
+    folga = FOLGA * 2,
+): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    const janela = {
+        minX: de.x - raio, maxX: de.x + raio, minZ: de.z - raio, maxZ: de.z + raio,
+    };
+    if (paredes.length === 0) return janela;
+    let minX = Infinity; let maxX = -Infinity; let minZ = Infinity; let maxZ = -Infinity;
+    for (const [ax, az, bx, bz] of paredes) {
+        minX = Math.min(minX, ax, bx);
+        maxX = Math.max(maxX, ax, bx);
+        minZ = Math.min(minZ, az, bz);
+        maxZ = Math.max(maxZ, az, bz);
+    }
+    return {
+        minX: Math.max(minX - folga, janela.minX),
+        maxX: Math.min(maxX + folga, janela.maxX),
+        minZ: Math.max(minZ - folga, janela.minZ),
+        maxZ: Math.min(maxZ + folga, janela.maxZ),
+    };
+}
+
 export function paraCelula(g: GradeDoAndar, p: Ponto): { i: number; j: number } {
     return {
         i: Math.floor((p.x - g.minX) / CELULA),
@@ -123,6 +179,68 @@ export function celulaLivreMaisProxima(
         }
     }
     return null;
+}
+
+/**
+ * ── O QUE ELE ALCANÇA DAQUI ───────────────────────────────────────────────
+ *
+ * Uma inundação a partir de um ponto: devolve a máscara das células que o
+ * agente consegue atingir. Uma passada, não um A* por célula — a diferença
+ * entre 50 segundos e 50 milissegundos quando se quer saber o alcance inteiro.
+ *
+ * Isto não é só otimização de teste: é uma primitiva de PERCEPÇÃO. "Até onde
+ * eu chego a pé daqui" é a pergunta que separa "a porta está trancada" de "eu
+ * não sei o caminho", e um agente que não sabe distinguir as duas fica batendo
+ * na parede achando que está resolvendo.
+ */
+export function alcancaveis(g: GradeDoAndar, de: Ponto): Uint8Array {
+    const marca = new Uint8Array(g.largura * g.altura);
+    const inicio = celulaLivreMaisProxima(g, de);
+    if (!inicio) return marca;
+    const fila: number[] = [inicio.j * g.largura + inicio.i];
+    marca[fila[0]] = 1;
+    for (let cabeca = 0; cabeca < fila.length; cabeca += 1) {
+        const atual = fila[cabeca];
+        const ai = atual % g.largura;
+        const aj = Math.floor(atual / g.largura);
+        for (const [di, dj] of VIZINHOS) {
+            const i = ai + di;
+            const j = aj + dj;
+            if (!livreEm(g, i, j)) continue;
+            if (di !== 0 && dj !== 0 && (!livreEm(g, ai + di, aj) || !livreEm(g, ai, aj + dj))) {
+                continue;
+            }
+            const id = j * g.largura + i;
+            if (marca[id]) continue;
+            marca[id] = 1;
+            fila.push(id);
+        }
+    }
+    return marca;
+}
+
+/**
+ * O ponto alcançável mais distante de onde ele está — a FRONTEIRA.
+ *
+ * É a resposta honesta para "e agora?" num andar cuja saída o agente não
+ * conhece: vá para o lugar mais longe que dá para andar daqui. É o que um
+ * jogador humano faz numa sala nova, e não depende de saber nada sobre a sala.
+ *
+ * Estava escrito dentro do teste. Uma primitiva de percepção morando no teste
+ * é uma que o jogo não pode usar — então mudou de lugar.
+ */
+export function maisLonge(g: GradeDoAndar, de: Ponto): { p: Ponto; d: number } {
+    const alcance = alcancaveis(g, de);
+    let melhor = { p: { ...de }, d: 0 };
+    for (let j = 0; j < g.altura; j += 1) {
+        for (let i = 0; i < g.largura; i += 1) {
+            if (!alcance[j * g.largura + i]) continue;
+            const p = paraMundo(g, i, j);
+            const d = Math.hypot(p.x - de.x, p.z - de.z);
+            if (d > melhor.d) melhor = { p, d };
+        }
+    }
+    return melhor;
 }
 
 const VIZINHOS: ReadonlyArray<readonly [number, number, number]> = [
