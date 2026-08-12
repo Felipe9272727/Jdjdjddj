@@ -94,10 +94,23 @@ async function ranquear(pensamento) {
 }
 
 // ── O QWEN ────────────────────────────────────────────────────────────────
+// ── QUEM DESEMPATA É PARÂMETRO ────────────────────────────────────────────
+//
+// O trabalho do motor MUDOU. Ele não lê mais a frase para escolher entre 12
+// alvos — o vetor faz isso. O que sobrou é "dos três que o vetor aprovou,
+// qual?", com resposta de 12 tokens.
+//
+// Isso importa para a escolha do modelo: o LFM2.5-350M REPROVOU na prova
+// antiga (escreveu `MOTION: orbit / ACT: stay` idêntico nos sete pensamentos),
+// mas a prova antiga não existe mais. Medir a nova é a única forma de saber —
+// e foi o dono do jogo quem apontou isso.
+const MODELO = url.get('desempate') ?? '/qwen06b.gguf';
+const NOME = url.get('nome') ?? MODELO.replace(/^\/|\.gguf$/g, '');
 const gen = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
 t0 = performance.now();
-await gen.loadModelFromUrl('/qwen06b.gguf', { n_ctx: 2048, n_threads: nucleos });
-diz(`qwen3-0.6b carregou em ${Math.round(performance.now() - t0)}ms\n`);
+await gen.loadModelFromUrl(MODELO, { n_ctx: 2048, n_threads: nucleos });
+const cargaGen = Math.round(performance.now() - t0);
+diz(`${NOME} carregou em ${cargaGen}ms\n`);
 
 /**
  * O DESEMPATE. O Qwen recebe SÓ os candidatos que o vetor aprovou — a
@@ -127,7 +140,7 @@ Answer with: TARGET: <one of the options>`;
   } catch { return null; }
 }
 
-const relatorio = { corte: CORTE, nucleos, casos: [] };
+const relatorio = { corte: CORTE, nucleos, desempate: NOME, cargaGen, casos: [] };
 let okA = 0; let okB = 0; let okC = 0;
 let msA = 0; let msB = 0; let msC = 0; let chamou = 0;
 
