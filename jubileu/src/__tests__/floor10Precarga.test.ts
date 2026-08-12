@@ -540,3 +540,38 @@ describe('a espera sobrevive a uma condição que estoura num tique tardio', () 
         expect(chamadas).toBeGreaterThan(1);
     });
 });
+
+describe('a fila de download segue o que o NPC precisa para ANDAR', () => {
+    it('a memória vem ANTES do motor — ela É o motor agora', () => {
+        // ── O DEFEITO QUE A MINHA PRÓPRIA TROCA CRIOU ─────────────────────
+        // Quando o embeddinggemma virou o classificador de movimento, a ordem
+        // da fila continuou a antiga:
+        //
+        //     fala 1,9 GB · vontade 1,25 GB · MOTOR 639 MB · memória 333 MB
+        //
+        // O modelo de que o Nilo precisa para dar o primeiro passo era o
+        // QUARTO, atrás de 639 MB que ele quase não usa mais. No celular, 4,1 GB
+        // antes de o corpo se mexer.
+        definirFilaDoAndar10({
+            fala: 1_900_000_000,
+            vontade: 1_246_253_888,
+            motor: 639_446_688,
+            memoria: 333_590_944,
+            reflexo: 139_252_423,
+        });
+        const ordem = floor10Fila.ordem();
+        expect(ordem.indexOf('memoria')).toBeLessThan(ordem.indexOf('motor'));
+    });
+
+    it('o motor é o ÚLTIMO: reserva que desce antes do titular se justifica sozinha', () => {
+        definirFilaDoAndar10({
+            fala: 1_900_000_000,
+            vontade: 1_246_253_888,
+            motor: 639_446_688,
+            memoria: 333_590_944,
+            reflexo: 139_252_423,
+        });
+        const ordem = floor10Fila.ordem();
+        expect(ordem.at(-1)).toBe('motor');
+    });
+});

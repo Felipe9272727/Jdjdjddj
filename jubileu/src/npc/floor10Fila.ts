@@ -75,6 +75,19 @@ export class Floor10Fila {
     }
 
     /** Redefine quem está na fila. Ids já prontos continuam prontos. */
+    /**
+     * A ORDEM, para quem precisa conferi-la.
+     *
+     * Existe porque a ordem desta fila é uma decisão de produto, não um
+     * detalhe: ela decide quantos gigabytes o jogador espera antes de o Nilo
+     * conseguir andar. Já ficou errada uma vez (a memória virou o motor e
+     * continuou em quarto lugar, atrás de 639 MB de reserva), e sem um jeito de
+     * lê-la o teste não tinha como prender isso.
+     */
+    ordem(): readonly string[] {
+        return this.itens.map((i) => i.id);
+    }
+
     definir(itens: readonly FilaItem[]): void {
         this.itens = [...itens];
     }
@@ -201,15 +214,33 @@ export function definirFilaDoAndar10(bytes: {
     floor10Fila.definir([
         { id: FILA_FALA, label: 'conversa', bytes: bytes.fala },
         { id: FILA_VONTADE, label: 'vontade', bytes: bytes.vontade },
-        { id: FILA_MOTOR, label: 'movimento', bytes: bytes.motor },
-        // A memória é a ÚLTIMA de propósito: sem ela o Nilo continua falando,
-        // só que procurando o fato por palavra, como fazia antes.
-        { id: FILA_MEMORIA, label: 'memória', bytes: bytes.memoria },
+        // ── A MEMÓRIA SUBIU, E O MOTOR DESCEU ────────────────────────────
+        //
+        // A ordem aqui virou de cabeça para baixo quando o embeddinggemma
+        // passou a SER o motor (ver floor10Rotulos / floor10MotorVetor). Ela
+        // ficou assim, e eu não percebi na hora de trocar:
+        //
+        //     fala 1,9 GB · vontade 1,25 GB · MOTOR 639 MB · memória 333 MB
+        //
+        // Ou seja: o modelo de que o Nilo precisa para ANDAR era o quarto da
+        // fila, atrás de 639 MB que ele quase não usa mais. No celular isso são
+        // 4,1 GB antes de o corpo dar o primeiro passo.
+        //
+        // O comentário antigo dizia "a memória é a última de propósito, sem ela
+        // o Nilo continua falando". Continua verdade para a FALA — e virou
+        // mentira para o MOVIMENTO no dia em que ela virou o motor.
+        { id: FILA_MEMORIA, label: 'memória e movimento', bytes: bytes.memoria },
         // O REFLEXO É O ÚLTIMO, e por um motivo: ele é o único cujo trabalho o
         // jogo já sabe fazer sem ele (esperar). Descer antes de qualquer um dos
         // outros seria atrasar algo de que a conversa depende para adiantar um
         // conforto. Opcional também na fila: sem tamanho, nem aparece.
         ...(bytes.reflexo ? [{ id: FILA_REFLEXO, label: 'reflexo', bytes: bytes.reflexo }] : []),
+        // O MOTOR QWEN3 É O ÚLTIMO PORQUE VIROU RESERVA. Ele só entra em ação
+        // no aparelho onde o embedding não subiu — e reserva que desce ANTES do
+        // titular é reserva que se justifica sozinha: enquanto ela ocupava o
+        // terceiro lugar, a janela em que ela era "necessária" era criada pela
+        // própria posição dela na fila.
+        { id: FILA_MOTOR, label: 'movimento (reserva)', bytes: bytes.motor },
     ]);
 }
 
