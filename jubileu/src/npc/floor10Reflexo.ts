@@ -36,6 +36,7 @@
 import { npcSet } from './npcStore';
 import { floor10Fila, FILA_REFLEXO } from './floor10Fila';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
+import { TETO_ESTOUROU, comTeto } from './floor10Teto';
 import { anotar } from './floor10CaixaPreta';
 import { vigiarInatividade } from './floor10Carga';
 
@@ -423,7 +424,7 @@ export async function reagir(fala: string): Promise<string> {
     if (!gerador) return '';
     const comecou = Date.now();
     try {
-        const corrida = await Promise.race([
+        const corrida = await comTeto(
             gerador(
                 [
                     { role: 'system', content: REFLEXO_SYSTEM },
@@ -437,11 +438,9 @@ export async function reagir(fala: string): Promise<string> {
                     return_full_text: false,
                 },
             ),
-            new Promise<null>((resolve) => {
-                globalThis.setTimeout(() => resolve(null), REFLEXO_TIMEOUT_MS);
-            }),
-        ]);
-        if (corrida === null) {
+            REFLEXO_TIMEOUT_MS,
+        );
+        if (corrida === TETO_ESTOUROU) {
             anotar('reflexo:estourou-o-tempo', { ms: Date.now() - comecou });
             return '';
         }
@@ -490,7 +489,7 @@ export async function completar(
 ): Promise<string> {
     if (!gerador) return '';
     try {
-        const corrida = await Promise.race([
+        const corrida = await comTeto(
             gerador(
                 [{ role: 'user', content: prompt }],
                 {
@@ -501,11 +500,9 @@ export async function completar(
                     return_full_text: false,
                 },
             ),
-            new Promise<null>((resolve) => {
-                globalThis.setTimeout(() => resolve(null), tetoMs);
-            }),
-        ]);
-        return corrida === null ? '' : lerTextoGerado(corrida);
+            tetoMs,
+        );
+        return corrida === TETO_ESTOUROU ? '' : lerTextoGerado(corrida);
     } catch {
         return '';
     }

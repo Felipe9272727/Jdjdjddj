@@ -64,6 +64,7 @@ import {
     probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
+import { TETO_ESTOUROU, comTeto } from './floor10Teto';
 import { npc, npcSet } from './npcStore';
 import { cpuThreadCount } from './wllamaEngine';
 
@@ -499,12 +500,12 @@ export async function vetorDoTexto(texto: string): Promise<Vetor | null> {
     const limpo = texto.trim();
     if (!limpo || !residentEngine) return null;
     try {
-        const resposta = await Promise.race([
+        const corrida = await comTeto(
             residentEngine.createEmbedding({ input: limpo }),
-            new Promise<null>((resolve) => {
-                globalThis.setTimeout(() => resolve(null), FLOOR10_MEMORIA_TIMEOUT_MS);
-            }),
-        ]);
+            FLOOR10_MEMORIA_TIMEOUT_MS,
+        );
+        if (corrida === TETO_ESTOUROU) return null;
+        const resposta = corrida;
         const bruto = resposta?.data?.[0]?.embedding;
         if (!bruto || bruto.length !== FLOOR10_MEMORIA_DIM) return null;
         return normalizar(bruto);
@@ -537,12 +538,12 @@ export async function lembrarPorSignificado(
 
     let vetor: Vetor;
     try {
-        const resposta = await Promise.race([
+        const corrida = await comTeto(
             residentEngine.createEmbedding({ input: textoDaPergunta(texto) }),
-            new Promise<null>((resolve) => {
-                globalThis.setTimeout(() => resolve(null), FLOOR10_MEMORIA_TIMEOUT_MS);
-            }),
-        ]);
+            FLOOR10_MEMORIA_TIMEOUT_MS,
+        );
+        if (corrida === TETO_ESTOUROU) return null;
+        const resposta = corrida;
         const bruto = resposta?.data?.[0]?.embedding;
         if (!bruto || bruto.length !== FLOOR10_MEMORIA_DIM) return null;
         vetor = normalizar(bruto);
