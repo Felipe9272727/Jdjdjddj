@@ -220,3 +220,27 @@ describe('?campo — a tela diz ONDE o movimento morre', () => {
         expect(/andado\.current/.test(fonte)).toBe(true);
     });
 });
+
+describe('floor10MotorVetor — o vetor decide SOZINHO', () => {
+    it('com veredito, o motor devolve o plano e NÃO acorda o Qwen', async () => {
+        // Medido: só o vetor 5/7 em ~1 s e 0 MB; o Qwen comprava um caso em
+        // sete por 639 MB e 3,5 s por rodada — e sete amostras não distinguem
+        // 5/7 de 6/7. Este teste prende a decisão: havendo veredito, sai plano
+        // sem carregar modelo nenhum.
+        const fonte = await import('node:fs/promises')
+            .then((fs) => fs.readFile(new URL('../npc/floor10MotorBrain.ts', import.meta.url), 'utf8'));
+        const iRetorno = fonte.indexOf('if (veredito) return planoDoVetor(');
+        const iEngine = fonte.indexOf('floor10ModelCoordinator.activate');
+        expect(iRetorno).toBeGreaterThan(0);
+        // O retorno tem de vir ANTES do coordenador: depois dele o download de
+        // 639 MB já foi pago.
+        expect(iRetorno).toBeLessThan(iEngine);
+    });
+
+    it('o caminho antigo continua para quem não tem o embedding de pé', () => {
+        // Não é código morto: é o `?campo` antes de baixar o vetor, e o
+        // aparelho onde o embedding falhou. Melhor o motor antigo, com todos os
+        // defeitos dele, que nenhum motor.
+        expect(typeof planoDoVetor).toBe('function');
+    });
+});

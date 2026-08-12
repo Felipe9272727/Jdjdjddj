@@ -488,7 +488,34 @@ export async function translateFloor10MotorThought(
             return plan;
         }
 
-        // ── NA DÚVIDA, O QWEN DESEMPATA ───────────────────────────────────
+        // ── O DESEMPATE SAIU. MEDIDO, ELE NÃO PAGAVA ──────────────────────
+        //
+        // Sete pensamentos reais do dono do jogo, quatro desempatadores de três
+        // famílias, mesma bancada:
+        //
+        //     só o vetor ...... 5/7 · ~1 s   ·      0 MB
+        //     Qwen3-0.6B ...... 6/7 · 4,8 s  · +639 MB
+        //     LFM2.5-350M ..... 5/7 · 3,9 s  · +379 MB  (ecoa o vetor)
+        //     LFM2.5-1.2B ..... 5/7 · 9,4 s  · +1,25 GB (julga, e julga mal:
+        //                                       consertou 1, quebrou 3)
+        //
+        // O Qwen comprava UM caso em sete, e sete amostras não distinguem 5/7
+        // de 6/7 com confiança nenhuma. Não vale 639 MB no aparelho nem 3,5 s
+        // em cada rodada — e some junto toda a superfície de defeito que veio
+        // dele: o cache que bricava o modelo, a carga travada, o "sem plano
+        // motor" quando ele não concluía.
+        //
+        // O `translateWithMotorEngine` continua aqui e continua testado: se o
+        // desempate voltar a fazer sentido (mais amostras, outro modelo), é uma
+        // linha. O que saiu foi a CHAMADA, não a peça.
+        if (veredito) return planoDoVetor(veredito.alvo, thinking);
+
+        // ── SEM VEREDITO, O CAMINHO ANTIGO ────────────────────────────────
+        //
+        // Só chega aqui quem não tem o embedding de pé — o `?campo` antes de
+        // baixá-lo, ou um aparelho onde ele falhou. Melhor o motor antigo, com
+        // todos os seus defeitos, que nenhum motor.
+        //
         //
         // Só aqui, e só entre os candidatos que o VETOR aprovou. É o desenho
         // que o dono do jogo propôs e que ganhou a bancada (6/7): gastar o

@@ -136,12 +136,50 @@ export type EstadoDoCerebro = 'ausente' | 'baixando' | 'no-aparelho' | 'de-pe';
 export type Cerebro = 'fala' | 'memoria' | 'vontade' | 'motor';
 
 export function quemDevoLigar(noChat: boolean): readonly Cerebro[] {
-    return noChat ? ['fala', 'memoria'] : ['vontade', 'motor'];
+    // ── A MEMÓRIA FICA DOS DOIS LADOS, E O MOTOR SAIU ─────────────────────
+    //
+    // O `embeddinggemma` deixou de ser só o cérebro de memória: ele é agora
+    // também o MOTOR, classificando o pensamento do Nilo contra as 35 redações
+    // de movimento (floor10Rotulos). Então ele precisa estar de pé no passeio,
+    // que é justamente quando a tabela antiga o desligava.
+    //
+    // E NÃO, os dois papéis não brigam. Embedding é sem estado: `createEmbedding`
+    // não guarda KV cache nem carrega nada entre chamadas. Os dois usos são dois
+    // ARRAYS diferentes comparados em JavaScript depois — o modelo nem sabe que
+    // existem dois. O que compartilham é o worker, e aí uma classificação pode
+    // ficar na fila atrás de uma busca do cânone; as duas quase nunca coincidem
+    // (o motor pensa fora da conversa, o cânone é lido dentro dela), e se o teto
+    // de 2,5 s estourar o motor fica sem plano — a falha segura.
+    //
+    // O MOTOR QWEN3 SAIU DA TABELA. Medido nos sete pensamentos reais do dono
+    // do jogo, quatro desempatadores de três famílias:
+    //
+    //     só o vetor ........ 5/7 · ~1 s  ·      0 MB
+    //     Qwen3-0.6B ........ 6/7 · 4,8 s · +639 MB
+    //     LFM2.5-350M ....... 5/7 · 3,9 s · +379 MB  (ecoa o vetor)
+    //     LFM2.5-1.2B ....... 5/7 · 9,4 s · +1,25 GB (julga, e julga mal)
+    //
+    // O Qwen comprava UM caso em sete, e sete amostras não distinguem 5/7 de
+    // 6/7. Não vale 639 MB nem 3,5 s por rodada.
+    //
+    // E a troca deixa o passeio MAIS LEVE: sai o motor de 639 MB, entra o
+    // embedding de 333 MB — 306 MB a menos de pico enquanto ele anda.
+    return noChat ? ['fala', 'memoria'] : ['vontade', 'memoria'];
 }
 
 /** O complemento: quem deve sair de pé para o outro grupo caber. */
 export function quemDevoDesligar(noChat: boolean): readonly Cerebro[] {
-    return quemDevoLigar(!noChat);
+    // ── O COMPLEMENTO PRECISA TIRAR A INTERSEÇÃO ──────────────────────────
+    //
+    // Enquanto os dois grupos eram disjuntos, "desligar" era só o outro grupo.
+    // Agora a MEMÓRIA está nos dois lados (ela virou o motor também), e o
+    // complemento cru mandaria desligá-la no mesmo instante em que a manda
+    // ligar — o modelo subiria e cairia a cada abertura de chat, que é a
+    // definição do lag que esta tabela existe para evitar.
+    //
+    // Quem fica de pé nos dois lados não é desligado nunca.
+    const ficam = quemDevoLigar(noChat);
+    return quemDevoLigar(!noChat).filter((c) => !ficam.includes(c));
 }
 
 /** Como devolver a memória de cada cérebro. Só quem está na tabela é desligado. */

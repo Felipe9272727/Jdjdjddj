@@ -83,17 +83,47 @@ describe('o roteamento que o dono do jogo desenhou', () => {
     //  embbending, processa, e manda a resposta, pós mandar a resposta, ela
     //  desliga dnv junto do embbending... aí, o player saiu do chat,
     //  automaticamente, liga a vontade (llama 1b) e o motor"
-    it('no chat: mente e memória de pé, vontade e motor parados', () => {
+    it('no chat: fala e memória de pé, só a vontade sai', () => {
         expect(quemDevoLigar(true)).toEqual(['fala', 'memoria']);
-        expect(quemDevoDesligar(true)).toEqual(['vontade', 'motor']);
+        // A MEMÓRIA NÃO SAI MAIS. Ela virou o motor também (classifica o
+        // pensamento contra as redações de movimento), então fica de pé nos
+        // dois lados — e desligá-la ao abrir o chat a faria subir e cair a cada
+        // abertura, que é exatamente o lag que esta tabela existe para evitar.
+        expect(quemDevoDesligar(true)).toEqual(['vontade']);
     });
 
-    it('fora do chat: vontade e motor de pé, fala e memória parados', () => {
-        expect(quemDevoLigar(false)).toEqual(['vontade', 'motor']);
-        expect(quemDevoDesligar(false)).toEqual(['fala', 'memoria']);
+    it('fora do chat: vontade e memória de pé, só a fala sai', () => {
+        expect(quemDevoLigar(false)).toEqual(['vontade', 'memoria']);
+        expect(quemDevoDesligar(false)).toEqual(['fala']);
     });
 
-    it('nunca há sobreposição: os dois grupos são disjuntos', () => {
+    it('O MOTOR SAIU DA TABELA — o vetor faz o trabalho dele', () => {
+        // Medido nos sete pensamentos reais, quatro desempatadores de três
+        // famílias: só o vetor 5/7 (~1 s, 0 MB); Qwen3-0.6B 6/7 (4,8 s,
+        // +639 MB); LFM2.5-350M 5/7 ecoando o vetor; LFM2.5-1.2B 5/7 julgando
+        // mal (quebrou 3, consertou 1). Um caso em sete não vale 639 MB.
+        for (const noChat of [true, false]) {
+            expect(quemDevoLigar(noChat)).not.toContain('motor');
+            expect(quemDevoDesligar(noChat)).not.toContain('motor');
+        }
+    });
+
+    it('quem fica de pé nos DOIS lados nunca é desligado', () => {
+        for (const noChat of [true, false]) {
+            const ligados = new Set(quemDevoLigar(noChat));
+            expect(quemDevoDesligar(noChat).some((c) => ligados.has(c))).toBe(false);
+        }
+    });
+
+    it('o passeio ficou MAIS LEVE com a troca', () => {
+        // Sai o motor Qwen3 (639 MB), entra o embeddinggemma (333 MB): 306 MB
+        // a menos de pico enquanto o Nilo anda. A troca paga a memória em vez
+        // de cobrá-la — foi o que destravou a decisão.
+        expect(quemDevoLigar(false)).toContain('memoria');
+        expect(quemDevoLigar(false)).not.toContain('motor');
+    });
+
+    it('nunca há sobreposição indevida: o que sai nunca é o que entra', () => {
         // É esta a invariante que segura o aparelho — nunca dois pipelines de
         // pé ao mesmo tempo. Medido com perfil PERSISTENTE: um cérebro de pé
         // custa ~1,05x o próprio arquivo, quase tudo em memória anônima, que o
@@ -116,8 +146,8 @@ describe('a tabela vira ação: desligarQuemNaoEDaVez', () => {
             vontade: async () => { saiu.push('vontade'); },
             motor: async () => { saiu.push('motor'); },
         });
-        expect(saiu).toEqual(['vontade', 'motor']);
-        expect(chamados).toEqual(['vontade', 'motor']);
+        expect(saiu).toEqual(['vontade']);
+        expect(chamados).toEqual(['vontade']);
     });
 
     it('fora do chat, desliga a fala e a memória', async () => {
@@ -128,20 +158,31 @@ describe('a tabela vira ação: desligarQuemNaoEDaVez', () => {
             vontade: async () => { saiu.push('vontade'); },
             motor: async () => { saiu.push('motor'); },
         });
-        expect(saiu).toEqual(['fala', 'memoria']);
+        expect(saiu).toEqual(['fala']);
     });
 
-    it('um cérebro que se recusa a sair não impede o outro', async () => {
+    it('um cérebro que se recusa a sair não derruba a chamada', async () => {
         // Descarregar já custou uma sessão inteira de livre-arbítrio quando uma
-        // promessa ficou pendurada. Aqui: se a vontade estourar, o motor SAI
-        // mesmo assim, e quem chama sabe quem de fato saiu.
-        const saiu: string[] = [];
+        // promessa ficou pendurada. A invariante: um worker que estoura ao sair
+        // não pode propagar o erro nem entrar na lista de quem saiu.
+        //
+        // (Antes este teste usava a vontade E o motor, porque os dois saíam
+        // juntos ao abrir o chat. Com o motor fora da tabela, a lista de
+        // desligamento tem um cérebro só — então a resiliência se mede assim.)
         const chamados = await desligarQuemNaoEDaVez(true, {
             vontade: async () => { throw new Error('worker já morreu'); },
-            motor: async () => { saiu.push('motor'); },
         });
-        expect(saiu).toEqual(['motor']);
-        expect(chamados).toEqual(['motor']);
+        expect(chamados).toEqual([]);
+    });
+
+    it('o cérebro que sai de verdade é reportado', async () => {
+        const saiu: string[] = [];
+        const chamados = await desligarQuemNaoEDaVez(false, {
+            fala: async () => { saiu.push('fala'); },
+            memoria: async () => { saiu.push('memoria'); },
+        });
+        expect(saiu).toEqual(['fala']);
+        expect(chamados).toEqual(['fala']);
     });
 
     it('um de cada vez, nunca em paralelo', async () => {
