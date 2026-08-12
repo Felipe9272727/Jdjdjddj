@@ -655,7 +655,24 @@ export function metaDoPlanoMotor(plano: Floor10MotorPlan): MetaDoMotor {
     // para elas, e vagar é o comportamento que mais se aproxima de investigar
     // sem prometer nada.
     if (target === 'nearest-device' || target === 'active-device') return 'wander';
-    if (LUGARES.has(target)) {
+    // ── AS RELATIVAS CAÍAM NO `idle`, E ISSO CUSTAVA A DECISÃO SEGUINTE ──
+    //
+    // `ahead`, `behind`, `to-my-left` e `to-my-right` não estavam em lista
+    // nenhuma aqui: as 24 combinações verbo×alvo-relativo desciam até o
+    // `return 'idle'` do fim. Ou seja, "cinco passos à esquerda" — o recurso
+    // que existe justamente para o Nilo ANDAR pela sala — era rotulado como
+    // "parado".
+    //
+    // E o rótulo não é enfeite: ele vira `deliberationBonus`, que dá +0,55 de
+    // utilidade por 45 s ao candidato de mesma meta. Uma decisão de se deslocar
+    // acabava empurrando o candidato de FICAR QUIETO. O motor mandava andar e a
+    // deliberação, no lance seguinte, era subornada a não andar.
+    //
+    // A regra é a mesma dos lugares fixos, e usa a lista que o próprio módulo
+    // exporta em vez de uma cópia — foi a falta de uma lista compartilhada que
+    // deixou estas quatro de fora.
+    const relativa = (FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(target);
+    if (LUGARES.has(target) || relativa) {
         // Parar num canto é ficar quieto; ir até ele é vagar.
         return verb === 'stay' || verb === 'hold' ? 'idle' : 'wander';
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { wallsForState, PR } from '../constants';
 import {
-    construirGrade, livreEm, maisLonge, paraCelula,
+    CELULA, FOLGA, alcancaveis, construirGrade, limitesDaVista, livreEm, maisLonge, paraCelula,
 } from '../agente/agenteMapa';
 import { RAIO_DO_CORPO, irAte } from '../agente/agenteAndar';
 
@@ -139,5 +139,90 @@ describe('o agente sabe quando NÃO dá', () => {
         // degeneradas (segmentos de tamanho zero que o `resolveCollision`
         // ignora), então a exigência é a maioria esmagadora, não a totalidade.
         expect(bloqueados).toBeGreaterThan(paredes.length * 0.8);
+    });
+});
+
+describe('os testes que faltavam — achados por mutação', () => {
+    // ── POR QUE ESTE BLOCO EXISTE ─────────────────────────────────────────
+    // Um crítico rodou teste de mutação contra estes módulos: quebrou funções
+    // de propósito e viu quais testes continuavam passando. Sobreviveram sete
+    // mutações. Cada uma delas é uma linha de código que ninguém estava
+    // cobrando, e as quatro abaixo são as que moram neste arquivo.
+
+    it('a guarda anti-corte-de-quina não é testável por dentro — e aqui está o porquê', () => {
+        // ── UM ACHADO QUE VIROU DOCUMENTAÇÃO ──────────────────────────────
+        //
+        // O crítico apagou a guarda anti-quina do A* e da inundação, uma de
+        // cada vez, e a suíte passou nas duas. Eu tentei escrever o teste que
+        // faltava e NÃO CONSEGUI — e a razão é melhor que o teste seria.
+        //
+        // A guarda protege contra cortar a diagonal quando os dois vizinhos
+        // ortogonais estão bloqueados. Para isso existir, a parede precisa
+        // bloquear UMA célula e deixar as vizinhas livres. Só que `FOLGA`
+        // (0,6 m) é MAIOR que `CELULA` (0,5 m): qualquer parede empurra o corpo
+        // numa faixa de pelo menos duas células de espessura. A quina fina que a
+        // guarda protege não pode ser produzida por `construirGrade`.
+        //
+        // Então a guarda é defensiva, e fica: `alcancaveis` e `caminho` aceitam
+        // QUALQUER grade, inclusive uma montada à mão com outra folga. O que dá
+        // para cobrar é a premissa — se alguém baixar `FOLGA` abaixo de
+        // `CELULA`, a quina fina passa a existir e este teste avisa.
+        expect(FOLGA).toBeGreaterThan(CELULA);
+
+        // E a espessura medida: um segmento reto bloqueia ≥ 2 células de cada
+        // lado, em toda a extensão dele.
+        const paredes: number[][] = [
+            [-10, -10, 10, -10], [10, -10, 10, 10], [10, 10, -10, 10], [-10, 10, -10, -10],
+            [-6, 0, 6, 0],
+        ];
+        const g = grade(paredes);
+        for (let x = -5; x <= 5; x += 1) {
+            let bloqueadas = 0;
+            for (let z = -1; z <= 1; z += 0.5) {
+                const c = paraCelula(g, { x, z });
+                if (!livreEm(g, c.i, c.j)) bloqueadas += 1;
+            }
+            expect(bloqueadas, `em x=${x} a parede só bloqueou ${bloqueadas} células`)
+                .toBeGreaterThanOrEqual(2);
+        }
+    });
+
+    it('o detector de trava tem nome próprio: "travou"', () => {
+        // `paradoHa > 90` nunca era asserido: dava para apagar o detector
+        // inteiro e a suíte passava. Sem ele o relatório diria "tempo", e eu
+        // procuraria o defeito no lugar errado — "acabou o orçamento de passos"
+        // e "o corpo está entalado" pedem consertos opostos.
+        //
+        // O cenário é o que o detector existe para pegar: a GRADE e a FÍSICA
+        // discordam. A grade é montada sem a divisória, então o A* jura que há
+        // caminho; a física recebe a divisória e o corpo não passa.
+        const caixa: number[][] = [
+            [-10, -10, 10, -10], [10, -10, 10, 10], [10, 10, -10, 10], [-10, 10, -10, -10],
+        ];
+        const g = grade(caixa);
+        const comDivisoria = [...caixa, [-10, 0, 10, 0]];
+        const r = irAte(g, comDivisoria, { x: 0, z: -5 }, { x: 0, z: 5 });
+        expect(r.motivo).toBe('travou');
+        expect(r.chegou).toBe(false);
+        // E ele parou ENCOSTADO na divisória, não no ponto de partida.
+        expect(Math.abs(r.fim.z)).toBeLessThan(1.2);
+    });
+
+    it('a janela e as paredes que não se cruzam devolvem a janela, não uma caixa invertida', () => {
+        // ── O BURACO PARA ANDARES FUTUROS ────────────────────────────────
+        // Com o agente a mais de RAIO_DA_VISTA de toda parede num eixo, a
+        // interseção invertia (minX > maxX). `construirGrade` fazia
+        // `max(1, ceil(negativo))` e devolvia UMA célula, ancorada centenas de
+        // metros longe — e daí tudo respondia "não alcanço nada", em silêncio.
+        const longe: number[][] = [[500, 500, 520, 500], [500, 500, 500, 520]];
+        const lim = limitesDaVista(longe, { x: 0, z: 0 });
+        expect(lim.minX).toBeLessThan(lim.maxX);
+        expect(lim.minZ).toBeLessThan(lim.maxZ);
+        const g = construirGrade(longe, lim);
+        expect(g.largura).toBeGreaterThan(10);
+        // E o agente continua enxergando chão em volta de si.
+        let livres = 0;
+        for (const v of alcancaveis(g, { x: 0, z: 0 })) livres += v;
+        expect(livres).toBeGreaterThan(100);
     });
 });

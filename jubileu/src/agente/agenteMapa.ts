@@ -127,12 +127,27 @@ export function limitesDaVista(
         minZ = Math.min(minZ, az, bz);
         maxZ = Math.max(maxZ, az, bz);
     }
-    return {
+    // ── QUANDO A INTERSEÇÃO É VAZIA ───────────────────────────────────────
+    //
+    // Se o agente estiver a mais de `raio` de TODA parede num eixo, a
+    // interseção inverte: `minX` acaba maior que `maxX`. `construirGrade` faz
+    // `max(1, ceil(negativo))` e devolve uma grade de UMA célula, ancorada
+    // longe dele — e daí toda pergunta responde "não alcanço nada", em
+    // silêncio, como se o mundo fosse sólido.
+    //
+    // Isso não acontece em nenhum andar de hoje, e é exatamente por isso que
+    // merece conserto: a promessa é "funciona em andares futuros", e um andar
+    // com geometria esparsa é o caso que a quebra sem avisar. Sem interseção, o
+    // que vale é a janela — ele está em pé em algum lugar, e o que ele enxerga
+    // daí é chão aberto.
+    const corte = {
         minX: Math.max(minX - folga, janela.minX),
         maxX: Math.min(maxX + folga, janela.maxX),
         minZ: Math.max(minZ - folga, janela.minZ),
         maxZ: Math.min(maxZ + folga, janela.maxZ),
     };
+    if (corte.minX >= corte.maxX || corte.minZ >= corte.maxZ) return janela;
+    return corte;
 }
 
 export function paraCelula(g: GradeDoAndar, p: Ponto): { i: number; j: number } {

@@ -5,11 +5,8 @@ import {
 import { PRISON_DEVICES, PRISON_REACH } from '../npc/f10Prison';
 import { olharOAndar } from '../agente/agenteObjetivo';
 import {
-    type Interagivel, chegarPerto, interagiveisDoAndar, oQueDaParaAlcancar,
+    type Interagivel, chegarPerto, interagiveisDoAndar,
 } from '../agente/agenteInteracao';
-
-const dist = (a: { x: number; z: number }, b: { x: number; z: number }) =>
-    Math.hypot(a.x - b.x, a.z - b.z);
 
 describe('o catálogo de interagíveis é o do JOGO', () => {
     // ── POR QUE ESTE BLOCO EXISTE ─────────────────────────────────────────
@@ -140,21 +137,4 @@ describe('ele sabe quando NÃO alcança', () => {
         expect(aberta.encostou).toBe(true);
     });
 
-    it('escolhe o alcançável mais perto, e null quando não há nenhum', () => {
-        const de = { x: 0, z: 0 };
-        expect(oQueDaParaAlcancar(olharOAndar(0, de), de)?.nome).toBe('recepção');
-        // Andar 2 não tem catálogo: nada com que interagir é uma resposta.
-        expect(oQueDaParaAlcancar(olharOAndar(2, de), de)).toBe(null);
-    });
-
-    it('entre dois aparelhos, vai no mais perto', () => {
-        const de = { x: 6, z: -6 };
-        const andar = olharOAndar(10, de);
-        const escolhido = oQueDaParaAlcancar(andar, de);
-        const outros = interagiveisDoAndar(10)
-            .filter((i) => i.nome !== escolhido?.nome);
-        for (const o of outros) {
-            expect(dist(de, escolhido!.pos)).toBeLessThanOrEqual(dist(de, o.pos));
-        }
-    });
 });

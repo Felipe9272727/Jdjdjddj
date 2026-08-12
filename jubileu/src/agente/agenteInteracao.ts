@@ -143,33 +143,3 @@ export function chegarPerto(
         ...r, distancia, jaEstava: false, encostou: r.chegou && distancia <= alvo.alcance,
     };
 }
-
-/**
- * O interagível mais perto que ele consegue alcançar a pé — ou `null`.
- *
- * `null` não é falha: num andar sem nada com que interagir (a maioria), é a
- * resposta certa, e quem chamou segue para o objetivo de explorar.
- */
-export function oQueDaParaAlcancar(
-    andar: EstadoDoAndar,
-    de: Ponto,
-    extras: readonly Interagivel[] = [],
-): Interagivel | null {
-    const marca = alcancaveis(andar.grade, de);
-    const { grade } = andar;
-    let escolhido: Interagivel | null = null;
-    let melhor = Infinity;
-    for (const alvo of interagiveisDoAndar(andar.nivel, extras)) {
-        let perto = Infinity;
-        for (let j = 0; j < grade.altura; j += 1) {
-            for (let i = 0; i < grade.largura; i += 1) {
-                if (!marca[j * grade.largura + i]) continue;
-                perto = Math.min(perto, dist(paraMundo(grade, i, j), alvo.pos));
-            }
-        }
-        if (perto > alvo.alcance) continue;
-        const daqui = dist(de, alvo.pos);
-        if (daqui < melhor) { melhor = daqui; escolhido = alvo; }
-    }
-    return escolhido;
-}

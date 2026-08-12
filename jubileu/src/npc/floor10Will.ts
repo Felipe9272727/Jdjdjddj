@@ -3,7 +3,10 @@ import { resolveCollision } from '../physics';
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
 import {
-    PRISON_DEVICES, PRISON_REACH, PRISON_SENSE_SIZE, prisonSenses, type F10PrisonState,
+    // `PRISON_DEVICES` e `PRISON_REACH` estavam aqui sem NENHUM uso: quem lê os
+    // aparelhos é `deviceToTry`, e ele lê o estado vivo (`prison.devices`), não
+    // o catálogo estático. Import morto é o começo de uma cópia divergente.
+    PRISON_SENSE_SIZE, prisonSenses, type F10PrisonState,
 } from './f10Prison';
 import {
     DELIBERATION_BONUS,

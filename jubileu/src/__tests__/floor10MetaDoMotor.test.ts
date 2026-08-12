@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-    FLOOR10_MOTOR_ACTS, FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
+    FLOOR10_MOTOR_ACTS, FLOOR10_MOTOR_GOALS, FLOOR10_MOTOR_RELATIVE,
+    FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS,
     buildMotorGrammar, buildMotorTranslationPrompt, metaDoPlanoMotor, parseMotorPlan,
 } from '../npc/floor10MotorCortex';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
@@ -318,4 +319,44 @@ describe('a gramática oferece TUDO que o vocabulário tem', () => {
         // E a regra que impede a resposta preguiçosa.
         expect(p).toContain('never answer stay');
     });
+});
+
+describe('as quatro direções relativas não são "parado"', () => {
+    // ── O BUG QUE ESTE BLOCO PRENDE ───────────────────────────────────────
+    //
+    // `ahead`, `behind`, `to-my-left` e `to-my-right` não estavam em lista
+    // nenhuma dentro de `metaDoPlanoMotor`: as 24 combinações verbo×alvo
+    // desciam até o `return 'idle'` do fim. "Cinco passos à esquerda" — o
+    // recurso que existe justamente para o Nilo ANDAR pela sala — era rotulado
+    // como "parado".
+    //
+    // E o rótulo vira `deliberationBonus`: +0,55 de utilidade por 45 s ao
+    // candidato de mesma meta. Uma decisão de se DESLOCAR acabava empurrando o
+    // candidato de FICAR QUIETO. O motor mandava andar e a deliberação, no
+    // lance seguinte, era subornada a não andar.
+    //
+    // O teste antigo (linha ~46) só cobrava "o resultado é ALGUMA meta válida",
+    // então passava com a semântica invertida — o padrão "passaria se a função
+    // devolvesse constante".
+    const MOVIMENTO = ['approach', 'withdraw', 'orbit', 'explore'] as const;
+    const PARADA = ['stay', 'hold'] as const;
+
+    for (const target of FLOOR10_MOTOR_RELATIVE) {
+        for (const verb of MOVIMENTO) {
+            it(`${verb} ${target} é deslocamento, não idle`, () => {
+                const meta = metaDoPlanoMotor({
+                    verb, target, pace: 'normal', duration: 6, raw: `${verb} ${target}`,
+                });
+                expect(meta).not.toBe('idle');
+                expect(meta).toBe('wander');
+            });
+        }
+        for (const verb of PARADA) {
+            it(`${verb} ${target} é ficar quieto`, () => {
+                expect(metaDoPlanoMotor({
+                    verb, target, pace: 'normal', duration: 6, raw: `${verb} ${target}`,
+                })).toBe('idle');
+            });
+        }
+    }
 });

@@ -49,10 +49,14 @@ import { type Tentativa, irAte } from './agenteAndar';
  *
  * `ELEV_W` são três segmentos: as duas laterais e o fundo. O centro em X é a
  * média dos extremos; em Z, o meio entre o fundo e a boca. Dá (0, -13) — o
- * mesmo ponto para onde o `App.tsx` TELEPORTA o jogador quando a viagem
- * começa (`playerPositionCmdRef.current = { x: 0, y: 0, z: -13 }`, duas vezes).
- * Duas contas independentes batendo é o que me deixa confiar nesta derivação
- * em vez de cravar o número.
+ * mesmo ponto para onde o `App.tsx` TELEPORTA o jogador quando a viagem começa
+ * (`playerPositionCmdRef.current = { x: 0, y: 0, z: -13 }`).
+ *
+ * Eu tinha escrito aqui "duas vezes", contando as duas que eu conhecia. Um
+ * revisor foi conferir: são 13 ocorrências de `z: -13` no App, 10 delas com
+ * essa forma exata. O número errado enfraquecia justamente o argumento que ele
+ * sustenta — treze cópias do mesmo ponto espalhadas por um arquivo são um
+ * motivo MAIOR para derivar a coordenada de `ELEV_W` do que duas seriam.
  */
 function centroDoCab(): Ponto {
     const xs = ELEV_W.flatMap((w) => [w[0], w[2]]);
@@ -198,7 +202,10 @@ export function oQueFazerAqui(andar: EstadoDoAndar, de: Ponto): Objetivo {
         if (dentroDoCab(andar.nivel, de)) {
             return { tipo: 'elevador', alvo: { ...de }, porque: 'já estou no elevador' };
         }
-        if (pisavel(andar, DENTRO_DO_CAB) && alcanca(andar, de, DENTRO_DO_CAB)) {
+        // `alcanca` já implica pisável: ele testa `livreEm` na célula do alvo
+        // ANTES de olhar a inundação. Eu tinha as duas aqui, e a primeira era
+        // logicamente morta — dava para apagá-la sem nenhum teste reclamar.
+        if (alcanca(andar, de, DENTRO_DO_CAB)) {
             return { tipo: 'elevador', alvo: DENTRO_DO_CAB, porque: 'o elevador leva daqui' };
         }
     }
@@ -213,31 +220,20 @@ export function oQueFazerAqui(andar: EstadoDoAndar, de: Ponto): Objetivo {
 }
 
 /**
- * ── O AGENTE SABE O QUE NÃO ALCANÇA ───────────────────────────────────────
+ * Dá para ir de `de` até `ate` a pé, sem calcular o caminho inteiro?
  *
- * Quantas células ele consegue pisar a partir de onde está. É a diferença
- * entre "a porta está trancada" e "eu não sei o caminho" — e um agente que não
- * distingue as duas fica batendo na parede achando que está progredindo.
+ * É a diferença entre "a porta está trancada" e "eu não sei o caminho" — e um
+ * agente que não distingue as duas fica batendo na parede achando que progride.
  *
- * Serve também como medida honesta de quanto de um andar ele domina: 3 células
- * significa preso no cab, e nenhum objetivo bonito muda isso.
+ * (Havia aqui um `quantoEleAlcanca`, que contava as células alcançáveis, e um
+ * `pisavel`. O primeiro não tinha NENHUM chamador, nem em teste; o segundo só
+ * era chamado num lugar onde `alcanca` já o implicava. Export sem chamador é
+ * peso morto que os testes fingem cobrir — foi assim que o `planoDaProsa` viveu
+ * 21 testes sem ninguém usá-lo.)
  */
-export function quantoEleAlcanca(andar: EstadoDoAndar, de: Ponto): number {
-    const marca = alcancaveis(andar.grade, de);
-    let n = 0;
-    for (const v of marca) n += v;
-    return n;
-}
-
-/** Dá para ir de `de` até `ate` a pé, sem calcular o caminho inteiro? */
 export function alcanca(andar: EstadoDoAndar, de: Ponto, ate: Ponto): boolean {
     const marca = alcancaveis(andar.grade, de);
     const c = paraCelula(andar.grade, ate);
     return livreEm(andar.grade, c.i, c.j) && marca[c.j * andar.grade.largura + c.i] === 1;
 }
 
-/** O agente está num ponto que a grade considera pisável? */
-export function pisavel(andar: EstadoDoAndar, p: Ponto): boolean {
-    const c = paraCelula(andar.grade, p);
-    return livreEm(andar.grade, c.i, c.j);
-}
