@@ -154,7 +154,14 @@ function exporParaBancada(): void {
 exporParaBancada();
 
 export function npcBump() { s.version++; for (const f of subs) f(); }
-export function npcSet(patch: Partial<NpcState>) { Object.assign(s, patch); npcBump(); }
+export function npcSet(patch: Partial<NpcState>) {
+    // O teto do histórico mora AQUI porque aqui é o funil: o `wllamaEngine`
+    // escreve a conversa por `npcSet({ history: [...] })` em cinco lugares
+    // diferentes, e podar em cada um deles seria cinco chances de esquecer.
+    Object.assign(s, patch);
+    if (patch.history) s.history = podar(s.history);
+    npcBump();
+}
 // Percepção muda várias vezes por segundo. O LLM lê o snapshot vivo direto,
 // mas a UI não precisa re-renderizar para cada centímetro que o player anda.
 export function npcPublishPerception(perception: Floor10Perception) {
@@ -174,14 +181,77 @@ export function npcIssueWillCommand(action: Floor10WillCommandAction, reason: st
     };
     npcBump();
 }
+/**
+ * ── O TETO DA CONVERSA, E POR QUE ELE PRECISA EXISTIR ────────────────────
+ *
+ * `history` crescia sem limite pela sessão inteira: cada fala autônoma do Nilo,
+ * cada mensagem do painel, cada visita ao andar, tudo empilhado para sempre. Só
+ * era podado na hora de montar o prompt (`modelHistory(..., 6)`), nunca para
+ * exibir.
+ *
+ * E o custo não é memória — é ENGASGO NA DIGITAÇÃO. O painel republica a loja a
+ * cada token do streaming, e o React refaz o `history.map(...)` inteiro em cada
+ * uma dessas publicações. Numa sessão longa, a resposta do Nilo vai ficando
+ * mais travada quanto mais vocês já conversaram, que é exatamente o contrário
+ * do que deveria acontecer — e no celular que este projeto persegue isso é a
+ * diferença entre ler e esperar.
+ *
+ * 60 mensagens é MUITO mais do que o modelo lê (ele usa 6) e muito mais do que
+ * cabe na tela de uma vez. O que se perde é histórico que ninguém rolaria de
+ * volta; o que se ganha é um custo por token que não cresce com a sessão.
+ */
+export const MAX_HISTORICO = 60;
+
+function podar(lista: NpcMsg[]): NpcMsg[] {
+    return lista.length > MAX_HISTORICO ? lista.slice(-MAX_HISTORICO) : lista;
+}
+
 export function npcAutonomousSay(content: string) {
     const speech = content.trim();
     if (!speech) return;
-    s.history = [...s.history, { role: 'assistant', content: speech }];
+    s.history = podar([...s.history, { role: 'assistant', content: speech }]);
     s.autonomousSpeech = speech;
     s.autonomousSpeechId++;
     npcBump();
 }
+/**
+ * ── O JOGADOR SAIU DO ANDAR 10 ────────────────────────────────────────────
+ *
+ * A loja do NPC vive fora do React, de propósito: o cérebro não pode reiniciar
+ * porque um componente desmontou. Só que isso vale para o CÉREBRO, e não para o
+ * que está na TELA — e a distinção não existia. Três coisas ficavam sujas:
+ *
+ *  - `near`: o `Floor10Npc` publica proximidade comparando com um ref LOCAL,
+ *    que nasce `false` a cada montagem. Se a loja tinha `true` quando o
+ *    jogador saiu (Nilo perto, seguindo ele), na volta o ref diz `false`, a
+ *    loja diz `true`, e a comparação nunca dispara. Resultado: o aviso
+ *    "💬 Conversar (E)" acende com o Nilo do outro lado da sala — e o E abre o
+ *    painel de verdade — pelo resto da visita.
+ *  - a bolha e a fase da deliberação: a última rodada antes de sair fica em
+ *    `decided`, então o pensamento VELHO reaparece na hora em que ele volta,
+ *    antes de qualquer raciocínio novo.
+ *  - `autonomousSpeech`: o `Floor10NpcChat` cancela, ao desmontar, o próprio
+ *    temporizador de 7 s que limparia a frase — então uma fala antiga
+ *    ressurge, literal, muito depois.
+ *
+ * Nada disto é o cérebro: é o eco da visita anterior. `npcReset` não servia
+ * porque apaga a CONVERSA (que deve sobreviver, é a memória dele) e não toca em
+ * nenhum destes campos.
+ */
+export function npcSaiuDoAndar() {
+    Object.assign(s, {
+        near: false,
+        streaming: '',
+        speaking: false,
+        autonomousSpeech: '',
+        deliberationBubble: '',
+        deliberationLive: '',
+        deliberationGoal: '',
+        deliberationPhase: s.deliberationPhase === 'thinking' ? 'off' : s.deliberationPhase,
+    });
+    npcBump();
+}
+
 export function npcReset() {
     Object.assign(s, { open: false, phase: s.phase === 'ready' || s.phase === 'thinking' ? 'ready' : s.phase,
         history: [], streaming: '', speaking: false, willCommand: null, autonomousSpeech: '', error: '' });

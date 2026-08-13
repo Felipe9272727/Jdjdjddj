@@ -9,6 +9,7 @@ import {
     npcAutonomousSay,
     npcPublishAutonomy,
     npcPublishPerception,
+    npcSaiuDoAndar,
     npcSet,
 } from './npc/npcStore';
 import { perceiveFloor10 } from './npc/floor10Perception';
@@ -59,7 +60,15 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const legR = useRef<THREE.Group>(null);
     const eyeL = useRef<THREE.Mesh>(null);
     const eyeR = useRef<THREE.Mesh>(null);
-    const nearRef = useRef(false);
+    // ── NASCE SEM RESPOSTA, DE PROPÓSITO ─────────────────────────────────
+    // Era `useRef(false)`, e isso é uma AFIRMAÇÃO ("o jogador está longe") que
+    // o componente não tinha como fazer ao montar. Se a loja tivesse ficado com
+    // `near: true` da visita anterior, a comparação `near !== nearRef.current`
+    // dava falso no primeiro quadro e a loja nunca era corrigida. Começando sem
+    // valor, o primeiro quadro SEMPRE publica a verdade medida.
+    const nearRef = useRef<boolean | null>(null);
+    /** Conferências de consequência agendadas e ainda não disparadas. */
+    const conferencias = useRef(new Set<ReturnType<typeof setTimeout>>());
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const npcWorld = useMemo(() => new THREE.Vector3(), []);
     const forward = useMemo(() => new THREE.Vector3(), []);
@@ -125,6 +134,30 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     useEffect(() => {
         (window as unknown as Record<string, unknown>).__f10moveNpc = (x: number, z: number) => {
             forcado.current = { x, z };
+        };
+    }, []);
+
+    // ── SAIR DO ANDAR APAGA O ECO, NÃO A MEMÓRIA ──────────────────────────
+    //
+    // A loja do NPC vive fora do React de propósito: o cérebro não pode
+    // reiniciar porque um componente desmontou. Mas o que está na TELA é outra
+    // coisa, e ficava sujo — o aviso de "Conversar" aceso com o Nilo longe, a
+    // bolha do último pensamento reaparecendo antes de qualquer raciocínio
+    // novo, uma fala antiga ressurgindo literal. Eco da visita anterior.
+    //
+    // A conversa NÃO é apagada aqui: ela é a memória dele, e lembrar do que
+    // vocês falaram é o ponto do personagem.
+    //
+    // No mesmo lugar morrem as conferências de consequência agendadas: elas são
+    // marcadas de dentro de um callback assíncrono do `useFrame` e sobreviviam
+    // ao desmonte, disparando com o jogador já em outro andar para medir o
+    // efeito de um gesto num mundo que não existe mais.
+    useEffect(() => {
+        const pendentes = conferencias.current;
+        return () => {
+            for (const bilhete of pendentes) globalThis.clearTimeout(bilhete);
+            pendentes.clear();
+            npcSaiuDoAndar();
         };
     }, []);
 
@@ -288,11 +321,17 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         const antes = observarMundo();
                         const meta = decided.goal;
                         const espera = ((decided.motion?.duration ?? 6) + 4) * 1000;
-                        globalThis.setTimeout(() => {
+                        // O temporizador é REGISTRADO: agendado de dentro de um
+                        // callback assíncrono do `useFrame`, ele sobrevivia ao
+                        // desmonte e disparava com o jogador já em outro andar,
+                        // medindo consequência de um mundo que não existe mais.
+                        const bilhete = globalThis.setTimeout(() => {
+                            conferencias.current.delete(bilhete);
                             memoriaConsequencia.current.conferir(
                                 meta, antes, observarMundo(), Date.now() / 1000,
                             );
                         }, espera);
+                        conferencias.current.add(bilhete);
                     } else if (
                         npc.deliberationPhase !== 'unavailable'
                         // CEDER A VEZ NÃO É FALHAR. Enquanto o modelo de fala
