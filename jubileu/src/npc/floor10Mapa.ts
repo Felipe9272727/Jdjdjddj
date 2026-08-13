@@ -140,9 +140,35 @@ export function mapaEmTexto(perception: Floor10Perception, yaw: number): string 
     linhas.push(
         'YOU CAN MOVE: forward, back, to your left, to your right, '
         + 'toward anything above, or away from it. You can also stay put.',
+        // ── O VERBO É PERCEPÇÃO. A REGRA ERA A RESPOSTA ───────────────────
+        //
+        // Estava escrito aqui: "Two of them must be held at the SAME TIME, and
+        // you cannot reach two at once."
+        //
+        // Isso é A SOLUÇÃO DO ANDAR, entregue de graça. E o `f10Prison` abre
+        // com a regra oposta, em maiúsculas: "o Nilo NÃO SABE o que fazer […]
+        // Se eu escrevesse a solução aqui, o teste de independência não
+        // testaria nada." Eu escrevi — só que num arquivo diferente, onde
+        // aquela guarda não alcançava. O manifesto protegia um arquivo; a
+        // fuga saiu pelo vizinho.
+        //
+        // O corte separa duas coisas que eu tinha juntado: o VERBO e a REGRA.
+        //
+        //   verbo — "dá para pisar numa placa, dá para puxar uma alavanca".
+        //           É o que o corpo dele sabe fazer, do mesmo jeito que ele
+        //           sabe que dá para andar para a frente. Sem isso ele não tem
+        //           como nem TENTAR, e um agente que não pode tentar não
+        //           descobre nada. Fica.
+        //   regra — "duas ao mesmo tempo, e você não alcança as duas". É a
+        //           conclusão que o andar inteiro existe para ele chegar
+        //           sozinho, tentando e falhando. Sai.
+        //
+        // A geometria continua ensinando o que a frase ensinava, só que do
+        // jeito certo: as placas estão em cantos opostos, ninguém alcança as
+        // duas, e `nearMisses` conta cada vez que ele chegou perto e o tempo
+        // não bastou. Descobrir isso é o trabalho dele.
         ...((perception.devices?.length ?? 0) > 0
-            ? ['YOU CAN ALSO: stand on a plate or pull a lever. '
-               + 'Two of them must be held at the SAME TIME, and you cannot reach two at once.']
+            ? ['YOU CAN ALSO: stand on a plate, or pull a lever, if you are next to one.']
             : []),
     );
     return linhas.join('\n');

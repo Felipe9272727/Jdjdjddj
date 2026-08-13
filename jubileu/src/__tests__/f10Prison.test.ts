@@ -138,3 +138,56 @@ describe('npc/f10Prison — a saída precisa de dois', () => {
         expect(Math.hypot(oeste.x - leste.x, oeste.z - leste.z)).toBeGreaterThan(4);
     });
 });
+
+describe('quase-acerto é OCORRÊNCIA, não quadro', () => {
+    // ── O CONTADOR QUE MENTIA POR 20x ─────────────────────────────────────
+    //
+    // `nearMisses` somava 1 a CADA QUADRO enquanto o progresso escorria. O
+    // evento `quase` é contínuo de propósito — `prisonReward` o escala por
+    // `dt` — mas `nearMisses` é uma contagem discreta que pegou carona nesse
+    // sinal. Medido: um único quase-acerto virava vinte.
+    //
+    // E o número não é enfeite: é o que diz se a dupla está APRENDENDO ou só
+    // repetindo. Inflado, "chegaram perto duas vezes" vira "quarenta", e
+    // qualquer leitura em cima disso mente.
+    const juntos = (p: F10PrisonState, ligado: boolean) => stepPrison(p, {
+        npc: ligado ? { x: -7, z: -6 } : { x: 0, z: 0 },
+        player: ligado ? { x: 7, z: -6 } : { x: 0, z: 0 },
+        dt: 1 / 60,
+    });
+
+    it('um quase-acerto conta UM, por mais que o progresso demore a escorrer', () => {
+        const p = freshPrison();
+        // Juntos por um tempo, sem chegar aos 2,5 s da tranca.
+        for (let i = 0; i < 60; i += 1) juntos(p, true);
+        const placas = p.locks.find((l) => l.id === 'placas')!;
+        expect(placas.progress).toBeGreaterThan(0);
+        expect(placas.nearMisses).toBe(0);
+
+        // Agora soltam. O progresso escorre por dezenas de quadros.
+        for (let i = 0; i < 200; i += 1) juntos(p, false);
+        expect(placas.progress).toBe(0);
+        expect(placas.nearMisses, 'contou quadros em vez de ocorrências').toBe(1);
+    });
+
+    it('dois quase-acertos contam dois', () => {
+        const p = freshPrison();
+        for (let volta = 0; volta < 2; volta += 1) {
+            for (let i = 0; i < 60; i += 1) juntos(p, true);
+            for (let i = 0; i < 200; i += 1) juntos(p, false);
+        }
+        expect(p.locks.find((l) => l.id === 'placas')!.nearMisses).toBe(2);
+    });
+
+    it('quem nunca esteve junto não acumula quase-acerto', () => {
+        // Uma pessoa sozinha pisando numa placa e saindo não é "quase".
+        const p = freshPrison();
+        for (let i = 0; i < 100; i += 1) {
+            stepPrison(p, { npc: { x: -7, z: -6 }, player: { x: 0, z: 0 }, dt: 1 / 60 });
+        }
+        for (let i = 0; i < 100; i += 1) {
+            stepPrison(p, { npc: { x: 0, z: 0 }, player: { x: 0, z: 0 }, dt: 1 / 60 });
+        }
+        expect(p.locks.every((l) => l.nearMisses === 0)).toBe(true);
+    });
+});

@@ -45,6 +45,20 @@ export type PrisonLock = {
     solved: boolean;
     /** Quantas vezes os dois estiveram juntos e o tempo não foi suficiente. */
     nearMisses: number;
+    /**
+     * Os dois estavam acionados no quadro ANTERIOR.
+     *
+     * Existe para `nearMisses` contar OCORRÊNCIAS e não QUADROS. O evento
+     * `quase` é contínuo de propósito (`prisonReward` o escala por `dt`), mas
+     * `nearMisses` é uma contagem discreta que estava pegando carona nesse
+     * sinal: enquanto o progresso escorria, ela somava 1 por quadro. Medido:
+     * um único quase-acerto virava vinte.
+     *
+     * E o número não é enfeite — é o que diz se a dupla está APRENDENDO ou só
+     * repetindo. Inflado em 20x, "chegaram perto duas vezes" vira "quarenta", e
+     * qualquer leitura em cima disso mente.
+     */
+    juntosAntes: boolean;
 };
 
 export type F10PrisonState = {
@@ -79,7 +93,7 @@ export const PRISON_DEVICES: readonly Omit<PrisonDevice, 'heldByNpc' | 'heldByPl
         { id: 'alavanca-sul', kind: 'lever', x: 7, z: 6 },
     ]);
 
-const LOCKS: readonly Omit<PrisonLock, 'progress' | 'solved' | 'nearMisses'>[] = Object.freeze([
+const LOCKS: readonly Omit<PrisonLock, 'progress' | 'solved' | 'nearMisses' | 'juntosAntes'>[] = Object.freeze([
     { id: 'placas', devices: ['placa-oeste', 'placa-leste'], holdSeconds: 2.5 },
     { id: 'alavancas', devices: ['alavanca-norte', 'alavanca-sul'], holdSeconds: 4 },
 ]);
@@ -94,7 +108,9 @@ export function freshPrison(): F10PrisonState {
     }
     return {
         devices,
-        locks: LOCKS.map((l) => ({ ...l, progress: 0, solved: false, nearMisses: 0 })),
+        locks: LOCKS.map((l) => ({
+            ...l, progress: 0, solved: false, nearMisses: 0, juntosAntes: false,
+        })),
         doorOpen: false,
         npcAttempts: 0,
         secondsSinceProgress: 0,
@@ -160,9 +176,14 @@ export function stepPrison(state: F10PrisonState, input: PrisonStepInput): Priso
             // uma dupla que quase acertou perde tudo e nunca aprende que
             // estava perto.
             eventos.push({ type: 'quase', lock: lock.id, progress: lock.progress / lock.holdSeconds });
-            lock.nearMisses += 1;
+            // A CONTAGEM É NA BORDA, não no quadro. O evento acima é contínuo
+            // e `prisonReward` o escala por `dt`; esta é uma contagem discreta,
+            // e somava 1 a cada quadro do escorrimento — um quase-acerto virava
+            // vinte. Só conta quem ESTAVA junto e deixou de estar.
+            if (lock.juntosAntes) lock.nearMisses += 1;
             lock.progress = Math.max(0, lock.progress - dt * 0.5);
         }
+        lock.juntosAntes = dupla;
     }
 
     if (!state.doorOpen && state.locks.every((l) => l.solved)) {

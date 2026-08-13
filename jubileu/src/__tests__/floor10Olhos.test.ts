@@ -57,13 +57,28 @@ describe('o mapa que a vontade lê passa a ter o que querer', () => {
         expect(texto).not.toContain('lever');
     });
 
-    it('com prisão ele lista os aparelhos E diz que precisa de dois', () => {
+    it('com prisão ele lista os aparelhos — mas NÃO recebe a solução', () => {
+        // ── DUAS AFIRMAÇÕES OPOSTAS, DOIS TESTES, AMBOS PASSANDO ─────────
+        //
+        // Este teste exigia as frases `SAME TIME` e `cannot reach two at once`
+        // no texto que o LLM lê. Ao mesmo tempo, `f10Prison.test.ts` exigia o
+        // OPOSTO para `describePrison()` — e os dois passavam, porque testam
+        // canais diferentes do mesmo cérebro.
+        //
+        // O manifesto do `f10Prison` é explícito: "o Nilo NÃO SABE o que fazer
+        // […] Se eu escrevesse a solução aqui, o teste de independência não
+        // testaria nada." Eu escrevi a solução — no `floor10Mapa`, onde aquela
+        // guarda não alcançava.
+        //
+        // O que fica é o VERBO (ele precisa saber que dá para tentar, senão não
+        // tenta nada e não descobre nada). O que sai é a REGRA, que é a
+        // conclusão que o andar inteiro existe para ele alcançar sozinho.
         const texto = mapaEmTexto(olhar({ prison: freshPrison() }), 0);
         expect(texto).toContain('plate');
         expect(texto).toContain('lever');
-        // A regra que transforma objeto de cenário em convite: sozinho não dá.
-        expect(texto).toContain('SAME TIME');
-        expect(texto).toContain('cannot reach two at once');
+        expect(texto).not.toContain('SAME TIME');
+        expect(texto).not.toContain('cannot reach two at once');
+        expect(texto).not.toMatch(/two .{0,20}(at once|together|same)/i);
     });
 
     it('quando o JOGADOR está em cima de um, o mapa grita isso', () => {
