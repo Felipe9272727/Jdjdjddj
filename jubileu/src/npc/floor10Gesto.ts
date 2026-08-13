@@ -37,6 +37,47 @@ export const DURACAO_DO_GESTO: Record<Floor10MotorAct, number> = {
 };
 
 /**
+ * Quais gestos são POSTURA, e não ação com começo-meio-fim.
+ *
+ * A distinção estava escrita no comentário acima desde o primeiro dia — e não
+ * existia no código. `poseDoGesto` e o `Floor10Npc` liam só a tabela, então o
+ * "teto de segurança" era o único prazo que valia: 3,0 s para `crouch` num
+ * plano travado por 9 s.
+ *
+ * De fora, isso é o Nilo agachando para examinar um aparelho e se levantando
+ * sozinho no meio, com o corpo ainda preso no lugar por vários segundos. Parece
+ * que ele desistiu; na verdade a pose acabou e a ordem não.
+ */
+export const POSTURAS: ReadonlySet<Floor10MotorAct> = new Set<Floor10MotorAct>([
+    'listen', 'crouch', 'look-around',
+]);
+
+/**
+ * O teto de VERDADE de uma postura. Existe para o corpo não ficar preso numa
+ * pose se um plano se perder, e por isso precisa ser maior que a ordem mais
+ * longa que o motor consegue emitir (`duration` vai a 12 s).
+ */
+export const TETO_DA_POSTURA = 15;
+
+/**
+ * Quanto este gesto deve durar, dado o plano que o pediu.
+ *
+ * Ação: o tempo da tabela — bater na porta leva o que leva.
+ * Postura: o tempo do PLANO, limitado pelo teto de segurança.
+ */
+export function duracaoDoGesto(
+    act: Floor10MotorAct | undefined,
+    duracaoDoPlano = 0,
+): number {
+    if (!act || act === 'none') return 0;
+    if (!POSTURAS.has(act)) return DURACAO_DO_GESTO[act];
+    // Um plano sem duração declarada cai na tabela: melhor a pose curta que
+    // uma postura de duração zero, que seria gesto nenhum.
+    if (!(duracaoDoPlano > 0)) return DURACAO_DO_GESTO[act];
+    return Math.min(duracaoDoPlano, TETO_DA_POSTURA);
+}
+
+/**
  * Os ângulos que o corpo soma à animação de caminhar. Tudo em radianos,
  * tudo como DIFERENÇA — zero significa "não mexe nisso".
  */
@@ -84,9 +125,21 @@ function envelope(fracao: number): number {
 export function poseDoGesto(
     act: Floor10MotorAct | undefined,
     decorrido: number,
+    /**
+     * Quanto o plano que pediu o gesto vai durar, em segundos. Só muda alguma
+     * coisa para POSTURAS — uma ação dura o que a tabela diz, independente da
+     * ordem. Omitir mantém o comportamento antigo, que é o certo para quem
+     * chama sem plano na mão (os testes de pose, o `?campo`).
+     *
+     * Passar aqui a duração JÁ RESOLVIDA por `duracaoDoGesto` dá no mesmo: para
+     * postura, `min(min(d, TETO), TETO) === min(d, TETO)`; para ação o valor é
+     * ignorado. O `Floor10Npc` faz exatamente isso, porque guarda a duração
+     * resolvida no gesto e não quer resolvê-la duas vezes por quadro.
+     */
+    duracaoDoPlano = 0,
 ): PoseDoGesto {
     if (!act || act === 'none') return POSE_PARADA;
-    const total = DURACAO_DO_GESTO[act];
+    const total = duracaoDoGesto(act, duracaoDoPlano);
     if (!(total > 0) || decorrido < 0 || decorrido >= total) return POSE_PARADA;
     const fracao = decorrido / total;
     const forca = envelope(fracao);

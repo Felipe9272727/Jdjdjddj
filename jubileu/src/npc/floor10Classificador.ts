@@ -1,4 +1,13 @@
-// ── O VETOR ESCOLHE OS CANDIDATOS, O QWEN DESEMPATA ───────────────────────
+// ── O VETOR ESCOLHE. O QWEN DESEMPATAVA, E NÃO DESEMPATA MAIS ────────────
+//
+// O título deste arquivo era "O VETOR ESCOLHE OS CANDIDATOS, O QWEN DESEMPATA",
+// e virou mentira sem ninguém tocar nele: o desempate foi removido depois, por
+// medição, e o cabeçalho ficou descrevendo um caminho que o código não percorre
+// mais (ver `floor10MotorBrain`, onde a chamada deixou de existir, e
+// `floor10MotorVetor`). Neste projeto comentário envelhecido já virou defeito
+// duas vezes, então a história fica — corrigida, não apagada.
+//
+// O que segue é o registro do que foi medido, e continua valendo como razão:
 //
 // A decisão é do dono do jogo, sobre três caminhos que eu pus na bancada:
 //

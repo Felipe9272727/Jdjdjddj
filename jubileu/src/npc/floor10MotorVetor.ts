@@ -1,16 +1,27 @@
-// ── O CAMINHO B, LIGADO ───────────────────────────────────────────────────
+// ── O CAMINHO A, QUE COMEÇOU COMO CAMINHO B ──────────────────────────────
 //
 // Três caminhos foram à bancada, nos sete pensamentos reais do dono do jogo:
 //
-//     A) vetor sozinho .............. 5/7 ·   838 ms
-//     B) vetor + qwen se apertado ... 6/7 ·  4761 ms · chamou o qwen 3x
-//     C) qwen entre os 3 ............ 4/7 ·  9763 ms
+//     A) vetor sozinho .............. 5/7 ·   838 ms ·      0 MB
+//     B) vetor + qwen se apertado ... 6/7 ·  4761 ms · +639 MB, qwen 3x
+//     C) qwen entre os 3 ............ 4/7 ·  9763 ms · +639 MB
 //
-// O B é a ideia dele, literal, e é a que ganha. Ele ganha porque PROTEGE a
-// resposta confiante: o Qwen só é acordado quando o vetor admite dúvida.
-// Obrigar o Qwen a opinar sempre (o C, que fui eu quem recomendou) atropela
-// os acertos — duas vezes o vetor deu a resposta certa com folga (`self` com
-// margem 0,224, `player` com 0,140) e o Qwen trocou por errado.
+// O B ganhou essa primeira medição, e este cabeçalho dizia "O CAMINHO B,
+// LIGADO". DEPOIS o desempate saiu: um caso em sete não distingue 5/7 de 6/7
+// com sete amostras, e não paga 639 MB no aparelho nem 3,5 s por rodada. A
+// decisão e o porquê estão em `floor10MotorBrain`, no lugar onde a chamada
+// deixou de ser feita.
+//
+// O cabeçalho ficou para trás e passou a MENTIR sobre o código: dizia que o
+// Qwen acorda quando o vetor duvida, e ele não acorda mais. Neste projeto
+// comentário envelhecido já virou defeito duas vezes — quando o comentário e o
+// código discordam, alguém acaba consertando o código para casar com o
+// comentário errado.
+//
+// O que ficou de pé do B é o MECANISMO, não o gasto: `naDuvida` continua sendo
+// calculado e continua marcando quando a margem é apertada. Religar o desempate
+// é uma linha em `floor10MotorBrain`, e a peça (`translateWithMotorEngine`)
+// continua testada. O que saiu foi a chamada.
 //
 // Este arquivo é a metade que fala com o mundo: pega o vetor do pensamento no
 // modelo residente, desempacota os rótulos e devolve o veredito. A decisão em

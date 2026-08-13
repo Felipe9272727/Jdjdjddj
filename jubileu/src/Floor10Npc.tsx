@@ -27,7 +27,7 @@ import { initLLM } from './npc/wllamaEngine';
 import { Cadencia, CADENCIA_PERCEPCAO, CADENCIA_VONTADE } from './npc/floor10Cadencia';
 import { yawDaVarredura } from './npc/floor10Olhar';
 import {
-    DURACAO_DO_GESTO, POSE_PARADA, gestoPrendeOsPes, poseDoGesto,
+    POSE_PARADA, duracaoDoGesto, gestoPrendeOsPes, poseDoGesto,
 } from './npc/floor10Gesto';
 import type { Floor10MotorAct } from './npc/floor10MotorCortex';
 import {
@@ -111,7 +111,12 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // até aqui isso só aparecia no texto do `?campo`: ele decidia bater na
     // porta e continuava andando de braço solto. Guarda-se o quê e QUANDO
     // começou; a pose sai de floor10Gesto, que é puro e testado.
-    const gesto = useRef<{ act: Floor10MotorAct; comecou: number } | null>(null);
+    // `dura` é quanto o gesto deve durar, já resolvido: para ação é a tabela,
+    // para postura é a duração do PLANO que a pediu. Guardar aqui em vez de
+    // reconsultar a tabela é o que faz a postura acompanhar a ordem — sem isso,
+    // o Nilo agachava para examinar um aparelho e se levantava sozinho no meio,
+    // com o corpo ainda preso no lugar.
+    const gesto = useRef<{ act: Floor10MotorAct; comecou: number; dura: number } | null>(null);
 
     /**
      * O mundo como a memória de consequência precisa vê-lo. Lido da loja no
@@ -311,7 +316,11 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         // ou seja, já terminado, invisível.
                         const ato = decided.motion?.act;
                         if (ato && ato !== 'none') {
-                            gesto.current = { act: ato, comecou: tempoDoAndar.current };
+                            gesto.current = {
+                                act: ato,
+                                comecou: tempoDoAndar.current,
+                                dura: duracaoDoGesto(ato, decided.motion?.duration),
+                            };
                         }
                         // ── AGENDA A CONFERÊNCIA ──────────────────────────
                         // Julgar agora diria sempre "ignorado": o gesto ainda
@@ -417,7 +426,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // andando durante um deles arrasta a mão pela sala. Acenar, escutar
             // e olhar em volta combinam com o passo.
             const gestoAtivo = gesto.current
-                && tempoDoAndar.current - gesto.current.comecou < DURACAO_DO_GESTO[gesto.current.act]
+                && tempoDoAndar.current - gesto.current.comecou < gesto.current.dura
                 ? gesto.current
                 : null;
             if (!gestoAtivo) gesto.current = null;
@@ -480,7 +489,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         // Ele acena ENQUANTO caminha. Trocar a animação pela pose faria o corpo
         // congelar no meio do passo, que é pior que não ter gesto nenhum.
         const pose = gesto.current
-            ? poseDoGesto(gesto.current.act, t - gesto.current.comecou)
+            ? poseDoGesto(gesto.current.act, t - gesto.current.comecou, gesto.current.dura)
             : POSE_PARADA;
         if (torso.current) {
             torso.current.scale.y = 1 + Math.sin(t * 1.6) * 0.02;
