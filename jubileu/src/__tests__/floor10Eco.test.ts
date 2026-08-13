@@ -54,6 +54,37 @@ describe('sair do andar apaga o eco', () => {
         expect(npc.history[0].content).toBe('você lembra de mim?');
     });
 
+    it('os TRÊS irmãos que eu tinha deixado para trás', () => {
+        // ── CONSERTAR METADE PODE CRIAR UM SINTOMA NOVO ──────────────────
+        // Um revisor achou isto e a crítica é justa: eu consertei `near` e não
+        // olhei os campos com a MESMA forma — estado de visita guardado numa
+        // loja que sobrevive ao componente.
+        //
+        // O pior dos três é a fase `decided`: eu zerava a META e a BOLHA e
+        // deixava a fase. Aí `fraseBase('')` caía no texto genérico "decidi o
+        // que fazer." e nascia uma bolha NOVA, do nada, na volta — um sintoma
+        // que não existia antes do meu conserto pela metade.
+        npcSet({
+            reflexo: 'ele mexeu em alguma coisa',
+            willCommand: { action: 'follow-player', reason: 'ele pediu' } as never,
+            deliberationPhase: 'decided',
+        });
+        npcSaiuDoAndar();
+        expect(npc.reflexo).toBe('');
+        expect(npc.willCommand).toBe(null);
+        expect(npc.deliberationPhase).toBe('off');
+    });
+
+    it('mas uma carga EM ANDAMENTO não é apagada — o modelo vive fora do React', () => {
+        // `loading` e `reopening` são sobre o modelo, que não morre com o
+        // componente. Zerar aqui faria a tela mentir na direção oposta.
+        for (const fase of ['loading', 'reopening'] as const) {
+            npcSet({ deliberationPhase: fase });
+            npcSaiuDoAndar();
+            expect(npc.deliberationPhase).toBe(fase);
+        }
+    });
+
     it('um pensamento EM CURSO não fica pendurado como "pensando"', () => {
         // `thinking` na volta é uma promessa que ninguém vai cumprir: a rodada
         // morreu junto com o componente.

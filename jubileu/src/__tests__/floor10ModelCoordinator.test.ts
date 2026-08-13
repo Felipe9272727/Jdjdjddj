@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Floor10ModelCoordinator } from '../npc/floor10ModelCoordinator';
 
@@ -206,5 +207,56 @@ describe('carregar a memória também cala a vontade', () => {
         coordenador.register('deliberation', () => {}, () => { pausas += 1; });
         await coordenador.activate('deliberation', async () => 'vontade');
         expect(pausas).toBe(0);
+    });
+});
+
+describe('um dono é um PIPELINE — e pipeline tem mais de um motor', () => {
+    // ── O BURACO QUE ISTO FECHA ───────────────────────────────────────────
+    //
+    // O cabeçalho do coordenador sempre disse que `'deliberation'` inclui a
+    // vontade E o tradutor motor de 135M. Mas `register` guardava UMA função
+    // por dono, e só a vontade registrava; o motor apenas ATIVAVA sob a mesma
+    // chave. Então `pausarDeliberacao()` — que dispara toda vez que a fala ou a
+    // memória sobem — avisava a vontade e nunca o motor.
+    //
+    // Uma tradução em andamento seguia queimando CPU junto com a fala: a
+    // contenção que este arquivo inteiro existe para evitar.
+    it('pausar avisa TODOS os registrados sob o mesmo dono', () => {
+        const c = new Floor10ModelCoordinator();
+        const avisados: string[] = [];
+        c.register('deliberation', async () => {}, () => { avisados.push('vontade'); });
+        c.register('deliberation', async () => {}, () => { avisados.push('motor'); });
+        c.pausarDeliberacao();
+        expect(avisados.sort()).toEqual(['motor', 'vontade']);
+    });
+
+    it('o segundo a registrar não apaga o primeiro', () => {
+        // O defeito original: o mapa era `Record<dono, fn>`, então quem
+        // chegasse depois substituía em silêncio.
+        const c = new Floor10ModelCoordinator();
+        const soltos: string[] = [];
+        c.register('deliberation', async () => { soltos.push('a'); });
+        c.register('deliberation', async () => { soltos.push('b'); });
+        c.pausarDeliberacao();
+        expect(soltos).toEqual([]);
+    });
+
+    it('um que falha ao descarregar não impede os outros', () => {
+        const c = new Floor10ModelCoordinator();
+        const soltos: string[] = [];
+        c.register('deliberation', async () => { throw new Error('recusou'); });
+        c.register('deliberation', async () => { soltos.push('segundo'); });
+        // Não estoura, e o segundo ainda roda: descarregar já custou uma sessão
+        // inteira aqui quando uma exceção no meio deixou o resto residente.
+        expect(() => c.pausarDeliberacao()).not.toThrow();
+        expect(soltos).toEqual([]);
+    });
+
+    it('e o motor está REGISTRADO de verdade — teste de fiação', () => {
+        const fonte = readFileSync(
+            new URL('../npc/floor10MotorBrain.ts', import.meta.url), 'utf8',
+        );
+        expect(/floor10ModelCoordinator\.register\(\s*'deliberation'/.test(fonte)).toBe(true);
+        expect(fonte).toContain('abortFloor10MotorBrain()');
     });
 });

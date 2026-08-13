@@ -18,8 +18,24 @@ export class Floor10ModelCoordinator {
     private transition: Promise<void> = Promise.resolve();
     private readonly residentOwners = new Set<Floor10BrainOwner>();
     private readonly cleanupNeededOwners = new Set<Floor10BrainOwner>();
-    private readonly unloaders: Partial<Record<Floor10BrainOwner, BrainUnloader>> = {};
-    private readonly preemptors: Partial<Record<Floor10BrainOwner, BrainPreemptor>> = {};
+    // ── UM DONO É UM PIPELINE, E PIPELINE TEM MAIS DE UM MOTOR ───────────
+    //
+    // Eram dois mapas de UMA função por dono. O comentário no topo já dizia que
+    // `deliberation` inclui a vontade E o tradutor motor de 135M — mas só a
+    // vontade se registrava (`floor10SmallBrain`), e o motor apenas ATIVAVA sob
+    // a mesma chave (`floor10MotorBrain`), sem registrar nada.
+    //
+    // Consequência medida por leitura direta: `pausarDeliberacao()` dispara
+    // toda vez que a fala ou a memória sobem, e chamava o `preempt` da vontade
+    // apenas. Uma tradução do motor em andamento nunca era avisada para parar —
+    // exatamente a contenção de CPU ("está lagando absurdamente") que este
+    // coordenador existe para evitar. E como o motor se desligava sozinho sem
+    // avisar, `residentOwners` ficava desatualizado depois.
+    //
+    // Listas, não campos únicos: quem entra no pipeline se registra, e o
+    // segundo a chegar deixa de apagar o primeiro em silêncio.
+    private readonly unloaders: Partial<Record<Floor10BrainOwner, BrainUnloader[]>> = {};
+    private readonly preemptors: Partial<Record<Floor10BrainOwner, BrainPreemptor[]>> = {};
     private readonly generations: Record<Floor10BrainOwner, number> = {
         conversation: 0,
         deliberation: 0,
@@ -31,8 +47,8 @@ export class Floor10ModelCoordinator {
         unload: BrainUnloader,
         preempt?: BrainPreemptor,
     ): void {
-        this.unloaders[owner] = unload;
-        if (preempt) this.preemptors[owner] = preempt;
+        (this.unloaders[owner] ??= []).push(unload);
+        if (preempt) (this.preemptors[owner] ??= []).push(preempt);
     }
 
     /**
@@ -100,8 +116,9 @@ export class Floor10ModelCoordinator {
     pausarDeliberacao(): void {
         this.generations.deliberation += 1;
         try {
-            void Promise.resolve(this.preemptors.deliberation?.())
-                .catch(() => undefined);
+            for (const parar of this.preemptors.deliberation ?? []) {
+                void Promise.resolve(parar()).catch(() => undefined);
+            }
         } catch { /* a carga serializada continuará com segurança */ }
     }
 
@@ -116,7 +133,14 @@ export class Floor10ModelCoordinator {
                 // sem chegar a marcar residência. A limpeza explícita também
                 // precisa zerar esse Promise para permitir nova tentativa.
                 if (this.cleanupNeededOwners.delete(owner)) {
-                    await this.unloaders[owner]?.();
+                    // Um a um, e um que falha não impede os outros: descarregar
+                    // já custou uma sessão inteira aqui quando uma exceção no
+                    // meio deixou o resto residente.
+                    for (const soltar of this.unloaders[owner] ?? []) {
+                        try {
+                            await soltar();
+                        } catch { /* o próximo ainda precisa tentar */ }
+                    }
                 }
                 if (this.lastActivatedOwner === owner) {
                     this.lastActivatedOwner = this.residentOwners.has('conversation')

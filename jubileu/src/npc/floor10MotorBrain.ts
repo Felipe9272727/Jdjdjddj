@@ -714,3 +714,24 @@ export function resetFloor10MotorBrainForTests(): void {
         motorDownload: DOWNLOAD_ZERO,
     });
 }
+
+// ── O MOTOR SE APRESENTA AO COORDENADOR ───────────────────────────────────
+//
+// Ele já ATIVAVA sob o dono `'deliberation'` — e nunca se registrava. O
+// comentário no topo do coordenador sempre disse que esse dono é um PIPELINE,
+// "fala e deliberação (esta inclui o motor de 135M)", mas só a vontade
+// (`floor10SmallBrain`) chamava `register`. Como o mapa guardava uma função por
+// dono, quem registrasse depois apagaria o anterior de qualquer jeito.
+//
+// O buraco: `pausarDeliberacao()` dispara toda vez que a fala ou a memória
+// sobem, e chamava apenas o `preempt` da vontade. Uma tradução do motor em
+// andamento nunca era avisada para parar — que é exatamente a contenção de CPU
+// ("está lagando absurdamente") que o coordenador existe para evitar. E como o
+// motor se desligava sozinho sem avisar, a conta de residentes ficava velha.
+//
+// Agora o coordenador guarda LISTAS por dono, e o motor entra na dele.
+floor10ModelCoordinator.register(
+    'deliberation',
+    () => unloadFloor10MotorBrain(),
+    () => abortFloor10MotorBrain(),
+);

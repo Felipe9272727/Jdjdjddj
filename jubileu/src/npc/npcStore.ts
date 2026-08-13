@@ -186,7 +186,7 @@ export function npcIssueWillCommand(action: Floor10WillCommandAction, reason: st
  *
  * `history` crescia sem limite pela sessão inteira: cada fala autônoma do Nilo,
  * cada mensagem do painel, cada visita ao andar, tudo empilhado para sempre. Só
- * era podado na hora de montar o prompt (`modelHistory(..., 6)`), nunca para
+ * era podado na hora de montar o prompt, nunca para
  * exibir.
  *
  * E o custo não é memória — é ENGASGO NA DIGITAÇÃO. O painel republica a loja a
@@ -196,8 +196,12 @@ export function npcIssueWillCommand(action: Floor10WillCommandAction, reason: st
  * do que deveria acontecer — e no celular que este projeto persegue isso é a
  * diferença entre ler e esperar.
  *
- * 60 mensagens é MUITO mais do que o modelo lê (ele usa 6) e muito mais do que
- * cabe na tela de uma vez. O que se perde é histórico que ninguém rolaria de
+ * 60 mensagens é MUITO mais do que o modelo lê e muito mais do que cabe na
+ * tela de uma vez. (Eu tinha escrito aqui "ele usa 6", citando `modelHistory`;
+ * um revisor foi conferir e essa função é CÓDIGO MORTO — só o próprio teste
+ * dela a chama. O prompt real usa `groundedModelHistory` com
+ * `FLOOR10_HISTORY_VERBATIM = 4`. A folga é ainda maior do que eu disse, mas o
+ * número que eu citei estava errado.) O que se perde é histórico que ninguém rolaria de
  * volta; o que se ganha é um custo por token que não cresce com a sessão.
  */
 export const MAX_HISTORICO = 60;
@@ -247,7 +251,31 @@ export function npcSaiuDoAndar() {
         deliberationBubble: '',
         deliberationLive: '',
         deliberationGoal: '',
-        deliberationPhase: s.deliberationPhase === 'thinking' ? 'off' : s.deliberationPhase,
+        // ── OS TRÊS QUE EU TINHA DEIXADO PARA TRÁS ───────────────────────
+        //
+        // Um revisor achou isto e a crítica é justa: eu consertei UM campo e
+        // não olhei os irmãos com a mesma forma. Todos são estado de VISITA
+        // guardado numa loja que sobrevive ao componente.
+        //
+        //  reflexo — texto do reflexo, desenhado no mesmo log da conversa que
+        //            a bolha e a fala autônoma, e omitido junto com elas.
+        //  willCommand — uma ordem verbal aceita numa visita ("me segue")
+        //            voltava a valer no instante em que o jogador reentrava no
+        //            andar, semanas de jogo depois. É o mesmo defeito do `near`:
+        //            um ref local que renasce contra um campo que persiste.
+        //  deliberationPhase 'decided' — este é o mais traiçoeiro. Eu zerava a
+        //            META e a BOLHA e deixava a fase; aí `fraseBase('')` caía no
+        //            texto genérico "decidi o que fazer." e nascia uma bolha
+        //            NOVA, do nada, na volta. Consertar metade criou um sintoma
+        //            que não existia antes.
+        reflexo: '',
+        willCommand: null,
+        // `thinking` e `decided` são o desfecho de uma rodada que morreu com o
+        // componente. `loading`/`reopening` NÃO entram: o modelo vive fora do
+        // React e pode estar subindo de verdade. `unavailable` também fica — é
+        // um fato sobre o aparelho, e zerar faria o jogo tentar a cada volta.
+        deliberationPhase: s.deliberationPhase === 'thinking' || s.deliberationPhase === 'decided'
+            ? 'off' : s.deliberationPhase,
     });
     npcBump();
 }

@@ -155,10 +155,36 @@ describe('o corpo do Nilo obedece às paredes', () => {
     });
 
     it('encostado numa parede, ele para a animação de andar', () => {
-        // `moving` passou a ser o deslocamento REAL, não o pretendido. Sem
-        // isso, um Nilo bloqueado marcha no lugar — a cara de um NPC quebrado.
-        const naParede = { x: 0, z: -9.9 };
-        const s = stepFloor10Movement(naParede, { x: 20, z: -9.9 }, 1.2, 1 / 60);
-        expect(Math.hypot(s.x - naParede.x, s.z - naParede.z) > 1e-6).toBe(s.moving);
+        // ── O TESTE QUE EU ESCREVI E NÃO TESTAVA NADA ────────────────────
+        //
+        // A primeira versão comparava `moving` com o deslocamento medido no
+        // MESMO passo — uma tautologia disfarçada. Um revisor trocou `moving`
+        // por `true` fixo e os onze testes continuaram passando: o par de
+        // pontos que eu escolhi produzia deslocamento real de 0,02 m, então o
+        // caso "genuinamente travado" nunca era exercido.
+        //
+        // Agora o cenário é o de verdade: empurrado CONTRA a parede, sem para
+        // onde deslizar. `moving` tem de ser falso, e o deslocamento, zero.
+        // Sem isso um Nilo bloqueado marcha no lugar — a cara de um NPC
+        // quebrado, que é o que este campo existe para evitar.
+        // A borda norte do andar (`FLOOR10_BND`, z = 22), longe da porta do
+        // elevador — um alvo ao sul de −9,7 acionaria os pontos de passagem e o
+        // desviaria, que foi a segunda armadilha ao escrever este teste.
+        // Encostado na borda com o raio do corpo, empurrar para fora não tem
+        // para onde deslizar.
+        const colado = { x: 0, z: 21.5 };
+        const s = stepFloor10Movement(colado, { x: 0, z: 30 }, 1.2, 1 / 60);
+        const andou = Math.hypot(s.x - colado.x, s.z - colado.z);
+        expect(andou).toBeLessThan(1e-6);
+        expect(s.moving, 'parado e ainda assim "andando"').toBe(false);
+    });
+
+    it('e andando de verdade, `moving` é verdadeiro', () => {
+        // O outro lado do par: um teste que só cobra `false` passaria com
+        // `moving` fixo em `false`, que é o erro simétrico.
+        const solto = { x: 0, z: 5 };
+        const s = stepFloor10Movement(solto, { x: 0, z: 8 }, 1.2, 1 / 60);
+        expect(Math.hypot(s.x - solto.x, s.z - solto.z)).toBeGreaterThan(1e-6);
+        expect(s.moving).toBe(true);
     });
 });
