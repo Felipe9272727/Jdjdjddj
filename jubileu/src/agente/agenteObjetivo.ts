@@ -43,6 +43,7 @@ import {
     livreEm, maisLonge, paraCelula,
 } from './agenteMapa';
 import { type Tentativa, irAte } from './agenteAndar';
+import { type Plataforma, ondeElePisa, rotaDePulos } from './agenteSalto';
 
 /**
  * O centro da caixa do elevador, tirado das próprias paredes dela.
@@ -178,12 +179,64 @@ export function pegarOElevador(andar: EstadoDoAndar, de: Ponto): TentativaDeAnda
 }
 
 export type Objetivo = {
-    /** `elevador` = a saída deste andar é embarcar. `explorar` = eu não sei a saída. */
-    tipo: 'elevador' | 'explorar';
+    /**
+     * `elevador` = a saída deste andar é embarcar.
+     * `pular`    = o chão não é chão; o caminho é uma sequência de plataformas.
+     * `explorar` = eu não sei a saída.
+     */
+    tipo: 'elevador' | 'pular' | 'explorar';
     alvo: Ponto;
     /** Em português, para caber na bolha do NPC e no relatório do teste. */
     porque: string;
+    /** Só em `pular`: a sequência de plataformas até o alvo. */
+    rota?: readonly Plataforma[];
 };
+
+/**
+ * ── O OBJETIVO QUANDO O CAMINHO É PELO AR ────────────────────────────────
+ *
+ * Num parkour não existe "o ponto mais distante que eu alcance a pé": o chão é
+ * vão. O que existe é a plataforma mais ALTA que uma sequência de pulos
+ * alcança — subir É o objetivo, e é o que o jogador humano faz sem pensar.
+ *
+ * A rota vem do grafo de pulos (`rotaDePulos`), cujas arestas saem de
+ * `F3_JUMP`/`F3_GRAVITY`. Se nem a plataforma de baixo dá para deixar, a rota
+ * volta vazia e o alvo é onde ele já está — resposta honesta, e melhor que
+ * mandar o corpo pular num vão que a física não fecha.
+ */
+export function oQueFazerNoAr(
+    plataformas: readonly Plataforma[],
+    de: Ponto,
+    y = 0,
+): Objetivo {
+    const aqui = ondeElePisa(plataformas, de.x, y, de.z)
+        ?? plataformas.reduce((a, b) => (
+            Math.hypot(a.x - de.x, a.z - de.z) <= Math.hypot(b.x - de.x, b.z - de.z) ? a : b
+        ));
+    let melhor = aqui;
+    let melhorRota: readonly Plataforma[] = [aqui];
+    for (const p of plataformas) {
+        if (p.topY <= melhor.topY) continue;
+        const rota = rotaDePulos(plataformas, aqui.id, p.id);
+        if (rota.length === 0) continue;
+        melhor = p;
+        melhorRota = rota;
+    }
+    if (melhor.id === aqui.id) {
+        return {
+            tipo: 'pular',
+            alvo: { x: aqui.x, z: aqui.z },
+            porque: 'daqui não sai pulo nenhum que suba',
+            rota: [aqui],
+        };
+    }
+    return {
+        tipo: 'pular',
+        alvo: { x: melhor.x, z: melhor.z },
+        porque: `subir ${melhorRota.length - 1} pulo(s) até o mais alto que alcanço`,
+        rota: melhorRota,
+    };
+}
 
 /**
  * ── O QUE FAZER NESTE ANDAR ───────────────────────────────────────────────
@@ -197,7 +250,30 @@ export type Objetivo = {
  * TODAS elas: não dá para puxar uma alavanca sem chegar perto dela. Andar até
  * o ponto mais longe é o passo honesto enquanto o passo seguinte não existe.
  */
-export function oQueFazerAqui(andar: EstadoDoAndar, de: Ponto): Objetivo {
+export function oQueFazerAqui(
+    andar: EstadoDoAndar,
+    de: Ponto,
+    /**
+     * ── O CHÃO NEM SEMPRE É CHÃO ──────────────────────────────────────────
+     *
+     * Um revisor apontou que `agenteSalto` era uma ILHA: nenhum outro módulo do
+     * pacote o importava, e por um motivo real — `wallsForState(3)` descreve o
+     * corredor do parkour como área aberta, sem modelar plataforma nem vão. A
+     * queda é decidida por `y < -8` no `Player.tsx`, que a grade XZ não enxerga.
+     *
+     * Ou seja: no ANDAR EXATO para o qual o módulo de pulo foi escrito, o agente
+     * concluía "é tudo chão livre" e nunca perguntava se dava para pular. O
+     * módulo tinha 18 testes e zero influência sobre qualquer decisão.
+     *
+     * A ligação NÃO pode ser `if (nivel === 3)` — a promessa é funcionar em
+     * andares futuros. Então quem sabe que este andar tem plataformas é quem
+     * chama: no Andar 3 é `f3Parkour.platforms`, num andar futuro será outra
+     * coisa. Sem plataformas, tudo segue como antes; com elas, a pergunta muda
+     * de "para onde ando" para "por onde subo".
+     */
+    plataformas: readonly Plataforma[] = [],
+): Objetivo {
+    if (plataformas.length > 0) return oQueFazerNoAr(plataformas, de);
     if (andar.oCabResponde) {
         if (dentroDoCab(andar.nivel, de)) {
             return { tipo: 'elevador', alvo: { ...de }, porque: 'já estou no elevador' };

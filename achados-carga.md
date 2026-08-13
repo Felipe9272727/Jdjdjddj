@@ -55,7 +55,39 @@ contexto não-seguro) faz `deleteCachedModel` sempre devolver `false` mesmo
 quando a Plano C (URL crua) teria funcionado — path conservador, não path que
 finge sucesso, então baixa prioridade.
 
-PRÓXIMO: floor10Precarga.ts, floor10Gpu.ts.
+PRÓXIMO: floor10Gpu.ts, depois grep alvejado em wllamaEngine.ts.
+
+### floor10Precarga.ts — revisão funda
+
+`esperarAVez` (linhas 128-183): mecanismo de espera com teto duplo
+(`tetoMs`/`tetoAbsolutoMs`), limpa `setInterval` e cancela a assinatura da loja
+em TODOS os casos de término, e protege a chamada de `adiar()` num tique com
+try/catch (documentado como correção de um bug real anterior — "uma exceção
+tardia deixava a promessa pendente para sempre"). Não achei um jeito de essa
+promessa nunca resolver: o `tetoAbsolutoMs` (10 min) sempre vence mesmo se
+`falaGerandoAgora()` ficar travada em `true` para sempre.
+
+LEVANTEI UMA SUSPEITA sem conseguir confirmar (então NÃO reporto): `const
+cancelarInscricao = npcSubscribe(conferir);` seguido por `conferir()` alguns
+tiques depois — se `npcSubscribe` chamasse `conferir` SINCRONAMENTE durante a
+própria assinatura (algumas libs de pub/sub fazem isso), e `conferir` decidisse
+terminar já nessa primeira chamada, `terminar()` tentaria chamar
+`cancelarInscricao()` ainda dentro do inicializador do `const` — o que
+lançaria (TDZ) em vez de cancelar. Não posso confirmar porque `npcStore.ts`
+está fora do meu setor por instrução explícita, e o padrão mais comum para uma
+função chamada `*Subscribe` (estilo Zustand) NÃO chama o callback na hora da
+inscrição, só em mudanças futuras — o que tornaria isto não-reprodutível. Sem
+poder ler `npcStore.ts`, não tenho cenário concreto: NÃO reporto.
+
+`iniciarPrecarga` (linhas 300-366): o `try` externo cobre o passo inteiro
+(espera da vez + contabilidade), documentado como correção de um bug real
+anterior em que uma exceção fora do `carregar()` rejeitava `emCurso`
+permanentemente. Meu teste de bancada (abaixo) não achou um jeito de burlar
+essa cobertura.
+
+Nenhum achado reportável neste arquivo até agora.
+
+PRÓXIMO: floor10Gpu.ts, depois grep alvejado em wllamaEngine.ts.
 
 ### floor10ModelCoordinator.ts — revisão funda, sem achado reportável
 

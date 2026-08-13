@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
+import { platforms, reset, tick } from '../f3Parkour';
+import { type Plataforma, daParaPular } from '../agente/agenteSalto';
 import { ELEV_W, hasWalkInElevator } from '../constants';
 import { irAte } from '../agente/agenteAndar';
 import { RAIO_DA_VISTA, caminho } from '../agente/agenteMapa';
 import {
-    DENTRO_DO_CAB, alcanca, dentroDoCab, oQueFazerAqui, olharOAndar, pegarOElevador,
+    DENTRO_DO_CAB, alcanca, dentroDoCab, oQueFazerAqui, oQueFazerNoAr, olharOAndar,
+    pegarOElevador,
 } from '../agente/agenteObjetivo';
 
 /** Um ponto fora do cab em todo andar (z = 0 está bem acima de ELEVATOR_ZONE_Z). */
@@ -19,10 +23,12 @@ describe('o alvo do elevador é DERIVADO, não cravado', () => {
     });
 
     it('bate com o ponto para onde o App TELEPORTA o jogador na viagem', () => {
-        // `playerPositionCmdRef.current = { x: 0, y: 0, z: -13 }` aparece duas
-        // vezes no App.tsx (o "saved" do saguão e o finale do Andar 8). Duas
-        // contas independentes chegando no mesmo lugar é o que sustenta a
-        // derivação — se alguém mover o cab e só mexer numa delas, isto quebra.
+        // `playerPositionCmdRef.current = { x: 0, y: 0, z: -13 }`. Eu tinha
+        // escrito aqui "duas vezes", contando as duas que eu conhecia; um
+        // revisor foi medir e são 13 ocorrências de `z: -13` no App, 10 nessa
+        // forma exata. O número errado enfraquecia o próprio argumento: treze
+        // cópias do mesmo ponto são um motivo MAIOR para derivar a coordenada
+        // de `ELEV_W` do que duas seriam.
         expect(DENTRO_DO_CAB).toEqual({ x: 0, z: -13 });
     });
 });
@@ -176,5 +182,70 @@ describe('ZERO conhecimento de andar específico, também aqui', () => {
         const obj = oQueFazerAqui(andar, FORA_DO_CAB);
         expect(obj.tipo).toBe('explorar');
         expect(alcanca(andar, FORA_DO_CAB, obj.alvo)).toBe(true);
+    });
+});
+
+describe('quando o chão não é chão: o parkour', () => {
+    // ── A ILHA QUE UM REVISOR ACHOU ───────────────────────────────────────
+    //
+    // `agenteSalto` tinha 18 testes e NENHUM importador fora deles. E o motivo
+    // era real, não descuido: `wallsForState(3)` descreve o corredor do parkour
+    // como área aberta, sem plataforma nem vão — a queda é decidida por `y < -8`
+    // no `Player.tsx`, que uma grade XZ não enxerga.
+    //
+    // Ou seja, no ANDAR EXATO para o qual o módulo foi escrito, o agente
+    // concluía "é tudo chão livre" e nunca perguntava se dava para pular.
+    const curso = (): Plataforma[] => {
+        reset(0x9e3779b9);
+        tick(0, 0);
+        return platforms.map((p) => ({
+            id: p.id, x: p.bx, z: p.cz, hw: p.hw, hd: p.hd, topY: p.topY, amp: p.amp,
+        }));
+    };
+
+    it('com plataformas, o objetivo vira SUBIR — e a rota é de pulos reais', () => {
+        const c = curso();
+        const obj = oQueFazerAqui(olharOAndar(3, { x: 0, z: -5 }), { x: 0, z: -5 }, c);
+        expect(obj.tipo).toBe('pular');
+        expect(obj.rota!.length).toBeGreaterThan(1);
+        // Cada passo da rota tem de ser um pulo que a física do jogo fecha.
+        for (let i = 0; i < obj.rota!.length - 1; i += 1) {
+            expect(daParaPular(obj.rota![i], obj.rota![i + 1]).da).toBe(true);
+        }
+        // E ele sobe: o destino é mais alto que a partida.
+        expect(obj.rota![obj.rota!.length - 1].topY).toBeGreaterThan(obj.rota![0].topY);
+    });
+
+    it('sem plataformas, nada muda — o andar plano segue plano', () => {
+        // A ligação não pode custar o comportamento de todos os outros andares.
+        for (const nivel of [0, 1, 2, 5, 10]) {
+            const de = { x: 0, z: 0 };
+            const andar = olharOAndar(nivel, de);
+            expect(oQueFazerAqui(andar, de).tipo).toBe(oQueFazerAqui(andar, de, []).tipo);
+            expect(oQueFazerAqui(andar, de).tipo).not.toBe('pular');
+        }
+    });
+
+    it('ilhado no ar, ele diz que não sai pulo — não inventa um destino', () => {
+        // Uma plataforma sozinha no meio do nada. Mandar o corpo para um vão
+        // que a física não fecha seria pior que admitir que não dá.
+        const sozinha: Plataforma[] = [
+            { id: 1, x: 0, z: 0, hw: 1, hd: 1, topY: 0 },
+            { id: 2, x: 0, z: 60, hw: 1, hd: 1, topY: 8 },
+        ];
+        const obj = oQueFazerNoAr(sozinha, { x: 0, z: 0 });
+        expect(obj.tipo).toBe('pular');
+        expect(obj.rota).toHaveLength(1);
+        expect(obj.porque).toContain('não sai pulo');
+    });
+
+    it('e o módulo do pulo deixou de ser ilha — teste de FIAÇÃO', () => {
+        // O defeito não era o módulo estar errado: era ninguém consultá-lo.
+        // Um módulo correto sem chamador não muda nada no jogo.
+        const fonte = readFileSync(
+            new URL('../agente/agenteObjetivo.ts', import.meta.url), 'utf8',
+        );
+        expect(fonte).toContain("from './agenteSalto'");
+        expect(fonte).toContain('rotaDePulos(');
     });
 });
