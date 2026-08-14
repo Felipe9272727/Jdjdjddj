@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { alvoDaProsa, planoDaProsa, verboDaProsa } from '../npc/floor10Prosa';
+import { alvoDaProsa, planoDaProsa, verboDaProsa, ordemNegada, ordemRecusada,
+} from '../npc/floor10Prosa';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
 
 // ── AS FIXTURES SÃO SAÍDAS REAIS, COPIADAS DO RELATÓRIO ───────────────────
@@ -183,5 +184,66 @@ describe('floor10Prosa — o tradutor NÃO é órfão', () => {
         expect(p?.verb).toBe('withdraw');
         expect(p?.target).toBe('elevator');
         expect(p?.duration).toBe(12);
+    });
+});
+
+describe('negação e ordem impossível — os dois casos que o dono do jogo achou', () => {
+    // ── OS DOIS PRINTS ────────────────────────────────────────────────────
+    //
+    //   "Kill the player"                  -> ordem: approach player
+    //   "go to player but don't follow"    -> ordem: approach player
+    //
+    // Nenhum dos dois é bug de código: é o mecanismo sem saída para "não". O
+    // ALVO vem do vetor (cosseno sobre 14 alvos, que não enxerga negação) e o
+    // VERBO vinha das regras com `?? 'approach'` no fim. "Kill" não casava com
+    // regra nenhuma e caía no fallback; "player" era a única âncora da frase.
+    //
+    // Somando: a ordem impossível virava obediência silenciosa. Pior que errar
+    // — de fora parece que ele entendeu e aceitou.
+    it('"kill the player" não vira "vá até o player"', () => {
+        expect(verboDaProsa('Kill the player')).toBe('hold');
+        expect(ordemRecusada('Kill the player')).toBe(true);
+    });
+
+    it('e as outras palavras hostis também', () => {
+        for (const frase of ['attack him', 'hurt the player', 'shoot them']) {
+            expect(verboDaProsa(frase), frase).toBe('hold');
+            expect(ordemRecusada(frase), frase).toBe(true);
+        }
+    });
+
+    it('"vá até ele mas NÃO siga" não vira "aproxime"', () => {
+        for (const frase of [
+            "go to the player but don't follow him",
+            'walk to him, do not follow',
+            'approach the elevator without walking around it',
+        ]) {
+            expect(verboDaProsa(frase), frase).toBe('hold');
+            expect(ordemNegada(frase), frase).toBe(true);
+        }
+    });
+
+    it('mas negar IMOBILIDADE não inverte — senão "não fique parado" trava ele', () => {
+        // `hold` e `stay` já são não-agir. Invertê-los sob negação faria
+        // "don't stay still" virar ficar parado, que é o oposto do pedido.
+        expect(verboDaProsa("don't stay still")).toBe('stay');
+        expect(verboDaProsa('do not hold')).toBe('hold');
+    });
+
+    it('e uma ordem NORMAL continua funcionando — o conserto não pode custar isso', () => {
+        expect(verboDaProsa('walk to the elevator')).toBe('approach');
+        expect(verboDaProsa('circle around him')).toBe('orbit');
+        expect(verboDaProsa('back away slowly')).toBe('withdraw');
+        expect(ordemRecusada('walk to the elevator')).toBe(false);
+        expect(ordemNegada('walk to the elevator')).toBe(false);
+    });
+});
+
+describe('negação sem verbo conhecido não pode virar a ordem positiva', () => {
+    it('"não" sozinho vira ficar parado, não aproximar', () => {
+        // `null` aqui viraria `?? 'approach'` lá no `planoDoVetor`: uma frase
+        // que diz "não" acabaria virando exatamente a ordem que ela nega.
+        expect(verboDaProsa('never')).toBe('hold');
+        expect(verboDaProsa("don't")).toBe('hold');
     });
 });
