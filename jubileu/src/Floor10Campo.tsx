@@ -32,6 +32,7 @@ import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
 import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from './npc/floor10Passo';
+import { f10prison } from './npc/f10Prison';
 import {
     MemoriaDeConsequencia, type Consequencia, type MundoObservado,
 } from './npc/floor10Consequencia';
@@ -225,6 +226,12 @@ const Floor10Campo: React.FC = () => {
             const antesZ = corpo.current.z;
             passoDoPlano(corpo.current, alvoAtivo, {
                 jogador: jogador.current,
+                // Os aparelhos da prisão, que faltavam. Sem eles, todo plano com
+                // alvo `nearest-device`/`active-device` — o palpite mais provável
+                // do vetor no Andar 10 — virava "alvo nulo" e o corpo não saía do
+                // lugar. Era o "no campo, as respostas dele não acionam
+                // movimento": o campo mostrava parado o que o jogo faz andar.
+                aparelhos: Object.values(f10prison.devices),
                 elevador: ELEVADOR,
                 limite: LIMITE,
                 dt,

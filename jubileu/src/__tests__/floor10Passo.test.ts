@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { PRISON_DEVICES } from '../npc/f10Prison';
 import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from '../npc/floor10Passo';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
-import type { Floor10MotorPlan } from '../npc/floor10MotorCortex';
+import type { Floor10MotorPlan, Floor10MotorTarget } from '../npc/floor10MotorCortex';
 
 const plano = (verb: string, target: string, pace = 'normal'): Floor10MotorPlan => ({
     verb: verb as Floor10MotorPlan['verb'],
@@ -250,5 +252,91 @@ describe('direções relativas ao corpo — "5 passos à esquerda"', () => {
         correr(corpo, plano('explore', 'ahead', 'fast'), 60 * 30, { x: 99, z: 99 });
         expect(Math.abs(corpo.x)).toBeLessThanOrEqual(21.5);
         expect(Math.abs(corpo.z)).toBeLessThanOrEqual(21.5);
+    });
+});
+
+describe('o corpo alcança os APARELHOS — o campo era cego para eles', () => {
+    // ── A QUEIXA QUE ISTO MATA ────────────────────────────────────────────
+    //
+    //   "no campo, as respostas dele não acionam movimento"
+    //
+    // O `alvoNoMundo` devolvia `null` para `nearest-device` e `active-device`,
+    // com um comentário que apresentava isso como prudência: "sem catálogo de
+    // aparelhos nesta réplica […] em vez de inventar uma posição que não existe
+    // no mundo real".
+    //
+    // Só que a posição EXISTE — `PRISON_DEVICES` é um módulo puro com as quatro
+    // coordenadas fixas, e o caminho do jogo 3D (`groundMotorPlan` →
+    // `targetPoint`) já as resolvia. A réplica não estava sendo conservadora:
+    // estava cega. E o Andar 10 É a prisão, então `nearest-device` é o palpite
+    // mais provável do vetor lá dentro — ou seja, o campo mostrava o Nilo
+    // PARADO exatamente nos casos em que o jogo o faria andar.
+    //
+    // Instrumento de medida que mente é pior que instrumento nenhum: as
+    // decisões tomadas olhando para ele saem erradas.
+    const aparelhos = PRISON_DEVICES.map((d) => ({
+        x: d.x, z: d.z, heldByNpc: false, heldByPlayer: false,
+    }));
+    const mundo = (over = {}) => ({
+        jogador: { x: -6, z: 6 },
+        elevador: { x: 0, z: -10 },
+        limite: 22,
+        dt: 1 / 60,
+        aparelhos,
+        ...over,
+    });
+    const paraAparelho = (target: Floor10MotorTarget): Floor10MotorPlan => ({
+        verb: 'approach', target, pace: 'normal', duration: 6, raw: `approach ${target}`,
+    });
+
+    it('"vá até a coisa mais próxima que reage" faz o corpo ANDAR', () => {
+        // Do centro até o aparelho mais próximo são √(7²+6²) ≈ 9,2 m; a 1,6 m/s
+        // isso leva ~350 quadros. 240 davam 6,4 m e o teste falhava dizendo
+        // "não chegou" quando o certo era "não deu tempo".
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        for (let i = 0; i < 600; i += 1) passoDoPlano(corpo, paraAparelho('nearest-device'), mundo());
+        expect(Math.hypot(corpo.x, corpo.z), 'não saiu do lugar').toBeGreaterThan(1);
+        // E chegou perto de ALGUM aparelho de verdade.
+        const perto = Math.min(...aparelhos.map((d) => Math.hypot(d.x - corpo.x, d.z - corpo.z)));
+        expect(perto).toBeLessThan(1.5);
+    });
+
+    it('e escolhe o mais perto DELE, não um fixo', () => {
+        // Partindo de cantos opostos ele tem de ir para aparelhos diferentes.
+        const oeste: CorpoDoNilo = { x: -6, z: -6, yaw: 0 };
+        const leste: CorpoDoNilo = { x: 6, z: -6, yaw: 0 };
+        for (let i = 0; i < 600; i += 1) {
+            passoDoPlano(oeste, paraAparelho('nearest-device'), mundo());
+            passoDoPlano(leste, paraAparelho('nearest-device'), mundo());
+        }
+        expect(oeste.x).toBeLessThan(0);
+        expect(leste.x).toBeGreaterThan(0);
+    });
+
+    it('"a coisa que ESTÁ reagindo" vai na acionada, não na mais perta', () => {
+        // O Nilo colado na placa oeste, e a LESTE acionada pelo jogador: o
+        // alvo é a que reage, senão ele nunca cruza a sala para cooperar.
+        const comLesteAcionada = aparelhos.map((d) => ({ ...d, heldByPlayer: d.x > 0 && d.z < 0 }));
+        const corpo: CorpoDoNilo = { x: -7, z: -6, yaw: 0 };
+        for (let i = 0; i < 600; i += 1) {
+            passoDoPlano(corpo, paraAparelho('active-device'), mundo({ aparelhos: comLesteAcionada }));
+        }
+        expect(corpo.x, 'ficou no lado oeste em vez de ir na acionada').toBeGreaterThan(0);
+    });
+
+    it('sem lista de aparelhos, volta a ficar parado — e isso é o certo', () => {
+        // Quem chama sem prisão no mundo não tem aparelho nenhum para alcançar.
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        for (let i = 0; i < 120; i += 1) {
+            passoDoPlano(corpo, paraAparelho('nearest-device'), mundo({ aparelhos: undefined }));
+        }
+        expect(Math.hypot(corpo.x, corpo.z)).toBeLessThan(0.01);
+    });
+
+    it('e o CAMPO passa a lista — teste de fiação', () => {
+        // O defeito não era a função estar errada: era a réplica não entregar
+        // os aparelhos. Comportamento e fiação, cobrados em separado.
+        const fonte = readFileSync(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8');
+        expect(fonte).toContain('aparelhos: Object.values(f10prison.devices)');
     });
 });

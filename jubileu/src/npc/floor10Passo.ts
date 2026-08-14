@@ -49,6 +49,34 @@ export type CorpoDoNilo = {
 
 export type MundoDoPasso = {
     jogador: { x: number; z: number } | null;
+    /**
+     * ── OS APARELHOS, QUE FALTAVAM E CUSTAVAM CARO ────────────────────────
+     *
+     * Estava escrito aqui, como se fosse uma escolha: "Sem catálogo de
+     * aparelhos nesta réplica: o corpo trata como 'aqui mesmo' em vez de
+     * inventar uma posição que não existe no mundo real."
+     *
+     * Só que a posição EXISTE — `PRISON_DEVICES` é um módulo puro com as quatro
+     * coordenadas fixas, e o caminho do jogo 3D (`groundMotorPlan` →
+     * `targetPoint`) já as resolve há muito tempo. A réplica não estava sendo
+     * prudente: estava cega.
+     *
+     * E o preço era alto, porque o Andar 10 É a prisão. Quando o vetor
+     * classifica o pensamento do Nilo como `nearest-device` — o palpite mais
+     * provável ali dentro — o corpo da réplica recebia `null` e não andava. O
+     * dono do jogo viu isso e descreveu certo: "no campo, as respostas dele não
+     * acionam movimento".
+     *
+     * Um campo de provas que mostra o Nilo parado onde o jogo o faria andar não
+     * é um campo de provas conservador. É um instrumento que mente, e as
+     * decisões tomadas olhando para ele saem erradas.
+     */
+    aparelhos?: readonly {
+        x: number;
+        z: number;
+        heldByNpc: boolean;
+        heldByPlayer: boolean;
+    }[];
     elevador: { x: number; z: number };
     /** Metade do lado da sala; o corpo nunca atravessa a parede. */
     limite: number;
@@ -84,8 +112,6 @@ function alvoNoMundo(
         case 'south-side': return { x: 0, z: -L + 4 };
         case 'east-side': return { x: L - 4, z: 0 };
         case 'west-side': return { x: -L + 4, z: 0 };
-        // Sem catálogo de aparelhos nesta réplica: o corpo trata como "aqui
-        // mesmo" em vez de inventar uma posição que não existe no mundo real.
         // ── AS RELATIVAS SE RESOLVEM CONTRA O YAW DELE ───────────────────
         // "Esquerda" é a esquerda do NILO, não a do mapa — e por isso o alvo
         // tem de ser calculado no instante do passo, não uma vez. Sem estas
@@ -108,11 +134,37 @@ function alvoNoMundo(
                 z: corpo.z + Math.cos(a) * PASSOS,
             };
         }
+        // ── OS APARELHOS ──────────────────────────────────────────────────
+        // `nearest-device` é o mais perto do corpo; `active-device` é o que
+        // está acionado agora — e se nenhum estiver, o mais perto, porque
+        // "vai até a coisa que reage" sem nada reagindo ainda é "vai até uma
+        // coisa que reage". Sem lista, os dois voltam a ser `null`, e aí o
+        // corpo fica parado como antes — que é o certo para quem chama sem
+        // prisão nenhuma no mundo.
+        case 'active-device': {
+            const ativo = (mundo.aparelhos ?? [])
+                .find((d) => d.heldByNpc || d.heldByPlayer);
+            if (ativo) return { x: ativo.x, z: ativo.z };
+            return maisPertoDoCorpo(corpo, mundo);
+        }
         case 'nearest-device':
-        case 'active-device':
+            return maisPertoDoCorpo(corpo, mundo);
         case 'self':
         default: return null;
     }
+}
+
+function maisPertoDoCorpo(
+    corpo: CorpoDoNilo,
+    mundo: MundoDoPasso,
+): { x: number; z: number } | null {
+    let melhor: { x: number; z: number } | null = null;
+    let dist = Infinity;
+    for (const d of mundo.aparelhos ?? []) {
+        const q = Math.hypot(d.x - corpo.x, d.z - corpo.z);
+        if (q < dist) { dist = q; melhor = { x: d.x, z: d.z }; }
+    }
+    return melhor;
 }
 
 /** Vira a cabeça na direção pedida, no máximo `GIRO` por segundo. */
