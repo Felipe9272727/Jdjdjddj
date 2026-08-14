@@ -1105,9 +1105,38 @@ function initConversationEngine(): Promise<WllamaInstance> {
             'runtime pronto; conferindo o modelo…',
         );
 
+        // ── A MEDIDA É SEMPRE PUBLICADA; SÓ A DECISÃO FICA ATRÁS DO `if` ──
+        //
         // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
-        // cache, não há nada a caber — a pergunta simplesmente não se aplica.
-        if (!await isModelCached(mod, model.url)) {
+        // cache, não há nada a caber — a pergunta simplesmente não se aplica, e
+        // esse raciocínio está certo sobre a DECISÃO.
+        //
+        // Só que o bloco inteiro estava dentro do `if`, inclusive a LEITURA da
+        // cota. Com o modelo em cache, `npc.storage` nunca era preenchido e
+        // ficava no `{ quota: null }` do estado inicial — e a tela imprime, para
+        // `quota: null`, "o navegador não informa a cota".
+        //
+        // Foi exatamente essa frase que o dono do jogo fotografou. O navegador
+        // informa; ninguém perguntou. A carga da vontade
+        // (`floor10SmallBrain`) lê e publica o mesmo campo SEM condição, o que
+        // mostra que aqui era omissão e não política.
+        //
+        // Diagnóstico que mente é pior que diagnóstico ausente: "não sei quanto
+        // cabe" manda procurar defeito no aparelho do jogador.
+        const jaEmCache = await isModelCached(mod, model.url);
+        if (jaEmCache) {
+            const estimativa = await readStorageEstimate();
+            npcSet({
+                storage: {
+                    quota: estimativa.quota,
+                    usage: estimativa.usage,
+                    // Zero, e é a verdade: os pesos já estão no aparelho, não
+                    // há nada de novo para caber.
+                    needBytes: 0,
+                },
+            });
+        }
+        if (!jaEmCache) {
             const modelBytes = await probeModelBytes(model.url);
             const excedeTeto = excedeTetoDoGguf(modelBytes);
             if (excedeTeto) throw new ModelStorageError(excedeTeto);
