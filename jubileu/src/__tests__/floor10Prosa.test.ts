@@ -272,3 +272,60 @@ describe('negação sem verbo conhecido não pode virar a ordem positiva', () =>
         expect(verboDaProsa("don't")).toBe('hold');
     });
 });
+
+describe('fugir e girar — os dois casos que o dono do jogo achou testando', () => {
+    // ── "quando eu mencionou player ele automaticamente segue o player" ────
+    //
+    // A causa não era o vetor: era o `?? 'approach'` do `planoDoVetor`. Medido
+    // com a tabela antiga, NENHUMA destas casava com regra alguma, e todas
+    // caíam no fallback — mandar o Nilo FUGIR fazia ele ir ATRÁS.
+    it('fugir é fugir, não aproximar', () => {
+        for (const frase of [
+            'run away from the player', 'flee from the player', 'escape the player',
+            'get away from him', 'avoid the player', 'keep away from him',
+            'back off', 'stay away from the player',
+        ]) {
+            expect(verboDaProsa(frase), frase).toBe('withdraw');
+        }
+    });
+
+    // ── "quando eu peço pra ele rodar em 360 graus, ele não aceita" ────────
+    //
+    // Não havia NADA no vocabulário: os seis verbos são deslocamento e `orbit`
+    // circula em volta de um alvo (precisa de alvo, produz translação). Virar o
+    // próprio corpo, parado, não era exprimível.
+    it('girar no lugar existe, e vem como ATO com o corpo parado', () => {
+        for (const frase of [
+            'spin 360 degrees', 'turn around 360', 'rotate in place',
+            'do a full turn', 'spin around',
+        ]) {
+            const casas = casasDaProsa(frase);
+            expect(casas.gira, frase).toBe(true);
+            expect(casas.verbo, frase).toBe('stay');
+        }
+    });
+
+    it('mas "turn right" continua sendo aproximar — é saída REAL do modelo', () => {
+        // Eu tinha tirado `turn` da regra de aproximar para consertar o giro, e
+        // quebrei um caso medido: o modelo escreve "MOTION: turn right | north
+        // wall", que é virar-se PARA o norte. A distinção não é a palavra
+        // `turn`, é o que vem depois dela.
+        expect(casasDaProsa('turn right').gira).toBe(false);
+        expect(verboDaProsa('turn right')).toBe('approach');
+    });
+
+    it('andar E girar ao mesmo tempo continua possível', () => {
+        // O trecho de giro sai antes da busca por verbo, então um verbo de
+        // deslocamento de VERDADE na frase ainda manda.
+        const casas = casasDaProsa('walk to the elevator while spinning');
+        expect(casas.gira).toBe(true);
+        expect(casas.verbo).toBe('approach');
+    });
+
+    it('e os buracos que o fallback escondia', () => {
+        // "rush" só existia na tabela de RITMO; "watch" não existia em lugar
+        // nenhum. As duas caíam no fallback e viravam aproximação.
+        expect(verboDaProsa('I rush at him')).toBe('approach');
+        expect(verboDaProsa('I watch him for a while')).toBe('hold');
+    });
+});

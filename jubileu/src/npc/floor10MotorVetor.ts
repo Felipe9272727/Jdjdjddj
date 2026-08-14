@@ -169,24 +169,47 @@ function duracaoDoTexto(texto: string): Floor10MotorDuration {
  * — nos sete casos medidos, quatro tinham margem larga o bastante para nunca
  * acordar o Qwen.
  */
+/**
+ * ── SEM VERBO, SEM PLANO ──────────────────────────────────────────────────
+ *
+ * Aqui havia `casas.verbo ?? 'approach'`, e esse `??` era a maior fonte de
+ * desobediência do NPC inteiro. Toda frase cujo verbo o mapa não reconhecia
+ * virava "vá até a âncora mais próxima" — e como o vetor sempre acha ALGUMA
+ * âncora, o resultado era ele indo até a coisa que a frase mencionava.
+ *
+ * Medido nas frases que o dono do jogo usou:
+ *
+ *     "run away from the player" -> nada casava -> approach player
+ *     "flee from the player"     -> nada casava -> approach player
+ *     "avoid the player"         -> nada casava -> approach player
+ *     "spin 360 degrees"         -> nada casava -> approach <âncora>
+ *
+ * Mandar o Nilo FUGIR fazia ele ir ATRÁS. Não é o vetor errando: é o fallback
+ * inventando um verbo que a frase não tinha.
+ *
+ * A regra agora é a que o dono do jogo pediu, e é a certa: NÃO ENTENDEU, NÃO
+ * FAZ NADA. `null` aqui não deixa o NPC inerte — o corpo cai no
+ * `planoDaMeta(goal)` da vontade, que é uma ordem legítima vinda da decisão
+ * dele. O que morre é só a obediência inventada.
+ */
 export function planoDoVetor(
     alvo: Floor10MotorTarget,
     pensamento: string,
     /** Identifica ESTA rodada. Ver a nota sobre `raw` no corpo da função. */
     selo: number = Date.now(),
-): Floor10MotorPlan {
+): Floor10MotorPlan | null {
     // `stay` quando o alvo é o próprio corpo: "aproximar-se de si mesmo" faria
     // o passo calcular um destino igual à posição e o corpo tremer no lugar.
     const casas = casasDaProsa(pensamento);
-    const verbo = alvo === 'self'
-        ? 'stay'
-        : casas.verbo ?? 'approach';
+    if (!casas.verbo && alvo !== 'self') return null;
+    const verbo = alvo === 'self' ? 'stay' : casas.verbo!;
     return {
         verb: verbo,
         target: alvo,
         // A segunda casa da frase. `undefined` quando não há restrição, para
         // não poluir o plano de quem não pediu nada disso.
         ...(casas.fixarAlvo ? { fixarAlvo: true } : {}),
+        ...(casas.gira ? { act: 'spin' as const } : {}),
         pace: ritmoDoTexto(pensamento),
         duration: duracaoDoTexto(pensamento),
         // ── O `raw` PRECISA SER ÚNICO POR RODADA ──────────────────────────

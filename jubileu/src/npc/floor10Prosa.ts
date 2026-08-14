@@ -121,7 +121,13 @@ const VERBO_DA_PROSA: ReadonlyArray<readonly [RegExp, Floor10MotorVerb]> = [
     //
     // Uma tabela em português aqui seria peso morto defendido por um comentário
     // falso — o pior tipo, porque o comentário sobrevive e ensina errado.
+    // ── FUGIR NÃO ESTAVA NO VOCABULÁRIO ───────────────────────────────────
+    // Medido nas frases que o dono do jogo usou: "run away from the player",
+    // "flee", "escape", "avoid", "get away" — NENHUMA casava com regra alguma,
+    // e todas caíam no fallback `approach`. Ou seja, mandar o Nilo FUGIR do
+    // jogador fazia ele ir ATRÁS do jogador. O oposto exato do pedido.
     [/\b(withdraws?|retreats?|backs?\s+away|steps?\s+back|moves?\s+away)\b/i, 'withdraw'],
+    [/\b(flee|flees|fleeing|escapes?|escaping|avoids?|avoiding|runs?\s+(away|from)|running\s+(away|from)|gets?\s+away|keeps?\s+(away|distance)|backs?\s+off|stay\s+away)\b/i, 'withdraw'],
     [/\b(recu[ae]|afast[ae]|sai\s+de\s+perto|d[êe]\s+espa[çc]o)\b/i, 'withdraw'],
     [/\b(circles?|orbits?|go(es)?\s+around|walks?\s+around)\b/i, 'orbit'],
     [/\b(circul[ae]|rode[ie]|d[êe]\s+a\s+volta|ao\s+redor)\b/i, 'orbit'],
@@ -130,9 +136,21 @@ const VERBO_DA_PROSA: ReadonlyArray<readonly [RegExp, Floor10MotorVerb]> = [
     [/\b(stays?|stands?\s+still|remains?|holds?\s+still|do(es)?\s+not\s+move)\b/i, 'stay'],
     [/\b(fique?\s+parado|n[ãa]o\s+se\s+mexa|permane[çc]a)\b/i, 'stay'],
     [/\b(holds?|waits?|pauses?)\b/i, 'hold'],
+    // ── OLHAR SEM AVANÇAR ────────────────────────────────────────────────
+    // "I watch him for a while" não casava com nada e caía no fallback: ele
+    // ia ATÉ o jogador em vez de observá-lo. Ficar de olho é `hold`.
+    [/\b(watch(es|ing)?|observ(es?|ing)|stares?|staring|studies|study|examines?|inspects?)\b/i, 'hold'],
     [/\b(espere?|aguarde?|segure?|pare)\b/i, 'hold'],
     // O mais genérico por último: quase todo movimento é "ir até".
+    // `turn` FICA. Eu tinha tirado, para "turn around 360" não virar
+    // aproximação — e quebrei um caso REAL, medido: o modelo escreve
+    // "MOTION: turn right | north wall", que é virar-se PARA o norte, ou seja
+    // aproximar. A distinção não é a palavra `turn`, é o que vem depois dela; o
+    // `GIRAR` cuida disso e o trecho de giro é retirado antes desta busca.
     [/\b(approach|walk|move|go|head|step|turn|shift|take .{0,10}steps?)\b/i, 'approach'],
+    // `rush`, `hurry`, `dash` estavam só na tabela de RITMO — o texto virava
+    // "rápido" e ficava sem verbo, caindo no fallback. São deslocamento.
+    [/\b(rush(es|ing)?|hurr(y|ies|ying)|dash(es|ing)?|sprints?|charges?|closes?\s+in)\b/i, 'approach'],
     [/\b(v[áa]|v[ãa]o|and[ae]|caminhe?|sig[ae]|aproxime?|chegue?|mov[ae]|passos?)\b/i, 'approach'],
 ];
 
@@ -214,6 +232,10 @@ function normalizarNegacao(t: string): string {
 /** "não siga", em todas as formas que aparecem de verdade. */
 const NAO_SIGA = /\b(follow|chase|chasing|tail|stick|stay close|keep up|shadow)\b/i;
 
+/** "gire", em todas as formas que aparecem de verdade. */
+const GIRAR =
+    /\b(spins?|spinning|rotates?|rotating|turns?\s+(around|about|in\s+place)|360|full\s+(turn|circle)|whirls?)\b/i;
+
 export type CasasDaProsa = {
     /** O verbo da AÇÃO, já resolvido. `null` = nenhuma cláusula tinha verbo. */
     verbo: Floor10MotorVerb | null;
@@ -221,6 +243,8 @@ export type CasasDaProsa = {
     fixarAlvo: boolean;
     /** A frase pede algo que ele não faz. */
     recusada: boolean;
+    /** Girar o corpo no lugar — o ato, não um verbo de deslocamento. */
+    gira: boolean;
 };
 
 /**
@@ -230,14 +254,24 @@ export type CasasDaProsa = {
  * pode custar o caso simples, que é a maioria.
  */
 export function casasDaProsa(bruto: string | null | undefined): CasasDaProsa {
-    const vazio: CasasDaProsa = { verbo: null, fixarAlvo: false, recusada: false };
+    const vazio: CasasDaProsa = {
+        verbo: null, fixarAlvo: false, recusada: false, gira: false,
+    };
     if (!bruto) return vazio;
     const limpo = bruto.trim().toLowerCase();
     if (ORDEM_QUE_ELE_NAO_CUMPRE.test(limpo)) {
-        return { verbo: 'hold', fixarAlvo: false, recusada: true };
+        return { verbo: 'hold', fixarAlvo: false, recusada: true, gira: false };
     }
+    // Girar é um ATO, e vem com `stay` para o corpo não tentar andar e girar ao
+    // mesmo tempo — a menos que a frase peça as duas coisas, e aí o verbo de
+    // deslocamento encontrado abaixo prevalece.
+    const gira = GIRAR.test(limpo);
 
-    const clausulas = normalizarNegacao(limpo).split(CORTE_DE_CLAUSULA)
+    // O trecho de GIRO sai antes da busca por verbo. Sem isto, "turn around
+    // 360" acharia `turn` na regra genérica e viraria aproximação — o giro
+    // seria só um enfeite em cima de um deslocamento que ninguém pediu.
+    const semGiro = gira ? limpo.replace(GIRAR, ' ') : limpo;
+    const clausulas = normalizarNegacao(semGiro).split(CORTE_DE_CLAUSULA)
         .filter((c) => c.trim() !== '');
     let verbo: Floor10MotorVerb | null = null;
     let fixarAlvo = false;
@@ -255,7 +289,7 @@ export function casasDaProsa(bruto: string | null | undefined): CasasDaProsa {
         }
         if (verbo === null && desta) verbo = desta;
     }
-    return { verbo, fixarAlvo, recusada: false };
+    return { verbo: verbo ?? (gira ? 'stay' : null), fixarAlvo, recusada: false, gira };
 }
 
 function verboDaClausula(c: string): Floor10MotorVerb | null {

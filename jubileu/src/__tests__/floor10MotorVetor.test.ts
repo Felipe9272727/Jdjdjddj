@@ -39,8 +39,24 @@ describe('floor10MotorVetor — o plano sem LLM nenhum', () => {
         }
     });
 
-    it('pensamento vazio não quebra o plano', () => {
-        expect(planoDoVetor('player', '').verb).toBe('approach');
+    it('pensamento sem verbo não vira plano NENHUM', () => {
+        // ── A REGRA QUE O DONO DO JOGO PEDIU ─────────────────────────────
+        //
+        // Aqui havia `?? 'approach'`, e esse `??` era a maior fonte de
+        // desobediência do NPC. Toda frase cujo verbo o mapa não reconhecia
+        // virava "vá até a âncora mais próxima" — e como o vetor sempre acha
+        // ALGUMA âncora, ele ia até a coisa que a frase mencionava. Mandar o
+        // Nilo FUGIR do jogador fazia ele ir ATRÁS.
+        //
+        // Não entendeu, não faz nada. E isso não o deixa inerte: o corpo cai no
+        // `planoDaMeta(goal)` da vontade, que é ordem legítima. O que morre é
+        // só a obediência inventada.
+        expect(planoDoVetor('player', '')).toBe(null);
+        expect(planoDoVetor('player', 'zzz qqq xxx')).toBe(null);
+    });
+
+    it('mas "self" continua tendo plano — parar não precisa de verbo', () => {
+        expect(planoDoVetor('self', '')?.verb).toBe('stay');
     });
 });
 

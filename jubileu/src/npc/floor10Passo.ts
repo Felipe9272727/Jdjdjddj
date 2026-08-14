@@ -27,6 +27,7 @@
 import { FLOOR10_MOTOR_RELATIVE } from './floor10MotorCortex';
 import type { Floor10MotorPlan, Floor10MotorTarget } from './floor10MotorCortex';
 import type { DeliberationGoal } from './floor10Deliberation';
+import { DURACAO_DO_GESTO } from './floor10Gesto';
 
 export type CorpoDoNilo = {
     x: number;
@@ -167,6 +168,26 @@ function maisPertoDoCorpo(
     return melhor;
 }
 
+/**
+ * ── GIRAR NO LUGAR ────────────────────────────────────────────────────────
+ *
+ * O dono do jogo pediu "rodar em 360 graus" e não havia NADA no vocabulário:
+ * os seis verbos são todos deslocamento e `orbit` circula em volta de um alvo,
+ * o que precisa de alvo e produz translação. Virar o próprio corpo, parado, não
+ * era exprimível — e o corpo não sabia fazer.
+ *
+ * Uma volta inteira em `DURACAO_DO_GESTO.spin` segundos. Enquanto gira, ele NÃO
+ * encara o alvo: encarar e girar são ordens opostas para o mesmo yaw, e deixar
+ * as duas ligadas faria o corpo tremer.
+ */
+const VOLTA = Math.PI * 2;
+
+function girarNoLugar(corpo: CorpoDoNilo, dt: number, duracao: number): void {
+    corpo.yaw += (VOLTA / Math.max(0.5, duracao)) * dt;
+    while (corpo.yaw > Math.PI) corpo.yaw -= VOLTA;
+    while (corpo.yaw < -Math.PI) corpo.yaw += VOLTA;
+}
+
 /** Vira a cabeça na direção pedida, no máximo `GIRO` por segundo. */
 function encarar(corpo: CorpoDoNilo, dx: number, dz: number, dt: number): void {
     if (dx === 0 && dz === 0) return;
@@ -190,6 +211,14 @@ export function passoDoPlano(
     mundo: MundoDoPasso,
 ): CorpoDoNilo {
     const { dt } = mundo;
+
+    // O giro manda no yaw e dispensa o resto: encarar um alvo e girar são
+    // ordens opostas para o mesmo ângulo. O corpo continua podendo andar, mas
+    // com `stay`/`hold` — que é o normal de quem pediu para girar — ele fica.
+    if (plano?.act === 'spin') {
+        girarNoLugar(corpo, dt, plano.duration || DURACAO_DO_GESTO.spin);
+        if (plano.verb === 'stay' || plano.verb === 'hold') return corpo;
+    }
 
     if (!plano) {
         // ── PARADO, MAS NÃO MORTO ─────────────────────────────────────────

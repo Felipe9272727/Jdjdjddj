@@ -115,6 +115,16 @@ export const FLOOR10_MOTOR_ACTS = [
     'crouch',      // abaixar-se para olhar de perto
     'jump',        // literalmente o exemplo dele
     'look-around', // varrer a sala com os olhos, sem sair do lugar
+    // ── GIRAR NO LUGAR, QUE NÃO EXISTIA ──────────────────────────────────
+    // O dono do jogo pediu "rodar em 360 graus" e não havia nada: o
+    // vocabulário inteiro é DESLOCAMENTO (seis formas de ir e vir) mais gestos
+    // de braço. `orbit` é circular EM VOLTA DE ALGO, que é outra coisa —
+    // precisa de um alvo e produz translação. Virar o próprio corpo, parado,
+    // não era exprimível.
+    //
+    // Entra como ATO e não como verbo porque é isso que ele é: uma ação sobre
+    // si mesmo, que combina com ficar parado, como `look-around` combina.
+    'spin',        // girar o corpo no lugar, uma volta
     'wave',        // um gesto para o jogador
 ] as const;
 

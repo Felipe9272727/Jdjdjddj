@@ -33,6 +33,9 @@ export const DURACAO_DO_GESTO: Record<Floor10MotorAct, number> = {
     crouch: 3.0,
     jump: 0.85,
     'look-around': 3.6,
+    // Uma volta inteira, sem pressa. É POSTURA: dura o que a ordem durar, então
+    // "gire enquanto procura" gira o tempo todo em vez de dar uma volta só.
+    spin: 4.0,
     wave: 2.4,
 };
 
@@ -49,7 +52,7 @@ export const DURACAO_DO_GESTO: Record<Floor10MotorAct, number> = {
  * que ele desistiu; na verdade a pose acabou e a ordem não.
  */
 export const POSTURAS: ReadonlySet<Floor10MotorAct> = new Set<Floor10MotorAct>([
-    'listen', 'crouch', 'look-around',
+    'listen', 'crouch', 'look-around', 'spin',
 ]);
 
 /**
@@ -173,6 +176,20 @@ export function poseDoGesto(
                 bracoDirX: forca * -1.35,
                 troncoX: forca * 0.1,
                 cabecaX: forca * 0.12,
+            };
+        }
+        case 'spin': {
+            // O giro do CORPO não mora aqui: `PoseDoGesto` são ângulos somados
+            // à animação, e o yaw é do corpo, resolvido em `floor10Passo` e no
+            // `Floor10Npc`. O que fica nesta pose é o resto do gesto — a cabeça
+            // acompanhando a volta e o tronco levemente inclinado, que é o que
+            // separa "girar olhando" de "girar como um poste".
+            return {
+                ...POSE_PARADA,
+                cabecaY: forca * Math.sin(decorrido * 2.2) * 0.35,
+                troncoX: forca * 0.03,
+                bracoEsqX: forca * -0.1,
+                bracoDirX: forca * -0.1,
             };
         }
         case 'listen': {
