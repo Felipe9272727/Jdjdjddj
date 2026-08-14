@@ -11,7 +11,7 @@ import {
     FLOOR10_STABLE_PREFIX,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
-    trimToCompleteSentence,
+    arrumarFala,
     groundedModelHistory,
     guardedStreamingText,
     isFloor10IdentityQuestion,
@@ -1960,7 +1960,7 @@ export async function sendToNpc(
         }
         const historicoFinal = [
             ...history,
-            { role: 'assistant' as const, content: trimToCompleteSentence(finalText) },
+            { role: 'assistant' as const, content: arrumarFala(finalText) },
         ];
         npcSet({
             // Entrega só o que ficou inteiro: o teto de tokens cortava a fala no
@@ -2031,7 +2031,13 @@ export async function sendToNpc(
                 npcIssueWillCommand(partialDecision.command, safePartialText);
             }
             npcSet({
-                history: [...history, { role: 'assistant', content: safePartialText }],
+                // ── A SAÍDA QUE NÃO PASSAVA PELO CORTE ────────────────────
+                // O caminho feliz aparava a fala na última frase completa; este
+                // aqui salvava o parcial cru. É o AVESSO do certo: o watchdog
+                // dispara justamente quando a geração foi interrompida no meio,
+                // então esta é a saída com MAIS chance de terminar em palavra
+                // pela metade — e era a única sem conserto.
+                history: [...history, { role: 'assistant', content: arrumarFala(safePartialText) }],
                 phase: 'ready',
                 speaking: false,
                 streaming: '',

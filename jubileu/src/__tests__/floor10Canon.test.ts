@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { NpcMsg } from '../npc/npcStore';
 import { FLOOR10_HISTORY_VERBATIM } from '../npc/wllamaEngine';
 import { describe, expect, it } from 'vitest';
@@ -5,6 +6,8 @@ import {
     FLOOR10_HISTORY_CHAR_BUDGET,
     FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT,
     NPC_NAME,
+    arrumarFala,
+    semFraseRepetida,
     trimToCompleteSentence,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
@@ -259,14 +262,121 @@ describe('floor10Canon — fala cortada pelo teto de tokens', () => {
         expect(trimToCompleteSentence(ok)).toBe(ok);
     });
 
-    it('prefere entregar truncado a entregar vazio quando não há frase fechada', () => {
-        const semPonto = 'Eu estava consertando o elevador quando';
-        expect(trimToCompleteSentence(semPonto)).toBe(semPonto);
+    it('sem frase fechada, corta na oração e diz que foi interrompido', () => {
+        // ── A FOTO DO DONO DO JOGO, LETRA POR LETRA ──────────────────────
+        //
+        // Isto saía CRU na tela, morrendo em "nem de". Não havia um único
+        // ponto final na resposta, então o corte por frase não tinha onde
+        // pegar e a função devolvia o texto inteiro — o que era melhor que
+        // devolver vazio, e pior que isto aqui.
+        const foto = 'A foto do 20º andar não tem poder, e eu não tenho medo de você nem de';
+        expect(trimToCompleteSentence(foto)).toBe('A foto do 20º andar não tem poder…');
+    });
+
+    it('mas nunca joga fora a fala inteira para achar uma oração', () => {
+        // A vírgula está no começo: cortar nela devolveria "Eu sei…" e jogaria
+        // fora quase tudo. Aí truncado com reticências é o menor dos males —
+        // e as reticências continuam sendo verdade.
+        const cedo = 'Eu sei, e por isso mesmo eu não consigo parar de olhar para aquela porta quando';
+        expect(trimToCompleteSentence(cedo)).toBe(`${cedo}…`);
+    });
+
+    it('não deixa pontuação solta antes das reticências', () => {
+        expect(trimToCompleteSentence('O hotel é estranho,')).toBe('O hotel é estranho…');
+    });
+
+    it('nunca devolve vazio o que chegou com texto', () => {
+        // A regra que estava aqui desde o começo e continua valendo: entre
+        // truncar e apagar, trunca.
+        for (const cru of [
+            'Eu estava consertando o elevador quando',
+            'sim',
+            'Eu sei, mas',
+        ]) {
+            expect(trimToCompleteSentence(cru).replace(/…$/, '').trim().length)
+                .toBeGreaterThan(0);
+        }
     });
 
     it('tolera vazio e só espaços', () => {
         expect(trimToCompleteSentence('')).toBe('');
         expect(trimToCompleteSentence('   ')).toBe('');
+    });
+});
+
+describe('floor10Canon — a frase repetida dentro da MESMA fala', () => {
+    // As defesas contra repetição que já existiam são todas sobre falas
+    // diferentes: `penalty_last_n`, o histórico literal, o bloco do "já dito".
+    // Repetir dentro de uma resposta só passava por todas as três.
+    it('tira a segunda cópia da mesma frase', () => {
+        const cru = 'Eu não tenho medo dessa fotografia. '
+            + 'O 20º andar não me assusta mais. '
+            + 'Eu não tenho medo nenhum dessa fotografia.';
+        expect(semFraseRepetida(cru))
+            .toBe('Eu não tenho medo dessa fotografia. O 20º andar não me assusta mais.');
+    });
+
+    it('não mexe numa fala que só diz coisas diferentes', () => {
+        const ok = 'Meu nome é Nilo Azevedo. Estou preso no 10º andar desde sempre.';
+        expect(semFraseRepetida(ok)).toBe(ok);
+    });
+
+    it('deixa a ênfase curta em paz', () => {
+        // "Não sei." duas vezes é ênfase, não defeito — e não há palavra
+        // pesada o bastante ali para o comparador medir coisa nenhuma.
+        const enfase = 'Não sei. Não sei.';
+        expect(semFraseRepetida(enfase)).toBe(enfase);
+    });
+
+    it('preserva a formatação quando não corta nada', () => {
+        const comQuebra = 'Primeira coisa.\nSegunda coisa bem diferente.';
+        expect(semFraseRepetida(comQuebra)).toBe(comQuebra);
+    });
+
+    it('tolera vazio', () => {
+        expect(semFraseRepetida('')).toBe('');
+        expect(semFraseRepetida('   ')).toBe('');
+    });
+});
+
+describe('floor10Canon — as duas saídas da geração passam pelo mesmo conserto', () => {
+    it('`arrumarFala` tira a cópia ANTES de aparar o rabo', () => {
+        // A ordem é o que faz isto funcionar: a cópia se reconhece com as
+        // frases inteiras, e o pedaço pela metade é o que sobra por último.
+        const cru = 'Eu não tenho medo dessa fotografia. '
+            + 'Eu não tenho medo nenhum dessa fotografia. '
+            + 'O que me assusta mesmo é';
+        expect(arrumarFala(cru)).toBe('Eu não tenho medo dessa fotografia.');
+    });
+
+    it('e o motor usa ela nas DUAS saídas, não só na feliz', () => {
+        // ── POR QUE ESTE TESTE LÊ O CÓDIGO-FONTE ─────────────────────────
+        //
+        // O defeito não era uma função errada: era uma função CERTA chamada em
+        // um caminho só. O caminho do watchdog — o que salva o texto parcial de
+        // uma geração interrompida, logo o que MAIS produz palavra pela metade
+        // — gravava o parcial cru no histórico.
+        //
+        // Um teste de comportamento aqui exigiria montar o motor inteiro com
+        // wllama falso e estourar um watchdog de mentira. Ler as duas linhas é
+        // menos bonito e prende exatamente a assimetria que existiu.
+        // As gravações que NÃO vêm do 3B — respostas prontas, determinísticas,
+        // escritas à mão neste repositório. Elas não podem ser truncadas por
+        // teto de token nenhum, então não têm o que aparar. Qualquer fonte
+        // nova cai fora desta lista e derruba o teste, que é o ponto: obriga
+        // quem acrescentar uma saída a decidir de qual lado ela está.
+        const NAO_SAO_DO_MODELO = ['willAnswer', 'sensoryAnswer'];
+        const fonte = readFileSync(new URL('../npc/wllamaEngine.ts', import.meta.url), 'utf8');
+        const gravacoes = fonte.match(/role: 'assistant'[^}]*?content: ([^,}]+)/g) ?? [];
+        expect(gravacoes.length).toBeGreaterThanOrEqual(4);
+        const doModelo = gravacoes.filter(
+            (linha) => !NAO_SAO_DO_MODELO.some((pronta) => linha.includes(pronta)),
+        );
+        expect(doModelo.length, 'as duas saídas da geração sumiram do arquivo').toBe(2);
+        for (const linha of doModelo) {
+            expect(linha, `grava no histórico sem passar por arrumarFala: ${linha}`)
+                .toContain('arrumarFala(');
+        }
     });
 });
 

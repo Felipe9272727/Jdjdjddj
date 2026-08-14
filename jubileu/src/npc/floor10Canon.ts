@@ -500,6 +500,25 @@ export function guardedStreamingText(streaming: string): string {
  *
  * Só corta quando sobra frase fechada: se o modelo produziu uma única frase sem
  * ponto final, devolvê-la vazia seria pior que deixá-la truncada.
+ *
+ * ── O CASO QUE ESTA FUNÇÃO NÃO COBRIA, E O DONO DO JOGO FOTOGRAFOU ───────
+ *
+ *     "A foto do 20º andar não tem poder, e eu não tenho medo de você nem de"
+ *
+ * Nenhum ponto final em lugar nenhum: `lastEnd < 0`, e a resposta saía crua na
+ * tela, morrendo em "nem de". O raciocínio de "truncado é melhor que vazio"
+ * está certo — só que ele tratava as duas únicas saídas possíveis como sendo
+ * "cru" e "vazio", e há uma terceira.
+ *
+ * Existe uma FRONTEIRA DE ORAÇÃO ali (a vírgula depois de "poder"), e cortar
+ * nela devolve "A foto do 20º andar não tem poder…" — um pensamento inteiro,
+ * com reticências dizendo ao jogador o que de fato aconteceu: ele foi
+ * interrompido. Nada é inventado; só se apaga o pedaço que o teto de tokens
+ * deixou pela metade.
+ *
+ * O corte por oração só vale quando SOBRA fala: se a vírgula está no começo,
+ * jogar fora 80% do que ele disse seria pior que a frase truncada. Nesse caso o
+ * texto vai inteiro, com as reticências — que continuam sendo verdade.
  */
 export function trimToCompleteSentence(reply: string): string {
     const text = reply.trim();
@@ -510,7 +529,86 @@ export function trimToCompleteSentence(reply: string): string {
         text.lastIndexOf('.'), text.lastIndexOf('!'),
         text.lastIndexOf('?'), text.lastIndexOf('…'),
     );
-    if (lastEnd < 0) return text;
-    const cortado = text.slice(0, lastEnd + 1).trim();
-    return cortado.length > 0 ? cortado : text;
+    if (lastEnd >= 0) {
+        const cortado = text.slice(0, lastEnd + 1).trim();
+        if (cortado.length > 0) return cortado;
+    }
+    return aparadoNaOracao(text);
+}
+
+/** Vírgula, ponto e vírgula, dois-pontos, travessão: onde uma oração fecha. */
+const FRONTEIRA_DE_ORACAO = ',;:—–';
+
+/** Quanto precisa sobrar do corte por oração para ele valer a pena. */
+const MINIMO_APROVEITAVEL = 24;
+const FRACAO_APROVEITAVEL = 0.4;
+
+function aparadoNaOracao(text: string): string {
+    let corte = -1;
+    for (let i = text.length - 1; i >= 0; i -= 1) {
+        if (FRONTEIRA_DE_ORACAO.includes(text[i])) { corte = i; break; }
+    }
+    const retido = corte > 0 ? text.slice(0, corte).trim() : '';
+    if (retido.length >= MINIMO_APROVEITAVEL && retido.length >= text.length * FRACAO_APROVEITAVEL) {
+        return `${retido}…`;
+    }
+    // Sem corte que valha: entrega tudo, mas sem a pontuação solta no fim
+    // ("O hotel é estranho,…" é feio; "O hotel é estranho…" não é).
+    return `${text.replace(/[,;:—–\s]+$/, '')}…`;
+}
+
+/**
+ * Tira a frase que ele acabou de dizer duas vezes DENTRO da mesma fala.
+ *
+ * As três defesas contra repetição que já existiam são todas sobre falas
+ * DIFERENTES — `penalty_last_n`, o histórico literal, o bloco do "já dito". A
+ * repetição dentro de uma resposta só, que é a que o dono do jogo viu na
+ * segunda foto, passava por todas elas.
+ *
+ * Aqui não se gera nada de novo e não se espera nada: some o texto que o
+ * próprio modelo emitiu duas vezes. É a diferença entre este conserto e mandar
+ * gerar de novo, que no celular dele custaria ~30 s por resposta — remédio pior
+ * que a doença.
+ *
+ * Frases curtas ficam: "Não sei." repetido é ênfase, e o comparador nem tem
+ * palavra pesada o bastante para medir.
+ */
+export function semFraseRepetida(reply: string): string {
+    const text = reply.trim();
+    if (!text) return text;
+    // Sem `lookbehind` de propósito: ele é erro de SINTAXE em Safari antigo, e
+    // derrubaria o pacote inteiro no aparelho que este projeto persegue.
+    const frases = text.match(/[^.!?…]+[.!?…]*/g);
+    if (!frases || frases.length < 2) return text;
+    const mantidas: string[] = [];
+    let cortou = false;
+    for (const bruta of frases) {
+        const frase = bruta.trim();
+        if (!frase) continue;
+        if (frase.length >= 16 && mantidas.some((m) => MemoriaDeBolhas.parecidas(m, frase))) {
+            cortou = true;
+            continue;
+        }
+        mantidas.push(frase);
+    }
+    // Só remonta quando cortou algo: remontar sempre destruiria a formatação
+    // original (quebras de linha, espaçamento) sem motivo.
+    if (!cortou || mantidas.length === 0) return text;
+    return mantidas.join(' ');
+}
+
+/**
+ * O texto que vai para a tela e para o histórico, venha ele do fim normal da
+ * geração ou do watchdog.
+ *
+ * As duas saídas existiam e SÓ UMA passava pelo corte de frase — a do
+ * watchdog salvava o parcial cru, justo o caminho em que a fala é
+ * interrompida no meio por definição. Esta função existe para que não haja
+ * mais "as duas saídas": há uma, e as duas a chamam.
+ *
+ * A ordem importa. A cópia repetida se reconhece com as frases inteiras, então
+ * ela sai primeiro; o rabo pela metade é o que sobra por último.
+ */
+export function arrumarFala(reply: string): string {
+    return trimToCompleteSentence(semFraseRepetida(reply));
 }
