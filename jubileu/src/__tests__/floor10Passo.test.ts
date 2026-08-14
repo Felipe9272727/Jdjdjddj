@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PRISON_DEVICES } from '../npc/f10Prison';
-import { casasDaProsa } from '../npc/floor10Prosa';
+import { METADE_DO_CAMINHO, casasDaProsa, distanciaDaProsa } from '../npc/floor10Prosa';
 import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from '../npc/floor10Passo';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
@@ -510,5 +510,94 @@ describe('"vá até ele, mas não o siga" — a diferença mecânica', () => {
         const casas = casasDaProsa("go to the player but don't follow him");
         expect(casas.verbo).toBe('approach');
         expect(casas.fixarAlvo).toBe(true);
+    });
+});
+
+describe('o QUANTO vem da frase — o teto de verdade não eram os verbos', () => {
+    // ── A QUEIXA ──────────────────────────────────────────────────────────
+    //
+    //   "6 verbos? Eu queria que a vontade conseguisse fazer o que fazer, não
+    //    que fosse limitada por tão pouca coisa, por isso queria um motor"
+    //
+    // E o teto não eram os verbos. Cada um tinha uma DISTÂNCIA CRAVADA:
+    // `approach` sempre parava a 1,6 m, `withdraw` sempre recuava até 4,5,
+    // `orbit` sempre a 3,5, e um passo relativo era sempre 5. Seis verbos por
+    // catorze alvos davam 84 ordens DISCRETAS — e nenhuma delas era "chegue
+    // bem perto" ou "fique a dez metros dele".
+    //
+    // Não faltava verbo. Faltava o quanto.
+    const mundo = {
+        jogador: { x: 0, z: 12 }, elevador: { x: 0, z: -10 }, limite: 22, dt: 1 / 60,
+    };
+    const ate = (p: Floor10MotorPlan, quadros = 900) => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        for (let i = 0; i < quadros; i += 1) passoDoPlano(corpo, p, mundo);
+        return Math.hypot(mundo.jogador.x - corpo.x, mundo.jogador.z - corpo.z);
+    };
+    const plano = (over: Partial<Floor10MotorPlan>): Floor10MotorPlan => ({
+        verb: 'approach', target: 'player', pace: 'normal', duration: 6,
+        raw: `d#${Math.random()}`, ...over,
+    });
+
+    it('"chegue bem perto" e "pare a cinco metros" deixam de ser o mesmo movimento', () => {
+        const perto = ate(plano({ distancia: 0.8 }));
+        const longe = ate(plano({ distancia: 5 }));
+        expect(perto).toBeLessThan(1.3);
+        expect(longe).toBeGreaterThan(4.4);
+        expect(longe).toBeLessThan(5.6);
+    });
+
+    it('sem distância na frase, o padrão de sempre continua valendo', () => {
+        // O conserto não pode mudar o comportamento de quem não pediu nada.
+        expect(ate(plano({}))).toBeLessThan(1.9);
+        expect(ate(plano({}))).toBeGreaterThan(1.3);
+    });
+
+    it('recuar também tem quanto: "um pouco" não é "o mais longe possível"', () => {
+        // O corpo começa a 12 m do jogador, então `withdraw 12` não teria por
+        // que se mexer — meu primeiro teste pedia isso e acusava o código.
+        // Comparar exige começar PERTO.
+        const daquiPerto = (d: number, quadros: number) => {
+            const corpo: CorpoDoNilo = { x: 0, z: 10, yaw: 0 };  // 2 m do jogador
+            const p = plano({ verb: 'withdraw', distancia: d });
+            for (let i = 0; i < quadros; i += 1) passoDoPlano(corpo, p, mundo);
+            return Math.hypot(mundo.jogador.x - corpo.x, mundo.jogador.z - corpo.z);
+        };
+        const pouco = daquiPerto(4, 900);
+        const muito = daquiPerto(14, 1500);
+        expect(pouco).toBeGreaterThan(3.4);
+        expect(pouco).toBeLessThan(5);
+        expect(muito).toBeGreaterThan(pouco + 5);
+    });
+
+    it('e o passo relativo deixa de ser sempre cinco', () => {
+        const anda = (d?: number) => {
+            const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+            const p = plano({ target: 'to-my-left', ...(d !== undefined ? { distancia: d } : {}) });
+            for (let i = 0; i < 900; i += 1) passoDoPlano(corpo, p, mundo);
+            return Math.hypot(corpo.x, corpo.z);
+        };
+        expect(anda(2)).toBeLessThan(3);
+        expect(anda(10)).toBeGreaterThan(8);
+        // E o padrão continua sendo cinco.
+        expect(anda()).toBeGreaterThan(4);
+        expect(anda()).toBeLessThan(6);
+    });
+
+    it('a frase inteira produz a distância, ponta a ponta', () => {
+        expect(distanciaDaProsa('take three steps to my left')).toBe(3);
+        expect(distanciaDaProsa('stay 10 meters away from him')).toBe(10);
+        expect(distanciaDaProsa('get right up to the plate')).toBe(0.8);
+        expect(distanciaDaProsa('watch him from a distance')).toBe(10);
+        expect(distanciaDaProsa('go halfway to the elevator')).toBe(METADE_DO_CAMINHO);
+        // Frase sem quanto nenhum: o verbo usa o padrão dele.
+        expect(distanciaDaProsa('walk to the elevator')).toBe(null);
+    });
+
+    it('"metade do caminho" é fração, não metros', () => {
+        // O corpo começa a 12 m do jogador; metade é 6.
+        const meio = ate(plano({ distancia: METADE_DO_CAMINHO }), 900);
+        expect(meio).toBeGreaterThan(4);
+        expect(meio).toBeLessThan(8);
     });
 });

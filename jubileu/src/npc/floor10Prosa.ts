@@ -147,7 +147,9 @@ const VERBO_DA_PROSA: ReadonlyArray<readonly [RegExp, Floor10MotorVerb]> = [
     // "MOTION: turn right | north wall", que é virar-se PARA o norte, ou seja
     // aproximar. A distinção não é a palavra `turn`, é o que vem depois dela; o
     // `GIRAR` cuida disso e o trecho de giro é retirado antes desta busca.
-    [/\b(approach|walk|move|go|head|step|turn|shift|take .{0,10}steps?)\b/i, 'approach'],
+    // `get` entra DEPOIS da regra de fuga, que já pegou "gets away" — aqui ele
+    // é "get to the elevator", "get right up to him", que são aproximação.
+    [/\b(approach|walk|move|go|head|step|turn|shift|gets?\b|take .{0,10}steps?)\b/i, 'approach'],
     // `rush`, `hurry`, `dash` estavam só na tabela de RITMO — o texto virava
     // "rápido" e ficava sem verbo, caindo no fallback. São deslocamento.
     [/\b(rush(es|ing)?|hurr(y|ies|ying)|dash(es|ing)?|sprints?|charges?|closes?\s+in)\b/i, 'approach'],
@@ -236,6 +238,85 @@ const NAO_SIGA = /\b(follow|chase|chasing|tail|stick|stay close|keep up|shadow)\
 const GIRAR =
     /\b(spins?|spinning|rotates?|rotating|turns?\s+(around|about|in\s+place)|360|full\s+(turn|circle)|whirls?)\b/i;
 
+/**
+ * ── A MAGNITUDE, QUE ERA O TETO DE VERDADE ────────────────────────────────
+ *
+ * O dono do jogo, olhando o vocabulário:
+ *
+ *   "6 verbos? Eu queria que a vontade conseguisse fazer o que fazer, não que
+ *    fosse limitada por tão pouca coisa, por isso queria um motor"
+ *
+ * Ele está certo, e o teto não são os verbos. Cada verbo tinha uma DISTÂNCIA
+ * CRAVADA no corpo: `approach` sempre parava a 1,6 m, `withdraw` sempre recuava
+ * até 4,5 m, `orbit` sempre orbitava a 3,5 m, e um passo relativo era sempre 5.
+ *
+ * Então 6 verbos × 14 alvos davam 84 ordens DISCRETAS, e nenhuma delas era
+ * "chegue bem perto", "fique a dez metros dele", "três passos à esquerda" ou
+ * "circule de longe". Não faltava verbo: faltava o QUANTO.
+ *
+ * Com a distância lida da frase, o mesmo par verbo+alvo vira uma família
+ * contínua. É a diferença entre um menu e uma língua.
+ */
+const NUMERO_COM_UNIDADE =
+    /\b(\d+(?:[.,]\d+)?)\s*(m\b|met(?:er|re)s?|steps?|paces?)/i;
+
+/**
+ * O modelo escreve "three steps", não "3 steps" — e o dono do jogo também.
+ * Sem isto, `distanciaDaProsa` devolvia `null` para a forma mais natural de
+ * pedir uma distância, e o verbo voltava ao padrão cravado.
+ */
+const NUMERO_POR_EXTENSO: Readonly<Record<string, number>> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    a: 1, an: 1, couple: 2, half: 0.5, dozen: 12,
+};
+const EXTENSO_COM_UNIDADE = new RegExp(
+    `\\b(${Object.keys(NUMERO_POR_EXTENSO).join('|')})\\s+(m\\b|met(?:er|re)s?|steps?|paces?)`,
+    'i',
+);
+
+const PALAVRAS_DE_DISTANCIA: ReadonlyArray<readonly [RegExp, number]> = [
+    // Em metros, e escolhidos para caberem numa sala de ±22.
+    [/\b(right up to|right next to|touching|as close as|very close|point.?blank)\b/i, 0.8],
+    [/\b(close|closer|near(by)?)\b/i, 1.6],
+    [/\b(a (little|bit)|slightly|a few steps)\b/i, 3],
+    [/\b(halfway|midway|part of the way)\b/i, -1],   // -1 = metade do que falta
+    [/\b(far|far away|from a distance|way back|across the room)\b/i, 10],
+    [/\b(as far as (possible|you can)|the far wall|opposite side)\b/i, 18],
+];
+
+/**
+ * A distância que a frase pede, em metros. `null` = a frase não disse, e aí
+ * cada verbo usa o padrão que sempre usou.
+ *
+ * `-1` é o caso especial "metade do caminho": não é uma distância absoluta, é
+ * uma fração, e quem executa precisa saber a diferença.
+ */
+export function distanciaDaProsa(bruto: string | null | undefined): number | null {
+    if (!bruto) return null;
+    const t = bruto.trim().toLowerCase();
+    const m = NUMERO_COM_UNIDADE.exec(t);
+    if (m) {
+        const n = Number(m[1].replace(',', '.'));
+        if (Number.isFinite(n) && n > 0) {
+            // Um passo é um metro neste jogo: é o que `PASSOS = 5` sempre
+            // significou no `floor10Passo`, e mudar a régua agora mudaria o
+            // comportamento de toda ordem relativa que já funcionava.
+            return Math.min(40, n);
+        }
+    }
+    const e = EXTENSO_COM_UNIDADE.exec(t);
+    if (e) {
+        const n = NUMERO_POR_EXTENSO[e[1].toLowerCase()];
+        if (n) return Math.min(40, n);
+    }
+    for (const [regra, d] of PALAVRAS_DE_DISTANCIA) if (regra.test(t)) return d;
+    return null;
+}
+
+/** A distância pedida é "metade do que falta", e não um número de metros. */
+export const METADE_DO_CAMINHO = -1;
+
 export type CasasDaProsa = {
     /** O verbo da AÇÃO, já resolvido. `null` = nenhuma cláusula tinha verbo. */
     verbo: Floor10MotorVerb | null;
@@ -245,6 +326,11 @@ export type CasasDaProsa = {
     recusada: boolean;
     /** Girar o corpo no lugar — o ato, não um verbo de deslocamento. */
     gira: boolean;
+    /**
+     * Quantos metros a frase pediu. `null` = não disse, use o padrão do verbo.
+     * `METADE_DO_CAMINHO` = metade do que falta, que é fração e não distância.
+     */
+    distancia: number | null;
 };
 
 /**
@@ -255,12 +341,14 @@ export type CasasDaProsa = {
  */
 export function casasDaProsa(bruto: string | null | undefined): CasasDaProsa {
     const vazio: CasasDaProsa = {
-        verbo: null, fixarAlvo: false, recusada: false, gira: false,
+        verbo: null, fixarAlvo: false, recusada: false, gira: false, distancia: null,
     };
     if (!bruto) return vazio;
     const limpo = bruto.trim().toLowerCase();
     if (ORDEM_QUE_ELE_NAO_CUMPRE.test(limpo)) {
-        return { verbo: 'hold', fixarAlvo: false, recusada: true, gira: false };
+        return {
+            verbo: 'hold', fixarAlvo: false, recusada: true, gira: false, distancia: null,
+        };
     }
     // Girar é um ATO, e vem com `stay` para o corpo não tentar andar e girar ao
     // mesmo tempo — a menos que a frase peça as duas coisas, e aí o verbo de
@@ -289,7 +377,13 @@ export function casasDaProsa(bruto: string | null | undefined): CasasDaProsa {
         }
         if (verbo === null && desta) verbo = desta;
     }
-    return { verbo: verbo ?? (gira ? 'stay' : null), fixarAlvo, recusada: false, gira };
+    return {
+        verbo: verbo ?? (gira ? 'stay' : null),
+        fixarAlvo,
+        recusada: false,
+        gira,
+        distancia: distanciaDaProsa(limpo),
+    };
 }
 
 function verboDaClausula(c: string): Floor10MotorVerb | null {

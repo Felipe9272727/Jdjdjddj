@@ -28,6 +28,7 @@ import { FLOOR10_MOTOR_RELATIVE } from './floor10MotorCortex';
 import type { Floor10MotorPlan, Floor10MotorTarget } from './floor10MotorCortex';
 import type { DeliberationGoal } from './floor10Deliberation';
 import { DURACAO_DO_GESTO } from './floor10Gesto';
+import { METADE_DO_CAMINHO } from './floor10Prosa';
 
 export type CorpoDoNilo = {
     x: number;
@@ -103,6 +104,8 @@ function alvoNoMundo(
     alvo: Floor10MotorTarget,
     corpo: CorpoDoNilo,
     mundo: MundoDoPasso,
+    /** Tamanho do passo pedido pela frase, para os alvos relativos. */
+    passos = 5,
 ): { x: number; z: number } | null {
     const L = mundo.limite;
     switch (alvo) {
@@ -125,7 +128,10 @@ function alvoNoMundo(
         case 'to-my-right': {
             // Um gesto de deslocamento: longe o bastante para ser visível,
             // perto o bastante para caber na sala sem bater na parede.
-            const PASSOS = 5;
+            // ── O QUANTO VEM DA FRASE, COM 5 DE PADRÃO ────────────────────
+            // Era `const PASSOS = 5` fixo: toda ordem relativa andava cinco
+            // metros, fosse "um passo à esquerda" ou "dez passos atrás".
+            const PASSOS = passos;
             const giro = alvo === 'ahead' ? 0
                 : alvo === 'behind' ? Math.PI
                     : alvo === 'to-my-left' ? -Math.PI / 2 : Math.PI / 2;
@@ -188,6 +194,45 @@ function girarNoLugar(corpo: CorpoDoNilo, dt: number, duracao: number): void {
     while (corpo.yaw < -Math.PI) corpo.yaw += VOLTA;
 }
 
+/**
+ * A distância que a ordem pediu, ou o padrão do verbo.
+ *
+ * `METADE_DO_CAMINHO` não é uma distância: é uma fração do que falta, e por
+ * isso precisa do `restante` para virar metro.
+ */
+function paradaPedida(
+    plano: Floor10MotorPlan,
+    padrao: number,
+): number {
+    const d = plano.distancia;
+    if (d === undefined) return padrao;
+    // ── UM NÚMERO, DOIS SIGNIFICADOS — E ELES BRIGAVAM ───────────────────
+    //
+    // Para um alvo ABSOLUTO, `distancia` é "onde parar": "fique a 5 m dele".
+    // Para um alvo RELATIVO, é "quanto andar": "três passos à esquerda".
+    //
+    // Eu tinha usado o mesmo número nos dois papéis e o teste pegou: "dez
+    // passos à esquerda" punha o destino a 10 m E mandava parar a 10 m do
+    // destino — ou seja, ele já tinha chegado antes de sair. Deslocamento zero.
+    if ((FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(plano.target)) {
+        return padrao;
+    }
+    // "Metade do caminho" NÃO passa por aqui: ela vira um destino no meio, e
+    // não um raio de parada. Calculada a cada quadro contra a distância que
+    // sobra, ela se dividiria para sempre e convergiria a zero — medido:
+    // 6e-14 m do alvo, ou seja, ele encostava no jogador achando que parou na
+    // metade.
+    if (d === METADE_DO_CAMINHO) return padrao;
+    return Math.max(0, d);
+}
+
+/** O mesmo, para os alvos relativos, onde a distância é o TAMANHO do passo. */
+function passoDistancia(plano: Floor10MotorPlan, padrao: number): number {
+    const d = plano.distancia;
+    if (d === undefined || d === METADE_DO_CAMINHO) return padrao;
+    return Math.max(0.2, d);
+}
+
 /** Vira a cabeça na direção pedida, no máximo `GIRO` por segundo. */
 function encarar(corpo: CorpoDoNilo, dx: number, dz: number, dt: number): void {
     if (dx === 0 && dz === 0) return;
@@ -241,7 +286,12 @@ export function passoDoPlano(
     // Nilo vai atrás. ISSO é seguir. Com `fixarAlvo`, o ponto é congelado onde
     // o jogador estava quando a ordem saiu, e o Nilo vai até lá e para — que é
     // exatamente a diferença entre ir até alguém e grudar nele.
-    const relativa = plano.fixarAlvo === true
+    // "Metade do caminho" é um destino no MEIO, e destino no meio tem de ser
+    // travado: recalculado a cada quadro, o meio anda junto com o corpo e ele
+    // nunca chega. Entra na mesma máquina de travar do alvo relativo.
+    const meio = plano.distancia === METADE_DO_CAMINHO;
+    const relativa = meio
+        || plano.fixarAlvo === true
         || (FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(plano.target);
     let alvo: { x: number; z: number } | null;
     if (relativa) {
@@ -250,13 +300,16 @@ export function passoDoPlano(
         // a mesma ordem repetida, e repetir "5 passos à esquerda" deve andar
         // mais cinco a partir de onde ele parou.
         if (!corpo.destino || corpo.destino.de !== plano.raw) {
-            const p = alvoNoMundo(plano.target, corpo, mundo);
-            corpo.destino = p ? { ...p, de: plano.raw } : null;
+            const p = alvoNoMundo(plano.target, corpo, mundo, passoDistancia(plano, 5));
+            const q = p && meio
+                ? { x: (corpo.x + p.x) / 2, z: (corpo.z + p.z) / 2 }
+                : p;
+            corpo.destino = q ? { ...q, de: plano.raw } : null;
         }
         alvo = corpo.destino;
     } else {
         corpo.destino = null;
-        alvo = alvoNoMundo(plano.target, corpo, mundo);
+        alvo = alvoNoMundo(plano.target, corpo, mundo, passoDistancia(plano, 5));
     }
     const v = VELOCIDADE[plano.pace] ?? VELOCIDADE.normal;
 
@@ -276,20 +329,30 @@ export function passoDoPlano(
 
     switch (plano.verb) {
         case 'approach':
-        case 'explore':
+        case 'explore': {
             // CHEGAR PERTO TEM FIM. Sem o freio ele encosta no jogador e fica
             // vibrando contra ele — a cara de um NPC quebrado.
-            if (dist > (plano.target === 'player' ? PERTO_DEMAIS : 0.8)) {
+            //
+            // Onde ele para agora vem da FRASE. Era 1,6 m para o jogador e
+            // 0,8 m para o resto, sempre — "chegue bem perto" e "pare a cinco
+            // metros" produziam exatamente o mesmo movimento.
+            const parada = paradaPedida(
+                plano, plano.target === 'player' ? PERTO_DEMAIS : 0.8,
+            );
+            if (dist > parada) {
                 mx = (dx / dist) * v * dt;
                 mz = (dz / dist) * v * dt;
             }
             encarar(corpo, dx, dz, dt);
             break;
+        }
         case 'withdraw':
             // Recuar tem fim também: passado o espaço confortável ele para de
             // andar mas continua de frente, que é dar espaço sem virar as
             // costas — a leitura de "incomodado", não de "fugindo".
-            if (dist < ESPACO_BASTA) {
+            // Até onde recuar também sai da frase: "recue um pouco" e "vá para
+            // o mais longe possível" eram o mesmo 4,5 m.
+            if (dist < paradaPedida(plano, ESPACO_BASTA)) {
                 mx = -(dx / dist) * v * dt;
                 mz = -(dz / dist) * v * dt;
             }
@@ -304,7 +367,10 @@ export function passoDoPlano(
             mx = tx * v * dt;
             mz = tz * v * dt;
             // Correção suave do raio, senão a órbita abre a cada volta.
-            const desvio = dist - Math.max(PERTO_DEMAIS, Math.min(dist, 3.5));
+            // O raio da órbita também: "circule de perto" e "circule de longe"
+            // davam a mesma volta de 3,5 m.
+            const raio = paradaPedida(plano, 3.5);
+            const desvio = dist - Math.max(PERTO_DEMAIS, Math.min(dist, raio));
             mx += (dx / dist) * desvio * 0.5 * dt;
             mz += (dz / dist) * desvio * 0.5 * dt;
             encarar(corpo, dx, dz, dt);

@@ -160,6 +160,19 @@ export type Floor10MotorPlan = {
      * o siga" — a única negação com tradução mecânica exata neste jogo.
      */
     fixarAlvo?: boolean;
+    /**
+     * ── O QUANTO, QUE ERA O TETO DE VERDADE ──────────────────────────────
+     *
+     * Cada verbo tinha uma distância CRAVADA no corpo: `approach` parava a
+     * 1,6 m, `withdraw` recuava até 4,5, `orbit` orbitava a 3,5, e um passo
+     * relativo era sempre 5. Com isso, 6 verbos × 14 alvos davam 84 ordens
+     * DISCRETAS — e nenhuma delas era "chegue bem perto" ou "fique a dez
+     * metros dele". Não faltava verbo: faltava o quanto.
+     *
+     * `undefined` = a frase não disse, e cada verbo usa o padrão de sempre.
+     * `METADE_DO_CAMINHO` = metade do que falta, que é fração, não distância.
+     */
+    distancia?: number;
     verb: Floor10MotorVerb;
     target: Floor10MotorTarget;
     pace: Floor10MotorPace;

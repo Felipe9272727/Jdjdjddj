@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MARGEM_SEGURA, planoDoVetor, rotulosVetorizados } from '../npc/floor10MotorVetor';
+import { METADE_DO_CAMINHO } from '../npc/floor10Prosa';
 import { buildMotorGrammar } from '../npc/floor10MotorCortex';
 import { INITIAL_FLOOR10_PERCEPTION } from '../npc/floor10Perception';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
@@ -258,5 +259,32 @@ describe('floor10MotorVetor — o vetor decide SOZINHO', () => {
         // aparelho onde o embedding falhou. Melhor o motor antigo, com todos os
         // defeitos dele, que nenhum motor.
         expect(typeof planoDoVetor).toBe('function');
+    });
+});
+
+describe('a distância da frase chega ao plano — teste de FIAÇÃO', () => {
+    // Sem isto o conserto é decorativo, e eu comprovei mutando: apagando a
+    // leitura da distância em `casasDaProsa`, os 59 testes de prosa e de corpo
+    // continuavam passando. Um testava a FUNÇÃO que lê, o outro o CORPO que
+    // obedece, e ninguém cobrava o fio entre os dois.
+    it('o número escrito na frase vira o `distancia` do plano', () => {
+        expect(planoDoVetor('player', 'stay 10 meters away from him')?.distancia).toBe(10);
+        expect(planoDoVetor('player', 'get right up to him')?.distancia).toBe(0.8);
+        expect(planoDoVetor('to-my-left', 'take three steps to my left')?.distancia).toBe(3);
+    });
+
+    it('e frase sem quanto nenhum não inventa distância', () => {
+        // `undefined` é o que faz cada verbo usar o padrão que sempre usou —
+        // pôr um número aqui mudaria o comportamento de quem não pediu nada.
+        expect(planoDoVetor('player', 'walk to him')?.distancia).toBeUndefined();
+    });
+
+    it('"metade do caminho" chega como fração, não como metros', () => {
+        expect(planoDoVetor('elevator', 'go halfway to the elevator')?.distancia)
+            .toBe(METADE_DO_CAMINHO);
+    });
+
+    it('e o giro chega como ATO', () => {
+        expect(planoDoVetor('self', 'spin 360 degrees')?.act).toBe('spin');
     });
 });

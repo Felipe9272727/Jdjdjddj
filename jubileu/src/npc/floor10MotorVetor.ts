@@ -210,6 +210,7 @@ export function planoDoVetor(
         // não poluir o plano de quem não pediu nada disso.
         ...(casas.fixarAlvo ? { fixarAlvo: true } : {}),
         ...(casas.gira ? { act: 'spin' as const } : {}),
+        ...(casas.distancia !== null ? { distancia: casas.distancia } : {}),
         pace: ritmoDoTexto(pensamento),
         duration: duracaoDoTexto(pensamento),
         // ── O `raw` PRECISA SER ÚNICO POR RODADA ──────────────────────────
