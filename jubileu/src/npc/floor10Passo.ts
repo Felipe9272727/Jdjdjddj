@@ -301,8 +301,47 @@ export function passoDoPlano(
 //
 // É a inversa de `metaDoPlanoMotor`, e as duas juntas fecham o ciclo:
 // pensamento -> meta -> plano -> corpo, sem nenhum elo que possa faltar.
-export function planoDaMeta(meta: DeliberationGoal): Floor10MotorPlan {
-    const base = { pace: 'normal' as const, duration: 6 as const, raw: `fallback ${meta}` };
+/**
+ * ── VAGAR PRECISA MUDAR DE RUMO, SENÃO É SÓ ANDAR RETO ───────────────────
+ *
+ * Com `ahead` fixo, a medição mostrou o corpo indo em linha reta rodada após
+ * rodada — (0, 4.2), (0, 8.4), (0, 12.6) — até encostar na parede e parar. É
+ * melhor que congelado no centro da sala, e ainda assim não é vagar: é uma
+ * seta.
+ *
+ * O rumo sai do SELO, que já muda a cada rodada. Sem estado novo, sem sorteio
+ * (o mesmo selo dá o mesmo rumo, então o teste continua determinístico), e as
+ * quatro direções são relativas ao CORPO — então "à esquerda" já é diferente a
+ * cada vez, porque o yaw dele mudou no caminho.
+ */
+const RUMOS = ['ahead', 'to-my-left', 'ahead', 'to-my-right'] as const;
+
+function rumoDoSelo(selo: number | string): Floor10MotorTarget {
+    const n = typeof selo === 'number'
+        ? Math.floor(selo)
+        // Uma string vira número somando os códigos: só precisa ser estável e
+        // espalhar, não precisa ser hash de verdade.
+        : [...String(selo)].reduce((a, c) => a + c.charCodeAt(0), 0);
+    return RUMOS[Math.abs(n) % RUMOS.length];
+}
+
+export function planoDaMeta(
+    meta: DeliberationGoal,
+    /**
+     * ── O SELO, PELA MESMA RAZÃO QUE O `planoDoVetor` TEM UM ──────────────
+     *
+     * Alvos relativos TRAVAM o destino enquanto o `raw` não muda — é o que faz
+     * "cinco passos à esquerda" significar a esquerda de onde ele DECIDIU, e não
+     * uma direção que gira junto com ele.
+     *
+     * Só que o `raw` daqui era `fallback ${meta}`, constante. Duas rodadas
+     * seguidas de `wander` tinham o mesmo `raw`, o destino ficava travado, e ele
+     * andava até lá UMA vez e congelava para sempre. O selo faz cada rodada ser
+     * uma ordem nova, contada a partir de onde ele parou.
+     */
+    selo: number | string = Date.now(),
+): Floor10MotorPlan {
+    const base = { pace: 'normal' as const, duration: 6 as const, raw: `fallback#${selo} ${meta}` };
     switch (meta) {
         case 'approach-player':
         case 'talk-player':
@@ -310,7 +349,9 @@ export function planoDaMeta(meta: DeliberationGoal): Floor10MotorPlan {
         case 'seek-player':
             // Procurar não é aproximar: ele não sabe onde o jogador está, então
             // varre a sala em vez de mirar numa posição que pode não existir.
-            return { ...base, verb: 'explore', target: 'room-center' };
+            // Varrer é ANDAR — e `room-center`, que estava aqui, deixava a
+            // varredura parada no meio da sala assim que ele chegasse nele.
+            return { ...base, verb: 'explore', target: rumoDoSelo(selo) };
         case 'make-space':
             return { ...base, verb: 'withdraw', target: 'player' };
         case 'observe-player':
@@ -318,8 +359,20 @@ export function planoDaMeta(meta: DeliberationGoal): Floor10MotorPlan {
             return { ...base, verb: 'hold', target: 'player' };
         case 'inspect-elevator':
             return { ...base, verb: 'approach', target: 'elevator' };
+        // ── VAGAR ERA IR PARA O MEIO DA SALA E FICAR LÁ ───────────────────
+        //
+        // Era `explore | room-center`. Medido no mundo do campo: com o corpo
+        // já no centro, isso dá deslocamento ZERO em todo verbo. Ele chegava ao
+        // meio da sala uma vez e nunca mais saía — e "wander" é justamente a
+        // meta que existe para ele se mexer sem motivo.
+        //
+        // `ahead` sempre produz destino, porque é medido a partir do corpo: não
+        // existe posição em que "cinco passos à frente" seja onde ele já está.
+        // Com o selo mudando a cada rodada, cada uma recomeça de onde ele parou,
+        // e o yaw dele já mudou — então ele vagueia de verdade em vez de ir e
+        // voltar entre dois pontos.
         case 'wander':
-            return { ...base, verb: 'explore', target: 'room-center' };
+            return { ...base, verb: 'explore', target: rumoDoSelo(selo) };
         case 'idle':
         default:
             return { ...base, verb: 'stay', target: 'self' };

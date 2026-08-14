@@ -340,3 +340,89 @@ describe('o corpo alcança os APARELHOS — o campo era cego para eles', () => {
         expect(fonte).toContain('aparelhos: Object.values(f10prison.devices)');
     });
 });
+
+describe('o Nilo ANDA no campo — medido meta a meta', () => {
+    // ── A PERGUNTA DO DONO DO JOGO ────────────────────────────────────────
+    //
+    //   "Mas pera, o Nilo vai conseguir andar no campo?"
+    //
+    // Eu tinha consertado UMA causa (os aparelhos) e afirmado que resolvia.
+    // Medindo todas as metas no mundo exato do campo, apareceram mais duas —
+    // e as duas juntas eram o "ele não anda realmente" inteiro.
+    const mundoDoCampo = {
+        jogador: { x: -6, z: 6 },
+        elevador: { x: 0, z: -10 },
+        limite: 22,
+        dt: 1 / 60,
+        aparelhos: PRISON_DEVICES.map((d) => ({
+            x: d.x, z: d.z, heldByNpc: false, heldByPlayer: false,
+        })),
+    };
+    const rodar = (p: Floor10MotorPlan, corpo: CorpoDoNilo, quadros = 360) => {
+        const antes = { x: corpo.x, z: corpo.z };
+        for (let i = 0; i < quadros; i += 1) passoDoPlano(corpo, p, mundoDoCampo);
+        return Math.hypot(corpo.x - antes.x, corpo.z - antes.z);
+    };
+
+    it('as metas de MOVIMENTO movem o corpo', () => {
+        for (const meta of ['wander', 'seek-player', 'approach-player', 'talk-player',
+            'inspect-elevator'] as const) {
+            const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+            expect(rodar(planoDaMeta(meta, 1), corpo), `${meta} não andou`).toBeGreaterThan(1);
+        }
+    });
+
+    it('e as metas de FICAR continuam paradas — parado nem sempre é bug', () => {
+        // `idle` e `observe-player` são imobilidade de propósito. `make-space`
+        // só recua se o jogador estiver perto, e daqui ele está a 8,5 m.
+        for (const meta of ['idle', 'observe-player', 'make-space'] as const) {
+            const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+            expect(rodar(planoDaMeta(meta, 1), corpo), `${meta} andou sem motivo`)
+                .toBeLessThan(0.05);
+        }
+    });
+
+    it('RODADAS SEGUIDAS continuam andando — era aqui que ele congelava', () => {
+        // ── O TRAVAMENTO ─────────────────────────────────────────────────
+        // Alvos relativos travam o destino enquanto o `raw` não muda — é o que
+        // faz "cinco passos à esquerda" ser a esquerda de ONDE ELE DECIDIU. Mas
+        // o `raw` de `planoDaMeta` era `fallback ${meta}`, CONSTANTE: duas
+        // rodadas de `wander` tinham o mesmo raw, o destino ficava travado, e
+        // ele andava até lá uma vez e parava para sempre.
+        //
+        // Medido: com selo, 4,21 m em toda rodada; com raw constante, 4,21 m na
+        // primeira e 0,00 em todas as seguintes.
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        for (let rodada = 1; rodada <= 5; rodada += 1) {
+            expect(rodar(planoDaMeta('wander', rodada), corpo), `parou na rodada ${rodada}`)
+                .toBeGreaterThan(1);
+        }
+    });
+
+    it('e MUDA DE RUMO — vagar não é andar reto até a parede', () => {
+        // Com `ahead` fixo ele ia (0,4.2) → (0,8.4) → (0,12.6) até encostar na
+        // parede e parar. Melhor que congelado, e ainda assim uma seta.
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        const trilha: string[] = [];
+        for (let rodada = 1; rodada <= 6; rodada += 1) {
+            rodar(planoDaMeta('wander', rodada), corpo);
+            trilha.push(`${corpo.x.toFixed(1)},${corpo.z.toFixed(1)}`);
+        }
+        // Ele se moveu nos DOIS eixos: uma reta só mexeria em um.
+        const xs = new Set(trilha.map((t) => t.split(',')[0]));
+        const zs = new Set(trilha.map((t) => t.split(',')[1]));
+        expect(xs.size, `andou só em z: ${trilha.join(' ')}`).toBeGreaterThan(1);
+        expect(zs.size, `andou só em x: ${trilha.join(' ')}`).toBeGreaterThan(1);
+    });
+
+    it('vagar NUNCA pode mirar o centro da sala', () => {
+        // A armadilha original, e ela é silenciosa: `explore | room-center` dá
+        // deslocamento ZERO quando o corpo já está no centro — e o corpo CHEGA
+        // no centro justamente por causa dessa meta. Ele ia uma vez e ficava.
+        for (const meta of ['wander', 'seek-player'] as const) {
+            for (let selo = 0; selo < 8; selo += 1) {
+                expect(planoDaMeta(meta, selo).target).not.toBe('room-center');
+            }
+        }
+    });
+});
