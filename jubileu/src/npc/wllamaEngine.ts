@@ -741,9 +741,25 @@ export function formatTimings(timings: ChatTimings | null): string {
     const fala = typeof timings.predicted_per_second === 'number'
         ? timings.predicted_per_second
         : 0;
-    const leituraCrivel = typeof timings.prompt_per_second === 'number'
-        && timings.prompt_per_second > 0
-        && (fala <= 0 || timings.prompt_per_second > fala);
+    // ── E A GUARDA COMPARAVA CRU E EXIBIA ARREDONDADO ─────────────────────
+    //
+    // A regra acima é a certa: ler é em lote, falar é token a token, então
+    // leitura menor ou igual à fala é artefato, não vazão. Só que ela comparava
+    // os valores CRUS e a tela mostra os ARREDONDADOS. Com leitura 2,4 e fala
+    // 1,6 a guarda aprova (2,4 > 1,6) e a tela imprime "leitura 2 · fala 2" —
+    // exatamente a imagem que este bloco existe para não produzir.
+    //
+    // E ela produziu: o dono do jogo mandou o print dessa linha como evidência
+    // de que algo estava errado. Terceira vez que esta etiqueta manda caçar um
+    // problema que não existe — as duas anteriores estão contadas acima.
+    //
+    // A comparação passa a ser sobre o que o jogador VÊ. Se os dois números
+    // aparecem iguais, o de leitura não informa nada e sai.
+    const leituraBruta = typeof timings.prompt_per_second === 'number'
+        ? timings.prompt_per_second
+        : 0;
+    const leituraCrivel = leituraBruta > 0
+        && (fala <= 0 || (leituraBruta > fala && Math.round(leituraBruta) > Math.round(fala)));
     if (processados >= TIMINGS_MIN_PROMPT_N && leituraCrivel) {
         parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
     }

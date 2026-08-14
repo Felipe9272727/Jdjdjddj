@@ -1,4 +1,5 @@
 import type { NpcMsg } from './npcStore';
+import { MemoriaDeBolhas } from './floor10Bolha';
 import { blocoDoResumo } from './floor10Compressor';
 import {
     formatFloor10PerceptionForPrompt,
@@ -242,6 +243,75 @@ function matchesCue(normalizedQuery: string, cues: readonly string[]): boolean {
  */
 export type FatoDaMemoria = { id: string; fact: string };
 
+/**
+ * ── O QUE ELE JÁ DISSE, E NÃO TEM COMO SABER ──────────────────────────────
+ *
+ * O dono do jogo, sobre o print da conversa: "na segunda imagem ele repete a
+ * mesma coisa duas vezes". Repete mesmo — a apresentação inteira, literal — e
+ * quando é chamado disso responde "Você não me pediu para repetir".
+ *
+ * Não é teimosia do modelo: ele NÃO TEM COMO SABER. As duas defesas contra
+ * repetição são as duas locais:
+ *
+ *     penalty_repeat 1.15, penalty_last_n 256 .. só os últimos 256 tokens
+ *     FLOOR10_HISTORY_VERBATIM = 4 ............ só as últimas 4 mensagens
+ *
+ * A apresentação dele tem ~40 tokens. Quatro mensagens depois ela saiu da
+ * janela das duas, e o modelo a reescreve do zero achando que é a primeira vez.
+ * `MemoriaDeBolhas.parecidas` existe para exatamente este problema desde
+ * sempre — e só era usada na BOLHA de pensamento, nunca na fala.
+ *
+ * A saída aqui é PREVENIR, não corrigir. Detectar a repetição depois exigiria
+ * gerar de novo, e no celular dele uma geração custa ~30 s: o remédio seria
+ * pior que a doença. Algumas dezenas de tokens no prompt custam quase nada.
+ *
+ * Só entram as falas FORA da janela literal — as de dentro ele já está vendo,
+ * e repeti-las aqui seria pagar duas vezes pelo mesmo aviso.
+ */
+/**
+ * Quantas mensagens do histórico o prompt já mostra literalmente.
+ *
+ * Vive aqui e não é importado de `wllamaEngine` porque aquele módulo importa
+ * este — importar de volta fecharia um ciclo. Um teste garante que os dois
+ * números continuem iguais, que é a mesma solução usada entre o córtex motor e
+ * a deliberação.
+ */
+export const FLOOR10_HISTORY_VERBATIM_NO_PROMPT = 4;
+
+export function jaDitoPeloNilo(
+    history: readonly NpcMsg[],
+    dentroDaJanela: number,
+    quantas = 4,
+): string[] {
+    const falas = history.filter((m) => m.role === 'assistant').map((m) => m.content);
+    // As `dentroDaJanela / 2` últimas falas já vão no histórico literal (a
+    // janela conta mensagens dos dois lados, e metade delas é dele).
+    const foraDaJanela = falas.slice(0, Math.max(0, falas.length - Math.ceil(dentroDaJanela / 2)));
+    const escolhidas: string[] = [];
+    for (let i = foraDaJanela.length - 1; i >= 0 && escolhidas.length < quantas; i -= 1) {
+        const fala = foraDaJanela[i].trim();
+        if (fala.length < 12) continue;
+        // Duas falas parecidas contam como uma: o aviso é sobre o ASSUNTO
+        // repetido, e listar três versões da mesma frase gastaria o orçamento.
+        if (escolhidas.some((e) => MemoriaDeBolhas.parecidas(e, fala))) continue;
+        escolhidas.push(fala);
+    }
+    return escolhidas.reverse();
+}
+
+/** A linha do prompt com o que ele já disse. Vazia quando não há nada. */
+export function blocoDoJaDito(history: readonly NpcMsg[], dentroDaJanela: number): string {
+    const ditas = jaDitoPeloNilo(history, dentroDaJanela)
+        .map((f) => clipHistoryText(f, 120))
+        .filter(Boolean);
+    if (ditas.length === 0) return '';
+    return [
+        'YOU ALREADY SAID THESE THINGS IN THIS CONVERSATION. Do not repeat them,',
+        'do not re-introduce yourself, and do not restate facts you already gave:',
+        ...ditas.map((f) => `- ${f}`),
+    ].join('\n');
+}
+
 export function buildFloor10SystemPrompt(
     userText: string,
     history: readonly NpcMsg[],
@@ -291,12 +361,20 @@ export function buildFloor10SystemPrompt(
             : '\n\nVONTADE ATUAL: ainda sem decisão publicada; não invente uma intenção.')
         : '';
     const actionRequest = formatFloor10ActionRequestForPrompt(userText);
+    // ── O QUE ELE JÁ DISSE ────────────────────────────────────────────────
+    // Vai NO FIM, e por um motivo oposto ao do resumo: esta lista muda a cada
+    // fala dele, então pô-la no começo invalidaria o prefixo em cache do
+    // llama.cpp a cada turno — e é justamente esse cache que faz "273
+    // reaproveitados de 303" no celular. No fim, ela custa alguns tokens de
+    // prefill e nada mais.
+    const jaDito = blocoDoJaDito(history, FLOOR10_HISTORY_VERBATIM_NO_PROMPT);
+    const blocoJaDito = jaDito ? `\n\n${jaDito}` : '';
 
     // O resumo vem LOGO DEPOIS da persona, e isso é de propósito: ele muda uma
     // vez a cada várias falas, então o prefixo em cache do llama.cpp sobrevive
     // entre uma pergunta e outra. Fosse no fim, invalidaria menos ainda — mas
     // aí o modelo leria os fatos antes de saber do que já falaram.
-    return `${ESSENTIAL_PERSONA}${blocoDoResumo()}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}`;
+    return `${ESSENTIAL_PERSONA}${blocoDoResumo()}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}${blocoJaDito}`;
 }
 
 const HARD_CONTRADICTIONS: readonly RegExp[] = [

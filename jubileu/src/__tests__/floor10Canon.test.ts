@@ -1,3 +1,5 @@
+import type { NpcMsg } from '../npc/npcStore';
+import { FLOOR10_HISTORY_VERBATIM } from '../npc/wllamaEngine';
 import { describe, expect, it } from 'vitest';
 import {
     FLOOR10_HISTORY_CHAR_BUDGET,
@@ -10,6 +12,7 @@ import {
     guardedStreamingText,
     hasHardCanonContradiction,
     retrieveFloor10Canon,
+    FLOOR10_HISTORY_VERBATIM_NO_PROMPT, blocoDoJaDito, jaDitoPeloNilo,
 } from '../npc/floor10Canon';
 import { perceiveFloor10 } from '../npc/floor10Perception';
 import { INITIAL_FLOOR10_WILL } from '../npc/floor10Will';
@@ -264,5 +267,80 @@ describe('floor10Canon — fala cortada pelo teto de tokens', () => {
     it('tolera vazio e só espaços', () => {
         expect(trimToCompleteSentence('')).toBe('');
         expect(trimToCompleteSentence('   ')).toBe('');
+    });
+});
+
+describe('ele para de repetir o que já disse', () => {
+    // ── O PRINT DO DONO DO JOGO ───────────────────────────────────────────
+    //
+    //   Nilo: "Eu sou Nilo Azevedo, 29 anos, ex-técnico de elevadores, agora
+    //          um hóspede preso no 10º andar…"
+    //   jogador: "Para de repetir a mesma coisa"
+    //   Nilo: "Você não me pediu para repetir."
+    //
+    // Ele repete a apresentação INTEIRA, literal, e nega. Não é teimosia: ele
+    // não tem como saber. As duas defesas contra repetição são locais —
+    // `penalty_last_n 256` e as 4 mensagens do histórico literal — e a
+    // apresentação tem ~40 tokens. Três turnos depois ela saiu das duas
+    // janelas e ele a reescreve achando que é a primeira vez.
+    const fala = (content: string): NpcMsg => ({ role: 'assistant', content });
+    const pergunta = (content: string): NpcMsg => ({ role: 'user', content });
+    const APRESENTACAO = 'Eu sou Nilo Azevedo, 29 anos, ex-técnico de elevadores, '
+        + 'agora um hóspede preso no 10º andar do hotel.';
+
+    it('o que saiu da janela literal entra no aviso', () => {
+        const historia = [
+            pergunta('quem é você?'), fala(APRESENTACAO),
+            pergunta('e o elevador?'), fala('O elevador nunca obedeceu a mim.'),
+            pergunta('há quanto tempo?'), fala('Perdi a conta dos dias aqui.'),
+            pergunta('e agora?'),
+        ];
+        const bloco = blocoDoJaDito(historia, 4);
+        expect(bloco).toContain('Nilo Azevedo');
+        expect(bloco).toMatch(/do not repeat/i);
+    });
+
+    it('o que AINDA está na janela literal não é repetido no aviso', () => {
+        // Ele já está vendo essas mensagens. Listá-las de novo seria pagar
+        // duas vezes pelo mesmo aviso, num prompt onde cada token custa.
+        const historia = [pergunta('quem é você?'), fala(APRESENTACAO), pergunta('e daí?')];
+        expect(blocoDoJaDito(historia, 4)).toBe('');
+    });
+
+    it('duas falas parecidas contam como UMA', () => {
+        // O aviso é sobre o ASSUNTO repetido; listar três versões da mesma
+        // frase gastaria o orçamento sem informar nada de novo.
+        const historia = [
+            pergunta('a'), fala(APRESENTACAO),
+            pergunta('b'), fala('Eu sou Nilo Azevedo, 29 anos, ex-técnico de elevadores, preso aqui.'),
+            pergunta('c'), fala('O elevador nunca obedeceu a mim.'),
+            pergunta('d'), fala('mais uma'), pergunta('e'), fala('outra'),
+            pergunta('f'),
+        ];
+        const ditas = jaDitoPeloNilo(historia, 4);
+        const azevedo = ditas.filter((d) => d.includes('Nilo Azevedo'));
+        expect(azevedo.length).toBeLessThanOrEqual(1);
+    });
+
+    it('conversa curta não gasta token com aviso nenhum', () => {
+        expect(blocoDoJaDito([pergunta('oi')], 4)).toBe('');
+        expect(blocoDoJaDito([], 4)).toBe('');
+    });
+
+    it('e o aviso ESTÁ no prompt — teste de fiação', () => {
+        const historia = [
+            pergunta('quem é você?'), fala(APRESENTACAO),
+            pergunta('b'), fala('b'), pergunta('c'), fala('c'), pergunta('d'),
+        ];
+        const prompt = buildFloor10SystemPrompt('e agora?', historia);
+        expect(prompt).toMatch(/do not repeat/i);
+        expect(prompt).toContain('Nilo Azevedo');
+    });
+
+    it('a janela do prompt é a MESMA que o motor usa', () => {
+        // Duas cópias do mesmo número em módulos que não podem se importar (o
+        // ciclo fecharia). É a mesma solução usada entre o córtex motor e a
+        // deliberação, e ela só vale com o teste que compara as duas.
+        expect(FLOOR10_HISTORY_VERBATIM_NO_PROMPT).toBe(FLOOR10_HISTORY_VERBATIM);
     });
 });
