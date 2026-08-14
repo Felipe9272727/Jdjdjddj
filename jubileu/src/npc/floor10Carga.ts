@@ -291,6 +291,42 @@ export async function conferirModeloCarregado(engine: unknown): Promise<void> {
     if (modeloVazio(meta)) throw new Error(ERRO_MODELO_VAZIO);
 }
 
+// ── "JÁ ESTÁ NO APARELHO" NÃO É O MESMO QUE "ESTÁ INTEIRO" ────────────────
+//
+// A pergunta "o modelo já está em cache?" era respondida procurando a URL na
+// lista do `cacheManager`. Uma entrada existe assim que o download COMEÇA: um
+// arquivo interrompido no meio aparece na lista igualzinho a um completo.
+//
+// A consequência não é teórica. Quem responde "sim" a essa pergunta pula o
+// planejamento de espaço inteiro — com o raciocínio, certo em geral, de que não
+// há bytes novos para caber. Com um arquivo pela metade há: o wllama valida o
+// tamanho na hora de abrir e rebaixa o modelo inteiro sozinho. O jogo então
+// promete "0 bytes" e puxa 1,9 GB sem nunca ter perguntado se cabem.
+//
+// A régua é a do próprio wllama, que grava `originalSize` no metadado
+// EXATAMENTE para isto (o comentário no `.d.ts` dele diz "used for integrity
+// check") e compara com o tamanho gravado antes de abrir o arquivo. Aqui é a
+// mesma comparação, feita antes — e de graça, sem tocar a rede.
+export type EntradaDoCache = {
+    size?: number;
+    metadata?: { originalURL?: string; originalSize?: number };
+};
+
+/**
+ * A entrada do cache está completa?
+ *
+ * Um runtime que não informa os tamanhos passa direto: inventar "corrompido"
+ * por falta de instrumento apagaria um modelo bom e cobraria o download de
+ * novo — o mesmo critério de `conferirModeloCarregado`.
+ */
+export function entradaIntacta(entrada: EntradaDoCache): boolean {
+    const gravado = entrada.size;
+    const esperado = entrada.metadata?.originalSize;
+    if (typeof gravado !== 'number' || typeof esperado !== 'number') return true;
+    if (!(esperado > 0) || !(gravado > 0)) return true;
+    return gravado === esperado;
+}
+
 /** O texto que a barra mostra entre uma tentativa e outra. */
 export function textoDaTentativa(
     label: string,

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     ERRO_MODELO_VAZIO,
@@ -5,6 +6,7 @@ import {
     FLOOR10_TENTATIVAS,
     conferirModeloCarregado,
     ehFalhaTransitoria,
+    entradaIntacta,
     esperar,
     esperaDaTentativa,
     inatividadeMs,
@@ -202,5 +204,47 @@ describe('a espera entre tentativas', () => {
                 'a rede falhou ao baixar Memória EmbeddingGemma 300M · '
                 + 'tentando de novo em 2s (tentativa 2 de 3)',
             );
+    });
+});
+
+describe('"já está no aparelho" contra "está inteiro"', () => {
+    // ── A ENTRADA EXISTE DESDE O PRIMEIRO BYTE ────────────────────────────
+    //
+    // O `cacheManager` do wllama cria a entrada quando o download COMEÇA. Um
+    // arquivo interrompido no meio aparece na lista igual a um completo — e
+    // quem pergunta "já está em cache?" pula, com o "sim", o planejamento de
+    // espaço inteiro. Aí o wllama valida o tamanho ao abrir, rebaixa 1,9 GB
+    // sozinho, e o jogo tinha acabado de prometer que não precisava de nada.
+    const inteira = { size: 1_900_000_000, metadata: { originalSize: 1_900_000_000 } };
+    const pelaMetade = { size: 812_000_000, metadata: { originalSize: 1_900_000_000 } };
+
+    it('arquivo completo é aceito', () => {
+        expect(entradaIntacta(inteira)).toBe(true);
+    });
+
+    it('download interrompido no meio NÃO conta como em cache', () => {
+        expect(entradaIntacta(pelaMetade)).toBe(false);
+    });
+
+    it('sem os tamanhos, deixa passar', () => {
+        // Inventar "corrompido" por falta de instrumento apagaria um modelo bom
+        // e cobraria o download de novo — o mesmo critério de
+        // `conferirModeloCarregado`, e o inverso do defeito que este teste pega.
+        expect(entradaIntacta({})).toBe(true);
+        expect(entradaIntacta({ size: 10 })).toBe(true);
+        expect(entradaIntacta({ metadata: { originalSize: 10 } })).toBe(true);
+        expect(entradaIntacta({ size: 10, metadata: {} })).toBe(true);
+        expect(entradaIntacta({ size: 0, metadata: { originalSize: 0 } })).toBe(true);
+    });
+
+    it('e o motor da fala pergunta com essa régua', () => {
+        // O defeito não era a função errada: era a pergunta certa feita sem
+        // ela. Um teste de comportamento aqui exigiria um wllama de mentira
+        // inteiro; ler a linha prende exatamente o que faltava.
+        const fonte = readFileSync(new URL('../npc/wllamaEngine.ts', import.meta.url), 'utf8');
+        const pergunta = fonte.match(/entries\?\.some\([^\n]*/)?.[0] ?? '';
+        expect(pergunta).toContain('originalURL === url');
+        expect(pergunta, 'volta a aceitar um arquivo pela metade como "em cache"')
+            .toContain('entradaIntacta(');
     });
 });

@@ -29,7 +29,7 @@ import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
-import { conferirModeloCarregado } from './floor10Carga';
+import { conferirModeloCarregado, entradaIntacta, type EntradaDoCache } from './floor10Carga';
 import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
 import {
     CACHE_HEADROOM,
@@ -933,7 +933,7 @@ export class ModelStorageError extends Error {
  */
 type CacheProbe = WllamaInstance & {
     cacheManager?: {
-        list: () => Promise<Array<{ metadata?: { originalURL?: string } }>>;
+        list: () => Promise<EntradaDoCache[]>;
         delete: (nameOrUrl: string) => Promise<void>;
     };
 };
@@ -957,7 +957,10 @@ function probeDoCache(mod: WllamaModule): CacheProbe {
 async function isModelCached(mod: WllamaModule, url: string): Promise<boolean> {
     try {
         const entries = await probeDoCache(mod).cacheManager?.list();
-        return !!entries?.some((e) => e.metadata?.originalURL === url);
+        // `entradaIntacta`: a entrada existe desde o primeiro byte baixado, e
+        // um arquivo pela metade responderia "já está aqui" — fazendo o jogo
+        // pular a conta de espaço justamente quando ela é necessária.
+        return !!entries?.some((e) => e.metadata?.originalURL === url && entradaIntacta(e));
     } catch {
         return false;
     }
