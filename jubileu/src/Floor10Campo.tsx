@@ -27,7 +27,9 @@ import { deliberateFloor10, precarregarVontade, vontadeJaCarregada } from './npc
 import { precarregarMotor } from './npc/floor10MotorBrain';
 import { memoriaJaCarregada, precarregarMemoria } from './npc/floor10Memoria';
 import { downloadLine } from './npc/floor10Download';
-import { classificarPensamento, type VeredictoDoVetor } from './npc/floor10MotorVetor';
+import {
+    classificarPensamento, planoDoVetor, type VeredictoDoVetor,
+} from './npc/floor10MotorVetor';
 import { useNpc } from './npc/npcStore';
 import type { Floor10MotorPlan } from './npc/floor10MotorCortex';
 import type { DeliberationGoal } from './npc/floor10Deliberation';
@@ -117,7 +119,28 @@ const Floor10Campo: React.FC = () => {
     const testarFrase = useCallback(async () => {
         setTestando(true);
         try {
-            setVetor(await classificarPensamento(frase));
+            const veredito = await classificarPensamento(frase);
+            setVetor(veredito);
+            // ── A CAIXA DE FRASE PASSA A MOVER O CORPO ────────────────────
+            //
+            // Ela só chamava `setVetor` e parava aí: mostrava o alvo e a margem
+            // na tela, e o Nilo continuava com "ordem: NENHUMA". O dono do jogo
+            // mandou um print exatamente disso — `vetor: elevator · margem
+            // 0.167 · folgado` ao lado de `o corpo não recebeu plano` — e a
+            // leitura óbvia de fora é "o vetor acertou e mesmo assim ele não
+            // anda", que é a queixa antiga voltando por um caminho novo.
+            //
+            // Só que aqui o vetor tinha feito o trabalho dele. Quem não existia
+            // era o elo seguinte: nada convertia o veredito em plano motor.
+            //
+            // Agora converte. E isso é mais que conserto de tela — é o caminho
+            // vetor→corpo inteiro testável com os 333 MB do embedding, sem
+            // baixar 1,25 GB de vontade só para ver o Nilo andar.
+            if (veredito) {
+                const p = planoDoVetor(veredito.alvo, frase);
+                plano.current = p;
+                planoAte.current = performance.now() / 1000 + p.duration;
+            }
         } catch {
             setVetor(null);
         } finally {
@@ -535,7 +558,7 @@ const Floor10Campo: React.FC = () => {
 
             {temVetor && (
                 <div style={{ ...caixa, marginBottom: 10 }}>
-                    <div style={rotulo}>testar o vetor com uma frase</div>
+                    <div style={rotulo}>escrever um pensamento — o Nilo obedece</div>
                     <textarea
                         value={frase}
                         onChange={(e) => setFrase(e.target.value)}
@@ -553,7 +576,7 @@ const Floor10Campo: React.FC = () => {
                         disabled={testando || frase.trim() === ''}
                         style={botao}
                     >
-                        {testando ? 'classificando…' : 'classificar'}
+                        {testando ? 'classificando…' : 'classificar e MOVER o Nilo'}
                     </button>
                 </div>
             )}

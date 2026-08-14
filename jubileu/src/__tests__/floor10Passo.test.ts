@@ -426,3 +426,37 @@ describe('o Nilo ANDA no campo — medido meta a meta', () => {
         }
     });
 });
+
+describe('a caixa de frase do campo move o corpo — teste de FIAÇÃO', () => {
+    // ── O PRINT QUE O DONO DO JOGO MANDOU ─────────────────────────────────
+    //
+    //   vetor: no ar · elevator · margem 0.167 · folgado, sem LLM
+    //   ordem: NENHUMA — o corpo não recebeu plano
+    //
+    // Os dois na mesma tela. De fora, a leitura óbvia é "o vetor acertou e
+    // mesmo assim ele não anda" — a queixa antiga voltando por caminho novo.
+    //
+    // Só que o vetor tinha feito o trabalho dele. Quem não existia era o elo
+    // seguinte: `testarFrase` chamava `setVetor` e parava aí. O veredito
+    // morria na tela.
+    //
+    // Comportamento e fiação, cobrados em separado — a lição do aviso que eu
+    // escrevi certo e deixei desconectado.
+    it('classificar uma frase vira plano motor e alimenta o corpo', () => {
+        const fonte = readFileSync(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8');
+        // O veredito vira plano…
+        expect(fonte).toContain('planoDoVetor(veredito.alvo, frase)');
+        // …e o plano entra no ref que o laço de quadro consome.
+        expect(/plano\.current = p;/.test(fonte)).toBe(true);
+        expect(/planoAte\.current = performance\.now\(\) \/ 1000 \+ p\.duration/.test(fonte))
+            .toBe(true);
+    });
+
+    it('e o rótulo do botão não promete menos do que ele faz', () => {
+        // "classificar" descrevia um beco sem saída. Quem lê "classificar" não
+        // espera o corpo andar, e quem lê e o corpo NÃO anda conclui que está
+        // quebrado — os dois lados errados pela mesma palavra.
+        const fonte = readFileSync(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8');
+        expect(fonte).toContain('MOVER o Nilo');
+    });
+});
