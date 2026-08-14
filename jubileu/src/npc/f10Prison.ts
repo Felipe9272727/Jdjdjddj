@@ -267,6 +267,27 @@ export function describePrison(state: F10PrisonState): string {
     if (state.secondsSinceProgress > 90) {
         partes.push('Nothing has changed in a long while, no matter what you try alone.');
     }
+    // ── O QUE ELE JÁ VIVEU, E NINGUÉM CONTAVA A ELE ───────────────────────
+    //
+    // `nearMisses` era contado desde o começo e lido por NINGUÉM. O Nilo
+    // recomeçava do zero a cada rodada: nunca lembrava que já tinha chegado
+    // perto, nem quantas vezes.
+    //
+    // E isto NÃO é entregar a solução — é o oposto. A solução seria a regra
+    // ("dois ao mesmo tempo"), que saiu daqui de propósito. Isto é a MEMÓRIA
+    // do que aconteceu com ele: o zumbido começou, e parou antes da hora. Ele
+    // viveu esse momento; não lembrar dele é que era artificial.
+    //
+    // É também a única pista que a experiência dá sozinha, e a diferença entre
+    // um agente que tenta ao acaso e um que percebe que estava perto.
+    const quases = state.locks.reduce((a, l) => a + l.nearMisses, 0);
+    if (quases === 1) {
+        partes.push('Once, the humming started and then stopped before anything gave way.');
+    } else if (quases > 1) {
+        partes.push(
+            `${quases} times now, the humming started and then stopped before anything gave way.`,
+        );
+    }
     return partes.join(' ');
 }
 

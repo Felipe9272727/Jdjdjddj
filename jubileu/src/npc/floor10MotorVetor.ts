@@ -45,7 +45,7 @@ import type {
     Floor10MotorPlan,
     Floor10MotorTarget,
 } from './floor10MotorCortex';
-import { verboDaProsa } from './floor10Prosa';
+import { casasDaProsa } from './floor10Prosa';
 import { anotar } from './floor10CaixaPreta';
 
 /**
@@ -177,12 +177,16 @@ export function planoDoVetor(
 ): Floor10MotorPlan {
     // `stay` quando o alvo é o próprio corpo: "aproximar-se de si mesmo" faria
     // o passo calcular um destino igual à posição e o corpo tremer no lugar.
+    const casas = casasDaProsa(pensamento);
     const verbo = alvo === 'self'
         ? 'stay'
-        : verboDaProsa(pensamento) ?? 'approach';
+        : casas.verbo ?? 'approach';
     return {
         verb: verbo,
         target: alvo,
+        // A segunda casa da frase. `undefined` quando não há restrição, para
+        // não poluir o plano de quem não pediu nada disso.
+        ...(casas.fixarAlvo ? { fixarAlvo: true } : {}),
         pace: ritmoDoTexto(pensamento),
         duration: duracaoDoTexto(pensamento),
         // ── O `raw` PRECISA SER ÚNICO POR RODADA ──────────────────────────

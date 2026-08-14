@@ -202,7 +202,18 @@ export function passoDoPlano(
         return corpo;
     }
 
-    const relativa = (FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(plano.target);
+    // ── TRAVAR O DESTINO NÃO É SÓ COISA DE ALVO RELATIVO ─────────────────
+    //
+    // A máquina de travar existia para `to-my-left` e irmãos: o destino é
+    // calculado uma vez e não gira junto com o corpo. Agora ela serve também à
+    // segunda casa da frase — "vá até ele, MAS NÃO O SIGA".
+    //
+    // `approach player` lê a posição do jogador a cada quadro: se ele anda, o
+    // Nilo vai atrás. ISSO é seguir. Com `fixarAlvo`, o ponto é congelado onde
+    // o jogador estava quando a ordem saiu, e o Nilo vai até lá e para — que é
+    // exatamente a diferença entre ir até alguém e grudar nele.
+    const relativa = plano.fixarAlvo === true
+        || (FLOOR10_MOTOR_RELATIVE as readonly string[]).includes(plano.target);
     let alvo: { x: number; z: number } | null;
     if (relativa) {
         // Trava na primeira vez que ESTE plano é visto, e destrava quando vem

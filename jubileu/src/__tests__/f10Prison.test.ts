@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     PRISON_DEVICES, PRISON_SENSE_SIZE, describePrison, freshPrison,
     prisonReward, prisonSenses, stepPrison, type F10PrisonState, type PrisonEvent,
 } from '../npc/f10Prison';
+import { FLOOR10_RL_PRISON_STATE_SIZE } from '../npc/floor10Reinforcement';
 
 const em = (id: string) => {
     const d = PRISON_DEVICES.find((x) => x.id === id);
@@ -189,5 +191,101 @@ describe('quase-acerto é OCORRÊNCIA, não quadro', () => {
             stepPrison(p, { npc: { x: 0, z: 0 }, player: { x: 0, z: 0 }, dt: 1 / 60 });
         }
         expect(p.locks.every((l) => l.nearMisses === 0)).toBe(true);
+    });
+});
+
+describe('crescer a prisão não pode truncar o aprendizado em silêncio', () => {
+    // ── O PRÉ-REQUISITO DE ACRESCENTAR MUNDO ──────────────────────────────
+    //
+    // `FLOOR10_RL_PRISON_STATE_SIZE` era `9`, escrito à mão, e vale exatamente
+    // o mesmo que `PRISON_SENSE_SIZE` hoje — o que fazia dele uma armadilha
+    // silenciosa em vez de um bug visível.
+    //
+    // No dia em que a prisão ganhar um quinto aparelho ou uma terceira tranca,
+    // `prisonSenses()` devolve mais sinais do que o buffer do RL reserva. O
+    // estado é montado por fatiamento: os sinais extras seriam truncados, ou
+    // empurrariam os traços motores para fora da janela. Sem erro, sem teste
+    // vermelho — o aprendizado só ficaria pior e ninguém saberia por quê.
+    it('o tamanho do estado do RL ACOMPANHA o tamanho dos sentidos', () => {
+        expect(FLOOR10_RL_PRISON_STATE_SIZE).toBe(PRISON_SENSE_SIZE);
+    });
+
+    it('e é DERIVADO na fonte, não um número que hoje coincide', () => {
+        // ── POR QUE UM TESTE DE FONTE AQUI ───────────────────────────────
+        //
+        // A asserção acima é decorativa e eu comprovei: troquei a constante de
+        // volta para o literal `9` e ela continuou passando, porque hoje
+        // `PRISON_SENSE_SIZE` vale exatamente 9. Um teste que não distingue o
+        // certo do errado não é um teste.
+        //
+        // O que se quer cobrar não é o VALOR — é o ACOPLAMENTO, e ele só
+        // aparece na fonte. No dia em que a prisão crescer, o valor cravado
+        // truncaria os sinais em silêncio; o derivado acompanha.
+        const fonte = readFileSync(
+            new URL('../npc/floor10Reinforcement.ts', import.meta.url), 'utf8',
+        );
+        expect(fonte).toMatch(/FLOOR10_RL_PRISON_STATE_SIZE\s*=\s*PRISON_SENSE_SIZE/);
+        expect(fonte).not.toMatch(/FLOOR10_RL_PRISON_STATE_SIZE\s*=\s*\d/);
+    });
+
+    it('e os sentidos realmente têm o tamanho que anunciam', () => {
+        // A ponta que fecha o circuito: se `prisonSenses` e `PRISON_SENSE_SIZE`
+        // discordarem, importar um do outro não salva ninguém.
+        expect(prisonSenses(freshPrison())).toHaveLength(PRISON_SENSE_SIZE);
+    });
+
+    it('a conta é derivada dos aparelhos e das trancas, não cravada', () => {
+        // Se alguém acrescentar um aparelho, este número muda sozinho.
+        expect(PRISON_SENSE_SIZE).toBe(PRISON_DEVICES.length + freshPrison().locks.length + 3);
+    });
+});
+
+describe('ele lembra que já chegou perto — memória de episódio', () => {
+    // ── UM CONTADOR QUE NINGUÉM LIA ───────────────────────────────────────
+    //
+    // `nearMisses` era contado desde o começo e lido por ninguém. O Nilo
+    // recomeçava do zero a cada rodada: nunca lembrava que já tinha chegado
+    // perto, nem quantas vezes.
+    //
+    // Isto NÃO é entregar a solução — é o oposto. A solução seria a REGRA
+    // ("dois ao mesmo tempo"), que saiu do texto de propósito. Isto é a
+    // memória do que ACONTECEU com ele: o zumbido começou e parou antes da
+    // hora. Ele viveu o momento; não lembrar dele é que era artificial.
+    const juntos = (p: F10PrisonState, ligado: boolean) => stepPrison(p, {
+        npc: ligado ? { x: -7, z: -6 } : { x: 0, z: 0 },
+        player: ligado ? { x: 7, z: -6 } : { x: 0, z: 0 },
+        dt: 1 / 60,
+    });
+
+    it('sem quase-acerto nenhum, ele não inventa lembrança', () => {
+        expect(describePrison(freshPrison())).not.toMatch(/humming started and then stopped/);
+    });
+
+    it('depois de um quase, ele lembra — e no singular', () => {
+        const p = freshPrison();
+        for (let i = 0; i < 60; i += 1) juntos(p, true);
+        for (let i = 0; i < 200; i += 1) juntos(p, false);
+        expect(describePrison(p)).toContain('Once, the humming started');
+    });
+
+    it('depois de vários, ele lembra QUANTOS', () => {
+        const p = freshPrison();
+        for (let volta = 0; volta < 3; volta += 1) {
+            for (let i = 0; i < 60; i += 1) juntos(p, true);
+            for (let i = 0; i < 200; i += 1) juntos(p, false);
+        }
+        expect(describePrison(p)).toContain('3 times now');
+    });
+
+    it('e a lembrança NÃO conta a regra — isso continua sendo trabalho dele', () => {
+        // O manifesto do arquivo: "o Nilo NÃO SABE o que fazer". A memória do
+        // que ele viveu não pode virar a instrução que ele deveria descobrir.
+        const p = freshPrison();
+        for (let i = 0; i < 60; i += 1) juntos(p, true);
+        for (let i = 0; i < 200; i += 1) juntos(p, false);
+        const texto = describePrison(p);
+        expect(texto).not.toMatch(/same time/i);
+        expect(texto).not.toMatch(/two of them/i);
+        expect(texto).not.toMatch(/cannot reach two/i);
     });
 });

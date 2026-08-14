@@ -142,6 +142,14 @@ export type Floor10MotorPlan = {
      * inferência por verbo+alvo.
      */
     goal?: MetaDoMotor;
+    /**
+     * Ir até o ponto e PARAR, em vez de recalcular o alvo a cada quadro.
+     *
+     * `approach player` persegue: a posição do jogador é lida todo quadro, e se
+     * ele anda o Nilo vai atrás. É a segunda casa da frase "vá até ele, mas não
+     * o siga" — a única negação com tradução mecânica exata neste jogo.
+     */
+    fixarAlvo?: boolean;
     verb: Floor10MotorVerb;
     target: Floor10MotorTarget;
     pace: Floor10MotorPace;

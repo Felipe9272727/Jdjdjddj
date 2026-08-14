@@ -103,7 +103,9 @@ const ORDEM_QUE_ELE_NAO_CUMPRE =
  * uma ordem negada não pode virar a ordem positiva.
  */
 const NEGACAO =
-    /\b(dont|don't|do not|never|without|instead of)\b/i;
+    // `not` sozinho estava faltando — a palavra de negação mais comum da
+    // língua, e a única que sobra depois que `without` vira `but not`.
+    /\b(not|dont|don't|never|without|instead of)\b/i;
 
 /** Prosa para verbo. `walk`, `move`, `go` são todos aproximar-se de algo. */
 const VERBO_DA_PROSA: ReadonlyArray<readonly [RegExp, Floor10MotorVerb]> = [
@@ -162,26 +164,102 @@ export function verboDaProsa(bruto: string | null | undefined): Floor10MotorVerb
     if ((FLOOR10_MOTOR_VERBS as readonly string[]).includes(limpo)) {
         return limpo as Floor10MotorVerb;
     }
-    // Ordem que ele não cumpre vence tudo: nem o verbo positivo da frase, nem
-    // o fallback. Ficar parado É a resposta — e o chamador consegue distinguir
-    // isso de um `hold` normal por `ordemRecusada`.
-    if (ORDEM_QUE_ELE_NAO_CUMPRE.test(limpo)) return 'hold';
-    const negada = NEGACAO.test(limpo);
-    for (const [regra, verbo] of VERBO_DA_PROSA) {
-        if (!regra.test(limpo)) continue;
-        // Um verbo de deslocamento sob negação vira NÃO se deslocar. `hold`
-        // mantém o corpo de frente para o alvo sem avançar — que é a leitura
-        // certa de "vá até ele, mas não o siga": ele para e observa em vez de
-        // grudar. Verbos que já são imobilidade (`hold`, `stay`) não invertem,
-        // senão "não fique parado" viraria ficar parado.
-        if (negada && verbo !== 'hold' && verbo !== 'stay') return 'hold';
-        return verbo;
+    // A leitura por cláusulas manda; esta função é a porta antiga dela.
+    return casasDaProsa(limpo).verbo;
+}
+
+/**
+ * ── DUAS CASAS, PORQUE A FRASE TEM DUAS ──────────────────────────────────
+ *
+ *   "go to the player, but don't follow him"
+ *
+ * Isso não é uma ordem: são duas. Uma AÇÃO ("vá até ele") e uma RESTRIÇÃO
+ * ("não o siga"). O motor tinha uma casa só, então a frase inteira virava um
+ * rótulo — e o cosseno, que não enxerga negação, escolhia `player`.
+ *
+ * A regra de negação que veio antes desta melhorou o caso simples ("don't
+ * follow" sozinho vira `hold`) e ESTRAGAVA este: com um "não" em qualquer
+ * lugar, a frase toda virava `hold` e a metade positiva se perdia. Ele parava
+ * onde estava em vez de ir.
+ *
+ * O corte é por cláusula. A primeira com verbo reconhecido é a ação; qualquer
+ * cláusula negada depois dela é restrição. E "não seguir" tem significado
+ * MECÂNICO exato neste jogo:
+ *
+ *   `approach player` recalcula a posição do jogador a cada quadro — se ele
+ *   anda, o Nilo vai atrás. ISSO é seguir.
+ *   Travando o destino no ponto onde o jogador ESTAVA, ele vai até lá e para.
+ *
+ * É a diferença entre ir até alguém e grudar nele, e o jogo já tem a máquina
+ * de travar destino (`corpo.destino`) — ela só era usada para alvos relativos.
+ */
+const CORTE_DE_CLAUSULA = /\s*(?:,|;|\bbut\b|\bthough\b|\byet\b)\s*/i;
+
+/**
+ * `without` e `instead of` são separador E negação ao mesmo tempo.
+ *
+ * Cortar por eles comia a negação junto: "approach the player WITHOUT chasing
+ * him" virava as cláusulas ["approach the player", "chasing him"], e a segunda
+ * não tinha mais nenhuma marca de negação — o "não" desaparecia no corte.
+ *
+ * Reescrever para "but not" antes de cortar deixa as duas funções visíveis: o
+ * `but` separa e o `not` nega.
+ */
+function normalizarNegacao(t: string): string {
+    return t
+        .replace(/\bwithout\b/gi, 'but not')
+        .replace(/\binstead of\b/gi, 'but not');
+}
+
+/** "não siga", em todas as formas que aparecem de verdade. */
+const NAO_SIGA = /\b(follow|chase|chasing|tail|stick|stay close|keep up|shadow)\b/i;
+
+export type CasasDaProsa = {
+    /** O verbo da AÇÃO, já resolvido. `null` = nenhuma cláusula tinha verbo. */
+    verbo: Floor10MotorVerb | null;
+    /** Ele deve ir até o ponto e PARAR, em vez de perseguir. */
+    fixarAlvo: boolean;
+    /** A frase pede algo que ele não faz. */
+    recusada: boolean;
+};
+
+/**
+ * Lê a frase em duas casas: o que fazer, e o que não fazer junto.
+ *
+ * Uma cláusula só, sem negação, sai igual ao que saía antes — este corte não
+ * pode custar o caso simples, que é a maioria.
+ */
+export function casasDaProsa(bruto: string | null | undefined): CasasDaProsa {
+    const vazio: CasasDaProsa = { verbo: null, fixarAlvo: false, recusada: false };
+    if (!bruto) return vazio;
+    const limpo = bruto.trim().toLowerCase();
+    if (ORDEM_QUE_ELE_NAO_CUMPRE.test(limpo)) {
+        return { verbo: 'hold', fixarAlvo: false, recusada: true };
     }
-    // ── NEGAÇÃO SEM VERBO CONHECIDO NÃO PODE CAIR NO FALLBACK ─────────────
-    // `null` aqui vira `?? 'approach'` no `planoDoVetor`: uma frase que diz
-    // "não" acabaria virando a ordem positiva. Se há negação e nenhum verbo
-    // foi reconhecido, a única leitura honesta é não se mexer.
-    if (negada) return 'hold';
+
+    const clausulas = normalizarNegacao(limpo).split(CORTE_DE_CLAUSULA)
+        .filter((c) => c.trim() !== '');
+    let verbo: Floor10MotorVerb | null = null;
+    let fixarAlvo = false;
+    for (const c of clausulas) {
+        const negada = NEGACAO.test(c);
+        const desta = verboDaClausula(c);
+        if (negada) {
+            // Negar "seguir" não cancela o movimento: pede que ele PARE ao
+            // chegar. É a única negação com tradução mecânica exata aqui.
+            if (NAO_SIGA.test(c)) { fixarAlvo = true; continue; }
+            // Qualquer outra negação sobre um verbo de deslocamento: não se
+            // desloque. Só vale como AÇÃO se nenhuma ação positiva veio antes.
+            if (verbo === null) verbo = desta && desta !== 'stay' ? 'hold' : (desta ?? 'hold');
+            continue;
+        }
+        if (verbo === null && desta) verbo = desta;
+    }
+    return { verbo, fixarAlvo, recusada: false };
+}
+
+function verboDaClausula(c: string): Floor10MotorVerb | null {
+    for (const [regra, v] of VERBO_DA_PROSA) if (regra.test(c)) return v;
     return null;
 }
 

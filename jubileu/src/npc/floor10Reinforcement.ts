@@ -4,6 +4,7 @@
 // limitado sobre os scores da Utility AI. Pedidos aceitos pelo cérebro de fala
 // continuam sendo compromissos explícitos e nunca podem ser vetados por esta rede.
 
+import { PRISON_SENSE_SIZE } from './f10Prison';
 import { FLOOR10_MOTOR_FEATURE_SIZE } from './floor10MotorCortex';
 
 export const FLOOR10_RL_ACTIONS = [
@@ -35,7 +36,23 @@ export type Floor10RlAction = typeof FLOOR10_RL_ACTIONS[number];
  * "estávamos os dois em cima de alguma coisa".
  */
 export const FLOOR10_RL_BODY_STATE_SIZE = 16;
-export const FLOOR10_RL_PRISON_STATE_SIZE = 9;
+/**
+ * ── ESTE NÚMERO É IMPORTADO, NÃO COPIADO ─────────────────────────────────
+ *
+ * Era `9`, escrito à mão. `PRISON_SENSE_SIZE` vale exatamente o mesmo hoje
+ * (`PRISON_DEVICES.length + LOCKS.length + 3` = 4 + 2 + 3), então nada quebrava
+ * — e é justamente isso que fazia dele uma armadilha silenciosa.
+ *
+ * No dia em que a prisão ganhar um quinto aparelho ou uma terceira tranca,
+ * `prisonSenses()` passa a devolver mais sinais do que este buffer reserva. O
+ * estado do RL é montado por fatiamento: os sinais extras seriam TRUNCADOS, ou
+ * pior, empurrariam os traços motores para fora da janela. Sem erro, sem teste
+ * vermelho — o aprendizado só ficaria pior, e ninguém saberia por quê.
+ *
+ * E isso não é hipotético: crescer a prisão é o próximo passo pedido. O
+ * pré-requisito de acrescentar mundo é que o mundo novo chegue inteiro à rede.
+ */
+export const FLOOR10_RL_PRISON_STATE_SIZE = PRISON_SENSE_SIZE;
 export const FLOOR10_RL_MOTOR_STATE_SIZE = FLOOR10_MOTOR_FEATURE_SIZE;
 export const FLOOR10_RL_STATE_SIZE =
     FLOOR10_RL_BODY_STATE_SIZE

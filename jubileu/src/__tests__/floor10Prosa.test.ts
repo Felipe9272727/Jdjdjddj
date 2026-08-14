@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { alvoDaProsa, planoDaProsa, verboDaProsa, ordemNegada, ordemRecusada,
+import { alvoDaProsa, planoDaProsa, verboDaProsa, ordemNegada, ordemRecusada, casasDaProsa,
 } from '../npc/floor10Prosa';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
 
@@ -212,15 +212,40 @@ describe('negação e ordem impossível — os dois casos que o dono do jogo ach
         }
     });
 
-    it('"vá até ele mas NÃO siga" não vira "aproxime"', () => {
+    it('"vá até ele mas NÃO siga" faz ele IR e PARAR — não ficar parado', () => {
+        // ── DUAS CASAS, PORQUE A FRASE TEM DUAS ──────────────────────────
+        //
+        // A primeira versão deste conserto devolvia `hold` para a frase toda:
+        // com um "não" em qualquer lugar, a metade positiva se perdia e ele
+        // nem saía do lugar. Melhor que obedecer ao contrário, e ainda assim
+        // errado — o pedido era para ele IR.
+        //
+        // "não seguir" tem tradução mecânica exata aqui: `approach player`
+        // recalcula a posição do jogador a cada quadro, então se ele anda o
+        // Nilo vai atrás. ISSO é seguir. Travar o destino no ponto onde o
+        // jogador estava faz ele ir até lá e parar.
         for (const frase of [
             "go to the player but don't follow him",
             'walk to him, do not follow',
-            'approach the elevator without walking around it',
+            'approach the player without chasing him',
         ]) {
-            expect(verboDaProsa(frase), frase).toBe('hold');
-            expect(ordemNegada(frase), frase).toBe(true);
+            const casas = casasDaProsa(frase);
+            expect(casas.verbo, frase).toBe('approach');
+            expect(casas.fixarAlvo, `${frase}: devia travar o destino`).toBe(true);
         }
+    });
+
+    it('mas negação SEM ser sobre seguir continua cancelando o movimento', () => {
+        // "não vá até lá" é diferente de "vá até lá, mas não o siga".
+        expect(casasDaProsa("don't go there").verbo).toBe('hold');
+        expect(casasDaProsa("don't go there").fixarAlvo).toBe(false);
+    });
+
+    it('uma ordem simples não paga nada pelo corte em cláusulas', () => {
+        const casas = casasDaProsa('walk to the elevator');
+        expect(casas.verbo).toBe('approach');
+        expect(casas.fixarAlvo).toBe(false);
+        expect(casas.recusada).toBe(false);
     });
 
     it('mas negar IMOBILIDADE não inverte — senão "não fique parado" trava ele', () => {

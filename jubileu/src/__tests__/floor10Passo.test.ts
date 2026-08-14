@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PRISON_DEVICES } from '../npc/f10Prison';
+import { casasDaProsa } from '../npc/floor10Prosa';
 import { passoDoPlano, planoDaMeta, type CorpoDoNilo } from '../npc/floor10Passo';
 import { DELIBERATION_GOALS } from '../npc/floor10Deliberation';
 import { FLOOR10_MOTOR_TARGETS, FLOOR10_MOTOR_VERBS } from '../npc/floor10MotorCortex';
@@ -458,5 +459,56 @@ describe('a caixa de frase do campo move o corpo — teste de FIAÇÃO', () => {
         // quebrado — os dois lados errados pela mesma palavra.
         const fonte = readFileSync(new URL('../Floor10Campo.tsx', import.meta.url), 'utf8');
         expect(fonte).toContain('MOVER o Nilo');
+    });
+});
+
+describe('"vá até ele, mas não o siga" — a diferença mecânica', () => {
+    // ── O QUE "SEGUIR" É, NESTE JOGO ──────────────────────────────────────
+    //
+    // `approach player` lê a posição do jogador A CADA QUADRO. Se ele anda, o
+    // Nilo vai atrás. Isso é seguir — e é o comportamento padrão.
+    //
+    // `fixarAlvo` congela o ponto onde o jogador ESTAVA quando a ordem saiu. O
+    // Nilo vai até lá e para. É a segunda casa da frase, e a única negação com
+    // tradução mecânica exata aqui.
+    const mundoCom = (jx: number, jz: number) => ({
+        jogador: { x: jx, z: jz },
+        elevador: { x: 0, z: -10 },
+        limite: 22,
+        dt: 1 / 60,
+    });
+    const ordem = (fixar: boolean): Floor10MotorPlan => ({
+        verb: 'approach', target: 'player', pace: 'normal', duration: 6,
+        raw: 'teste#1', ...(fixar ? { fixarAlvo: true } : {}),
+    });
+
+    it('SEM a restrição ele persegue: o jogador anda, o Nilo vai atrás', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        // O jogador começa ao norte e foge para o leste no meio do caminho.
+        for (let i = 0; i < 120; i += 1) passoDoPlano(corpo, ordem(false), mundoCom(0, 10));
+        // 13,4 m até 1,6 m do jogador (onde `approach` freia), a 1,6 m/s: ~500
+        // quadros. Eu tinha dado 300 e o teste acusou "não seguiu" quando o
+        // certo era "não deu tempo" — a mesma armadilha de antes, de novo.
+        for (let i = 0; i < 700; i += 1) passoDoPlano(corpo, ordem(false), mundoCom(15, 10));
+        expect(corpo.x, 'não seguiu o jogador que fugiu para o leste').toBeGreaterThan(12);
+    });
+
+    it('COM a restrição ele vai até onde o jogador estava, e fica', () => {
+        const corpo: CorpoDoNilo = { x: 0, z: 0, yaw: 0 };
+        for (let i = 0; i < 120; i += 1) passoDoPlano(corpo, ordem(true), mundoCom(0, 10));
+        const meio = { x: corpo.x, z: corpo.z };
+        // Mesmo com o jogador fugindo, o destino continua o de antes.
+        for (let i = 0; i < 700; i += 1) passoDoPlano(corpo, ordem(true), mundoCom(15, 10));
+        expect(corpo.x, 'perseguiu mesmo com a restrição').toBeLessThan(2);
+        // E chegou onde o jogador estava, em vez de parar no lugar.
+        expect(corpo.z).toBeGreaterThan(meio.z - 0.1);
+        expect(corpo.z).toBeGreaterThan(8);
+    });
+
+    it('e a frase inteira produz o plano certo, ponta a ponta', () => {
+        // A prova de que as duas casas chegam juntas até o corpo.
+        const casas = casasDaProsa("go to the player but don't follow him");
+        expect(casas.verbo).toBe('approach');
+        expect(casas.fixarAlvo).toBe(true);
     });
 });
