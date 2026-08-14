@@ -11,3 +11,11 @@ jubileu/bancada-navegador/*.gguf
 # O wllama do CDN, vendorizado só para a bancada medir o runtime REAL.
 # 7,6 MB que o npm/CDN já serve — não entram no repositório.
 jubileu/bancada-navegador/wllama-cdn/
+
+# Relatórios dos agentes de revisão: artefato de trabalho, não do jogo.
+# Um deles entrou num commit por acidente (um `git add -A` rodado de dentro
+# de jubileu/ varre a raiz do repo também), e relatório de varredura envelhece
+# mal — vira um retrato de bugs já consertados que alguém lê como se fosse o
+# estado atual.
+achados-*.md
+critica-*.md
