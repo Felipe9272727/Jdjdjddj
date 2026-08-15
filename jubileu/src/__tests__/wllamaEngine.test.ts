@@ -193,6 +193,46 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(prompt_real).not.toContain('reaproveitados');
     });
 
+    it('com o tempo CRU na mão, a tela para de falar em taxa', () => {
+        // ── A PERGUNTA QUE A TAXA NUNCA RESPONDEU ────────────────────────
+        //
+        // O dono do jogo viu "Pensando localmente… 142s" e perguntou por que
+        // está tão lento. O cabeçalho dizia "fala 1 tok/s · 515 reaproveitados
+        // · 285 lidos" — e a taxa de leitura nem aparecia, porque o piso conta
+        // `lidos - reaproveitados`, que dá zero justamente quando o cache está
+        // funcionando BEM.
+        //
+        // Ou seja: quanto melhor o cache, mais cega ficava a metade da conta
+        // que decide se vale encolher o prompt ou trocar o modelo.
+        //
+        // O motor manda `prompt_ms` e `predicted_ms` em toda geração. Eles
+        // somam o que o jogador viu no relógio, e nenhuma divisão por meia
+        // dúzia de tokens os distorce.
+        const cru = formatTimings({
+            prompt_n: 285,
+            cache_n: 515,
+            prompt_ms: 95_400,
+            predicted_ms: 46_800,
+            prompt_per_second: 3,
+            predicted_per_second: 1,
+        });
+        expect(cru).toBe('leitura 95s · fala 47s · 515 reaproveitados · 285 lidos');
+        expect(cru, 'a taxa e o tempo dizendo a mesma coisa gastam duas linhas')
+            .not.toContain('tok/s');
+    });
+
+    it('e sem o tempo cru continua falando em taxa, como antes', () => {
+        // Builds antigas do wllama não mandam os `_ms`. A tela não pode ficar
+        // muda por causa disso.
+        expect(formatTimings({
+            prompt_n: 380, cache_n: 0, prompt_per_second: 3.2, predicted_per_second: 2.2,
+        })).toContain('leitura 3 tok/s');
+    });
+
+    it('meio segundo aparece como meio segundo, não como "0s"', () => {
+        expect(formatTimings({ predicted_ms: 1_430 })).toBe('fala 1.4s');
+    });
+
     it('guarda o KV em 8 bits: +15% de fala medidos, sem mudar a resposta', () => {
         expect(CPU_LOAD_CONFIG.cache_type_k).toBe('q8_0');
         expect(CPU_LOAD_CONFIG.cache_type_v).toBe('q8_0');
@@ -610,6 +650,22 @@ describe('divisaoDaEspera — a conta que decide onde vale otimizar', () => {
         const { divisaoDaEspera } = await import('../npc/wllamaEngine');
         expect(divisaoDaEspera(null)).toEqual({});
         expect(divisaoDaEspera({})).toEqual({});
+    });
+
+    it('o RELÓGIO do motor ganha da conta derivada', async () => {
+        const { divisaoDaEspera } = await import('../npc/wllamaEngine');
+        // `lidos / tok_por_segundo` só reconstrói o tempo certo quando as duas
+        // pontas concordam sobre o que `prompt_n` conta — e elas não concordam
+        // entre builds (em algumas o cache entra na conta, em outras não).
+        // Aqui a divisão daria 28,5s; o relógio diz 95,4s. Vale o relógio.
+        const d = divisaoDaEspera({
+            prompt_n: 285, cache_n: 515, prompt_per_second: 10,
+            prompt_ms: 95_400, predicted_ms: 46_800, predicted_per_second: 1,
+        });
+        expect(d.leitura_s).toBe(95.4);
+        expect(d.fala_s).toBe(46.8);
+        // A taxa continua indo junto: ela é a que se compara entre aparelhos.
+        expect(d.leitura_tps).toBe(10);
     });
 });
 

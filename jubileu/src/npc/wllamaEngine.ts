@@ -655,7 +655,29 @@ export type ChatTimings = {
     prompt_per_second?: number;
     predicted_per_second?: number;
     cache_n?: number;
+    // ── O TEMPO CRU, QUE SEMPRE ESTEVE ALI ────────────────────────────────
+    //
+    // Este tipo é escrito à mão porque o wllama entra por `import()` de CDN.
+    // Faltavam dois campos que o `ResultTimings` dele declara e o motor manda
+    // em toda geração: o tempo DECORRIDO de cada metade, em milissegundos.
+    //
+    // Sem eles, a tela só sabia falar em tokens por segundo — uma taxa
+    // DERIVADA, que já mandou o dono do jogo caçar três problemas de prefill
+    // inexistentes, porque uma taxa calculada sobre meia dúzia de tokens é
+    // dominada pelo custo fixo da chamada.
+    //
+    // Milissegundo decorrido não tem esse defeito: "leitura 95s · fala 47s"
+    // soma o que ele viu no relógio, e responde de uma vez a pergunta que
+    // importa — encolher o prompt adianta, ou o gargalo é a geração?
+    prompt_ms?: number;
+    predicted_ms?: number;
 };
+
+/** Segundos legíveis: "1,4s" para o que é curto, "95s" para o que não é. */
+function segundos(ms: number): string {
+    const s = ms / 1000;
+    return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
+}
 
 export type ChatChunk = {
     // `role` só aparece no pedaço que ABRE uma resposta — é o marco que separa
@@ -760,11 +782,28 @@ export function formatTimings(timings: ChatTimings | null): string {
         : 0;
     const leituraCrivel = leituraBruta > 0
         && (fala <= 0 || (leituraBruta > fala && Math.round(leituraBruta) > Math.round(fala)));
-    if (processados >= TIMINGS_MIN_PROMPT_N && leituraCrivel) {
-        parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
-    }
-    if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
-        parts.push(`fala ${Math.round(timings.predicted_per_second)} tok/s`);
+    // ── O TEMPO DECORRIDO GANHA DA TAXA, QUANDO ELE EXISTE ────────────────
+    //
+    // Toda a ginástica acima (piso de tokens, "ler não pode ser mais lento que
+    // falar") existe para consertar uma TAXA que engana em prompt curto. O
+    // motor manda o tempo decorrido junto, e ele não engana: são os segundos
+    // que o jogador passou olhando a tela.
+    //
+    // Quando os dois vêm, a taxa sai — dizer a mesma coisa duas vezes num
+    // cabeçalho que já quebra em três linhas no celular não ajuda ninguém.
+    const msLeitura = typeof timings.prompt_ms === 'number' ? timings.prompt_ms : 0;
+    const msFala = typeof timings.predicted_ms === 'number' ? timings.predicted_ms : 0;
+    const temTempoCru = msLeitura > 0 || msFala > 0;
+    if (temTempoCru) {
+        if (msLeitura > 0) parts.push(`leitura ${segundos(msLeitura)}`);
+        if (msFala > 0) parts.push(`fala ${segundos(msFala)}`);
+    } else {
+        if (processados >= TIMINGS_MIN_PROMPT_N && leituraCrivel) {
+            parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
+        }
+        if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
+            parts.push(`fala ${Math.round(timings.predicted_per_second)} tok/s`);
+        }
     }
     if (reusados > 0) parts.push(`${reusados} reaproveitados`);
     if (lidos > 0) parts.push(`${lidos} lidos`);
@@ -787,13 +826,27 @@ export function divisaoDaEspera(
     const reusados = typeof timings.cache_n === 'number' ? timings.cache_n : 0;
     if (lidos > 0) saida.lidos = lidos;
     if (reusados > 0) saida.reusados = reusados;
-    if (
+    // O medido ganha do derivado: `prompt_ms` é o relógio do motor, enquanto
+    // `lidos / tok_por_segundo` é uma divisão que só reconstrói o mesmo número
+    // quando as duas pontas concordam sobre o que "lidos" conta — e elas nem
+    // sempre concordam (o cache entra em `prompt_n` em algumas builds e não em
+    // outras). O derivado fica de reserva para quem não mandar o cru.
+    if (typeof timings.prompt_ms === 'number' && timings.prompt_ms > 0) {
+        saida.leitura_s = timings.prompt_ms / 1000;
+    } else if (
         lidos > 0
         && typeof timings.prompt_per_second === 'number'
         && timings.prompt_per_second > 0
     ) {
         saida.leitura_s = lidos / timings.prompt_per_second;
+    }
+    if (typeof timings.prompt_per_second === 'number' && timings.prompt_per_second > 0) {
         saida.leitura_tps = timings.prompt_per_second;
+    }
+    if (typeof timings.predicted_ms === 'number' && timings.predicted_ms > 0) {
+        // A metade que faltava na conta. Sem ela dava para saber quanto custou
+        // ler, mas não com o que comparar — que é a pergunta inteira.
+        saida.fala_s = timings.predicted_ms / 1000;
     }
     if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
         saida.fala_tps = timings.predicted_per_second;
