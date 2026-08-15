@@ -10,6 +10,11 @@ import {
     listaParaRevisao,
     remendoInutil,
     remendosQueValem,
+    GRAMATICA_DO_VEREDITO,
+    VEREDITO_MAX_TOKENS,
+    blocoDaReescrita,
+    blocoDoVeredito,
+    lerFrasesErradas,
 } from '../npc/floor10Remendo';
 import { RASCUNHADORES, RASCUNHADOR_PADRAO } from '../npc/floor10Rascunhadores';
 import { SMALL_BRAIN_CATALOG } from '../npc/floor10Brains';
@@ -378,5 +383,95 @@ describe('o candidato de terror que a busca achou', () => {
         // 5/15 contra 14/15, medido aqui dentro, no Llama 3.2 1B.
         expect(horror?.url).toContain('Q6_K');
         expect(horror?.url).not.toContain('Q4');
+    });
+});
+
+
+describe('o protocolo de DOIS passos, que a medição obrigou', () => {
+    // ── O QUE FOI MEDIDO, COM O SmolLM3-3B DE VERDADE ─────────────────────
+    //
+    // Três rascunhos plantados, protocolo de um passo, três reprovações:
+    //
+    //   limpo ........ esperado "OK", veio "FIX 1: <a frase idêntica>
+    //                  FIX 2: <a outra frase idêntica> OK"
+    //   erro na 2 .... veio "FIX 1: <a frase 2> ... FIX 2: <a frase 3> ...",
+    //                  deslocando todos os índices em um
+    //   troca de id .. veio "Eu não sou Nilo Azevedo, eu sou Nilo Azevedo. …
+    //                  OK. (Apenas a primeira frase foi corrigida…)"
+    //
+    // A gramática ESTAVA sendo aplicada — medi isso à parte. Ela permitia o
+    // lixo, porque `frase ::= [^\n]+` aceita qualquer coisa até a quebra.
+    //
+    // A lição: eu pedia DUAS decisões numa resposta só — qual frase está errada
+    // E o que escrever no lugar. Um 3B em WASM erra as duas quando vêm juntas.
+    it('o passo 1 não tem texto livre nenhum na gramática', () => {
+        // É isto que impede o "FIX 1: <divagação de 70 tokens>": não existe
+        // produção que aceite letra.
+        expect(GRAMATICA_DO_VEREDITO).not.toContain('[^');
+        expect(GRAMATICA_DO_VEREDITO).toContain('digito ::= [1-9]');
+        expect(GRAMATICA_DO_VEREDITO).toContain('aprovado ::= "OK"');
+    });
+
+    it('e o orçamento do passo 1 é de poucos tokens', () => {
+        // "OK" é um token. Se este número crescer, alguém reabriu a porta para
+        // o modelo escrever prosa onde ele deveria só apontar.
+        expect(VEREDITO_MAX_TOKENS).toBeLessThanOrEqual(8);
+    });
+
+    it('lê OK como "nenhuma frase errada"', () => {
+        expect(lerFrasesErradas('OK', 3)).toEqual([]);
+        expect(lerFrasesErradas('\nOK', 3)).toEqual([]);
+    });
+
+    it('lê os números, ordenados e sem repetir', () => {
+        expect(lerFrasesErradas('2', 3)).toEqual([2]);
+        expect(lerFrasesErradas('3,1', 3)).toEqual([1, 3]);
+        expect(lerFrasesErradas('2,2', 3)).toEqual([2]);
+    });
+
+    it('e descarta número que não existe no rascunho', () => {
+        expect(lerFrasesErradas('7', 3)).toEqual([]);
+    });
+
+    it('o passo 2 não tem índice na saída — foi o índice que ele errou', () => {
+        const bloco = blocoDaReescrita('quem é você?', 'O hotel vai encerrar amanhã.');
+        expect(bloco).toContain('O hotel vai encerrar amanhã.');
+        expect(bloco).toContain('Uma frase.');
+        expect(bloco).toContain('sem numerar');
+    });
+
+    it('e o enunciado do passo 1 proíbe fala', () => {
+        // Na medição o modelo respondia à PERGUNTA DO JOGADOR em vez de
+        // conferir o rascunho. Esta linha existe por causa disso.
+        expect(blocoDoVeredito('quem é você?', enumerarFrases(RASCUNHO)))
+            .toContain('Não escreva fala nenhuma');
+    });
+});
+
+describe('o descarte de remendo inútil, consertado pela medição', () => {
+    it('frase de UMA palavra pesada não vira "igual" a qualquer coisa', () => {
+        // ── O CASO REAL ──────────────────────────────────────────────────
+        //
+        // `parecidas` divide pelo MENOR dos dois conjuntos de palavras pesadas.
+        // "Não sei dizer." tem uma só (`dizer`), então qualquer substituta que
+        // a contenha marcava 1,0 — e o remendo era descartado como inútil.
+        //
+        // Medido: original "Não sei dizer." contra "O hotel vai encerrar amanhã
+        // de manhã. (Não sei dizer)". Nada a ver, e foi descartado.
+        expect(remendoInutil(
+            'Não sei dizer.',
+            'O hotel vai encerrar amanhã de manhã. (Não sei dizer)',
+        )).toBe(false);
+    });
+
+    it('mas texto idêntico continua sendo descartado', () => {
+        expect(remendoInutil('Não sei dizer.', 'não sei dizer')).toBe(true);
+    });
+
+    it('e a comparação normal segue valendo para frases com corpo', () => {
+        expect(remendoInutil(
+            'Sou Nilo Azevedo, ex-técnico de elevadores.',
+            'Sou o Nilo Azevedo, um ex-técnico de elevadores.',
+        )).toBe(true);
     });
 });

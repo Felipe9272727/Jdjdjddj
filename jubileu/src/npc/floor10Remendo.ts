@@ -102,6 +102,140 @@ export const GRAMATICA_DO_REMENDO = [
     'frase ::= [^\\n]+',
 ].join('\n');
 
+// ── A MEDIÇÃO DERRUBOU O PROTOCOLO DE UM PASSO ────────────────────────────
+//
+// A `GRAMATICA_DO_REMENDO` acima foi escrita a lápis e parecia certa. Rodada
+// contra o SmolLM3-3B de verdade, três casos plantados, ela reprovou nos três:
+//
+//   rascunho limpo → esperado "OK", veio:
+//       "FIX 1: Sou Nilo Azevedo, ex-técnico de elevadores.
+//        FIX 2: Estou preso no 10º andar há tempo demais. OK"
+//     Ele reescreveu as duas frases IDÊNTICAS em vez de aprovar.
+//
+//   erro na frase 2 → veio:
+//       "FIX 1: O hotel vai encerrar amanhã de manhã. (Não sei dizer)
+//        FIX 2: Eu só queria sair daqui. (Não sei dizer)"
+//     Ele DESLOCOU os índices: usou o número como "minha correção nº 1", e não
+//     como "a frase nº 1 do rascunho".
+//
+//   troca de identidade → veio:
+//       "FIX 1: Eu não sou Nilo Azevedo, eu sou Nilo Azevedo. … OK. (Apenas a
+//        primeira frase foi corrigida, pois a segunda já está correta.) OK. (A
+//        segunda frase já está correta, então não há necessidade de cor"
+//     Contradiz a si mesmo, comenta o próprio trabalho, e estoura o teto.
+//
+// TRÊS EM TRÊS. E o mais importante: a culpa NÃO é do wllama.
+//
+// Eu cheguei a acusar a gramática de não estar sendo aplicada. Medi antes de
+// escrever isso e estava errado — com prompt curto, no mesmo motor:
+//
+//     root ::= "OK" ................................ saída "OK"    (2,5 s)
+//     GRAMATICA_DO_REMENDO ......................... saída "OK"    (2,3 s)
+//     GRAMATICA_DO_VEREDITO ........................ saída "OK"    (2,4 s)
+//     FLOOR10_MOTOR_GRAMMAR (a do jogo) ............ "MOTION: explore | active"
+//     root ::= digito ("," digito)? ................ saída "1,4"
+//
+// As duas são VÁLIDAS e são APLICADAS. O lixo passou porque a gramática
+// PERMITIA o lixo: `frase ::= [^\n]+` é curinga, então "FIX 1: <qualquer coisa
+// até a quebra de linha>" conforma com tudo. O único trecho realmente preso era
+// o prefixo. Gramática não é mágica — ela só recusa o que você escreveu que ela
+// deve recusar.
+//
+// E UM PERIGO QUE A MEDIÇÃO ACHOU DE BRINDE: gramática INVÁLIDA é ignorada em
+// SILÊNCIO. `root ::= (((` não lançou erro nenhum e a geração saiu solta
+// ("Frase: \"Alegria\""). Ou seja: um erro de digitação numa GBNF deste projeto
+// não quebra nada — só desliga a única trava que segura o formato, e ninguém
+// fica sabendo. Vale para o motor também.
+//
+// ── O QUE A EVIDÊNCIA MANDA FAZER: UM GRAU DE LIBERDADE POR CHAMADA ───────
+//
+// Eu tinha pedido DUAS coisas na mesma resposta — escolher qual frase está
+// errada E escrever a substituta. Um 3B em WASM erra as duas quando elas vêm
+// juntas. Separadas, cada uma vira uma tarefa com uma saída só:
+//
+//   passo 1 ... "quais frases estão erradas?" → só dígitos, ou OK. 1 a 3
+//               tokens. Não existe texto livre para ele divagar, e não existe
+//               índice para deslocar, porque o número É a resposta inteira.
+//   passo 2 ... só se houver frase errada: "reescreva ESTA frase", com a frase
+//               citada no enunciado e NENHUM índice na saída.
+//
+// O passo 1 é o que decide se o atalho vale: se ele responder OK, custou três
+// tokens, e é aí que este desenho ganha do 3B escrevendo tudo.
+export const GRAMATICA_DO_VEREDITO = [
+    'root ::= aprovado | erradas',
+    'aprovado ::= "OK"',
+    // No máximo duas: corrigir três frases de três é reescrever a fala, e para
+    // isso o caminho antigo já existe e é mais barato.
+    'erradas ::= digito ("," digito)?',
+    'digito ::= [1-9]',
+].join('\n');
+
+/** Teto do passo 1. "OK" é um token; "1,3" são três. */
+export const VEREDITO_MAX_TOKENS = 8;
+
+/**
+ * Lê o passo 1: quais frases o revisor reprovou.
+ *
+ * Devolve lista vazia para "OK" e para qualquer coisa ilegível — a mesma
+ * política de antes, e pelo mesmo motivo: o rascunho já passou pelas checagens
+ * determinísticas, e reprovar por não ter entendido o revisor troca uma
+ * resposta provavelmente boa por mais um minuto de espera.
+ */
+export function lerFrasesErradas(saida: string, totalDeFrases: number): number[] {
+    const texto = saida.trim();
+    if (!texto || /^ok\b/i.test(texto)) return [];
+    const numeros = texto.match(/[1-9]/g) ?? [];
+    const vistos = new Set<number>();
+    for (const n of numeros) {
+        const v = Number(n);
+        if (v >= 1 && v <= totalDeFrases) vistos.add(v);
+    }
+    return [...vistos].sort((a, b) => a - b);
+}
+
+/**
+ * O enunciado do passo 1. Curto de propósito: o modelo tem UMA decisão a tomar,
+ * e cada linha a mais é uma chance de ele achar que deve escrever prosa.
+ */
+export function blocoDoVeredito(
+    perguntaDoJogador: string,
+    frases: readonly FraseNumerada[],
+): string {
+    return `
+
+CONFERÊNCIA. Não escreva fala nenhuma.
+
+Rascunho de resposta de Nilo para "${perguntaDoJogador.trim()}":
+
+${listaParaRevisao(frases)}
+
+Alguma dessas frases contradiz sua identidade, o cânone, seus olhos ou sua
+vontade? Responda SÓ com o número das erradas, separados por vírgula. Se todas
+estiverem aceitáveis, responda apenas: OK`;
+}
+
+/**
+ * O enunciado do passo 2, para UMA frase.
+ *
+ * A frase vai citada e a saída não tem índice: foi exatamente o índice que o
+ * modelo deslocou na medição. Aqui não há número para ele errar.
+ */
+export function blocoDaReescrita(
+    perguntaDoJogador: string,
+    frase: string,
+): string {
+    return `
+
+CORREÇÃO. Uma frase só.
+
+Nesta resposta sua para "${perguntaDoJogador.trim()}", esta frase está errada:
+
+"${frase}"
+
+Reescreva SOMENTE essa frase, corrigida, na voz de Nilo. Uma frase. Sem
+explicar, sem numerar, sem comentar.`;
+}
+
 /** Uma frase trocada: o número que ela tinha e o texto que entra no lugar. */
 export type Remendo = { n: number; texto: string };
 
@@ -181,6 +315,25 @@ export function aplicarRemendos(
  * e — pior — faz o registro dizer que houve conserto onde não houve.
  */
 export function remendoInutil(original: string, novo: string): boolean {
+    // ── O DEFEITO QUE A MEDIÇÃO ACHOU ────────────────────────────────────
+    //
+    // `parecidas` divide as palavras em comum pelo MENOR dos dois conjuntos de
+    // palavras pesadas. Quando a frase original tem UMA palavra pesada só, o
+    // denominador é 1 e qualquer substituta que a repita marca 1,0 — "igual".
+    //
+    // Na medição real: original "Não sei dizer." (só `dizer` tem mais de três
+    // letras) contra a substituta "O hotel vai encerrar amanhã de manhã. (Não
+    // sei dizer)". Nada a ver uma com a outra, e o remendo foi DESCARTADO como
+    // inútil — por acidente, o descarte salvou o texto naquele caso, mas é
+    // sorte, não regra, e no caso seguinte a sorte inverte.
+    //
+    // Frase curta demais para o comparador é decidida por igualdade de texto,
+    // que é o que ele sabe responder sem inventar semelhança.
+    const pesadas = (t: string) => MemoriaDeBolhas.chave(t).split(' ')
+        .filter((p) => p.length > 3).length;
+    if (pesadas(original) < 2 || pesadas(novo) < 2) {
+        return MemoriaDeBolhas.chave(original) === MemoriaDeBolhas.chave(novo);
+    }
     return MemoriaDeBolhas.parecidas(original, novo);
 }
 

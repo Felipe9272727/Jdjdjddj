@@ -725,6 +725,7 @@ async function falarRevisando(
 export async function revisarRascunhoParaBancada(
     systemPrompt: string,
     blocoDaRevisao: string,
+    opcoes: { grammar?: string; maxTokens?: number } = {},
 ): Promise<string> {
     const engine = await initLLM();
     if (!engine) return '';
@@ -739,8 +740,8 @@ export async function revisarRascunhoParaBancada(
         temperature: 0.2,
         top_p: 0.75,
         top_k: 20,
-        grammar: GRAMATICA_DO_REMENDO,
-        max_tokens: REVISAO_MAX_TOKENS,
+        grammar: opcoes.grammar ?? GRAMATICA_DO_REMENDO,
+        max_tokens: opcoes.maxTokens ?? REVISAO_MAX_TOKENS,
     }) as { choices?: Array<{ message?: { content?: string } }> } | undefined;
     return visibleText(resposta?.choices?.[0]?.message?.content ?? '').trim();
 }

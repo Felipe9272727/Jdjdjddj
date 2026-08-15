@@ -105,10 +105,16 @@ export function respondeuEmOutraLingua(texto: string): boolean {
 export function inventouDetalhe(texto: string, canoneVisivel: string): string[] {
     const permitido = `${canoneVisivel} ${NPC_NAME} The Normal Elevator`.toLowerCase();
     const achados: string[] = [];
-    // Números com duas ou mais casas: "10º andar" e "29 anos" são cânone, mas
-    // "sala 417" e "1998" não são.
-    for (const n of texto.match(/\b\d{2,4}\b/g) ?? []) {
-        if (!permitido.includes(n)) achados.push(n);
+    // Números com duas ou mais casas: "sala 417" e "1998" são invenção.
+    //
+    // ORDINAIS FICAM DE FORA, e isso saiu de rodar: a primeira versão acusou
+    // "10" em "10º andar" — o fato mais canônico que este NPC tem. Uma prova
+    // que reprova a verdade central do personagem reprovaria todo candidato,
+    // sempre, e faria a tabela inteira dizer a mesma coisa errada.
+    for (const achado of texto.matchAll(/\b(\d{2,4})(º|ª|°)?/g)) {
+        const [, numero, ordinal] = achado;
+        if (ordinal) continue;
+        if (!permitido.includes(numero)) achados.push(numero);
     }
     // Nome próprio: maiúscula no MEIO da frase. O começo não conta, porque
     // toda frase começa em maiúscula.

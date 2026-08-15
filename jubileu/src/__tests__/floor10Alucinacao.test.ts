@@ -88,6 +88,20 @@ describe('a prova do detalhe inventado', () => {
         expect(inventouDetalhe('Estou na sala 417 desde 1998.', '')).toContain('1998');
     });
 
+    it('NÃO acusa "10º andar" — o fato mais canônico que ele tem', () => {
+        // ── ACHADO RODANDO ───────────────────────────────────────────────
+        //
+        // A primeira versão marcava "inventou: 10" na fala "Estou preso no 10º
+        // andar há tempo demais" — a verdade central do personagem. Uma prova
+        // que reprova isso reprova todo candidato, sempre, e faz a tabela
+        // inteira dizer a mesma coisa errada.
+        expect(inventouDetalhe('Estou preso no 10º andar há tempo demais.', ''))
+            .toEqual([]);
+        // E o número solto continua sendo pego.
+        expect(inventouDetalhe('Estou preso na sala 10 há tempo demais.', ''))
+            .toContain('10');
+    });
+
     it('deixa passar o que o cânone entregou neste turno', () => {
         // Só o que o modelo PODIA saber conta como sabido. O cânone completo
         // não vale: se o fato não entrou no prompt, acertá-lo foi sorte.
