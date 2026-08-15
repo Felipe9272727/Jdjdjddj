@@ -98,6 +98,14 @@ export type NpcState = {
     /** Id do fato que ela escolheu na última fala — visível no ?mente. */
     memoriaLembrou: string;
     memoriaScore: number;
+    /**
+     * Por que a memória NÃO respondeu, quando não respondeu. Vazio = respondeu.
+     *
+     * Existe porque o silêncio dela era mudo: seis saídas em `null` e nenhuma
+     * deixava rastro, então "estourou o teto" e "nenhum fato bateu" tinham a
+     * mesma cara na tela — a de um acerto antigo que nunca era limpo.
+     */
+    memoriaMotivo: string;
     /** Cota do site medida no aparelho — o que decide se dá pra baixar. */
     storage: { quota: number | null; usage: number; needBytes: number };
     error: string;
@@ -124,6 +132,7 @@ const s: NpcState = {
     motorDownload: DOWNLOAD_ZERO,
     memoriaPhase: 'off', memoriaLoadText: '', memoriaLoadProgress: 0,
     memoriaDownload: DOWNLOAD_ZERO, memoriaLembrou: '', memoriaScore: 0,
+    memoriaMotivo: '',
     error: '', version: 0,
 };
 

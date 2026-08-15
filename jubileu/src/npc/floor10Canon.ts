@@ -393,6 +393,32 @@ const HARD_CONTRADICTIONS: readonly RegExp[] = [
     /\b(?:hotel|normal elevator).{0,35}\b(?:vai|esta|está|estar|parece).{0,30}\b(?:acabar|encerrar)\b/i,
     /\b(?:hotel|normal elevator).{0,35}\bis about to end\b/i,
     /\b(?:hotel|normal elevator).{0,35}\b(?:va a terminar|esta por terminar)\b/i,
+    // ── A TROCA DE IDENTIDADE ─────────────────────────────────────────────
+    //
+    // Do print do dono do jogo, palavra por palavra:
+    //
+    //   jogador: "eu queria saber quem sou eu... Eu estou perdido"
+    //   Nilo:    "Você é Nilo Azevedo, um ex-técnico de elevadores, agora um
+    //             hóspede preso no 10º andar do hotel The Normal Elevator."
+    //
+    // Ele entrega a PRÓPRIA vida ao jogador. É a contradição mais grave que
+    // este NPC pode cometer — se o jogador é Nilo, não existe mais NPC — e
+    // passava por tudo. `floor10ReplyIssue` respondeu `null` para essa frase
+    // exata; medi antes de escrever estas linhas.
+    //
+    // Pior: a única checagem de identidade que existia é "a resposta contém
+    // 'nilo'?". A troca CONTÉM. A guarda não só deixava passar como carimbava
+    // como boa a versão errada.
+    //
+    // Vale também para o histórico: `groundedModelHistory` descarta falas com
+    // contradição dura, então a mentira para de voltar como contexto das
+    // próximas — que é como uma troca dessas se enraíza numa conversa.
+    /\bvoc[eê] (?:e|é|eh) (?:o |um )?nilo\b/i,
+    /\bvoc[eê] (?:e|é|eh) (?:um |o )?ex[- ]?t[eé]cnico\b/i,
+    /\bseu nome (?:e|é|eh) (?:o )?nilo\b/i,
+    /\byou are (?:the )?nilo\b/i,
+    /\byour name is (?:the )?nilo\b/i,
+    /\b(?:tu |usted )?eres (?:el )?nilo\b/i,
 ];
 
 export function hasHardCanonContradiction(text: string): boolean {

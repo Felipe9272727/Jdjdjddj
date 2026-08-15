@@ -5,6 +5,8 @@ import {
 } from '../npc/floor10MemoriaVetores';
 import {
     FLOOR10_MEMORIA_PISO,
+    FLOOR10_MEMORIA_TETO_DA_FALA,
+    FLOOR10_MEMORIA_TIMEOUT_MS,
     __setMemoriaEngineForProbes,
     fatosDaMemoria,
     fatosSemVetor,
@@ -113,6 +115,82 @@ describe('npc/floor10Memoria — lembrar sem atrapalhar a conversa', () => {
     it('pergunta vazia nem chega a rodar o modelo', async () => {
         __setMemoriaEngineForProbes(motorFalso(vetorDoFato('past')));
         await expect(lembrarPorSignificado('   ')).resolves.toBeNull();
+    });
+});
+
+describe('a memória diz POR QUE não respondeu', () => {
+    // ── O SILÊNCIO MUDO ───────────────────────────────────────────────────
+    //
+    // O dono do jogo suspeitou que o embedding com duas funções estivesse
+    // prejudicando a mente principal. A suspeita é razoável e ninguém tinha
+    // como confirmá-la: as saídas em `null` desta função eram indistinguíveis
+    // entre si, e `memoriaLembrou` guardava o acerto da pergunta ANTERIOR para
+    // sempre, porque só era escrito no sucesso.
+    //
+    // Com o motivo publicado, "estourou o teto" (a fila do worker) e "abaixo do
+    // piso" (a pergunta não casa com fato nenhum) viram medidas diferentes — e
+    // é a diferença entre consertar a fila e mexer no cânone.
+    beforeEach(() => {
+        resetFloor10MemoriaForTests();
+        __setMemoriaEngineForProbes(null);
+    });
+
+    it('modelo desligado', async () => {
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaMotivo).toBe('modelo desligado');
+    });
+
+    it('abaixo do piso — e guarda QUAL foi o melhor score', async () => {
+        const ortogonal = new Array(FLOOR10_MEMORIA_DIM).fill(0);
+        ortogonal[0] = 1;
+        __setMemoriaEngineForProbes(motorFalso(ortogonal));
+        await lembrarPorSignificado('oi');
+        expect(npc.memoriaMotivo).toBe('abaixo do piso');
+        // Saber que o melhor deu 0,18 contra um piso de 0,20 é informação
+        // diferente de saber que deu 0,02 — por isso o score entra mesmo assim.
+        expect(npc.memoriaScore).toBeLessThan(FLOOR10_MEMORIA_PISO);
+    });
+
+    it('o modelo falhou', async () => {
+        __setMemoriaEngineForProbes({
+            loadModelFromUrl: async () => undefined,
+            createEmbedding: async () => { throw new Error('worker morreu'); },
+        });
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaMotivo).toBe('o modelo falhou');
+    });
+
+    it('e um acerto APAGA o motivo antigo em vez de deixá-lo na tela', async () => {
+        __setMemoriaEngineForProbes({
+            loadModelFromUrl: async () => undefined,
+            createEmbedding: async () => { throw new Error('worker morreu'); },
+        });
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaMotivo).toBe('o modelo falhou');
+        __setMemoriaEngineForProbes(motorFalso(vetorDoFato('past')));
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaMotivo).toBe('');
+        expect(npc.memoriaLembrou).toBe('past');
+    });
+
+    it('e um erro APAGA o acerto antigo, que era o pior dos dois', async () => {
+        // Era este o defeito de verdade: `memoriaLembrou` nunca era limpo, então
+        // depois de um acerto o painel mostrava esse mesmo id para sempre — a
+        // memória parecia estar respondendo todas as perguntas.
+        __setMemoriaEngineForProbes(motorFalso(vetorDoFato('past')));
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaLembrou).toBe('past');
+        __setMemoriaEngineForProbes(null);
+        await lembrarPorSignificado('Como você veio parar aqui?');
+        expect(npc.memoriaLembrou).toBe('');
+    });
+
+    it('o teto da conversa é MUITO maior que o da deliberação', () => {
+        // Uma rodada de deliberação perdida não custa nada — o Nilo segue no
+        // reflexo. Uma busca de conversa perdida custa o bloco "SUA MEMÓRIA"
+        // inteiro, e o 3B inventa o passado. Dentro de uma espera de 142s
+        // medida no celular, desistir aos 2,5s não economiza nada.
+        expect(FLOOR10_MEMORIA_TETO_DA_FALA).toBeGreaterThan(FLOOR10_MEMORIA_TIMEOUT_MS * 3);
     });
 });
 

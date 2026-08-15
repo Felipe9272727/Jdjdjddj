@@ -235,6 +235,66 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         expect(guardedStreamingText('Meu nome é Nilo Azevedo')).toBe('Meu nome é Nilo Azevedo');
     });
 
+    it('rejeita a fala em que ele entrega a própria vida ao jogador', () => {
+        // ── A FRASE EXATA DO PRINT ───────────────────────────────────────
+        //
+        //   jogador: "eu queria saber quem sou eu... Eu estou perdido"
+        //   Nilo:    "Você é Nilo Azevedo, um ex-técnico de elevadores…"
+        //
+        // Medi antes de consertar: `floor10ReplyIssue` devolvia `null` para
+        // esta frase. É a contradição mais grave que este NPC pode cometer —
+        // se o jogador é Nilo, não existe mais NPC — e não havia detector.
+        //
+        // A ironia é que a ÚNICA checagem de identidade que existia ("a
+        // resposta contém 'nilo'?") carimbava a troca como boa, porque a troca
+        // contém. A guarda aprovava exatamente o que devia reprovar.
+        const troca = 'Você é Nilo Azevedo, um ex-técnico de elevadores, agora um '
+            + 'hóspede preso no 10º andar do hotel "The Normal Elevator". '
+            + 'Sobre como sairmos, não sei.';
+        expect(floor10ReplyIssue(troca, 'eu queria saber quem sou eu... Eu estou perdido'))
+            .toBe('contradição com o cânone');
+    });
+
+    it('e as outras formas da mesma troca', () => {
+        // A profissão sozinha já é a troca: este exato erro está documentado no
+        // cabeçalho do `floor10Memoria` como o motivo de aquele modelo existir
+        // ("lembro que VOCÊ era um ex-técnico de elevadores").
+        for (const trocada of [
+            'Você é um ex-técnico de elevadores, como eu fui.',
+            'Seu nome é Nilo Azevedo.',
+            'You are Nilo, and I am the one who is lost.',
+        ]) {
+            expect(hasHardCanonContradiction(trocada), trocada).toBe(true);
+        }
+    });
+
+    it('mas não confunde com ele falando de si mesmo', () => {
+        // O contrário tem de continuar passando: é a apresentação normal dele,
+        // e um detector que reprovasse isto emudeceria o NPC.
+        for (const certa of [
+            'Sou Nilo Azevedo, ex-técnico de elevadores, preso no 10º andar.',
+            'Meu nome é Nilo Azevedo.',
+            'Eu era técnico de elevadores antes de tudo isso.',
+            'Você não é daqui, dá para ver.',
+            'Você é a primeira pessoa que aparece em muito tempo.',
+        ]) {
+            expect(hasHardCanonContradiction(certa), certa).toBe(false);
+        }
+    });
+
+    it('e a fala trocada nem volta como contexto da próxima', () => {
+        // `groundedModelHistory` já descartava falas com contradição dura. O
+        // detector novo faz a troca cair nessa peneira — que é como uma mentira
+        // dessas deixa de se enraizar no resto da conversa.
+        const historia: NpcMsg[] = [
+            { role: 'user', content: 'quem sou eu?' },
+            { role: 'assistant', content: 'Você é Nilo Azevedo, um ex-técnico de elevadores.' },
+            { role: 'user', content: 'e agora?' },
+        ];
+        const limpo = groundedModelHistory(historia);
+        expect(limpo.some((m) => m.content.includes('Você é Nilo'))).toBe(false);
+    });
+
     it('rejeita uma resposta espacial que contradiz os olhos', () => {
         expect(floor10ReplyIssue(
             'Não sei onde estou, talvez no 9º andar.',

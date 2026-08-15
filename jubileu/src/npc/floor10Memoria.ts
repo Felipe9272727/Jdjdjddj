@@ -119,6 +119,29 @@ export const FLOOR10_MEMORIA_USE_CACHE = true;
  */
 export const FLOOR10_MEMORIA_TIMEOUT_MS = 2_500;
 /**
+ * O teto da BUSCA DA CONVERSA, que não é o mesmo problema.
+ *
+ * Os dois usos deste modelo dividiam este número, e não deviam. O motor
+ * classifica um pensamento a cada rodada de deliberação: ali 2,5 s é o certo,
+ * porque uma rodada perdida não custa nada — o Nilo segue no reflexo e a
+ * próxima rodada vem em seguida.
+ *
+ * A busca da conversa é o oposto. Ela roda UMA vez por fala, e o que se perde
+ * quando ela estoura é o bloco "SUA MEMÓRIA" inteiro: o 3B responde sem o
+ * fato e inventa o passado. É exatamente a alucinação que o dono do jogo
+ * fotografou ("acredito que é algum tipo de acidente ou erro de programação").
+ *
+ * E o preço da espera é ridículo ao lado do que já se espera: a mesma tela
+ * mostrava "Pensando localmente… 142s". Desistir do fato aos 2,5 s para
+ * economizar tempo dentro de uma espera de dois minutos não economiza nada —
+ * só troca uma resposta certa por uma inventada.
+ *
+ * O outro motivo de este número precisar de folga é a FILA: os dois usos
+ * dividem um worker só. Uma busca da conversa que chegue no meio de uma rodada
+ * de deliberação espera a rodada terminar antes de começar.
+ */
+export const FLOOR10_MEMORIA_TETO_DA_FALA = 12_000;
+/**
  * Piso de semelhança. Abaixo disto o "melhor" fato é só o menos ruim de dez, e
  * enfiar um fato aleatório no prompt é pior que não enfiar nenhum.
  *
@@ -532,23 +555,38 @@ export async function lembrarPorSignificado(
     query: string,
 ): Promise<FatoLembrado | null> {
     const texto = query.trim();
-    if (!texto || !residentEngine) return null;
+    // ── O SILÊNCIO QUE NÃO DIZIA POR QUE ──────────────────────────────────
+    //
+    // Esta função tinha SEIS saídas em `null` e nenhuma delas deixava rastro.
+    // `memoriaLembrou` só era escrito no sucesso — e nunca limpo —, então uma
+    // busca que estourava o teto era indistinguível, de fora, de uma que não
+    // achou nada, e o painel continuava mostrando o acerto da pergunta
+    // ANTERIOR como se fosse desta.
+    //
+    // O dono do jogo desconfiou que o embedding com duas funções estivesse
+    // prejudicando a mente principal. Pode estar — mas ninguém tinha como
+    // saber, porque a falha era muda. Um diagnóstico ausente vira palpite; o
+    // motivo publicado vira medida.
+    if (!texto) return semMemoria('sem pergunta');
+    if (!residentEngine) return semMemoria('modelo desligado');
     const lista = fatosDaMemoria();
-    if (lista.length === 0) return null;
+    if (lista.length === 0) return semMemoria('sem fatos vetorizados');
 
     let vetor: Vetor;
     try {
         const corrida = await comTeto(
             residentEngine.createEmbedding({ input: textoDaPergunta(texto) }),
-            FLOOR10_MEMORIA_TIMEOUT_MS,
+            FLOOR10_MEMORIA_TETO_DA_FALA,
         );
-        if (corrida === TETO_ESTOUROU) return null;
+        if (corrida === TETO_ESTOUROU) return semMemoria('estourou o teto');
         const resposta = corrida;
         const bruto = resposta?.data?.[0]?.embedding;
-        if (!bruto || bruto.length !== FLOOR10_MEMORIA_DIM) return null;
+        if (!bruto || bruto.length !== FLOOR10_MEMORIA_DIM) {
+            return semMemoria('vetor com tamanho errado');
+        }
         vetor = normalizar(bruto);
     } catch {
-        return null;
+        return semMemoria('o modelo falhou');
     }
 
     let melhor: FatoLembrado | null = null;
@@ -558,9 +596,21 @@ export async function lembrarPorSignificado(
             melhor = { id: entry.id, fact: entry.fact, score };
         }
     }
-    if (!melhor || melhor.score < FLOOR10_MEMORIA_PISO) return null;
-    npcSet({ memoriaLembrou: melhor.id, memoriaScore: melhor.score });
+    if (!melhor) return semMemoria('sem fatos vetorizados');
+    if (melhor.score < FLOOR10_MEMORIA_PISO) {
+        // O score entra mesmo assim: saber que o melhor deu 0,18 contra um piso
+        // de 0,20 é informação diferente de saber que deu 0,02.
+        npcSet({ memoriaLembrou: '', memoriaScore: melhor.score, memoriaMotivo: 'abaixo do piso' });
+        return null;
+    }
+    npcSet({ memoriaLembrou: melhor.id, memoriaScore: melhor.score, memoriaMotivo: '' });
     return melhor;
+}
+
+/** Registra POR QUE a memória não respondeu, e apaga o acerto da fala anterior. */
+function semMemoria(motivo: string): null {
+    npcSet({ memoriaLembrou: '', memoriaScore: 0, memoriaMotivo: motivo });
+    return null;
 }
 
 export async function unloadFloor10Memoria(): Promise<void> {
@@ -589,6 +639,7 @@ export function resetFloor10MemoriaForTests(): void {
         memoriaDownload: DOWNLOAD_ZERO,
         memoriaLembrou: '',
         memoriaScore: 0,
+        memoriaMotivo: '',
     });
 }
 
