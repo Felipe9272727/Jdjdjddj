@@ -12,6 +12,7 @@ import {
     remendosQueValem,
 } from '../npc/floor10Remendo';
 import { RASCUNHADORES, RASCUNHADOR_PADRAO } from '../npc/floor10Rascunhadores';
+import { SMALL_BRAIN_CATALOG } from '../npc/floor10Brains';
 
 // ── A CONTA QUE JUSTIFICA ESTE MÓDULO ─────────────────────────────────────
 //
@@ -312,5 +313,38 @@ describe('a lista de rascunhadores', () => {
         // A régua contra a qual os outros são medidos precisa existir de
         // verdade, senão "ficou mais rápido" é uma frase sem denominador.
         expect(RASCUNHADORES.some((r) => r.id === 'nenhum')).toBe(true);
+    });
+});
+
+
+describe('o candidato de terror que a busca achou', () => {
+    const horror = SMALL_BRAIN_CATALOG.find((m) => m.id === 'llama32-horror');
+
+    it('está no catálogo, alcançável sem recompilar', () => {
+        // A porta é `?rascunhador=vontade&vontade=llama32-horror`: entrar pelo
+        // catálogo da vontade evita um quarto motor wllama residente, que
+        // custaria RAM no aparelho onde ela já falta.
+        expect(horror).toBeTruthy();
+    });
+
+    it('é quantização, não fine-tune — e é isso que protege o português', () => {
+        // Um fine-tune em terror INGLÊS poderia ter comido o português junto.
+        // Uma imatrix não pode: os pesos continuam sendo os da Meta, muda só
+        // quais deles a quantização preserva com mais fidelidade.
+        expect(horror?.url).toContain('imat');
+        expect(horror?.nota).toContain('imatrix');
+    });
+
+    it('e a nota avisa que ele NÃO foi medido na vontade', () => {
+        // Ele entrou procurando rascunhador. Deixar isso implícito seria
+        // convidar alguém a trocar a vontade por um modelo sem número nenhum
+        // — e a vontade foi escolhida pelo dono do jogo, medindo.
+        expect(horror?.nota).toContain('NÃO medido na vontade');
+    });
+
+    it('e não é Q4, porque este projeto mediu que Q4 despenca', () => {
+        // 5/15 contra 14/15, medido aqui dentro, no Llama 3.2 1B.
+        expect(horror?.url).toContain('Q6_K');
+        expect(horror?.url).not.toContain('Q4');
     });
 });

@@ -10,7 +10,8 @@
 // fala, não. Então a fala pode reciclar isto aqui, e só isto.
 
 export type SmallBrainId =
-    | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b' | 'lfm2-1b';
+    | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b' | 'lfm2-1b'
+    | 'llama32-horror';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -92,6 +93,43 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q8_0.gguf',
         bytes: 1_246_253_888,
         nota: 'assina a escolha de primeira em 5/5 (o Llama faz 2/5) e a rodada inteira cai de 64,8s para 44,8s',
+    },
+    {
+        // ── O CANDIDATO QUE APARECEU PROCURANDO RASCUNHADOR ───────────────
+        //
+        // Não entrou por benchmark: entrou porque é a interseção exata do que
+        // este jogo precisa e eu não tinha procurado.
+        //
+        //   base ...... Llama-3.2-1B-Instruct, o MESMO que já está acima e que
+        //               declara `pt` na lista oficial da Meta
+        //   card ...... en, fr, de, es, it, PT, zh, ja, ru, ko
+        //   tags ...... horror, roleplaying, storytelling, vivid prosing
+        //
+        // E o detalhe técnico que faz eu confiar mais nele do que num
+        // fine-tune de terror qualquer: NÃO É FINE-TUNE. É o mesmo Llama
+        // 3.2 1B quantizado com uma matriz de importância (imatrix) calibrada
+        // em texto de terror. Os pesos são os da Meta; o que muda é QUAIS
+        // pesos a quantização preserva com mais fidelidade. Um fine-tune em
+        // terror inglês poderia ter comido o português junto; isto não pode,
+        // porque não treinou nada.
+        //
+        // O QUE PESA CONTRA, e é medido AQUI DENTRO: este projeto já mediu
+        // que o Llama 3.2 1B em Q4 despenca (assina 5/15 contra 14/15 no Q8).
+        // O autor não publica Q8 — diz que imatrix não faz efeito nele. O
+        // Q6_K de 1,02 GB é o mais alto que existe, e é 300 MB MENOR que o Q8
+        // simples já no catálogo. Ainda assim é um download novo de 1 GB, num
+        // aparelho cuja cota já recusou 2,07 GB e emudeceu o Nilo.
+        //
+        // Entra como OPÇÃO, e explicitamente NÃO medido na deliberação: o
+        // dono do jogo já disse uma vez "não aceito a proposta pra trocar de
+        // modelo", e trocar por conta própria seria decidir por ele. Para
+        // rascunhar a fala, ele é o candidato mais interessante que a busca
+        // achou — `?rascunhador=vontade&vontade=llama32-horror`.
+        id: 'llama32-horror',
+        label: 'Llama 3.2 1B · imatrix de terror (Q6, para RASCUNHAR)',
+        url: 'https://huggingface.co/DavidAU/Llama-3.2-1B-Instruct-NEO-WEE-HORROR-GGUF/resolve/main/Llama-3.2-1B-Instruct-NEO-WEE-HORROR-Q6_K-imat.gguf',
+        bytes: 1_021_800_544,
+        nota: 'mesmo Llama 3.2 (declara pt), quantizado com imatrix de terror; NÃO medido na vontade — entrou como candidato a rascunhador',
     },
     {
         id: 'minicpm5-1b',

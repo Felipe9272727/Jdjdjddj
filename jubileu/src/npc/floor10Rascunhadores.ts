@@ -39,6 +39,37 @@
 // e ordena o resto por custo. Quem decide entre os qualificados é a medição no
 // aparelho — `tools/f10-rascunhador.mjs` — como a vontade foi decidida.
 
+// ── O QUE A BUSCA POR "UMA IA RÁPIDA E BOA PRA ISSO" ACHOU ────────────────
+//
+// Duas candidatas que não estavam no radar, e valem estar escritas mesmo que
+// nenhuma vire padrão hoje:
+//
+// 1) Llama-3.2-1B-Instruct-NEO-WEE-HORROR (DavidAU)
+//    A interseção exata do que este jogo é: base Llama 3.2 1B (que declara
+//    `pt` na lista da Meta), tags de horror/roleplay/vivid prosing, GGUF
+//    pronto. E — o que me faz confiar mais nele que num fine-tune de terror —
+//    NÃO É FINE-TUNE: é o mesmo modelo da Meta quantizado com uma matriz de
+//    importância calibrada em texto de terror. Os pesos não mudaram, então o
+//    português não pode ter sido comido no processo.
+//    Contra: o autor não publica Q8, e este projeto MEDIU que o Llama 3.2 1B
+//    em Q4 despenca (5/15 contra 14/15). O Q6_K de 1,02 GB é o teto — 300 MB
+//    menor que o Q8 simples, mas ainda um download novo de 1 GB.
+//    Está no `SMALL_BRAIN_CATALOG` como `llama32-horror`, alcançável por
+//    `?rascunhador=vontade&vontade=llama32-horror`.
+//
+// 2) TucanoBR/Tucano-1b1-Instruct (e o 2b4)
+//    Os ÚNICOS candidatos cujo português não é efeito colateral: treinados do
+//    zero no GigaVerbo, corpus de português brasileiro, Apache-2.0, com artigo
+//    (arXiv 2411.07854). Se o problema fosse só "escrever bem em português",
+//    seria este.
+//    Contra, e é o que o barra hoje: NÃO existe GGUF oficial. Converter é
+//    caminho conhecido e este repositório já se queimou nele uma vez — o
+//    cabeçalho do `floor10Memoria` conta a história do e5, com
+//    `unordered_map::at: key not found` dentro do WASM. Fica escrito aqui para
+//    ser uma decisão, e não um esquecimento.
+//    Contra também: os dados de instrução são de assistente (aira, orca-math),
+//    não de interpretação de personagem — e o Nilo não é um assistente.
+
 export type RascunhadorId = 'motor' | 'vontade' | 'nenhum';
 
 export type RascunhadorEntry = {
@@ -61,7 +92,7 @@ export const RASCUNHADORES: readonly RascunhadorEntry[] = Object.freeze([
         id: 'vontade',
         label: 'o cérebro da vontade em uso',
         portugues: 'depende de qual vontade está escolhida; o LFM2.5 NÃO declara pt',
-        nota: 'existe para comparar na bancada, não para ser o padrão',
+        nota: 'é a porta para os candidatos do SMALL_BRAIN_CATALOG — inclusive o llama32-horror',
     },
     {
         id: 'nenhum',
