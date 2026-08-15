@@ -6,7 +6,7 @@
 // O SmolLM3-3B é o cérebro de fala. RAG apenas fornece contexto; olhos e vontade
 // continuam sendo micro-IAs independentes, inclusive com suas respostas
 // factuais próprias. O MiniCPM delibera, mas nunca fala no lugar do 3B.
-import { npc, npcIssueWillCommand, npcSet } from './npcStore';
+import { npc, npcIssueWillCommand, npcSet, type NpcMsg } from './npcStore';
 import {
     FLOOR10_STABLE_PREFIX,
     buildFloor10SystemPrompt,
@@ -30,6 +30,15 @@ import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
 import { conferirModeloCarregado, entradaIntacta, type EntradaDoCache } from './floor10Carga';
+import { rascunharFala, vontadeJaCarregada } from './floor10SmallBrain';
+import {
+    GRAMATICA_DO_REMENDO,
+    aplicarRemendos,
+    blocoDeRevisao,
+    enumerarFrases,
+    lerVeredito,
+    remendosQueValem,
+} from './floor10Remendo';
 import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
 import {
     CACHE_HEADROOM,
@@ -587,6 +596,111 @@ class UngroundedNpcReplyError extends Error {
         super(`UNGROUNDED_NPC_REPLY_${issue}`);
         this.name = 'UngroundedNpcReplyError';
     }
+}
+
+/**
+ * O rascunhador está ligado?
+ *
+ * Ligado por padrão, porque é o desenho que o dono do jogo pediu. O
+ * `?semrascunho` existe para ele poder MEDIR os dois lados no próprio
+ * aparelho: com e sem, na mesma pergunta, olhando a linha "leitura Xs · fala
+ * Ys". Sem esse par de números a escolha entre as duas arquiteturas seria
+ * opinião, e já saiu caro opinar sobre desempenho neste projeto.
+ */
+export function rascunhoLigado(): boolean {
+    const forcado = (globalThis as { __f10Rascunho?: boolean }).__f10Rascunho;
+    if (typeof forcado === 'boolean') return forcado;
+    if (typeof window === 'undefined') return false;
+    return !new URLSearchParams(window.location.search).has('semrascunho');
+}
+
+/**
+ * O revisor tem pouquíssimo a dizer, e o teto reflete isso.
+ *
+ * "OK" é um token. Duas frases trocadas cabem folgadamente aqui. Este número é
+ * o coração do ganho: o 3B sai de gerar até 96 tokens para gerar quase nenhum.
+ */
+export const REVISAO_MAX_TOKENS = 72;
+
+/**
+ * O desenho pedido pelo dono do jogo: um modelo pequeno rascunha, o 3B decide
+ * se serve e — quando não serve — troca SÓ a parte errada.
+ *
+ * Devolve a fala pronta, ou `null` para dizer "não deu, siga pelo caminho de
+ * sempre". Todo `null` daqui é um caminho já testado tomando o lugar; nenhum é
+ * uma falha visível para quem joga.
+ *
+ * O 3B nunca deixa de ser a autoridade: o texto costurado ainda passa por
+ * `floor10ReplyIssue` antes de valer, e um rascunho que ele aprovou por engano
+ * morre ali como morreria uma fala escrita por ele mesmo.
+ */
+async function falarRevisando(
+    text: string,
+    systemPrompt: string,
+    groundedHistory: readonly NpcMsg[],
+    gerar: (
+        prompt: string,
+        sampling?: Partial<{ temperature: number; top_p: number; top_k: number }>,
+        revisao?: Partial<{ extraUser: string; grammar: string; maxTokens: number }>,
+    ) => Promise<string>,
+): Promise<string | null> {
+    if (!rascunhoLigado()) return null;
+    // ── PEDIDO CORPORAL NÃO PASSA POR AQUI ────────────────────────────────
+    //
+    // "Me segue", "vai até a porta": só a decisão VERBAL do 3B vira ação, pelo
+    // marcador `[[WILL:…]]` que ele conhece e o cérebro pequeno não. Um rascunho
+    // dessa fala produziria um Nilo que concorda por escrito e não sai do
+    // lugar — o pior defeito possível neste NPC, e o mais difícil de perceber,
+    // porque a resposta na tela parece perfeita.
+    //
+    // A regra não é nova: `sendToNpc` já mandava todo pedido corporal ao 3B
+    // ("um possível pedido corporal sempre vai ao 3B, pois só a decisão verbal
+    // dele pode virar ação na Utility AI"). Aqui ela só continua valendo.
+    if (hasFloor10PhysicalActionCue(text)) return null;
+    // Só com o cérebro pequeno JÁ de pé. Baixar 1,25 GB para acelerar uma
+    // resposta seria o contrário de acelerar, e a primeira fala da partida não
+    // pode esperar por isso.
+    if (!vontadeJaCarregada()) return null;
+
+    const comecou = Date.now();
+    npcSet({ streaming: 'rascunhando…' });
+    const rascunho = visibleText(await rascunharFala(systemPrompt, groundedHistory));
+    if (!rascunho) {
+        anotar('rascunho:vazio', { ms: Date.now() - comecou });
+        return null;
+    }
+    const frases = enumerarFrases(rascunho);
+    if (frases.length === 0) return null;
+
+    npcSet({ streaming: `O ${FLOOR10_MODEL.label} está conferindo o rascunho…` });
+    // Temperatura baixa: julgar não é criar. É a mesma escolha do caminho de
+    // correção que já existia neste arquivo.
+    const bruto = visibleText(await gerar(
+        systemPrompt,
+        { temperature: 0.2, top_p: 0.75, top_k: 20 },
+        {
+            extraUser: blocoDeRevisao(text, frases),
+            grammar: GRAMATICA_DO_REMENDO,
+            maxTokens: REVISAO_MAX_TOKENS,
+        },
+    ));
+    const veredito = lerVeredito(bruto, frases.length);
+    const valem = remendosQueValem(frases, veredito.remendos);
+    const costurado = arrumarFala(aplicarRemendos(frases, valem));
+    const problema = floor10ReplyIssue(costurado, text, npc.perception);
+    anotar('rascunho:revisado', {
+        ms: Date.now() - comecou,
+        frases: frases.length,
+        remendos: valem.length,
+        // Quantos remendos o revisor pediu e foram descartados por não mudarem
+        // nada. Se este número for alto, o enunciado está fazendo o modelo
+        // "corrigir" por obrigação — e isso é caro sem consertar coisa alguma.
+        inuteis: veredito.remendos.length - valem.length,
+        aprovado: veredito.aprovado ? 1 : 0,
+        reprovado: problema ? 1 : 0,
+    });
+    if (problema) return null;
+    return costurado;
 }
 
 export function buildFloor10CorrectionPrompt(
@@ -1887,6 +2001,22 @@ export async function sendToNpc(
             top_p: number;
             top_k: number;
         }> = {},
+        /**
+         * O modo REVISOR: em vez de escrever a fala, o 3B lê um rascunho e diz
+         * o que trocar.
+         *
+         * `extraUser` entra como ÚLTIMA mensagem, e não coladao no fim do
+         * prompt de sistema — de propósito. O llama.cpp reaproveita o maior
+         * prefixo comum entre duas chamadas, e é daí que saem os "515
+         * reaproveitados" do cabeçalho. Alterar o sistema mudaria o prefixo
+         * logo no começo e recobraria o prefill de TUDO, inclusive do
+         * histórico. Como última mensagem, só o rascunho é novo.
+         */
+        revisao: Partial<{
+            extraUser: string;
+            grammar: string;
+            maxTokens: number;
+        }> = {},
     ): Promise<string> => {
         const abort = new AbortController();
         // ── O QUE O GERENTE DE GPU VAI JULGAR ─────────────────────────────
@@ -1909,9 +2039,14 @@ export async function sendToNpc(
             messages: [
                 { role: 'system', content: prompt },
                 ...groundedHistory,
+                ...(revisao.extraUser
+                    ? [{ role: 'user' as const, content: revisao.extraUser }]
+                    : []),
             ],
             ...CHAT_COMPLETION_CONFIG,
             ...sampling,
+            ...(revisao.grammar ? { grammar: revisao.grammar } : {}),
+            ...(revisao.maxTokens ? { max_tokens: revisao.maxTokens } : {}),
             abortSignal: abort.signal,
             ...(loadedDisableThinking
                 ? { chat_template_kwargs: { enable_thinking: false } }
@@ -1985,9 +2120,22 @@ export async function sendToNpc(
     };
 
     try {
+        // ── RASCUNHO PRIMEIRO, 3B COMO REVISOR ────────────────────────────
+        //
+        // O caminho de baixo (o 3B escrevendo do zero) continua inteiro e
+        // continua sendo a verdade final. Este bloco só tenta chegar lá mais
+        // barato, e some sem deixar rastro quando não consegue: rascunho vazio,
+        // veredito ilegível ou texto costurado que não passa nas checagens
+        // determinísticas caem no caminho de sempre.
+        //
+        // Nunca fica pior que hoje é requisito, não elegância. Um NPC que
+        // emudece porque a otimização falhou é pior que um NPC lento.
+        const revisado = await falarRevisando(
+            text, systemPrompt, groundedHistory, generateWithMainModel,
+        );
         let languageDecision = parseFloor10WillLanguageDecision(
             text,
-            visibleText(await generateWithMainModel(
+            revisado ?? visibleText(await generateWithMainModel(
                 systemPrompt,
                 isFloor10IdentityQuestion(text)
                     ? { temperature: 0.3, top_p: 0.8, top_k: 30 }

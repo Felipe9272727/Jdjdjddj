@@ -1603,3 +1603,75 @@ export function resetSmallBrainForTests(): void {
     loadAbort = null;
     loadingEngine = null;
 }
+
+// ── O RASCUNHADOR ──────────────────────────────────────────────────────────
+//
+// Este cérebro nasceu para DELIBERAR — decidir o que o Nilo quer fazer. Aqui
+// ele ganha um segundo ofício: escrever o primeiro jato da fala, para o 3B só
+// revisar.
+//
+// A conta que justifica: no aparelho do dono do jogo o 3B fala a 1 token por
+// segundo. Quarenta tokens de resposta são quarenta segundos, e o teto é 96.
+// Este modelo é ordens de grandeza menor. Ele escreve o rascunho enquanto o
+// caro fica reservado para o trabalho que só ele sabe fazer: julgar.
+//
+// POR QUE ELE PODE FAZER OS DOIS
+//
+// Deliberar e rascunhar nunca acontecem juntos: o coordenador pausa a
+// deliberação assim que a fala começa (`pausarDeliberacao`), e é exatamente
+// dentro dessa pausa que o rascunho é escrito. É o mesmo motor, no mesmo
+// instante em que ele estaria parado de qualquer jeito.
+
+/** Teto do rascunho. Curto de propósito: o Nilo fala em 2–3 frases. */
+export const RASCUNHO_MAX_TOKENS = 110;
+
+/**
+ * O rascunho não pode custar mais que a fala que ele substitui.
+ *
+ * Se este cérebro demorar mais que isso, o desenho inteiro perdeu a razão de
+ * ser e quem chama volta ao caminho de sempre — o 3B escrevendo do zero.
+ */
+export const RASCUNHO_TIMEOUT_MS = 25_000;
+
+/**
+ * Escreve o primeiro jato da fala do Nilo.
+ *
+ * Devolve '' quando não dá — modelo não carregado, tempo estourado, saída
+ * vazia. Nunca lança e nunca baixa nada: quem chama tem um caminho que
+ * funciona sem isto, e transformar uma otimização em ponto único de falha
+ * seria trocar velocidade por silêncio.
+ */
+export async function rascunharFala(
+    systemPrompt: string,
+    history: readonly { role: string; content: string }[],
+): Promise<string> {
+    // `false`: quem chama já é a fala, e ela já pausou a deliberação. Pedir
+    // para "ceder para a fala" aqui seria pedir para ceder a si mesmo.
+    const engine = await ensureSmallEngine(false).catch(() => null);
+    if (!engine) return '';
+    const abort = new AbortController();
+    const relogio = globalThis.setTimeout(() => abort.abort(), RASCUNHO_TIMEOUT_MS);
+    try {
+        const resposta = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: systemPrompt },
+                ...history,
+            ],
+            ...SMALL_BRAIN_COMPLETION_CONFIG,
+            stream: false,
+            max_tokens: RASCUNHO_MAX_TOKENS,
+            // Sem gramática: é prosa, não formulário.
+            grammar: undefined,
+            // Sem bloco de raciocínio: o que se quer aqui é a FALA, e um
+            // <think> de trinta tokens custaria mais que o rascunho inteiro.
+            chat_template_kwargs: { enable_thinking: false },
+            abortSignal: abort.signal,
+        }) as { choices?: Array<{ message?: { content?: string } }> } | undefined;
+        const bruto = resposta?.choices?.[0]?.message?.content ?? '';
+        return typeof bruto === 'string' ? bruto.trim() : '';
+    } catch {
+        return '';
+    } finally {
+        globalThis.clearTimeout(relogio);
+    }
+}
