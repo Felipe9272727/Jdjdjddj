@@ -735,3 +735,81 @@ floor10ModelCoordinator.register(
     () => unloadFloor10MotorBrain(),
     () => abortFloor10MotorBrain(),
 );
+
+// ── O MOTOR TAMBÉM SABE ESCREVER ───────────────────────────────────────────
+//
+// Este cérebro existe para traduzir pensamento em `MOTION: verbo | alvo`, preso
+// numa gramática. Aqui ele ganha um segundo uso: rascunhar a fala, solto.
+//
+// POR QUE ELE, E NÃO O DA VONTADE
+//
+// O rascunhador foi plugado, na primeira versão, em "o cérebro pequeno" — que é
+// o da VONTADE, hoje o LFM2.5-1.2B. O dono do jogo perguntou qual IA rascunha, e
+// a pergunta achou o defeito: o card do LFM2.5, escrito pela própria Liquid,
+// declara `en, ar, zh, fr, de, ja, ko, es`. Português NÃO está lá. Eu tinha
+// escolhido o rascunhador por acidente — ele era só quem estava carregado.
+//
+// O Qwen3-0.6B tem três coisas que importam aqui, e todas verificáveis:
+//
+//   1. o card dele declara "Support of 100+ languages and dialects", com
+//      "strong capabilities for multilingual instruction following";
+//   2. é 0,6B contra 1,2B — e velocidade é a razão de este caminho existir;
+//   3. JÁ ESTÁ NO APARELHO. São os mesmos 639 MB do motor, sem um byte de cota
+//      a mais — e a cota deste jogo já recusou 2,07 GB uma vez, emudecendo o
+//      Nilo.
+//
+// O que eu NÃO afirmo é que ele escreve a melhor prosa dos cinco candidatos.
+// Isso se decide medindo no aparelho dele, como a vontade foi decidida, e é
+// para isso que existe `tools/f10-rascunhador.mjs`.
+
+/** Teto do rascunho. Curto de propósito: o Nilo fala em 2–3 frases. */
+export const RASCUNHO_MAX_TOKENS = 110;
+
+/** Se o rascunho custar mais que isso, ele deixou de ser um atalho. */
+export const RASCUNHO_TIMEOUT_MS = 25_000;
+
+/** O motor está de pé AGORA? Rascunhar não pode disparar download nenhum. */
+export function motorJaCarregado(): boolean {
+    return residentEngine !== null;
+}
+
+/**
+ * Escreve o primeiro jato da fala do Nilo, sem gramática.
+ *
+ * Devolve '' quando não dá — motor fora do ar, tempo estourado, saída vazia.
+ * Nunca lança e nunca baixa: quem chama tem um caminho que funciona sem isto, e
+ * transformar uma otimização em ponto único de falha seria trocar velocidade
+ * por silêncio.
+ */
+export async function rascunharComMotor(
+    systemPrompt: string,
+    history: readonly { role: string; content: string }[],
+): Promise<string> {
+    const engine = residentEngine;
+    if (!engine) return '';
+    const controller = new AbortController();
+    const timer = globalThis.setTimeout(() => controller.abort(), RASCUNHO_TIMEOUT_MS);
+    try {
+        const response = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: systemPrompt },
+                ...history,
+            ],
+            ...FLOOR10_MOTOR_COMPLETION_CONFIG,
+            stream: false,
+            max_tokens: RASCUNHO_MAX_TOKENS,
+            // Solto: é prosa, não formulário. A gramática do motor obrigaria
+            // uma linha `MOTION:` e o rascunho sairia como um comando.
+            grammar: undefined,
+            // O Qwen3 pensa por padrão, e um <think> de trinta tokens custaria
+            // mais que o rascunho inteiro.
+            chat_template_kwargs: { enable_thinking: false },
+            abortSignal: controller.signal,
+        });
+        return readCompletionText(response).trim();
+    } catch {
+        return '';
+    } finally {
+        globalThis.clearTimeout(timer);
+    }
+}

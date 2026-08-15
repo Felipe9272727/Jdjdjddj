@@ -31,6 +31,8 @@ import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
 import { conferirModeloCarregado, entradaIntacta, type EntradaDoCache } from './floor10Carga';
 import { rascunharFala, vontadeJaCarregada } from './floor10SmallBrain';
+import { motorJaCarregado, rascunharComMotor } from './floor10MotorBrain';
+import { rascunhadorEscolhido } from './floor10Rascunhadores';
 import {
     GRAMATICA_DO_REMENDO,
     aplicarRemendos,
@@ -599,22 +601,6 @@ class UngroundedNpcReplyError extends Error {
 }
 
 /**
- * O rascunhador está ligado?
- *
- * Ligado por padrão, porque é o desenho que o dono do jogo pediu. O
- * `?semrascunho` existe para ele poder MEDIR os dois lados no próprio
- * aparelho: com e sem, na mesma pergunta, olhando a linha "leitura Xs · fala
- * Ys". Sem esse par de números a escolha entre as duas arquiteturas seria
- * opinião, e já saiu caro opinar sobre desempenho neste projeto.
- */
-export function rascunhoLigado(): boolean {
-    const forcado = (globalThis as { __f10Rascunho?: boolean }).__f10Rascunho;
-    if (typeof forcado === 'boolean') return forcado;
-    if (typeof window === 'undefined') return false;
-    return !new URLSearchParams(window.location.search).has('semrascunho');
-}
-
-/**
  * O revisor tem pouquíssimo a dizer, e o teto reflete isso.
  *
  * "OK" é um token. Duas frases trocadas cabem folgadamente aqui. Este número é
@@ -644,7 +630,18 @@ async function falarRevisando(
         revisao?: Partial<{ extraUser: string; grammar: string; maxTokens: number }>,
     ) => Promise<string>,
 ): Promise<string | null> {
-    if (!rascunhoLigado()) return null;
+    // ── QUEM RASCUNHA, E POR QUE NÃO É "QUEM ESTIVER CARREGADO" ───────────
+    //
+    // A primeira versão disto chamava o cérebro da VONTADE, e isso não era uma
+    // escolha — era o modelo que por acaso estava de pé. O dono do jogo
+    // perguntou qual IA rascunha, e a pergunta achou o defeito: o card do
+    // LFM2.5, que é a vontade em uso, declara `en, ar, zh, fr, de, ja, ko, es`.
+    // Sem português. O Nilo fala português.
+    //
+    // Agora é escolha explícita, com `?rascunhador=` para comparar os dois no
+    // mesmo aparelho. Ver `floor10Rascunhadores.ts` para o que cada card diz.
+    const quem = rascunhadorEscolhido();
+    if (quem === 'nenhum') return null;
     // ── PEDIDO CORPORAL NÃO PASSA POR AQUI ────────────────────────────────
     //
     // "Me segue", "vai até a porta": só a decisão VERBAL do 3B vira ação, pelo
@@ -660,11 +657,17 @@ async function falarRevisando(
     // Só com o cérebro pequeno JÁ de pé. Baixar 1,25 GB para acelerar uma
     // resposta seria o contrário de acelerar, e a primeira fala da partida não
     // pode esperar por isso.
-    if (!vontadeJaCarregada()) return null;
+    // Só com o modelo JÁ de pé. Baixar centenas de MB para acelerar uma
+    // resposta é o contrário de acelerar, e a cota deste jogo já recusou 2,07 GB
+    // uma vez — o Nilo emudeceu.
+    const dePe = quem === 'motor' ? motorJaCarregado() : vontadeJaCarregada();
+    if (!dePe) return null;
 
     const comecou = Date.now();
     npcSet({ streaming: 'rascunhando…' });
-    const rascunho = visibleText(await rascunharFala(systemPrompt, groundedHistory));
+    const rascunho = visibleText(quem === 'motor'
+        ? await rascunharComMotor(systemPrompt, groundedHistory)
+        : await rascunharFala(systemPrompt, groundedHistory));
     if (!rascunho) {
         anotar('rascunho:vazio', { ms: Date.now() - comecou });
         return null;
@@ -689,6 +692,7 @@ async function falarRevisando(
     const costurado = arrumarFala(aplicarRemendos(frases, valem));
     const problema = floor10ReplyIssue(costurado, text, npc.perception);
     anotar('rascunho:revisado', {
+        quem,
         ms: Date.now() - comecou,
         frases: frases.length,
         remendos: valem.length,

@@ -11,6 +11,7 @@ import {
     remendoInutil,
     remendosQueValem,
 } from '../npc/floor10Remendo';
+import { RASCUNHADORES, RASCUNHADOR_PADRAO } from '../npc/floor10Rascunhadores';
 
 // ── A CONTA QUE JUSTIFICA ESTE MÓDULO ─────────────────────────────────────
 //
@@ -237,8 +238,23 @@ describe('a fiação do rascunho dentro do motor', () => {
     });
 
     it('não baixa modelo nenhum para acelerar uma resposta', () => {
-        // Baixar 1,25 GB para ir mais rápido é o contrário de ir mais rápido.
+        // Baixar centenas de MB para ir mais rápido é o contrário de ir mais
+        // rápido — e a cota deste jogo já recusou 2,07 GB uma vez, emudecendo
+        // o Nilo.
+        expect(funcao).toContain('motorJaCarregado()');
         expect(funcao).toContain('vontadeJaCarregada()');
+        expect(funcao).toContain('if (!dePe) return null;');
+    });
+
+    it('quem rascunha é ESCOLHA, não "quem estiver carregado"', () => {
+        // ── O DEFEITO QUE A PERGUNTA DO DONO DO JOGO ACHOU ───────────────
+        //
+        // A primeira versão chamava o cérebro da vontade. Não era escolha: era
+        // o modelo que por acaso estava de pé. E o acaso caiu no candidato que
+        // não serve — o card do LFM2.5 declara `en, ar, zh, fr, de, ja, ko,
+        // es`, sem português, e o Nilo fala português.
+        expect(funcao).toContain('rascunhadorEscolhido()');
+        expect(funcao).toContain("if (quem === 'nenhum') return null;");
     });
 
     it('o texto costurado ainda passa pelas checagens determinísticas', () => {
@@ -274,5 +290,27 @@ describe('a fiação do rascunho dentro do motor', () => {
                 .toMatch(/return (null|costurado);/);
         }
         expect(funcao).not.toContain('throw ');
+    });
+});
+
+
+describe('a lista de rascunhadores', () => {
+    // Cada linha da nota saiu da metadata do repositório no Hugging Face, lida
+    // no dia em que este arquivo foi escrito — não de memória. Estes testes
+    // prendem as duas conclusões que MUDAM o código, para que uma reescrita
+    // distraída não devolva o rascunho a um modelo que não fala a língua.
+    it('o padrão é o modelo que JÁ está no aparelho', () => {
+        expect(RASCUNHADOR_PADRAO).toBe('motor');
+    });
+
+    it('e a lista registra que o LFM2.5 não declara português', () => {
+        const vontade = RASCUNHADORES.find((r) => r.id === 'vontade');
+        expect(vontade?.portugues).toContain('NÃO declara pt');
+    });
+
+    it('dá para desligar o rascunho inteiro e voltar ao 3B escrevendo', () => {
+        // A régua contra a qual os outros são medidos precisa existir de
+        // verdade, senão "ficou mais rápido" é uma frase sem denominador.
+        expect(RASCUNHADORES.some((r) => r.id === 'nenhum')).toBe(true);
     });
 });
