@@ -43,7 +43,10 @@ import { chromium } from 'playwright';
 const executablePath = process.env.CHROMIUM_PATH;
 if (!executablePath) throw new Error('CHROMIUM_PATH is required');
 const url = process.env.F10_URL ?? 'http://127.0.0.1:3000/floor10.html';
-const quais = (process.env.F10_RASCUNHADORES ?? 'motor,vontade,nenhum').split(',');
+// O reflexo primeiro porque é o único que roda no jogo de verdade: o chat
+// desliga motor e vontade ao abrir. Os outros dois medem o TETO — quanto um
+// rascunhador maior compraria, se valesse a RAM que ele custa.
+const quais = (process.env.F10_RASCUNHADORES ?? 'reflexo,vontade,nenhum').split(',');
 
 // As perguntas não são decorativas: cada uma cobra uma coisa diferente do
 // rascunho, e todas saíram de conversas reais que o dono do jogo fotografou.
@@ -92,11 +95,15 @@ for (const quem of quais) {
         const medida = await page.evaluate(async ({ quem, pergunta }) => {
             const rasc = await import('/src/npc/floor10Rascunhadores.ts');
             const motor = await import('/src/npc/floor10MotorBrain.ts');
+            const reflexo = await import('/src/npc/floor10Reflexo.ts');
             const eng = await import('/src/npc/wllamaEngine.ts');
             const store = await import('/src/npc/npcStore.ts');
             rasc.definirRascunhador(quem);
-            // O motor precisa estar de pé para rascunhar — e não sobe sozinho
-            // por causa de uma fala, por decisão de projeto.
+            // Cada candidato precisa estar DE PÉ para rascunhar, e nenhum sobe
+            // sozinho por causa de uma fala — é a tabela de RAM do jogo. Aqui a
+            // bancada sobe à força, de propósito: ela está medindo o teto de
+            // cada opção, não o que o jogo faria sozinho.
+            if (quem === 'reflexo') await reflexo.precarregarReflexo();
             if (quem === 'motor') await motor.precarregarMotor();
             // Conversa limpa a cada pergunta: histórico compartilhado faria a
             // segunda medição herdar o cache da primeira e mentir.

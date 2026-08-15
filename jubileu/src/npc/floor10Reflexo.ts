@@ -507,3 +507,42 @@ export async function completar(
         return '';
     }
 }
+
+/** Teto do rascunho no reflexo: o Nilo fala em 2–3 frases, não em parágrafos. */
+export const RASCUNHO_REFLEXO_TOKENS = 90;
+
+/**
+ * O reflexo já tapa o silêncio; aqui ele tenta escrever a fala inteira.
+ *
+ * POR QUE ELE, DE NOVO POR ELIMINAÇÃO
+ *
+ * Durante a conversa só existem dois modelos de pé além dele: o SmolLM3-3B (que
+ * é o revisor — se ele rascunhar não há atalho) e o EmbeddingGemma (que não
+ * escreve). O motor e a vontade estão desligados POR DESENHO nessa janela. Este
+ * é o único gerador disponível, e ele já está aqui, já roda antes do 3B começar,
+ * e já tem teto curto e aborto — as três regras que o cabeçalho deste arquivo
+ * promete.
+ *
+ * O PROMPT É ACHATADO NUMA MENSAGEM SÓ, e não é preguiça: 135M com system +
+ * histórico de quatro mensagens gasta o contexto inteiro em enquadramento e
+ * responde sobre a mensagem errada. Uma instrução curta seguida da pergunta é o
+ * formato em que um modelo deste tamanho ainda acerta o alvo.
+ *
+ * `amostrar: true` pelo mesmo motivo da bolha: decodificação gulosa com prompt
+ * parecido devolve saída parecida por construção, e repetição já foi um defeito
+ * fotografado neste jogo.
+ */
+export async function rascunharComReflexo(
+    persona: string,
+    perguntaDoJogador: string,
+): Promise<string> {
+    if (!gerador) return '';
+    const prompt = `${persona.trim()}\n\n`
+        + `O jogador diz: "${perguntaDoJogador.trim()}"\n\n`
+        + 'Responda como Nilo, em português, em no máximo três frases curtas. '
+        + 'Só a fala dele, sem aspas e sem narração.';
+    return completar(prompt, RESUMO_TIMEOUT_MS, {
+        amostrar: true,
+        maxTokens: RASCUNHO_REFLEXO_TOKENS,
+    });
+}

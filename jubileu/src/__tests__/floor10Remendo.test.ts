@@ -13,6 +13,7 @@ import {
 } from '../npc/floor10Remendo';
 import { RASCUNHADORES, RASCUNHADOR_PADRAO } from '../npc/floor10Rascunhadores';
 import { SMALL_BRAIN_CATALOG } from '../npc/floor10Brains';
+import { quemDevoLigar } from '../npc/floor10Roteamento';
 
 // ── A CONTA QUE JUSTIFICA ESTE MÓDULO ─────────────────────────────────────
 //
@@ -242,6 +243,7 @@ describe('a fiação do rascunho dentro do motor', () => {
         // Baixar centenas de MB para ir mais rápido é o contrário de ir mais
         // rápido — e a cota deste jogo já recusou 2,07 GB uma vez, emudecendo
         // o Nilo.
+        expect(funcao).toContain('reflexoJaCarregado()');
         expect(funcao).toContain('motorJaCarregado()');
         expect(funcao).toContain('vontadeJaCarregada()');
         expect(funcao).toContain('if (!dePe) return null;');
@@ -300,8 +302,34 @@ describe('a lista de rascunhadores', () => {
     // no dia em que este arquivo foi escrito — não de memória. Estes testes
     // prendem as duas conclusões que MUDAM o código, para que uma reescrita
     // distraída não devolva o rascunho a um modelo que não fala a língua.
-    it('o padrão é o modelo que JÁ está no aparelho', () => {
-        expect(RASCUNHADOR_PADRAO).toBe('motor');
+    it('o padrão é o único modelo DE PÉ durante a conversa', () => {
+        // ── O PADRÃO ANTERIOR ERA UM NO-OP, E LEVOU UMA PERGUNTA PARA CAIR ──
+        //
+        // Eu tinha posto o motor (Qwen3-0.6B) como padrão chamando-o de "o que
+        // já está no aparelho". É o contrário: `Floor10NpcChat` chama
+        // `unloadFloor10MotorBrain()` ao ABRIR o chat, seguindo a tabela que o
+        // dono do jogo escreveu — no chat ficam de pé a fala e a memória, a
+        // vontade e o motor esperam. Durante uma conversa `motorJaCarregado()`
+        // é `false` SEMPRE, e o caminho do rascunho nunca teria rodado.
+        //
+        // Os testes de fiação não pegavam isso: eles provam que a guarda
+        // existe, não que ela alguma vez deixa passar.
+        expect(RASCUNHADOR_PADRAO).toBe('reflexo');
+    });
+
+    it('e o padrão tem de ser alguém que a tabela de RAM deixa de pé no chat', () => {
+        // A regra, escrita em `floor10Roteamento.quemDevoLigar`: no chat ficam
+        // a FALA e a MEMÓRIA. A fala é o revisor — se ela rascunhar não há
+        // atalho — e a memória é embedding, não escreve. Sobra o reflexo, que
+        // é de outro motor (ONNX) e por isso não está naquela tabela.
+        expect(quemDevoLigar(true)).toEqual(expect.arrayContaining(['fala', 'memoria']));
+        expect(quemDevoLigar(true)).not.toContain('motor');
+        expect(quemDevoLigar(true)).not.toContain('vontade');
+    });
+
+    it('o motor continua na lista, mas avisando que só serve fora do chat', () => {
+        const motor = RASCUNHADORES.find((r) => r.id === 'motor');
+        expect(motor?.nota).toContain('DESLIGADO durante a conversa');
     });
 
     it('e a lista registra que o LFM2.5 não declara português', () => {

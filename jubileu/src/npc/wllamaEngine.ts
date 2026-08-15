@@ -24,7 +24,7 @@ import {
     cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
     parametrosEspeculativos, prepararEspeculativa, runtimeEspecLigado, type Floor10Runtime,
 } from './floor10Especulativa';
-import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
+import { completar, rascunharComReflexo, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
@@ -660,14 +660,17 @@ async function falarRevisando(
     // Só com o modelo JÁ de pé. Baixar centenas de MB para acelerar uma
     // resposta é o contrário de acelerar, e a cota deste jogo já recusou 2,07 GB
     // uma vez — o Nilo emudeceu.
-    const dePe = quem === 'motor' ? motorJaCarregado() : vontadeJaCarregada();
+    const dePe = quem === 'reflexo'
+        ? reflexoJaCarregado()
+        : (quem === 'motor' ? motorJaCarregado() : vontadeJaCarregada());
     if (!dePe) return null;
 
     const comecou = Date.now();
     npcSet({ streaming: 'rascunhando…' });
-    const rascunho = visibleText(quem === 'motor'
-        ? await rascunharComMotor(systemPrompt, groundedHistory)
-        : await rascunharFala(systemPrompt, groundedHistory));
+    const rascunho = visibleText(await (
+        quem === 'reflexo' ? rascunharComReflexo(systemPrompt, text)
+            : quem === 'motor' ? rascunharComMotor(systemPrompt, groundedHistory)
+                : rascunharFala(systemPrompt, groundedHistory)));
     if (!rascunho) {
         anotar('rascunho:vazio', { ms: Date.now() - comecou });
         return null;

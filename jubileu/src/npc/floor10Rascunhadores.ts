@@ -70,7 +70,56 @@
 //    Contra também: os dados de instrução são de assistente (aira, orca-math),
 //    não de interpretação de personagem — e o Nilo não é um assistente.
 
-export type RascunhadorId = 'motor' | 'vontade' | 'nenhum';
+// ── E O PADRÃO QUE EU TINHA POSTO ERA UM NO-OP ────────────────────────────
+//
+// Segunda pergunta do dono do jogo: "Qwen 0.6 já não tinha sido descartado?
+// Ele não tinha sido substituído pelo embedding?". Tinha. Está escrito NESTE
+// repositório, com número, em três lugares que eu não li antes de escolher:
+//
+//   1. `floor10Roteamento`, em `quemDevoLigar`: "O MOTOR QWEN3 SAIU DA TABELA"
+//
+//          só o vetor ........ 5/7 · ~1 s  ·      0 MB
+//          Qwen3-0.6B ........ 6/7 · 4,8 s · +639 MB
+//
+//      "O Qwen comprava UM caso em sete, e sete amostras não distinguem 5/7 de
+//      6/7. Não vale 639 MB nem 3,5 s por rodada."
+//
+//   2. A tabela de quem fica de pé, escrita pelo próprio dono do jogo:
+//          no chat ....... fala + memória. A vontade e o motor ESPERAM.
+//
+//   3. `Floor10NpcChat`, ao ABRIR o chat, chama `unloadFloor10MotorBrain()`.
+//
+// Ou seja: durante uma conversa o motor está desligado POR DESENHO, e
+// `motorJaCarregado()` responde `false` sempre. O padrão que eu defendi como "o
+// que já está no aparelho" era exatamente o contrário — o único que garantido
+// NÃO está. O caminho inteiro do rascunho nunca teria rodado uma vez no jogo
+// real, e os testes não pegariam: eles provam que a guarda existe, não que ela
+// alguma vez deixa passar.
+//
+// ── A PERGUNTA QUE EU TINHA PULADO: QUEM CABE NA RAM? ─────────────────────
+//
+// "Qual IA rascunha" não é primeiro uma pergunta de qualidade. Durante a
+// conversa só existem DOIS modelos de pé, e um deles não gera texto:
+//
+//     fala ....... SmolLM3-3B (é o revisor; se ele rascunhar, não há atalho)
+//     memória .... EmbeddingGemma (embedding, não escreve)
+//     reflexo .... SmolLM2-135M em ONNX — resident, e JÁ ESCREVE
+//
+// O reflexo não está na tabela dos quatro cérebros porque é de outro motor
+// (transformers.js). Ele já roda ANTES do 3B começar, para tapar o silêncio, e
+// já escreve prosa curta do personagem. Rascunhar é o mesmo trabalho, na mesma
+// janela, com o mesmo teto — custa ZERO byte de RAM a mais e ZERO download.
+//
+// Qualquer outra opção significa subir um segundo llama.cpp DURANTE a conversa,
+// que é a hora em que o 3B mais pesa, e contra a tabela que o dono do jogo
+// escreveu. Por isso as outras ficam como experimento explícito, e não padrão.
+//
+// O QUE ISSO PODE CUSTAR, dito antes de medir: 135M é pouco para prosa. Se o
+// 3B tiver de remendar as três frases de todo rascunho, o desenho vira "o 3B
+// escreve tudo, com um passo a mais" — e aí ele não vale. A bancada mede
+// exatamente isso, no campo `remendos`.
+
+export type RascunhadorId = 'reflexo' | 'motor' | 'vontade' | 'nenhum';
 
 export type RascunhadorEntry = {
     id: RascunhadorId;
@@ -83,10 +132,16 @@ export type RascunhadorEntry = {
 
 export const RASCUNHADORES: readonly RascunhadorEntry[] = Object.freeze([
     {
+        id: 'reflexo',
+        label: 'SmolLM2 135M (o reflexo, em ONNX)',
+        portugues: 'SmolLM2 é treinado em inglês; o teste é se ele acompanha a persona',
+        nota: 'o ÚNICO que já está de pé durante a conversa — zero RAM e zero download a mais',
+    },
+    {
         id: 'motor',
-        label: 'Qwen3 0.6B (o motor, já carregado)',
+        label: 'Qwen3 0.6B (o motor) — só fora do chat',
         portugues: 'card declara 100+ idiomas e instruction following multilíngue',
-        nota: 'o menor dos candidatos e zero cota a mais — são os 639 MB do motor',
+        nota: 'DESLIGADO durante a conversa por desenho; só responde no ?campo/?mente',
     },
     {
         id: 'vontade',
@@ -103,11 +158,14 @@ export const RASCUNHADORES: readonly RascunhadorEntry[] = Object.freeze([
 ] as const);
 
 /**
- * O padrão é o motor, e o motivo mais forte não é a nota do card: é ele já
- * estar no aparelho. Baixar um modelo NOVO para acelerar uma resposta cobra
- * cota da fala, e a fala é o que não pode faltar.
+ * O padrão é o reflexo, e por eliminação, não por preferência: é o único que
+ * está de pé na hora em que o rascunho precisa existir.
+ *
+ * O padrão anterior era o motor, e ele nunca teria rodado — o chat desliga o
+ * motor ao abrir. Um padrão que não dispara é pior que nenhum: ele faz o
+ * caminho parecer ativo enquanto o jogo segue exatamente como antes.
  */
-export const RASCUNHADOR_PADRAO: RascunhadorId = 'motor';
+export const RASCUNHADOR_PADRAO: RascunhadorId = 'reflexo';
 
 function lerDaUrl(busca: string): RascunhadorId | null {
     const pedido = new URLSearchParams(busca).get('rascunhador');
