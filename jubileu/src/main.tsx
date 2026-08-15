@@ -73,6 +73,11 @@ const Floor10Mente = lazy(() => import('./Floor10Mente.tsx'));
 // VONTADE + MOTOR juntos: o triângulo pensamento -> meta -> plano -> posição.
 // No jogo em primeira pessoa esse triângulo é invisível.
 const Floor10Campo = lazy(() => import('./Floor10Campo.tsx'));
+// `?rascunho` abre a sala do rascunho: o desenho "modelo pequeno escreve, 3B
+// confere e troca só a frase errada" com as quatro etapas à vista. No jogo ela
+// é invisível — o jogador vê a espera e depois a fala —, e sem ver as etapas
+// não dá para saber se o atalho valeu ou se o 3B reescreveu tudo assim mesmo.
+const Floor10Rascunho = lazy(() => import('./Floor10Rascunho.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
@@ -84,13 +89,16 @@ const isMente = search.includes('mente');
 // alcançável pelo elevador — sem ela o campo de provas seria invisível.
 const isPrisao = search.includes('prisao');
 const isCampo = search.includes('campo');
+const isRascunho = search.includes('rascunho');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isCampo ? (
+    {isRascunho ? (
+      <Suspense fallback={null}><Floor10Rascunho /></Suspense>
+    ) : isCampo ? (
       <Suspense fallback={null}><Floor10Campo /></Suspense>
     ) : isComparacao ? (
       <Suspense fallback={null}><Floor10Comparacao /></Suspense>

@@ -710,6 +710,41 @@ async function falarRevisando(
     return costurado;
 }
 
+/**
+ * O REVISOR, exposto para a bancada e para a sala do rascunho.
+ *
+ * No jogo esta chamada vive dentro de `sendToNpc`, embrulhada no watchdog, no
+ * medidor de FPS e no gerente de GPU — tudo o que uma fala de verdade precisa e
+ * uma medição não. Aqui é a mesma pergunta ao mesmo modelo, com a MESMA
+ * gramática e o MESMO teto, sem o resto.
+ *
+ * O `?rascunho` existe para o dono do jogo VER a arquitetura antes de ela ser o
+ * jogo, e uma sala que medisse um caminho diferente do real seria pior que
+ * nenhuma sala.
+ */
+export async function revisarRascunhoParaBancada(
+    systemPrompt: string,
+    blocoDaRevisao: string,
+): Promise<string> {
+    const engine = await initLLM();
+    if (!engine) return '';
+    floor10ModelCoordinator.pausarDeliberacao();
+    const resposta = await engine.createChatCompletion({
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: blocoDaRevisao },
+        ],
+        ...CHAT_COMPLETION_CONFIG,
+        stream: false,
+        temperature: 0.2,
+        top_p: 0.75,
+        top_k: 20,
+        grammar: GRAMATICA_DO_REMENDO,
+        max_tokens: REVISAO_MAX_TOKENS,
+    }) as { choices?: Array<{ message?: { content?: string } }> } | undefined;
+    return visibleText(resposta?.choices?.[0]?.message?.content ?? '').trim();
+}
+
 export function buildFloor10CorrectionPrompt(
     systemPrompt: string,
     issue: Floor10ReplyIssue,

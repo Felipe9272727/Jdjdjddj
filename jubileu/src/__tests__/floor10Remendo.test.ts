@@ -217,10 +217,14 @@ describe('a fiação do rascunho dentro do motor', () => {
     // delas foi escrita por um motivo, e sumir com qualquer uma volta a
     // introduzir um defeito conhecido.
     const motor = readFileSync(new URL('../npc/wllamaEngine.ts', import.meta.url), 'utf8');
-    const funcao = motor.slice(
-        motor.indexOf('async function falarRevisando'),
-        motor.indexOf('export function buildFloor10CorrectionPrompt'),
-    );
+    // O corte para na PRÓXIMA declaração de topo, e não num nome específico:
+    // a primeira versão fatiava até `buildFloor10CorrectionPrompt`, e no dia em
+    // que uma função nova entrou entre as duas o teste passou a ler código que
+    // não é o dele e reprovou por um `return ''` alheio. Fronteira que depende
+    // de vizinho é fronteira que quebra sozinha.
+    const inicio = motor.indexOf('async function falarRevisando');
+    const proxima = motor.slice(inicio + 1).search(/\nexport (?:async )?(?:function|const) /);
+    const funcao = motor.slice(inicio, proxima >= 0 ? inicio + 1 + proxima : undefined);
 
     it('existe e é chamada antes da geração normal', () => {
         expect(funcao.length).toBeGreaterThan(0);

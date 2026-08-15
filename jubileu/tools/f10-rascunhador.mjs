@@ -112,30 +112,45 @@ for (const quem of quais) {
             await eng.sendToNpc(pergunta, {});
             const ms = performance.now() - t0;
             const ultima = store.npc.history.at(-1);
+            const texto = ultima?.role === 'assistant' ? ultima.content : '';
+            // As provas rodam AQUI DENTRO, com o mesmo código que o jogo usa
+            // para reprovar uma fala. Reimplementá-las no Node mediria uma
+            // segunda régua, e duas réguas discordando é pior que uma só.
+            const alu = await import('/src/npc/floor10Alucinacao.ts');
+            const prova = texto ? alu.provarAlucinacao(texto, pergunta, '', store.npc.perception) : null;
             return {
                 ms: Math.round(ms),
-                texto: ultima?.role === 'assistant' ? ultima.content : '(sem resposta)',
+                texto: texto || '(sem resposta)',
+                reprovou: prova ? alu.reprovou(prova) : true,
+                motivo: prova ? alu.motivoDaReprovacao(prova) : 'sem resposta',
                 erro: store.npc.error || '',
             };
         }, { quem, pergunta });
         // A caixa-preta guarda a divisão fina (`rascunho:revisado`); aqui fica
         // o que o jogador sente, que é o relógio de ponta a ponta.
         linhas.push({ quem, pergunta, ...medida });
-        console.log(`  ${String(medida.ms).padStart(7)}ms  ${pergunta}`);
+        console.log(`  ${String(medida.ms).padStart(7)}ms  ${medida.reprovou ? '✕' : '✓'}  ${pergunta}`);
         console.log(`           → ${medida.texto}`);
+        if (medida.motivo) console.log(`           ⚑ ${medida.motivo}`);
         if (medida.erro) console.log(`           ! ${medida.erro}`);
     }
 }
 
-console.log('\n── RESUMO (ms por pergunta) ──');
+console.log('\n── RESUMO ──');
+console.log('rascunhador      média      passou');
 for (const quem of quais) {
     const meus = linhas.filter((l) => l.quem === quem);
     if (meus.length === 0) continue;
     const media = Math.round(meus.reduce((s, l) => s + l.ms, 0) / meus.length);
-    console.log(`${quem.padEnd(10)} média ${String(media).padStart(7)}ms`);
+    const ok = meus.filter((l) => !l.reprovou).length;
+    console.log(
+        `${quem.padEnd(14)} ${String(media).padStart(7)}ms   ${ok}/${meus.length}`,
+    );
 }
-console.log('\nOs números dizem se ficou mais rápido. Se soou como o Nilo, quem');
-console.log('decide é quem lê as falas acima — e essa parte nenhuma tabela mede.');
+console.log('\nAs duas colunas decidem coisas diferentes, e nenhuma sozinha decide.');
+console.log('Um rascunhador rápido que reprova em 4 de 5 manda a fala para o caminho');
+console.log('antigo toda vez — ele é mais lento na prática que o número diz.');
+console.log('E se soou como o Nilo, nenhuma coluna sabe: isso é para ler acima.');
 
 // A divisão fina — quantos remendos, quantos inúteis, quantos reprovados —
 // mora na caixa-preta. É o que diz POR QUE um rascunhador ficou mais lento:
