@@ -1,6 +1,15 @@
 # Treinar um rascunhador EAGLE-3 para o Nilo, no Colab
 
-Este é o caminho que vale o seu tempo de GPU. Não é Medusa — é EAGLE-3, que é o
+**LEIA ANTES: existe um bloqueio.** Toda a decodificação especulativa — n-grama
+e EAGLE-3 — só funciona no binário `public/wllama-espec/`, e esse binário foi
+REPROVADO no aparelho do dono do jogo (`01a43e07`: "com `?wllamacdn` o travamento
+sumiu, sem ela voltou"). O wllama do CDN, que é o padrão hoje, preenche
+`params.speculative.draft.*` e NUNCA `params.speculative.types` — e é de `types`
+que o `common_speculative_init()` decide tudo. Um EAGLE-3 treinado hoje não teria
+onde rodar no celular dele. Consertar a regressão de ARM do nosso binário é
+pré-requisito, não detalhe.
+
+Dito isso: este é o caminho que vale o seu tempo de GPU. Não é Medusa — é EAGLE-3, que é o
 sucessor dela e o que **o nosso binário já sabe carregar**. Antes de pedir para
 você treinar qualquer coisa, conferi as três pontas do caminho:
 
