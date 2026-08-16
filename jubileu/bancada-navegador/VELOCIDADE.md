@@ -50,15 +50,21 @@ descarrega a fala custa esses 11 s (mais, no celular) outra vez.
 
 ## O que ainda dá para tentar, em ordem de aposta
 
-1. **Fixar o número de threads MEDINDO no aparelho.** Num celular big.LITTLE o
-   llama.cpp divide o trabalho igualmente entre as threads, então o núcleo mais
-   lento segura cada token — 8 threads pode ser MAIS LENTO que 4. O jogo já tem
-   onde guardar a escolha (`floor10-threads`); falta rodar os dois e ficar com o
-   vencedor. É a técnica de maior retorno por esforço que sobrou.
-2. **Não descarregar a fala entre os cérebros**, quando a RAM deixar. Vale os
-   11 s medidos, por troca.
-3. **WebGPU em algumas camadas.** Já existe no jogo (12 das 36) e já cobrou caro
-   uma vez; só entra de novo com medição por aparelho, que o gerente já faz.
+1. ~~**Fixar o número de threads MEDINDO no aparelho.**~~ **FEITO** — `cc17feac`
+   fechou em METADE dos núcleos (4 no Snapdragon 7s Gen 2). Ver "Threads: pedir
+   demais é 15× MAIS LENTO", abaixo.
+2. **Não descarregar a fala entre os cérebros.** Continua de pé, e ficou MAIS
+   forte do que quando escrevi isto: `90e504ae` mediu que descarregar devolve
+   **0% da RAM** (o heap do WASM não encolhe). Se esse número estiver certo, as
+   ~18 s de releitura por visita ao chat (`b622ec14`) estão sendo pagas em troca
+   de nada. **A pergunta nunca foi fechada** — o próprio commit diz "não altero
+   mais nada em cima disso até saber qual das três é", e nenhum commit posterior
+   respondeu. É a medição mais barata e de maior retorno que sobrou.
+3. **WebGPU em algumas camadas.** ~~Já existe no jogo (12 das 36)~~ — **falso
+   desde `85a532f9` (30/jul): o padrão é ZERO camadas, atrás do botão do
+   `?bancada`.** E "já cobrou caro uma vez" também está subestimado: foram
+   QUATRO eras e três reprovações no aparelho real. Ver "O VEREDITO DA GPU",
+   abaixo, antes de propor isto de novo.
 
 E o que NÃO vale, para não gastar tarde à toa:
 
@@ -216,8 +222,43 @@ Recompilado com `GGML_WEBGPU=ON`:
 
 **Não testei com GPU de verdade** — este contêiner não tem uma. Quem responde é
 o aparelho: `?bancada` liga o gerente de GPU, e o teto continua sendo o que já
-derrubou a fala duas vezes no celular do Felipe. Comece por 4 camadas de 36, não
-por 12.
+derrubou a fala duas vezes no celular do Felipe. ~~Comece por 4 camadas de 36,
+não por 12.~~ **Isto é impossível:** o Android limita o binding a 128 MB e cada
+camada pesa ~53 MB, então `layersThatFit` devolve **2**, e os botões do
+`?bancada` só oferecem 0, 1 e 2. Leia a seção seguinte antes de ligar qualquer
+coisa.
+
+## O VEREDITO DA GPU — quatro eras, três reprovações no aparelho real
+
+Esta seção existe porque a GPU foi proposta de novo em agosto, por mim, depois
+de já ter sido reprovada três vezes. O histórico completo, para não repetir:
+
+| era | o que foi | como morreu |
+|---|---|---|
+| 1 · 23/jul | Qwen2.5-7B no **WebLLM/WebGPU**, GPU obrigatória | `device-lost` / `ModelNotLoadedError` no celular do Felipe, mesmo com auto-cura. `08358c6e` migrou tudo para CPU/WASM |
+| 2 · 26–28/jul | offload fixo de **12 das 36 camadas** (`51197277`) | `f6a523dc`: "com offload o celular inteiro engasga; pela CPU o jogo roda liso" |
+| 3 · 30/jul | o "gerente de GPU", 3 camadas (`d9fc9af4`) | ligada e desligada **no mesmo dia, em 53 minutos** — `(ABORT)`, depois `loadModel() is not yet called`, depois saída corrompida |
+| 4 · 4/ago | recompilar o binário com `GGML_WEBGPU=ON` (`cd88097f`) | devolveu a OPÇÃO, nunca ligou nada; e o binário saiu do padrão em `01a43e07` |
+
+**A causa do travamento não é memória, e isso muda a conclusão.** O `d9fc9af4`
+diagnosticou: *"os kernels da LLM SATURAM A FILA DE SUBMISSÃO da GPU e o render
+perde o prazo do quadro — por isso travava, e não por memória, que era o que eu
+supunha."* Se o gargalo é a fila de submissão, **encolher o número de camadas não
+resolve** — 1 camada disputa a mesma fila que o Three.js precisa para desenhar.
+
+**E a GPU nunca foi mais rápida, nem quando funcionou.** Medido no aparelho real
+(`329d78a0`): CPU×8 fechou a resposta em **242,5 s**; WebGPU×2 em **257,1 s**.
+O que acelerou naquela sessão foi o `cache_prompt`, não a GPU.
+
+**O pior modo de falha foi silencioso:** com 2 camadas o modelo devolveu lixo
+binário (`fdf)-,2ehir4Hccb, frank= geilBBA;*'A&#55E:`) — assinatura de kernel
+numérico errado — e o gerente tinha carimbado aquele degrau como "estável",
+porque media velocidade e nunca sanidade. Daí o `looksCorrupted`.
+
+**A única pergunta que ficou aberta:** `dde144b0` montou o botão de **1 camada**
+para separar "estourou o buffer" de "o backend não roda aqui". Esse teste
+**nunca foi executado no aparelho do Felipe** — não aparece em commit nenhum.
+É o que falta para fechar o assunto com resposta em vez de desconfiança.
 
 ## E o Colibri?
 
