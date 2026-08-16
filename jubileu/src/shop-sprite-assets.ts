@@ -1,17 +1,17 @@
 import type { SpriteAnimationConfig } from './SpriteEngine';
-import bellhopIdleAtlas from './assets/shop/bellhop-idle-atlas-v5.webp';
-import bellhopPresentationAtlas from './assets/shop/bellhop-talk-atlas-v5.webp';
-import bellhopConversationAtlas from './assets/shop/bellhop-conversation-atlas-v6.webp';
-import bellhopWinkAtlas from './assets/shop/bellhop-wink-atlas-v5.webp';
-import bellhopSweatAtlas from './assets/shop/bellhop-sweat-atlas-v5.webp';
-import bellhopConcernedAtlas from './assets/shop/bellhop-concerned-atlas-v5.webp';
-import bellhopGlitchAtlas from './assets/shop/bellhop-glitch-atlas-v5.webp';
-import bellhopBuyFlashlightAtlas from './assets/shop/bellhop-buy-flashlight-atlas-v6.webp';
-import bellhopBuyCookieAtlas from './assets/shop/bellhop-buy-cookie-atlas-v6.webp';
-import bellhopBuyCoffeeAtlas from './assets/shop/bellhop-buy-coffee-atlas-v6.webp';
+import bellhopIdleAtlas from './assets/shop/bellhop-idle-atlas-v8.png';
+import bellhopPresentationAtlas from './assets/shop/bellhop-talk-atlas-v8.png';
+import bellhopConversationAtlas from './assets/shop/bellhop-conversation-atlas-v8.png';
+import bellhopWinkAtlas from './assets/shop/bellhop-wink-atlas-v8.png';
+import bellhopSweatAtlas from './assets/shop/bellhop-sweat-atlas-v8.png';
+import bellhopConcernedAtlas from './assets/shop/bellhop-concerned-atlas-v8.png';
+import bellhopGlitchAtlas from './assets/shop/bellhop-glitch-atlas-v8.png';
+import bellhopBuyFlashlightAtlas from './assets/shop/bellhop-buy-flashlight-atlas-v8.png';
+import bellhopBuyCookieAtlas from './assets/shop/bellhop-buy-cookie-atlas-v8.png';
+import bellhopBuyCoffeeAtlas from './assets/shop/bellhop-buy-coffee-atlas-v8.png';
 import bellhopBuyKeyAtlas from './assets/shop/bellhop-buy-key-atlas-v7.webp';
-import bellhopBuyFloorAtlas from './assets/shop/bellhop-buy-floor-atlas-v6.webp';
-import bellhopBuyMemoryAtlas from './assets/shop/bellhop-buy-memory-atlas-v6.webp';
+import bellhopBuyFloorAtlas from './assets/shop/bellhop-buy-floor-atlas-v8.png';
+import bellhopBuyMemoryAtlas from './assets/shop/bellhop-buy-memory-atlas-v8.png';
 import shopVfxAtlas from './assets/shop/shop-vfx-atlas-v1.webp';
 
 export { default as shopBackdrop } from './assets/shop/lobby-shop-bg-v1.webp';
@@ -82,11 +82,9 @@ const atlas = (
 // holds receive longer exposure. No cross-fade is used: dissolving pixel-art
 // silhouettes creates double eyes/hands and reads as a flash on a phone.
 const IDLE_DURATIONS = [
-  440, 160, 160, 180, 220,
-  180, 180, 220, 140, 100,
-  90, 120, 200, 180, 170,
-  210, 180, 180, 220, 320,
-  85, 70, 85, 110, 240,
+  420, 90, 90, 120, 160, 100, 100,
+  120, 100, 100, 100, 120, 100, 100,
+  100, 120, 140, 160, 140, 180, 500,
 ] as const;
 
 const PRESENTATION_DURATIONS = [
@@ -159,7 +157,7 @@ const KEY_REFUSAL_DURATIONS = [
 ] as const;
 
 export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
-  idle: atlas(bellhopIdleAtlas, 5, frames(25), IDLE_DURATIONS, true),
+  idle: atlas(bellhopIdleAtlas, 4, frames(21), IDLE_DURATIONS, true),
   // The open-arm atlas needs a wider 400px cell so its neutral body remains
   // the same apparent size as the 314px emotional sheets. Previously bbox-fit
   // shrank all 25 frames to accommodate the widest hand, producing a visible
@@ -237,14 +235,13 @@ export const BELLHOP_MOTIONS: Record<BellhopMotion, SpriteAnimationConfig> = {
   ),
 };
 
-// Frames 20-24 of the idle sheet were drawn specifically as a cartoon handoff:
-// neutral -> one-pixel compression -> rebound -> overshoot -> exact neutral.
-// The animation director inserts this short bridge between different emotions,
-// so a speaking arm never snaps directly into a worried or purchase pose.
+// The opening neutral and its first two micro in-betweens form a deliberately
+// tiny handoff. Reversing them returns to the exact neutral without exposing a
+// late idle pose, so a speaking arm never snaps directly into another emotion.
 export const BELLHOP_BRIDGE = atlas(
   bellhopIdleAtlas,
-  5,
-  [20, 21, 22, 23, 24],
+  4,
+  [0, 1, 2, 1, 0],
   [90, 80, 90, 120, 180],
   false,
 );

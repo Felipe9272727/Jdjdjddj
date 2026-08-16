@@ -38,8 +38,8 @@ describe('sprite timeline da loja', () => {
     expect(pose).toEqual({ index: 2, nextIndex: 2, mix: 0, done: true });
   });
 
-  it('usa todos os 243 desenhos, na ordem exata de cada atuação', () => {
-    expect(BELLHOP_MOTIONS.idle.frameCount).toBe(25);
+  it('usa todos os 239 desenhos aprovados, na ordem exata de cada atuação', () => {
+    expect(BELLHOP_MOTIONS.idle.frameCount).toBe(21);
     expect(BELLHOP_MOTIONS.presentation.frameCount).toBe(25);
     expect(BELLHOP_MOTIONS.conversation.frameCount).toBe(25);
     for (const motion of ['wink', 'sweat', 'concerned', 'glitch'] as const) {
@@ -67,8 +67,9 @@ describe('sprite timeline da loja', () => {
     expect(
       Object.values(BELLHOP_MOTIONS)
         .reduce((sum, config) => sum + config.frameCount, 0),
-    ).toBe(243);
-    expect(BELLHOP_MOTIONS.idle.columns).toBe(5);
+    ).toBe(239);
+    expect(BELLHOP_MOTIONS.idle.columns).toBe(4);
+    expect(BELLHOP_MOTIONS.idle.cycleMs).toBe(3_160);
     expect(BELLHOP_MOTIONS.presentation.columns).toBe(5);
     expect(BELLHOP_MOTIONS.presentation.frameWidth).toBe(400);
     expect(BELLHOP_MOTIONS.presentation.loop).toBe(false);
@@ -80,9 +81,9 @@ describe('sprite timeline da loja', () => {
   });
 
   it('insere uma ponte curta de antecipação e assentamento', () => {
-    expect(BELLHOP_BRIDGE.frameSequence).toEqual([20, 21, 22, 23, 24]);
+    expect(BELLHOP_BRIDGE.frameSequence).toEqual([0, 1, 2, 1, 0]);
     expect(BELLHOP_BRIDGE.frameCount).toBe(5);
-    expect(BELLHOP_BRIDGE.columns).toBe(5);
+    expect(BELLHOP_BRIDGE.columns).toBe(4);
     expect(BELLHOP_BRIDGE.loop).toBe(false);
     expect(BELLHOP_BRIDGE.blendRatio).toBe(0);
     expect(BELLHOP_BRIDGE.cycleMs).toBeGreaterThanOrEqual(500);

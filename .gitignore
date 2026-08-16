@@ -1,5 +1,7 @@
 .skills/
 node_modules/
+__pycache__/
+*.py[cod]
 
 # cópias runtime do jubileu/public/ na raiz (só os áudios são versionados)
 /models/
