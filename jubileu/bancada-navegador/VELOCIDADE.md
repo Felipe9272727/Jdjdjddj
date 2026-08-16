@@ -786,3 +786,81 @@ diferenças que eu tinha para explicar o não-reproduzir.
 
 Sobra o aparelho dele: OOM killer do Android e comportamento térmico, que não
 existem em nada que eu alcance daqui.
+
+## A LEITURA É 90% DA ESPERA — e o meu pipeline a multiplicou por 4,67
+
+Etiqueta do aparelho dele, 16/ago, primeira partida com o rascunho ligado:
+
+```
+SmolLM3-3B · CPU×4 · leitura 158s · fala 17s · 273 reaproveitados · 318 lidos
+```
+
+**A fala custa 17 s. A leitura custa 158 s.** Isso reordena tudo o que estava na
+mesa: decodificação especulativa, EAGLE-3 e rascunhador MoE aceleram a FALA.
+Aplicados aqui, no melhor caso previsto (2,5×), eles tiram ~10 s de 175 — 6%.
+O alvo é o outro.
+
+### O `n_cache_reuse` do wllama é INERTE
+
+`--cache-reuse` do llama.cpp desloca os pedaços de KV depois da divergência em
+vez de recomputá-los; é a resposta canônica para "meu prompt tem miolo volátil".
+O campo existe no glue do wllama **3.5.1 do CDN** — o binário que já roda no
+celular dele, sem recompilar nada. Medido, três turnos com prefixo estável e
+miolo mudando a cada turno:
+
+```
+                      turno 1        turno 2        turno 3     leitura total
+sem n_cache_reuse   369 lidos/0    75 lidos/319   91 lidos/319     117,1 s
+com n_cache_reuse   369 lidos/0    75 lidos/319   91 lidos/319     118,3 s
+```
+
+Idêntico até o token. **0,99×.** É o segundo campo desta família que o glue
+aceita e o motor ignora — o primeiro foi `params.speculative.types`.
+
+### A descoberta que a sonda entregou de brinde: o cache de prefixo JÁ É BOM
+
+Nos turnos quentes, o prompt do jogo lê **75 a 91 tokens** e reaproveita 319.
+O miolo volátil (percepção, vontade, "o que ele já disse") custa muito menos do
+que eu supunha. Não há 318 tokens de leitura num turno limpo — então os 318 da
+etiqueta dele vêm de outro lugar.
+
+### Vêm daqui: o pipeline de rascunho paga DOIS prefills
+
+Mesma persona aquecida, mesma pergunta, SmolLM3 real, 4 threads:
+
+```
+                              leitura      lidos     fala
+caminho DIRETO (3B escreve)     5,2 s     23 tok    15,1 s
+caminho do PIPELINE
+  1) revisar o rascunho        22,7 s    102 tok     4,9 s
+  2) escrever (revisor reprovou) 1,4 s      6 tok    15,0 s
+                              ───────   ────────
+                               24,0 s    108 tok
+
+CUSTO: +18,9 s de leitura · +85 tokens · 4,67× a leitura
+```
+
+**E não há caminho feliz.** Mesmo quando o revisor APROVA e a segunda chamada
+nem acontece, o turno custa 27,6 s contra 20,3 s do caminho direto — porque o
+`blocoDeRevisao` acrescenta 102 tokens de leitura para poupar 15 s de escrita,
+e ler 102 tokens custa mais do que escrever a resposta inteira.
+
+A aritmética que decide, e ela é curta: no caminho direto a pergunta traz **23
+tokens novos**. Qualquer bloco de revisão só se paga se for MENOR que isso —
+menos de 23 tokens para enunciar duas frases de rascunho e o protocolo. Não
+cabe. **Revisão de rascunho não pode ganhar nesta forma de prompt**, e o defeito
+não é do enunciado nem do modelo: é aritmético.
+
+No aparelho dele o prefill é ~2 tok/s contra ~4,6 desta caixa, então multiplique
+os segundos por ~2,3: os +85 tokens viram **~+43 s** por fala.
+
+### O que isto manda fazer
+
+Cada token novo custa ~0,5 s no celular dele. A alavanca com número não é
+acelerar o modelo, é **não dar tokens novos para ele ler** — que é exatamente o
+que o curador condicional (`8b271757`, 587 → 256) e o compressor foram feitos
+para fazer, e o que o meu pipeline desfez.
+
+Ressalva honesta sobre a etiqueta dele: havia um download de 1,6 MB/s correndo
+junto (a fila baixando a vontade), disputando CPU. Os 158 s são o pior caso, não
+o caso típico.
