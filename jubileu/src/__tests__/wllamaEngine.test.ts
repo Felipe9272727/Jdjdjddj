@@ -140,10 +140,29 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(prompt).toContain('Nenhuma resposta pronta é fornecida');
     });
 
+    it('o teto de tokens cobre a fala real, sem margem que só custa espera', () => {
+        // ── O NÚMERO SAIU DE MEDIR, NÃO DE ESTIMAR ────────────────────────
+        //
+        // Colhidas as falas do SmolLM3 com o prompt do jogo, as que ele mesmo
+        // dá por terminadas ficam em 46–50 tokens:
+        //
+        //   "Sou Nilo Azevedo, tenho 29 anos, fui ex-técnico de elevadores,
+        //    estou preso no 10º andar do hotel The Normal Elevator. Nunca saí
+        //    deste lugar."                                        50 tokens
+        //   "Não sei se o hotel vai acabar, mas não tenho intenção de sair…"
+        //                                                         46 tokens
+        //
+        // A 1 tok/s no aparelho do dono do jogo, os 40 tokens que 96 deixava
+        // sobrando eram até 40 s de espera por margem não usada. Se este número
+        // voltar a subir sem uma medição nova ao lado, é margem outra vez.
+        expect(CHAT_COMPLETION_CONFIG.max_tokens).toBe(56);
+        expect(CHAT_COMPLETION_CONFIG.max_tokens).toBeGreaterThan(50);
+    });
+
     it('usa os nomes OpenAI-compatible aceitos pela API v3', () => {
         expect(CHAT_COMPLETION_CONFIG).toMatchObject({
             stream: true,
-            max_tokens: 96,
+            max_tokens: 56,
             temperature: 0.45,
             top_p: 0.85,
             top_k: 40,

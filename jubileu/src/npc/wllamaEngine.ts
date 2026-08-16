@@ -129,7 +129,27 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     // frases pela persona; este teto é só a margem para FECHAR a última delas,
     // não um convite para divagar (penalty_repeat + corte na frase completa
     // seguram o resto).
-    max_tokens: 96,
+    //
+    // ── DE 96 PARA 56, E O NÚMERO SAIU DE MEDIR AS FALAS REAIS ────────────
+    //
+    // 96 nunca foi um alvo: era margem. Medidas as falas do SmolLM3 com o
+    // prompt do jogo, em duas colheitas nesta sessão, as que ele CONSIDERA
+    // terminadas ficam em 46–50 tokens:
+    //
+    //     "Sou Nilo Azevedo, tenho 29 anos, fui ex-técnico de elevadores,
+    //      estou preso no 10º andar do hotel The Normal Elevator. Nunca saí
+    //      deste lugar."                                        50 tokens
+    //     "Não sei se o hotel vai acabar, mas não tenho intenção de sair…"
+    //                                                           46 tokens
+    //
+    // A 1 token por segundo no aparelho dele, os 40 tokens que sobravam eram
+    // até 40 s de espera por margem que a fala não usa. 56 cobre as duas com
+    // folga e devolve o resto.
+    //
+    // E o teto não é mais o corte bruto que era: `arrumarFala` apara na última
+    // frase completa e, quando não há nenhuma, corta na oração com reticências.
+    // Encolher o teto ficou barato porque o conserto do fim da fala já existe.
+    max_tokens: 56,
     temperature: 0.45,
     top_p: 0.85,
     top_k: 40,
