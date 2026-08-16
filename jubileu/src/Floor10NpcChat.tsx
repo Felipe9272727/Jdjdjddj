@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useNpc, npc, npcSet } from './npc/npcStore';
+import { useNpc, npc, npcSet, bolhaDeEspera } from './npc/npcStore';
 import { esperar, RESPIRO_APOS_DESCARGA_MS } from './npc/floor10Carga';
 // Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
 import {
@@ -605,7 +605,7 @@ const Floor10NpcChat: React.FC = () => {
                         {st.phase === 'thinking' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
                                 <div style={npcBubble} aria-live="polite">
-                                    {st.streaming || `Pensando localmente… ${thinkingSeconds}s`}
+                                    {bolhaDeEspera(st.streaming, st.etapa, thinkingSeconds)}
                                 </div>
                             </div>
                         )}

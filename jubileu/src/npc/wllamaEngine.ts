@@ -686,7 +686,7 @@ async function falarRevisando(
     if (!dePe) return null;
 
     const comecou = Date.now();
-    npcSet({ streaming: 'rascunhando…' });
+    npcSet({ etapa: 'rascunhando…' });
     const rascunho = visibleText(await (
         quem === 'reflexo' ? rascunharComReflexo(systemPrompt, text)
             : quem === 'motor' ? rascunharComMotor(systemPrompt, groundedHistory)
@@ -698,7 +698,7 @@ async function falarRevisando(
     const frases = enumerarFrases(rascunho);
     if (frases.length === 0) return null;
 
-    npcSet({ streaming: `O ${FLOOR10_MODEL.label} está conferindo o rascunho…` });
+    npcSet({ etapa: `O ${FLOOR10_MODEL.label} está conferindo o rascunho…` });
     // Temperatura baixa: julgar não é criar. É a mesma escolha do caminho de
     // correção que já existia neste arquivo.
     const bruto = visibleText(await gerar(
@@ -1731,6 +1731,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 phase: 'error',
                 speaking: false,
                 streaming: '',
+                etapa: '',
                 // Espaço em disco e travamento têm CONSERTO do lado do jogador;
                 // dizer só "falha ao carregar" escondia isso.
                 error: error instanceof ModelStorageError
@@ -1872,6 +1873,7 @@ export async function selectConversationRuntime(runtime: Floor10Runtime): Promis
         loadDownload: DOWNLOAD_ZERO,
         modelLabel: '',
         streaming: '',
+        etapa: '',
         speaking: false,
         error: '',
     });
@@ -1901,6 +1903,7 @@ export async function sendToNpc(
                 phase: npc.phase === 'error' ? 'cold' : npc.phase,
                 modelLabel: 'Vontade · resposta direta',
                 streaming: '',
+                etapa: '',
                 speaking: false,
                 error: '',
             });
@@ -1918,6 +1921,7 @@ export async function sendToNpc(
                 phase: npc.phase === 'error' ? 'cold' : npc.phase,
                 modelLabel: 'Olhos · resposta direta',
                 streaming: '',
+                etapa: '',
                 speaking: false,
                 error: '',
             });
@@ -1975,6 +1979,7 @@ export async function sendToNpc(
         phase: 'loading',
         loadText: 'liberando a CPU para a conversa…',
         streaming: '',
+        etapa: '',
         speaking: false,
         error: '',
         modelLabel: `${FLOOR10_MODEL.label} · ${speechRuntimeLabel(loadedGpuLayers, loadedThreads)}`,
@@ -2010,7 +2015,7 @@ export async function sendToNpc(
 
     // O reflexo sai de cena quando a fala real começa: ele cobriu o silêncio,
     // e a partir daqui quem fala é o 3B.
-    npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '', reflexo: '' });
+    npcSet({ history, phase: 'thinking', streaming: '', etapa: '', speaking: true, error: '', reflexo: '' });
     const systemPrompt = prepareFloor10SystemPrompt(
         buildFloor10SystemPrompt(
             text,
@@ -2208,7 +2213,7 @@ export async function sendToNpc(
         let finalText = languageDecision.visibleReply;
         let replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
         if (replyIssue) {
-            npcSet({ streaming: `O ${FLOOR10_MODEL.label} está revisando a consistência…` });
+            npcSet({ etapa: `O ${FLOOR10_MODEL.label} está revisando a consistência…` });
             const correctionPrompt = buildFloor10CorrectionPrompt(systemPrompt, replyIssue);
             languageDecision = parseFloor10WillLanguageDecision(
                 text,
@@ -2235,6 +2240,7 @@ export async function sendToNpc(
             // seguinte (".O elevador…", "eu possa.O hotel…").
             history: historicoFinal,
             streaming: '',
+            etapa: '',
             phase: 'ready',
             speaking: false,
         });
@@ -2290,6 +2296,7 @@ export async function sendToNpc(
                     phase: 'ready',
                     speaking: false,
                     streaming: '',
+                    etapa: '',
                     error: `O ${FLOOR10_MODEL.label} interrompeu uma fala inconsistente (${replyIssue}). Tente novamente; nenhum texto do RAG foi usado como resposta.`,
                 });
                 return;
@@ -2308,6 +2315,7 @@ export async function sendToNpc(
                 phase: 'ready',
                 speaking: false,
                 streaming: '',
+                etapa: '',
                 error: '',
             });
             return;
@@ -2322,6 +2330,7 @@ export async function sendToNpc(
             phase: 'ready',
             speaking: false,
             streaming: '',
+            etapa: '',
             error: timedOut
                 ? `${FLOOR10_MODEL.label} parou de responder. O mesmo cérebro será recarregado na próxima mensagem; nenhum fallback foi ativado.`
                 : error instanceof UngroundedNpcReplyError

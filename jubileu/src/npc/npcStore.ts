@@ -32,6 +32,22 @@ export type NpcState = {
     modelLabel: string;     // "7B" / "3B" / ...
     history: NpcMsg[];      // conversa (sem o system prompt)
     streaming: string;      // resposta parcial sendo transmitida token a token
+    // ── A ETAPA, SEPARADA DO TEXTO — e por que ela precisou de campo próprio ──
+    //
+    // O pipeline de rascunho escrevia o nome da etapa DENTRO de `streaming`
+    // ("rascunhando…", "conferindo o rascunho…"). Parecia inofensivo e não era:
+    // a bolha de espera é `{st.streaming || 'Pensando localmente… Ns'}`, então
+    // qualquer texto em `streaming` APAGAVA o relógio. O dono do jogo pegou na
+    // primeira partida — "antes era pensando, e o quanto tempo ele demorava,
+    // agora só fica 'rascunhando…'" — e ele está certo: sem o relógio não dá
+    // para distinguir "trabalhando há 12s" de "travado há 3 minutos", que é a
+    // única coisa que a bolha de espera precisa responder.
+    //
+    // Agora são duas coisas diferentes, porque são duas coisas diferentes:
+    // `streaming` só carrega TEXTO DO NILO (token a token), e `etapa` carrega o
+    // que a máquina está fazendo. O relógio acompanha a etapa; o texto dispensa
+    // relógio, porque texto chegando já é a prova de que anda.
+    etapa: string;
     speaking: boolean;      // true enquanto o NPC "fala" (pro corpo animar a boca)
     perception: Floor10Perception; // micro-IA dos olhos (sensores espaciais ao vivo)
     autonomy: Floor10WillSnapshot; // vontade atual escolhida pela Utility AI
@@ -115,7 +131,7 @@ export type NpcState = {
 const s: NpcState = {
     near: false, open: false, phase: 'cold', loadText: '', loadProgress: 0,
     loadDownload: DOWNLOAD_ZERO,
-    modelLabel: '', history: [], streaming: '', speaking: false,
+    modelLabel: '', history: [], streaming: '', etapa: '', speaking: false,
     perception: INITIAL_FLOOR10_PERCEPTION,
     autonomy: INITIAL_FLOOR10_WILL,
     willCommand: null,
@@ -255,6 +271,7 @@ export function npcSaiuDoAndar() {
     Object.assign(s, {
         near: false,
         streaming: '',
+        etapa: '',
         speaking: false,
         autonomousSpeech: '',
         deliberationBubble: '',
@@ -289,9 +306,30 @@ export function npcSaiuDoAndar() {
     npcBump();
 }
 
+/**
+ * O QUE A BOLHA DE ESPERA DIZ — a regra, num lugar onde dá para testá-la.
+ *
+ * Três estados, e cada um responde a uma pergunta diferente de quem espera:
+ *
+ *   texto chegando   → mostra o texto. Ele crescendo JÁ é a prova de que anda.
+ *   etapa conhecida  → "conferindo o rascunho… 41s". A etapa diz o QUE, o
+ *                      relógio diz se ainda está vivo. Os dois, nunca um só.
+ *   nada ainda       → "Pensando localmente… 41s".
+ *
+ * Esta função existe porque o `||` que ela substitui tinha um buraco: qualquer
+ * rótulo de etapa escrito em `streaming` apagava o relógio, e o dono do jogo
+ * ficou olhando "rascunhando…" sem contador por 150 segundos, sem ter como
+ * saber se o jogo trabalhava ou tinha morrido.
+ */
+export function bolhaDeEspera(streaming: string, etapa: string, segundos: number): string {
+    if (streaming !== '') return streaming;
+    const relogio = `${Math.max(0, Math.round(segundos))}s`;
+    return etapa !== '' ? `${etapa} ${relogio}` : `Pensando localmente… ${relogio}`;
+}
+
 export function npcReset() {
     Object.assign(s, { open: false, phase: s.phase === 'ready' || s.phase === 'thinking' ? 'ready' : s.phase,
-        history: [], streaming: '', speaking: false, willCommand: null, autonomousSpeech: '', error: '' });
+        history: [], streaming: '', etapa: '', speaking: false, willCommand: null, autonomousSpeech: '', error: '' });
     npcBump();
 }
 
