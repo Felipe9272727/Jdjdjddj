@@ -1982,3 +1982,75 @@ preço honesto de tentar.
 
 E ele nunca baixa nada na hora da fala: `pipelineDisponivel()` exige o
 rascunhador **de pé**, não "no aparelho".
+
+---
+
+## O `pt → en` medido — e o defeito que só aparece com o português DE VERDADE
+
+`tradutor-ida-e-volta.mjs`, Bergamot real, os dois pares de pé em 1,5 s.
+
+Com português de jornal ele é impecável:
+
+```
+"Esse hotel vai acabar algum dia?"   →  "Will this hotel ever end?"
+"o que tem atrás daquela porta ali"  →  "what's behind that door there"
+```
+
+Com o português que o dono do jogo **escreve de verdade**, ele quebra — e
+quebra do jeito pior, em silêncio:
+
+```
+"vc ta preso aqui faz quanto tempo mano"  →  "vc is stuck here has been how long bro"
+"pq vc n sai dessa porra?"                →  "pq vc n get out of that fucking?"
+"ta com medo?"                            →  "Ta in fear?"
+```
+
+`vc`, `pq`, `n` e `ta` não estão no vocabulário do Bergamot, então ele os trata
+como **nome próprio** e os copia inteiros para a saída. Nada falha, nada avisa:
+o rascunhador simplesmente recebe `"pq vc n get out of that fucking?"` e
+responde ao que conseguir adivinhar dali.
+
+Isto não é questão de qualidade da tradução. Os **3,2 s** e o **3/3 de acerto**
+do rascunhador foram medidos com perguntas que eu escrevi em inglês limpo. Se a
+máquina entrega outra pergunta, aqueles números mediram um pipeline que ninguém
+vai rodar — é a mesma armadilha de dar ao modelo a pergunta já traduzida e
+chamar aquilo de medição do pipeline.
+
+### O conserto: `desabreviar()`, antes do Bergamot
+
+Determinístico, microssegundos, mesma família do `abrasileirar` na direção
+contrária. Só na PERGUNTA — a fala do Nilo sai em inglês e nunca passa por lá
+(`to` e `n` são palavras comuns em inglês).
+
+```
+                          SEM o passe                      COM o passe
+vc ta preso aqui...   vc is stuck here has been...   you've been stuck here for how long bro
+pq vc n sai...        pq vc n get out of...          Why don't you get out of this fucking all?
+ta com medo?          Ta in fear?                    Are you scared?
+```
+
+Três de três consertados. O que sobra de torto (`"this fucking all"`) vem do
+palavrão, não da abreviação, e o rascunhador entende.
+
+### O custo das duas pontas
+
+```
+ida  (pt → en) ....... 34 ms mediano
+volta (en → pt) ...... 41 ms mediano
+                       ─────────────
+por turno .............75 ms
+```
+
+Contra os 3.200 ms do rascunho, as duas pontas juntas são **2,3%** do pipeline.
+O par novo não muda a conta de nada — ele só faz a pergunta chegar.
+
+### O que a ida e volta mostra que se perde
+
+```
+"Se eu chamar o elevador, ele vem?"  →  "...will he come?"   (ele → he)
+```
+
+O `pt → en` não sabe que o elevador é coisa. O rascunhador entende assim mesmo,
+e a fala dele volta pelo `en → pt`, então isso nunca chega à tela. Fica
+registrado por ser o tipo de coisa que, num prompt mais longo, vira um Nilo
+falando do elevador como se fosse gente.

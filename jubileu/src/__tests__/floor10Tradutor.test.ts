@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { abrasileirar, registroDoTradutor, FLOOR10_TRADUTOR_BYTES } from '../npc/floor10Tradutor';
+import { readFileSync } from 'node:fs';
+import {
+    abrasileirar, desabreviar, registroDoTradutor, FLOOR10_TRADUTOR_BYTES,
+} from '../npc/floor10Tradutor';
 
 /**
  * O PASSE pt-PT → pt-BR e o registro do Bergamot.
@@ -45,6 +48,56 @@ describe('abrasileirar', () => {
         // sintoma é o jogo não abrir, sem erro que aponte para cá.
         const fonte = abrasileirar.toString();
         expect(fonte).not.toContain('(?<');
+    });
+});
+
+describe('desabreviar — o passe que a medição exigiu', () => {
+    // Medido em `bancada-navegador/tradutor-ida-e-volta.mjs`, com o Bergamot de
+    // verdade. As três entradas abaixo são as que ele deixou passar INTACTAS,
+    // porque `vc`, `pq`, `n` e `ta` não estão no vocabulário dele — atravessam
+    // como se fossem nomes próprios e chegam assim ao rascunhador.
+    it('conserta as três que o tradutor deixava passar cruas', () => {
+        //   sem passe: "vc is stuck here has been how long bro"
+        //   com passe: "you've been stuck here for how long bro"
+        expect(desabreviar('vc ta preso aqui faz quanto tempo mano'))
+            .toBe('você está preso aqui faz quanto tempo mano');
+        //   sem passe: "pq vc n get out of that fucking?"
+        expect(desabreviar('pq vc n sai dessa porra?'))
+            .toBe('por que você não sai dessa porra?');
+        //   sem passe: "Ta in fear?"
+        expect(desabreviar('ta com medo?')).toBe('está com medo?');
+    });
+
+    it('cobre o vocabulário do dono do jogo, colhido das conversas deste projeto', () => {
+        expect(desabreviar('mn, tbm quero saber oq tem dps')).toContain('também');
+        expect(desabreviar('mn, tbm quero saber oq tem dps')).toContain('o que');
+        expect(desabreviar('mn, tbm quero saber oq tem dps')).toContain('depois');
+        expect(desabreviar('agr vc pode fzr isso?')).toBe('agora você pode fazer isso?');
+    });
+
+    it('não estraga português inteiro — que é a maioria das perguntas', () => {
+        const bom = 'Esse hotel vai acabar algum dia?';
+        expect(desabreviar(bom)).toBe(bom);
+        // "Se eu chamar o elevador, ele vem?" atravessa sem tocar em nada.
+        expect(desabreviar('Se eu chamar o elevador, ele vem?'))
+            .toBe('Se eu chamar o elevador, ele vem?');
+    });
+
+    it('NENHUMA regra usa lookbehind', () => {
+        // Mesmo motivo do `abrasileirar`: um `(?<=…)` aqui não quebra esta
+        // função, quebra o BUNDLE INTEIRO no Safari antigo, na hora do parse.
+        expect(desabreviar.toString()).not.toContain('(?<');
+    });
+
+    it('roda na PERGUNTA, e a fala do Nilo nunca passa por ele', () => {
+        // A fala sai do rascunhador em inglês e volta pelo `en → pt`. Rodar o
+        // desabreviador nela seria procurar abreviação onde não há, e "to" e
+        // "n" são palavras comuns em inglês.
+        const fonte = readFileSync(new URL('../npc/floor10Tradutor.ts', import.meta.url), 'utf8');
+        const i = fonte.indexOf('export async function traduzirParaPtBr');
+        expect(fonte.slice(i)).not.toContain('desabreviar(');
+        const j = fonte.indexOf('export async function traduzirPerguntaParaIngles');
+        expect(fonte.slice(j, i > j ? i : undefined)).toContain('desabreviar(pergunta)');
     });
 });
 

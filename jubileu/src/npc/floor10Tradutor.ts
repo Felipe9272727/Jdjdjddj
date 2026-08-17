@@ -176,6 +176,73 @@ export function abrasileirar(texto: string): string {
 }
 
 /**
+ * ── O PASSE DE ABREVIAÇÃO, QUE A MEDIÇÃO EXIGIU ───────────────────────────
+ *
+ * Medido em `bancada-navegador/tradutor-ida-e-volta.mjs`, com as perguntas
+ * escritas do jeito que o dono do jogo escreve de verdade:
+ *
+ *     "vc ta preso aqui faz quanto tempo mano"
+ *         → "vc is stuck here has been how long bro"
+ *     "pq vc n sai dessa porra?"
+ *         → "pq vc n get out of that fucking?"
+ *     "ta com medo?"
+ *         → "Ta in fear?"
+ *
+ * O Bergamot foi treinado em português de jornal. Ele traduz "Esse hotel vai
+ * acabar algum dia?" impecavelmente e deixa `vc`, `pq`, `n` e `ta` INTACTOS —
+ * eles não estão no vocabulário, então atravessam como se fossem nomes
+ * próprios. O rascunhador receberia `"pq vc n get out of that fucking?"` e
+ * responderia ao que conseguisse adivinhar dali.
+ *
+ * Isto não é detalhe de qualidade: os 3,2 s e o 3/3 de acerto do rascunhador
+ * foram medidos com perguntas que EU escrevi em inglês limpo. Se a máquina
+ * entrega outra pergunta, aqueles números mediram um pipeline que ninguém vai
+ * rodar.
+ *
+ * O conserto é determinístico e custa microssegundos — mesma família do
+ * `abrasileirar`, na direção contrária. Ele roda ANTES do Bergamot, e só na
+ * pergunta: a fala do Nilo sai do modelo em inglês e nunca passa por aqui.
+ *
+ * SEM LOOKBEHIND, pelo mesmo motivo de sempre: o Safari antigo não tem, e o
+ * erro de sintaxe não quebra esta função, quebra o bundle inteiro.
+ */
+const ABREVIACOES: readonly (readonly [RegExp, string])[] = Object.freeze([
+    // Estas quatro são as que a medição pegou em flagrante.
+    [/\bvcs\b/gi, 'vocês'],
+    [/\bvc\b/gi, 'você'],
+    [/\bpq\b/gi, 'por que'],
+    [/\b(?:n|ñ|naum|nao)\b/gi, 'não'],
+    [/\bta\b/gi, 'está'],
+    // O resto do vocabulário do dono do jogo, colhido das conversas deste
+    // projeto: "mn", "dps", "agr", "tbm", "oque", "pos", "to", "msm".
+    [/\btô\b/gi, 'estou'],
+    [/\bto\b/g, 'estou'],
+    [/\btbm\b|\btb\b/gi, 'também'],
+    [/\bmsm\b/gi, 'mesmo'],
+    [/\bdps\b/gi, 'depois'],
+    [/\bagr\b/gi, 'agora'],
+    [/\boq\b|\boque\b/gi, 'o que'],
+    [/\bpra\b/gi, 'para'],
+    [/\bq\b/gi, 'que'],
+    [/\bcmg\b/gi, 'comigo'],
+    [/\bfzr\b/gi, 'fazer'],
+    [/\baxo\b/gi, 'acho'],
+    [/\beh\b/gi, 'é'],
+    [/\b(?:kd|cade)\b/gi, 'onde está'],
+    [/\bvlw\b/gi, 'valeu'],
+    [/\bblz\b/gi, 'beleza'],
+    // "mn" é vocativo, como "mano". O Bergamot já traduz "mano" para "bro" sem
+    // tropeçar, então basta dar a ele a palavra inteira.
+    [/\bmn\b/gi, 'mano'],
+]);
+
+export function desabreviar(pergunta: string): string {
+    let s = pergunta;
+    for (const [re, por] of ABREVIACOES) s = s.replace(re, por);
+    return s.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
  * A PERGUNTA DO JOGADOR, para o inglês.
  *
  * Sem passe pt-BR na volta: o destino é o rascunhador, não a tela. Devolve
@@ -187,7 +254,9 @@ export async function traduzirPerguntaParaIngles(pergunta: string): Promise<stri
     const t = await prepararTradutor();
     if (!t) return null;
     try {
-        const r = await t.translate({ from: 'pt', to: 'en', text: pergunta });
+        // `desabreviar` PRIMEIRO: o que o Bergamot não conhece ele deixa passar
+        // intacto, e "pq vc n" atravessaria até o rascunhador.
+        const r = await t.translate({ from: 'pt', to: 'en', text: desabreviar(pergunta) });
         const en = (r?.target?.text ?? '').trim();
         return en || null;
     } catch {
