@@ -864,3 +864,100 @@ para fazer, e o que o meu pipeline desfez.
 Ressalva honesta sobre a etiqueta dele: havia um download de 1,6 MB/s correndo
 junto (a fila baixando a vontade), disputando CPU. Os 158 s são o pior caso, não
 o caso típico.
+
+## O TETO NÃO É 2 GiB POR ARQUIVO — é ~4 GiB de espaço de endereçamento
+
+O dono do jogo desconfiou: *"não sei daonde vc tirou isso de 2 GB máximas, a
+gente tem até 10 gbs, tanto que no total a gente já baixa 4 gbs"*. Ele estava
+certo, e a desconfiança dele derrubou uma seção inteira deste arquivo.
+
+Medido no wllama **do CDN** — o binário que roda no celular dele hoje:
+
+```
+granite-4.0-h-tiny Q4_K_M · 4.297.134.912 bytes (o DOBRO do "teto")
+  → CARREGOU em 64 s
+  → morreu na 1ª geração: (ABORT)
+  → com n_ctx 512 (KV mínimo): CARREGOU e morreu igual
+```
+
+Duas correções ao que estava escrito aqui:
+
+1. **Um GGUF de 4,3 GB CARREGA.** O `ftell()`/`MAX_LONG` do HeapFS não barra o
+   caminho de produção. As duas medições antigas ("data is not within the file
+   bounds") não dizem em qual binário rodaram, e este projeto tem dois.
+2. **A parede é a MEMÓRIA do wasm32, não o tamanho do arquivo** — e ela cobra na
+   PRIMEIRA GERAÇÃO, não na carga. Baixar `n_ctx` de 1536 para 512 não salvou,
+   então não é o KV: são os pesos, contra os 4 GiB de espaço de endereçamento
+   linear do wasm32.
+
+É a mesma armadilha que o `llmEngine.ts` documentou na era do WebLLM: *"o modelo
+'carrega' mas morre na 1ª resposta"*. Voltou por outro caminho.
+
+**O que isso muda:** o limite útil fica entre **2,02 GB (roda)** e **4,30 GB
+(aborta)**, e estreitar esse intervalo é barato. Não é mais verdade que "não há
+espaço para modelo maior de tipo nenhum".
+
+E o wllama do CDN tem suporte a GGUF **partido** (`parseShardNumber`,
+`sortFileByShard`, `firstShardPath`, padrão `-00001-of-00005.gguf`). Como a
+parede agora é endereçamento e não arquivo, partir **não** deve ajudar — mas o
+mecanismo existe e nunca foi testado.
+
+## O MoE É 3× MAIS RÁPIDO NA LEITURA — o número que faltava
+
+A medição antiga do MoE só olhou a fala. Como a leitura é 90% da espera, ela
+media o lado errado. Refeito com o mesmo script, mesma caixa, mesma persona,
+mesmas três perguntas, greedy, `max_tokens: 56`:
+
+| | SmolLM3-3B (denso) | granite-3.1-3b-a800m (MoE) | |
+|---|---|---|---|
+| arquivo | 1,92 GB | 2,02 GB | |
+| ativos por token | 3B | **800M** | |
+| **leitura** | 4,42 tok/s | **13,72 tok/s** | **3,1×** |
+| **fala** | 3,77 tok/s | **10,63 tok/s** | **2,8×** |
+| **turno mediano** | 12,0 s | **6,6 s** | **1,8×** |
+
+**O MoE acelera o gargalo certo.** A teoria de banda de memória do dono do jogo
+vale para o prefill também, e ninguém tinha medido isso.
+
+### E a qualidade cobra, exatamente onde o cânone dói
+
+As três respostas do granite, cruas:
+
+```
+"Oi, Nilo, não tenho um nome, sou apenas um observador da situação."
+   → TROCA DE IDENTIDADE: ele acha que o JOGADOR é o Nilo.
+"Falo, um hotel, certo? Cada coisa tem sua hora. Mas não sou o juiz desse jogo.
+ (Nilo fala, com a voz cautelosa e humor seco, encarando a qu"
+   → rubrica de teatro, e vazando a descrição da persona
+"Como sei, você é o único que pode fazer isso. Mas lembre-se, não lhe atende"
+   → português torto, aspas em tudo
+```
+
+3 de 3 com defeito, e um deles é o que `HARD_CONTRADICTIONS` existe para pegar.
+
+### A conta de "vale a pena como rascunhador?" — e ela diz NÃO, hoje
+
+Com o protocolo de revisão movido para o prefixo estável (~25 tokens novos):
+
+```
+granite rascunha (30 tok) .... ~3 s
+Smol revisa e aprova ......... ~6 s
+                               ─────
+aprovado ..................... ~9 s   contra 12 s do Smol direto
+reprovado .................... ~21 s  (9 + a fala inteira do Smol)
+```
+
+Com 3 defeitos em 3, a taxa de aprovação observada é baixa demais: a **0,33 de
+aprovação a esperança é ~17 s**, pior que os 12 s do caminho direto. O
+rascunhador MoE só passa a pagar acima de ~70% de aprovação.
+
+### A leitura que eu tiro disto, e ela inverte o plano do LoRA
+
+O Smol **atua bem e é lento**. O granite **é rápido e atua mal**. LoRA conserta
+atuação, não velocidade. Então o LoRA vale muito mais no granite do que no Smol
+— e se ele consertar identidade, rubrica e português, o granite vira o TITULAR
+a 1,8× do turno atual, sem pipeline nenhum e sem os 4,67× do revisor.
+
+Isso é uma hipótese com número dos dois lados, não uma preferência. O que falta
+para testá-la é o dataset — e as primeiras 50 falas têm que ser do dono do jogo,
+porque é a voz dele que a persona sempre tentou descrever.
