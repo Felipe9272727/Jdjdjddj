@@ -1554,3 +1554,66 @@ determinístico para a classe grande de erros (`está a <verbo>` → `está
 <gerúndio>`, `tu/estás` → `você/está`, mais um pequeno dicionário de termos do
 jogo: guest→hóspede, elevador/ascensor). Não conserta tudo, mas conserta o que
 se ouve. E custa microssegundos, do lado certo da conta.
+
+## O PIPELINE COM O BERGAMOT: 0,30× e 0,42× — a velocidade fecha
+
+Trocado o m2m100 pelo Bergamot, a arquitetura do dono do jogo passa a ganhar, e
+com folga. Duas execuções, mesmas três perguntas:
+
+```
+                          execução 1      execução 2
+A) SmolLM3 direto ......... 13,0 s          8,1 s
+B) pipeline completo .......  3,9 s          3,4 s
+      rascunho (a400m EN) ..  3,2 s
+      juiz (mDeBERTa) ......  0,5 s
+      revisor (SmolLM3) ....  0,0 s
+      Bergamot + pt-BR .....  0,13 s
+B / A ......................  0,30×          0,42×
+```
+
+**2,4× a 3,3× mais rápido**, e o tradutor saiu de 66% do custo para 3%. O
+gargalo agora é o rascunhador, que é a peça barata por construção.
+
+O passe pt-PT → pt-BR funciona e custa microssegundos: `antigo técnico` →
+`ex-técnico`, `está a responder` → `está respondendo`, `convidado` → `hóspede`,
+`controlo` → `controle`. São regras, não modelo.
+
+### MAS A QUALIDADE NÃO FECHOU, e é aí que o desenho ainda para
+
+Em seis falas geradas pelo pipeline, o juiz marcou **zero**, e passaram:
+
+```
+"Este hotel, Nilo, parece ser um loop interminável, uma montanha-russa de
+ tempo e espaço, um testemunho da marcha implacável da amb…"
+   → chama o JOGADOR de Nilo (vocativo, não "you are Nilo") e o tom é o
+     oposto do personagem
+"Mas eu aconselho você a permanecer calmo e esperar o elevador chegar"
+   → modo assistente
+"Mas não é interminável, ainda não."
+   → afirma saber se o hotel acaba, e o cânone diz que ele NÃO sabe
+```
+
+O juiz por NLI pega contradição **factual** e é cego para **registro** e para
+**dêixis**. As travas de regex pegam o que eu já vi e nada além — eu escrevi
+`\byou are nilo\b` e o modelo escreveu `"Este hotel, Nilo,"`.
+
+### O ESTADO DA ARQUITETURA, honesto
+
+```
+velocidade ...... RESOLVIDA (0,30–0,42×), e o Bergamot era a peça que faltava
+qualidade ....... NÃO, e o buraco tem nome: o juiz não vê registro
+```
+
+O que isso manda fazer, em ordem:
+
+1. **A lista de travas tem de sair de dados, não do meu chute.** Cada defeito
+   desta bancada é uma linha: vocativo (`,\s*Nilo[,.]`), conselho
+   (`aconselho|é melhor você`), asserção sobre o que ele não sabe. Colher 50
+   rascunhos reais e escrever as regras contra eles é trabalho de uma tarde e
+   é o que separa 0/6 de alguma coisa.
+2. **O LoRA continua sendo o conserto na origem** — um rascunhador que não sai
+   do personagem não precisa de juiz que veja registro.
+
+E o desenho dele está validado no eixo que ele defendeu desde o começo: rascunho
+barato + correção pontual É mais rápido que o 3B escrever tudo. O que faltava
+não era a ideia, era o tradutor certo.
