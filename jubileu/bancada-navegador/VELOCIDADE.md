@@ -1204,3 +1204,70 @@ de novo.
 | **granite-3.1-1b-a400m** | **400M** | **822 MB** | **f16** | **15,28** | **10,99** | **6,1 s** |
 
 O a400m continua na frente, e por margem larga.
+
+## RASCUNHAR EM INGLÊS E TRADUZIR: medido, e o inglês PIORA o personagem
+
+Ideia do dono do jogo: o granite escreve português torto, então escrever em
+inglês e traduzir com um NMT pequeno (a tecnologia do Google Tradutor, que é
+encoder-decoder e custa ~50 ms, não tokens de LLM). A objeção que eu tinha dado
+antes — "traduzir é reescrever, você perde o OK de 1 token" — **estava errada**,
+e o erro foi meu: eu assumi que o LLM traduziria. Um NMT separado não gasta
+token nenhum do modelo.
+
+Então o teste certo não é o custo, é: **quais defeitos são de LÍNGUA (o tradutor
+conserta) e quais são de COMPREENSÃO (não conserta)?**
+
+`IDIOMA=en` no `fala-modelo.mjs` roda a MESMA persona, traduzida literalmente,
+com as mesmas três perguntas. granite-3.1-1b-a400m Q4, KV f16, duas rodadas.
+
+### Português — 6 falas
+
+```
+"Olá, sou Nilo Azevedo, ficamos aqui porque estamos nos vindos para o trabalho."
+"(Seus olhos ficam abertos, observando o elevador, sem fazer nenhuma ação)"
+"Olá, estou apenas um hospede. (…) mas posso me ajudar com suas necessidades
+ de hospedagem."
+```
+defeitos: gramática quebrada (3×), rubrica de teatro (1×), fato inventado (2×),
+modo assistente (1×).
+
+### Inglês — 6 falas
+
+```
+"Nilo: \"Ah, the grand designs of the Archivist. A fascinating mystery, isn't
+ it? I ponder if the mundane existence we inhabit…\""
+"Not even a question, I'm an AI, I don't have feelings (…) I'm here to assist"
+"Nilo: \"Probably not, given my current predicament.\""
+```
+defeitos: rótulo `Nilo: "` vazando (2×), prolixidade florida fora do personagem
+(2×), fato inventado (1×), e — **o pior possível — "I'm an AI (…) I'm here to
+assist"**.
+
+### O VEREDITO, e ele contraria os dois lados
+
+O inglês conserta a gramática, obviamente. E **piora tudo o mais que importa**:
+
+  - `"I'm an AI"` quebra a proibição mais dura da persona ("Nunca fale de IA,
+    código, sistema ou prompt"), e `"I'm here to assist"` é o modo assistente
+    que já derrubou o Phi-4-mini (`a194a745`);
+  - a prosa fica florida e comprida — *"Ah, the grand designs of the Archivist"*
+    — quando o Nilo pede seco e cansado.
+
+**A explicação é que o inglês é onde mora o instruction-tuning do modelo.**
+Falar a língua em que ele foi alinhado ACORDA o assistente. O português quebrado
+estava, por acidente, abafando esse reflexo.
+
+Então o tradutor consertaria o defeito mais visível e deixaria passar os dois
+que decidem se o Nilo é um personagem ou um chatbot. **Não paga**, e os 555–900
+MB de NMT ficam na estante.
+
+### Nota sobre o que É oficial em tradução, para não repesquisar
+
+Não existe conversão ONNX oficial de EN→PT. O `Xenova/*` (autor do
+transformers.js) tem 12 pares de opus-mt e **nenhum é `en-pt`**. O oficial é
+`Helsinki-NLP/opus-mt-tc-big-en-pt` (232M params, CC-BY-4.0), só em PyTorch —
+converter é um comando do `optimum`. As alternativas prontas são multilíngues e
+grandes: `Xenova/nllb-200-distilled-600M` (~894 MB quantizado) e
+`Xenova/m2m100_418M` (~602 MB). O Bergamot da Mozilla (o que o Firefox usa) é
+muito menor mas exige runtime WASM próprio — e eu não consegui verificar o
+tamanho do par en-pt daqui, então não anoto número que não medi.

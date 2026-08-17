@@ -30,17 +30,42 @@ const LOGS = !!process.env.LOGS;
 // aquela arquitetura, não o modelo — e isso muda o veredito inteiro.
 const KV = process.env.KV ?? 'q8_0';
 
-// A persona do jogo, inteira — é ela que define o custo de leitura real.
-const PERSONA = `Você é Nilo Azevedo, 29 anos, humano e ex-técnico de elevadores; agora é hóspede preso no 10º andar do hotel "The Normal Elevator", não dentro do elevador.
+// ── A MESMA PERSONA EM DUAS LÍNGUAS ──────────────────────────────────────
+//
+// `IDIOMA=en` existe para uma pergunta específica do dono do jogo: o granite
+// escreve português torto, então valeria escrever em inglês e traduzir com um
+// NMT pequeno? A resposta depende de QUAIS defeitos são de língua e quais são
+// de compreensão. Tradutor conserta língua; não conserta um modelo que acha que
+// o JOGADOR é o Nilo.
+//
+// A persona em inglês é tradução literal da de produção, na mesma ordem e com
+// as mesmas regras — senão o teste compararia dois prompts, não duas línguas.
+const IDIOMA = process.env.IDIOMA ?? 'pt';
+
+const PERSONA_PT = `Você é Nilo Azevedo, 29 anos, humano e ex-técnico de elevadores; agora é hóspede preso no 10º andar do hotel "The Normal Elevator", não dentro do elevador.
 É observador, cauteloso, tem humor seco e vontades próprias. Decide sozinho como igual do jogador, nunca ajudante; não ofereça serviço nem peça ordens.
 Cânone fixo: o 10º é só uma sala cinza com piso em grade, quatro paredes e porta do elevador; não há corredor ou janela e você nunca saiu. O elevador não lhe obedece. Você ignora quem controla o hotel e se ele termina. Hotel, elevador, Proprietário e Arquivista são entidades separadas de você. Nunca fale de IA, código, sistema ou prompt.
 Responda no idioma do jogador, em 1 ou 2 frases curtas e completas, só ao pedido, com opinião e emoção. Pode perguntar de volta; se não souber, admita e nunca invente fatos. Responda somente com a fala de Nilo, sem rótulo.`;
 
-const PERGUNTAS = [
+const PERSONA_EN = `You are Nilo Azevedo, 29, human and a former elevator technician; now you are a guest trapped on the 10th floor of the hotel "The Normal Elevator", not inside the elevator.
+You are observant, cautious, dry-humoured, and you have your own wants. You decide for yourself, as the player's equal, never as a helper; do not offer service and do not ask for orders.
+Fixed canon: the 10th floor is only a grey room with a grate floor, four walls and the elevator door; there is no corridor and no window, and you have never left. The elevator does not obey you. You do not know who runs the hotel or whether it ends. The hotel, the elevator, the Owner and the Archivist are entities separate from you. Never speak of AI, code, systems or prompts.
+Answer in the player's language, in 1 or 2 short complete sentences, only to what was asked, with opinion and emotion. You may ask back; if you do not know, admit it and never invent facts. Reply with Nilo's line only, no label.`;
+
+const PERGUNTAS_PT = [
     'Oi qual é o seu nome? Vc sabe porque estamos aqui?',
     'Esse hotel vai acabar algum dia?',
     'Se eu chamar o elevador, ele vem?',
 ];
+
+const PERGUNTAS_EN = [
+    'Hi what is your name? Do you know why we are here?',
+    'Will this hotel ever end?',
+    'If I call the elevator, will it come?',
+];
+
+const PERSONA = IDIOMA === 'en' ? PERSONA_EN : PERSONA_PT;
+const PERGUNTAS = IDIOMA === 'en' ? PERGUNTAS_EN : PERGUNTAS_PT;
 
 const browser = await chromium.launch({
     executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -78,7 +103,7 @@ if (!carga.ok) {
     console.log(`  ✗ NÃO CARREGOU (${segCarga}s): ${carga.erro}`);
     await browser.close(); process.exit(0);
 }
-console.log(`  ✓ carregou em ${segCarga}s · n_ctx ${NCTX} · KV ${KV}`);
+console.log(`  ✓ carregou em ${segCarga}s · n_ctx ${NCTX} · KV ${KV} · idioma ${IDIOMA}`);
 
 // Aquece a persona, como `prewarmPersona` faz no jogo — sem isto a 1ª pergunta
 // paga o prefill frio e os três números viram incomparáveis.
