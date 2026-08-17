@@ -311,19 +311,31 @@ describe('a lista de rascunhadores', () => {
     // no dia em que este arquivo foi escrito — não de memória. Estes testes
     // prendem as duas conclusões que MUDAM o código, para que uma reescrita
     // distraída não devolva o rascunho a um modelo que não fala a língua.
-    it('o padrão é o único modelo DE PÉ durante a conversa', () => {
-        // ── O PADRÃO ANTERIOR ERA UM NO-OP, E LEVOU UMA PERGUNTA PARA CAIR ──
+    it('o padrão é NENHUM — o pipeline foi medido e ele perde', () => {
+        // ── DUAS CONCLUSÕES, NESTA ORDEM, E AS DUAS CUSTARAM MEDIÇÃO ────────
         //
-        // Eu tinha posto o motor (Qwen3-0.6B) como padrão chamando-o de "o que
-        // já está no aparelho". É o contrário: `Floor10NpcChat` chama
-        // `unloadFloor10MotorBrain()` ao ABRIR o chat, seguindo a tabela que o
-        // dono do jogo escreveu — no chat ficam de pé a fala e a memória, a
-        // vontade e o motor esperam. Durante uma conversa `motorJaCarregado()`
-        // é `false` SEMPRE, e o caminho do rascunho nunca teria rodado.
+        // 1. O padrão original (motor, Qwen3-0.6B) era um NO-OP: o chat chama
+        //    `unloadFloor10MotorBrain()` ao abrir, então `motorJaCarregado()` é
+        //    `false` durante toda conversa e o rascunho nunca teria rodado. Os
+        //    testes de fiação não pegavam: eles provam que a guarda EXISTE, não
+        //    que ela alguma vez deixa passar.
         //
-        // Os testes de fiação não pegavam isso: eles provam que a guarda
-        // existe, não que ela alguma vez deixa passar.
-        expect(RASCUNHADOR_PADRAO).toBe('reflexo');
+        // 2. Trocado para o reflexo, o caminho passou a rodar de verdade — e a
+        //    medição no aparelho do dono do jogo disse que ele custa caro no
+        //    lado errado. `leitura 158s · fala 17s`: a leitura é 90% da espera,
+        //    e o pipeline TROCA ESCRITA POR LEITURA.
+        //
+        //        direto ....  5,2 s de leitura ·  23 tokens
+        //        pipeline .. 24,0 s de leitura · 108 tokens   4,67×
+        //
+        //    Ler os ~193 tokens do bloco de revisão para evitar gerar ~26 é sete
+        //    vezes na direção errada, e no celular dele ler e escrever custam
+        //    quase o mesmo por token (2,0 contra 1,8 tok/s).
+        //
+        // Este teste trava o PADRÃO, não o caminho: `?rascunhador=reflexo`
+        // continua ligando, e o desenho volta a valer quando existir um
+        // rascunhador acima de ~70% de aprovação (ver LORA-NILO-COLAB.ipynb).
+        expect(RASCUNHADOR_PADRAO).toBe('nenhum');
     });
 
     it('e o padrão tem de ser alguém que a tabela de RAM deixa de pé no chat', () => {

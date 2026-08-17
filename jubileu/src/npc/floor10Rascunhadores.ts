@@ -158,14 +158,44 @@ export const RASCUNHADORES: readonly RascunhadorEntry[] = Object.freeze([
 ] as const);
 
 /**
- * O padrão é o reflexo, e por eliminação, não por preferência: é o único que
- * está de pé na hora em que o rascunho precisa existir.
+ * O PADRÃO VOLTA A SER "NENHUM" — e é medição, não desistência.
  *
- * O padrão anterior era o motor, e ele nunca teria rodado — o chat desliga o
- * motor ao abrir. Um padrão que não dispara é pior que nenhum: ele faz o
- * caminho parecer ativo enquanto o jogo segue exatamente como antes.
+ * A etiqueta do aparelho do dono do jogo, na primeira partida com o rascunho
+ * ligado: `leitura 158s · fala 17s`. A leitura é 90% da espera, e o desenho
+ * de rascunho+revisão ATACA O LADO ERRADO: ele troca escrita por leitura.
+ *
+ * Medido nesta bancada, mesma persona aquecida, mesma pergunta, SmolLM3 real:
+ *
+ *     direto (o 3B escreve) ......  5,2 s de leitura ·  23 tokens
+ *     pipeline (revisa + escreve)  24,0 s de leitura · 108 tokens   4,67×
+ *
+ * E não existe caminho feliz: mesmo quando o revisor APROVA e a segunda
+ * chamada nem acontece, o turno custa 27,6 s contra 20,3 s do direto.
+ *
+ * A ARITMÉTICA QUE FECHA, e ela é curta: no caminho direto a pergunta traz
+ * ~23 tokens novos e a resposta tem ~26. O `blocoDeRevisao` tem ~193 tokens,
+ * dos quais ~168 são protocolo FIXO. Ler 193 para evitar gerar 26 é sete vezes
+ * na direção errada — e no celular dele ler e escrever custam quase o mesmo por
+ * token (2,0 contra 1,8 tok/s), então não há como a troca compensar.
+ *
+ * MOVER O PROTOCOLO PARA O PREFIXO CACHEADO resolveria os 168, e eu cheguei a
+ * desenhar isso. Não fiz, e o motivo também é número: mesmo com a revisão
+ * custando só os ~25 tokens do rascunho, ela paga ~9 s quando aprova e ~21 s
+ * quando reprova, contra 12 s do caminho direto. Com a taxa de aprovação
+ * observada (o 135M foi sinalizado 37/37 por alucinação; o granite MoE errou
+ * 3/3, incluindo TROCA DE IDENTIDADE) a esperança fica em ~17 s. O desenho só
+ * passa a pagar acima de ~70% de aprovação, e nenhum rascunhador disponível
+ * hoje chega perto disso.
+ *
+ * O CAMINHO PARA RELIGAR, escrito para quem voltar aqui: o desenho é bom e a
+ * conta dele é clara — falta um rascunhador que acerte. É por isso que o
+ * `bancada-navegador/LORA-NILO-COLAB.ipynb` existe. Com um rascunhador afinado
+ * passando de 70%, troque esta linha por `'reflexo'` (ou pelo id novo), mova o
+ * protocolo para o prefixo estável, e meça de novo — nesta ordem.
+ *
+ * `?rascunhador=reflexo|motor|vontade` continua ligando na hora, sem recompilar.
  */
-export const RASCUNHADOR_PADRAO: RascunhadorId = 'reflexo';
+export const RASCUNHADOR_PADRAO: RascunhadorId = 'nenhum';
 
 function lerDaUrl(busca: string): RascunhadorId | null {
     const pedido = new URLSearchParams(busca).get('rascunhador');
