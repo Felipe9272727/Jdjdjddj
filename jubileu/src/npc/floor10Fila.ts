@@ -16,6 +16,7 @@
 // Este módulo é PURO: sem three, sem react, sem wllama. Ele só recebe o
 // progresso de quem está baixando e responde o estado da fila inteira.
 import { DOWNLOAD_ZERO, type DownloadSample } from './floor10Download';
+import { composicaoDaFila, type PapelNaFila } from './floor10Composicao';
 
 /** Um cérebro na fila, na ordem em que o jogo precisa dele. */
 export type FilaItem = {
@@ -190,58 +191,108 @@ export class Floor10Fila {
 /** A fila viva do Andar 10. */
 export const floor10Fila = new Floor10Fila();
 
-/** Ids fixos: quem reporta progresso usa estes, e a ordem é a da fila. */
+/**
+ * Ids fixos: quem reporta progresso usa estes.
+ *
+ * Eles são os MESMOS valores de `PapelNaFila` em `floor10Composicao`, e isso é
+ * de propósito — a composição decide quem entra e em que ordem, e estes nomes
+ * são como cada carregador se anuncia. Uma tabela de tradução entre os dois
+ * seria só mais um lugar para desalinhar.
+ */
 export const FILA_FALA = 'fala';
 export const FILA_VONTADE = 'vontade';
 export const FILA_MOTOR = 'motor';
 export const FILA_MEMORIA = 'memoria';
 /** O reflexo (ONNX). Último da fila: é o único que o jogo não precisa para falar. */
 export const FILA_REFLEXO = 'reflexo';
+/** As três do pipeline inglês-primeiro. Só entram com `?pipeline`. */
+export const FILA_RASCUNHO = 'rascunho';
+export const FILA_JUIZ = 'juiz';
+export const FILA_TRADUTOR = 'tradutor';
 
 /**
- * A ORDEM É A DO JOGO, não a do meu gosto.
+ * O NOME QUE O JOGADOR LÊ — que não é o nome do modelo.
+ *
+ * Ele não sabe o que é mpnet nem Bergamot, e não deveria precisar saber. O que
+ * ele quer da barra é "o que ainda falta para eu conversar". Por isso o
+ * rascunhador aparece como "conversa", igual ao SmolLM3 a que ele substitui: do
+ * lado de fora, é a mesma coisa chegando.
+ */
+const ROTULO: Record<PapelNaFila, string> = {
+    fala: 'conversa',
+    rascunho: 'conversa',
+    tradutor: 'tradução',
+    juiz: 'revisão',
+    memoria: 'memória e movimento',
+    reflexo: 'reflexo',
+    vontade: 'vontade',
+    motor: 'movimento (reserva)',
+};
+
+/**
+ * ── O QUE ESTA LISTA ERA, E O DEFEITO QUE ELA ESCONDIA ────────────────────
+ *
+ * Até aqui a ordem da BARRA era escrita à mão neste arquivo, e a ordem do
+ * DOWNLOAD à mão em `passosDoAndar10`. Elas discordavam:
+ *
+ *     barra ....... fala · vontade · memória · reflexo · motor
+ *     download .... fala · memória · reflexo · vontade · motor
+ *
+ * `posicao` é calculada sobre a lista da barra, então enquanto a memória
+ * baixava o jogador lia "2 de 5 · vontade" — o nome errado, na hora errada. É
+ * exatamente a classe de defeito que o comentário abaixo diz ter consertado, um
+ * andar acima: duas listas com a mesma verdade e nenhuma obrigação de
+ * concordarem.
+ *
+ * Agora existe UMA lista (`composicaoDaFila`) e as duas leem dela.
+ *
+ * ── A ORDEM É A DO JOGO, não a do meu gosto ──────────────────────────────
  *
  * A fala vem primeiro porque é ela que o jogador está esperando quando abre a
  * conversa. A vontade só começa quando a fala solta a CPU. O motor é o último
  * porque só serve depois que existe um pensamento para traduzir.
  *
- * Os tamanhos entram por parâmetro para este módulo não importar nenhum dos
- * motores — importar fecharia um ciclo, já que os três reportam progresso aqui.
+ * ── A MEMÓRIA SUBIU, E O MOTOR DESCEU ────────────────────────────────────
+ *
+ * A ordem ficou de cabeça para baixo quando o embeddinggemma passou a SER o
+ * motor (ver floor10Rotulos / floor10MotorVetor):
+ *
+ *     fala 1,9 GB · vontade 1,25 GB · MOTOR 639 MB · memória 333 MB
+ *
+ * Ou seja: o modelo de que o Nilo precisa para ANDAR era o quarto da fila,
+ * atrás de 639 MB que ele quase não usa mais. No celular isso são 4,1 GB antes
+ * de o corpo dar o primeiro passo. O comentário antigo dizia "a memória é a
+ * última de propósito, sem ela o Nilo continua falando" — continua verdade para
+ * a FALA, e virou mentira para o MOVIMENTO no dia em que ela virou o motor.
+ *
+ * ── E O MOTOR QWEN3 É O ÚLTIMO PORQUE VIROU RESERVA ──────────────────────
+ *
+ * Ele só entra em ação no aparelho onde o embedding não subiu — e reserva que
+ * desce ANTES do titular é reserva que se justifica sozinha: enquanto ela
+ * ocupava o terceiro lugar, a janela em que ela era "necessária" era criada
+ * pela própria posição dela na fila.
  */
 export function definirFilaDoAndar10(bytes: {
     fala: number; vontade: number; motor: number; memoria: number; reflexo?: number;
-}): void {
-    floor10Fila.definir([
-        { id: FILA_FALA, label: 'conversa', bytes: bytes.fala },
-        { id: FILA_VONTADE, label: 'vontade', bytes: bytes.vontade },
-        // ── A MEMÓRIA SUBIU, E O MOTOR DESCEU ────────────────────────────
-        //
-        // A ordem aqui virou de cabeça para baixo quando o embeddinggemma
-        // passou a SER o motor (ver floor10Rotulos / floor10MotorVetor). Ela
-        // ficou assim, e eu não percebi na hora de trocar:
-        //
-        //     fala 1,9 GB · vontade 1,25 GB · MOTOR 639 MB · memória 333 MB
-        //
-        // Ou seja: o modelo de que o Nilo precisa para ANDAR era o quarto da
-        // fila, atrás de 639 MB que ele quase não usa mais. No celular isso são
-        // 4,1 GB antes de o corpo dar o primeiro passo.
-        //
-        // O comentário antigo dizia "a memória é a última de propósito, sem ela
-        // o Nilo continua falando". Continua verdade para a FALA — e virou
-        // mentira para o MOVIMENTO no dia em que ela virou o motor.
-        { id: FILA_MEMORIA, label: 'memória e movimento', bytes: bytes.memoria },
-        // O REFLEXO É O ÚLTIMO, e por um motivo: ele é o único cujo trabalho o
-        // jogo já sabe fazer sem ele (esperar). Descer antes de qualquer um dos
-        // outros seria atrasar algo de que a conversa depende para adiantar um
-        // conforto. Opcional também na fila: sem tamanho, nem aparece.
-        ...(bytes.reflexo ? [{ id: FILA_REFLEXO, label: 'reflexo', bytes: bytes.reflexo }] : []),
-        // O MOTOR QWEN3 É O ÚLTIMO PORQUE VIROU RESERVA. Ele só entra em ação
-        // no aparelho onde o embedding não subiu — e reserva que desce ANTES do
-        // titular é reserva que se justifica sozinha: enquanto ela ocupava o
-        // terceiro lugar, a janela em que ela era "necessária" era criada pela
-        // própria posição dela na fila.
-        { id: FILA_MOTOR, label: 'movimento (reserva)', bytes: bytes.motor },
-    ]);
+    rascunho?: number; juiz?: number; tradutor?: number;
+}, busca?: string): void {
+    const tamanho: Record<PapelNaFila, number | undefined> = {
+        fala: bytes.fala,
+        vontade: bytes.vontade,
+        motor: bytes.motor,
+        memoria: bytes.memoria,
+        reflexo: bytes.reflexo,
+        rascunho: bytes.rascunho,
+        juiz: bytes.juiz,
+        tradutor: bytes.tradutor,
+    };
+    // Quem não trouxe tamanho não entra. É como o reflexo sempre funcionou
+    // ("sem tamanho, nem aparece"), e vale agora para as três do pipeline.
+    floor10Fila.definir(
+        composicaoDaFila(busca)
+            .filter((p) => (tamanho[p.papel] ?? 0) > 0)
+            .map((p) => ({ id: p.papel, label: ROTULO[p.papel], bytes: tamanho[p.papel] as number })),
+    );
 }
 
 /**

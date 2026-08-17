@@ -38,16 +38,29 @@ import {
     precarregarMemoria,
     unloadFloor10Memoria,
 } from './npc/floor10Memoria';
+import {
+    FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
+} from './npc/floor10Rascunhador';
+import { FLOOR10_TOM_MODEL, prepararJuizDeTom } from './npc/floor10VetorDeTom';
+import { FLOOR10_TRADUTOR_BYTES, prepararTradutor } from './npc/floor10Tradutor';
 
-// A fila nasce sabendo os quatro tamanhos. Fica aqui porque este é o arquivo que
-// já importa os três catálogos — e assim `floor10Fila` não precisa importar
-// motor nenhum, o que fecharia um ciclo.
+// A fila nasce sabendo os tamanhos. Fica aqui porque este é o arquivo que já
+// importa todos os catálogos — e assim `floor10Fila` não precisa importar motor
+// nenhum, o que fecharia um ciclo.
+//
+// QUEM ENTRA de fato é `composicaoDaFila` que decide, a partir de `?pipeline`;
+// os tamanhos das três peças novas vão sempre, e são ignorados quando a flag
+// está desligada. Mandar todos é de propósito: uma peça sem tamanho é uma peça
+// que some da fila em silêncio, e a essa altura ela já é essencial.
 definirFilaDoAndar10({
     fala: SPEECH_BRAIN_BYTES,
     vontade: SMALL_BRAIN_MODEL.bytes,
     motor: FLOOR10_MOTOR_MODEL.bytes,
     memoria: FLOOR10_MEMORIA_MODEL.bytes,
     reflexo: FLOOR10_REFLEXO_MODEL.bytes,
+    rascunho: FLOOR10_RASCUNHADOR_MODEL.bytes,
+    juiz: FLOOR10_TOM_MODEL.bytes,
+    tradutor: FLOOR10_TRADUTOR_BYTES,
 });
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
@@ -217,6 +230,27 @@ const Floor10NpcChat: React.FC = () => {
             // a conversa depende — se falhar, a única coisa que se perde é o
             // preenchimento do primeiro segundo.
             reflexo: () => precarregarReflexo(),
+            // ── AS TRÊS DO PIPELINE (`?pipeline`) ────────────────────────
+            //
+            // Só entram na fila quando a flag está ligada — quem decide é
+            // `composicaoDaFila`, e sem ela estes três carregadores nunca são
+            // chamados.
+            //
+            // O RASCUNHO É O ÚNICO QUE TAMBÉM SOBE. Todos os outros aqui só
+            // baixam, e o runtime sobe na hora do uso; com ele isso não
+            // funcionaria, porque `pipelineDisponivel()` exige o modelo DE PÉ e
+            // o atalho tem a regra de nunca carregar nada durante a fala. Sob
+            // `?pipeline` ele ocupa o lugar do SmolLM3, e o SmolLM3 sempre
+            // baixou-e-subiu no mesmo passo (`initLLM`). Mesmo papel, mesmo
+            // tratamento.
+            rascunho: async () => {
+                if (!await baixarRascunhador()) return false;
+                return await subirRascunhador() !== null;
+            },
+            // O tradutor são 51 MB e os DOIS pares (`pt → en` para a pergunta,
+            // `en → pt` para a resposta); `prepararTradutor` já aquece os dois.
+            tradutor: () => prepararTradutor(),
+            juiz: () => prepararJuizDeTom(),
             // Só com `?poupamemoria`. Ver floor10Precarga: cada modelo custa
             // 2,00× o próprio arquivo em RAM, medido, e os cinco residentes dão
             // 9,59 GB — que o Chrome do Android não tolera. Baixar é o trabalho

@@ -20,6 +20,8 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
+import { falarPeloPipelineReal, pipelineDisponivel } from './floor10PipelineReal';
+import { traduzirPerguntaParaIngles } from './floor10Tradutor';
 import {
     cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
     parametrosEspeculativos, prepararEspeculativa, runtimeEspecLigado, type Floor10Runtime,
@@ -766,6 +768,87 @@ async function falarRevisando(
     });
     if (problema) return null;
     return costurado;
+}
+
+/**
+ * ── O ATALHO DO PIPELINE (`?pipeline`) — E ELE RODA ANTES DO 3B ABRIR ─────
+ *
+ * Este é o ponto que eu tinha errado na primeira fiação: o pipeline estava
+ * ligado LÁ EMBAIXO, depois de `loadConversationBrain()`. Só que sob
+ * `?pipeline` o SmolLM3 nem está na fila — então a primeira mensagem do jogador
+ * baixaria 1,92 GB para depois não usar nada disso. O atalho tem de acontecer
+ * antes de o 3B ser aberto, ou ele não é atalho nenhum.
+ *
+ * Medido de ponta a ponta: 0,30× e 0,42× quando o juiz não marca nada, e 1,01×
+ * no pior caso (3 de 3 marcados). Ele paga a partir de 17% de aprovação do
+ * juiz — e é por isso que `pipeline:fim` anota `marcadas`.
+ *
+ * ── A PERGUNTA VAI E VOLTA ────────────────────────────────────────────────
+ *
+ * O jogador pergunta em português; o rascunhador, o juiz e o revisor trabalham
+ * em inglês. São ~80 ms de Bergamot em cada ponta. Mandar a pergunta em
+ * português para uma persona inglesa pode até funcionar, mas nunca foi medido,
+ * e este projeto já pagou caro por trocar medição por suposição.
+ *
+ * ── O QUE ELE NÃO TEM PERMISSÃO DE FAZER ──────────────────────────────────
+ *
+ * Falar pior que o 3B. A fala do pipeline passa exatamente pelas MESMAS
+ * checagens da fala do 3B (`parseFloor10WillLanguageDecision` +
+ * `floor10ReplyIssue`). Reprovou, este atalho devolve `false` sem escrever nada
+ * na tela e o caminho de sempre assume — inclusive abrindo o 3B, se for o caso.
+ * Perde-se o tempo do rascunho, que é o preço honesto de tentar.
+ *
+ * Uma coisa ele NÃO faz: comando de corpo. `[[WILL:…]]` é marcador que só o 3B
+ * conhece, e um Nilo que concorda por escrito e não sai do lugar é o pior
+ * defeito possível aqui — parece perfeito na tela. `sendToNpc` já barra pedido
+ * corporal antes de chegar neste ponto; se um passar mesmo assim, o comando é
+ * emitido pela mesma porta de sempre.
+ *
+ * ── E O QUE ELE PERDE, dito sem enfeite ───────────────────────────────────
+ *
+ * MEMÓRIA e HISTÓRICO. O rascunhador recebe a persona e a pergunta, e mais
+ * nada: `lembrarPorSignificado` e as duas últimas trocas ficam de fora. Não é
+ * esquecimento meu — é o teto de 1024 de contexto e os 56 tokens de rascunho
+ * que compram os 3,2 s. Enfiar 500 tokens de memória ali devolveria a leitura
+ * ao tamanho de onde ela saiu, que é justamente o que se está tentando cortar.
+ *
+ * O efeito no jogo: sob `?pipeline` o Nilo responde bem a perguntas soltas e
+ * pior a "e aquilo que você disse antes?". É a troca que esta flag propõe, e
+ * ela precisa ser sentida no aparelho antes de virar padrão — ainda não foi.
+ * Enquanto isso, o compressor (`dobrarConversa`) também não roda aqui: sem
+ * histórico entrando, não há o que dobrar.
+ */
+async function falarPeloAtalho(
+    text: string,
+    history: readonly NpcMsg[],
+): Promise<boolean> {
+    const perguntaEmIngles = await traduzirPerguntaParaIngles(text);
+    if (!perguntaEmIngles) return false;
+    const saida = await falarPeloPipelineReal(perguntaEmIngles);
+    if (!saida?.fala) return false;
+
+    const decisao = parseFloor10WillLanguageDecision(text, saida.fala);
+    const finalText = decisao.visibleReply;
+    const problema = floor10ReplyIssue(finalText, text, npc.perception);
+    anotar('pipeline:veredito', {
+        marcadas: saida.marcadas,
+        remendadas: saida.remendadas,
+        reprovado: problema ? 1 : 0,
+    });
+    // Reprovou nas checagens do andar: some sem rastro. O 3B assume.
+    if (problema) return false;
+
+    if (decisao.command) npcIssueWillCommand(decisao.command, finalText);
+    npcSet({
+        history: [...history, { role: 'assistant', content: arrumarFala(finalText) }],
+        streaming: '',
+        etapa: '',
+        phase: 'ready',
+        speaking: false,
+        error: '',
+        reflexo: '',
+    });
+    return true;
 }
 
 /**
@@ -2022,6 +2105,33 @@ export async function sendToNpc(
         error: '',
         modelLabel: `${FLOOR10_MODEL.label} · ${speechRuntimeLabel(loadedGpuLayers, loadedThreads)}`,
     });
+
+    // ── O ATALHO, ANTES DE ABRIR 1,92 GB ──────────────────────────────────
+    //
+    // Aqui, e não lá embaixo junto do revisor: sob `?pipeline` o SmolLM3 não
+    // está na fila, e `loadConversationBrain()` na linha seguinte o BAIXARIA
+    // inteiro na primeira mensagem. Ver `falarPeloAtalho` para o desenho e para
+    // o que ele não tem permissão de fazer.
+    //
+    // `pipelineDisponivel()` é falso por padrão e é falso enquanto o
+    // rascunhador não estiver de pé — este caminho nunca baixa nada na hora da
+    // fala, e quem não ligou a flag não paga nem o `if`.
+    if (pipelineDisponivel()) {
+        npcSet({ phase: 'thinking', speaking: true, etapa: 'rascunhando…' });
+        let atalhou = false;
+        try {
+            atalhou = await falarPeloAtalho(text, history);
+        } catch (erro) {
+            anotar('pipeline:atalho-falhou', {
+                motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+            });
+        }
+        if (atalhou) return;
+        // Não deu. Volta ao estado em que o caminho de sempre espera encontrar
+        // a tela — inclusive a etapa, que o pipeline usa para o relógio da
+        // bolha e que ficaria congelada em "traduzindo…" durante os 13 s do 3B.
+        npcSet({ phase: 'loading', etapa: '', loadText: 'liberando a CPU para a conversa…' });
+    }
 
     let engine: WllamaInstance;
     // Só CARREGA. Aquecer agora seria disputar o modelo com a própria fala.

@@ -1898,3 +1898,87 @@ O juiz completo, em camadas, do mais barato para o mais caro:
 2. tom (mpnet) ... o que soa errado                            10 ms
 3. NLI ........... contradição factual com o cânone           106 ms
 ```
+
+---
+
+## O pipeline LIGADO no jogo — e os três buracos que só apareceram aqui
+
+A bancada media as peças uma a uma e o orquestrador rodava com peças de mentira.
+Ligar de verdade em `sendToNpc` achou três coisas que nenhuma medição isolada
+poderia ter achado, porque as três são sobre a COSTURA, não sobre as peças.
+
+### 1. O jogador pergunta em português
+
+Óbvio depois de escrito. Na bancada eu sempre dei a pergunta **já em inglês** —
+era o jeito de medir o rascunhador — e o buraco nunca apareceu. No jogo, o
+rascunhador, o juiz e o revisor trabalham em inglês e a pergunta chega em
+português.
+
+Custo do conserto: o par `pt → en` do Bergamot, **25.596.942 bytes**, conferido
+arquivo por arquivo no espelho do HF. O tradutor passou de 26 MB para 51 MB e
+`prepararTradutor` aquece os dois lados na carga, não na primeira fala.
+
+A economia do `?pipeline` caiu de 957.491.639 para **931.894.697 bytes**. Ainda
+é quase um giga.
+
+### 2. O atalho estava DEPOIS de `loadConversationBrain()`
+
+Este é o pior dos três, e era meu. A primeira fiação ligou o pipeline no ponto
+onde o revisor já vivia — que fica depois de o 3B ser aberto. Sob `?pipeline` o
+SmolLM3 **não está na fila**, então a primeira mensagem do jogador baixaria
+1,92 GB para em seguida não usar nada disso.
+
+Um atalho que baixa 1,92 GB antes de atalhar não é um atalho. Ele subiu para
+antes da abertura do 3B, e há um teste que compara as duas posições no arquivo.
+
+### 3. Duas listas com a mesma verdade, e elas discordavam
+
+Achado de raspão, e é um defeito que está no jogo **hoje**, sem pipeline nenhum:
+
+```
+ordem da BARRA (floor10Fila) ......  fala · vontade · memória · reflexo · motor
+ordem do DOWNLOAD (passosDoAndar10)  fala · memória · reflexo · vontade · motor
+```
+
+`posicao` é calculada sobre a lista da barra. Ou seja: enquanto a **memória**
+baixava, o jogador lia **"2 de 5 · vontade"** — nome errado, na hora errada.
+
+As duas listas agora leem `composicaoDaFila`, que é o único lugar onde a ordem
+existe. Mesmo remédio que o peso do tradutor recebeu: parar de copiar o número,
+passar a importá-lo.
+
+### A regra do "quem espera a geração" virou uma linha
+
+Antes era caso a caso ("a fala não adia, os outros adiam"). Agora é
+`p.essencial ? undefined : falaGerandoAgora` — a mesma regra dita direito. Cai
+sozinha no lugar certo sob `?pipeline`, onde os essenciais são **dois**:
+rascunhador e tradutor. Sem tradutor não existe português, e nem sequer existe
+pergunta.
+
+`conversaLiberada()` seguiu o mesmo caminho: era `etapa !== 'fala'`, e virou
+"nenhuma essencial ainda está baixando". Com a pergunta antiga, a conversa
+abriria assim que o rascunhador descesse — e a primeira pergunta chegaria a um
+pipeline sem tradutor, ou seja, a nada.
+
+### O que o atalho perde, dito sem enfeite
+
+**Memória e histórico.** O rascunhador recebe a persona e a pergunta, e nada
+mais: `lembrarPorSignificado` e as duas últimas trocas ficam de fora. Não é
+esquecimento — é o teto de 1024 de contexto e os 56 tokens de rascunho que
+compram os 3,2 s. Enfiar 500 tokens de memória ali devolveria a leitura ao
+tamanho de onde ela saiu.
+
+No jogo isso significa: sob `?pipeline` o Nilo responde bem a pergunta solta e
+pior a *"e aquilo que você disse antes?"*. **É a troca que a flag propõe, e ela
+precisa ser sentida no aparelho antes de virar padrão.** Continua desligada.
+
+### O que continua valendo do lado bom
+
+A fala do atalho passa pelas **mesmas** checagens da fala do 3B
+(`parseFloor10WillLanguageDecision` + `floor10ReplyIssue`). Reprovou, o atalho
+devolve `false` sem escrever nada na tela e o caminho de sempre assume —
+inclusive abrindo o 3B, se for o caso. Perde-se o tempo do rascunho, que é o
+preço honesto de tentar.
+
+E ele nunca baixa nada na hora da fala: `pipelineDisponivel()` exige o
+rascunhador **de pé**, não "no aparelho".

@@ -425,6 +425,16 @@ describe('floor10Canon — as duas saídas da geração passam pelo mesmo conser
         // teto de token nenhum, então não têm o que aparar. Qualquer fonte
         // nova cai fora desta lista e derruba o teste, que é o ponto: obriga
         // quem acrescentar uma saída a decidir de qual lado ela está.
+        //
+        // ── E VIRARAM TRÊS ───────────────────────────────────────────────
+        //
+        // A terceira é o atalho do `?pipeline`: o granite rascunha em inglês, o
+        // Bergamot traduz de volta, e o texto que chega ali tem o mesmo teto de
+        // tokens que qualquer outro — logo o mesmo risco de terminar em palavra
+        // pela metade. Ela entra por esta porta como as outras duas, e o laço
+        // abaixo cobra dela o mesmo `arrumarFala`. O número subir aqui é o
+        // teste funcionando: quem acrescenta uma saída tem de decidir de qual
+        // lado ela está.
         const NAO_SAO_DO_MODELO = ['willAnswer', 'sensoryAnswer'];
         const fonte = readFileSync(new URL('../npc/wllamaEngine.ts', import.meta.url), 'utf8');
         const gravacoes = fonte.match(/role: 'assistant'[^}]*?content: ([^,}]+)/g) ?? [];
@@ -432,7 +442,7 @@ describe('floor10Canon — as duas saídas da geração passam pelo mesmo conser
         const doModelo = gravacoes.filter(
             (linha) => !NAO_SAO_DO_MODELO.some((pronta) => linha.includes(pronta)),
         );
-        expect(doModelo.length, 'as duas saídas da geração sumiram do arquivo').toBe(2);
+        expect(doModelo.length, 'as saídas da geração sumiram do arquivo').toBe(3);
         for (const linha of doModelo) {
             expect(linha, `grava no histórico sem passar por arrumarFala: ${linha}`)
                 .toContain('arrumarFala(');

@@ -42,10 +42,23 @@ const RUNTIME = (globalThis as { __bergamotCdn?: string }).__bergamotCdn
     ?? `https://cdn.jsdelivr.net/npm/@browsermt/bergamot-translator@${BERGAMOT_V}`;
 
 const MODELOS = (globalThis as { __bergamotModelos?: string }).__bergamotModelos
-    ?? 'https://huggingface.co/mukowaty/firefox-translations/resolve/main/en-pt';
+    ?? 'https://huggingface.co/mukowaty/firefox-translations/resolve/main';
 
-/** Os três arquivos do par, e o peso deles — para a barra não mentir. */
-export const FLOOR10_TRADUTOR_BYTES = 23_340_019 + 2_117_608 + 408_686;
+/**
+ * ── SÃO DOIS PARES, E O SEGUNDO EU QUASE ESQUECI ─────────────────────────
+ *
+ * O `en → pt` é óbvio: o rascunho sai em inglês e o jogador lê português. O
+ * `pt → en` só apareceu na hora de ligar no jogo — **o jogador PERGUNTA em
+ * português**, e o rascunhador e o juiz trabalham em inglês. Na bancada eu
+ * sempre dei a pergunta já em inglês, então o buraco não aparecia.
+ *
+ * Traduzir a pergunta é barato (uma frase, ~80 ms) e mantém a cadeia inteira
+ * na língua onde o juiz enxerga. A alternativa — mandar a pergunta em
+ * português com persona em inglês — pode funcionar, mas nunca foi medida, e
+ * este projeto já pagou caro por trocar medição por suposição.
+ */
+export const FLOOR10_TRADUTOR_BYTES = (23_340_019 + 2_117_608 + 408_686)
+    + (22_700_409 + 2_487_847 + 408_686);
 
 /**
  * O registro que o Bergamot espera: chave `<de><para>` de 4 letras, e cada
@@ -54,9 +67,14 @@ export const FLOOR10_TRADUTOR_BYTES = 23_340_019 + 2_117_608 + 408_686;
 export function registroDoTradutor(base: string = MODELOS): string {
     return JSON.stringify({
         enpt: {
-            model: { name: `${base}/model.enpt.intgemm.alphas.bin.gz` },
-            lex: { name: `${base}/lex.50.50.enpt.s2t.bin.gz` },
-            vocab: { name: `${base}/vocab.enpt.spm.gz` },
+            model: { name: `${base}/en-pt/model.enpt.intgemm.alphas.bin.gz` },
+            lex: { name: `${base}/en-pt/lex.50.50.enpt.s2t.bin.gz` },
+            vocab: { name: `${base}/en-pt/vocab.enpt.spm.gz` },
+        },
+        pten: {
+            model: { name: `${base}/pt-en/model.pten.intgemm.alphas.bin.gz` },
+            lex: { name: `${base}/pt-en/lex.50.50.pten.s2t.bin.gz` },
+            vocab: { name: `${base}/pt-en/vocab.pten.spm.gz` },
         },
     });
 }
@@ -91,9 +109,9 @@ export function prepararTradutor(): Promise<Tradutor | null> {
                 pivotLanguage: null,
                 cacheSize: 0,
             });
-            // Uma tradução de aquecimento paga a carga dos 26 MB aqui, e não na
-            // primeira fala do jogador.
+            // Aquece OS DOIS pares aqui, e não na primeira fala do jogador.
             await t.translate({ from: 'en', to: 'pt', text: 'hello' });
+            await t.translate({ from: 'pt', to: 'en', text: 'olá' });
             return t;
         } catch {
             return null;
@@ -155,6 +173,26 @@ export function abrasileirar(texto: string): string {
             : s.replace(re, por);
     }
     return s.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * A PERGUNTA DO JOGADOR, para o inglês.
+ *
+ * Sem passe pt-BR na volta: o destino é o rascunhador, não a tela. Devolve
+ * `null` em falha, e aí o pipeline inteiro desiste — perguntar em português a
+ * um rascunhador cuja persona é inglesa foi exatamente o atalho que eu não
+ * medi, e não vou ligar sem medir.
+ */
+export async function traduzirPerguntaParaIngles(pergunta: string): Promise<string | null> {
+    const t = await prepararTradutor();
+    if (!t) return null;
+    try {
+        const r = await t.translate({ from: 'pt', to: 'en', text: pergunta });
+        const en = (r?.target?.text ?? '').trim();
+        return en || null;
+    } catch {
+        return null;
+    }
 }
 
 /**

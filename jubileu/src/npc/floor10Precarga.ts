@@ -24,11 +24,14 @@
 // dentro do WASM ao terminar. Dois modelos fazendo isso ao mesmo tempo num
 // celular é a receita da travada que já aconteceu aqui.
 import { npc, npcSubscribe } from './npcStore';
-import {
-    floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA, FILA_REFLEXO,
-} from './floor10Fila';
+import { floor10Fila } from './floor10Fila';
+import { composicaoDaFila, pecasEssenciais, type PapelNaFila } from './floor10Composicao';
 
-export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'pronto';
+export type PrecargaEtapa =
+    | 'fala' | 'vontade' | 'motor' | 'memoria' | 'reflexo'
+    // As três do pipeline inglês-primeiro (`?pipeline`).
+    | 'rascunho' | 'juiz' | 'tradutor'
+    | 'pronto';
 
 /**
  * A CONVERSA ESTÁ OCUPANDO O APARELHO?
@@ -192,6 +195,12 @@ function motivoDaTela(etapa: PrecargaEtapa): string {
     if (etapa === 'motor') return npc.motorLoadText || 'não foi possível baixar';
     if (etapa === 'memoria') return npc.memoriaLoadText || 'não foi possível baixar';
     if (etapa === 'reflexo') return npc.reflexoLoadText || 'não foi possível baixar';
+    // O juiz e o tradutor não têm campo próprio na tela, e não vão ganhar um:
+    // nenhum dos dois interrompe a conversa ao falhar. Sem juiz o rascunho passa
+    // direto; sem tradutor o pipeline inteiro desiste e o caminho de sempre
+    // assume. O `rascunho` cai no `loadText` porque é ele quem escreve nele.
+    if (etapa === 'juiz') return 'o juiz de tom não desceu — o rascunho passa direto';
+    if (etapa === 'tradutor') return 'o tradutor não desceu — a conversa segue pelo caminho de sempre';
     return npc.loadText || 'não foi possível baixar';
 }
 
@@ -401,6 +410,21 @@ export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
  *
  * Nada é cancelado: os dois pesados sobem inteiros assim que a conversa fecha,
  * que é quando o aparelho tem o que dar a eles.
+ *
+ * ── E A LISTA DEIXOU DE SER ESCRITA AQUI ─────────────────────────────────
+ *
+ * Ela era literal neste arquivo, e a da BARRA era literal em `floor10Fila`. As
+ * duas discordavam — a barra dizia "vontade" enquanto a memória baixava. Agora
+ * as duas leem `composicaoDaFila`, que é o único lugar onde a ordem existe.
+ *
+ * ── QUEM ESPERA A GERAÇÃO, E QUEM NÃO PODE ESPERAR ───────────────────────
+ *
+ * A regra virou uma linha só: quem é ESSENCIAL não adia, o resto adia. Não é
+ * simplificação — é a mesma regra de antes, dita direito. A fala não adiava
+ * porque é por ela que o jogador espera; sob `?pipeline` quem ocupa esse lugar
+ * é o rascunhador MAIS o tradutor (sem tradução não existe português, e não
+ * existe nem pergunta), e os dois estão marcados `essencial` na composição.
+ * Fazê-los adiar prenderia a conversa esperando a própria conversa.
  */
 export function passosDoAndar10(carregadores: {
     fala: () => Promise<unknown>;
@@ -409,6 +433,10 @@ export function passosDoAndar10(carregadores: {
     memoria: () => Promise<unknown>;
     /** Opcional: o reflexo é a única etapa que o jogo não sente falta. */
     reflexo?: () => Promise<unknown>;
+    /** As três do pipeline. Ausentes, a etapa simplesmente não existe. */
+    rascunho?: () => Promise<unknown>;
+    juiz?: () => Promise<unknown>;
+    tradutor?: () => Promise<unknown>;
     /**
      * Como devolver a memória da vontade e do motor depois de baixados. Só a
      * vontade e o motor: a fala e a memória são exatamente os dois que o dono
@@ -417,62 +445,67 @@ export function passosDoAndar10(carregadores: {
      */
     liberarVontade?: () => Promise<unknown>;
     liberarMotor?: () => Promise<unknown>;
-}): Passo[] {
-    return [
-        { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
-        // ── OS DOIS LEVES TAMBÉM ESPERAM, MAS SÓ A GERAÇÃO ───────────────
-        // Eles não tinham `adiarEnquanto` NENHUM: carregavam no instante em que
-        // o chat abria — que é exatamente quando o jogador digita a primeira
-        // mensagem. Resultado no aparelho: SmolLM3 gerando com 4 threads,
-        // memória subindo um llama.cpp com 2, e o reflexo abrindo um runtime
-        // ONNX por cima. Ninguém pausava: a memória nem preemptor tem.
-        {
-            id: FILA_MEMORIA,
-            etapa: 'memoria',
-            carregar: carregadores.memoria,
-            adiarEnquanto: falaGerandoAgora,
-        },
-        ...(carregadores.reflexo
-            ? [{
-                id: FILA_REFLEXO,
-                etapa: 'reflexo' as const,
-                carregar: carregadores.reflexo,
-                adiarEnquanto: falaGerandoAgora,
-            }]
-            : []),
-        {
-            id: FILA_VONTADE,
-            etapa: 'vontade',
-            carregar: carregadores.vontade,
-            // ── E ELA DEIXOU DE ESPERAR O CHAT FECHAR ────────────────────
-            // Esperava porque a etapa SUBIA um llama.cpp no fim do download.
-            // Agora ela só traz os pesos (`baixarVontade`), e download é rede,
-            // não núcleo. O relato era "a vontade só baixa pós a primeira
-            // mensagem ser respondida" — verdade, e desenho meu.
-            // Continua fora do caminho de uma GERAÇÃO, que é quando os núcleos
-            // e a thread principal estão de fato ocupados.
-            adiarEnquanto: falaGerandoAgora,
-            liberar: carregadores.liberarVontade,
-        },
-        {
-            id: FILA_MOTOR,
-            etapa: 'motor',
-            carregar: carregadores.motor,
-            // Como a vontade: a etapa agora só BAIXA, então não espera mais o
-            // chat fechar — só sai da frente de uma geração.
-            adiarEnquanto: falaGerandoAgora,
-            liberar: carregadores.liberarMotor,
-        },
-    ];
+}, busca?: string): Passo[] {
+    const carregar: Record<PapelNaFila, (() => Promise<unknown>) | undefined> = {
+        fala: carregadores.fala,
+        rascunho: carregadores.rascunho,
+        tradutor: carregadores.tradutor,
+        juiz: carregadores.juiz,
+        memoria: carregadores.memoria,
+        reflexo: carregadores.reflexo,
+        vontade: carregadores.vontade,
+        motor: carregadores.motor,
+    };
+    // ── OS LEVES TAMBÉM ESPERAM, MAS SÓ A GERAÇÃO ────────────────────────
+    // A memória e o reflexo não tinham `adiarEnquanto` NENHUM: carregavam no
+    // instante em que o chat abria — que é exatamente quando o jogador digita a
+    // primeira mensagem. Resultado no aparelho: SmolLM3 gerando com 4 threads,
+    // memória subindo um llama.cpp com 2, e o reflexo abrindo um runtime ONNX
+    // por cima. Ninguém pausava: a memória nem preemptor tem.
+    //
+    // A vontade e o motor DEIXARAM de esperar o chat fechar: as etapas hoje só
+    // trazem os pesos (`baixarVontade`, `baixarMotor`), e download é rede, não
+    // núcleo. Continuam fora do caminho de uma GERAÇÃO, que é quando os núcleos
+    // e a thread principal estão de fato ocupados.
+    const liberar: Partial<Record<PapelNaFila, (() => Promise<unknown>) | undefined>> = {
+        vontade: carregadores.liberarVontade,
+        motor: carregadores.liberarMotor,
+    };
+    return composicaoDaFila(busca)
+        .filter((p) => carregar[p.papel])
+        .map((p) => ({
+            id: p.papel,
+            etapa: p.papel as PrecargaEtapa,
+            carregar: carregar[p.papel] as () => Promise<unknown>,
+            adiarEnquanto: p.essencial ? undefined : falaGerandoAgora,
+            liberar: liberar[p.papel],
+        }));
 }
 
 /**
- * A conversa está liberada? Só depende da FALA — quem o jogador espera para
- * dizer "oi" é o SmolLM3. Prender a conversa até os 3,9 GB inteiros descerem
- * seria trocar um problema por outro pior.
+ * A conversa está liberada?
+ *
+ * Só depende das peças ESSENCIAIS — quem o jogador espera para dizer "oi".
+ * Prender a conversa até os 3,9 GB inteiros descerem seria trocar um problema
+ * por outro pior.
+ *
+ * Fora do pipeline a essencial é uma só, o SmolLM3, e esta função faz
+ * exatamente o que sempre fez. Sob `?pipeline` são duas — o rascunhador e o
+ * tradutor — e é por isso que a pergunta deixou de ser `etapa !== 'fala'`: com
+ * a lista antiga a conversa abriria assim que o rascunhador descesse, e a
+ * primeira pergunta do jogador chegaria a um pipeline sem tradutor, ou seja, a
+ * nada.
  */
-export function conversaLiberada(): boolean {
-    return etapa !== 'fala' || npc.phase === 'ready' || npc.phase === 'thinking';
+export function conversaLiberada(busca?: string): boolean {
+    if (npc.phase === 'ready' || npc.phase === 'thinking') return true;
+    // A fila corre na ordem da composição e as essenciais vêm primeiro: se a
+    // etapa atual não é uma delas, todas já passaram.
+    return !pecasEssenciais(busca).some((p) => p.papel === etapa);
+}
+
+/** Só para os testes: força a etapa, para cobrir o caso positivo do gate. */
+export function definirEtapaParaTestes(nova: PrecargaEtapa): void {
+    etapa = nova;
 }
 
 /** Só para os testes. */

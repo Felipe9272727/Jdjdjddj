@@ -227,8 +227,16 @@ describe('a fiação do rascunho dentro do motor', () => {
     // que uma função nova entrou entre as duas o teste passou a ler código que
     // não é o dele e reprovou por um `return ''` alheio. Fronteira que depende
     // de vizinho é fronteira que quebra sozinha.
+    //
+    // E QUEBROU DE NOVO, pelo mesmo motivo e meio consertada: a fronteira exigia
+    // `export`, então a primeira vizinha SEM `export` (`falarPeloAtalho`, o
+    // caminho do `?pipeline`) foi lida como se fosse parte desta função — e o
+    // `return false;` dela reprovou o teste do "todo desvio devolve null".
+    // Agora a fronteira é qualquer declaração de topo, exportada ou não; o que
+    // a define é a coluna zero, que é o que "topo" sempre quis dizer.
     const inicio = motor.indexOf('async function falarRevisando');
-    const proxima = motor.slice(inicio + 1).search(/\nexport (?:async )?(?:function|const) /);
+    const proxima = motor.slice(inicio + 1)
+        .search(/\n(?:export )?(?:async )?(?:function|const) /);
     const funcao = motor.slice(inicio, proxima >= 0 ? inicio + 1 + proxima : undefined);
 
     it('existe e é chamada antes da geração normal', () => {

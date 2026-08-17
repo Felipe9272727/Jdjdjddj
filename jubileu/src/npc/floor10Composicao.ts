@@ -14,9 +14,9 @@
 //     memória .... embedgemma    334 MB       memória .... embedgemma     334 MB
 //     reflexo .... SmolLM2-135M  139 MB       reflexo .... SmolLM2-135M   139 MB
 //                                             juiz ....... mpnet          110 MB
-//                                             tradutor ... Bergamot        26 MB
+//                                             tradutor ... Bergamot en↔pt  51 MB
 //     ────────────────────────────────         ──────────────────────────────────
-//     total ...................  4,28 GB      total ..................   3,32 GB
+//     total ...................  4,28 GB      total ..................   3,34 GB
 //
 // **Quase um giga a menos.** O SmolLM3 sai porque no pipeline ele não escreve
 // nada: quem rascunha é o MoE (3,2 s contra 13,4 s) e quem remenda é o LFM2.5
@@ -31,14 +31,18 @@
 //   2. se o rascunhador falhar → o LFM2.5 escreve a fala inteira EM INGLÊS e o
 //      Bergamot traduz. Custa 30,8 s (o cache de prefixo dele não reaproveita),
 //      mas fala;
-//   3. se o TRADUTOR falhar → não há português. Este é o buraco, e por isso o
-//      tradutor entra em `conversaLiberada`: 26 MB que precisam estar em pé
-//      antes de a conversa abrir, como a fala sempre precisou.
+//   3. se o TRADUTOR falhar → não há português, e nem sequer há pergunta: são
+//      DOIS pares (`pt → en` para a pergunta do jogador, `en → pt` para a
+//      resposta), porque a cadeia inteira do meio trabalha em inglês. Este é o
+//      buraco, e por isso o tradutor entra em `conversaLiberada`: 51 MB que
+//      precisam estar em pé antes de a conversa abrir, como a fala sempre
+//      precisou.
 //
 // Um NPC que emudece porque a otimização falhou é pior que um NPC lento — é
 // regra deste andar desde o começo, e a lista acima é ela aplicada.
 
 import { pipelineLigado } from './floor10Pipeline';
+import { FLOOR10_TRADUTOR_BYTES } from './floor10Tradutor';
 
 export type PapelNaFila =
     | 'fala' | 'rascunho' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'juiz' | 'tradutor';
@@ -74,8 +78,16 @@ export const PECA_REFLEXO: PecaDaFila = Object.freeze({
 export const PECA_JUIZ: PecaDaFila = Object.freeze({
     papel: 'juiz', label: 'juiz de tom (all-mpnet-base-v2)', bytes: 110_100_000, essencial: false,
 });
+/**
+ * O peso vem IMPORTADO do próprio tradutor, e não copiado.
+ *
+ * Ele já mudou uma vez sem avisar: o par `pt → en` entrou depois — o jogador
+ * pergunta em português e o rascunhador só lê inglês — e dobrou o número. Uma
+ * cópia aqui teria continuado prometendo 26 MB na barra enquanto a rede baixava
+ * 51, e a barra é a única coisa que o jogador tem para saber quanto falta.
+ */
 export const PECA_TRADUTOR: PecaDaFila = Object.freeze({
-    papel: 'tradutor', label: 'Bergamot en-pt', bytes: 25_866_313, essencial: true,
+    papel: 'tradutor', label: 'Bergamot en↔pt', bytes: FLOOR10_TRADUTOR_BYTES, essencial: true,
 });
 
 /**

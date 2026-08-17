@@ -3,6 +3,7 @@ import {
     composicaoDaFila, bytesDaFila, pecasEssenciais, smolNaFila,
     smolDisponivelParaBancada, PECA_RASCUNHO, PECA_TRADUTOR,
 } from '../npc/floor10Composicao';
+import { FLOOR10_TRADUTOR_BYTES } from '../npc/floor10Tradutor';
 
 /**
  * A COMPOSIÇÃO DA FILA — a decisão de quem o jogo baixa.
@@ -34,11 +35,19 @@ describe('composicaoDaFila', () => {
     });
 
     it('o tradutor vem LOGO DEPOIS do rascunhador, e é essencial', () => {
-        // Sem ele não sai português. É a segunda metade da mesma condição que
-        // solta a conversa — e são só 26 MB.
+        // Sem ele não sai português — e, com os dois pares, sem ele nem entra
+        // pergunta. É a segunda metade da mesma condição que solta a conversa,
+        // e são 51 MB.
         const f = composicaoDaFila('?pipeline');
         expect(f[1]).toBe(PECA_TRADUTOR);
         expect(PECA_TRADUTOR.essencial).toBe(true);
+    });
+
+    it('o peso do tradutor é IMPORTADO dele, não copiado aqui', () => {
+        // Ele já mudou uma vez sem avisar (o par `pt → en` entrou depois e
+        // dobrou o número). Uma cópia teria deixado a barra prometendo 26 MB
+        // enquanto a rede baixava 51.
+        expect(PECA_TRADUTOR.bytes).toBe(FLOOR10_TRADUTOR_BYTES);
     });
 
     it('o juiz NÃO é essencial', () => {
@@ -59,16 +68,18 @@ describe('bytesDaFila', () => {
         const hoje = bytesDaFila('');
         const comPipeline = bytesDaFila('?pipeline');
         expect(comPipeline).toBeLessThan(hoje);
-        // 4,28 GB → 3,32 GB. O SmolLM3 de 1,92 GB sai; entram rascunhador
-        // (822 MB), juiz (110 MB) e tradutor (26 MB).
+        // 4,28 GB → 3,34 GB. O SmolLM3 de 1,92 GB sai; entram rascunhador
+        // (822 MB), juiz (110 MB) e tradutor (51 MB, os dois pares).
         expect(hoje - comPipeline).toBeGreaterThan(900_000_000);
     });
 
     it('e os totais batem com o que a tela vai prometer', () => {
         expect(bytesDaFila('')).toBe(4_273_849_255);
-        expect(bytesDaFila('?pipeline')).toBe(3_316_357_616);
-        // A economia, por extenso, para não virar "quase um giga" sem número:
-        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(957_491_639);
+        expect(bytesDaFila('?pipeline')).toBe(3_341_954_558);
+        // A economia, por extenso, para não virar "quase um giga" sem número.
+        // Ela encolheu 25.596.942 quando o par `pt → en` entrou — o preço de
+        // descobrir que o jogador pergunta em português.
+        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(931_894_697);
     });
 });
 
