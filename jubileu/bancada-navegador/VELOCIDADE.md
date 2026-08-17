@@ -865,7 +865,7 @@ Ressalva honesta sobre a etiqueta dele: havia um download de 1,6 MB/s correndo
 junto (a fila baixando a vontade), disputando CPU. Os 158 s são o pior caso, não
 o caso típico.
 
-## O TETO NÃO É 2 GiB POR ARQUIVO — é ~4 GiB de espaço de endereçamento
+## O TETO É 2 GiB — mas o mecanismo que eu documentei estava errado
 
 O dono do jogo desconfiou: *"não sei daonde vc tirou isso de 2 GB máximas, a
 gente tem até 10 gbs, tanto que no total a gente já baixa 4 gbs"*. Ele estava
@@ -961,3 +961,60 @@ a 1,8× do turno atual, sem pipeline nenhum e sem os 4,67× do revisor.
 Isso é uma hipótese com número dos dois lados, não uma preferência. O que falta
 para testá-la é o dataset — e as primeiras 50 falas têm que ser do dono do jogo,
 porque é a voz dele que a persona sempre tentou descrever.
+
+### ESTREITADO: a parede é 2 GiB, e eu me corrigi para o lado errado
+
+Eu vi o arquivo de 4,30 GB CARREGAR e anunciei que o teto não existia. Errado —
+carregar não é rodar. Estreitando com quatro medições, todas no wllama do CDN:
+
+```
+granite-3.1-3b-a800m  2.016.888.384 B  (1,878 GiB)  ✓ carrega E RODA
+SmolLM3 Q5_K_M        2.213.756.736 B  (2,062 GiB)  ✓ carrega · (ABORT) na 1ª geração
+SmolLM3 Q6_K          2.530.860.864 B  (2,357 GiB)  ✓ carrega · (ABORT) na 1ª geração
+granite-4.0-h-tiny Q3 3.285.234.240 B  (3,060 GiB)  ✓ carrega · (ABORT) na 1ª geração
+granite-4.0-h-tiny Q4 4.297.134.912 B  (4,002 GiB)  ✓ carrega · (ABORT) na 1ª geração
+```
+
+**A linha passa entre 1,878 GiB e 2,062 GiB — ou seja, exatamente em 2 GiB
+(2.147.483.648).** O número antigo estava certo; o que estava errado era só o
+mecanismo que eu escrevi. Não é o `ftell()` recusando o arquivo no load: o
+arquivo entra, e a coisa morre na PRIMEIRA GERAÇÃO. Prático:
+
+- não adianta partir o GGUF em pedaços (a parede não é por arquivo);
+- não adianta baixar `n_ctx` (testado 512, morre igual — não é o KV);
+- **o maior modelo utilizável tem 2 GiB, e o SmolLM3-Q4_K_M (1,92 GB) está a
+  89% disso.** Como estava escrito desde o começo.
+
+A lição de método, terceira vez nesta sessão: *carregar* e *rodar* são
+perguntas diferentes, e este runtime responde "sim" para a primeira bem depois
+de já ter decidido "não" para a segunda. O `llmEngine.ts` avisou disso em
+julho ("o modelo 'carrega' mas morre na 1ª resposta") e eu caí de novo.
+
+## DIFUSÃO: o wllama RECONHECE a arquitetura e morre num assert autorregressivo
+
+O LLaDA-8B em IQ1_S tem 2.027.077.152 bytes — **cabe** abaixo dos 2 GiB. Então
+deu para fazer a pergunta de verdade, e a resposta é precisa:
+
+```
+llama_model_loader: - kv 0: general.architecture str = llada
+print_info: arch = llada
+/source/llama.cpp/src/llama-context.cpp:2215:
+    GGML_ASSERT(n_outputs_max <= cparams.n_outputs_max) failed
+```
+
+**A arquitetura de difusão ESTÁ compilada no binário do CDN** — ele lê o GGUF,
+identifica `llada` e monta o modelo. O que quebra é o `n_outputs_max`: um modelo
+de difusão devolve logits para MUITAS posições por passo (todas as mascaradas),
+e o `server_context`, que é o que a wllama embute, dimensiona a saída para UMA
+por passo. É a suposição autorregressiva, no lugar exato onde ela vive.
+
+Ou seja: difusão está a um assert de distância, e o assert é justamente a
+diferença entre os dois paradigmas. Ligar isso exigiria expor o caminho do
+`llama-diffusion-cli` pelo GLUE — ou seja, binário nosso, que é o que o aparelho
+do dono do jogo reprovou em `01a43e07`.
+
+**Registrado como fechado por ora, e por que vale reabrir:** quando existir um
+dLLM pequeno de verdade (todos hoje são 8B ou 26B; o IQ1_S só cabe por ser
+quantização de 1 bit, que não serve para atuar), o ganho seria no lugar certo —
+32 a 64 tokens por passo, relendo os pesos uma vez por passo em vez de uma vez
+por token, que é exatamente o gargalo de banda de memória do celular.
