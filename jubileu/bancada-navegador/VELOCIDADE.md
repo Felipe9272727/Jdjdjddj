@@ -1767,3 +1767,82 @@ empata em vez de perder 42%.
 
 Não testei o granite-3.1-3b-a800m neste posto; ele lê 13,72 tok/s e poderia
 render, mas o LFM2.5 já resolve a 3/3 e custa zero de download.
+
+## O JUIZ: quatro modelos, três enquadramentos, e nenhum generaliza
+
+O dono do jogo cobrou um juiz melhor, com razão — o de hoje passou os três
+defeitos graves no pipeline rodando. Duas coisas pareciam abrir espaço:
+
+  - **o juiz trabalha em inglês** desde que o pipeline virou inglês-primeiro,
+    então dava para trocar o mDeBERTa multilíngue (fraco: 0,29 em PT contra 0,94
+    em EN no mesmo par) por NLI só-inglês, que são melhores;
+  - **o enquadramento estava errado para 2 dos 3 defeitos.** "Contradiz o
+    cânone?" é pergunta de NLI e serve para erro FACTUAL. Vocativo é DÊIXIS e
+    conselho é REGISTRO; para esses, zero-shot com rótulos pergunta certo.
+
+Medido em `bancada-navegador/juiz.mjs`, 4 modelos × 3 enquadramentos:
+
+```
+Xenova/nli-deberta-v3-xsmall ....... marca tudo: 6/6 falsos positivos
+Xenova/nli-deberta-v3-small ........ idem, 6/6
+MoritzLaurer/deberta-v3-base-zs-2.0  sem ONNX quantizado — não carrega
+onnx-community/deberta-small-long-nli  o melhor: 0 falsos positivos
+```
+
+### O placar que importa, e ele tem duas metades
+
+Com o melhor modelo, limiar de contradição 0,5 e de zero-shot 0,98:
+
+```
+                          FRASES VISTAS      CEGAS       total
+travas de regex .........   7/8              0/6         7/14
+contradição c/ cânone ...   3/8              0/6         3/14   106 ms/frase
+zero-shot c/ rótulos ....   1/8              0/6         1/14    83 ms/frase
+falsos positivos ........   0/6              0/3         0/9
+```
+
+**A coluna que decide é a das CEGAS.** As travas de regex foram escritas por mim
+DEPOIS de ver as frases da primeira coluna — medi-las ali é circular, e 7/8 é um
+número comprado. Contra seis defeitos reais de outras execuções, que a lista
+nunca viu, o regex acertou **zero**. E o NLI, também zero.
+
+Os seis que passaram por tudo:
+
+```
+"As Nilo, I'd say, 'Well, that's a peculiar hotel, isn't it?'"
+"Nilo's line only, no label."
+"It's a bit of a bummer, isn't it? The whole 'hotel' thing."
+"We're all just trapped elevator passengers, right?"
+"The end of this hotel's existence is a mystery… As a guest, I can only
+ observe and speculate."
+"Not even a question, I have no feelings or the ability to answer such a
+ rhetorical question."
+```
+
+Nenhum deles contradiz um fato. Todos quebram o **tom**: são falantes, irônicos,
+literários — e o Nilo é seco. Contradição não vê tom. Zero-shot com rótulo
+genérico não vê tom. Regex vê a frase que já viu.
+
+### A conclusão, e ela fecha o círculo desta sessão inteira
+
+**"Soa como o Nilo" não é propriedade que nenhum classificador de prateleira
+tenha sido treinado a reconhecer.** Não há juiz a comprar; há um juiz a treinar
+— e o dado que ele exige é exatamente o mesmo que o LoRA exige: falas do Nilo
+escritas por quem sabe como ele soa.
+
+Os dois caminhos que sobram levam ao mesmo lugar:
+
+  1. **treinar um classificador** nas falas boas contra as ruins → juiz que vê
+     tom;
+  2. **treinar o LoRA** → rascunhador que não produz o defeito, e aí o juiz
+     precisa ver menos.
+
+O segundo é melhor porque ataca a origem, e os dois usam o MESMO dataset.
+
+### O que fica ligado enquanto isso
+
+A lista de regex vale como **catraca**, não como juiz: cada defeito visto uma
+vez nunca mais passa. É barato (microssegundos), tem zero falso positivo nas 9
+frases boas, e cresce sozinha conforme o jogo roda. Só não se pode chamar isso
+de juiz, nem esperar que ele pegue o próximo defeito — porque medido, ele não
+pega.
