@@ -284,12 +284,38 @@ describe('a fiação do rascunho dentro do motor', () => {
         // É onde está o dinheiro: o llama.cpp reaproveita o maior prefixo
         // comum. Mexer no sistema recobraria o prefill de tudo, inclusive do
         // histórico; como última mensagem, só o rascunho é novo.
-        expect(funcao).toContain('extraUser: blocoDeRevisao(');
+        expect(funcao).toContain('extraUser: blocoDoVeredito(');
         expect(motor).toContain("role: 'user' as const, content: revisao.extraUser");
     });
 
-    it('o revisor sai preso na gramática e com teto curto', () => {
-        expect(funcao).toContain('grammar: GRAMATICA_DO_REMENDO');
+    it('SÃO DOIS PASSOS, e é isto que estava escrito e não ligado', () => {
+        // ── O DEFEITO QUE ESTE TESTE EXISTE PARA NÃO DEIXAR VOLTAR ─────────
+        //
+        // O protocolo de UM passo ("diga qual frase está errada E escreva a
+        // substituta") reprovou 3 de 3 com o SmolLM3 real. O conserto — um grau
+        // de liberdade por chamada — foi escrito em `floor10Remendo` e ficou lá
+        // MESES sem ser chamado: `wllamaEngine` continuou usando o caminho
+        // velho. Tudo o que foi medido nesse intervalo mediu a versão quebrada.
+        //
+        // Os testes antigos não pegavam porque afirmavam o caminho velho.
+        expect(funcao).toContain('blocoDoVeredito(');
+        expect(funcao).toContain('blocoDaReescrita(');
+        expect(funcao).toContain('lerFrasesErradas(');
+        // E o de um passo não pode voltar por descuido.
+        expect(funcao).not.toContain('blocoDeRevisao(');
+    });
+
+    it('o passo 1 sai preso na gramática dos dígitos e com teto de 8 tokens', () => {
+        // O passo 1 é o que decide se o atalho vale: "OK" custa UM token, e aí
+        // a fala do rascunho vai inteira para a tela sem o 3B escrever nada.
+        expect(funcao).toContain('grammar: GRAMATICA_DO_VEREDITO');
+        expect(funcao).toContain('maxTokens: VEREDITO_MAX_TOKENS');
+    });
+
+    it('o passo 2 só roda para as frases que o passo 1 apontou', () => {
+        // Se o passo 1 respondeu OK, `erradas` é vazio e o laço não executa —
+        // que é exatamente onde o desenho ganha do 3B escrevendo tudo.
+        expect(funcao).toMatch(/for \(const n of erradas\)/);
         expect(funcao).toContain('maxTokens: REVISAO_MAX_TOKENS');
     });
 

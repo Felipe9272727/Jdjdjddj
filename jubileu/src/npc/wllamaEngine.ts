@@ -35,10 +35,14 @@ import { motorJaCarregado, rascunharComMotor } from './floor10MotorBrain';
 import { rascunhadorEscolhido } from './floor10Rascunhadores';
 import {
     GRAMATICA_DO_REMENDO,
+    GRAMATICA_DO_VEREDITO,
+    VEREDITO_MAX_TOKENS,
+    blocoDoVeredito,
+    blocoDaReescrita,
+    lerFrasesErradas,
+    type Remendo,
     aplicarRemendos,
-    blocoDeRevisao,
     enumerarFrases,
-    lerVeredito,
     remendosQueValem,
 } from './floor10Remendo';
 import { DownloadMeter, DOWNLOAD_ZERO, formatBytes } from './floor10Download';
@@ -698,32 +702,66 @@ async function falarRevisando(
     const frases = enumerarFrases(rascunho);
     if (frases.length === 0) return null;
 
+    // ── DOIS PASSOS, UM GRAU DE LIBERDADE POR CHAMADA ─────────────────────
+    //
+    // O protocolo de UM passo ("diga qual frase está errada E escreva a
+    // substituta") reprovou 3 de 3 com o SmolLM3 real: contradisse a si mesmo,
+    // comentou o próprio trabalho e deslocou os índices. O conserto está
+    // documentado em `floor10Remendo` desde então — e ficou lá, escrito e NÃO
+    // LIGADO. Este arquivo continuou chamando o caminho velho, então tudo o que
+    // eu medi depois disso mediu a versão quebrada. O dono do jogo cutucou
+    // exatamente aqui: "pra isso que serve o revisor, pegar só a parte ruim".
+    //
+    // PASSO 1 — quais frases estão erradas? Só dígitos, ou "OK". Preso por
+    // `GRAMATICA_DO_VEREDITO`, teto de 8 tokens. É este passo que decide se o
+    // atalho vale: "OK" custa UM token e a fala do rascunho vai inteira para a
+    // tela, sem o 3B escrever nada.
     npcSet({ etapa: `O ${FLOOR10_MODEL.label} está conferindo o rascunho…` });
     // Temperatura baixa: julgar não é criar. É a mesma escolha do caminho de
     // correção que já existia neste arquivo.
-    const bruto = visibleText(await gerar(
+    const vereditoBruto = visibleText(await gerar(
         systemPrompt,
         { temperature: 0.2, top_p: 0.75, top_k: 20 },
         {
-            extraUser: blocoDeRevisao(text, frases),
-            grammar: GRAMATICA_DO_REMENDO,
-            maxTokens: REVISAO_MAX_TOKENS,
+            extraUser: blocoDoVeredito(text, frases),
+            grammar: GRAMATICA_DO_VEREDITO,
+            maxTokens: VEREDITO_MAX_TOKENS,
         },
     ));
-    const veredito = lerVeredito(bruto, frases.length);
-    const valem = remendosQueValem(frases, veredito.remendos);
+    const erradas = lerFrasesErradas(vereditoBruto, frases.length);
+
+    // PASSO 2 — só as frases que o passo 1 apontou, UMA POR CHAMADA, com a
+    // frase citada no enunciado e nenhum índice na saída (foi o índice que ele
+    // deslocou na medição). Se o passo 1 disse OK, este laço não roda.
+    const remendos: Remendo[] = [];
+    for (const n of erradas) {
+        const frase = frases.find((f) => f.n === n);
+        if (!frase) continue;
+        npcSet({ etapa: `O ${FLOOR10_MODEL.label} está corrigindo a frase ${n}…` });
+        const novo = visibleText(await gerar(
+            systemPrompt,
+            { temperature: 0.2, top_p: 0.75, top_k: 20 },
+            { extraUser: blocoDaReescrita(text, frase.texto), maxTokens: REVISAO_MAX_TOKENS },
+        ));
+        const limpo = novo.trim();
+        if (limpo) remendos.push({ n, texto: limpo });
+    }
+
+    const valem = remendosQueValem(frases, remendos);
     const costurado = arrumarFala(aplicarRemendos(frases, valem));
     const problema = floor10ReplyIssue(costurado, text, npc.perception);
     anotar('rascunho:revisado', {
         quem,
         ms: Date.now() - comecou,
         frases: frases.length,
+        // Quantas o passo 1 apontou, e quantas sobreviveram ao filtro de
+        // "remendo que não muda nada". Se `apontadas` for alto sempre, o
+        // rascunhador não serve; se `valem` for muito menor que `apontadas`, o
+        // enunciado está fazendo o modelo corrigir por obrigação.
+        apontadas: erradas.length,
         remendos: valem.length,
-        // Quantos remendos o revisor pediu e foram descartados por não mudarem
-        // nada. Se este número for alto, o enunciado está fazendo o modelo
-        // "corrigir" por obrigação — e isso é caro sem consertar coisa alguma.
-        inuteis: veredito.remendos.length - valem.length,
-        aprovado: veredito.aprovado ? 1 : 0,
+        inuteis: remendos.length - valem.length,
+        aprovado: erradas.length === 0 ? 1 : 0,
         reprovado: problema ? 1 : 0,
     });
     if (problema) return null;
