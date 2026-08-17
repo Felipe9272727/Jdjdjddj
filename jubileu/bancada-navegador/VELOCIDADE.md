@@ -1145,3 +1145,62 @@ A qualidade do a400m tem os mesmos defeitos do irmão maior: *"Oi, eu não tenho
 um nome"* (troca de identidade) e *"(Sai da sala, olha para o elevador, toca o
 painel e espera)"* (rubrica de teatro). Rápido e errado — de novo. Mas agora o
 candidato existe, pesa 822 MB em vez de 1,92 GB, e é o alvo natural do LoRA.
+
+## O QUE O BINÁRIO SABE CARREGAR — a lista, lida do próprio wasm
+
+Antes de caçar modelo novo, vale saber o que o runtime aceita. Lido direto do
+`wllama-cdn/wasm/wllama.wasm` que está em produção:
+
+```
+granite · granitemoe · granitehybrid · qwen3 · qwen3moe · qwen2moe · olmoe
+lfm2 · lfm2moe · phimoe · bailingmoe · dots1 · hunyuan-moe · glm4moe
+deepseek2 · smallthinker · smollm3 · gemma3 · gemma3n · jamba · mamba2
+nemotron · exaone · plamo2 · llada · dream
+```
+
+**Isto é o teto de verdade da escolha de modelo**, e ele é mais apertado que o
+teto de 2 GiB: uma arquitetura fora desta lista não carrega em tamanho nenhum.
+Foi o que derrubou o `Qwen3.8-1.0B-A0.6B` (lançado 12/ago/2026, 1B total e 600M
+ativos, o menor MoE novo que achei): a arch dele é `qwen3_5_moe_text`, que não
+está aqui. E o binário só muda se o nosso build voltar — o mesmo que o aparelho
+do dono do jogo reprovou em `01a43e07`.
+
+`llada` e `dream` na lista são as duas arquiteturas de DIFUSÃO — carregadas, e
+mortas no assert autorregressivo do `server_context` (ver seção acima).
+
+## SmallThinker-4BA0.6B: 600M ativos, cabe, e não ganha
+
+Achado ao varrer os MoE recentes: `smallthinker` está na lista de arquiteturas,
+e o Q3_K_M tem 2.046.602.368 bytes — **1,906 GiB, abaixo da parede**. 4B de
+capacidade total com só 600M ativos por token, que é o desenho certo.
+
+```
+SmallThinker-4BA0.6B Q3_K_M · KV f16
+  leitura 6,87 tok/s · fala 4,62 tok/s · turno mediano 12,0 s
+```
+
+Contra o SmolLM3 (4,42 / 3,77 / 12,0 s): 1,6× na leitura, 1,2× na fala, e
+**exatamente o mesmo turno**. O ganho por token existe e some no total, porque
+ele escreve mais tokens para dizer a mesma coisa.
+
+E a qualidade não sustenta nem o posto de rascunhador:
+
+```
+"**A:** O meu nome? Não sei. O que é?  \n**Pode perguntar de volta:**"
+   → markdown na fala, e vazando a instrução do prompt
+"Não souber."                        → português quebrado
+```
+
+Fica registrado como medido e reprovado, para ninguém gastar 2 GB de download
+de novo.
+
+### O placar final dos MoE que CABEM e RODAM
+
+| modelo | ativo | arquivo | KV | leitura | fala | turno |
+|---|---|---|---|---|---|---|
+| SmolLM3-3B (denso, titular) | 3B | 1,92 GB | q8_0 | 4,42 | 3,77 | 12,0 s |
+| SmallThinker-4BA0.6B Q3 | 600M | 2,05 GB | f16 | 6,87 | 4,62 | 12,0 s |
+| granite-3.1-3b-a800m | 800M | 2,02 GB | q8_0 | 13,72 | 10,63 | 6,6 s |
+| **granite-3.1-1b-a400m** | **400M** | **822 MB** | **f16** | **15,28** | **10,99** | **6,1 s** |
+
+O a400m continua na frente, e por margem larga.
