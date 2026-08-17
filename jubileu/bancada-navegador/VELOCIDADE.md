@@ -2150,3 +2150,77 @@ tlg → sabe          ("tá ligado" → "is on")
 "quantas vzs vc tentou sair?" How many vs vzs did you try…  → How many times have you tried to leave?
 "mds, o que foi esse barulho?" mds, what was that noise?    → Oh, my God, what was that noise?
 ```
+
+---
+
+## A sala do pipeline (`?pipeline`) — o que faltava para testar
+
+O dono do jogo digitou `?pipeline`, esperou uma aba separada como todas as
+outras (`?rascunho`, `?campo`, `?mente`, `?bancada`, `?prisao`) e não veio nada.
+Ele estava certo: toda peça experimental deste projeto ganhou uma sala, e o
+pipeline era a única com **quatro modelos e nenhuma**.
+
+Sem ela, "testar o pipeline" era abrir o jogo e sentir se a resposta veio mais
+rápido — o que não distingue as três coisas que podem estar acontecendo:
+
+```
+1. o pipeline rodou e ganhou
+2. o pipeline rodou, o juiz marcou tudo, e ele PERDEU
+3. o pipeline nem ligou e o 3B respondeu como sempre
+```
+
+As três se parecem na tela do jogo. Na sala cada etapa aparece com o tempo:
+
+```
+desabreviar → Bergamot pt→en → granite a400m → juiz de tom
+            → LFM2.5 (só nas marcadas) → Bergamot en→pt
+```
+
+### Duas URLs, e a diferença importa
+
+```
+?pipeline        abre a SALA (medir etapa por etapa)
+?pipeline=jogo   liga o pipeline DENTRO do jogo de verdade
+```
+
+A sala chama `falarPeloPipelineReal` — **o mesmo** que o jogo chama, não uma
+reimplementação. Há teste travando isso: se ela importar `PECAS_REAIS` ou
+`rascunharEmIngles` direto, ela está remontando o pipeline e medindo outro
+programa. Este projeto já pagou por bancada que roda código diferente do jogo.
+
+`?pipeline=jogo` existe porque a metade que a sala **não** testa — a perda de
+memória e histórico — só aparece numa conversa de verdade.
+
+### Nada baixa ao abrir a aba
+
+São 983 MB somando rascunhador, tradutor e juiz (mais 1,25 GB do revisor, que é
+o mesmo arquivo da vontade). Cada peça tem botão e diz o próprio peso. Há teste
+verificando que nenhum `baixarRascunhador()` / `prepararTradutor()` /
+`prepararJuizDeTom()` roda no escopo de módulo.
+
+### O relógio da bolha aparece aqui também
+
+A sala assina o `npcStore` e lê o campo `etapa` — o MESMO que a bolha de espera
+do jogo lê, e o mesmo que `PECAS_REAIS` escreve. Então o botão mostra
+"rascunhando…", "conferindo o rascunho…", "traduzindo…" ao vivo. Se esse campo
+quebrar, quebra nos dois lugares ao mesmo tempo, o que é o ponto.
+
+### Duas peças não sabem dizer se estão de pé
+
+`prepararTradutor` e `prepararJuizDeTom` memoizam a promessa lá dentro e nunca
+expuseram predicado. A sala lembra por elas, e conta `null` como fracasso — as
+duas devolvem `null` em falha em vez de lançar, que é a regra deste andar.
+Sem isso o botão diria "carregar" para sempre depois de já ter carregado, que é
+a tela mentindo sobre o próprio estado.
+
+### A medição que quase me enganou de novo
+
+A primeira sonda de fumaça usou `waitUntil: 'networkidle'` e reportou a página
+**vazia** — sem `<h1>`, sem botões. Parecia defeito da sala. Não era: o Google
+Fonts não resolve neste sandbox, `networkidle` nunca assentou direito, e a sonda
+leu o DOM antes de o `lazy` montar. Com espera explícita a página está inteira
+(6.123 caracteres, os 12 botões, os quatro pesos).
+
+**Instrumento sujo, terceira vez nesta sessão.** As outras duas foram o RSS que
+dizia "0% de RAM devolvida" e o "carregou" que na verdade era "morre na primeira
+geração".

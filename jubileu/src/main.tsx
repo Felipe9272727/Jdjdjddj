@@ -78,6 +78,13 @@ const Floor10Campo = lazy(() => import('./Floor10Campo.tsx'));
 // é invisível — o jogador vê a espera e depois a fala —, e sem ver as etapas
 // não dá para saber se o atalho valeu ou se o 3B reescreveu tudo assim mesmo.
 const Floor10Rascunho = lazy(() => import('./Floor10Rascunho.tsx'));
+// `?pipeline` abre a sala do pipeline inglês-primeiro: a pergunta em português
+// descendo por desabreviar -> Bergamot -> granite a400m -> juiz de tom ->
+// revisor -> Bergamot, com o tempo de cada etapa. Ela existe porque o dono do
+// jogo digitou `?pipeline` esperando uma aba como as outras e não veio nada —
+// e ele estava certo: sem ver as etapas, "o pipeline rodou e ganhou", "o juiz
+// marcou tudo e ele perdeu" e "ele nem ligou" são indistinguíveis na tela.
+const Floor10PipelineSala = lazy(() => import('./Floor10PipelineSala.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
@@ -90,13 +97,25 @@ const isMente = search.includes('mente');
 const isPrisao = search.includes('prisao');
 const isCampo = search.includes('campo');
 const isRascunho = search.includes('rascunho');
+// ── DUAS URLs PARA O PIPELINE, E A DIFERENÇA IMPORTA ─────────────────────
+//
+//     ?pipeline        abre a SALA (medir etapa por etapa)
+//     ?pipeline=jogo   liga o pipeline DENTRO do jogo de verdade
+//
+// `pipelineLigado()` continua verdadeiro nos dois — a sala chama exatamente o
+// mesmo `falarPeloPipelineReal` que o jogo chama, e uma bancada que roda outro
+// código mede outro programa.
+const isPipelineNoJogo = /[?&]pipeline=jogo\b/i.test(search);
+const isPipelineSala = /[?&]pipeline\b/i.test(search) && !isPipelineNoJogo;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isRascunho ? (
+    {isPipelineSala ? (
+      <Suspense fallback={null}><Floor10PipelineSala /></Suspense>
+    ) : isRascunho ? (
       <Suspense fallback={null}><Floor10Rascunho /></Suspense>
     ) : isCampo ? (
       <Suspense fallback={null}><Floor10Campo /></Suspense>

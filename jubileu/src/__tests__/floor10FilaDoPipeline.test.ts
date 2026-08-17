@@ -5,6 +5,7 @@ import {
     passosDoAndar10, conversaLiberada, definirEtapaParaTestes, resetPrecargaForTests,
 } from '../npc/floor10Precarga';
 import { composicaoDaFila } from '../npc/floor10Composicao';
+import { pipelineLigado } from '../npc/floor10Pipeline';
 import { npcSet } from '../npc/npcStore';
 import { DOWNLOAD_ZERO } from '../npc/floor10Download';
 
@@ -204,5 +205,59 @@ describe('o atalho roda ANTES de abrir o 3B', () => {
         const i = motor.indexOf('if (atalhou) return;');
         expect(i).toBeGreaterThan(-1);
         expect(motor.slice(i, i + 400)).toMatch(/etapa: ''/);
+    });
+});
+
+describe('as duas URLs do pipeline', () => {
+    const main = readFileSync(new URL('../main.tsx', import.meta.url), 'utf8');
+
+    it('`?pipeline` abre a SALA e `?pipeline=jogo` vai para o jogo', () => {
+        // O dono do jogo digitou `?pipeline` esperando uma aba como as outras
+        // (`?rascunho`, `?campo`, `?mente`, `?bancada`) e não veio nada. A sala
+        // passou a existir, e as duas URLs precisam continuar distintas: sem a
+        // segunda não há como sentir o pipeline no jogo de verdade, que é onde
+        // a perda de memória e histórico aparece.
+        expect(main).toContain('isPipelineSala');
+        expect(main).toContain('isPipelineNoJogo');
+        const sala = main.indexOf('isPipelineSala ?');
+        const rascunho = main.indexOf('isRascunho ?');
+        expect(sala).toBeGreaterThan(-1);
+        expect(rascunho).toBeGreaterThan(sala);
+    });
+
+    it('e a flag do jogo continua ligada nas DUAS', () => {
+        // `falarPeloPipelineReal` é o mesmo nos dois caminhos: a sala mede o
+        // código que o jogo roda, e não uma reimplementação.
+        expect(pipelineLigado('?pipeline')).toBe(true);
+        expect(pipelineLigado('?pipeline=jogo')).toBe(true);
+        expect(pipelineLigado('')).toBe(false);
+        expect(pipelineLigado('?bancada')).toBe(false);
+    });
+
+    it('a sala chama o MESMO código do jogo, e não uma cópia', () => {
+        const sala = readFileSync(new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8');
+        expect(sala).toContain('falarPeloPipelineReal(emIngles)');
+        // Se ela montasse o pipeline à mão, mediria outro programa. O que
+        // vale é o que ela IMPORTA — citar `PECAS_REAIS` num comentário para
+        // explicar de onde vem a `etapa` é outra coisa, e a primeira versão
+        // deste teste reprovou justamente por isso.
+        const imports = sala.slice(0, sala.indexOf('export default function'))
+            .split('\n').filter((l) => l.trimStart().startsWith('import ') || l.includes("} from './npc/"))
+            .join('\n');
+        for (const naoDeveria of ['PECAS_REAIS', 'rascunharEmIngles', 'frasesForaDoTom', 'remendarFraseEmIngles']) {
+            expect(imports, `a sala importa ${naoDeveria} — está remontando o pipeline`)
+                .not.toContain(naoDeveria);
+        }
+    });
+
+    it('e NADA baixa ao abrir a aba', () => {
+        // São 983 MB somando as peças. Abrir uma aba não pode custar isso —
+        // mesma regra do `?rascunho`, que importa o wllamaEngine só no clique.
+        const sala = readFileSync(new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8');
+        const ateOComponente = sala.slice(0, sala.indexOf('export default function'));
+        for (const proibido of ['baixarRascunhador()', 'prepararTradutor()', 'prepararJuizDeTom()']) {
+            expect(ateOComponente, `${proibido} roda ao importar o módulo`)
+                .not.toContain(proibido);
+        }
     });
 });
