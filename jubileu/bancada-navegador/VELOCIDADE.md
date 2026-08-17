@@ -1018,3 +1018,42 @@ dLLM pequeno de verdade (todos hoje são 8B ou 26B; o IQ1_S só cabe por ser
 quantização de 1 bit, que não serve para atuar), o ganho seria no lugar certo —
 32 a 64 tokens por passo, relendo os pesos uma vez por passo em vez de uma vez
 por token, que é exatamente o gargalo de banda de memória do celular.
+
+## FECHADO: descarregar DEVOLVE ~98% da RAM — o "0%" era instrumento sujo
+
+`90e504ae` (5/ago) mediu `com a fala 4,48 GB → descarregada 4,48 GB → devolveu
+0%` e parou tudo: *"Não altero mais nada em cima disso até saber qual das três
+é."* Ficou onze dias em aberto, e ela decide se as ~18 s de releitura por visita
+ao chat compram alguma coisa.
+
+Refeito com as três hipóteses daquele commit separadas por construção: perfil
+**persistente** (efêmero guarda storage na RAM), espera de **30 s** medindo a
+cada 5 (contra os 4 s de antes), e **prova de que descarregou** — uma geração
+depois do `exit()` tem de FALHAR, e falha (`loadModel() is not yet called`).
+
+```
+                   aba vazia   com a fala   t+5s    devolveu
+execução 1 ......   0,69 GB     2,70 GB    0,74 GB     98%
+execução 2 ......   0,69 GB     2,73 GB    2,73 GB      0%   ← suja
+execução 3 ......   0,69 GB     2,70 GB    0,74 GB     97%
+execução 4 ......   0,69 GB     2,70 GB    0,74 GB     98%
+```
+
+**A execução 2 foi a única lançada sem matar o Chromium anterior**, e o RSS
+somado da árvore ainda contava o processo em encerramento. Limpando antes, três
+execuções concordam em 97–98%, e a devolução acontece em menos de 5 s.
+
+**O veredito, e ele valida o desenho em vez de derrubá-lo:**
+
+  - a hipótese 1 ("o heap do WASM não encolhe") está MORTA — ele encolhe;
+  - `unloadConversationBrain()` funciona: ~2 GB voltam;
+  - o roteamento está sobre premissa VERDADEIRA. Fechar o chat abre espaço de
+    verdade para a vontade, e as ~18 s de reabertura compram ~2 GB;
+  - o `90e504ae` listou "minha sonda chamou algo que não descarregou" como a
+    3ª hipótese e escreveu que "seria a sétima vez hoje que um instrumento meu
+    devolve número sem medir o que eu penso". Era isso mesmo.
+
+Ressalva honesta: medido em Chromium x86 com perfil persistente. O mecanismo
+(o heap do Worker liberado quando o Worker morre) é do navegador, não da
+arquitetura — mas o aparelho dele continua sendo quem dá a palavra final, e
+cinco técnicas já ganharam aqui e perderam lá.
