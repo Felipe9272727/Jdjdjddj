@@ -1617,3 +1617,85 @@ O que isso manda fazer, em ordem:
 E o desenho dele está validado no eixo que ele defendeu desde o começo: rascunho
 barato + correção pontual É mais rápido que o 3B escrever tudo. O que faltava
 não era a ideia, era o tradutor certo.
+
+## O PIOR CASO — 3 de 3 reprovados, e o remendo custa MAIS que reescrever
+
+Pedido do dono do jogo: simular o pior caso, com o juiz feito à mão para tirá-lo
+da equação. Três rascunhos REAIS do granite, cada um com uma frase errada
+apontada, e o SmolLM3 reescrevendo SÓ ELA — o desenho dele, exatamente.
+
+```
+                        lidos + gerados        tempo
+A) escrever a fala toda    23 +  56  =  79     15,2 s
+B) reescrever 1 frase      66 +  21  =  87     17,7 s
+```
+
+**Reescrever uma frase custa 117% do que escrever a resposta inteira.** E o
+motivo está nos tokens, não no modelo: o remendo LÊ 66 para GERAR 21, enquanto
+a fala inteira lê 23 para gerar 56. Como ler e escrever custam quase o mesmo por
+token, 87 > 79. O bloco de correção — a frase citada mais o enunciado — é maior
+do que a resposta que ele substitui.
+
+Somando as etapas medidas:
+
+```
+B) pipeline com 3/3 reprovados
+     rascunhador (a400m EN) ...  3,2 s
+     juiz (mDeBERTa) ..........  0,5 s
+     revisor (1 frase) ........ 17,7 s
+     Bergamot + pt-BR .........  0,11 s
+                                ──────
+                                21,5 s     contra 15,2 s   →  1,42×
+```
+
+### E o remendo ainda FALHOU em 2 de 3
+
+```
+frase quebrando o cânone → devolveu a MESMA frase, palavra por palavra
+vocativo "This hotel, Nilo," → trocou só "endless" por "never-ending";
+                               o "Nilo" sobreviveu e chegou ao jogador
+modo assistente → "Perhaps the elevator is more stubborn than I am."  ✓
+```
+
+Um acerto em três, pagando 117%.
+
+## O NÚMERO QUE DECIDE A ARQUITETURA INTEIRA
+
+Com os dois regimes medidos, o ponto de equilíbrio é aritmética:
+
+```
+juiz APROVA  →  3,8 s   (rascunho + juiz + Bergamot, sem revisor)
+juiz MARCA   → 21,5 s
+direto       → 15,2 s
+
+3,8p + 21,5(1-p) = 15,2   →   p = 0,36
+```
+
+**O pipeline paga se o juiz aprovar 36% ou mais dos rascunhos.** É um alvo bem
+mais baixo que os ~70% que eu tinha estimado antes por cima — e agora é medido.
+
+E há uma ironia perigosa aqui: hoje o juiz aprova quase 100% **porque é cego**.
+Estamos no regime vencedor por incompetência do juiz. Melhorá-lo empurra o
+sistema para o regime caro, a menos que o remendo fique mais barato antes.
+
+### O que isso manda consertar, e não é o juiz
+
+O juiz custa 0,5 s — não é ele. **O caro é o enunciado do remendo: 43 tokens
+novos além da pergunta.** Encolhê-lo é a alavanca:
+
+```
+hoje ....... 66 lidos + 21 gerados = 87   →  1,10× do caminho direto
+enxuto ..... 30 lidos + 21 gerados = 51   →  0,65×, e aí o remendo ganha sempre
+```
+
+Cabe? A frase citada é obrigatória (~15 tokens). Sobram ~15 para o enunciado
+inteiro, e hoje ele gasta 43 em "CORRECTION. One sentence only. / This sentence
+of yours is wrong: / Rewrite ONLY that sentence, corrected, in Nilo's voice. One
+sentence. No explaining." Dá para cortar — mas a medição de `7b8a2889` avisa que
+enunciado curto demais devolve o modelo ao modo divagação, e aí o remendo falha
+como falhou 2 de 3 aqui.
+
+**Fica registrado como a próxima medição, não como conclusão:** existe um
+enunciado de ~15 tokens que o SmolLM3 obedeça? Se existir, o desenho fecha nos
+dois regimes. Se não existir, o pipeline só vale enquanto o juiz for permissivo
+— e isso é uma vitória que não se pode defender.
