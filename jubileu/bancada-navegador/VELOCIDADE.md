@@ -1271,3 +1271,60 @@ grandes: `Xenova/nllb-200-distilled-600M` (~894 MB quantizado) e
 `Xenova/m2m100_418M` (~602 MB). O Bergamot da Mozilla (o que o Firefox usa) é
 muito menor mas exige runtime WASM próprio — e eu não consegui verificar o
 tamanho do par en-pt daqui, então não anoto número que não medi.
+
+### O a800m nas duas línguas — e o inglês ajuda ELE mais que o irmão menor
+
+Mesmo teste, granite-3.1-3b-a800m Q4, KV f16 nos dois lados.
+
+**Português:**
+```
+"Nilo, não sei o nome desse lugar. (…) É como uma máquina, vocês controlam,
+ eu obedeço."
+   → chama o JOGADOR de Nilo, e "eu obedeço" quebra a regra de nunca
+     ser ajudante
+"Se ficar sem sustento, acaba. Mas tudo depende do proprietário."
+   → INVENTA que o Proprietário decide (a persona diz que ele não sabe)
+"Depois de tantos anos nesse elevador…"
+   → quebra o cânone mais explícito: ele está no 10º andar, NÃO dentro
+     do elevador
+```
+
+**Inglês:**
+```
+"I'm Nilo, a former elevator technician turned guest. I can't claim to know
+ why we're here, but I can tell you it's not exactly a w…"
+   → CERTO. Nome, papel, e admite não saber. A melhor fala que qualquer
+     um dos dois MoE produziu em todo este levantamento.
+"Well, it sure seems that way from here, doesn't it? But hey, who knows?"
+   → tom errado (falante, e o Nilo é seco), deslize leve de cânone
+"Nilo's line only, no label."
+   → ECOA A INSTRUÇÃO DO PROMPT, literal. Falha total.
+```
+
+**No a800m o inglês melhora o conteúdo** — em português ele quebrou o cânone
+duas vezes em três falas, em inglês nenhuma. Mas troca isso por um eco literal
+do prompt de sistema, que é irrecuperável: nenhum tradutor conserta, e regex só
+pega os casos que alguém já viu.
+
+### E um efeito colateral que vale por si: o KV q8_0 quase DOBRA o a800m
+
+Os números do a800m com `KV f16` (7,55 leitura / 5,35 fala) contra os medidos
+antes com `KV q8_0` (13,72 / 10,63) — **~1,8×**. Faz sentido num trabalho
+limitado por banda: o cache em 8 bits move metade dos bytes. Ou seja, para os
+modelos que digerem q8_0, ele vale muito mais do que os +15% medidos no SmolLM3.
+
+O a400m é o caso oposto: com q8_0 ele nem carrega.
+
+### O placar de qualidade, as 12 falas dos dois MoE
+
+| defeito | a400m PT | a400m EN | a800m PT | a800m EN |
+|---|---|---|---|---|
+| gramática quebrada | 3 | 0 | 2 | 0 |
+| cânone quebrado / fato inventado | 2 | 1 | 3 | 1 |
+| modo assistente / "sou uma IA" | 1 | **1** | 1 | 0 |
+| rótulo ou prompt vazando | 0 | 2 | 1 | **1** |
+| tom errado (prolixo/falante) | 0 | 2 | 0 | 1 |
+
+**Nenhuma coluna está limpa.** O inglês troca erros de língua por erros de
+obediência ao prompt, e erros de obediência são os que o revisor teria de pegar
+— ou seja, exatamente o custo que a arquitetura de rascunho não pode pagar.
