@@ -1699,3 +1699,71 @@ como falhou 2 de 3 aqui.
 enunciado de ~15 tokens que o SmolLM3 obedeça? Se existir, o desenho fecha nos
 dois regimes. Se não existir, o pipeline só vale enquanto o juiz for permissivo
 — e isso é uma vitória que não se pode defender.
+
+## O REVISOR TROCADO: o LFM2.5-1.2B faz 3/3 pelo preço que o SmolLM3 faz 1/3
+
+O dono do jogo pediu para procurar outro revisor. O posto tinha mudado de
+exigência sem ninguém notar: desde que o pipeline virou inglês-primeiro, o
+revisor não escreve mais a fala em português — ele recebe UMA frase errada e
+devolve UMA frase corrigida, em inglês, com ~20 tokens de saída.
+
+**Isso derruba a objeção que barrava o LFM2.5.** Ele foi desqualificado como
+rascunhador em `9330e234` porque o card declara `en, ar, zh, fr, de, ja, ko, es`
+e não declara português. Em inglês essa objeção não existe — e o jogo **já baixa
+ele** para a vontade, então entra sem custo de download.
+
+Medido com o mesmo script (`bancada-navegador/revisor.mjs`), nos três defeitos
+REAIS que os MoE produziram aqui:
+
+```
+                    escrever tudo   remendar 1 frase   % do escrever   consertou
+SmolLM3-3B Q4          13,4 s           18,4 s            137%           1/3
+LFM2.5-1.2B Q8         30,8 s           11,6 s             38%           3/3
+```
+
+**1,6× mais rápido a remendar e 3× mais certeiro.**
+
+### E os remendos do SmolLM3 explicam por que ele falha
+
+```
+"I'm just a guest trapped in this elevator..." (No correction needed)
+"This hotel, Nilo, seems to be an endless loop... (But it's not wrong.)"
+```
+
+Ele **discorda do enunciado** e devolve a frase intacta com um comentário. Não é
+falta de capacidade — é o 3B achando que a frase está certa, e argumentando. O
+LFM2.5 simplesmente faz o serviço:
+
+```
+"I'm just a guy who's been stuck in this grey room, wondering why we're all here."
+"This hotel really is a loop, isn't it?"
+"I don't know if it will even hear me, but I'd rather not gamble."
+```
+
+Três remendos, três consertos, e os três soam como o Nilo — secos e curtos.
+
+### A ressalva que impede a promoção dele: o cache de prefixo
+
+O LFM2.5 lê **204–212 tokens por chamada** onde o SmolLM3 lê 15–23. O prefixo
+não é reaproveitado, e é por isso que escrever a fala inteira custa 30,8 s nele
+contra 13,4 s no SmolLM3 — o mesmo defeito que eu já tinha medido no
+LFM2.5-2.6B nesta sessão. **Ele serve como REMENDADOR e nunca como a fala**, e a
+distinção precisa ficar escrita, senão a próxima boa medição vira uma promoção
+errada.
+
+### O pipeline recalculado
+
+```
+juiz APROVA  →  3,8 s      (rascunho + juiz + Bergamot)
+juiz MARCA   → 15,4 s      (3,2 + 0,5 + 11,6 + 0,11)
+direto       → 13,4 s
+
+ponto de equilíbrio: 3,8p + 15,4(1-p) = 13,4  →  p = 0,17
+```
+
+**Agora o pipeline paga se o juiz aprovar 17% dos rascunhos** — contra os 36% de
+quando o revisor era o SmolLM3. E no pior caso absoluto (3/3 reprovados) ele
+empata em vez de perder 42%.
+
+Não testei o granite-3.1-3b-a800m neste posto; ele lê 13,72 tok/s e poderia
+render, mas o LFM2.5 já resolve a 3/3 e custa zero de download.
