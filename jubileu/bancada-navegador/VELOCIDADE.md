@@ -1500,3 +1500,57 @@ peças disponíveis. O gargalo não é o revisor (ele nem rodou); é que nenhum
 rascunhador escreve bem o bastante para o juiz ter pouco trabalho, e o preço de
 colocá-lo na língua onde o juiz enxerga é um tradutor que custa mais que o
 rascunho inteiro.
+
+## O BERGAMOT (o tradutor do Firefox): 26× mais rápido e 15× menor
+
+O m2m100 custava 8,1 s por fala — 66% do pipeline — e traduzia mal. O Bergamot
+é o que o Firefox usa de verdade: Marian NMT compilado para WASM, com modelos
+destilados e quantizados em int8, um por par de idiomas.
+
+**Onde estão os arquivos, para não repetir a caça:** o repositório
+`mozilla/firefox-translations-models` está morto e aponta para o Google Cloud
+Storage. O registro fica em
+`https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/db/models.json`
+e o par `en-pt` (arquitetura `base-memory`, 31,2M parâmetros) tem BLEU 50,44 e
+COMET22 0,889 publicados pela Mozilla. O runtime está no npm como
+`@browsermt/bergamot-translator@0.4.9`.
+
+Medido nas frases REAIS que os MoE produziram nesta bancada:
+
+```
+                       tamanho        mediana por frase
+m2m100-418M (ONNX)      602 MB           2.200 ms
+Bergamot en-pt           40 MB              83 ms      26× mais rápido
+```
+
+E a qualidade não é só mais rápida — é outra:
+
+```
+                        m2m100                    Bergamot
+"predicament"    →  "predicação" ✗          "situação intrigante" ✓
+"unanswered"     →  "inesgoável" ✗          "sem resposta" ✓
+"tight squeeze"  →  "estreita esqueça" ✗    "apertado" ✓
+"The door is right there, but it does not obey me."
+                 →                          "A porta está ali, mas não me obedece." ✓
+```
+
+### MAS ele fala português de PORTUGAL
+
+```
+"O elevador não está a responder, mas não estás sozinho aqui."
+"Sou o Nilo Azevedo, um antigo técnico de elevador que se tornou convidado."
+```
+
+`está a responder`, `não estás`, `antigo técnico`, e `guest` → "convidado" (num
+hotel é hóspede). É exatamente o defeito que derrubou o granite-3b-a800m como
+titular em `9fdcc382` — *"escrevendo 'fiável' (português de Portugal)"*.
+
+O registro da Mozilla só tem `en-pt` e `pt-en`; não há variante pt-BR. Para um
+jogo brasileiro isso não é detalhe de estilo: o Nilo passa a soar como outra
+pessoa.
+
+**O que sobra como caminho:** um passe de regras pt-PT → pt-BR é barato e
+determinístico para a classe grande de erros (`está a <verbo>` → `está
+<gerúndio>`, `tu/estás` → `você/está`, mais um pequeno dicionário de termos do
+jogo: guest→hóspede, elevador/ascensor). Não conserta tudo, mas conserta o que
+se ouve. E custa microssegundos, do lado certo da conta.
