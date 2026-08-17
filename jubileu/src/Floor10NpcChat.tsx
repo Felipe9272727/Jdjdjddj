@@ -232,16 +232,33 @@ const Floor10NpcChat: React.FC = () => {
     // mandar a resposta, ela desliga dnv junto do embbending... aí, o player
     // saiu do chat, automaticamente, liga a vontade (llama 1b) e o motor".
     //
-    // Aqui vai a metade que mais pesa. Medido no celular emulado, separando
-    // memória ANÔNIMA de cache de arquivo: cada cérebro de pé custa ~2x o
-    // próprio arquivo, e 89% disso é anônimo — o kernel não tem para onde
-    // mandar, então sob pressão ele mata a ABA. Com os quatro de pé a conta
-    // passa de 9 GB, e o Chrome no Android derruba muito antes disso.
+    // Aqui vai a metade que mais pesa. E os números desta justificativa já
+    // foram corrigidos DUAS vezes, então ficam escritos com a correção:
+    //
+    //   - "cada cérebro custa ~2x o próprio arquivo" e "os quatro passam de
+    //     9 GB" saíram de medições com perfil EFÊMERO, e perfil efêmero guarda
+    //     o storage do site na RAM: o .gguf entrava na conta como se fosse
+    //     custo de runtime. Com perfil persistente é **~1,05x o arquivo**, e os
+    //     quatro dão ~5,7 GB, não 9 (ver VELOCIDADE.md);
+    //   - `90e504ae` mediu que descarregar devolvia **0%** da RAM, o que
+    //     tornaria isto tudo inútil. Era instrumento sujo — processo do
+    //     Chromium anterior ainda somando no RSS. Refeito com prova de descarga
+    //     e perfil persistente: **~98% voltam, em menos de 5 s**.
+    //
+    // Ou seja: descarregar FUNCIONA e compra ~2 GB de verdade. O que ele custa
+    // é a reabertura, ~18 s (`b622ec14`) — e o dono do jogo levantou justamente
+    // isso: "sai do chat = descarrega, entra no chat = carrega, e isso leva um
+    // tempo". Está certo, e o preço é real.
+    //
+    // A saída que a medição aponta NÃO é remover a descarga, é encolher quem
+    // está sendo descarregado: reabrir custa proporcional ao arquivo, então uma
+    // fala de 822 MB (granite a400m, medido a 15,28 tok/s de leitura) pagaria
+    // uma fração dos 18 s de hoje — ou nem precisaria sair da memória. Enquanto
+    // a fala for o SmolLM3 de 1,92 GB, a troca continua sendo a certa.
     //
     // Descarregar não perde nada: os pesos ficam no OPFS e a fala volta lendo
-    // do disco. Custa a reabertura — que é justamente o preço que ele aceitou
-    // ao descrever a arquitetura, e que aqui cai numa TROCA DE CONTEXTO (sair
-    // do chat), não no meio de uma conversa, que é onde ela doía.
+    // do disco. E aqui a reabertura cai numa TROCA DE CONTEXTO (sair do chat),
+    // não no meio de uma conversa, que é onde ela doía.
     const close = useCallback(() => {
         npcSet({ open: false });
         void (async () => {
