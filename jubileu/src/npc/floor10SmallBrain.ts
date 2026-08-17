@@ -1675,3 +1675,105 @@ export async function rascunharFala(
         globalThis.clearTimeout(relogio);
     }
 }
+
+// ── O LFM2.5 COMO REVISOR DO PIPELINE ─────────────────────────────────────
+//
+// O mesmo arquivo, um segundo papel — e por isso de graça: a vontade já está
+// baixada, não há um byte novo.
+//
+// ELE FOI BARRADO COMO RASCUNHADOR e não como revisor, e a diferença importa.
+// `9330e234` o desqualificou porque o card declara `en, ar, zh, fr, de, ja, ko,
+// es` e NÃO declara português. No pipeline inglês-primeiro o revisor trabalha
+// em inglês, então a objeção some.
+//
+// E aí ele ganha do titular. Medido nos três defeitos reais que os MoE
+// produziram nesta bancada, mesmo enunciado, mesmo teto:
+//
+//     SmolLM3-3B ..... remendou em 18,4 s · consertou 1 de 3 · 137% do custo
+//                      de simplesmente reescrever a fala inteira
+//     LFM2.5-1.2B .... remendou em 11,6 s · consertou 3 de 3 ·  38%
+//
+// O motivo da falha do SmolLM3 é o mais interessante: ele DISCORDA do
+// enunciado e devolve a frase intacta com um comentário — "(No correction
+// needed)", "(But it's not wrong.)". Não é incapacidade, é o 3B argumentando.
+// O LFM2.5 só faz o serviço.
+//
+// RESSALVA QUE IMPEDE A PROMOÇÃO DELE: ele lê 204–212 tokens por chamada onde
+// o SmolLM3 lê 15–23 — o prefixo não é reaproveitado, o mesmo defeito medido no
+// LFM2.5-2.6B. Por isso escrever a fala INTEIRA custa 30,8 s nele. Ele serve
+// como REMENDADOR e nunca como a fala.
+
+/** Teto do remendo: uma frase. Doze tokens bastaram nos três casos medidos. */
+export const REMENDO_MAX_TOKENS = 40;
+export const REMENDO_TIMEOUT_MS = 25_000;
+
+/**
+ * O ENUNCIADO, e ele é curto por medição.
+ *
+ * `7b8a2889` mediu que pedir DUAS coisas na mesma resposta ("diga qual frase
+ * está errada E escreva a substituta") faz o modelo contradizer a si mesmo e
+ * deslocar índices. Aqui há um grau de liberdade só: a frase vem citada, e a
+ * saída não tem número para errar.
+ */
+export function enunciadoDoRemendo(perguntaEmIngles: string, frase: string): string {
+    return `
+
+CORRECTION. One sentence only.
+
+In your reply to "${perguntaEmIngles.trim()}", this sentence is wrong:
+
+"${frase}"
+
+Rewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
+}
+
+/**
+ * Reescreve UMA frase, em inglês. `''` em qualquer tropeço.
+ *
+ * Não sobe o modelo: se a vontade não estiver de pé, quem chama desiste do
+ * remendo e a frase original segue. Um rascunho com uma frase torta é melhor
+ * que 30 s de espera para carregar um revisor.
+ */
+export async function remendarFraseEmIngles(
+    perguntaEmIngles: string,
+    frase: string,
+): Promise<string> {
+    const engine = await ensureSmallEngine(false).catch(() => null);
+    if (!engine) return '';
+    const abort = new AbortController();
+    const relogio = globalThis.setTimeout(() => abort.abort(), REMENDO_TIMEOUT_MS);
+    try {
+        const resposta = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: PERSONA_DO_REVISOR },
+                { role: 'user', content: enunciadoDoRemendo(perguntaEmIngles, frase) },
+            ],
+            ...SMALL_BRAIN_COMPLETION_CONFIG,
+            stream: false,
+            max_tokens: REMENDO_MAX_TOKENS,
+            grammar: undefined,
+            chat_template_kwargs: { enable_thinking: false },
+            abortSignal: abort.signal,
+        }) as { choices?: Array<{ message?: { content?: string } }> } | undefined;
+        const bruto = resposta?.choices?.[0]?.message?.content ?? '';
+        const t = typeof bruto === 'string' ? bruto.trim() : '';
+        // Tira as aspas que ele às vezes põe em volta da frase inteira.
+        return t.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim();
+    } catch {
+        return '';
+    } finally {
+        globalThis.clearTimeout(relogio);
+    }
+}
+
+/**
+ * A persona do revisor — a MESMA do rascunhador, e isso não é economia.
+ *
+ * Se o revisor mirasse um personagem diferente do rascunhador, ele "consertaria"
+ * frases certas para outra coisa. Os dois medem contra o mesmo cânone porque é
+ * o mesmo Nilo.
+ */
+export const PERSONA_DO_REVISOR = `You are Nilo Azevedo, 29, human and a former elevator technician; now you are a guest trapped on the 10th floor of the hotel "The Normal Elevator", not inside the elevator.
+You are observant, cautious, dry-humoured. You decide for yourself, as the player's equal, never as a helper.
+Fixed canon: the 10th floor is only a grey room with a grate floor, four walls and the elevator door; there is no corridor and no window, and you have never left. The elevator does not obey you. You do not know who runs the hotel or whether it ends. Never speak of AI, code, systems or prompts.
+Reply with Nilo's line only, no label.`;
