@@ -1057,3 +1057,31 @@ Ressalva honesta: medido em Chromium x86 com perfil persistente. O mecanismo
 (o heap do Worker liberado quando o Worker morre) é do navegador, não da
 arquitetura — mas o aparelho dele continua sendo quem dá a palavra final, e
 cinco técnicas já ganharam aqui e perderam lá.
+
+## O MENOR MoE POR PARÂMETROS ATIVOS — e o que realmente roda
+
+O dono do jogo pediu o menor MoE no quesito de parâmetros ATIVOS (não totais),
+que é o que decide a banda de memória e portanto a velocidade. Levantados e
+testados no wllama do CDN:
+
+| modelo | total | **ativo** | arquivo | roda? |
+|---|---|---|---|---|
+| granite-3.1-1b-a400m Q8_0 | 1B | **400M** | 1,42 GB | **não** — `ggml-impl.h:318: fatal error` |
+| granite-3.1-1b-a400m Q4_K_M | 1B | **400M** | 822 MB | **não** — mesmo erro |
+| **granite-3.1-3b-a800m Q4_K_M** | 3B | **800M** | 2,02 GB | **SIM** |
+| granite-4.0-h-tiny Q3_K_M | 7B | ~1B | 3,29 GB | não — passa de 2 GiB |
+| granite-4.0-h-tiny Q4_K_M | 7B | ~1B | 4,30 GB | não — passa de 2 GiB |
+| LFM2-8B-A1B Q4_0 | 8,3B | ~1,5B | 4,73 GB | não — passa de 2 GiB |
+
+O a400m é o menor que existe e **cabe folgado**, mas não roda: o binário
+reconhece a arquitetura (`print_info: arch = granitemoe`, a MESMA do a800m que
+funciona) e morre num `fatal error` do ggml, nos dois quants. Não é tamanho —
+é alguma dimensão que o build de WASM não digere. Fica registrado como não
+explicado; este projeto já mediu o a400m rodando em agosto (`0ef523ca`, 0/5 como
+vontade), então algo mudou de caminho ou de arquivo entre lá e cá.
+
+**Sobra um só, e é o que já estava medido:** `granite-3.1-3b-a800m`, 800M ativos,
+2,02 GB — abaixo da parede por 130 MB — com leitura 13,72 tok/s, fala 10,63 tok/s
+e turno mediano 6,6 s contra 12,0 s do SmolLM3. **É o único MoE utilizável neste
+runtime hoje**, e a qualidade dele é o problema conhecido (3/3 com defeito,
+incluindo troca de identidade).
