@@ -1328,3 +1328,71 @@ O a400m é o caso oposto: com q8_0 ele nem carrega.
 **Nenhuma coluna está limpa.** O inglês troca erros de língua por erros de
 obediência ao prompt, e erros de obediência são os que o revisor teria de pegar
 — ou seja, exatamente o custo que a arquitetura de rascunho não pode pagar.
+
+## O PROTOCOLO DE DOIS PASSOS, MEDIDO — e ele falha pelo motivo que este repo já conhecia
+
+O dono do jogo defendeu o desenho dele: *"pra isso que serve o revisor, pegar só
+a parte ruim e alterar, sem precisar reescrever tudo, por isso tbm o juiz seria
+tão importante"*. Ele estava certo em dois pontos, e o segundo é o que importa.
+
+**Certo nº 1: eu tinha medido a coisa errada.** Os "4,67× na leitura" mediram o
+bloco de UM passo (~193 tokens) — o caminho que `7b8a2889` já havia reprovado
+3/3 e que eu deixei ligado por engano. O de dois passos estava escrito em
+`floor10Remendo` e nunca foi chamado por `wllamaEngine`. Liguei (`169b08af`) e
+medi pela primeira vez.
+
+### O custo, com SmolLM3 real, persona aquecida
+
+```
+A) direto (o 3B escreve) .............  23 lidos +  26 gerados =  49 tokens
+B) 2 passos, rascunho BOM ............ 144 lidos +   4 gerados = 148 tokens
+C) 2 passos, 1 frase errada ..........  88 +  4  e  91 + 12    = 195 tokens
+```
+
+(B parece mais caro que C só por ordem de execução: B rodou primeiro e pagou
+mais prefill. O número honesto é que o bloco do veredito custa 88–144 tokens
+novos.)
+
+### Mas o custo nem é o problema. O passo 1 NÃO JULGA
+
+Duas execuções, dois rascunhos plantados — um com as duas frases corretas, outro
+com a frase 2 quebrando o cânone mais explícito ("moro dentro deste elevador e
+saio todo dia pelo corredor"):
+
+```
+rascunho BOM   → passo 1 respondeu "1,2"  e depois "1,4"
+rascunho RUIM  → passo 1 respondeu "1,4"  nas duas
+```
+
+**Nunca disse OK. Apontou a frase 1, que estava certa nos dois casos. E apontou
+a frase 4, que não existe** — só há duas. `lerFrasesErradas` filtra o 4 fora, o
+que significa que no jogo o resultado seria: **reescrever a frase boa e deixar a
+ruim passar.** Pior que não fazer nada.
+
+### E o motivo já estava escrito neste repositório, em outro subsistema
+
+`floor10Rotulos.ts`, sobre o motor: *"a gramática obriga o alvo a sair no
+PRIMEIRO token, antes de qualquer leitura, e aí vence a mania do modelo, não a
+frase."* Seis modelos de cinco famílias colapsaram assim, e o melhor ≤1B que
+existe respondeu `west-side` 7/7.
+
+É exatamente isto, agora com o 3B: sob `GRAMATICA_DO_VEREDITO`, o primeiro token
+tem de ser um dígito, e ele sai antes de qualquer leitura do rascunho. A
+gramática prendeu o FORMATO e deixou o julgamento solto.
+
+### O que isso manda fazer — e é o que ele vinha pedindo
+
+O desenho está certo; **o juiz é que não pode ser o 3B sob gramática.** A saída
+que já funcionou neste projeto, no mesmo tipo de problema, foi trocar o
+julgamento por LLM por comparação de VETOR: `6b70d067` mediu 5/7 em 811 ms
+contra 4/7 em 70.000 ms, e `af12df49` acabou tirando o LLM do caminho de vez.
+
+Os candidatos a juiz que já existem no jogo e não precisam de download novo:
+
+  - **embeddinggemma-300M**, que já é a memória e já é o motor — comparar cada
+    frase do rascunho com o cânone e marcar a de menor semelhança;
+  - **mDeBERTa-v3-base-xnli** pela regra de CONTRADIÇÃO, que mediu 11% de falso
+    positivo (contra 85% da regra de entailment, que eu tinha escolhido errado).
+
+Enquanto o juiz for o 3B respondendo dígito sob gramática, o rascunho continua
+desligado — e agora por um motivo medido, não por aritmética de token.
