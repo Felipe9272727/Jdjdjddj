@@ -83,6 +83,64 @@ describe('desabreviar — o passe que a medição exigiu', () => {
             .toBe('Se eu chamar o elevador, ele vem?');
     });
 
+    it('NÃO corta palavra acentuada ao meio — o defeito que a tabela regex tinha', () => {
+        // ── O QUE ACONTECEU, e é do JavaScript, não descuido ─────────────
+        //
+        // `\b` é definido sobre [A-Za-z0-9_], SEM acento. Então entre o `n` e o
+        // `ã` de "não" existe fronteira de palavra, e a regra `\bn\b` disparava
+        // DENTRO da palavra:
+        //
+        //     "vc não tem medo?"       → "você nãoão tem medo?"
+        //     "um número gravado"      → "um nãoúmero gravado"  → "a non-humerer"
+        //
+        // "não" é a palavra mais comum de uma pergunta negativa, e os testes de
+        // unidade não pegaram porque nenhum tinha acento DEPOIS de uma
+        // abreviação. Quem pegou foi o caso-armadilha da bancada. Este teste
+        // existe para o defeito não voltar por outra porta.
+        expect(desabreviar('vc não tem medo?')).toBe('você não tem medo?');
+        expect(desabreviar('a porta tem um número gravado nela'))
+            .toBe('a porta tem um número gravado nela');
+        for (const inteira of ['não', 'número', 'você', 'ninguém', 'está', 'também', 'até', 'só']) {
+            expect(desabreviar(`o elevador ${inteira} responde`))
+                .toBe(`o elevador ${inteira} responde`);
+        }
+    });
+
+    it('as três armadilhas continuam de fora', () => {
+        // Cada uma consertaria uma frase torta e estragaria uma boa. Estão em
+        // `desabreviar-tabela.mjs` como casos-armadilha: quem as acrescentar vê
+        // PIOROU na bancada, com a frase que quebrou.
+        expect(desabreviar('você dormiu num quarto desse hotel?'))
+            .toContain('num quarto');            // "num" ≠ "não"
+        expect(desabreviar('por que esse andar é tão escuro?'))
+            .toContain('tão escuro');            // "tão" ≠ "estão"
+        expect(desabreviar('a nota c está no papel')).toContain(' c ');  // "c" ≠ "você"
+    });
+
+    it('a risada vira "haha" em vez de atravessar crua', () => {
+        // Sem isto o Bergamot copia "kkkkk" inteiro para o inglês, e o
+        // rascunhador recebe no meio da pergunta uma palavra que não existe.
+        expect(desabreviar('esse lugar é doido kkkk')).toBe('esse lugar é doido haha');
+        expect(desabreviar('rsrs que medo')).toBe('haha que medo');
+    });
+
+    it('as formas com barra também, e por lookAHEAD (que é permitido)', () => {
+        expect(desabreviar('olha p/ a grade do chão')).toBe('olha para a grade do chão');
+        expect(desabreviar('vem c/ o elevador')).toBe('vem com o elevador');
+        expect(desabreviar('fica s/ medo')).toBe('fica sem medo');
+    });
+
+    it('nenhuma expansão produz OUTRA abreviação', () => {
+        // Se produzisse, a ordem das linhas passaria a importar — e o
+        // dicionário troca cada palavra uma vez só, então a segunda abreviação
+        // sobreviveria até o tradutor. `tlgd` vira "sabe", nunca "tá ligado".
+        for (const frase of ['tlg', 'vlw', 'blz', 'flw', 'sla', 'pdc', 'kd', 'sqn']) {
+            const expandido = desabreviar(frase);
+            expect(desabreviar(expandido), `"${frase}" → "${expandido}" ainda tem abreviação`)
+                .toBe(expandido);
+        }
+    });
+
     it('NENHUMA regra usa lookbehind', () => {
         // Mesmo motivo do `abrasileirar`: um `(?<=…)` aqui não quebra esta
         // função, quebra o BUNDLE INTEIRO no Safari antigo, na hora do parse.

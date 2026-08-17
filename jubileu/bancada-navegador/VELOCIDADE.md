@@ -2054,3 +2054,99 @@ O `pt → en` não sabe que o elevador é coisa. O rascunhador entende assim mes
 e a fala dele volta pelo `en → pt`, então isso nunca chega à tela. Fica
 registrado por ser o tipo de coisa que, num prompt mais longo, vira um Nilo
 falando do elevador como se fosse gente.
+
+---
+
+## O vetor de abreviações — e o defeito que ele mesmo trouxe
+
+Pedido do dono do jogo: *"um vetor, que pega a maior parte dessas abreviações e
+coloca elas em extenso pro tradutor"*. Escrever a tabela é fácil; declará-la boa
+sem medir é o que este projeto já pagou caro para não fazer. `desabreviar-
+tabela.mjs` roda **cada linha** no Bergamot de verdade e classifica:
+
+```
+VAZOU      a abreviação ainda aparece crua no inglês   (o defeito original)
+CONSERTOU  o passe mudou a saída e a abreviação sumiu
+INERTE     o Bergamot já dava conta sozinho
+PIOROU     o passe estragou frase que estava boa
+```
+
+Resultado final, 63 casos:
+
+```
+30 consertou · 32 inerte · 0 vazou · 0 PIOROU
+```
+
+Uma linha `PIOROU` vale mais que dez `CONSERTOU`, porque estraga o que já
+funcionava — por isso a bancada tem **casos-armadilha** e **casos-controle**
+misturados aos casos reais.
+
+### E foi um caso-armadilha que achou o defeito de verdade
+
+```
+"a porta tem um número gravado nela"  →  "the door has a non-humerer engraved on it"
+```
+
+A causa não é a tabela: é o JavaScript.
+
+> **`\b` é definido sobre `[A-Za-z0-9_]` — SEM ACENTO.**
+
+Entre o `n` e o `ã` de **"não"** existe uma fronteira de palavra. A regra
+`\bn\b` disparava DENTRO da palavra:
+
+```
+"vc não tem medo?"        →  "você nãoão tem medo?"
+"um número gravado nela"  →  "um nãoúmero gravado nela"
+```
+
+**"não" é a palavra mais comum de uma pergunta negativa**, e isso estava no
+commit anterior, em produção atrás da flag. Os testes de unidade não pegaram
+porque nenhum tinha acento logo depois de uma abreviação — todos usavam a
+abreviação para PRODUZIR "não", nunca para atravessar um "não" já escrito.
+
+### O conserto não é um `\b` melhor
+
+É parar de usar fronteira. O texto é quebrado em PALAVRAS com acento
+(`[0-9A-Za-zÀ-ÖØ-öø-ÿ]+`) e cada palavra inteira é procurada num `Map`. Sem
+fronteira não existe meia-palavra. De brinde some a ordem das linhas como fonte
+de armadilha — uma palavra é trocada uma vez só — e a busca vira O(1) por
+palavra em vez de 60 regex por frase.
+
+### As três que ficaram DE FORA, e estão na bancada como armadilha
+
+```
+num  → "não"?    "num quarto" é "em um quarto"
+tão  → "estão"?  "tão escuro" é "so dark"
+c    → "você"?   é também a letra, e a nota musical
+```
+
+Quem as acrescentar vê `PIOROU` na bancada, com a frase que quebrou.
+
+### Duas regras que mantêm a tabela honesta
+
+1. **Toda expansão sai em português inteiro** — nenhuma pode produzir outra
+   abreviação. Por isso `tlgd` vira `"sabe"` e não `"tá ligado"`. Há teste
+   rodando `desabreviar` duas vezes e exigindo ponto fixo.
+2. **Quando a expansão literal traduz mal, vale o sentido.** `vlw` é "valeu",
+   que o Bergamot devolve como *"it was worth it"* — não é o que a palavra faz
+   numa conversa. Vira "obrigado". O destino é um modelo de 400M lendo inglês,
+   não um dicionário de português.
+
+```
+vlw → obrigado      ("valeu"  → "it was worth it")
+blz → tudo bem      ("beleza" → "beauty")
+flw → até mais      ("falou"  → "spoke")
+tlg → sabe          ("tá ligado" → "is on")
+```
+
+### Uma amostra do que mudou
+
+```
+"vc pd me ajudar?"            vc pd help me?                → Can you help me?
+"qro sair desse andar"        qro leaving that floor        → I want to get out of that floor
+"sla, esse lugar me assusta"  sla, this place scares me     → I don't know, this place scares me
+"vc tem ctz disso?"           Do you have a ctz of that?    → Are you sure about that?
+"esse andar é mt escuro"      that floor is dark mt         → This floor is very dark
+"quantas vzs vc tentou sair?" How many vs vzs did you try…  → How many times have you tried to leave?
+"mds, o que foi esse barulho?" mds, what was that noise?    → Oh, my God, what was that noise?
+```

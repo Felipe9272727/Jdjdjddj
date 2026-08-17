@@ -206,50 +206,168 @@ export function abrasileirar(texto: string): string {
  * SEM LOOKBEHIND, pelo mesmo motivo de sempre: o Safari antigo não tem, e o
  * erro de sintaxe não quebra esta função, quebra o bundle inteiro.
  */
-const ABREVIACOES: readonly (readonly [RegExp, string])[] = Object.freeze([
-    // Estas quatro são as que a medição pegou em flagrante.
-    [/\bvcs\b/gi, 'vocês'],
-    [/\bvc\b/gi, 'você'],
-    [/\bpq\b/gi, 'por que'],
-    [/\b(?:n|ñ|naum|nao)\b/gi, 'não'],
-    [/\bta\b/gi, 'está'],
-    // O resto do vocabulário do dono do jogo, colhido das conversas deste
-    // projeto: "mn", "dps", "agr", "tbm", "oque", "pos", "to", "msm".
-    [/\btô\b/gi, 'estou'],
-    [/\bto\b/g, 'estou'],
-    [/\btbm\b|\btb\b/gi, 'também'],
-    [/\bmsm\b/gi, 'mesmo'],
-    [/\bdps\b/gi, 'depois'],
-    [/\bagr\b/gi, 'agora'],
-    [/\boq\b|\boque\b/gi, 'o que'],
-    [/\bpra\b/gi, 'para'],
-    [/\bq\b/gi, 'que'],
-    [/\bcmg\b/gi, 'comigo'],
-    [/\bfzr\b/gi, 'fazer'],
-    [/\baxo\b/gi, 'acho'],
-    [/\beh\b/gi, 'é'],
-    [/\b(?:kd|cade)\b/gi, 'onde está'],
-    [/\bvlw\b/gi, 'valeu'],
-    [/\bblz\b/gi, 'beleza'],
-    // "mn" é vocativo, como "mano". O Bergamot já traduz "mano" para "bro" sem
+// ── POR QUE ISTO É UM DICIONÁRIO DE PALAVRAS, E NÃO UMA LISTA DE REGEX ───
+//
+// A primeira versão era `\bvc\b`, `\bn\b`, e assim por diante. Ela corrompia
+// texto bom, e o defeito é do JavaScript, não meu descuido:
+//
+//     `\b` é definido sobre [A-Za-z0-9_] — SEM ACENTO.
+//
+// Então entre o `n` e o `ã` de "não" existe uma fronteira de palavra, e a regra
+// da negação disparava DENTRO da própria palavra:
+//
+//     "vc não tem medo?"            → "você nãoão tem medo?"
+//     "um número gravado nela"      → "um nãoúmero gravado nela"   → "a non-humerer"
+//
+// "não" é a palavra mais comum de uma pergunta negativa. Os testes de unidade
+// não pegaram porque nenhum tinha acento depois de uma abreviação; quem pegou
+// foi o caso-armadilha da bancada (`desabreviar-tabela.mjs`), que existe
+// exatamente para isso.
+//
+// A correção não é um `\b` melhor — é parar de usar fronteira. O texto é
+// quebrado em PALAVRAS (com acento), e cada palavra inteira é procurada no
+// dicionário. Sem fronteira não há meia-palavra, e de quebra some a ordem das
+// linhas como fonte de armadilha: uma palavra só é trocada uma vez.
+//
+// ── DUAS REGRAS QUE MANTÊM O DICIONÁRIO HONESTO ─────────────────────────
+//
+// 1. TODA EXPANSÃO SAI EM PORTUGUÊS INTEIRO. Nenhuma pode produzir outra
+//    abreviação. Por isso `tlgd` vira "sabe" e não "tá ligado".
+//
+// 2. QUANDO A EXPANSÃO LITERAL TRADUZ MAL, VALE O SENTIDO. `vlw` é "valeu",
+//    que o Bergamot traduz como "it was worth it" — não é o que a palavra faz
+//    numa conversa. Vira "obrigado". O destino é um modelo de 400M lendo
+//    inglês, não um dicionário de português.
+//
+// Cada linha aqui foi medida no Bergamot de verdade por
+// `bancada-navegador/desabreviar-tabela.mjs`: 30 consertaram uma tradução que
+// vazava a abreviação crua, e nenhuma piorou uma frase que já estava boa.
+const ABREVIACOES: ReadonlyMap<string, string> = new Map(Object.entries({
+    // ── PESSOAS ──────────────────────────────────────────────────────────
+    vcs: 'vocês', vcês: 'vocês',
+    vc: 'você', cê: 'você', ce: 'você', voce: 'você',
+    nois: 'nós', nóis: 'nós',
+    gnt: 'gente', ngm: 'ninguém', algm: 'alguém',
+    // "mn" e "mlk" são vocativos. O Bergamot já traduz "mano" para "bro" sem
     // tropeçar, então basta dar a ele a palavra inteira.
-    [/\bmn\b/gi, 'mano'],
+    mn: 'mano', mlk: 'moleque',
+
+    // ── SER E ESTAR — o grupo que a medição pegou em flagrante ───────────
+    ta: 'está', tá: 'está', tah: 'está',
+    to: 'estou', tô: 'estou', tou: 'estou',
+    tamo: 'estamos', tamos: 'estamos', tamu: 'estamos',
+    tava: 'estava', tavam: 'estavam',
+    eh: 'é',
+    // "né" é pergunta de confirmação, e "não é" é o que ela quer dizer.
+    né: 'não é', ne: 'não é', neh: 'não é',
+
+    // ── NEGAÇÃO ──────────────────────────────────────────────────────────
+    // `num` NÃO entra: "num quarto" é "em um quarto". Ver a lista do que
+    // ficou de fora, embaixo.
+    n: 'não', ñ: 'não', naum: 'não', nao: 'não',
+    nd: 'nada',
+
+    // ── PERGUNTAS ────────────────────────────────────────────────────────
+    pq: 'por que', pqe: 'por que', prq: 'por que', porq: 'por que',
+    oq: 'o que', oque: 'o que',
+    qnd: 'quando', qdo: 'quando', qd: 'quando',
+    qnt: 'quanto', qnto: 'quanto', qnta: 'quanta', qto: 'quanto', qta: 'quanta',
+    qm: 'quem',
+    kd: 'onde está', cade: 'onde está', cadê: 'onde está',
+    q: 'que',
+
+    // ── TEMPO ────────────────────────────────────────────────────────────
+    agr: 'agora',
+    dps: 'depois', dpx: 'depois',
+    hj: 'hoje', amn: 'amanhã', amnh: 'amanhã', amanha: 'amanhã', ontm: 'ontem',
+    dnv: 'de novo', smp: 'sempre', vzs: 'vezes',
+
+    // ── QUANTIDADE E ÊNFASE ──────────────────────────────────────────────
+    mts: 'muitos', mtos: 'muitos', mtas: 'muitas',
+    mt: 'muito', mto: 'muito', mta: 'muita',
+    tds: 'todos', tdos: 'todos',
+    td: 'tudo', tdo: 'tudo',
+    msm: 'mesmo', ctz: 'certeza', vdd: 'verdade',
+    tbm: 'também', tb: 'também', tmb: 'também',
+
+    // ── VERBOS SOLTOS ────────────────────────────────────────────────────
+    fzr: 'fazer', fz: 'faz', axo: 'acho', pd: 'pode',
+    qro: 'quero', kero: 'quero', sb: 'sabe', rlx: 'relaxa',
+
+    // ── EXPRESSÕES, onde vale o SENTIDO e não a letra ────────────────────
+    sla: 'sei lá', sqn: 'só que não',
+    tlgd: 'sabe', tlg: 'sabe', pdc: 'com certeza',
+    // "valeu" literal vira "it was worth it"; numa conversa é agradecimento.
+    vlw: 'obrigado',
+    // "beleza" literal vira "beauty"; aqui é concordância.
+    blz: 'tudo bem',
+    // "falou" literal vira "spoke"; aqui é despedida.
+    flw: 'até mais',
+    mds: 'meu Deus', mdss: 'meu Deus',
+    pfv: 'por favor', pfvr: 'por favor', obg: 'obrigado',
+
+    // ── PREPOSIÇÕES ──────────────────────────────────────────────────────
+    pras: 'para as', pros: 'para os', pra: 'para', pro: 'para o',
+    cmg: 'comigo', ctg: 'contigo',
+}));
+
+/**
+ * Os padrões que não são palavra fixa: risada, sobretudo. Sem eles o Bergamot
+ * copia "kkkkk" inteiro para o inglês, e o rascunhador recebe no meio da
+ * pergunta uma palavra que não existe.
+ */
+const PADROES: readonly (readonly [RegExp, string])[] = Object.freeze([
+    [/^k{2,}$/i, 'haha'],
+    // `(?:rs)+` e não `rs+`: a risada digitada é "rsrs", e `rs+` só pegaria
+    // "rsss". Foi um teste que cobrou a diferença.
+    [/^(?:rs)+$/i, 'haha'],
+    [/^[ha]{4,}$/i, 'haha'],
 ]);
 
+/**
+ * As formas com barra. Elas não são "palavra" para o separador abaixo, então
+ * saem antes. `(?=…)` é lookAHEAD, que todo navegador tem — o proibido aqui é
+ * o lookBEHIND.
+ */
+const BARRAS: readonly (readonly [RegExp, string])[] = Object.freeze([
+    [/(^|\s)p\/(?=\s|$)/gi, '$1para'],
+    [/(^|\s)c\/(?=\s|$)/gi, '$1com'],
+    [/(^|\s)s\/(?=\s|$)/gi, '$1sem'],
+]);
+
+/**
+ * O que conta como palavra — COM acento, que é o ponto de tudo isto. O `\b` do
+ * JavaScript para em "n|ão"; este não.
+ */
+const PALAVRA = /[0-9A-Za-zÀ-ÖØ-öø-ÿ]+/g;
+
+/**
+ * ── O QUE FICOU DE FORA DE PROPÓSITO ──────────────────────────────────────
+ *
+ * Cada uma destas consertaria uma frase torta e estragaria uma frase boa, que
+ * é troca ruim quando a maioria das perguntas já é português inteiro:
+ *
+ *   `num`  → "não"? "num quarto" é "em um quarto".
+ *   `tão`  → "estão"? "tão escuro" é "so dark".
+ *   `c`    → "você"? é também a letra, e a nota musical.
+ *   `pos`  → "após"? o dono do jogo usa por "pós/depois", mas `pós` sozinho
+ *            traduz bem, e `pos` colide com "posso" truncado.
+ *
+ * As três primeiras estão na bancada como CASOS-ARMADILHA: se alguém as
+ * acrescentar, `desabreviar-tabela.mjs` acusa PIOROU e diz qual frase quebrou.
+ */
 export function desabreviar(pergunta: string): string {
     let s = pergunta;
-    for (const [re, por] of ABREVIACOES) s = s.replace(re, por);
+    for (const [re, por] of BARRAS) s = s.replace(re, por);
+    s = s.replace(PALAVRA, (palavra) => {
+        const daTabela = ABREVIACOES.get(palavra.toLowerCase());
+        if (daTabela) return daTabela;
+        for (const [re, por] of PADROES) if (re.test(palavra)) return por;
+        return palavra;
+    });
     return s.replace(/\s{2,}/g, ' ').trim();
 }
 
-/**
- * A PERGUNTA DO JOGADOR, para o inglês.
- *
- * Sem passe pt-BR na volta: o destino é o rascunhador, não a tela. Devolve
- * `null` em falha, e aí o pipeline inteiro desiste — perguntar em português a
- * um rascunhador cuja persona é inglesa foi exatamente o atalho que eu não
- * medi, e não vou ligar sem medir.
- */
 export async function traduzirPerguntaParaIngles(pergunta: string): Promise<string | null> {
     const t = await prepararTradutor();
     if (!t) return null;
