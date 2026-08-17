@@ -1846,3 +1846,55 @@ vez nunca mais passa. É barato (microssegundos), tem zero falso positivo nas 9
 frases boas, e cresce sozinha conforme o jogo roda. Só não se pode chamar isso
 de juiz, nem esperar que ele pegue o próximo defeito — porque medido, ele não
 pega.
+
+## ACHEI O JUIZ — e ele não é NLI, é TOM
+
+O dono do jogo mandou procurar mais antes de ligar, e ele estava certo de novo.
+O enquadramento que faltava sai da própria descrição do defeito: as frases que
+escapam **não contradizem fato nenhum, elas quebram o TOM**. E tom é o que
+embedding mede.
+
+O desenho não precisa de treino, precisa de EXEMPLOS: âncoras de "soa como o
+Nilo" contra âncoras de "não soa", e a frase nova cai perto de um dos dois
+grupos. Score = `max(sim com as ruins) − max(sim com as boas)`.
+
+```
+                          CEGAS    falso pos.   custo      tamanho
+NLI contradição ........   0/6        0/3       106 ms      ~280 MB
+zero-shot c/ rótulos ...   0/6        0/3        83 ms
+travas de regex ........   0/6        0/3         0 ms          0
+tom · MiniLM-L6-v2 .....   4/6        1/3         3 ms        23 MB
+tom · mpnet-base-v2 ....   5/6        1/3        10 ms       110 MB   ← escolhido
+tom · embeddinggemma ...   3/6        0/3       250 ms      ~180 MB
+```
+
+**5 de 6 nas cegas, onde tudo o que eu tinha testado antes fazia 0 de 6** — e
+por 10 ms em vez de 106. Nas vistas ele faz 4/4 com zero falso positivo.
+
+O único que escapa é `"Nilo's line only, no label."` — que é eco do prompt, e
+isso o regex pega de graça. O único falso positivo é `"Probably, but don't
+expect it to be friendly."`, que custa uma chamada de revisor à toa.
+
+### Por que isto funciona e o NLI não
+
+NLI pergunta "esta frase contradiz aquele fato?". Todas as cegas respondem
+"não" — elas são verdadeiras. Embedding pergunta "com qual destes dois conjuntos
+esta frase se parece?", e literário-falante se parece com literário-falante.
+É a mesma lição de `6b70d067`, quando o motor trocou julgamento por LLM por
+comparação de vetor e foi de 4/7 em 70.000 ms para 5/7 em 811 ms.
+
+### E a ressalva que mantém isto honesto
+
+As âncoras são 8 falas boas e 8 ruins escritas por mim — nenhuma aparece no
+conjunto de teste, e é por isso que o número das CEGAS vale. Mas elas são a
+MINHA ideia de como o Nilo soa. Trocadas pelas falas do dono do jogo, o juiz
+melhora sem tocar em código: **é o mesmo dataset que o LoRA pede**, servindo a
+dois propósitos.
+
+O juiz completo, em camadas, do mais barato para o mais caro:
+
+```
+1. regex ......... eco do prompt, rótulo, padrões já vistos    ~0 ms
+2. tom (mpnet) ... o que soa errado                            10 ms
+3. NLI ........... contradição factual com o cânone           106 ms
+```
