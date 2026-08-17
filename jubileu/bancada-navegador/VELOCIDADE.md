@@ -1066,8 +1066,7 @@ testados no wllama do CDN:
 
 | modelo | total | **ativo** | arquivo | roda? |
 |---|---|---|---|---|
-| granite-3.1-1b-a400m Q8_0 | 1B | **400M** | 1,42 GB | **não** — `ggml-impl.h:318: fatal error` |
-| granite-3.1-1b-a400m Q4_K_M | 1B | **400M** | 822 MB | **não** — mesmo erro |
+| **granite-3.1-1b-a400m Q4_K_M** | 1B | **400M** | 822 MB | **SIM — com KV em f16** (ver abaixo) |
 | **granite-3.1-3b-a800m Q4_K_M** | 3B | **800M** | 2,02 GB | **SIM** |
 | granite-4.0-h-tiny Q3_K_M | 7B | ~1B | 3,29 GB | não — passa de 2 GiB |
 | granite-4.0-h-tiny Q4_K_M | 7B | ~1B | 4,30 GB | não — passa de 2 GiB |
@@ -1085,3 +1084,64 @@ vontade), então algo mudou de caminho ou de arquivo entre lá e cá.
 e turno mediano 6,6 s contra 12,0 s do SmolLM3. **É o único MoE utilizável neste
 runtime hoje**, e a qualidade dele é o problema conhecido (3/3 com defeito,
 incluindo troca de identidade).
+
+## CORRIGIDO: o a400m RODA — quem matava era o KV em q8_0, não o modelo
+
+O dono do jogo não aceitou o meu "não roda": *"talvez mn, vc possa estar vendo
+errado, e se, no seu ambiente, não couber?"*. E o histórico deste repo estava do
+lado dele — `0ef523ca` mediu o a400m a **10,21 tok/s** em agosto.
+
+Fui atrás da diferença. Mesmo binário (`/wllama-cdn/`), mesmo modelo. O que
+mudou foi a configuração de carga que EU passei:
+
+```
+bancada de agosto ... { n_ctx: 2048, n_batch: 256, n_threads: 4 }
+eu ................... { ..., cache_type_k: 'q8_0', cache_type_v: 'q8_0' }
+```
+
+Medido, mesmo arquivo, só trocando o KV:
+
+```
+granite-3.1-1b-a400m Q4_K_M (822 MB)
+  KV q8_0 ... ✗ /source/llama.cpp/ggml/src/ggml-impl.h:318: fatal error
+  KV f16 .... ✓ leitura 15,28 tok/s · fala 10,99 tok/s · turno mediano 6,1 s
+```
+
+**É o modelo mais rápido já medido nesta bancada** — leitura **3,5×** a do
+SmolLM3 (4,42 tok/s), com 400M ativos e 822 MB de arquivo.
+
+### E isto é uma armadilha do JOGO, não só da bancada
+
+`CPU_LOAD_CONFIG` carrega com `cache_type_k/v: 'q8_0'` (+15% na fala, medido em
+`f830fb51`). Qualquer modelo que não digira o KV quantizado vai **abortar em
+produção** com um erro que não diz nada — e o a400m é a prova de que existem
+modelos assim. O curioso é que o a800m, a MESMA arquitetura `granitemoe`, roda
+com q8_0 sem reclamar; então não é a arquitetura, é alguma dimensão do a400m.
+
+**A regra que fica:** ao testar um modelo novo, teste os dois KVs antes de
+reprovar. Um `(ABORT)` com q8_0 não quer dizer que o modelo não serve.
+
+### A parede de 2 GiB, essa é real mesmo
+
+Testada de novo com KV f16, para não repetir o erro:
+
+```
+SmolLM3 Q5_K_M (2,06 GiB) · KV f16 ... ✓ carrega · (ABORT) na 1ª geração
+```
+
+Mesmo sem quantizar o KV, ela aborta. **São dois defeitos independentes:** a
+parede de 2 GiB (tamanho) e o KV q8_0 (kernel). O a400m batia no segundo, e eu
+credit ei ao primeiro.
+
+### O placar dos MoE, refeito
+
+| modelo | ativo | arquivo | KV | leitura | fala | turno |
+|---|---|---|---|---|---|---|
+| SmolLM3-3B (denso, titular) | 3B | 1,92 GB | q8_0 | 4,42 | 3,77 | 12,0 s |
+| granite-3.1-3b-a800m | 800M | 2,02 GB | q8_0 | 13,72 | 10,63 | 6,6 s |
+| **granite-3.1-1b-a400m** | **400M** | **822 MB** | **f16** | **15,28** | **10,99** | **6,1 s** |
+
+A qualidade do a400m tem os mesmos defeitos do irmão maior: *"Oi, eu não tenho
+um nome"* (troca de identidade) e *"(Sai da sala, olha para o elevador, toca o
+painel e espera)"* (rubrica de teatro). Rápido e errado — de novo. Mas agora o
+candidato existe, pesa 822 MB em vez de 1,92 GB, e é o alvo natural do LoRA.

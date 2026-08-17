@@ -23,6 +23,12 @@ const MODELO = process.env.MODELO ?? 'modelo.gguf';
 const ROTULO = process.env.ROTULO ?? MODELO;
 const NCTX = Number(process.env.NCTX ?? 1536);
 const LOGS = !!process.env.LOGS;
+// ── O KV QUANTIZADO, QUE PODE SER A DIFERENÇA ENTRE RODAR E ABORTAR ──────
+// O jogo carrega com `cache_type_k/v: 'q8_0'` (+15% na fala, medido). A
+// bancada de agosto que rodou o granite a400m NÃO quantizava o KV. Se um
+// modelo aborta com q8_0 e roda com f16, o defeito é o kernel do KV para
+// aquela arquitetura, não o modelo — e isso muda o veredito inteiro.
+const KV = process.env.KV ?? 'q8_0';
 
 // A persona do jogo, inteira — é ela que define o custo de leitura real.
 const PERSONA = `Você é Nilo Azevedo, 29 anos, humano e ex-técnico de elevadores; agora é hóspede preso no 10º andar do hotel "The Normal Elevator", não dentro do elevador.
@@ -53,26 +59,26 @@ await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 
 
 console.log(`\n═══ ${ROTULO}`);
 const t0 = Date.now();
-const carga = await page.evaluate(async ({ base, modelo, nctx, logs }) => {
+const carga = await page.evaluate(async ({ base, modelo, nctx, logs, kv }) => {
     const mod = await import(`${base}/wllama-cdn/index.js`);
     try {
         const w = new mod.Wllama({ default: `${base}/wllama-cdn/wasm/wllama.wasm` }, { suppressNativeLog: !logs });
         await w.loadModelFromUrl(`${base}/${modelo}`, {
             n_ctx: nctx, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
-            cache_type_k: 'q8_0', cache_type_v: 'q8_0',
+            ...(kv === 'f16' ? {} : { cache_type_k: kv, cache_type_v: kv }),
             jinja: true, reasoning: false, warmup: true,
         });
         window.__w = w;
         return { ok: true };
     } catch (e) { return { ok: false, erro: String(e?.message ?? e).slice(0, 400) }; }
-}, { base: BASE, modelo: MODELO, nctx: NCTX, logs: LOGS });
+}, { base: BASE, modelo: MODELO, nctx: NCTX, logs: LOGS, kv: KV });
 
 const segCarga = Math.round((Date.now() - t0) / 1000);
 if (!carga.ok) {
     console.log(`  ✗ NÃO CARREGOU (${segCarga}s): ${carga.erro}`);
     await browser.close(); process.exit(0);
 }
-console.log(`  ✓ carregou em ${segCarga}s · n_ctx ${NCTX}`);
+console.log(`  ✓ carregou em ${segCarga}s · n_ctx ${NCTX} · KV ${KV}`);
 
 // Aquece a persona, como `prewarmPersona` faz no jogo — sem isto a 1ª pergunta
 // paga o prefill frio e os três números viram incomparáveis.
