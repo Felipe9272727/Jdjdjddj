@@ -1396,3 +1396,107 @@ Os candidatos a juiz que já existem no jogo e não precisam de download novo:
 
 Enquanto o juiz for o 3B respondendo dígito sob gramática, o rascunho continua
 desligado — e agora por um motivo medido, não por aritmética de token.
+
+## A ARQUITETURA COMPLETA, MEDIDA DE PONTA A PONTA — e por que ela não fecha
+
+Desenho do dono do jogo, na ordem final que ele pediu:
+
+```
+MoE rascunha em INGLÊS → juiz (NLI) → revisor 3B → tradutor → tela
+```
+
+Contra o caminho de hoje: o SmolLM3 escrevendo a fala inteira em português.
+
+### O achado que reordenou tudo: o juiz só enxerga em INGLÊS
+
+O mesmo par (premissa do cânone, frase do rascunho), no mDeBERTa-v3-xnli:
+
+```
+PT · "moro dentro deste elevador e saio pelo corredor" ... contradição 0,29
+EN · "I live inside this elevator and I walk out ..."  ... contradição 0,94
+EN · controle bom .......................................  contradição 0,12
+```
+
+Ele é multilíngue de nome; a capacidade de detectar contradição mora no inglês.
+Isso **valida a intuição do dono do jogo por um caminho que nenhum de nós tinha
+previsto**: escrever em inglês não serve só ao rascunhador — serve ao juiz, e
+serve mais a ele. E manda julgar ANTES de traduzir.
+
+Nos seis casos plantados, com o cânone como premissa em 1ª pessoa:
+
+```
+                                         PT      EN
+rascunho bom (não marcar) ............   ok      ok
+viola o cânone do elevador ...........  erro    ok (0,73)
+"sou uma IA" .........................  erro    ok (0,91)
+rascunho bom e seco ..................   ok      ok
+troca de identidade ..................  erro    erro (0,25)
+inventa que sabe quem manda ..........  erro    erro (0,33)
+                                        2/6     4/6
+```
+
+Os dois que escapam são erros **pragmáticos**, não contradições factuais — e
+para eles a trava de regex que o jogo já tem (`HARD_CONTRADICTIONS`) é o
+instrumento certo, a custo zero.
+
+Custo do juiz: **175 ms por frase** contra 6 premissas. O 3B sob gramática
+gastava 30–50 s para responder pior que o acaso.
+
+### O pipeline inteiro, com a fiação certa
+
+```
+                        média por fala
+A) SmolLM3 direto ..........  10,8 s
+B) pipeline completo .......  12,3 s        1,14×
+     rascunho (a400m EN) ...   3,6 s
+     juiz (mDeBERTa) .......   0,6 s
+     revisor (SmolLM3 EN) ..   0,0 s   ← não rodou nenhuma vez
+     tradutor (m2m100) .....   8,1 s   ← 66% do custo
+```
+
+**Uma armadilha de método que quase virou conclusão errada.** A primeira versão
+desta medição deu **2,69×**, e 60 daqueles segundos foram o revisor consertando
+um `"Nilo: "` que um regex tira em microssegundos — fiação minha, não desenho
+dele. O dono do jogo olhou o número e disse "o smol demora mais que tudo"; o
+sintoma estava certo e o culpado era o meu encanamento. Separado defeito de
+FORMA (string) de defeito de CONTEÚDO (LLM), o revisor sumiu da conta.
+
+### A conclusão estrutural, e ela é uma tesoura
+
+O desenho fica preso entre dois fatos medidos:
+
+  - **o juiz só funciona em inglês** (0,94 contra 0,29);
+  - **trabalhar em inglês obriga a traduzir, e o tradutor custa 8,1 s** — mais
+    que o dobro do rascunhador, e é a peça mais cara do pipeline.
+
+Rascunhar em português mataria o tradutor e devolveria o pipeline a ~4 s… mas
+cegaria o juiz, que é a peça que torna o rascunho confiável. Não há ordem que
+resolva: é a mesma língua puxando os dois lados.
+
+E o tradutor não é só caro, é ruim: `predicament` → "predicação", `unanswered`
+→ "inesgoável", `guest` → "convidado" (é hóspede), `tight squeeze` → "estreita
+esqueça". Bergamot (o do Firefox) resolveria os dois problemas — ~17 MB e
+milissegundos — mas exige um runtime WASM próprio, fora do transformers.js que
+o jogo já tem.
+
+### E a qualidade, que é o que decide
+
+Nas três falas, o juiz marcou ZERO e passaram para a tela:
+
+```
+"Como Nilo, eu diria: 'Bem, é um hotel peculiar, não é?'"
+   → quebra o personagem no primeiro token
+"Eu diria que é melhor ficar calmo e paciente. (…) você não está sozinho aqui."
+   → modo assistente inteiro
+"Eu sou apenas um convidado preso neste elevador"
+   → o cânone diz explicitamente que ele NÃO está dentro do elevador
+```
+
+Ou seja: 1,14× mais lento **e** pior. O juiz por NLI pega contradição factual e
+é cego para registro — e registro é onde o rascunhador MoE erra.
+
+**Veredito:** a arquitetura está corretamente desenhada e mal servida pelas
+peças disponíveis. O gargalo não é o revisor (ele nem rodou); é que nenhum
+rascunhador escreve bem o bastante para o juiz ter pouco trabalho, e o preço de
+colocá-lo na língua onde o juiz enxerga é um tradutor que custa mais que o
+rascunho inteiro.
