@@ -43,7 +43,7 @@ import { diagnosticar } from './npc/floor10Diagnostico';
 import { SMALL_BRAIN_MODEL, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
 import { enumerarEmIngles } from './npc/floor10Pipeline';
-import { formatBytes } from './npc/floor10Download';
+import { formatBytes, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSubscribe } from './npc/npcStore';
 
 /**
@@ -124,6 +124,11 @@ const CAIXA = {
 export default function Floor10PipelineSala() {
     const [pergunta, setPergunta] = useState(PERGUNTAS[0]);
     const [corrida, setCorrida] = useState<Corrida>(VAZIO);
+    // ── DOIS ESTADOS, E NÃO UM ───────────────────────────────────────────
+    // Eles eram o mesmo `ocupado`, e o resultado apareceu na foto de tela do
+    // dono do jogo: a fila baixando e o botão de RODAR dizendo "rodando…". Um
+    // botão que mente sobre o que está acontecendo é pior que um botão inerte.
+    const [baixando, setBaixando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
     const [aviso, setAviso] = useState('');
     const [etapaViva, setEtapaViva] = useState('');
@@ -139,15 +144,20 @@ export default function Floor10PipelineSala() {
     // sai a porcentagem da barra. As outras três peças não têm callback de
     // progresso (o Bergamot e o transformers.js baixam por dentro), então elas
     // andam em degrau — e a barra diz isso em vez de fingir precisão.
-    const [baixado, setBaixado] = useState(0);
+    const [amostra, setAmostra] = useState<DownloadSample | null>(null);
+    const [linha, setLinha] = useState('');
 
     // A `etapa` do npcStore é onde as peças reais escrevem em que passo estão
     // (`PECAS_REAIS` faz `npcSet({ etapa })`). Ler daqui mostra o pipeline
     // andando ao vivo, e é o MESMO campo que a bolha de espera do jogo lê.
     useEffect(() => npcSubscribe(() => {
         setEtapaViva(npc.etapa);
-        // `loadDownload` é onde o rascunhador publica a amostra do download.
-        setBaixado(npc.loadDownload?.bytes ?? 0);
+        // `loadDownload` é onde o rascunhador publica a amostra do download —
+        // e ele NÃO publicava ali até agora, o que deixava a barra em 0 MB
+        // enquanto os bytes andavam. `linha` é o texto vivo ("12 MB de 822 MB ·
+        // 1,3 MB/s"), que é o que responde "está andando ou travou?".
+        setAmostra(npc.loadDownload ?? null);
+        setLinha(npc.loadText ?? '');
     }), []);
 
     const PECAS: Peca[] = [
@@ -220,7 +230,7 @@ export default function Floor10PipelineSala() {
     // cada render. Memoizar exigiria uma lista de dependências que mente, e o
     // que se ganharia é zero — isto só roda no clique.
     const baixarTudo = async () => {
-        setOcupado(true);
+        setBaixando(true);
         setAviso('');
         setEstados(Object.fromEntries(PECAS.map((p) => [p.id, { estado: 'espera' as const }])));
         for (const peca of PECAS) {
@@ -249,7 +259,7 @@ export default function Floor10PipelineSala() {
             }
             setTique((t) => t + 1);
         }
-        setOcupado(false);
+        setBaixando(false);
     };
 
     /** Uma peça só, para tentar de novo sem refazer a fila inteira. */
@@ -337,7 +347,7 @@ export default function Floor10PipelineSala() {
     const bytesTotais = PECAS.reduce((s, p) => s + p.bytes, 0);
     const bytesFeitos = PECAS.reduce((s, p) => {
         if (dePe(p)) return s + p.bytes;
-        if (estados[p.id]?.estado === 'baixando') return s + Math.min(baixado, p.bytes);
+        if (estados[p.id]?.estado === 'baixando') return s + Math.min(amostra?.bytes ?? 0, p.bytes);
         return s;
     }, 0);
     const fracao = bytesTotais > 0 ? Math.max(0, Math.min(1, bytesFeitos / bytesTotais)) : 0;
@@ -392,19 +402,34 @@ export default function Floor10PipelineSala() {
                 <button
                     type="button"
                     onClick={() => void baixarTudo()}
-                    disabled={ocupado}
+                    disabled={baixando || ocupado}
                     style={{
                         marginTop: 6, marginBottom: 4,
-                        background: ocupado ? '#232323' : '#2a3550',
-                        color: ocupado ? '#666' : '#cfd6e4',
+                        background: baixando ? '#232323' : '#2a3550',
+                        color: baixando ? '#666' : '#cfd6e4',
                         border: '1px solid #333', borderRadius: 6,
-                        padding: '8px 14px', cursor: ocupado ? 'default' : 'pointer',
+                        padding: '8px 14px', cursor: baixando ? 'default' : 'pointer',
                     }}
                 >
-                    {ocupado
-                        ? (etapaViva || 'baixando…')
+                    {baixando
+                        ? 'baixando…'
                         : (algumaFalhou ? 'tentar de novo o que faltou' : 'baixar tudo em fila')}
                 </button>
+
+                {/* ── O SINAL DE VIDA ──────────────────────────────────────
+                    O relato foi "fica nisso eternamente". Sem velocidade nem
+                    "parado há Ns" na tela, travado e lento são idênticos — e a
+                    diferença decide se é para esperar ou desistir. */}
+                {baixando && (
+                    <div style={{
+                        marginBottom: 6, fontSize: 12,
+                        color: (amostra?.stalledSec ?? 0) >= 10 ? '#f5c96b' : '#7aa2ff',
+                    }}>
+                        {(amostra?.stalledSec ?? 0) >= 10
+                            ? `parado há ${Math.round(amostra?.stalledSec ?? 0)}s — se passar do prazo, ele desiste e diz por quê`
+                            : (linha || 'conversando com o CDN…')}
+                    </div>
+                )}
                 <div style={{ color: '#777', fontSize: 12, marginBottom: 4 }}>
                     Uma de cada vez: quatro downloads paralelos dividem a mesma banda e a mesma CPU
                     do celular. A fila SEGUE depois de uma falha — parar tudo esconderia que as
@@ -438,7 +463,7 @@ export default function Floor10PipelineSala() {
                                     <button
                                         type="button"
                                         onClick={() => void subir(p)}
-                                        disabled={ocupado}
+                                        disabled={baixando || ocupado}
                                         style={{
                                             background: '#20242e', color: '#cfd6e4',
                                             border: '1px solid #333', borderRadius: 6,

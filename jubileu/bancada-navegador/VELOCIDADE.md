@@ -2303,3 +2303,77 @@ CDN            → 200, 821.847.360 bytes, access-control-allow-origin: *
 
 URL e CORS do rascunhador estão certos. Quando o download **começa** e para no
 meio, é rede ou cota — não é o servidor recusando.
+
+---
+
+## "Fica nisso eternamente" — dois defeitos numa foto de tela
+
+Foto do celular: **`0 MB de 2.23 GB · 0 de 4 peças`**, botão em "baixando…",
+travado. E, mais embaixo, o botão de RODAR dizendo **"rodando…"** ao mesmo
+tempo. Dois defeitos, os dois meus.
+
+### 1. A barra lia um campo que ninguém escrevia
+
+`baixarRascunhador` publicava o progresso em `floor10Fila.progresso(...)` e em
+`npc.loadText`. A sala desenhava a partir de `npc.loadDownload`, que **nunca era
+escrito**. O progresso existia o tempo todo; só não chegava a quem desenha.
+
+Sintoma perfeito para enganar: 0 MB parado é indistinguível de download travado.
+
+### 2. As etapas em volta do download não tinham prazo
+
+O download **já** tinha cão de guarda (`baixarSemSubir` desiste por
+inatividade). O buraco eram as etapas ao redor:
+
+```
+import(WLLAMA_ESM) ..... busca o runtime no jsdelivr
+loadModelFromUrl() ..... lê 822 MB do OPFS para dentro do WASM
+probe / estimate ....... sondas de armazenamento
+```
+
+E aqui está o detalhe que faz disto "eterno" e não "lento":
+
+> **Um `import()` que não resolve não rejeita.** Ele fica pendente para sempre.
+
+Numa fila sequencial, uma etapa pendurada segura todas as seguintes. É o
+**terceiro** lugar deste projeto com o mesmo defeito — o reflexo e o
+`baixarSemSubir` já tinham sido consertados, e ele voltou por uma porta nova.
+
+Cada etapa ganhou prazo, e o prazo **diz qual etapa** estourou:
+
+```
+o CDN do motor (jsdelivr) ..... 45 s
+a abertura do modelo .......... 180 s
+sondas de armazenamento ....... 20 s
+```
+
+"Deu timeout" não separa CDN barrado de aparelho lento — são consertos
+diferentes, e o nome da etapa é o que decide.
+
+### Conferido pendurando a rede, não bloqueando
+
+A sonda anterior **bloqueava** o HuggingFace, e por isso pegava o caminho de
+erro, não o de travamento. Esta deixa a requisição **aberta para sempre**, que é
+o que o celular dele viveu:
+
+```
+✓ desistiu em 45s
+  ✗ uma etapa passou do prazo e a fila desistiu de esperar
+      se foi "o CDN do motor": a rede está barrando jsdelivr/HuggingFace
+      nada do que já baixou se perde — tentar de novo continua de onde parou
+    o CDN do motor (jsdelivr) não respondeu em 45s
+```
+
+### E o sinal de vida, que é o que evita a dúvida
+
+Enquanto baixa, a sala mostra a linha viva (`12 MB de 822 MB · 1,3 MB/s`) e,
+quando o contador para, **"parado há Ns"** em amarelo. Sem isso, travado e lento
+são a mesma tela — e a diferença é o que decide entre esperar e desistir.
+
+### O teste que quebrou sozinho, de novo
+
+`floor10Rascunhador.test.ts` verificava o `catch` dentro de uma janela de **2000
+caracteres** a partir do nome da função. Os prazos empurraram o `catch` para
+fora da janela e o teste reprovou código correto. Fronteira medida em bytes é
+fronteira que expira — passou a ir até a próxima declaração de topo, igual ao
+teste do remendo, que já tinha aprendido essa lição.

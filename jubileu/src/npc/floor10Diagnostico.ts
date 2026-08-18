@@ -51,6 +51,23 @@ const REGRAS: readonly (readonly [RegExp, Diagnostico])[] = Object.freeze([
         ],
     }],
 
+    // ── O PRAZO ESTOUROU ─────────────────────────────────────────────────
+    //
+    // Relato: a instalação ficava em "baixando…" ETERNAMENTE, com a barra em
+    // 0 MB. Um `import()` que não resolve não rejeita — fica pendente para
+    // sempre —, e a fila é sequencial, então uma etapa pendurada segura todas
+    // as seguintes. Agora cada etapa tem prazo e diz QUAL delas não respondeu,
+    // que é a informação que separa "CDN barrado" de "aparelho lento".
+    [/não respondeu em \d+s/i, {
+        resumo: 'uma etapa passou do prazo e a fila desistiu de esperar',
+        saidas: [
+            'se foi "o CDN do motor": a rede está barrando jsdelivr/HuggingFace — troque de rede ou desligue bloqueadores',
+            'se foi "a abertura do modelo": o aparelho não deu conta de abrir 822 MB; feche outras abas',
+            'se foi "a sonda de armazenamento": o navegador está sem responder sobre disco, geralmente cota no limite',
+            'nada do que já baixou se perde — tentar de novo continua de onde parou',
+        ],
+    }],
+
     // ── O RUNTIME, QUE NÃO É O MODELO ────────────────────────────────────
     //
     // Esta regra existe porque a primeira versão deste arquivo errou o

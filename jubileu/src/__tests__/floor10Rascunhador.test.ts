@@ -95,10 +95,19 @@ describe('a disciplina do carregador', () => {
     it('toda falha devolve null ou false — nenhuma vira erro na tela', () => {
         // Regra do andar: um NPC que emudece porque a otimização falhou é pior
         // que um NPC lento.
+        //
+        // A FRONTEIRA ERA UMA JANELA DE 2000 CARACTERES, e ela quebrou sozinha
+        // no dia em que `baixarRascunhador` ganhou os prazos por etapa: o
+        // `catch` saiu da janela e o teste reprovou código correto. Agora ela
+        // vai até a PRÓXIMA declaração de topo, que é o que "esta função"
+        // sempre quis dizer. Mesma lição do teste do remendo, no arquivo ao
+        // lado: fronteira medida em bytes é fronteira que expira.
         for (const fn of ['baixarRascunhador', 'subirRascunhador', 'rascunharEmIngles']) {
             const i = fonte.indexOf(`export async function ${fn}`);
             expect(i).toBeGreaterThan(-1);
-            expect(fonte.slice(i, i + 2000)).toMatch(/catch/);
+            const resto = fonte.slice(i + 1);
+            const fim = resto.search(/\n(?:export )?(?:async )?(?:function|const) /);
+            expect(fonte.slice(i, fim >= 0 ? i + 1 + fim : undefined)).toMatch(/catch/);
         }
     });
 

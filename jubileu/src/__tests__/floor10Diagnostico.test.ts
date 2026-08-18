@@ -145,3 +145,61 @@ describe('o runtime não é o modelo — a regra que a medição obrigou', () =>
         expect(d?.saidas.join(' ')).toMatch(/822 MB/);
     });
 });
+
+describe('o "eternamente" — prazos e o campo de progresso', () => {
+    const rasc = readFileSync(
+        new URL('../npc/floor10Rascunhador.ts', import.meta.url), 'utf8',
+    );
+
+    it('TODA etapa sem cão de guarda ganhou prazo', () => {
+        // Relato: "fica nisso eternamente", barra em 0 MB. O download em si já
+        // tinha vigia (`baixarSemSubir` desiste por inatividade); o buraco eram
+        // as etapas em volta. Um `import()` que não resolve NÃO rejeita — fica
+        // pendente para sempre — e a fila é sequencial, então uma etapa
+        // pendurada segura todas as seguintes.
+        for (const etapa of [
+            'o CDN do motor (jsdelivr)',
+            'a abertura do modelo',
+            'a sonda de armazenamento',
+            'a estimativa de disco',
+        ]) {
+            expect(rasc, `sem prazo: ${etapa}`).toContain(etapa);
+        }
+        // Nenhum `import(WLLAMA_ESM)` pode estar nu.
+        const nus = rasc.match(/await \(?import\(\/\* @vite-ignore \*\/ WLLAMA_ESM/g) ?? [];
+        expect(nus, 'ainda há import() sem prazo').toHaveLength(0);
+    });
+
+    it('e o prazo DIZ qual etapa estourou', () => {
+        // "deu timeout" não separa CDN barrado de aparelho lento. São consertos
+        // diferentes, e o nome da etapa é o que decide.
+        expect(rasc).toMatch(/não respondeu em \$\{Math\.round\(ms \/ 1000\)\}s/);
+        const d = diagnosticar('o CDN do motor (jsdelivr) não respondeu em 45s');
+        expect(d?.resumo).toMatch(/prazo/i);
+        expect(d?.saidas.join(' ')).toMatch(/jsdelivr|bloqueadores/i);
+    });
+
+    it('o progresso vai para `loadDownload`, que é o campo que a barra lê', () => {
+        // O defeito dos "0 MB de 2.23 GB" eternos: o rascunhador publicava em
+        // `floor10Fila` e em `loadText`, mas NUNCA em `loadDownload` — que é
+        // exatamente o que a sala desenha. O progresso existia; só não chegava
+        // a quem desenha.
+        const i = rasc.indexOf('const baixou = await baixarSemSubir');
+        const corpo = rasc.slice(i, i + 1200);
+        expect(corpo).toContain('loadDownload: amostra');
+        expect(corpo).toContain('floor10Fila.progresso(FILA_RASCUNHO, amostra)');
+    });
+
+    it('a sala separa "baixando" de "rodando" — um botão não pode mentir', () => {
+        // Na foto de tela do dono do jogo a fila baixava e o botão de RODAR
+        // dizia "rodando…", porque os dois liam o mesmo `ocupado`.
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain('const [baixando, setBaixando]');
+        expect(sala).toContain('const [ocupado, setOcupado]');
+        // E a fila mostra sinal de vida: sem velocidade nem "parado há Ns",
+        // travado e lento são indistinguíveis.
+        expect(sala).toMatch(/parado há/);
+    });
+});

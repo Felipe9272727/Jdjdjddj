@@ -143,6 +143,45 @@ let ultimoErro = '';
 
 export function ultimoErroDoRascunhador(): string { return ultimoErro; }
 
+/**
+ * ── PRAZO PARA CADA ETAPA, E POR QUE ISTO É CONSERTO E NÃO ENFEITE ───────
+ *
+ * Relato: a instalação ficava em "baixando…" **eternamente**, com a barra em
+ * 0 MB. O download em si JÁ tinha cão de guarda (`baixarSemSubir`, que desiste
+ * por inatividade) — o buraco estava nas etapas em volta, que ninguém vigiava:
+ *
+ *     import(WLLAMA_ESM) ....... busca o runtime no jsdelivr. Um `import()`
+ *                                que não resolve não rejeita: fica pendente
+ *                                para sempre. É o candidato número um, e casa
+ *                                com o sintoma (0 MB, nada anda).
+ *     loadModelFromUrl() ....... lê 822 MB do OPFS para dentro do WASM. Pode
+ *                                abortar por memória sem devolver a promessa.
+ *     probe/estimate ........... rápidos, mas são `await` numa fila sequencial.
+ *
+ * Uma espera sem prazo dentro de uma fila sequencial é o mesmo defeito que este
+ * projeto já consertou duas vezes (no reflexo e no `baixarSemSubir`). Aqui ele
+ * voltou por uma terceira porta.
+ *
+ * O prazo NÃO cancela o trabalho — não dá, o `import()` não aceita sinal. Ele
+ * desiste de ESPERAR, com um motivo legível, e a fila segue. O que já baixou
+ * continua no OPFS para a próxima tentativa.
+ */
+const PRAZO_RUNTIME_MS = 45_000;
+const PRAZO_CARGA_MS = 180_000;
+const PRAZO_SONDA_MS = 20_000;
+
+function comPrazo<T>(tarefa: Promise<T>, ms: number, oQue: string): Promise<T> {
+    return Promise.race([
+        tarefa,
+        new Promise<never>((_, rejeitar) => {
+            globalThis.setTimeout(
+                () => rejeitar(new Error(`${oQue} não respondeu em ${Math.round(ms / 1000)}s`)),
+                ms,
+            );
+        }),
+    ]);
+}
+
 const medidor = new DownloadMeter();
 let enginePromise: Promise<Instancia | null> | null = null;
 let residente: Instancia | null = null;
@@ -172,19 +211,28 @@ export async function baixarRascunhador(): Promise<boolean> {
     if (residente) return true;
     ultimoErro = '';
     try {
-        const backend = await probeModelStorageBackend();
+        const backend = await comPrazo(
+            probeModelStorageBackend(), PRAZO_SONDA_MS, 'a sonda de armazenamento',
+        );
         if (!backend.ok) {
             ultimoErro = backend.message || 'este navegador não guarda modelos (sem OPFS)';
             anotar('rascunhador:sem-backend', { motivo: ultimoErro.slice(0, 80) });
             return false;
         }
-        const plano = planModelCache(await readStorageEstimate(), FLOOR10_RASCUNHADOR_MODEL.bytes);
+        const plano = planModelCache(
+            await comPrazo(readStorageEstimate(), PRAZO_SONDA_MS, 'a estimativa de disco'),
+            FLOOR10_RASCUNHADOR_MODEL.bytes,
+        );
         if (!plano.ok) {
             ultimoErro = plano.message;
             anotar('rascunhador:nao-cabe', { motivo: plano.message.slice(0, 80) });
             return false;
         }
-        const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: Ctor }>);
+        const mod = await comPrazo(
+            import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: Ctor }>,
+            PRAZO_RUNTIME_MS,
+            'o CDN do motor (jsdelivr)',
+        );
         const cofre = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
         medidor.reset();
         const baixou = await baixarSemSubir(
@@ -194,6 +242,11 @@ export async function baixarRascunhador(): Promise<boolean> {
                 const amostra = medidor.push(loaded, total);
                 floor10Fila.progresso(FILA_RASCUNHO, amostra);
                 npcSet({
+                    // `loadDownload` FALTAVA, e a barra da sala lia exatamente
+                    // ele: ficava em 0 MB enquanto os bytes andavam, e o que o
+                    // dono do jogo via era "0 MB de 2,23 GB" para sempre. O
+                    // progresso existia; só não chegava a quem desenha.
+                    loadDownload: amostra,
                     loadText: `baixando ${FLOOR10_RASCUNHADOR_MODEL.label} · ${downloadLine(amostra)}`,
                 });
             },
@@ -219,12 +272,20 @@ export async function subirRascunhador(): Promise<Instancia | null> {
     enginePromise ??= (async () => {
         abortoDaCarga = new AbortController();
         try {
-            const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: Ctor }>);
+            const mod = await comPrazo(
+                import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: Ctor }>,
+                PRAZO_RUNTIME_MS,
+                'o CDN do motor (jsdelivr)',
+            );
             const e = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
-            await e.loadModelFromUrl(FLOOR10_RASCUNHADOR_MODEL.url, {
-                ...FLOOR10_RASCUNHADOR_LOAD_CONFIG,
-                n_threads: rascunhadorThreads(),
-            });
+            await comPrazo(
+                e.loadModelFromUrl(FLOOR10_RASCUNHADOR_MODEL.url, {
+                    ...FLOOR10_RASCUNHADOR_LOAD_CONFIG,
+                    n_threads: rascunhadorThreads(),
+                }),
+                PRAZO_CARGA_MS,
+                'a abertura do modelo',
+            );
             residente = e;
             npcSet({ loadDownload: DOWNLOAD_ZERO });
             anotar('rascunhador:de-pe', { threads: rascunhadorThreads() });
