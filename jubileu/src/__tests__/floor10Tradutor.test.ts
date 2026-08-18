@@ -261,3 +261,47 @@ describe('o runtime vem da NOSSA origem — o Worker cross-origin não existe', 
         expect(fonte).toMatch(/bancada.*MESMO servidor|MESMO servidor de teste/s);
     });
 });
+
+describe('os arquivos chegam em .gz, e alguém tem de descompactar', () => {
+    const fonte = readFileSync(new URL('../npc/floor10Tradutor.ts', import.meta.url), 'utf8');
+
+    it('o jogo descompacta antes de entregar ao Bergamot', () => {
+        // ── MEDIDO, e não é ambíguo ──────────────────────────────────────
+        //
+        //   os bytes do HF começam com `1f 8b 08 08` ......... gzip cru
+        //   content-type: application/gzip, SEM content-encoding → o navegador
+        //                                                          não descompacta
+        //   `translator.js`: zero ocorrências de gzip/inflate .. ele também não
+        //
+        // O Bergamot recebia gzip e tentava lê-lo como modelo Marian:
+        //   "Aborted(). (response to loadTranslationModel(...))"
+        expect(fonte).toContain("new DecompressionStream('gzip')");
+        // E o registro passa a apontar para as `blob:` já descompactadas.
+        expect(fonte).toContain('registro[par][papel] = { name: blob }');
+    });
+
+    it('a BANCADA não pegava porque ela usava os arquivos já descompactados', () => {
+        // `bergamot-buscar.sh` roda `gunzip` e serve o resultado. Quarta vez
+        // nesta sessão que o teste rodou numa condição mais fácil que a de
+        // produção — e a quarta vez que o jogo pagou por isso.
+        const script = readFileSync(
+            new URL('../../bancada-navegador/bergamot-buscar.sh', import.meta.url), 'utf8',
+        );
+        expect(script).toContain('gunzip');
+    });
+
+    it('e os blobs são revogados, senão 73 MB ficam presos', () => {
+        // 51 MB comprimidos viram 73 MB descompactados, medidos arquivo a
+        // arquivo. Sem revogar, eles só saem quando a aba fecha.
+        expect(fonte).toMatch(/while \(blobs\.length > 0\) URL\.revokeObjectURL/);
+        // Nos DOIS caminhos: ao esquecer e ao falhar.
+        expect((fonte.match(/while \(blobs\.length > 0\)/g) ?? []).length)
+            .toBeGreaterThanOrEqual(2);
+    });
+
+    it('o tradutor passou a reportar progresso, porque o download virou nosso', () => {
+        // Era a única peça que baixava sem contador de bytes — o Bergamot
+        // buscava por dentro. Agora quem busca somos nós.
+        expect(fonte).toContain('aoProgredir?.(baixados, FLOOR10_TRADUTOR_BYTES)');
+    });
+});

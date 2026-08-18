@@ -46,8 +46,8 @@ import {
 import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
 import { enumerarEmIngles } from './npc/floor10Pipeline';
-import { formatBytes, type DownloadSample } from './npc/floor10Download';
-import { npc, npcSubscribe } from './npc/npcStore';
+import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
+import { npc, npcSet, npcSubscribe } from './npc/npcStore';
 
 /**
  * As perguntas de teste, em PORTUGUÊS e do jeito que o dono do jogo escreve.
@@ -193,8 +193,16 @@ export default function Floor10PipelineSala() {
             nome: 'tradutor · Bergamot en↔pt',
             bytes: FLOOR10_TRADUTOR_BYTES,
             detalhe: 'os DOIS pares: leva a pergunta e traz a fala',
-            carregar: prepararTradutor,
+            // Agora o download é NOSSO (precisamos descompactar os `.gz` antes
+            // de entregar ao Bergamot), então ele finalmente reporta bytes.
+            carregar: () => prepararTradutor((baixados, total) => {
+                npcSet({
+                    loadDownload: { ...DOWNLOAD_ZERO, bytes: baixados, totalBytes: total },
+                    loadText: `baixando o tradutor · ${formatBytes(baixados)} de ${formatBytes(total)}`,
+                });
+            }),
             motivo: ultimoErroDoTradutor,
+            reportaProgresso: true,
         },
         {
             id: 'juiz',

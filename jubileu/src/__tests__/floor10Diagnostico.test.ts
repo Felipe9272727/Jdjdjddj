@@ -72,7 +72,11 @@ describe('diagnosticar', () => {
         // Um palpite com ar de certeza manda a pessoa consertar a coisa errada,
         // e aí ela perde a tarde. `null` faz a sala mostrar o texto cru, que é
         // pior de ler e melhor de agir.
-        expect(diagnosticar('SentencePiece vocabulary error')).toBeNull();
+        // `SentencePiece vocabulary error` SAIU desta lista: ele passou a ser
+        // reconhecido, e com razão — é o sintoma de entregar gzip ao Bergamot,
+        // que é exatamente o defeito medido depois. Um exemplo de "não
+        // reconhecido" precisa ser algo que de fato não sabemos.
+        expect(diagnosticar('WebGPU adapter request failed')).toBeNull();
         expect(diagnosticar('algo completamente novo')).toBeNull();
         expect(diagnosticar('')).toBeNull();
         expect(diagnosticar('   ')).toBeNull();

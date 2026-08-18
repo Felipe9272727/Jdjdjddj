@@ -93,6 +93,74 @@ export const FLOOR10_TRADUTOR_BYTES = (23_340_019 + 2_117_608 + 408_686)
     + (22_700_409 + 2_487_847 + 408_686);
 
 /**
+ * ── OS ARQUIVOS CHEGAM COMPACTADOS, E O BERGAMOT NÃO SABE DISSO ──────────
+ *
+ * Sintoma no celular do dono do jogo, com tudo o mais funcionando:
+ *
+ *     Aborted(). Build with -s ASSERTIONS=1 for more info.
+ *     (response to loadTranslationModel(...))
+ *
+ * Medido, e não é ambíguo:
+ *
+ *     os bytes do HF começam com `1f 8b 08 08` .......... gzip cru
+ *     content-type: application/gzip, SEM content-encoding  o navegador não
+ *                                                          descompacta
+ *     `translator.js`: zero ocorrências de gzip/inflate ... ele também não
+ *
+ * Então o Bergamot recebe um gzip e tenta lê-lo como modelo Marian. O WASM
+ * aborta, e o `Aborted()` não diz nada sobre a causa.
+ *
+ * A BANCADA NÃO PEGOU porque `bergamot-buscar.sh` roda `gunzip` e serve os
+ * arquivos JÁ DESCOMPACTADOS. É a MESMA falha de método pela quarta vez nesta
+ * sessão: o teste rodou numa condição mais fácil que a de produção.
+ *
+ * ── O CONSERTO: descompactar aqui ────────────────────────────────────────
+ *
+ * `DecompressionStream('gzip')` é do próprio navegador. A rede continua
+ * carregando 51 MB (comprimido), e o Bergamot recebe os 73 MB que ele espera,
+ * por `blob:` — que é same-origin e o worker alcança.
+ *
+ * De brinde, o download passa a ser NOSSO, então ele finalmente reporta
+ * progresso: até aqui o tradutor era a peça que baixava sem contador de bytes.
+ */
+const ARQUIVOS = Object.freeze({
+    enpt: Object.freeze({
+        model: 'en-pt/model.enpt.intgemm.alphas.bin.gz',
+        lex: 'en-pt/lex.50.50.enpt.s2t.bin.gz',
+        vocab: 'en-pt/vocab.enpt.spm.gz',
+    }),
+    pten: Object.freeze({
+        model: 'pt-en/model.pten.intgemm.alphas.bin.gz',
+        lex: 'pt-en/lex.50.50.pten.s2t.bin.gz',
+        vocab: 'pt-en/vocab.pten.spm.gz',
+    }),
+});
+
+/**
+ * Baixa um arquivo e o DESCOMPACTA, devolvendo uma `blob:` que o Bergamot
+ * consegue ler. `aoAndar` recebe os bytes COMPRIMIDOS, que é o que a rede move
+ * e portanto o que a barra deve mostrar.
+ */
+async function baixarDescompactado(
+    url: string,
+    aoAndar: (bytes: number) => void,
+): Promise<string> {
+    const r = await fetch(url);
+    if (!r.ok || !r.body) throw new Error(`${url.split('/').pop()}: HTTP ${r.status}`);
+    // Conta os bytes ANTES de descompactar: é o que desce pela rede.
+    const contado = r.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(pedaco, controlador) {
+            aoAndar(pedaco.byteLength);
+            controlador.enqueue(pedaco);
+        },
+    }));
+    const cru = url.endsWith('.gz')
+        ? contado.pipeThrough(new DecompressionStream('gzip'))
+        : contado;
+    return URL.createObjectURL(await new Response(cru).blob());
+}
+
+/**
  * O registro que o Bergamot espera: chave `<de><para>` de 4 letras, e cada
  * arquivo com um `name` que é uma URL absoluta.
  */
@@ -117,6 +185,8 @@ type Tradutor = {
 
 let tradutorPromise: Promise<Tradutor | null> | null = null;
 let urlDoRegistro: string | null = null;
+/** As `blob:` dos seis arquivos. Vivem enquanto o tradutor viver. */
+const blobs: string[] = [];
 /** Ver `ultimoErroDoRascunhador`: o motivo some se ninguém o guardar. */
 let ultimoErro = '';
 
@@ -129,7 +199,9 @@ export function ultimoErroDoTradutor(): string { return ultimoErro; }
  * do jogador. Sem tradutor, o pipeline devolve `null` e o caminho normal (o 3B
  * escrevendo em português) assume.
  */
-export function prepararTradutor(): Promise<Tradutor | null> {
+export function prepararTradutor(
+    aoProgredir?: (baixados: number, total: number) => void,
+): Promise<Tradutor | null> {
     tradutorPromise ??= (async () => {
         ultimoErro = '';
         try {
@@ -154,10 +226,31 @@ export function prepararTradutor(): Promise<Tradutor | null> {
                 PRAZO_RUNTIME_MS,
                 'o runtime do tradutor',
             );
-            // O registro vira um Blob porque ele aponta para o HF, e não existe
-            // arquivo nosso para servir.
+            // ── BAIXA E DESCOMPACTA AQUI ─────────────────────────────────
+            //
+            // Ver o comentário em `ARQUIVOS`: o HF entrega gzip cru e nem o
+            // navegador nem o Bergamot descompactam, então entregar as URLs do
+            // HF direto ao registro faz o WASM abortar em
+            // `loadTranslationModel`. Passamos `blob:` com os bytes já crus.
+            let baixados = 0;
+            const registro: Record<string, Record<string, { name: string }>> = {};
+            for (const [par, arquivos] of Object.entries(ARQUIVOS)) {
+                registro[par] = {};
+                for (const [papel, caminho] of Object.entries(arquivos)) {
+                    const blob = await comPrazo(
+                        baixarDescompactado(`${MODELOS}/${caminho}`, (n) => {
+                            baixados += n;
+                            aoProgredir?.(baixados, FLOOR10_TRADUTOR_BYTES);
+                        }),
+                        PRAZO_REDE_MS,
+                        `o arquivo ${caminho.split('/').pop()} do tradutor`,
+                    );
+                    blobs.push(blob);
+                    registro[par][papel] = { name: blob };
+                }
+            }
             urlDoRegistro = URL.createObjectURL(
-                new Blob([registroDoTradutor()], { type: 'application/json' }),
+                new Blob([JSON.stringify(registro)], { type: 'application/json' }),
             );
             const t = new mod.LatencyOptimisedTranslator({
                 registryUrl: urlDoRegistro,
@@ -190,6 +283,7 @@ export function prepararTradutor(): Promise<Tradutor | null> {
             // dele; o tradutor não.
             tradutorPromise = null;
             if (urlDoRegistro) { URL.revokeObjectURL(urlDoRegistro); urlDoRegistro = null; }
+            while (blobs.length > 0) URL.revokeObjectURL(blobs.pop() as string);
             return null;
         }
     })();
@@ -200,6 +294,8 @@ export function prepararTradutor(): Promise<Tradutor | null> {
 export function esquecerTradutor(): void {
     tradutorPromise = null;
     if (urlDoRegistro) { URL.revokeObjectURL(urlDoRegistro); urlDoRegistro = null; }
+    // Sem isto os 73 MB descompactados ficariam presos até a aba fechar.
+    while (blobs.length > 0) URL.revokeObjectURL(blobs.pop() as string);
 }
 
 /**

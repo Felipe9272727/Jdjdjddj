@@ -2703,3 +2703,76 @@ estar errada** — e reprovar ali jogaria fora um download de 822 MB que talvez
 esteja inteiro. Quem decide é a abertura do modelo, que é quem de fato precisa
 do arquivo. A tela passa a dizer isso com todas as letras: *"isto é o que EU vi,
 não uma causa"*.
+
+---
+
+## `Aborted()` no tradutor — os arquivos chegam em .gz e ninguém descompacta
+
+Com o rascunhador ✓, o juiz ✓ e o revisor baixando, só o tradutor falhava:
+
+```
+Aborted(). Build with -s ASSERTIONS=1 for more info.
+(response to loadTranslationModel([object Object], [object Object]))
+```
+
+### Medido, e não é ambíguo
+
+```
+primeiros bytes do HF ......... 1f 8b 08 08          gzip cru
+content-type .................. application/gzip
+content-encoding .............. AUSENTE              → o navegador não descompacta
+translator.js: gzip|inflate ... 0 ocorrências        → ele também não
+```
+
+O Bergamot recebia um gzip e tentava lê-lo como modelo Marian. O `Aborted()` do
+Emscripten não diz nada sobre a causa — é só "o WASM desistiu".
+
+### E desta vez está PROVADO, não suposto
+
+Mesma página, mesmo runtime, mesmos arquivos do HuggingFace, dois caminhos:
+
+```
+A (.gz cru) ......... ✗ Aborted(). (response to loadTranslationModel(...))
+B (descompactado) ... ✓ 841 ms · 25.866.313 bytes pela rede
+                        "A porta está lá. Não se abre para mim."
+```
+
+O caminho A reproduz a mensagem do celular dele **palavra por palavra**.
+
+### O tamanho real
+
+```
+51.463.255 comprimido  →  73.361.858 descompactado
+```
+
+`DecompressionStream('gzip')` é do próprio navegador: a rede continua movendo
+51 MB e o Bergamot recebe os 73 MB que espera, por `blob:` — same-origin, que o
+worker alcança. Os blobs são revogados ao esquecer e ao falhar; sem isso os
+73 MB só sairiam quando a aba fechasse.
+
+**De brinde, o tradutor ganhou barra de progresso.** Ele era a única peça que
+baixava sem contador de bytes, porque quem buscava os arquivos era o Bergamot
+por dentro. Agora quem busca somos nós.
+
+### A quarta vez, e é sempre a mesma forma
+
+`bergamot-buscar.sh` roda `gunzip` e a bancada servia os arquivos **já
+descompactados**. Lista completa desta sessão:
+
+```
+1. a pergunta ia ao rascunhador já em inglês ....... o par pt→en não existia
+2. a sonda BLOQUEAVA o HF em vez de PENDURAR ....... media erro, não travamento
+3. o Bergamot vinha da mesma origem do teste ....... o Worker cross-origin sumia
+4. os modelos eram servidos descompactados ......... o gzip nunca aparecia
+```
+
+Sempre: dar ao teste uma condição mais fácil que a de produção, e depois confiar
+no número.
+
+### E o diagnóstico parou de chutar memória
+
+`Aborted` casava com a regra da parede de 2 GiB e dizia "o navegador ficou sem
+memória" — mais um chute apresentado como certeza. Agora existe regra própria
+para `loadTranslationModel|SentencePiece|intgemm`, antes da de memória, dizendo
+o mecanismo medido. A regra de memória virou último recurso, com o comentário
+explicando que `Aborted` significa só "o WASM desistiu".

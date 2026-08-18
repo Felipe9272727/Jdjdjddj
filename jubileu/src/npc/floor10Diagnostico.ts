@@ -53,7 +53,31 @@ const REGRAS: readonly (readonly [RegExp, Diagnostico])[] = Object.freeze([
         ],
     }],
 
+    // ── O WASM DO TRADUTOR ABORTOU AO LER O MODELO ───────────────────────
+    //
+    // Vem antes da regra de memória porque `Aborted()` casa com ela — e casar
+    // ali daria "o navegador ficou sem memória", que foi mais um chute meu. A
+    // causa medida é outra e não tem nada a ver com RAM:
+    //
+    //     os bytes do HF começam com `1f 8b 08 08` .......... gzip cru
+    //     content-type: application/gzip, SEM content-encoding  o navegador
+    //                                                          não descompacta
+    //     `translator.js`: zero ocorrências de gzip/inflate ... ele também não
+    //
+    // O Bergamot recebia um gzip e tentava lê-lo como modelo Marian.
+    [/loadTranslationModel|SentencePiece|intgemm/i, {
+        resumo: 'o tradutor recebeu bytes que não sabe ler',
+        saidas: [
+            'MEDIDO: o HuggingFace entrega os modelos em .gz e nem o navegador nem o Bergamot descompactam',
+            'o jogo passou a descompactar antes de entregar — se este erro voltou, é porque essa etapa falhou',
+            'não é memória nem rede: o arquivo chegou, só chegou compactado',
+        ],
+    }],
+
     // ── A PAREDE DE 2 GiB ────────────────────────────────────────────────
+    // `Aborted` é do Emscripten e significa só "o WASM desistiu" — a causa pode
+    // ser memória OU dado inválido. Fica aqui como último recurso, depois das
+    // regras que sabem distinguir.
     [/out of memory|OOM|Aborted|RangeError|allocation|memory access out of bounds/i, {
         resumo: 'o navegador ficou sem memória ao abrir o modelo',
         saidas: [
