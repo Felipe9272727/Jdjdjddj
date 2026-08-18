@@ -72,9 +72,12 @@ async function extrator(): Promise<Extractor | null> {
             return await mod.pipeline('feature-extraction', FLOOR10_TOM_MODEL.repo, {
                 dtype: FLOOR10_TOM_MODEL.dtype,
             });
-        } catch {
+        } catch (erro) {
             // Um juiz que não sobe não pode custar a fala: quem chama trata
-            // `null` como "não julguei" e o rascunho passa direto.
+            // `null` como "não julguei" e o rascunho passa direto. Mas o MOTIVO
+            // fica guardado — ver `ultimoErroDoRascunhador` para por quê: quem
+            // está instalando precisa saber se foi rede, cota ou CORS.
+            ultimoErro = erro instanceof Error ? erro.message : String(erro);
             extratorPromise = null;
             modulePromise = null;
             return null;
@@ -82,6 +85,11 @@ async function extrator(): Promise<Extractor | null> {
     })();
     return extratorPromise;
 }
+
+/** Ver `ultimoErroDoRascunhador`: sem isto o motivo some. */
+let ultimoErro = '';
+
+export function ultimoErroDoJuiz(): string { return ultimoErro; }
 
 async function vetor(texto: string): Promise<number[] | null> {
     const e = await extrator();

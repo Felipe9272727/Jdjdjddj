@@ -2224,3 +2224,82 @@ leu o DOM antes de o `lazy` montar. Com espera explícita a página está inteir
 **Instrumento sujo, terceira vez nesta sessão.** As outras duas foram o RSS que
 dizia "0% de RAM devolvida" e o "carregou" que na verdade era "morre na primeira
 geração".
+
+---
+
+## A fila de instalação, e o erro que estava sendo engolido
+
+Relato: *"falhou em instalar o rascunhador"*. Não havia como saber o que fazer,
+porque **a razão não chegava à tela**. Os carregadores deste andar seguem a
+regra certa para o JOGO — falha nunca emudece o NPC, então eles devolvem
+`false`/`null` e mandam o motivo para a caixa-preta. Certo lá, inútil para quem
+está instalando: quatro caminhos de falha diferentes, todos virando `false`.
+
+```
+sem backend .......... o navegador não tem OPFS
+não coube ............ cota de disco
+download desistiu .... a conexão parou no meio
+exceção .............. qualquer outra coisa
+```
+
+São **quatro consertos diferentes**, e a tela dizia a mesma coisa para os quatro.
+
+### O que mudou
+
+Cada peça agora guarda o próprio `ultimoErro` (`ultimoErroDoRascunhador`,
+`ultimoErroDoTradutor`, `ultimoErroDoJuiz`). O jogo continua sem mostrar; a
+sala mostra.
+
+E a fila virou **uma barra só**, contando BYTES e não peças — com 822 MB de um
+lado e 51 MB do outro, contar peças faria a barra pular de 25% em 25% e mentir
+sobre quanto falta. Uma peça de cada vez, e **a fila segue depois de uma
+falha**: parar tudo porque o rascunhador não desceu esconderia que o tradutor e
+o juiz desceriam bem, e essa é a diferença entre "meu aparelho não aguenta" e
+"aquele arquivo não veio".
+
+### O diagnóstico é hipótese; a mensagem crua é o fato
+
+`floor10Diagnostico.ts` traduz a mensagem numa causa provável **com saídas**, e
+a sala mostra **os dois** — diagnóstico e texto cru. Quando não reconhece,
+devolve `null` e só o cru aparece: um palpite com ar de certeza manda a pessoa
+consertar a coisa errada e perder a tarde.
+
+### E foi o texto cru que me pegou errando
+
+A sonda força a falha bloqueando o HuggingFace no navegador. A sala mostrou:
+
+```
+diagnóstico ... "a rede cortou no meio do download — são 822 MB numa tacada"
+texto cru ..... Failed to fetch dynamically imported module:
+                https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js
+```
+
+**Não era o modelo.** Era o RUNTIME do wllama, ~1 MB do jsdelivr, que falha
+ANTES de baixar um único byte de modelo. O conselho "mantenha a tela acesa, ele
+continua de onde parou" mandava consertar a coisa errada: não há o que
+continuar, e o tamanho do modelo é irrelevante.
+
+Virou regra própria, antes da genérica de rede:
+
+```
+o CÓDIGO do motor não carregou (não é o modelo)
+  falhou o CDN (jsdelivr/HuggingFace), e não o download — são ~1 MB, não 822 MB
+  rede corporativa, DNS, bloqueador ou extensão de privacidade barram CDN
+  se estiver numa rede com filtro, tente outra (dados móveis)
+  recarregar resolve quando foi só um soluço do CDN
+```
+
+**Essa distinção só existe porque o texto cru fica ao lado do diagnóstico.** Se
+a sala mostrasse só a minha explicação, o defeito teria sobrevivido.
+
+### O que a checagem de CORS descartou
+
+Conferido daqui, com `Origin` de outro site como o navegador manda:
+
+```
+huggingface.co → 302, access-control-allow-origin: <a origem ecoada>
+CDN            → 200, 821.847.360 bytes, access-control-allow-origin: *
+```
+
+URL e CORS do rascunhador estão certos. Quando o download **começa** e para no
+meio, é rede ou cota — não é o servidor recusando.

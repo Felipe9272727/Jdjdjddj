@@ -32,13 +32,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
     FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
-    rascunhadorJaCarregado, descarregarRascunhador,
+    rascunhadorJaCarregado, descarregarRascunhador, ultimoErroDoRascunhador,
 } from './npc/floor10Rascunhador';
-import { FLOOR10_TOM_MODEL, prepararJuizDeTom } from './npc/floor10VetorDeTom';
+import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
     FLOOR10_TRADUTOR_BYTES, prepararTradutor, desabreviar,
-    traduzirPerguntaParaIngles,
+    traduzirPerguntaParaIngles, ultimoErroDoTradutor,
 } from './npc/floor10Tradutor';
+import { diagnosticar } from './npc/floor10Diagnostico';
 import { SMALL_BRAIN_MODEL, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
 import { enumerarEmIngles } from './npc/floor10Pipeline';
@@ -76,6 +77,21 @@ type Peca = {
      */
     carregado?: () => boolean;
     carregar: () => Promise<unknown>;
+    /**
+     * O motivo da última falha, guardado pela própria peça.
+     *
+     * Existe porque os carregadores deste andar NÃO lançam: eles devolvem
+     * `false`/`null` e mandam o motivo para a caixa-preta, para que um erro
+     * nunca emudeça o NPC no jogo. Certo lá, inútil aqui — "falhou em instalar
+     * o rascunhador" sem motivo não diz se foi rede, cota, CORS ou navegador
+     * sem OPFS, e são quatro consertos diferentes.
+     */
+    motivo?: () => string;
+};
+
+type EstadoDaPeca = {
+    estado: 'espera' | 'baixando' | 'pronto' | 'falhou';
+    motivo?: string;
 };
 
 type Corrida = {
@@ -117,11 +133,22 @@ export default function Floor10PipelineSala() {
     // Redesenha quando uma peça de pé some (o botão de descarregar), para os
     // botões dizerem a verdade sem recarregar a página.
     const [tique, setTique] = useState(0);
+    const [estados, setEstados] = useState<Record<string, EstadoDaPeca>>({});
+    // A amostra viva da fila: o rascunhador reporta progresso em
+    // `floor10Fila.progresso(FILA_RASCUNHO, …)` durante o download, e é daí que
+    // sai a porcentagem da barra. As outras três peças não têm callback de
+    // progresso (o Bergamot e o transformers.js baixam por dentro), então elas
+    // andam em degrau — e a barra diz isso em vez de fingir precisão.
+    const [baixado, setBaixado] = useState(0);
 
     // A `etapa` do npcStore é onde as peças reais escrevem em que passo estão
     // (`PECAS_REAIS` faz `npcSet({ etapa })`). Ler daqui mostra o pipeline
     // andando ao vivo, e é o MESMO campo que a bolha de espera do jogo lê.
-    useEffect(() => npcSubscribe(() => setEtapaViva(npc.etapa)), []);
+    useEffect(() => npcSubscribe(() => {
+        setEtapaViva(npc.etapa);
+        // `loadDownload` é onde o rascunhador publica a amostra do download.
+        setBaixado(npc.loadDownload?.bytes ?? 0);
+    }), []);
 
     const PECAS: Peca[] = [
         {
@@ -131,6 +158,7 @@ export default function Floor10PipelineSala() {
             detalhe: 'escreve o primeiro jato em inglês · 400M ativos por token',
             carregado: rascunhadorJaCarregado,
             carregar: async () => (await baixarRascunhador()) && (await subirRascunhador()) !== null,
+            motivo: ultimoErroDoRascunhador,
         },
         {
             id: 'tradutor',
@@ -138,6 +166,7 @@ export default function Floor10PipelineSala() {
             bytes: FLOOR10_TRADUTOR_BYTES,
             detalhe: 'os DOIS pares: leva a pergunta e traz a fala',
             carregar: prepararTradutor,
+            motivo: ultimoErroDoTradutor,
         },
         {
             id: 'juiz',
@@ -145,6 +174,7 @@ export default function Floor10PipelineSala() {
             bytes: FLOOR10_TOM_MODEL.bytes,
             detalhe: 'marca o que soa errado · 5 de 6 nas cegas, 10 ms por frase',
             carregar: prepararJuizDeTom,
+            motivo: ultimoErroDoJuiz,
         },
         {
             id: 'revisor',
@@ -153,27 +183,95 @@ export default function Floor10PipelineSala() {
             detalhe: 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
             carregado: vontadeJaCarregada,
             carregar: precarregarVontade,
+            // A vontade já escreve o próprio motivo na tela do jogo há muito
+            // tempo; aqui é só reaproveitar o mesmo campo.
+            motivo: () => npc.deliberationLoadText,
         },
     ];
 
-    const subir = useCallback(async (peca: Peca) => {
-        setAviso(`subindo ${peca.nome}…`);
-        try {
-            // `prepararTradutor` e `prepararJuizDeTom` devolvem `null` em falha
-            // em vez de lançar — é a regra deste andar. Por isso o `null` conta
-            // como fracasso aqui, senão a sala marcaria de pé quem não subiu.
-            const r = await peca.carregar();
-            if (r === null || r === false) {
-                setAviso(`o ${peca.nome} não subiu — veja o console`);
-                return;
+    /**
+     * Está de pé? Duas das quatro peças não sabem responder isso sozinhas — ver
+     * o comentário em `Peca.carregado` —, então a sala lembra por elas.
+     */
+    const dePe = (p: Peca) => (p.carregado ? p.carregado() : subidas.has(p.id));
+
+    /**
+     * ── A FILA: BAIXA TODAS, UMA DE CADA VEZ, E NÃO PARA NA PRIMEIRA FALHA ──
+     *
+     * Pedido do dono do jogo depois de o rascunhador falhar: uma barra só,
+     * baixando tudo em fila, e o ERRO à vista quando uma falha.
+     *
+     * Três decisões, e cada uma tem um motivo:
+     *
+     * 1. UMA DE CADA VEZ. Quatro downloads paralelos dividem a mesma banda e a
+     *    mesma CPU do celular, e o wllama ainda lê cada arquivo de volta do
+     *    cache para dentro do WASM ao terminar. É a mesma regra da fila do jogo.
+     *
+     * 2. A FILA SEGUE depois de uma falha. Parar tudo porque o rascunhador não
+     *    desceu esconderia que o tradutor e o juiz desceriam bem — e é a
+     *    diferença entre "meu aparelho não aguenta" e "aquele arquivo não veio".
+     *
+     * 3. O MOTIVO VEM DA PEÇA, não do `catch` daqui. Os carregadores devolvem
+     *    `false`/`null` em falha (regra do andar: erro não pode emudecer o NPC),
+     *    então o `catch` local pegaria quase nada. Cada peça agora guarda o
+     *    próprio `ultimoErro`, e é ele que aparece.
+     */
+    // Sem `useCallback`: ele depende de `PECAS` e `dePe`, que nascem de novo a
+    // cada render. Memoizar exigiria uma lista de dependências que mente, e o
+    // que se ganharia é zero — isto só roda no clique.
+    const baixarTudo = async () => {
+        setOcupado(true);
+        setAviso('');
+        setEstados(Object.fromEntries(PECAS.map((p) => [p.id, { estado: 'espera' as const }])));
+        for (const peca of PECAS) {
+            if (dePe(peca)) {
+                setEstados((e) => ({ ...e, [peca.id]: { estado: 'pronto' } }));
+                continue;
             }
-            setSubidas((s) => new Set(s).add(peca.id));
-            setAviso('');
-        } catch (erro) {
-            setAviso(`falhou: ${erro instanceof Error ? erro.message : String(erro)}`);
-        } finally {
+            setEstados((e) => ({ ...e, [peca.id]: { estado: 'baixando' } }));
+            let ok = false;
+            let motivo = '';
+            try {
+                const r = await peca.carregar();
+                ok = r !== false && r !== null && r !== undefined;
+            } catch (erro) {
+                motivo = erro instanceof Error ? erro.message : String(erro);
+            }
+            if (!ok && !motivo) motivo = peca.motivo?.() ?? '';
+            if (ok) {
+                setSubidas((s) => new Set(s).add(peca.id));
+                setEstados((e) => ({ ...e, [peca.id]: { estado: 'pronto' } }));
+            } else {
+                setEstados((e) => ({
+                    ...e,
+                    [peca.id]: { estado: 'falhou', motivo: motivo || 'não subiu, e não disse por quê' },
+                }));
+            }
             setTique((t) => t + 1);
         }
+        setOcupado(false);
+    };
+
+    /** Uma peça só, para tentar de novo sem refazer a fila inteira. */
+    const subir = useCallback(async (peca: Peca) => {
+        setEstados((e) => ({ ...e, [peca.id]: { estado: 'baixando' } }));
+        let ok = false;
+        let motivo = '';
+        try {
+            const r = await peca.carregar();
+            ok = r !== false && r !== null && r !== undefined;
+        } catch (erro) {
+            motivo = erro instanceof Error ? erro.message : String(erro);
+        }
+        if (!ok && !motivo) motivo = peca.motivo?.() ?? '';
+        setEstados((e) => ({
+            ...e,
+            [peca.id]: ok
+                ? { estado: 'pronto' }
+                : { estado: 'falhou', motivo: motivo || 'não subiu, e não disse por quê' },
+        }));
+        if (ok) setSubidas((s) => new Set(s).add(peca.id));
+        setTique((t) => t + 1);
     }, []);
 
     const rodar = useCallback(async () => {
@@ -223,12 +321,26 @@ export default function Floor10PipelineSala() {
         }
     }, [pergunta]);
 
-    const dePe = (p: Peca) => (p.carregado ? p.carregado() : subidas.has(p.id));
     // `pipelineDisponivel()` só cobra o rascunhador — é ele que não pode ser
     // baixado na hora da fala. As outras três sobem sozinhas na primeira
     // chamada, então a sala roda sem elas; só fica mais lenta na primeira vez.
     const pronto = pipelineDisponivel();
     const faltando = PECAS.filter((p) => !dePe(p));
+    const algumaFalhou = PECAS.some((p) => estados[p.id]?.estado === 'falhou');
+
+    // ── A BARRA CONTA BYTES, NÃO PEÇAS ───────────────────────────────────
+    //
+    // Com 822 MB de um lado e 51 MB do outro, contar peças faria a barra pular
+    // de 25% em 25% e mentir sobre quanto falta. Peça pronta conta INTEIRA;
+    // a que está baixando conta o que já desceu, quando ela sabe dizer — só o
+    // rascunhador sabe, e é justamente ele que domina o total.
+    const bytesTotais = PECAS.reduce((s, p) => s + p.bytes, 0);
+    const bytesFeitos = PECAS.reduce((s, p) => {
+        if (dePe(p)) return s + p.bytes;
+        if (estados[p.id]?.estado === 'baixando') return s + Math.min(baixado, p.bytes);
+        return s;
+    }, 0);
+    const fracao = bytesTotais > 0 ? Math.max(0, Math.min(1, bytesFeitos / bytesTotais)) : 0;
 
     return (
         <div style={{
@@ -250,39 +362,128 @@ export default function Floor10PipelineSala() {
                 <code style={{ color: '#7fe0b0' }}>?pipeline=jogo</code> liga no jogo de verdade.
             </p>
 
-            {/* ── AS PEÇAS ─────────────────────────────────────────────── */}
+            {/* ── A FILA, COM UMA BARRA SÓ ─────────────────────────────── */}
             <div style={CAIXA}>
-                <strong>As peças</strong>
-                <span style={{ color: '#888' }}>
-                    {' '}— nada baixa sozinho; abrir uma aba não pode custar 1 GB
-                </span>
-                {PECAS.map((p) => (
-                    <div key={p.nome} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        marginTop: 8, flexWrap: 'wrap',
-                    }}>
-                        <button
-                            type="button"
-                            onClick={() => void subir(p)}
-                            disabled={ocupado}
-                            style={{
-                                background: dePe(p) ? '#1d3a2a' : '#20242e',
-                                color: dePe(p) ? '#7fe0b0' : '#cfd6e4',
-                                border: '1px solid #333', borderRadius: 6,
-                                padding: '6px 10px', cursor: ocupado ? 'default' : 'pointer',
-                                minWidth: 92,
-                            }}
-                        >
-                            {dePe(p) ? '✓ de pé' : 'carregar'}
-                        </button>
-                        <span style={{ flex: '1 1 260px' }}>
-                            {p.nome}
-                            <br />
-                            <span style={{ color: '#777', fontSize: 12 }}>{p.detalhe}</span>
-                        </span>
-                        <span style={{ color: '#888' }}>{formatBytes(p.bytes)}</span>
-                    </div>
-                ))}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                    <strong>A instalação</strong>
+                    <span style={{ color: '#888', flex: 1 }}>
+                        {formatBytes(bytesFeitos)} de {formatBytes(bytesTotais)}
+                        {' · '}{PECAS.filter((p) => dePe(p)).length} de {PECAS.length} peças
+                    </span>
+                </div>
+
+                {/* A BARRA ÚNICA. Ela conta BYTES, não peças: com 822 MB de um
+                    lado e 51 MB do outro, contar peças faria a barra pular de
+                    25% em 25% e mentir sobre quanto falta. */}
+                <div style={{
+                    height: 10, background: '#1c1c1c', borderRadius: 5,
+                    overflow: 'hidden', margin: '8px 0 4px',
+                }}>
+                    <div style={{
+                        height: '100%',
+                        width: `${Math.round(fracao * 100)}%`,
+                        background: algumaFalhou
+                            ? 'linear-gradient(90deg,#8a2f2f,#c2554a)'
+                            : 'linear-gradient(90deg,#3a6df0,#7fe0b0)',
+                        transition: 'width .3s',
+                    }} />
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => void baixarTudo()}
+                    disabled={ocupado}
+                    style={{
+                        marginTop: 6, marginBottom: 4,
+                        background: ocupado ? '#232323' : '#2a3550',
+                        color: ocupado ? '#666' : '#cfd6e4',
+                        border: '1px solid #333', borderRadius: 6,
+                        padding: '8px 14px', cursor: ocupado ? 'default' : 'pointer',
+                    }}
+                >
+                    {ocupado
+                        ? (etapaViva || 'baixando…')
+                        : (algumaFalhou ? 'tentar de novo o que faltou' : 'baixar tudo em fila')}
+                </button>
+                <div style={{ color: '#777', fontSize: 12, marginBottom: 4 }}>
+                    Uma de cada vez: quatro downloads paralelos dividem a mesma banda e a mesma CPU
+                    do celular. A fila SEGUE depois de uma falha — parar tudo esconderia que as
+                    outras desceriam bem.
+                </div>
+
+                {PECAS.map((p) => {
+                    const st: EstadoDaPeca = dePe(p)
+                        ? { estado: 'pronto' }
+                        : (estados[p.id] ?? { estado: 'espera' });
+                    const cor = {
+                        espera: '#666', baixando: '#7aa2ff', pronto: '#7fe0b0', falhou: '#ff9c9c',
+                    }[st.estado];
+                    const marca = {
+                        espera: '·', baixando: '↓', pronto: '✓', falhou: '✗',
+                    }[st.estado];
+                    const d = st.motivo ? diagnosticar(st.motivo) : null;
+                    return (
+                        <div key={p.id} style={{
+                            marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e1e1e',
+                        }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                <span style={{ color: cor, width: 14 }}>{marca}</span>
+                                <span style={{ flex: '1 1 240px' }}>
+                                    {p.nome}
+                                    <br />
+                                    <span style={{ color: '#777', fontSize: 12 }}>{p.detalhe}</span>
+                                </span>
+                                <span style={{ color: '#888' }}>{formatBytes(p.bytes)}</span>
+                                {st.estado === 'falhou' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => void subir(p)}
+                                        disabled={ocupado}
+                                        style={{
+                                            background: '#20242e', color: '#cfd6e4',
+                                            border: '1px solid #333', borderRadius: 6,
+                                            padding: '4px 10px',
+                                            cursor: ocupado ? 'default' : 'pointer',
+                                        }}
+                                    >
+                                        de novo
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* ── O ERRO, À VISTA ───────────────────────────── */}
+                            {st.estado === 'falhou' && (
+                                <div style={{
+                                    marginTop: 6, padding: '8px 10px', borderRadius: 6,
+                                    background: '#241616', border: '1px solid #4a2a2a',
+                                }}>
+                                    {d ? (
+                                        <>
+                                            <div style={{ color: '#ff9c9c' }}>{d.resumo}</div>
+                                            <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#c9a0a0' }}>
+                                                {d.saidas.map((s) => <li key={s}>{s}</li>)}
+                                            </ul>
+                                        </>
+                                    ) : (
+                                        <div style={{ color: '#ff9c9c' }}>
+                                            não reconheci este erro — o texto cru vale mais que um
+                                            palpite meu
+                                        </div>
+                                    )}
+                                    {/* O texto CRU sempre aparece, mesmo com diagnóstico: o
+                                        diagnóstico é hipótese, e a mensagem é o fato. */}
+                                    <div style={{
+                                        marginTop: 6, color: '#8a7a7a', fontSize: 12,
+                                        wordBreak: 'break-word',
+                                    }}>
+                                        {st.motivo}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+
                 <div style={{ marginTop: 10, color: pronto ? '#7fe0b0' : '#f5c96b' }}>
                     {pronto
                         ? 'o pipeline pode rodar'

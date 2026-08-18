@@ -126,6 +126,23 @@ type Instancia = {
 };
 type Ctor = new (p: Record<string, string>, o?: Record<string, unknown>) => Instancia;
 
+/**
+ * ── O MOTIVO DA ÚLTIMA FALHA, E POR QUE ELE PRECISOU EXISTIR ─────────────
+ *
+ * Todos os caminhos de falha daqui devolviam `false` e mandavam o motivo para a
+ * caixa-preta. Isso é certo para o JOGO — o Nilo não pode emudecer nem mostrar
+ * pilha de erro na cara de quem joga — e é péssimo para quem está tentando
+ * instalar: o relato foi "falhou em instalar o rascunhador", e não havia como
+ * saber se foi rede, cota de disco, CORS ou o navegador sem OPFS. São quatro
+ * consertos diferentes.
+ *
+ * O motivo fica guardado aqui e quem quiser mostrar, mostra. A fila de download
+ * mostra; o jogo continua sem mostrar.
+ */
+let ultimoErro = '';
+
+export function ultimoErroDoRascunhador(): string { return ultimoErro; }
+
 const medidor = new DownloadMeter();
 let enginePromise: Promise<Instancia | null> | null = null;
 let residente: Instancia | null = null;
@@ -153,11 +170,17 @@ export function rascunhadorJaCarregado(): boolean {
  */
 export async function baixarRascunhador(): Promise<boolean> {
     if (residente) return true;
+    ultimoErro = '';
     try {
         const backend = await probeModelStorageBackend();
-        if (!backend.ok) return false;
+        if (!backend.ok) {
+            ultimoErro = backend.message || 'este navegador não guarda modelos (sem OPFS)';
+            anotar('rascunhador:sem-backend', { motivo: ultimoErro.slice(0, 80) });
+            return false;
+        }
         const plano = planModelCache(await readStorageEstimate(), FLOOR10_RASCUNHADOR_MODEL.bytes);
         if (!plano.ok) {
+            ultimoErro = plano.message;
             anotar('rascunhador:nao-cabe', { motivo: plano.message.slice(0, 80) });
             return false;
         }
@@ -177,15 +200,15 @@ export async function baixarRascunhador(): Promise<boolean> {
         );
         try { await cofre.exit?.(); } catch { /* nada subiu */ }
         if (!baixou) {
+            ultimoErro = 'o download parou antes de terminar';
             anotar('rascunhador:download-desistiu');
             return false;
         }
         anotar('rascunhador:no-aparelho');
         return true;
     } catch (erro) {
-        anotar('rascunhador:download-falhou', {
-            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
-        });
+        ultimoErro = erro instanceof Error ? erro.message : String(erro);
+        anotar('rascunhador:download-falhou', { motivo: ultimoErro.slice(0, 80) });
         return false;
     }
 }
@@ -207,9 +230,8 @@ export async function subirRascunhador(): Promise<Instancia | null> {
             anotar('rascunhador:de-pe', { threads: rascunhadorThreads() });
             return e;
         } catch (erro) {
-            anotar('rascunhador:carga-falhou', {
-                motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
-            });
+            ultimoErro = erro instanceof Error ? erro.message : String(erro);
+            anotar('rascunhador:carga-falhou', { motivo: ultimoErro.slice(0, 80) });
             enginePromise = null;
             return null;
         } finally {

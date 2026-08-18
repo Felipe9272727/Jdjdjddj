@@ -85,6 +85,10 @@ type Tradutor = {
 
 let tradutorPromise: Promise<Tradutor | null> | null = null;
 let urlDoRegistro: string | null = null;
+/** Ver `ultimoErroDoRascunhador`: o motivo some se ninguém o guardar. */
+let ultimoErro = '';
+
+export function ultimoErroDoTradutor(): string { return ultimoErro; }
 
 /**
  * Sobe o Bergamot. Devolve `null` em qualquer falha — nunca lança.
@@ -95,6 +99,7 @@ let urlDoRegistro: string | null = null;
  */
 export function prepararTradutor(): Promise<Tradutor | null> {
     tradutorPromise ??= (async () => {
+        ultimoErro = '';
         try {
             const mod = await import(/* @vite-ignore */ `${RUNTIME}/translator.js`) as {
                 LatencyOptimisedTranslator: new (o: Record<string, unknown>) => Tradutor;
@@ -113,7 +118,8 @@ export function prepararTradutor(): Promise<Tradutor | null> {
             await t.translate({ from: 'en', to: 'pt', text: 'hello' });
             await t.translate({ from: 'pt', to: 'en', text: 'olá' });
             return t;
-        } catch {
+        } catch (erro) {
+            ultimoErro = erro instanceof Error ? erro.message : String(erro);
             return null;
         }
     })();
