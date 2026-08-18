@@ -18,11 +18,15 @@ import {
     falarPeloPipeline, pipelineLigado,
     type PassoDoPipeline, type PecasDoPipeline, type SaidaDoPipeline,
 } from './floor10Pipeline';
-import { rascunharEmIngles, rascunhadorJaCarregado } from './floor10Rascunhador';
+import {
+    rascunharEmIngles, rascunhadorJaCarregado, descarregarRascunhador, subirRascunhador,
+} from './floor10Rascunhador';
 import { frasesForaDoTom } from './floor10VetorDeTom';
 import { traduzirParaPtBr } from './floor10Tradutor';
-import { remendarFraseEmIngles, vontadeDePeAgora } from './floor10SmallBrain';
-import { comPrazo, PRAZO_CARGA_MS } from './floor10Carga';
+import {
+    remendarFraseEmIngles, vontadeDePeAgora, precarregarVontade, unloadSmallBrain,
+} from './floor10SmallBrain';
+import { comPrazo, esperar, PRAZO_CARGA_MS, RESPIRO_APOS_DESCARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
 import { npcSet } from './npcStore';
 
@@ -83,22 +87,35 @@ export const PECAS_REAIS: PecasDoPipeline = {
 
     remendar: async (pergunta, frase) => {
         // O revisor é o LFM2.5 — o MESMO arquivo da vontade, e por isso de
-        // graça. Ele foi barrado como rascunhador por não declarar português no
-        // card; em inglês essa objeção não existe, e medido ele faz 3/3 de
-        // acerto em 11,6 s contra 1/3 em 18,4 s do SmolLM3.
-        // ── E A GUARDA PRECISOU MUDAR DE PERGUNTA ────────────────────────
+        // graça em disco. Medido, ele faz 3/3 de acerto em 11,6 s contra 1/3
+        // em 18,4 s do SmolLM3.
         //
-        // Era `vontadeJaCarregada()`, que responde `true` quando os PESOS estão
-        // no aparelho — mesmo sem runtime nenhum de pé. O pipeline passava por
-        // ela e o `remendarFraseEmIngles` ia subir 1,25 GB no meio da fala, com
-        // o rascunhador já residente. A tela do dono do jogo ficou em
-        // "corrigindo uma frase…" para sempre.
+        // ── A TROCA, E POR QUE ELA PRECISOU EXISTIR ──────────────────────
         //
-        // A pergunta certa é "dá para usar AGORA, sem pagar uma carga?".
-        if (!vontadeDePeAgora()) return null;
+        // Eu tinha criado um impasse, em dois passos que pareciam certos
+        // sozinhos:
+        //
+        //   1. a fila passou a SÓ BAIXAR o revisor (para não subir dois
+        //      llama.cpp e desligar o aparelho);
+        //   2. a guarda passou a exigir o runtime DE PÉ (para não subir
+        //      1,25 GB no meio da fala e travar).
+        //
+        // Juntas: ninguém sobe o revisor, a guarda recusa sempre, e a tela
+        // mostrava "não remendou — o revisor não estava de pé" em 0.0s, em
+        // todas as frases marcadas. Consertar "trava" virando "nunca roda" não
+        // é consertar.
+        //
+        // A saída é a que o dono do jogo descreveu: *"tem que ser mais
+        // inteligente, descarregar, e recarregar, quando for a hora certa de
+        // usar"*. E existe uma hora certa — **o rascunhador JÁ ESCREVEU**. Ele
+        // não é preciso outra vez neste turno, então o lugar dele na RAM está
+        // sobrando exatamente quando o revisor precisa de um.
+        if (!vontadeDePeAgora()) {
+            const trocou = await trocarRascunhadorPeloRevisor();
+            if (!trocou) return null;
+        }
         npcSet({ etapa: 'corrigindo uma frase…' });
-        // Prazo mesmo assim: o revisor é a única peça do pipeline que ainda
-        // podia pendurar, e um remendo que não volta não pode custar a fala.
+        // Prazo mesmo assim: um remendo que não volta não pode custar a fala.
         return comPrazo(
             remendarFraseEmIngles(pergunta, frase), PRAZO_CARGA_MS, 'o revisor',
         ).catch(() => null);
@@ -109,6 +126,64 @@ export const PECAS_REAIS: PecasDoPipeline = {
         return traduzirParaPtBr(texto);
     },
 };
+
+/**
+ * ── UM DE CADA VEZ, SEMPRE ───────────────────────────────────────────────
+ *
+ * `true` quando a troca aconteceu neste turno — e então o rascunhador precisa
+ * voltar depois que a fala estiver na tela.
+ */
+let trocamosNesteTurno = false;
+
+/**
+ * Tira o rascunhador da RAM e põe o revisor.
+ *
+ * A ordem importa e não é negociável: **descarregar primeiro**. Subir o revisor
+ * com o rascunhador ainda de pé é exatamente o estado que desligou o celular do
+ * dono do jogo — dois llama.cpp com seus pools de thread num aparelho de mão.
+ *
+ * O respiro entre os dois não é zelo: o sistema demora a devolver a memória, e
+ * subir 1,25 GB no instante seguinte à liberação é pedir para o pico somar.
+ */
+async function trocarRascunhadorPeloRevisor(): Promise<boolean> {
+    try {
+        npcSet({ etapa: 'trocando o rascunhador pelo revisor…' });
+        await descarregarRascunhador();
+        await esperar(RESPIRO_APOS_DESCARGA_MS);
+        const ok = await comPrazo(precarregarVontade(), PRAZO_CARGA_MS, 'a carga do revisor');
+        trocamosNesteTurno = ok;
+        anotar('pipeline:troca', { ok: ok ? 1 : 0 });
+        return ok;
+    } catch (erro) {
+        anotar('pipeline:troca-falhou', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        });
+        return false;
+    }
+}
+
+/**
+ * Devolve o rascunhador ao lugar dele — DEPOIS que a fala já está na tela.
+ *
+ * Sem `await` de quem chama, de propósito: a próxima pergunta é que precisa do
+ * rascunhador, não esta resposta. Fazer o jogador esperar ~18 s de recarga para
+ * ler uma fala que já está pronta seria devolver pela porta dos fundos o tempo
+ * que o pipeline economizou.
+ */
+async function devolverORascunhador(): Promise<void> {
+    if (!trocamosNesteTurno) return;
+    trocamosNesteTurno = false;
+    try {
+        await unloadSmallBrain();
+        await esperar(RESPIRO_APOS_DESCARGA_MS);
+        const e = await subirRascunhador();
+        anotar('pipeline:destroca', { ok: e ? 1 : 0 });
+    } catch (erro) {
+        anotar('pipeline:destroca-falhou', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        });
+    }
+}
 
 /**
  * Roda o pipeline com as peças reais.
@@ -132,8 +207,12 @@ export async function falarPeloPipelineReal(
             remendadas: saida?.remendadas ?? 0,
             limpezas: saida?.limpezas ?? 0,
         });
+        // A fala está pronta; agora, e só agora, o rascunhador volta. Sem
+        // `await`: quem precisa dele é a PRÓXIMA pergunta.
+        void devolverORascunhador();
         return saida;
     } catch (erro) {
+        void devolverORascunhador();
         anotar('pipeline:erro', {
             motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
         });

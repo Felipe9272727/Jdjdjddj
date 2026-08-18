@@ -28,28 +28,30 @@ describe('as peças reais', () => {
         expect(j).toBeGreaterThan(i);
     });
 
-    it('o revisor não é chamado se a vontade não estiver de pé', () => {
-        // Um rascunho com uma frase torta é melhor que 30 s carregando revisor.
+    it('o revisor NUNCA sobe por cima do rascunhador — ele TROCA', () => {
+        // Um rascunho com uma frase torta é melhor que 30 s carregando revisor
+        // — e melhor ainda que dois llama.cpp de pé, que desligou o aparelho do
+        // dono do jogo.
         //
-        // ── E O PREDICADO ESTAVA MENTINDO ────────────────────────────────
+        // ── ESTE TESTE JÁ COBROU DUAS COISAS ERRADAS ─────────────────────
         //
-        // Era `vontadeJaCarregada()`, que responde
-        // `enginePromise !== null || pesosNoAparelho` — e `baixarVontade` marca
-        // `pesosNoAparelho = true`. Depois de apenas BAIXAR, ela já dizia "sim",
-        // o pipeline passava, e `remendarFraseEmIngles` ia subir 1,25 GB no
-        // meio da fala com o rascunhador residente. A tela do dono do jogo ficou
-        // em "corrigindo uma frase…" para sempre.
+        // 1. `vontadeJaCarregada()` — que responde `true` quando só os PESOS
+        //    estão no disco. O pipeline passava e ia subir 1,25 GB no meio da
+        //    fala: a tela ficou em "corrigindo uma frase…" para sempre.
+        // 2. `if (!vontadeDePeAgora()) return null` — o conserto do item 1,
+        //    que virou outro defeito: como a fila só BAIXA o revisor, ninguém
+        //    o subia, a guarda recusava sempre, e a tela mostrava "não
+        //    remendou" em 0.0s em TODAS as frases marcadas. Consertar "trava"
+        //    virando "nunca roda" não é consertar.
         //
-        // A intenção deste teste sempre foi a certa; o nome em que ele confiava
-        // é que prometia mais do que entregava.
-        expect(real).toContain('if (!vontadeDePeAgora()) return null;');
-        // O que vale é o que ele IMPORTA — citar o nome antigo no comentário
-        // que explica a troca é outra coisa, e a primeira versão deste teste
-        // reprovou por isso.
-        const imports = real.slice(0, real.indexOf('export const PECAS_REAIS'))
-            .split('\n').filter((l) => l.includes("from './floor10SmallBrain'")
-                || l.includes('remendarFraseEmIngles')).join('\n');
-        expect(imports).not.toContain('vontadeJaCarregada');
+        // A invariante certa não é sobre recusar: é sobre a ORDEM. Descarrega
+        // o rascunhador — que já escreveu e não é preciso outra vez neste
+        // turno — e só então sobe o revisor.
+        expect(real).toContain('const trocou = await trocarRascunhadorPeloRevisor()');
+        const i = real.indexOf('async function trocarRascunhadorPeloRevisor');
+        const corpo = real.slice(i, real.indexOf('async function devolverORascunhador'));
+        expect(corpo.indexOf('descarregarRascunhador()'))
+            .toBeLessThan(corpo.indexOf('precarregarVontade()'));
     });
 
     it('e o revisor tem prazo, porque era a última peça que podia pendurar', () => {
@@ -100,5 +102,60 @@ describe('as duas personas', () => {
 
     it('as duas em inglês', () => {
         expect(PERSONA_DO_REVISOR).not.toMatch(/\bvocê\b/i);
+    });
+});
+
+describe('a troca de modelo — o revisor entra quando é a hora dele', () => {
+    it('não recusa mais o revisor: ele TROCA com o rascunhador', () => {
+        // ── O IMPASSE QUE EU CRIEI, em dois passos certos sozinhos ───────
+        //
+        //   1. a fila passou a SÓ BAIXAR o revisor (para não subir dois
+        //      llama.cpp e desligar o aparelho);
+        //   2. a guarda passou a exigir o runtime DE PÉ (para não subir
+        //      1,25 GB no meio da fala e travar).
+        //
+        // Juntas: ninguém sobe o revisor e a guarda recusa sempre. A tela
+        // mostrou "não remendou — o revisor não estava de pé" em 0.0s, em TODAS
+        // as frases marcadas. Consertar "trava" virando "nunca roda" não é
+        // consertar.
+        expect(real).toContain('const trocou = await trocarRascunhadorPeloRevisor()');
+        expect(real).not.toMatch(/if \(!vontadeDePeAgora\(\)\) return null;/);
+    });
+
+    it('DESCARREGA antes de carregar — nunca dois llama.cpp de pé', () => {
+        // Subir o revisor com o rascunhador ainda residente é exatamente o
+        // estado que desligou o celular do dono do jogo.
+        const i = real.indexOf('async function trocarRascunhadorPeloRevisor');
+        const corpo = real.slice(i, real.indexOf('async function devolverORascunhador'));
+        const descarrega = corpo.indexOf('descarregarRascunhador()');
+        const carrega = corpo.indexOf('precarregarVontade()');
+        expect(descarrega).toBeGreaterThan(-1);
+        expect(carrega).toBeGreaterThan(descarrega);
+        // E respira entre os dois: o sistema demora a devolver a memória.
+        expect(corpo).toContain('esperar(RESPIRO_APOS_DESCARGA_MS)');
+    });
+
+    it('e a hora certa é DEPOIS de o rascunhador ter escrito', () => {
+        // É o que torna a troca barata: quando o juiz marca, o rascunho já
+        // existe. O lugar do rascunhador na RAM está sobrando exatamente quando
+        // o revisor precisa de um.
+        expect(real).toMatch(/rascunhador JÁ ESCREVEU/);
+    });
+
+    it('a devolução acontece DEPOIS da fala, e sem await', () => {
+        // Quem precisa do rascunhador é a PRÓXIMA pergunta. Fazer o jogador
+        // esperar ~18 s de recarga para ler uma fala que já está pronta seria
+        // devolver pela porta dos fundos o tempo que o pipeline economizou.
+        expect(real).toContain('void devolverORascunhador()');
+        expect(real).not.toContain('await devolverORascunhador()');
+    });
+
+    it('e ela roda TAMBÉM quando o pipeline falha no meio', () => {
+        // Senão uma corrida que estoura deixa o aparelho sem rascunhador, e a
+        // pergunta seguinte não tem com o que responder.
+        const i = real.indexOf('export async function falarPeloPipelineReal');
+        const corpo = real.slice(i);
+        expect((corpo.match(/void devolverORascunhador\(\)/g) ?? []).length)
+            .toBeGreaterThanOrEqual(2);
     });
 });

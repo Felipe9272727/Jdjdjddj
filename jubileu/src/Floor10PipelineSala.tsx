@@ -815,15 +815,26 @@ export default function Floor10PipelineSala() {
                                 </div>
                                 <div style={{ fontSize: 15 }}>{corrida.fala}</div>
                             </div>
+                            {/* ── E ESTA COMPARAÇÃO ESTAVA MENTINDO ────────
+                                Ela punha o total desta corrida contra os 13,4 s
+                                do SmolLM3 "na bancada" — e na PRIMEIRA corrida o
+                                total inclui a carga fria de cada modelo. A tela
+                                mostrou 38,7 s e disse que o pipeline perdeu,
+                                enquanto quem estava usando sentia o contrário.
+                                Comparar corrida fria com número morno é
+                                comparar duas coisas diferentes. */}
                             <div style={{ marginTop: 10, color: '#888' }}>
                                 total <strong style={{ color: '#ddd' }}>
                                     {((corrida.ms + corrida.msTraducao) / 1000).toFixed(1)}s
                                 </strong>
-                                {' '}· o SmolLM3 escrevendo a mesma fala sozinho custou{' '}
-                                <strong style={{ color: '#ddd' }}>13,4s</strong> na bancada
                                 {corrida.marcadas === 0
-                                    ? ' — o juiz não marcou nada, que é onde o pipeline ganha'
-                                    : ' — com frase marcada o revisor entra e o ganho encolhe'}
+                                    ? ' · o juiz não marcou nada, que é onde o pipeline ganha'
+                                    : ' · com frase marcada entra a troca de modelo, e o ganho encolhe'}
+                            </div>
+                            <div style={{ marginTop: 6, color: '#666', fontSize: 12 }}>
+                                O SmolLM3 sozinho custou 13,4 s na bancada — mas só compare com uma
+                                corrida MORNA. Na primeira, este total inclui a carga fria de cada
+                                modelo, e aí ele mede instalação, não conversa.
                             </div>
                             <div style={{ marginTop: 6, color: '#666', fontSize: 12 }}>
                                 {enumerarEmIngles(corrida.fala).length} frase(s) na saída

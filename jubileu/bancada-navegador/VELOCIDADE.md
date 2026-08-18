@@ -2933,3 +2933,66 @@ com `overflow: hidden`**: o conteúdo é maior que a janela, ele só não pode s
 mover. Medir *"existe conteúdo para rolar"* não é medir *"dá para rolar"*.
 
 A sonda agora **rola de verdade** e confere se a posição mudou.
+
+---
+
+## O revisor nunca rodava — e o impasse era meu, em dois passos certos
+
+Na tela, em toda frase marcada:
+
+```
+5. o LFM2.5 na frase 1 · 0.0s
+   não remendou — o revisor não estava de pé, ou desistiu
+```
+
+`0.0s` é o tempo de uma guarda recusando na hora. E o impasse veio de duas
+mudanças minhas, cada uma **certa sozinha**:
+
+```
+1. a fila passou a SÓ BAIXAR o revisor .... para não subir dois llama.cpp
+                                            (o aparelho tinha DESLIGADO)
+2. a guarda passou a exigir o runtime ..... para não subir 1,25 GB no meio da
+   DE PÉ                                    fala (a tela tinha TRAVADO)
+```
+
+Juntas: ninguém sobe o revisor, a guarda recusa sempre. **Consertar "trava"
+virando "nunca roda" não é consertar** — é trocar um defeito visível por um
+silencioso, que é pior.
+
+### A saída, e ela é do dono do jogo
+
+> *"me lembro que uma vez o revisor foi descarregado pra dar espaço pro
+> rascunhador, tem que ser mais inteligente, descarregar, e recarregar, quando
+> for a hora certa de usar"*
+
+E existe uma hora certa, que eu não tinha visto: **quando o juiz marca, o
+rascunhador JÁ ESCREVEU**. Ele não é preciso outra vez neste turno — o lugar
+dele na RAM está sobrando exatamente quando o revisor precisa de um.
+
+```
+juiz marca → descarrega o rascunhador → respira → sobe o revisor → remenda
+           → traduz → a fala vai para a tela
+           → SÓ ENTÃO devolve o rascunhador (sem await)
+```
+
+Três detalhes que não são zelo:
+
+- **Descarregar vem primeiro.** Subir o revisor com o rascunhador ainda de pé é
+  exatamente o estado que desligou o celular.
+- **Respiro entre os dois.** O sistema demora a devolver a memória; subir
+  1,25 GB no instante seguinte à liberação é pedir para o pico somar.
+- **A devolução é sem `await`.** Quem precisa do rascunhador é a PRÓXIMA
+  pergunta. Fazer o jogador esperar ~18 s de recarga para ler uma fala que já
+  está pronta seria devolver pela porta dos fundos o tempo que o pipeline
+  economizou. Ela roda também no `catch`, senão uma corrida que estoura deixa o
+  aparelho sem rascunhador.
+
+## E a comparação na tela estava mentindo
+
+Ela punha o total da corrida contra os 13,4 s do SmolLM3 "na bancada". Na
+PRIMEIRA corrida o total inclui a carga fria de cada modelo — a tela mostrou
+**38,7 s** e concluiu que o pipeline perdeu, enquanto quem estava usando sentia
+o contrário ("está EXTREMAMENTE mais rápido").
+
+Comparar corrida fria com número morno é comparar duas coisas diferentes. A
+linha passou a dizer isso, em vez de decretar um vencedor.
