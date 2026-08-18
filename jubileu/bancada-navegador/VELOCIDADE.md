@@ -2377,3 +2377,78 @@ caracteres** a partir do nome da função. Os prazos empurraram o `catch` para
 fora da janela e o teste reprovou código correto. Fronteira medida em bytes é
 fronteira que expira — passou a ir até a próxima declaração de topo, igual ao
 teste do remendo, que já tinha aprendido essa lição.
+
+---
+
+## "Model file not found" — a mensagem que engana duas vezes
+
+O erro que finalmente apareceu na tela do celular:
+
+```
+Model file not found: https://huggingface.co/bartowski/granite-3.1-1b-a400m-
+instruct-GGUF/resolve/main/granite-3.1-1b-a400m-instruct-Q4_K_M.gguf
+```
+
+E a sala disse **"não reconheci este erro"** — honesto, e inútil. Duas armadilhas
+nessa linha:
+
+1. **Parece 404 do servidor.** Não é. A URL responde `200` com `821.847.360`
+   bytes, conferido por HEAD com `Origin` de outro site.
+2. **Aparece depois de o download dizer que deu certo.** Ela é do wllama
+   (`getAllFiles`), e quer dizer *"não achei este arquivo NO CACHE"*.
+
+### O que foi medido
+
+Caminho exato do jogo, wllama de verdade, arquivo servido localmente:
+
+```
+download → cache: size=333590944 originalURL=…/gemma-embed.gguf originalSize=333590944
+loadModelFromUrl → encontrou o arquivo
+```
+
+O handoff `download → load` **funciona**. Logo, no aparelho dele, o arquivo não
+está lá — e mesmo assim o download se declarou bem-sucedido.
+
+Depois, forçando o estado ruim:
+
+```
+depois do download ......... size=3000000  metadata=sim
+depois de escrever parcial . size=1024     metadata=SEM
+depois de baixar de novo ... size=3000000  metadata=sim
+```
+
+Duas coisas ficam **provadas**: uma escrita interrompida perde a metadata, e sem
+ela o arquivo fica invisível para a busca por `originalURL` — que é exatamente a
+forma do "not found". E, neste teste, o download **se consertou sozinho**.
+
+### O que continua sendo hipótese, e por quê
+
+Com URL do HuggingFace o caminho é outro:
+
+```js
+if (hint && (await sb.getSize(fileKey, hint)) !== -1) { …; return; }
+```
+
+`hint` só existe quando o wllama consegue o **sha256**, que ele busca no próprio
+HuggingFace. Servindo de `localhost` não há sha256, o atalho não roda e ele
+rebaixa — foi o que eu medi. Com URL do HF o atalho roda, e ali ele volta
+dizendo "pronto" **sem conferir o tamanho**.
+
+**Não consegui reproduzir esse segundo caminho**: o navegador desta caixa não
+alcança o HuggingFace. A causa exata segue sendo hipótese, e está escrita como
+hipótese no código.
+
+### O conserto não depende de qual mecanismo é
+
+Seja qual for, o estado ruim é o mesmo — o cache não tem o arquivo inteiro sob
+aquela URL — e a saída é a mesma: **parar de confiar no "deu certo" do
+download**.
+
+```
+antes do download ... cache quebrado?  apaga
+depois do download .. bate o tamanho?  se não, apaga e devolve false com motivo
+```
+
+Custa duas listagens de cache por instalação. E a conferência nunca pode barrar
+o download: se a API mudar ou `list()` falhar, ela devolve `ok` e sai da frente
+— uma verificação que vira bloqueio é pior que a ausência dela.

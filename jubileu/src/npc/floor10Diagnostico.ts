@@ -51,6 +51,28 @@ const REGRAS: readonly (readonly [RegExp, Diagnostico])[] = Object.freeze([
         ],
     }],
 
+    // ── O CACHE MENTIU ───────────────────────────────────────────────────
+    //
+    // Este é o erro que apareceu no celular do dono do jogo, e a sala mostrou
+    // "não reconheci este erro" — honesto, e inútil:
+    //
+    //     Model file not found: https://huggingface.co/.../granite-...gguf
+    //
+    // A mensagem é do wllama e engana: parece 404 do servidor. Não é — a URL
+    // responde 200 com 821.847.360 bytes, conferido. Ela quer dizer "não achei
+    // este arquivo NO CACHE", e aparece DEPOIS de o download se declarar bem
+    // sucedido, porque o `download` do wllama volta na hora quando a chave já
+    // existe, sem conferir o tamanho. Uma tentativa interrompida antes deixa um
+    // pedaço de arquivo que passa por pronto.
+    [/model file not found|não ficou guardado|guardado está incompleto/i, {
+        resumo: 'o arquivo no cache está incompleto (não é 404 do servidor)',
+        saidas: [
+            'uma tentativa anterior parou no meio e deixou um pedaço que passava por pronto',
+            'a limpeza agora é automática: tente de novo e ele baixa do zero',
+            'se voltar sempre, é cota de disco — o arquivo não cabe inteiro e sempre para no meio',
+        ],
+    }],
+
     // ── O PRAZO ESTOUROU ─────────────────────────────────────────────────
     //
     // Relato: a instalação ficava em "baixando…" ETERNAMENTE, com a barra em

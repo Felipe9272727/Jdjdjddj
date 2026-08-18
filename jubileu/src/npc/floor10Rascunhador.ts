@@ -126,6 +126,94 @@ type Instancia = {
 };
 type Ctor = new (p: Record<string, string>, o?: Record<string, unknown>) => Instancia;
 
+/** O pedaço da API de cache do wllama que este arquivo usa. */
+type ArquivoNoCache = {
+    name: string;
+    size: number;
+    metadata?: { originalURL?: string; originalSize?: number };
+};
+type CacheDoWllama = {
+    list?: () => Promise<ArquivoNoCache[]>;
+    delete?: (nome: string) => Promise<void>;
+};
+
+/**
+ * ── O CACHE MENTE, E É PRECISO CONFERIR ──────────────────────────────────
+ *
+ * Sintoma no celular do dono do jogo, depois de várias tentativas:
+ *
+ *     Model file not found: https://huggingface.co/.../granite-...Q4_K_M.gguf
+ *
+ * A mensagem vem do wllama (`getAllFiles`), e o mais confuso é que ela aparece
+ * DEPOIS de o download dizer que deu certo. Medido aqui, com o caminho exato do
+ * jogo e um gguf de verdade: `cacheManager.download` grava o arquivo com
+ * `originalURL` e `originalSize` certos, e `loadModelFromUrl` acha. O handoff
+ * funciona. Logo, no aparelho dele, **o arquivo não está lá** — e mesmo assim o
+ * download se declarou bem-sucedido.
+ *
+ * ── O QUE FOI MEDIDO, E O QUE É HIPÓTESE ────────────────────────────────
+ *
+ * MEDIDO, com o wllama de verdade e um arquivo servido localmente:
+ *
+ *     depois do download ......... size=3000000  metadata=sim
+ *     depois de escrever parcial . size=1024     metadata=SEM
+ *     depois de baixar de novo ... size=3000000  metadata=sim
+ *
+ * Duas coisas ficam provadas. Primeira: um arquivo cuja escrita foi
+ * interrompida perde a metadata, e sem ela ele fica INVISÍVEL para a busca por
+ * `originalURL` — que é exatamente a forma do "Model file not found". Segunda:
+ * nesse teste o download se consertou sozinho.
+ *
+ * HIPÓTESE, e é por isso que este código existe: com URL do HuggingFace o
+ * caminho é outro. O `download` do wllama 3.5.1 faz
+ *
+ *     if (hint && (await sb.getSize(fileKey, hint)) !== -1) { ...; return; }
+ *
+ * e `hint` só existe quando ele consegue o sha256 do arquivo — o que ele busca
+ * NO HUGGINGFACE. Servindo de `localhost` não há sha256, o atalho não roda e
+ * ele rebaixa (foi o que eu medi). Com URL do HF o atalho roda, e ali ele volta
+ * dizendo "pronto" **sem conferir o tamanho**.
+ *
+ * Não consegui reproduzir esse segundo caminho: o navegador desta caixa não
+ * alcança o HuggingFace. Então a causa exata continua sendo hipótese.
+ *
+ * O CONSERTO NÃO DEPENDE DELA. Seja qual for o mecanismo, o estado ruim é o
+ * mesmo — o cache não tem o arquivo inteiro sob aquela URL — e a saída é a
+ * mesma: parar de confiar no "deu certo" do download e CONFERIR. Se não bater,
+ * apaga e devolve `false` com um motivo legível, e a próxima tentativa baixa do
+ * zero. Custa duas listagens de cache por instalação.
+ */
+async function conferirCache(cofre: CacheDoWllama): Promise<'ok' | 'faltando' | 'quebrado'> {
+    if (typeof cofre?.list !== 'function') return 'ok';  // sem API, não dá para conferir
+    try {
+        const lista = await cofre.list();
+        const meu = lista.find((f) => f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url);
+        if (!meu) return 'faltando';
+        // O wllama valida por `metadata.originalSize !== file.size`. A mesma
+        // conta aqui, mais o nosso número de catálogo como terceira opinião.
+        const esperado = meu.metadata?.originalSize ?? FLOOR10_RASCUNHADOR_MODEL.bytes;
+        return meu.size === esperado && meu.size === FLOOR10_RASCUNHADOR_MODEL.bytes
+            ? 'ok'
+            : 'quebrado';
+    } catch {
+        return 'ok';  // conferir é otimização; falhar aqui não pode barrar o download
+    }
+}
+
+/** Apaga a entrada do rascunhador no cache, para o próximo download ser inteiro. */
+async function limparDoCache(cofre: CacheDoWllama): Promise<void> {
+    if (typeof cofre?.list !== 'function' || typeof cofre?.delete !== 'function') return;
+    try {
+        const lista = await cofre.list();
+        for (const f of lista) {
+            if (f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url) {
+                await cofre.delete(f.name);
+                anotar('rascunhador:cache-limpo', { bytes: f.size });
+            }
+        }
+    } catch { /* se não der para limpar, o erro do load já explica */ }
+}
+
 /**
  * ── O MOTIVO DA ÚLTIMA FALHA, E POR QUE ELE PRECISOU EXISTIR ─────────────
  *
@@ -235,6 +323,20 @@ export async function baixarRascunhador(): Promise<boolean> {
         );
         const cofre = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
         medidor.reset();
+        const cache = (cofre as { cacheManager?: unknown }).cacheManager as CacheDoWllama;
+
+        // ── CONFERE ANTES DE BAIXAR ──────────────────────────────────────
+        // Uma tentativa anterior interrompida deixa um pedaço de arquivo que o
+        // `download` do wllama aceita como pronto (ele só olha se a chave
+        // existe, não o tamanho). Apagar aqui é o que impede o "Model file not
+        // found" de voltar em toda tentativa.
+        const antes = await conferirCache(cache);
+        if (antes === 'quebrado') {
+            anotar('rascunhador:cache-quebrado-antes');
+            npcSet({ loadText: 'o download anterior ficou pela metade; limpando…' });
+            await limparDoCache(cache);
+        }
+
         const baixou = await baixarSemSubir(
             (cofre as { cacheManager?: CofreDeModelos }).cacheManager,
             FLOOR10_RASCUNHADOR_MODEL.url,
@@ -257,6 +359,22 @@ export async function baixarRascunhador(): Promise<boolean> {
             anotar('rascunhador:download-desistiu');
             return false;
         }
+
+        // ── E CONFERE DEPOIS, QUE É O QUE FALTAVA ────────────────────────
+        // `download` resolver não significa que os 822 MB estão lá: quando a
+        // chave já existia, ele volta na hora sem olhar o tamanho. Sem esta
+        // conferência, `baixarRascunhador` devolvia `true` e quem estourava era
+        // o `loadModelFromUrl`, com uma mensagem que não aponta para o cache.
+        const depois = await conferirCache(cache);
+        if (depois !== 'ok') {
+            anotar('rascunhador:cache-quebrado-depois', { estado: depois });
+            await limparDoCache(cache);
+            ultimoErro = depois === 'faltando'
+                ? 'o download terminou mas nada ficou guardado — cota de disco no limite'
+                : 'o arquivo guardado está incompleto; limpei o cache, tente de novo';
+            return false;
+        }
+
         anotar('rascunhador:no-aparelho');
         return true;
     } catch (erro) {

@@ -203,3 +203,63 @@ describe('o "eternamente" — prazos e o campo de progresso', () => {
         expect(sala).toMatch(/parado há/);
     });
 });
+
+describe('"Model file not found" — o erro que enganava de duas formas', () => {
+    it('é reconhecido, e NÃO é lido como 404 do servidor', () => {
+        // A mensagem é do wllama e parece do HuggingFace. Não é: a URL responde
+        // 200 com 821.847.360 bytes, conferido por HEAD com Origin de outro
+        // site. Ela quer dizer "não achei no CACHE".
+        const d = diagnosticar(
+            'Model file not found: https://huggingface.co/bartowski/'
+            + 'granite-3.1-1b-a400m-instruct-GGUF/resolve/main/'
+            + 'granite-3.1-1b-a400m-instruct-Q4_K_M.gguf',
+        );
+        expect(d).not.toBeNull();
+        expect(d?.resumo).toMatch(/cache|incompleto/i);
+        expect(d?.resumo).toMatch(/não é 404/i);
+    });
+
+    it('e vem ANTES da regra de rede, que casaria por engano', () => {
+        // A URL na mensagem contém "huggingface.co"; se a regra do CDN viesse
+        // primeiro, ela diria "o CDN não veio" — e o conserto (trocar de rede)
+        // seria o errado, porque o problema está no disco do aparelho.
+        const d = diagnosticar('Model file not found: https://cdn.jsdelivr.net/x.gguf');
+        expect(d?.resumo).toMatch(/cache/i);
+    });
+});
+
+describe('o carregador confere o cache em vez de confiar nele', () => {
+    const rasc = readFileSync(
+        new URL('../npc/floor10Rascunhador.ts', import.meta.url), 'utf8',
+    );
+
+    it('confere ANTES e DEPOIS do download', () => {
+        // O `download` do wllama volta na hora quando a chave já existe, SEM
+        // olhar o tamanho — então "resolveu" não significa "os 822 MB estão
+        // lá". Sem a conferência de depois, `baixarRascunhador` devolvia `true`
+        // e quem estourava era o `loadModelFromUrl`, com uma mensagem que não
+        // aponta para o cache.
+        const i = rasc.indexOf('export async function baixarRascunhador');
+        const resto = rasc.slice(i + 1);
+        const fim = resto.search(/\n(?:export )?(?:async )?(?:function|const) /);
+        const corpo = rasc.slice(i, fim >= 0 ? i + 1 + fim : undefined);
+        expect(corpo).toContain('const antes = await conferirCache(cache)');
+        expect(corpo).toContain('const depois = await conferirCache(cache)');
+        expect(corpo).toContain('await limparDoCache(cache)');
+    });
+
+    it('e compara TAMANHO, que é o que o download não olha', () => {
+        expect(rasc).toContain('meu.size === esperado');
+        expect(rasc).toContain('meu.size === FLOOR10_RASCUNHADOR_MODEL.bytes');
+    });
+
+    it('conferir nunca pode barrar o download', () => {
+        // Se a API de cache mudar ou `list()` falhar, a conferência devolve
+        // 'ok' e sai da frente. Uma verificação que vira bloqueio é pior que a
+        // ausência dela.
+        const i = rasc.indexOf('async function conferirCache');
+        const corpo = rasc.slice(i, rasc.indexOf('async function limparDoCache'));
+        expect(corpo).toMatch(/return 'ok';\s*\/\/ sem API/);
+        expect(corpo).toMatch(/catch \{[\s\S]*return 'ok';/);
+    });
+});
