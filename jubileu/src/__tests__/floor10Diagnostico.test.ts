@@ -173,7 +173,13 @@ describe('o "eternamente" — prazos e o campo de progresso', () => {
     it('e o prazo DIZ qual etapa estourou', () => {
         // "deu timeout" não separa CDN barrado de aparelho lento. São consertos
         // diferentes, e o nome da etapa é o que decide.
-        expect(rasc).toMatch(/não respondeu em \$\{Math\.round\(ms \/ 1000\)\}s/);
+        // O template mora em `floor10Carga` desde que o helper saiu de dentro
+        // do rascunhador — que foi justamente o que deixou o tradutor sem
+        // prazo e o download infinito voltar em outra peça.
+        const carga = readFileSync(
+            new URL('../npc/floor10Carga.ts', import.meta.url), 'utf8',
+        );
+        expect(carga).toMatch(/não respondeu em \$\{Math\.round\(ms \/ 1000\)\}s/);
         const d = diagnosticar('o CDN do motor (jsdelivr) não respondeu em 45s');
         expect(d?.resumo).toMatch(/prazo/i);
         expect(d?.saidas.join(' ')).toMatch(/jsdelivr|bloqueadores/i);
@@ -261,5 +267,76 @@ describe('o carregador confere o cache em vez de confiar nele', () => {
         const corpo = rasc.slice(i, rasc.indexOf('async function limparDoCache'));
         expect(corpo).toMatch(/return 'ok';\s*\/\/ sem API/);
         expect(corpo).toMatch(/catch \{[\s\S]*return 'ok';/);
+    });
+});
+
+describe('TODA peça tem prazo — a lição que eu aprendi tarde', () => {
+    // Eu pus prazos no rascunhador e o download voltou a ser infinito NO
+    // TRADUTOR. Mesma doença, outro órgão, e o buraco foi criado por mim: o
+    // helper `comPrazo` morava dentro do rascunhador, e um utilitário guardado
+    // dentro de um cliente é um utilitário que os outros clientes não acham.
+    //
+    // Ele mudou para `floor10Carga`. Este teste existe para a próxima peça não
+    // repetir a história: se alguém acrescentar um `import()` de CDN sem prazo,
+    // ele reprova.
+    const arquivos = ['floor10Rascunhador', 'floor10Tradutor', 'floor10VetorDeTom'] as const;
+
+    it('o helper mora num lugar comum, não dentro de um cliente', () => {
+        const carga = readFileSync(
+            new URL('../npc/floor10Carga.ts', import.meta.url), 'utf8',
+        );
+        expect(carga).toContain('export function comPrazo');
+        for (const prazo of ['PRAZO_RUNTIME_MS', 'PRAZO_CARGA_MS', 'PRAZO_REDE_MS']) {
+            expect(carga).toContain(`export const ${prazo}`);
+        }
+    });
+
+    it('nenhuma peça faz `await import()` de CDN sem prazo', () => {
+        for (const nome of arquivos) {
+            const fonte = readFileSync(
+                new URL(`../npc/${nome}.ts`, import.meta.url), 'utf8',
+            );
+            // `await import(...)` direto é o padrão que pendura para sempre:
+            // um `import()` que não resolve NÃO rejeita.
+            const nus = fonte.match(/await\s+\(?\s*import\(/g) ?? [];
+            expect(nus, `${nome} tem import() sem comPrazo`).toHaveLength(0);
+            expect(fonte, `${nome} não importa comPrazo`).toContain('comPrazo');
+        }
+    });
+
+    it('e cada uma diz QUAL etapa dela estourou', () => {
+        // "deu timeout" não separa CDN barrado de disco cheio. O nome da etapa
+        // é o que decide o conserto, então cada chamada carrega o seu.
+        const etapas: Record<string, string[]> = {
+            floor10Rascunhador: ['o CDN do motor (jsdelivr)', 'a abertura do modelo'],
+            floor10Tradutor: ['o CDN do tradutor (jsdelivr)', 'o par en→pt do tradutor'],
+            floor10VetorDeTom: ['o CDN do juiz (jsdelivr)', 'o download do juiz de tom'],
+        };
+        for (const [nome, esperadas] of Object.entries(etapas)) {
+            const fonte = readFileSync(
+                new URL(`../npc/${nome}.ts`, import.meta.url), 'utf8',
+            );
+            for (const e of esperadas) {
+                expect(fonte, `${nome} não nomeia "${e}"`).toContain(e);
+            }
+        }
+    });
+
+    it('e nenhuma memoiza a FALHA — senão o "de novo" não tenta nada', () => {
+        // `??=` guarda a promessa, inclusive a que resolveu `null`. O tradutor
+        // fazia isso: depois de falhar, o botão devolvia `null` na hora e a
+        // única saída era recarregar a página — o oposto do que os prazos vêm
+        // resolver. O juiz já zerava os dele.
+        const trad = readFileSync(
+            new URL('../npc/floor10Tradutor.ts', import.meta.url), 'utf8',
+        );
+        const i = trad.indexOf('export function prepararTradutor');
+        const corpo = trad.slice(i, trad.indexOf('export function esquecerTradutor'));
+        expect(corpo).toMatch(/catch[\s\S]*tradutorPromise = null;/);
+
+        const juiz = readFileSync(
+            new URL('../npc/floor10VetorDeTom.ts', import.meta.url), 'utf8',
+        );
+        expect(juiz).toMatch(/catch[\s\S]*extratorPromise = null;/);
     });
 });

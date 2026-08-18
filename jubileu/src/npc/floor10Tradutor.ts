@@ -36,6 +36,8 @@
 // error", que não aponta para nada. E `pivotLanguage` tem de ser `null`, senão
 // ele tenta baixar um par `en → en` que não existe.
 
+import { comPrazo, PRAZO_RUNTIME_MS, PRAZO_REDE_MS } from './floor10Carga';
+
 const BERGAMOT_V = '0.4.9';
 
 const RUNTIME = (globalThis as { __bergamotCdn?: string }).__bergamotCdn
@@ -101,9 +103,23 @@ export function prepararTradutor(): Promise<Tradutor | null> {
     tradutorPromise ??= (async () => {
         ultimoErro = '';
         try {
-            const mod = await import(/* @vite-ignore */ `${RUNTIME}/translator.js`) as {
-                LatencyOptimisedTranslator: new (o: Record<string, unknown>) => Tradutor;
-            };
+            // ── PRAZO, PORQUE ISTO JÁ TRAVOU PARA SEMPRE ─────────────────
+            //
+            // O rascunhador ganhou prazos e o download voltou a ser infinito
+            // AQUI — mesma doença, outro órgão. Um `import()` que não resolve
+            // não rejeita, e a fila é sequencial: pendurado aqui, o juiz e o
+            // revisor nunca chegam a tentar.
+            //
+            // Foi o helper morando dentro do rascunhador que criou o buraco:
+            // um utilitário guardado dentro de um cliente é um utilitário que
+            // os outros clientes não acham. Agora ele mora em `floor10Carga`.
+            const mod = await comPrazo(
+                import(/* @vite-ignore */ `${RUNTIME}/translator.js`) as Promise<{
+                    LatencyOptimisedTranslator: new (o: Record<string, unknown>) => Tradutor;
+                }>,
+                PRAZO_RUNTIME_MS,
+                'o CDN do tradutor (jsdelivr)',
+            );
             // O registro vira um Blob porque ele aponta para o HF, e não existe
             // arquivo nosso para servir.
             urlDoRegistro = URL.createObjectURL(
@@ -115,11 +131,31 @@ export function prepararTradutor(): Promise<Tradutor | null> {
                 cacheSize: 0,
             });
             // Aquece OS DOIS pares aqui, e não na primeira fala do jogador.
-            await t.translate({ from: 'en', to: 'pt', text: 'hello' });
-            await t.translate({ from: 'pt', to: 'en', text: 'olá' });
+            // É NESTE ponto que os 51 MB descem — o construtor não baixa nada,
+            // quem busca os arquivos no HF é a primeira tradução de cada par.
+            // Por isso o prazo daqui é de rede, e não de CPU.
+            await comPrazo(
+                t.translate({ from: 'en', to: 'pt', text: 'hello' }),
+                PRAZO_REDE_MS,
+                'o par en→pt do tradutor',
+            );
+            await comPrazo(
+                t.translate({ from: 'pt', to: 'en', text: 'olá' }),
+                PRAZO_REDE_MS,
+                'o par pt→en do tradutor',
+            );
             return t;
         } catch (erro) {
             ultimoErro = erro instanceof Error ? erro.message : String(erro);
+            // ── A FALHA NÃO PODE FICAR MEMOIZADA ─────────────────────────
+            //
+            // `??=` guarda a promessa, inclusive a que resolveu `null`. Sem
+            // esta linha, o botão "de novo" da sala devolveria `null` na hora,
+            // sem tentar nada, e a única saída seria recarregar a página —
+            // exatamente o que os prazos vieram evitar. O juiz já zerava os
+            // dele; o tradutor não.
+            tradutorPromise = null;
+            if (urlDoRegistro) { URL.revokeObjectURL(urlDoRegistro); urlDoRegistro = null; }
             return null;
         }
     })();

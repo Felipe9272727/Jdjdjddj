@@ -19,6 +19,7 @@
 // caso e custa 3 ms.
 
 import { FLOOR10_ANCORAS_BOAS, FLOOR10_ANCORAS_RUINS, julgarTom, type VeredictoDeTom } from './floor10JuizDeTom';
+import { comPrazo, PRAZO_RUNTIME_MS, PRAZO_REDE_MS } from './floor10Carga';
 
 const TRANSFORMERS_V = '3.8.1';
 const CDN = (globalThis as { __onnxCdn?: string }).__onnxCdn
@@ -57,7 +58,11 @@ async function extrator(): Promise<Extractor | null> {
         try {
             modulePromise ??= import(/* @vite-ignore */ TRANSFORMERS_ESM) as
                 unknown as Promise<TransformersModule>;
-            const mod = await modulePromise;
+            // Prazo no runtime também: o `import()` do transformers.js vem do
+            // mesmo jsdelivr que já pendurou o tradutor.
+            const mod = await comPrazo(
+                modulePromise, PRAZO_RUNTIME_MS, 'o CDN do juiz (jsdelivr)',
+            );
             try {
                 const backends = (mod.env ??= {}).backends ??= {};
                 const onnx = (backends as { onnx?: Record<string, unknown> }).onnx ??= {};
@@ -69,9 +74,18 @@ async function extrator(): Promise<Extractor | null> {
                 // 10 ms vira 10 ms de jank.
                 (wasm as { proxy?: boolean }).proxy = true;
             } catch { /* backends é otimização; se não der, segue */ }
-            return await mod.pipeline('feature-extraction', FLOOR10_TOM_MODEL.repo, {
-                dtype: FLOOR10_TOM_MODEL.dtype,
-            });
+            // ── PRAZO: os 110 MB descem AQUI ────────────────────────
+            // `pipeline()` é quem busca os pesos no HuggingFace. Sem prazo,
+            // uma rede que pendura deixa a fila parada para sempre — foi o que
+            // aconteceu com o tradutor depois que só o rascunhador foi
+            // protegido.
+            return await comPrazo(
+                mod.pipeline('feature-extraction', FLOOR10_TOM_MODEL.repo, {
+                    dtype: FLOOR10_TOM_MODEL.dtype,
+                }),
+                PRAZO_REDE_MS,
+                'o download do juiz de tom',
+            );
         } catch (erro) {
             // Um juiz que não sobe não pode custar a fala: quem chama trata
             // `null` como "não julguei" e o rascunho passa direto. Mas o MOTIVO

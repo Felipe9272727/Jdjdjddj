@@ -87,6 +87,14 @@ type Peca = {
      * sem OPFS, e são quatro consertos diferentes.
      */
     motivo?: () => string;
+    /**
+     * Ela publica bytes em `npc.loadDownload` enquanto baixa?
+     *
+     * Só o rascunhador publica. O Bergamot e o transformers.js buscam os
+     * arquivos por dentro, sem callback — para elas a barra anda em degrau, e
+     * dizer isso é melhor que fingir precisão com o número de outra peça.
+     */
+    reportaProgresso?: boolean;
 };
 
 type EstadoDaPeca = {
@@ -169,6 +177,7 @@ export default function Floor10PipelineSala() {
             carregado: rascunhadorJaCarregado,
             carregar: async () => (await baixarRascunhador()) && (await subirRascunhador()) !== null,
             motivo: ultimoErroDoRascunhador,
+            reportaProgresso: true,
         },
         {
             id: 'tradutor',
@@ -239,6 +248,14 @@ export default function Floor10PipelineSala() {
                 continue;
             }
             setEstados((e) => ({ ...e, [peca.id]: { estado: 'baixando' } }));
+            // ── A LINHA VIVA É DA PEÇA ANTERIOR ATÉ A NOVA FALAR ─────────
+            // Na foto de tela: o tradutor baixando e a linha dizendo "baixando
+            // Rascunhador granite 1B-A400M · 822 MB de 822 MB". `loadText` e
+            // `loadDownload` são globais, e só o rascunhador escreve neles —
+            // então o texto do passo anterior ficava congelado por cima do
+            // atual. Zerar aqui é o que impede a tela de mentir.
+            setAmostra(null);
+            setLinha('');
             let ok = false;
             let motivo = '';
             try {
@@ -347,7 +364,12 @@ export default function Floor10PipelineSala() {
     const bytesTotais = PECAS.reduce((s, p) => s + p.bytes, 0);
     const bytesFeitos = PECAS.reduce((s, p) => {
         if (dePe(p)) return s + p.bytes;
-        if (estados[p.id]?.estado === 'baixando') return s + Math.min(amostra?.bytes ?? 0, p.bytes);
+        // Só o rascunhador publica progresso; as outras três baixam por dentro
+        // do Bergamot e do transformers.js, sem callback. Somar a amostra para
+        // elas seria carimbar o número de uma peça na barra de outra.
+        if (estados[p.id]?.estado === 'baixando' && p.reportaProgresso) {
+            return s + Math.min(amostra?.bytes ?? 0, p.bytes);
+        }
         return s;
     }, 0);
     const fracao = bytesTotais > 0 ? Math.max(0, Math.min(1, bytesFeitos / bytesTotais)) : 0;
@@ -427,7 +449,9 @@ export default function Floor10PipelineSala() {
                     }}>
                         {(amostra?.stalledSec ?? 0) >= 10
                             ? `parado há ${Math.round(amostra?.stalledSec ?? 0)}s — se passar do prazo, ele desiste e diz por quê`
-                            : (linha || 'conversando com o CDN…')}
+                            : (linha
+                                || 'baixando sem contador de bytes — esta peça não reporta progresso; '
+                                 + 'se passar do prazo, ela desiste e diz por quê')}
                     </div>
                 )}
                 <div style={{ color: '#777', fontSize: 12, marginBottom: 4 }}>

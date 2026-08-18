@@ -46,6 +46,9 @@ import {
     readStorageEstimate,
 } from './floor10ModelStorage';
 import { npcSet } from './npcStore';
+import {
+    comPrazo, PRAZO_RUNTIME_MS, PRAZO_CARGA_MS, PRAZO_SONDA_MS,
+} from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
 import { cpuThreadCount } from './wllamaEngine';
 
@@ -231,44 +234,6 @@ let ultimoErro = '';
 
 export function ultimoErroDoRascunhador(): string { return ultimoErro; }
 
-/**
- * ── PRAZO PARA CADA ETAPA, E POR QUE ISTO É CONSERTO E NÃO ENFEITE ───────
- *
- * Relato: a instalação ficava em "baixando…" **eternamente**, com a barra em
- * 0 MB. O download em si JÁ tinha cão de guarda (`baixarSemSubir`, que desiste
- * por inatividade) — o buraco estava nas etapas em volta, que ninguém vigiava:
- *
- *     import(WLLAMA_ESM) ....... busca o runtime no jsdelivr. Um `import()`
- *                                que não resolve não rejeita: fica pendente
- *                                para sempre. É o candidato número um, e casa
- *                                com o sintoma (0 MB, nada anda).
- *     loadModelFromUrl() ....... lê 822 MB do OPFS para dentro do WASM. Pode
- *                                abortar por memória sem devolver a promessa.
- *     probe/estimate ........... rápidos, mas são `await` numa fila sequencial.
- *
- * Uma espera sem prazo dentro de uma fila sequencial é o mesmo defeito que este
- * projeto já consertou duas vezes (no reflexo e no `baixarSemSubir`). Aqui ele
- * voltou por uma terceira porta.
- *
- * O prazo NÃO cancela o trabalho — não dá, o `import()` não aceita sinal. Ele
- * desiste de ESPERAR, com um motivo legível, e a fila segue. O que já baixou
- * continua no OPFS para a próxima tentativa.
- */
-const PRAZO_RUNTIME_MS = 45_000;
-const PRAZO_CARGA_MS = 180_000;
-const PRAZO_SONDA_MS = 20_000;
-
-function comPrazo<T>(tarefa: Promise<T>, ms: number, oQue: string): Promise<T> {
-    return Promise.race([
-        tarefa,
-        new Promise<never>((_, rejeitar) => {
-            globalThis.setTimeout(
-                () => rejeitar(new Error(`${oQue} não respondeu em ${Math.round(ms / 1000)}s`)),
-                ms,
-            );
-        }),
-    ]);
-}
 
 const medidor = new DownloadMeter();
 let enginePromise: Promise<Instancia | null> | null = null;

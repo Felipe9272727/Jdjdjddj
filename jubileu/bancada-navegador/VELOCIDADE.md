@@ -2452,3 +2452,67 @@ depois do download .. bate o tamanho?  se não, apaga e devolve false com motivo
 Custa duas listagens de cache por instalação. E a conferência nunca pode barrar
 o download: se a API mudar ou `list()` falhar, ela devolve `ok` e sai da frente
 — uma verificação que vira bloqueio é pior que a ausência dela.
+
+---
+
+## O download infinito voltou — em outra peça, pela minha mão
+
+O rascunhador desceu inteiro (822 MB, 3,2 MB/s, ✓) e a fila travou no
+**tradutor**. Mesma doença, outro órgão.
+
+E o buraco fui eu que abri: `comPrazo` nasceu **dentro** de
+`floor10Rascunhador.ts`. Um utilitário guardado dentro de um cliente é um
+utilitário que os outros clientes não acham — então o tradutor e o juiz ficaram
+exatamente como antes, sem prazo nenhum, esperando um `import()` que não resolve
+e não rejeita.
+
+Ele mudou para `floor10Carga.ts`, junto de `vigiarInatividade`, que já era o
+lugar dessas coisas. E agora existe um teste que varre as três peças:
+
+```
+nenhuma faz `await import()` de CDN sem prazo
+cada uma nomeia a própria etapa
+nenhuma memoiza a FALHA
+```
+
+### A falha memoizada, que tornaria o "de novo" decorativo
+
+`prepararTradutor` guardava a promessa com `??=` — **inclusive a que resolveu
+`null`**. Depois de uma falha, o botão "de novo" devolveria `null` na hora, sem
+tentar nada, e a única saída seria recarregar a página. Isto é o oposto do que
+os prazos vieram resolver, e passou despercebido porque o juiz já zerava os
+dele (`extratorPromise = null`) e eu presumi simetria.
+
+### Onde os 51 MB do tradutor realmente descem
+
+Não é no `import()` nem no construtor: é na **primeira tradução de cada par**.
+O `LatencyOptimisedTranslator` só busca os arquivos no HF quando alguém pede uma
+frase. Por isso o aquecimento dos dois pares tem prazo de REDE (120 s) e o
+`import()` tem prazo de CDN (45 s) — são esperas de natureza diferente, e juntar
+as duas num número só esconderia qual delas quebrou.
+
+### A linha que mentia entre uma peça e outra
+
+Na foto: o tradutor baixando e a linha dizendo
+`baixando Rascunhador granite 1B-A400M · 822 MB de 822 MB · 3.2 MB/s`.
+
+`loadText` e `loadDownload` são globais e **só o rascunhador escreve neles** —
+então o texto do passo anterior ficava congelado por cima do atual. A sala passa
+a zerar os dois ao trocar de peça, e a barra só soma progresso parcial de quem
+declara `reportaProgresso`. Para as outras ela diz a verdade:
+
+> baixando sem contador de bytes — esta peça não reporta progresso; se passar do
+> prazo, ela desiste e diz por quê
+
+Fingir precisão com o número de outra peça é pior que admitir que não há número.
+
+### Conferido pendurando tudo
+
+```
+✓ 2 peças desistiram, em 90s no total
+  ✗ o CDN do motor (jsdelivr) não respondeu em 45s
+  ✗ o CDN do tradutor (jsdelivr) não respondeu em 45s
+```
+
+Cada uma desiste sozinha, a fila segue, e o nome da etapa diz qual conserto
+tentar.

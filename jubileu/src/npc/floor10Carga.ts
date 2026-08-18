@@ -203,6 +203,54 @@ export function vigiarInatividade(
 }
 
 /** Espera que acorda na hora se alguém abortar no meio. */
+/**
+ * ── PRAZO PARA UMA ETAPA QUE PODE NUNCA RESPONDER ───────────────────────
+ *
+ * Relato: a instalação ficava em "baixando…" **eternamente**, com a barra em
+ * 0 MB. O download em si JÁ tinha cão de guarda (`baixarSemSubir`, que desiste
+ * por inatividade) — o buraco estava nas etapas em volta, que ninguém vigiava:
+ *
+ *     import(WLLAMA_ESM) ....... busca o runtime no jsdelivr. Um `import()`
+ *                                que não resolve não rejeita: fica pendente
+ *                                para sempre. É o candidato número um, e casa
+ *                                com o sintoma (0 MB, nada anda).
+ *     loadModelFromUrl() ....... lê 822 MB do OPFS para dentro do WASM. Pode
+ *                                abortar por memória sem devolver a promessa.
+ *     probe/estimate ........... rápidos, mas são `await` numa fila sequencial.
+ *
+ * Uma espera sem prazo dentro de uma fila sequencial é o mesmo defeito que este
+ * projeto já consertou duas vezes (no reflexo e no `baixarSemSubir`). Aqui ele
+ * voltou por uma terceira porta.
+ *
+ * O prazo NÃO cancela o trabalho — não dá, o `import()` não aceita sinal. Ele
+ * desiste de ESPERAR, com um motivo legível, e a fila segue. O que já baixou
+ * continua no OPFS para a próxima tentativa.
+ */
+export function comPrazo<T>(tarefa: Promise<T>, ms: number, oQue: string): Promise<T> {
+    return Promise.race([
+        tarefa,
+        new Promise<never>((_, rejeitar) => {
+            globalThis.setTimeout(
+                () => rejeitar(new Error(`${oQue} não respondeu em ${Math.round(ms / 1000)}s`)),
+                ms,
+            );
+        }),
+    ]);
+}
+
+/**
+ * Os prazos, num lugar só.
+ *
+ * Eles nasceram dentro do rascunhador, e por isso o tradutor e o juiz ficaram
+ * de fora — o download voltou a ser infinito **em outra peça**, com o mesmo
+ * defeito e outro nome. Um helper que mora dentro de um cliente é um helper que
+ * os outros clientes não vão achar.
+ */
+export const PRAZO_RUNTIME_MS = 45_000;
+export const PRAZO_CARGA_MS = 180_000;
+export const PRAZO_SONDA_MS = 20_000;
+export const PRAZO_REDE_MS = 120_000;
+
 export function esperar(ms: number, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) return Promise.resolve();
     return new Promise<void>((resolve) => {
