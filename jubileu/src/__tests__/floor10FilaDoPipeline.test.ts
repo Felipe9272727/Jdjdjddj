@@ -236,7 +236,10 @@ describe('as duas URLs do pipeline', () => {
 
     it('a sala chama o MESMO código do jogo, e não uma cópia', () => {
         const sala = readFileSync(new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8');
-        expect(sala).toContain('falarPeloPipelineReal(emIngles)');
+        // A chamada ganhou um segundo argumento (o diário de bordo, para a
+        // sala desenhar cada etapa) — mas continua sendo a MESMA função do
+        // jogo, que é o que este teste protege.
+        expect(sala).toMatch(/falarPeloPipelineReal\(emIngles,/);
         // Se ela montasse o pipeline à mão, mediria outro programa. O que
         // vale é o que ela IMPORTA — citar `PECAS_REAIS` num comentário para
         // explicar de onde vem a `etapa` é outra coisa, e a primeira versão
@@ -320,5 +323,71 @@ describe('a fila do JOGO também respira', () => {
         expect(fonte).toContain('RESPIRO_ENTRE_PASSOS_MS');
         expect(fonte).toContain('__f10RespiroMs');
         expect(fonte).toMatch(/if \(respiro > 0\) await esperar\(respiro\)/);
+    });
+});
+
+describe('a sala mostra TODAS as etapas, não só duas', () => {
+    const sala = readFileSync(
+        new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+    );
+    const pipe = readFileSync(
+        new URL('../npc/floor10Pipeline.ts', import.meta.url), 'utf8',
+    );
+
+    it('o pipeline relata cada passo, e o JOGO não paga por isso', () => {
+        // Relato: "não consigo ver o rascunho, não consigo ver pra onde o juiz
+        // apontou erro, e nem o lsfm corrigindo". A sala mostrava 2 de 5
+        // passos, porque o pipeline só devolvia CONTADORES — e contador
+        // responde "vale a pena?", não "o que ele escreveu?".
+        for (const passo of ['rascunho', 'frases', 'juiz', 'limpeza', 'remendo', 'traducao']) {
+            expect(pipe, `o passo ${passo} não é relatado`).toContain(`passo: '${passo}'`);
+        }
+        // `aoPassar` é OPCIONAL: o jogo não passa nada e não paga nada.
+        expect(pipe).toContain('aoPassar?: (passo: PassoDoPipeline) => void');
+        expect(pipe).toMatch(/aoPassar\?\.\(/);
+    });
+
+    it('e a sala desenha o conteúdo, não o contador', () => {
+        expect(sala).toContain('corrida.passos.map');
+        // O antes/depois de cada remendo é o que diz se o revisor presta.
+        expect(sala).toContain('devolveu a MESMA frase');
+        // E as frases numeradas, senão "marcou a 2" não quer dizer nada.
+        expect(sala).toMatch(/<ol style/);
+    });
+
+    it('os passos aparecem AO VIVO, não só no fim', () => {
+        // Numa corrida de 15 s, esperar o fim é olhar para um botão parado.
+        expect(sala).toMatch(/passos: \[\.\.\.c\.passos, passo\]/);
+    });
+});
+
+describe('a sala é usada no celular', () => {
+    const sala = readFileSync(
+        new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+    );
+
+    it('alvo de toque de 44 px, e fonte que dá para ler', () => {
+        // Relato: "tá muito ruim de mexer do jeito que tá". Os botões tinham
+        // ~30 px de altura; o mínimo confortável no toque é ~44.
+        expect(sala).toContain('const TOQUE = { minHeight: 44');
+        // E o textarea a 16 px: abaixo disso o iOS dá zoom sozinho ao focar.
+        expect(sala).toMatch(/fontSize: 16/);
+    });
+
+    it('a página rola no eixo certo e NUNCA no outro', () => {
+        // Uma URL de erro ou uma frase em inglês sem espaço arrastava a tela
+        // para o lado, e aí o scroll vertical briga com o horizontal.
+        expect(sala).toContain("overflowX: 'hidden'");
+        expect(sala).toContain("overflowWrap: 'anywhere'");
+        // `100dvh` porque `100vh` no celular conta a barra do navegador que
+        // some ao rolar, e o fim da página fica inalcançável.
+        expect(sala).toContain("minHeight: '100dvh'");
+    });
+
+    it('a barra do revisor lê o campo DELE', () => {
+        // Relato: "não dá pra ver a barra de download do revisor". Ele publica
+        // em `deliberationDownload` — o campo que a tela da vontade usa no
+        // jogo —, e a sala só olhava `loadDownload`.
+        expect(sala).toContain('amostraPropria: () => npc.deliberationDownload');
     });
 });

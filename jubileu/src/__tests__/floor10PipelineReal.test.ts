@@ -30,7 +30,30 @@ describe('as peças reais', () => {
 
     it('o revisor não é chamado se a vontade não estiver de pé', () => {
         // Um rascunho com uma frase torta é melhor que 30 s carregando revisor.
-        expect(real).toContain('if (!vontadeJaCarregada()) return null;');
+        //
+        // ── E O PREDICADO ESTAVA MENTINDO ────────────────────────────────
+        //
+        // Era `vontadeJaCarregada()`, que responde
+        // `enginePromise !== null || pesosNoAparelho` — e `baixarVontade` marca
+        // `pesosNoAparelho = true`. Depois de apenas BAIXAR, ela já dizia "sim",
+        // o pipeline passava, e `remendarFraseEmIngles` ia subir 1,25 GB no
+        // meio da fala com o rascunhador residente. A tela do dono do jogo ficou
+        // em "corrigindo uma frase…" para sempre.
+        //
+        // A intenção deste teste sempre foi a certa; o nome em que ele confiava
+        // é que prometia mais do que entregava.
+        expect(real).toContain('if (!vontadeDePeAgora()) return null;');
+        // O que vale é o que ele IMPORTA — citar o nome antigo no comentário
+        // que explica a troca é outra coisa, e a primeira versão deste teste
+        // reprovou por isso.
+        const imports = real.slice(0, real.indexOf('export const PECAS_REAIS'))
+            .split('\n').filter((l) => l.includes("from './floor10SmallBrain'")
+                || l.includes('remendarFraseEmIngles')).join('\n');
+        expect(imports).not.toContain('vontadeJaCarregada');
+    });
+
+    it('e o revisor tem prazo, porque era a última peça que podia pendurar', () => {
+        expect(real).toMatch(/comPrazo\(\s*remendarFraseEmIngles/);
     });
 
     it('e o erro do pipeline nunca sobe — sempre vira null', () => {

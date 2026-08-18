@@ -47,6 +47,29 @@ export type PecasDoPipeline = {
     traduzir: (textoEmIngles: string) => Promise<string | null>;
 };
 
+/**
+ * ── O DIÁRIO DE BORDO ────────────────────────────────────────────────────
+ *
+ * Pedido do dono do jogo, depois de ver a sala mostrar só a tradução da
+ * pergunta: *"não consigo ver o rascunho, não consigo ver pra onde o juiz
+ * apontou erro, e nem o lsfm corrigindo"*. Ele está certo — a sala existe para
+ * mostrar as etapas, e mostrava duas de cinco.
+ *
+ * O pipeline devolvia só CONTADORES (`marcadas`, `remendadas`). Contador
+ * responde "vale a pena?" e não responde "o que ele escreveu?" — e é a segunda
+ * pergunta que diz se o rascunhador presta.
+ *
+ * Isto NÃO é telemetria: é o conteúdo, frase a frase, com o veredito do juiz e
+ * o antes/depois de cada remendo.
+ */
+export type PassoDoPipeline =
+    | { passo: 'rascunho'; textoEmIngles: string; ms: number }
+    | { passo: 'frases'; frases: readonly string[] }
+    | { passo: 'juiz'; marcadas: readonly number[]; ms: number }
+    | { passo: 'limpeza'; n: number; antes: string; depois: string }
+    | { passo: 'remendo'; n: number; antes: string; depois: string | null; ms: number }
+    | { passo: 'traducao'; antesEmIngles: string; depoisEmPtBr: string; ms: number };
+
 export type SaidaDoPipeline = {
     /** A fala pronta, em pt-BR. */
     fala: string;
@@ -108,42 +131,72 @@ export function enumerarEmIngles(texto: string): string[] {
 export async function falarPeloPipeline(
     perguntaEmIngles: string,
     pecas: PecasDoPipeline,
+    /**
+     * Recebe cada etapa assim que ela acontece. Opcional: o JOGO não passa nada
+     * (ele só quer a fala), e a sala passa para desenhar o caminho inteiro.
+     * Nunca pode alterar o resultado — é observação, não participação.
+     */
+    aoPassar?: (passo: PassoDoPipeline) => void,
 ): Promise<SaidaDoPipeline | null> {
+    const t0 = Date.now();
     const bruto = await pecas.rascunhar(perguntaEmIngles);
     if (!bruto || !bruto.trim()) return null;
+    aoPassar?.({ passo: 'rascunho', textoEmIngles: bruto, ms: Date.now() - t0 });
 
     const cruas = enumerarEmIngles(bruto);
     if (cruas.length === 0) return null;
 
     const limpas = cruas.map(limparFrase);
     const limpezas = limpas.filter((l) => l.mudou).length;
+    // As limpezas saem de graça e ninguém as via — mas elas mudam a frase que o
+    // juiz recebe, então esconder é esconder metade da explicação.
+    for (const [i, l] of limpas.entries()) {
+        if (l.mudou) aoPassar?.({ passo: 'limpeza', n: i + 1, antes: cruas[i], depois: l.texto });
+    }
     const frases = limpas.map((l) => l.texto).filter((f) => f.length > 2);
     if (frases.length === 0) return null;
+    aoPassar?.({ passo: 'frases', frases });
 
     // O JUIZ vem antes da tradução de propósito: é em inglês que ele enxerga.
     // Se ele falhar, devolve lista vazia e o rascunho passa — não julgar custa
     // o que já custava; marcar por engano custa ~11,6 s de revisor.
+    const t1 = Date.now();
     const marcadas = await pecas.julgar(frases);
+    aoPassar?.({ passo: 'juiz', marcadas, ms: Date.now() - t1 });
 
     const finais = [...frases];
     let remendadas = 0;
     for (const n of marcadas) {
         const i = n - 1;
         if (i < 0 || i >= finais.length) continue;
-        const nova = await pecas.remendar(perguntaEmIngles, finais[i]);
-        if (!nova) continue;
+        const t2 = Date.now();
+        const antes = finais[i];
+        const nova = await pecas.remendar(perguntaEmIngles, antes);
+        if (!nova) {
+            // Um remendo que não veio é informação: significa que o revisor não
+            // estava de pé, ou desistiu. Sem isto some da tela.
+            aoPassar?.({ passo: 'remendo', n, antes, depois: null, ms: Date.now() - t2 });
+            continue;
+        }
         const { texto } = limparFrase(nova);
         // Um remendo que devolve a MESMA frase não é remendo — foi o que o
         // SmolLM3 fez em 2 de 3 ("(No correction needed)"). Contar como troca
         // inflaria o placar e esconderia que o revisor não serve.
-        if (texto && texto !== finais[i]) { finais[i] = texto; remendadas += 1; }
+        if (texto && texto !== antes) { finais[i] = texto; remendadas += 1; }
+        aoPassar?.({ passo: 'remendo', n, antes, depois: texto, ms: Date.now() - t2 });
     }
 
-    const pt = await pecas.traduzir(finais.join(' '));
+    const t3 = Date.now();
+    const juntas = finais.join(' ');
+    const pt = await pecas.traduzir(juntas);
     if (!pt || !pt.trim()) return null;
+    const fala = abrasileirar(pt);
+    aoPassar?.({
+        passo: 'traducao', antesEmIngles: juntas, depoisEmPtBr: fala, ms: Date.now() - t3,
+    });
 
     return {
-        fala: abrasileirar(pt),
+        fala,
         marcadas: marcadas.length,
         remendadas,
         limpezas,

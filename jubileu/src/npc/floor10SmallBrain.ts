@@ -956,6 +956,26 @@ export function deliberationYieldedTurn(): boolean { return cedeuAVez; }
  * Pergunta sem baixar nada. `enginePromise` só existe depois que alguém pediu
  * a carga — e é essa distinção que faltava.
  */
+/**
+ * ── O RUNTIME ESTÁ DE PÉ AGORA? ──────────────────────────────────────────
+ *
+ * Diferente de `vontadeJaCarregada`, e a diferença travou o jogo. Aquela
+ * responde `enginePromise !== null || pesosNoAparelho`, e `baixarVontade` marca
+ * `pesosNoAparelho = true` — então, depois de apenas BAIXAR, ela já diz "sim".
+ *
+ * O pipeline usava ela para decidir se podia chamar o revisor. Passava, e o
+ * `remendarFraseEmIngles` ia SUBIR 1,25 GB no meio de uma fala, com o
+ * rascunhador já residente e sem prazo nenhum — a tela ficava em "corrigindo
+ * uma frase…" para sempre.
+ *
+ * Quem pergunta "posso usar o revisor agora, sem pagar uma carga?" precisa
+ * desta aqui. O nome da outra promete mais do que ela entrega, e eu confiei no
+ * nome.
+ */
+export function vontadeDePeAgora(): boolean {
+    return enginePromise !== null;
+}
+
 export function vontadeJaCarregada(): boolean {
     // `enginePromise` deixou de ser a única prova: a pausa encerra o runtime
     // para devolver CPU, mas o .gguf continua no aparelho. Sem `pesosNoAparelho`

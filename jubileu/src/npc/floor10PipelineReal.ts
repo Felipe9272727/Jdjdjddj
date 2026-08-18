@@ -15,12 +15,14 @@
 //     juiz marcou 3/3 ... 15,4 s   contra 13,4 s                     1,01×
 
 import {
-    falarPeloPipeline, pipelineLigado, type PecasDoPipeline, type SaidaDoPipeline,
+    falarPeloPipeline, pipelineLigado,
+    type PassoDoPipeline, type PecasDoPipeline, type SaidaDoPipeline,
 } from './floor10Pipeline';
 import { rascunharEmIngles, rascunhadorJaCarregado } from './floor10Rascunhador';
 import { frasesForaDoTom } from './floor10VetorDeTom';
 import { traduzirParaPtBr } from './floor10Tradutor';
-import { remendarFraseEmIngles, vontadeJaCarregada } from './floor10SmallBrain';
+import { remendarFraseEmIngles, vontadeDePeAgora } from './floor10SmallBrain';
+import { comPrazo, PRAZO_CARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
 import { npcSet } from './npcStore';
 
@@ -84,9 +86,22 @@ export const PECAS_REAIS: PecasDoPipeline = {
         // graça. Ele foi barrado como rascunhador por não declarar português no
         // card; em inglês essa objeção não existe, e medido ele faz 3/3 de
         // acerto em 11,6 s contra 1/3 em 18,4 s do SmolLM3.
-        if (!vontadeJaCarregada()) return null;
+        // ── E A GUARDA PRECISOU MUDAR DE PERGUNTA ────────────────────────
+        //
+        // Era `vontadeJaCarregada()`, que responde `true` quando os PESOS estão
+        // no aparelho — mesmo sem runtime nenhum de pé. O pipeline passava por
+        // ela e o `remendarFraseEmIngles` ia subir 1,25 GB no meio da fala, com
+        // o rascunhador já residente. A tela do dono do jogo ficou em
+        // "corrigindo uma frase…" para sempre.
+        //
+        // A pergunta certa é "dá para usar AGORA, sem pagar uma carga?".
+        if (!vontadeDePeAgora()) return null;
         npcSet({ etapa: 'corrigindo uma frase…' });
-        return remendarFraseEmIngles(pergunta, frase);
+        // Prazo mesmo assim: o revisor é a única peça do pipeline que ainda
+        // podia pendurar, e um remendo que não volta não pode custar a fala.
+        return comPrazo(
+            remendarFraseEmIngles(pergunta, frase), PRAZO_CARGA_MS, 'o revisor',
+        ).catch(() => null);
     },
 
     traduzir: async (texto) => {
@@ -103,11 +118,13 @@ export const PECAS_REAIS: PecasDoPipeline = {
  */
 export async function falarPeloPipelineReal(
     perguntaEmIngles: string,
+    /** Só a sala passa isto; o jogo não quer ver as etapas, quer a fala. */
+    aoPassar?: (passo: PassoDoPipeline) => void,
 ): Promise<SaidaDoPipeline | null> {
     if (!pipelineDisponivel()) return null;
     const comecou = Date.now();
     try {
-        const saida = await falarPeloPipeline(perguntaEmIngles, PECAS_REAIS);
+        const saida = await falarPeloPipeline(perguntaEmIngles, PECAS_REAIS, aoPassar);
         anotar('pipeline:fim', {
             ms: Date.now() - comecou,
             ok: saida ? 1 : 0,

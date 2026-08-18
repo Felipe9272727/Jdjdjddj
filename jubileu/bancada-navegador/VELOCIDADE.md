@@ -2776,3 +2776,95 @@ memória" — mais um chute apresentado como certeza. Agora existe regra própri
 para `loadTranslationModel|SentencePiece|intgemm`, antes da de memória, dizendo
 o mecanismo medido. A regra de memória virou último recurso, com o comentário
 explicando que `Aborted` significa só "o WASM desistiu".
+
+---
+
+## "Corrigindo uma frase…" para sempre — o predicado que mentia
+
+As quatro peças desceram, o rascunhador subiu, o pipeline rodou — e travou no
+revisor. A causa é um nome que promete mais do que entrega:
+
+```js
+vontadeJaCarregada() → enginePromise !== null || pesosNoAparelho
+baixarVontade()      → pesosNoAparelho = true
+```
+
+Depois de apenas **baixar**, `vontadeJaCarregada()` já responde `true`. O
+pipeline usava essa pergunta para decidir se podia chamar o revisor:
+
+```js
+if (!vontadeJaCarregada()) return null;   // passava
+npcSet({ etapa: 'corrigindo uma frase…' }); // a tela do relato
+remendarFraseEmIngles(...)                  // → ensureSmallEngine → SOBE 1,25 GB
+```
+
+Com o rascunhador já residente, e sem prazo — porque o `AbortController` de lá
+cobre a GERAÇÃO, não a CARGA. É o travamento **e** os dois llama.cpp que eu
+tinha acabado de tentar impedir, entrando por uma porta que eu não olhei.
+
+`vontadeDePeAgora()` responde a pergunta certa: *"dá para usar agora, sem pagar
+uma carga?"*. E o remendo ganhou prazo, porque era a última peça do pipeline sem
+um.
+
+> Um predicado cujo nome descreve a intenção e não a condição é uma armadilha
+> com legenda amigável. `vontadeJaCarregada` respondia "os pesos existem"; o
+> nome dizia "está pronta para usar".
+
+## O diário de bordo — a sala mostrava 2 de 5 etapas
+
+> *"aparece que o tradutor mudou pra inglês, mas eu não consigo ver o rascunho,
+> não consigo ver pra onde o juiz apontou erro, e nem o lsfm corrigindo"*
+
+O pipeline devolvia só **contadores** (`marcadas`, `remendadas`). Contador
+responde *"vale a pena?"* e não responde *"o que ele escreveu?"* — e é a segunda
+pergunta que diz se o rascunhador presta.
+
+Agora `falarPeloPipeline` aceita um `aoPassar` opcional e relata seis tipos de
+passo, com CONTEÚDO:
+
+```
+rascunho ... o texto em inglês, com o tempo
+limpeza .... antes/depois de cada conserto de string (de graça, sem modelo)
+frases ..... a lista numerada que o juiz vai receber
+juiz ....... quais índices ele marcou, ou "nenhuma fora do tom"
+remendo .... antes/depois de cada frase, e os três desfechos:
+             remendou · devolveu a MESMA frase · não veio
+traducao ... o inglês final e o pt-BR
+```
+
+O callback é **opcional**: o jogo não passa nada e não paga nada. E os passos
+aparecem **ao vivo** — numa corrida de 15 s, esperar o fim é olhar para um botão
+parado.
+
+O caso `remendo` com `depois: null` existe porque foi exatamente ele que sumiu
+da tela durante o travamento: "o revisor não estava de pé, ou desistiu" é
+informação, e sem relatar vira silêncio.
+
+## A sala é usada no celular, e só no celular
+
+> *"deixasse o ?pipeline mobile friendly, e scroll, pq tá muito ruim de mexer"*
+
+Três defeitos de layout, os três meus:
+
+```
+fonte 12–14 px ....... legível no monitor, apertada no telefone → 15/13 px
+botões ~30 px ........ o alvo confortável no toque é 44 → minHeight: 44
+texto sem quebra ..... URLs de erro empurravam a página para os lados
+```
+
+Conferido num viewport de 360×800 com toque:
+
+```
+{"estoura":false,"pequenos":[],"total":10,"altura":2040,"visivel":800}
+```
+
+Sem scroll horizontal, os 10 botões com ≥44 px, e 2.040 px de conteúdo rolando.
+`100dvh` em vez de `100vh` porque no celular a barra do navegador some ao rolar
+e o fim da página fica inalcançável; `fontSize: 16` no textarea porque abaixo
+disso o iOS dá zoom sozinho ao focar.
+
+## A barra do revisor não aparecia porque eu olhava o campo errado
+
+Ele publica em `npc.deliberationDownload` — o campo que a tela da vontade usa no
+jogo há muito tempo. A sala só olhava `loadDownload`. Cada peça passou a dizer
+de onde ler o próprio progresso.

@@ -29,7 +29,7 @@
 //
 // São 983 MB somando as três peças. Abrir uma aba não pode custar isso, então
 // cada uma tem botão e diz o próprio peso.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
     descarregarRascunhador, ultimoErroDoRascunhador,
@@ -45,7 +45,7 @@ import {
 } from './npc/floor10SmallBrain';
 import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
-import { enumerarEmIngles } from './npc/floor10Pipeline';
+import { enumerarEmIngles, type PassoDoPipeline } from './npc/floor10Pipeline';
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
 
@@ -98,6 +98,14 @@ type Peca = {
      * dizer isso é melhor que fingir precisão com o número de outra peça.
      */
     reportaProgresso?: boolean;
+    /**
+     * De onde ler o progresso, quando não for `npc.loadDownload`.
+     *
+     * O revisor publica em `npc.deliberationDownload` — o campo que a tela da
+     * vontade usa no jogo. Sem este desvio a barra dele não aparecia, que foi
+     * exatamente o relato: "não dá pra ver a barra de download do revisor".
+     */
+    amostraPropria?: () => DownloadSample | undefined;
 };
 
 type EstadoDaPeca = {
@@ -109,6 +117,8 @@ type Corrida = {
     pergunta: string;
     semAbreviacao: string;
     emIngles: string;
+    /** Cada etapa do pipeline, na ordem em que aconteceu. */
+    passos: PassoDoPipeline[];
     frases: string[];
     fala: string;
     marcadas: number;
@@ -120,20 +130,39 @@ type Corrida = {
 };
 
 const VAZIO: Corrida = {
-    pergunta: '', semAbreviacao: '', emIngles: '', frases: [], fala: '',
+    pergunta: '', semAbreviacao: '', emIngles: '', passos: [], frases: [], fala: '',
     marcadas: 0, remendadas: 0, limpezas: 0, ms: 0, msTraducao: 0, erro: '',
 };
 
 /** Ver o uso: uma janela para o aparelho respirar entre um passo e outro. */
 const RESPIRO_ENTRE_PECAS_MS = 3_000;
 
+/**
+ * ── ESTA SALA É USADA NO CELULAR, E SÓ NO CELULAR ────────────────────────
+ *
+ * Relato: *"deixasse o ?pipeline mobile friendly, e scroll, pq tá muito ruim de
+ * mexer do jeito que tá"*. Três coisas erradas, e as três são de layout:
+ *
+ * 1. TEXTO DE 12–14 px com `ui-monospace`. Legível no monitor, apertado no
+ *    telefone. Vai a 15 px, e os rótulos secundários a 13.
+ * 2. BOTÕES DE 6 px DE PADDING. O alvo mínimo confortável no toque é ~44 px de
+ *    altura; os daqui tinham ~30. Agora têm `minHeight: 44`.
+ * 3. TEXTO LONGO SEM QUEBRA. As URLs de erro e as frases em inglês empurravam a
+ *    página para os lados, e aí o scroll vertical vira briga. `overflowWrap`
+ *    resolve, e `overflowX: hidden` no corpo garante.
+ */
 const CAIXA = {
     background: '#141414',
     border: '1px solid #2a2a2a',
     borderRadius: 8,
-    padding: '10px 12px',
-    marginBottom: 8,
+    padding: '12px 14px',
+    marginBottom: 10,
+    // Sem isto, uma URL de erro estica a caixa e leva a página junto.
+    overflowWrap: 'anywhere' as const,
 };
+
+/** O alvo mínimo de toque. Abaixo disso, errar o botão é o normal. */
+const TOQUE = { minHeight: 44, fontSize: 15 };
 
 export default function Floor10PipelineSala() {
     const [pergunta, setPergunta] = useState(PERGUNTAS[0]);
@@ -160,6 +189,11 @@ export default function Floor10PipelineSala() {
     // andam em degrau — e a barra diz isso em vez de fingir precisão.
     const [amostra, setAmostra] = useState<DownloadSample | null>(null);
     const [linha, setLinha] = useState('');
+    // O assinante do npcStore roda fora do render, então ele não enxerga o
+    // `estados` do render atual. Uma ref mantém a versão viva.
+    // De onde ler o progresso AGORA. Uma ref porque o assinante do npcStore
+    // roda fora do render e não enxerga o `PECAS` nem o `estados` da vez.
+    const amostraDaVezRef = useRef<() => DownloadSample | undefined>(() => undefined);
 
     // A `etapa` do npcStore é onde as peças reais escrevem em que passo estão
     // (`PECAS_REAIS` faz `npcSet({ etapa })`). Ler daqui mostra o pipeline
@@ -170,8 +204,11 @@ export default function Floor10PipelineSala() {
         // e ele NÃO publicava ali até agora, o que deixava a barra em 0 MB
         // enquanto os bytes andavam. `linha` é o texto vivo ("12 MB de 822 MB ·
         // 1,3 MB/s"), que é o que responde "está andando ou travou?".
-        setAmostra(npc.loadDownload ?? null);
-        setLinha(npc.loadText ?? '');
+        // A peça que está baixando decide DE ONDE ler: o revisor publica em
+        // `deliberationDownload`, os outros em `loadDownload`. Sem isso a barra
+        // dele ficava invisível — foi o relato.
+        setAmostra((amostraDaVezRef.current() ?? npc.loadDownload) ?? null);
+        setLinha(npc.deliberationLoadText || npc.loadText || '');
     }), []);
 
     const PECAS: Peca[] = [
@@ -235,6 +272,11 @@ export default function Floor10PipelineSala() {
             // disso e escrevi a sala ignorando.
             carregado: () => false,
             carregar: baixarVontade,
+            // Ele publica em `deliberationDownload`, e não em `loadDownload` —
+            // é o campo que a tela da VONTADE usa no jogo há muito tempo. Sem
+            // dizer isso aqui, a barra dele ficava invisível.
+            reportaProgresso: true,
+            amostraPropria: () => npc.deliberationDownload,
             // A vontade já escreve o próprio motivo na tela do jogo há muito
             // tempo; aqui é só reaproveitar o mesmo campo.
             motivo: () => npc.deliberationLoadText,
@@ -246,6 +288,8 @@ export default function Floor10PipelineSala() {
      * o comentário em `Peca.carregado` —, então a sala lembra por elas.
      */
     const dePe = (p: Peca) => (p.carregado ? p.carregado() : subidas.has(p.id));
+    amostraDaVezRef.current = () => PECAS
+        .find((p) => estados[p.id]?.estado === 'baixando')?.amostraPropria?.();
 
     /**
      * ── A FILA: BAIXA TODAS, UMA DE CADA VEZ, E NÃO PARA NA PRIMEIRA FALHA ──
@@ -393,7 +437,12 @@ export default function Floor10PipelineSala() {
 
             // ── DAQUI PARA BAIXO É O CÓDIGO DO JOGO, SEM CÓPIA ──────────
             const t1 = performance.now();
-            const saida = await falarPeloPipelineReal(emIngles);
+            const saida = await falarPeloPipelineReal(emIngles, (passo) => {
+                // Ao VIVO: cada etapa aparece assim que acontece, e não só no
+                // fim. Numa corrida de 15 s isso é a diferença entre acompanhar
+                // e olhar para um botão parado.
+                setCorrida((c) => ({ ...c, passos: [...c.passos, passo] }));
+            });
             const ms = Math.round(performance.now() - t1);
             if (!saida) {
                 setCorrida((c) => ({
@@ -448,13 +497,21 @@ export default function Floor10PipelineSala() {
 
     return (
         <div style={{
-            font: '14px/1.5 ui-monospace, monospace',
+            font: '15px/1.6 ui-monospace, monospace',
             color: '#ddd',
             background: '#0b0b0b',
-            minHeight: '100vh',
-            padding: 16,
+            minHeight: '100dvh',
+            padding: '12px 12px 96px',
             maxWidth: 820,
             margin: '0 auto',
+            // A página rola no eixo certo e NUNCA no outro. Sem o `hidden`, uma
+            // frase em inglês sem espaço arrasta a tela para o lado e o scroll
+            // vertical passa a brigar com o horizontal.
+            overflowX: 'hidden',
+            overflowWrap: 'anywhere',
+            // Espaço no fim para o último bloco não ficar debaixo da barra do
+            // navegador no celular.
+            WebkitTextSizeAdjust: '100%',
         }}>
             <h1 style={{ fontSize: 18, margin: '0 0 4px' }}>Sala do pipeline inglês-primeiro</h1>
             <p style={{ color: '#888', margin: '0 0 16px' }}>
@@ -502,7 +559,7 @@ export default function Floor10PipelineSala() {
                         background: baixando ? '#232323' : '#2a3550',
                         color: baixando ? '#666' : '#cfd6e4',
                         border: '1px solid #333', borderRadius: 6,
-                        padding: '8px 14px', cursor: baixando ? 'default' : 'pointer',
+                        padding: '12px 16px', ...TOQUE, cursor: baixando ? 'default' : 'pointer',
                     }}
                 >
                     {baixando
@@ -563,7 +620,7 @@ export default function Floor10PipelineSala() {
                                         style={{
                                             background: '#20242e', color: '#cfd6e4',
                                             border: '1px solid #333', borderRadius: 6,
-                                            padding: '4px 10px',
+                                            padding: '10px 14px', ...TOQUE,
                                             cursor: ocupado ? 'default' : 'pointer',
                                         }}
                                     >
@@ -619,7 +676,7 @@ export default function Floor10PipelineSala() {
                             background: pronto ? '#1d3a2a' : '#2f6b4f',
                             color: pronto ? '#7fe0b0' : '#eaffee',
                             border: '1px solid #333', borderRadius: 6,
-                            padding: '8px 14px',
+                            padding: '12px 16px', ...TOQUE,
                             cursor: (baixando || ocupado || pronto) ? 'default' : 'pointer',
                         }}
                     >
@@ -662,7 +719,7 @@ export default function Floor10PipelineSala() {
                             style={{
                                 background: pergunta === q ? '#2a3550' : '#181818',
                                 color: '#cfd6e4', border: '1px solid #333',
-                                borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                                borderRadius: 6, padding: '10px 16px', cursor: 'pointer', ...TOQUE,
                             }}
                         >
                             {i + 1}
@@ -675,8 +732,8 @@ export default function Floor10PipelineSala() {
                     rows={2}
                     style={{
                         width: '100%', marginTop: 8, background: '#0b0b0b', color: '#ddd',
-                        border: '1px solid #333', borderRadius: 6, padding: 8,
-                        font: 'inherit', boxSizing: 'border-box',
+                        border: '1px solid #333', borderRadius: 6, padding: 10,
+                        font: 'inherit', fontSize: 16, boxSizing: 'border-box',
                     }}
                 />
                 <button
@@ -687,7 +744,7 @@ export default function Floor10PipelineSala() {
                         marginTop: 8, background: pronto ? '#2f6b4f' : '#232323',
                         color: pronto ? '#eaffee' : '#666',
                         border: '1px solid #333', borderRadius: 6,
-                        padding: '8px 14px', cursor: ocupado || !pronto ? 'default' : 'pointer',
+                        padding: '12px 16px', ...TOQUE, cursor: ocupado || !pronto ? 'default' : 'pointer',
                     }}
                 >
                     {ocupado ? (etapaViva || 'rodando…') : 'rodar o pipeline'}
@@ -712,15 +769,15 @@ export default function Floor10PipelineSala() {
                         nota="daqui para baixo tudo é em inglês, inclusive o juiz"
                         texto={corrida.emIngles}
                     />
+                    {/* ── CADA ETAPA, COM O CONTEÚDO ─────────────────────
+                        Pedido do dono do jogo: "não consigo ver o rascunho, não
+                        consigo ver pra onde o juiz apontou erro, e nem o lsfm
+                        corrigindo". A sala mostrava dois passos de cinco, e
+                        contador não responde "o que ele escreveu?". */}
+                    {corrida.passos.map((p, i) => <Passo key={i} p={p} />)}
+
                     {corrida.fala && (
                         <>
-                            <Etapa
-                                n="3-5"
-                                titulo={`rascunho → juiz → revisor → Bergamot en → pt · ${corrida.ms} ms`}
-                                nota={`${corrida.marcadas} frase(s) marcada(s) pelo juiz · `
-                                    + `${corrida.remendadas} remendada(s) · ${corrida.limpezas} limpeza(s)`}
-                                texto=""
-                            />
                             <div style={{
                                 marginTop: 8, padding: 12, borderRadius: 6,
                                 background: '#12261c', border: '1px solid #24503a',
@@ -767,13 +824,97 @@ export default function Floor10PipelineSala() {
                     })}
                     style={{
                         background: '#2a1d1d', color: '#ff9c9c', border: '1px solid #4a2a2a',
-                        borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                        borderRadius: 6, padding: '10px 14px', cursor: 'pointer', ...TOQUE,
                     }}
                 >
                     descarregar o rascunhador
                 </button>
                 <span> — devolve ~98% da RAM em menos de 5 s (medido)</span>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Uma etapa do pipeline, com o CONTEÚDO e não só o número.
+ *
+ * O juiz aparece marcando frases pelo índice; sem ver as frases numeradas,
+ * "marcou a 2" não diz nada. Por isso o passo `frases` desenha a lista inteira
+ * e os marcados ficam em vermelho depois.
+ */
+function Passo({ p }: { p: PassoDoPipeline }) {
+    const cx = { marginTop: 10, paddingLeft: 10, borderLeft: '2px solid #2a2a2a' };
+    const tit = { color: '#a8bcf0' };
+    const sub = { color: '#666', fontSize: 12 };
+    if (p.passo === 'rascunho') {
+        return (
+            <div style={cx}>
+                <div style={tit}>3. o granite rascunhou · {(p.ms / 1000).toFixed(1)}s</div>
+                <div style={sub}>em inglês — é onde ele erra menos e onde o juiz enxerga</div>
+                <div style={{ marginTop: 4 }}>{p.textoEmIngles}</div>
+            </div>
+        );
+    }
+    if (p.passo === 'limpeza') {
+        return (
+            <div style={cx}>
+                <div style={tit}>· limpeza na frase {p.n} (de graça, sem modelo)</div>
+                <div style={{ ...sub, textDecoration: 'line-through' }}>{p.antes}</div>
+                <div>{p.depois}</div>
+            </div>
+        );
+    }
+    if (p.passo === 'frases') {
+        return (
+            <div style={cx}>
+                <div style={tit}>· {p.frases.length} frase(s) para o juiz</div>
+                <ol style={{ margin: '4px 0 0', paddingLeft: 22 }}>
+                    {p.frases.map((f, i) => <li key={i}>{f}</li>)}
+                </ol>
+            </div>
+        );
+    }
+    if (p.passo === 'juiz') {
+        return (
+            <div style={cx}>
+                <div style={tit}>4. o juiz de tom · {p.ms} ms</div>
+                <div style={sub}>
+                    {p.marcadas.length === 0
+                        ? 'não marcou nada — é aqui que o pipeline ganha do 3B'
+                        : 'cada marcada custa uma chamada de revisor (~11,6 s)'}
+                </div>
+                <div style={{ marginTop: 4, color: p.marcadas.length ? '#ff9c9c' : '#7fe0b0' }}>
+                    {p.marcadas.length === 0
+                        ? '✓ nenhuma frase fora do tom'
+                        : `✗ marcou a(s) frase(s) ${p.marcadas.join(', ')}`}
+                </div>
+            </div>
+        );
+    }
+    if (p.passo === 'remendo') {
+        return (
+            <div style={cx}>
+                <div style={tit}>5. o LFM2.5 na frase {p.n} · {(p.ms / 1000).toFixed(1)}s</div>
+                <div style={{ ...sub, textDecoration: 'line-through' }}>{p.antes}</div>
+                {p.depois === null ? (
+                    <div style={{ color: '#f5c96b' }}>
+                        não remendou — o revisor não estava de pé, ou desistiu
+                    </div>
+                ) : p.depois === p.antes ? (
+                    <div style={{ color: '#f5c96b' }}>
+                        devolveu a MESMA frase — não conta como remendo
+                    </div>
+                ) : (
+                    <div style={{ color: '#7fe0b0' }}>{p.depois}</div>
+                )}
+            </div>
+        );
+    }
+    return (
+        <div style={cx}>
+            <div style={tit}>6. Bergamot en → pt · {p.ms} ms</div>
+            <div style={sub}>{p.antesEmIngles}</div>
+            <div style={{ marginTop: 4 }}>{p.depoisEmPtBr}</div>
         </div>
     );
 }
