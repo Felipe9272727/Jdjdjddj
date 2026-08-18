@@ -48,6 +48,7 @@ import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10Pipeline
 import { enumerarEmIngles, type PassoDoPipeline } from './npc/floor10Pipeline';
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
+import { liberarRolagem } from './npc/floor10PaginaRolavel';
 
 /**
  * As perguntas de teste, em PORTUGUÊS e do jeito que o dono do jogo escreve.
@@ -194,6 +195,12 @@ export default function Floor10PipelineSala() {
     // De onde ler o progresso AGORA. Uma ref porque o assinante do npcStore
     // roda fora do render e não enxerga o `PECAS` nem o `estados` da vez.
     const amostraDaVezRef = useRef<() => DownloadSample | undefined>(() => undefined);
+
+    // ── SEM ISTO A SALA NÃO ROLA ─────────────────────────────────────────
+    // O `index.css` trava `html, body { overflow: hidden; touch-action: none }`
+    // para o canvas 3D. Ver `floor10PaginaRolavel`: as salas são documentos e
+    // herdavam a proibição — no celular não dava para chegar ao fim da página.
+    useEffect(() => liberarRolagem(), []);
 
     // A `etapa` do npcStore é onde as peças reais escrevem em que passo estão
     // (`PECAS_REAIS` faz `npcSet({ etapa })`). Ler daqui mostra o pipeline
@@ -497,22 +504,43 @@ export default function Floor10PipelineSala() {
 
     return (
         <div style={{
+            // ── O CONTÊINER ROLA SOZINHO, DÊ O QUE DER NO html/body ──────
+            //
+            // Relato: "não está com scroll, nada tá funcionando pra mobile, eu
+            // tenho que colocar site pra desktop". Eu NÃO consegui reproduzir
+            // isso aqui — nas minhas medições, em viewport de celular com
+            // toque, a sala rola 600 px e não estoura para os lados. Então o
+            // que segue não é "o conserto do defeito que eu achei": é parar de
+            // depender do html/body para rolar.
+            //
+            // `position: fixed` + `inset: 0` + `overflowY: auto` faz esta caixa
+            // ser a região de rolagem. Ela funciona com o corpo travado
+            // (`overflow: hidden`, que é o que o jogo pede para o canvas 3D) e
+            // funciona sem. `WebkitOverflowScrolling` liga a rolagem por
+            // inércia no Safari antigo, onde a ausência dela é justamente a
+            // sensação de "não funciona no celular".
+            position: 'fixed',
+            inset: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            // A rolagem é DESTA caixa, então ela também precisa da permissão de
+            // toque — `touch-action: none` herdado mataria o arrasto.
+            touchAction: 'pan-y',
             font: '15px/1.6 ui-monospace, monospace',
             color: '#ddd',
             background: '#0b0b0b',
-            minHeight: '100dvh',
             padding: '12px 12px 96px',
-            maxWidth: 820,
-            margin: '0 auto',
+            // `margin: 0 auto` não centraliza dentro de um `fixed`; o miolo
+            // ganha a largura máxima por conta própria, abaixo.
+            boxSizing: 'border-box',
             // A página rola no eixo certo e NUNCA no outro. Sem o `hidden`, uma
             // frase em inglês sem espaço arrasta a tela para o lado e o scroll
             // vertical passa a brigar com o horizontal.
             overflowX: 'hidden',
             overflowWrap: 'anywhere',
-            // Espaço no fim para o último bloco não ficar debaixo da barra do
-            // navegador no celular.
             WebkitTextSizeAdjust: '100%',
         }}>
+        <div style={{ maxWidth: 820, margin: '0 auto' }}>
             <h1 style={{ fontSize: 18, margin: '0 0 4px' }}>Sala do pipeline inglês-primeiro</h1>
             <p style={{ color: '#888', margin: '0 0 16px' }}>
                 O jogador pergunta em português; o rascunhador, o juiz e o revisor trabalham em
@@ -831,6 +859,7 @@ export default function Floor10PipelineSala() {
                 </button>
                 <span> — devolve ~98% da RAM em menos de 5 s (medido)</span>
             </div>
+        </div>
         </div>
     );
 }

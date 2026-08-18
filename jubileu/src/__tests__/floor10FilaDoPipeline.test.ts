@@ -379,9 +379,16 @@ describe('a sala é usada no celular', () => {
         // para o lado, e aí o scroll vertical briga com o horizontal.
         expect(sala).toContain("overflowX: 'hidden'");
         expect(sala).toContain("overflowWrap: 'anywhere'");
-        // `100dvh` porque `100vh` no celular conta a barra do navegador que
-        // some ao rolar, e o fim da página fica inalcançável.
-        expect(sala).toContain("minHeight: '100dvh'");
+        // `100dvh` saiu: a sala deixou de depender da altura do html/body e
+        // passou a ser o PRÓPRIO contêiner de rolagem (`position: fixed` +
+        // `inset: 0` + `overflowY: auto`). Assim ela rola com o corpo travado
+        // — que é o que o jogo pede para o canvas 3D — e sem ele.
+        expect(sala).toContain("position: 'fixed'");
+        expect(sala).toContain("overflowY: 'auto'");
+        expect(sala).toContain("touchAction: 'pan-y'");
+        // Inércia no Safari antigo: a ausência dela É a sensação de "não
+        // funciona no celular".
+        expect(sala).toContain("WebkitOverflowScrolling: 'touch'");
     });
 
     it('a barra do revisor lê o campo DELE', () => {

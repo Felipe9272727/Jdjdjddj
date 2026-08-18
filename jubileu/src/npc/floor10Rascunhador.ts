@@ -47,6 +47,9 @@ import {
 } from './floor10ModelStorage';
 import { npcSet } from './npcStore';
 import {
+    conferirCacheDeModelo, limparModeloDoCache, type CacheDoWllama,
+} from './floor10CacheDeModelos';
+import {
     comPrazo, PRAZO_RUNTIME_MS, PRAZO_CARGA_MS, PRAZO_SONDA_MS,
 } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
@@ -129,143 +132,6 @@ type Instancia = {
 };
 type Ctor = new (p: Record<string, string>, o?: Record<string, unknown>) => Instancia;
 
-/** O pedaço da API de cache do wllama que este arquivo usa. */
-type ArquivoNoCache = {
-    name: string;
-    size: number;
-    metadata?: { originalURL?: string; originalSize?: number };
-};
-type CacheDoWllama = {
-    list?: () => Promise<ArquivoNoCache[]>;
-    delete?: (nome: string) => Promise<void>;
-    /** A CHAVE de armazenamento da URL — existe mesmo sem metadata. */
-    getNameFromURL?: (url: string) => Promise<string>;
-};
-
-/**
- * O que o cache tem, dito como FATO e não como causa.
- *
- * A primeira versão disto respondia `'faltando'` e a mensagem na tela dizia
- * "cota de disco no limite". O dono do jogo respondeu: **"esse erro está
- * errado, pois eu tenho 10 gbs de espaço"** — e ele estava certo. Eu não tinha
- * como saber que era cota; inventei, e ainda escolhi uma palavra ("cota") que
- * fazia a camada de diagnóstico amplificar o meu chute.
- *
- * Agora cada estado carrega o que foi MEDIDO — o tamanho que está lá — e quem
- * explica é o diagnóstico, com hipóteses, não com sentença.
- */
-type EstadoDoCache =
-    | { tipo: 'ok'; bytes: number }
-    | { tipo: 'ausente' }
-    | { tipo: 'sem-metadata'; bytes: number }
-    | { tipo: 'tamanho-errado'; bytes: number };
-
-/**
- * ── O CACHE MENTE, E É PRECISO CONFERIR ──────────────────────────────────
- *
- * Sintoma no celular do dono do jogo, depois de várias tentativas:
- *
- *     Model file not found: https://huggingface.co/.../granite-...Q4_K_M.gguf
- *
- * A mensagem vem do wllama (`getAllFiles`), e o mais confuso é que ela aparece
- * DEPOIS de o download dizer que deu certo. Medido aqui, com o caminho exato do
- * jogo e um gguf de verdade: `cacheManager.download` grava o arquivo com
- * `originalURL` e `originalSize` certos, e `loadModelFromUrl` acha. O handoff
- * funciona. Logo, no aparelho dele, **o arquivo não está lá** — e mesmo assim o
- * download se declarou bem-sucedido.
- *
- * ── O QUE FOI MEDIDO, E O QUE É HIPÓTESE ────────────────────────────────
- *
- * MEDIDO, com o wllama de verdade e um arquivo servido localmente:
- *
- *     depois do download ......... size=3000000  metadata=sim
- *     depois de escrever parcial . size=1024     metadata=SEM
- *     depois de baixar de novo ... size=3000000  metadata=sim
- *
- * Duas coisas ficam provadas. Primeira: um arquivo cuja escrita foi
- * interrompida perde a metadata, e sem ela ele fica INVISÍVEL para a busca por
- * `originalURL` — que é exatamente a forma do "Model file not found". Segunda:
- * nesse teste o download se consertou sozinho.
- *
- * HIPÓTESE, e é por isso que este código existe: com URL do HuggingFace o
- * caminho é outro. O `download` do wllama 3.5.1 faz
- *
- *     if (hint && (await sb.getSize(fileKey, hint)) !== -1) { ...; return; }
- *
- * e `hint` só existe quando ele consegue o sha256 do arquivo — o que ele busca
- * NO HUGGINGFACE. Servindo de `localhost` não há sha256, o atalho não roda e
- * ele rebaixa (foi o que eu medi). Com URL do HF o atalho roda, e ali ele volta
- * dizendo "pronto" **sem conferir o tamanho**.
- *
- * Não consegui reproduzir esse segundo caminho: o navegador desta caixa não
- * alcança o HuggingFace. Então a causa exata continua sendo hipótese.
- *
- * O CONSERTO NÃO DEPENDE DELA. Seja qual for o mecanismo, o estado ruim é o
- * mesmo — o cache não tem o arquivo inteiro sob aquela URL — e a saída é a
- * mesma: parar de confiar no "deu certo" do download e CONFERIR. Se não bater,
- * apaga e devolve `false` com um motivo legível, e a próxima tentativa baixa do
- * zero. Custa duas listagens de cache por instalação.
- */
-async function conferirCache(cofre: CacheDoWllama): Promise<EstadoDoCache> {
-    // Sem API para conferir, não dá para conferir — e não conferir NUNCA pode
-    // virar bloqueio. Uma verificação que reprova por não saber é pior que a
-    // ausência dela.
-    if (typeof cofre?.list !== 'function') return { tipo: 'ok', bytes: -1 };
-    try {
-        // ── PROCURA PELA CHAVE, NÃO PELA METADATA ────────────────────────
-        //
-        // Este é o conserto que faltava. A versão anterior procurava só por
-        // `metadata.originalURL` — e `originalURL` é EXATAMENTE o campo que
-        // desaparece quando a escrita é interrompida. Medido aqui:
-        //
-        //     depois do download ......... size=3000000  metadata=sim
-        //     depois de escrever parcial . size=1024     metadata=SEM
-        //
-        // O celular do dono do jogo DESLIGOU no meio de um download. A entrada
-        // que sobrou é justamente a que não tem `originalURL` — invisível para
-        // a busca antiga, e portanto impossível de encontrar E de limpar.
-        //
-        // `getNameFromURL` devolve a chave de armazenamento (um hash da URL) e
-        // não depende de metadata nenhuma. É por ela que se enxerga o estrago.
-        const nome = typeof cofre.getNameFromURL === 'function'
-            ? await cofre.getNameFromURL(FLOOR10_RASCUNHADOR_MODEL.url)
-            : null;
-        const lista = await cofre.list();
-        const meu = (nome ? lista.find((f) => f.name === nome) : undefined)
-            ?? lista.find((f) => f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url);
-        if (!meu) return { tipo: 'ausente' };
-        if (meu.size !== FLOOR10_RASCUNHADOR_MODEL.bytes) {
-            return { tipo: 'tamanho-errado', bytes: meu.size };
-        }
-        // Tamanho certo e sem `originalURL`: o `loadModelFromUrl` procura por
-        // esse campo e vai dizer "Model file not found" mesmo com o arquivo
-        // inteiro no disco. Vale limpar e rebaixar.
-        if (!meu.metadata?.originalURL) return { tipo: 'sem-metadata', bytes: meu.size };
-        return { tipo: 'ok', bytes: meu.size };
-    } catch {
-        return { tipo: 'ok', bytes: -1 };
-    }
-}
-
-/** Apaga a entrada do rascunhador no cache, para o próximo download ser inteiro. */
-async function limparDoCache(cofre: CacheDoWllama): Promise<void> {
-    if (typeof cofre?.list !== 'function' || typeof cofre?.delete !== 'function') return;
-    try {
-        // Pela CHAVE também, pelo mesmo motivo de `conferirCache`: a entrada
-        // quebrada é a que perdeu a metadata, e apagar só por `originalURL`
-        // nunca a alcançava. A limpeza não conseguia limpar exatamente o caso
-        // que ela existia para limpar.
-        const nome = typeof cofre.getNameFromURL === 'function'
-            ? await cofre.getNameFromURL(FLOOR10_RASCUNHADOR_MODEL.url)
-            : null;
-        for (const f of await cofre.list()) {
-            if (f.name === nome || f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url) {
-                await cofre.delete(f.name);
-                anotar('rascunhador:cache-limpo', { bytes: f.size });
-            }
-        }
-    } catch { /* se não der para limpar, o erro do load já explica */ }
-}
 
 /**
  * ── O MOTIVO DA ÚLTIMA FALHA, E POR QUE ELE PRECISOU EXISTIR ─────────────
@@ -345,11 +211,11 @@ export async function baixarRascunhador(): Promise<boolean> {
         // `download` do wllama aceita como pronto (ele só olha se a chave
         // existe, não o tamanho). Apagar aqui é o que impede o "Model file not
         // found" de voltar em toda tentativa.
-        const antes = await conferirCache(cache);
+        const antes = await conferirCacheDeModelo(cache, FLOOR10_RASCUNHADOR_MODEL.url, FLOOR10_RASCUNHADOR_MODEL.bytes);
         if (antes.tipo !== 'ok' && antes.tipo !== 'ausente') {
             anotar('rascunhador:cache-quebrado-antes', { estado: antes.tipo, bytes: antes.bytes });
             npcSet({ loadText: 'o download anterior ficou pela metade; limpando…' });
-            await limparDoCache(cache);
+            await limparModeloDoCache(cache, FLOOR10_RASCUNHADOR_MODEL.url);
         }
 
         const baixou = await baixarSemSubir(
@@ -380,7 +246,7 @@ export async function baixarRascunhador(): Promise<boolean> {
         // chave já existia, ele volta na hora sem olhar o tamanho. Sem esta
         // conferência, `baixarRascunhador` devolvia `true` e quem estourava era
         // o `loadModelFromUrl`, com uma mensagem que não aponta para o cache.
-        const depois = await conferirCache(cache);
+        const depois = await conferirCacheDeModelo(cache, FLOOR10_RASCUNHADOR_MODEL.url, FLOOR10_RASCUNHADOR_MODEL.bytes);
         anotar('rascunhador:cache-depois', {
             estado: depois.tipo,
             bytes: depois.tipo === 'ausente' ? -1 : depois.bytes,
@@ -397,7 +263,7 @@ export async function baixarRascunhador(): Promise<boolean> {
         // diagnóstico, que as apresenta como hipóteses.
         const MB = (n: number) => `${(n / 1_000_000).toFixed(0)} MB`;
         if (depois.tipo === 'tamanho-errado' || depois.tipo === 'sem-metadata') {
-            await limparDoCache(cache);
+            await limparModeloDoCache(cache, FLOOR10_RASCUNHADOR_MODEL.url);
             ultimoErro = depois.tipo === 'tamanho-errado'
                 ? `o arquivo guardado tem ${MB(depois.bytes)} e deveria ter `
                     + `${MB(FLOOR10_RASCUNHADOR_MODEL.bytes)}; apaguei, tente de novo`

@@ -2868,3 +2868,68 @@ disso o iOS dá zoom sozinho ao focar.
 Ele publica em `npc.deliberationDownload` — o campo que a tela da vontade usa no
 jogo há muito tempo. A sala só olhava `loadDownload`. Cada peça passou a dizer
 de onde ler o próprio progresso.
+
+---
+
+## O LFM2.5 "instantâneo" — o mesmo defeito, no carregador que ficou de fora
+
+Diagnóstico do dono do jogo, e é a descrição exata do mecanismo:
+
+> *"eu estava baixando o lsfm, aí no fim, eu saí sem querer do chrome, e deu
+> erro, aí eu cliquei pra baixar dnv, e foi **instantâneo**, mas faltava até que
+> um tempo antes de instalar"*
+
+Instantâneo porque o `download` do wllama volta na hora quando a chave já existe
+no cache, **sem conferir o tamanho**. O pedaço que sobrou da tentativa
+interrompida passa por arquivo pronto.
+
+Eu já tinha medido e consertado isso — **no rascunhador**. A conferência nasceu
+dentro de `floor10Rascunhador.ts`, e o defeito é do wllama, então valia para
+todos os `.gguf`. A vontade não a tinha.
+
+> Um conserto que vale para todos os clientes não pode morar dentro de um deles.
+> Deixá-lo lá foi consertar metade, e a outra metade quebrou igual.
+
+Agora `floor10CacheDeModelos.ts` é de todos, e há teste cobrando que **os dois**
+carregadores de gguf o usem — para o terceiro não repetir a história.
+
+## "Não está com scroll" — e eu não consegui reproduzir
+
+O relato foi *"o ?pipeline não está com scroll, nada tá funcionando pra mobile,
+eu tenho que colocar site pra desktop"*. Fui atrás da suspeita óbvia:
+
+```css
+html, body { height: 100dvh; overflow: hidden; touch-action: none; }
+```
+
+Existe no `index.css` e é o certo para o canvas 3D. **Mas não é a causa**: essa
+regra não aparece no CSS publicado, e no controle a sala `?rascunho` mostra
+`overflow: visible`. Nas minhas medições, em viewport de celular com toque, a
+sala rolava.
+
+Então parei de procurar o culpado e tirei a sala da dependência:
+
+```
+position: fixed · inset: 0 · overflowY: auto · touchAction: pan-y
+WebkitOverflowScrolling: touch
+```
+
+A sala passou a ser o **próprio contêiner de rolagem**. Provado travando o corpo
+de propósito, como o jogo faz:
+
+```
+corpo com overflow:hidden + touch-action:none
+{"rolou":700,"altura":1957,"visivel":800,"estoura":false}
+✓ rola 700px mesmo assim, e não estoura para os lados
+```
+
+`WebkitOverflowScrolling: touch` liga a rolagem por inércia no Safari antigo —
+a ausência dela é exatamente a sensação de "não funciona no celular".
+
+### E o instrumento errou pela quinta vez
+
+O teste anterior media `scrollHeight > clientHeight`, que continua **verdadeiro
+com `overflow: hidden`**: o conteúdo é maior que a janela, ele só não pode se
+mover. Medir *"existe conteúdo para rolar"* não é medir *"dá para rolar"*.
+
+A sonda agora **rola de verdade** e confere se a posição mudou.

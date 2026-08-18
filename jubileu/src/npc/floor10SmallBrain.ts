@@ -57,6 +57,9 @@ import {
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { floor10Fila, FILA_VONTADE } from './floor10Fila';
 import { conversaOcupaOAparelho } from './floor10Precarga';
+import {
+    conferirCacheDeModelo, limparModeloDoCache, type CacheDoWllama,
+} from './floor10CacheDeModelos';
 import { baixarSemSubir, type CofreDeModelos } from './floor10Roteamento';
 import {
     CACHE_HEADROOM,
@@ -1587,6 +1590,35 @@ export async function baixarVontade(): Promise<boolean> {
             });
             return false;
         }
+        // ── E CONFERE, PORQUE "BAIXOU" NÃO QUER DIZER "ESTÁ INTEIRO" ──
+        //
+        // Relato do dono do jogo, e é a descrição exata do mecanismo:
+        //
+        //   "eu estava baixando o lsfm, aí no fim, eu saí sem querer do chrome,
+        //    e deu erro, aí eu cliquei pra baixar dnv, e foi INSTANTÂNEO, mas
+        //    faltava até que um tempo antes de instalar"
+        //
+        // Instantâneo porque o `download` do wllama volta na hora quando a
+        // chave já existe no cache — sem conferir o tamanho. O pedaço que
+        // sobrou da tentativa interrompida passa por arquivo pronto.
+        //
+        // O rascunhador já tinha ganhado esta conferência; a vontade não, e o
+        // defeito é o MESMO. Consertar num carregador só foi consertar metade.
+        const cache = (cofre as { cacheManager?: unknown }).cacheManager as CacheDoWllama;
+        const estado = await conferirCacheDeModelo(cache, SMALL_BRAIN_MODEL.url, SMALL_BRAIN_MODEL.bytes);
+        if (estado.tipo !== 'ok' && estado.tipo !== 'ausente') {
+            await limparModeloDoCache(cache, SMALL_BRAIN_MODEL.url);
+            anotar('vontade:cache-quebrado', { estado: estado.tipo, bytes: estado.bytes });
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: estado.tipo === 'tamanho-errado'
+                    ? `o arquivo guardado tem ${Math.round(estado.bytes / 1e6)} MB e deveria ter `
+                        + `${Math.round(SMALL_BRAIN_MODEL.bytes / 1e6)} MB; apaguei, tente de novo`
+                    : 'o arquivo guardado perdeu o registro da origem; apaguei, tente de novo',
+            });
+            return false;
+        }
+
         // OS PESOS ESTÃO NO APARELHO, e nada está de pé por causa deles.
         pesosNoAparelho = true;
         npcSet({

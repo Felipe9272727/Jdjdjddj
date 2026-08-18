@@ -259,50 +259,54 @@ describe('"Model file not found" — o erro que enganava de duas formas', () => 
     });
 });
 
-describe('o carregador confere o cache em vez de confiar nele', () => {
-    const rasc = readFileSync(
-        new URL('../npc/floor10Rascunhador.ts', import.meta.url), 'utf8',
+describe('a conferência de cache vale para TODOS os carregadores', () => {
+    // ── E DEIXAR ELA DENTRO DE UM DELES FOI O ERRO ───────────────────────
+    //
+    // Ela nasceu dentro do rascunhador. O defeito que ela conserta é do wllama,
+    // então valia para todos — e a vontade, que não a tinha, quebrou igual:
+    //
+    //   "eu estava baixando o lsfm, aí no fim, eu saí sem querer do chrome, e
+    //    deu erro, aí eu cliquei pra baixar dnv, e foi INSTANTÂNEO, mas faltava
+    //    até que um tempo antes de instalar"
+    //
+    // Instantâneo porque o `download` do wllama volta na hora quando a chave já
+    // existe, sem conferir o tamanho. Consertar num carregador só foi consertar
+    // metade.
+    const compartilhado = readFileSync(
+        new URL('../npc/floor10CacheDeModelos.ts', import.meta.url), 'utf8',
     );
 
-    it('confere ANTES e DEPOIS do download', () => {
-        // O `download` do wllama volta na hora quando a chave já existe, SEM
-        // olhar o tamanho — então "resolveu" não significa "os 822 MB estão
-        // lá". Sem a conferência de depois, `baixarRascunhador` devolvia `true`
-        // e quem estourava era o `loadModelFromUrl`, com uma mensagem que não
-        // aponta para o cache.
-        const i = rasc.indexOf('export async function baixarRascunhador');
-        const resto = rasc.slice(i + 1);
-        const fim = resto.search(/\n(?:export )?(?:async )?(?:function|const) /);
-        const corpo = rasc.slice(i, fim >= 0 ? i + 1 + fim : undefined);
-        expect(corpo).toContain('const antes = await conferirCache(cache)');
-        expect(corpo).toContain('const depois = await conferirCache(cache)');
-        expect(corpo).toContain('await limparDoCache(cache)');
-        // E a busca é pela CHAVE, não pela metadata — o campo que some quando a
-        // escrita é interrompida é justamente `originalURL`, então procurar por
-        // ele nunca alcançava a entrada quebrada.
-        expect(rasc).toContain('getNameFromURL');
+    it('mora num módulo próprio, e não dentro de um cliente', () => {
+        expect(compartilhado).toContain('export async function conferirCacheDeModelo');
+        expect(compartilhado).toContain('export async function limparModeloDoCache');
     });
 
-    it('e compara TAMANHO, que é o que o download não olha', () => {
-        expect(rasc).toContain('meu.size !== FLOOR10_RASCUNHADOR_MODEL.bytes');
-        // E confere o registro de origem também: com o tamanho certo mas sem
-        // `originalURL`, o `loadModelFromUrl` diz "Model file not found" mesmo
-        // com o arquivo inteiro no disco.
-        expect(rasc).toContain("return { tipo: 'sem-metadata'");
+    it('e OS DOIS carregadores de gguf a usam', () => {
+        for (const nome of ['floor10Rascunhador', 'floor10SmallBrain']) {
+            const fonte = readFileSync(
+                new URL(`../npc/${nome}.ts`, import.meta.url), 'utf8',
+            );
+            expect(fonte, `${nome} não confere o cache`)
+                .toContain('conferirCacheDeModelo(');
+            expect(fonte, `${nome} não limpa o cache quebrado`)
+                .toContain('limparModeloDoCache(');
+        }
+    });
+
+    it('procura pela CHAVE, não pela metadata que some', () => {
+        // Medido: uma escrita interrompida PERDE a metadata, e `originalURL`
+        // mora nela. Procurar por `originalURL` nunca alcança a entrada
+        // quebrada — nem para achar, nem para limpar.
+        expect(compartilhado).toContain('getNameFromURL');
+        expect(compartilhado).toContain('meu.size !== bytesEsperados');
+        expect(compartilhado).toContain("return { tipo: 'sem-metadata'");
     });
 
     it('conferir nunca pode barrar o download', () => {
-        // Se a API de cache mudar ou `list()` falhar, a conferência devolve
-        // 'ok' e sai da frente. Uma verificação que vira bloqueio é pior que a
-        // ausência dela.
-        const i = rasc.indexOf('async function conferirCache');
-        const corpo = rasc.slice(i, rasc.indexOf('async function limparDoCache'));
-        // Os estados viraram objetos (`{ tipo, bytes }`) para carregarem o que
-        // foi MEDIDO — ver o comentário em `EstadoDoCache`. O que este teste
-        // prende continua sendo o mesmo: sem API ou com erro, ela responde
-        // 'ok' e sai da frente.
-        expect(corpo).toMatch(/return \{ tipo: 'ok', bytes: -1 \};/);
-        expect(corpo).toMatch(/catch \{[\s\S]*return \{ tipo: 'ok', bytes: -1 \};/);
+        // Sem API, ou com erro, responde 'ok' e sai da frente. Uma verificação
+        // que reprova por não saber é pior que a ausência dela.
+        expect(compartilhado).toMatch(/if \(typeof cofre\?\.list !== 'function'\) return \{ tipo: 'ok'/);
+        expect(compartilhado).toMatch(/catch \{[\s\S]*return \{ tipo: 'ok', bytes: -1 \};/);
     });
 });
 
