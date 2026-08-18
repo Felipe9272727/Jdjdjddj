@@ -138,7 +138,27 @@ type ArquivoNoCache = {
 type CacheDoWllama = {
     list?: () => Promise<ArquivoNoCache[]>;
     delete?: (nome: string) => Promise<void>;
+    /** A CHAVE de armazenamento da URL — existe mesmo sem metadata. */
+    getNameFromURL?: (url: string) => Promise<string>;
 };
+
+/**
+ * O que o cache tem, dito como FATO e não como causa.
+ *
+ * A primeira versão disto respondia `'faltando'` e a mensagem na tela dizia
+ * "cota de disco no limite". O dono do jogo respondeu: **"esse erro está
+ * errado, pois eu tenho 10 gbs de espaço"** — e ele estava certo. Eu não tinha
+ * como saber que era cota; inventei, e ainda escolhi uma palavra ("cota") que
+ * fazia a camada de diagnóstico amplificar o meu chute.
+ *
+ * Agora cada estado carrega o que foi MEDIDO — o tamanho que está lá — e quem
+ * explica é o diagnóstico, com hipóteses, não com sentença.
+ */
+type EstadoDoCache =
+    | { tipo: 'ok'; bytes: number }
+    | { tipo: 'ausente' }
+    | { tipo: 'sem-metadata'; bytes: number }
+    | { tipo: 'tamanho-errado'; bytes: number };
 
 /**
  * ── O CACHE MENTE, E É PRECISO CONFERIR ──────────────────────────────────
@@ -186,20 +206,44 @@ type CacheDoWllama = {
  * apaga e devolve `false` com um motivo legível, e a próxima tentativa baixa do
  * zero. Custa duas listagens de cache por instalação.
  */
-async function conferirCache(cofre: CacheDoWllama): Promise<'ok' | 'faltando' | 'quebrado'> {
-    if (typeof cofre?.list !== 'function') return 'ok';  // sem API, não dá para conferir
+async function conferirCache(cofre: CacheDoWllama): Promise<EstadoDoCache> {
+    // Sem API para conferir, não dá para conferir — e não conferir NUNCA pode
+    // virar bloqueio. Uma verificação que reprova por não saber é pior que a
+    // ausência dela.
+    if (typeof cofre?.list !== 'function') return { tipo: 'ok', bytes: -1 };
     try {
+        // ── PROCURA PELA CHAVE, NÃO PELA METADATA ────────────────────────
+        //
+        // Este é o conserto que faltava. A versão anterior procurava só por
+        // `metadata.originalURL` — e `originalURL` é EXATAMENTE o campo que
+        // desaparece quando a escrita é interrompida. Medido aqui:
+        //
+        //     depois do download ......... size=3000000  metadata=sim
+        //     depois de escrever parcial . size=1024     metadata=SEM
+        //
+        // O celular do dono do jogo DESLIGOU no meio de um download. A entrada
+        // que sobrou é justamente a que não tem `originalURL` — invisível para
+        // a busca antiga, e portanto impossível de encontrar E de limpar.
+        //
+        // `getNameFromURL` devolve a chave de armazenamento (um hash da URL) e
+        // não depende de metadata nenhuma. É por ela que se enxerga o estrago.
+        const nome = typeof cofre.getNameFromURL === 'function'
+            ? await cofre.getNameFromURL(FLOOR10_RASCUNHADOR_MODEL.url)
+            : null;
         const lista = await cofre.list();
-        const meu = lista.find((f) => f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url);
-        if (!meu) return 'faltando';
-        // O wllama valida por `metadata.originalSize !== file.size`. A mesma
-        // conta aqui, mais o nosso número de catálogo como terceira opinião.
-        const esperado = meu.metadata?.originalSize ?? FLOOR10_RASCUNHADOR_MODEL.bytes;
-        return meu.size === esperado && meu.size === FLOOR10_RASCUNHADOR_MODEL.bytes
-            ? 'ok'
-            : 'quebrado';
+        const meu = (nome ? lista.find((f) => f.name === nome) : undefined)
+            ?? lista.find((f) => f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url);
+        if (!meu) return { tipo: 'ausente' };
+        if (meu.size !== FLOOR10_RASCUNHADOR_MODEL.bytes) {
+            return { tipo: 'tamanho-errado', bytes: meu.size };
+        }
+        // Tamanho certo e sem `originalURL`: o `loadModelFromUrl` procura por
+        // esse campo e vai dizer "Model file not found" mesmo com o arquivo
+        // inteiro no disco. Vale limpar e rebaixar.
+        if (!meu.metadata?.originalURL) return { tipo: 'sem-metadata', bytes: meu.size };
+        return { tipo: 'ok', bytes: meu.size };
     } catch {
-        return 'ok';  // conferir é otimização; falhar aqui não pode barrar o download
+        return { tipo: 'ok', bytes: -1 };
     }
 }
 
@@ -207,9 +251,15 @@ async function conferirCache(cofre: CacheDoWllama): Promise<'ok' | 'faltando' | 
 async function limparDoCache(cofre: CacheDoWllama): Promise<void> {
     if (typeof cofre?.list !== 'function' || typeof cofre?.delete !== 'function') return;
     try {
-        const lista = await cofre.list();
-        for (const f of lista) {
-            if (f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url) {
+        // Pela CHAVE também, pelo mesmo motivo de `conferirCache`: a entrada
+        // quebrada é a que perdeu a metadata, e apagar só por `originalURL`
+        // nunca a alcançava. A limpeza não conseguia limpar exatamente o caso
+        // que ela existia para limpar.
+        const nome = typeof cofre.getNameFromURL === 'function'
+            ? await cofre.getNameFromURL(FLOOR10_RASCUNHADOR_MODEL.url)
+            : null;
+        for (const f of await cofre.list()) {
+            if (f.name === nome || f.metadata?.originalURL === FLOOR10_RASCUNHADOR_MODEL.url) {
                 await cofre.delete(f.name);
                 anotar('rascunhador:cache-limpo', { bytes: f.size });
             }
@@ -296,8 +346,8 @@ export async function baixarRascunhador(): Promise<boolean> {
         // existe, não o tamanho). Apagar aqui é o que impede o "Model file not
         // found" de voltar em toda tentativa.
         const antes = await conferirCache(cache);
-        if (antes === 'quebrado') {
-            anotar('rascunhador:cache-quebrado-antes');
+        if (antes.tipo !== 'ok' && antes.tipo !== 'ausente') {
+            anotar('rascunhador:cache-quebrado-antes', { estado: antes.tipo, bytes: antes.bytes });
             npcSet({ loadText: 'o download anterior ficou pela metade; limpando…' });
             await limparDoCache(cache);
         }
@@ -331,13 +381,37 @@ export async function baixarRascunhador(): Promise<boolean> {
         // conferência, `baixarRascunhador` devolvia `true` e quem estourava era
         // o `loadModelFromUrl`, com uma mensagem que não aponta para o cache.
         const depois = await conferirCache(cache);
-        if (depois !== 'ok') {
-            anotar('rascunhador:cache-quebrado-depois', { estado: depois });
+        anotar('rascunhador:cache-depois', {
+            estado: depois.tipo,
+            bytes: depois.tipo === 'ausente' ? -1 : depois.bytes,
+        });
+
+        // ── O QUE EU SEI, E O QUE EU NÃO SEI ─────────────────────────────
+        //
+        // A versão anterior respondia "cota de disco no limite" quando não
+        // achava o arquivo. O dono do jogo tem 10 GB livres e me corrigiu na
+        // hora. Eu não tinha como saber que era cota — inventei, e escolhi uma
+        // palavra que fazia o diagnóstico repetir o meu chute com ar de certeza.
+        //
+        // Agora cada mensagem diz o que foi MEDIDO. As hipóteses ficam com o
+        // diagnóstico, que as apresenta como hipóteses.
+        const MB = (n: number) => `${(n / 1_000_000).toFixed(0)} MB`;
+        if (depois.tipo === 'tamanho-errado' || depois.tipo === 'sem-metadata') {
             await limparDoCache(cache);
-            ultimoErro = depois === 'faltando'
-                ? 'o download terminou mas nada ficou guardado — cota de disco no limite'
-                : 'o arquivo guardado está incompleto; limpei o cache, tente de novo';
+            ultimoErro = depois.tipo === 'tamanho-errado'
+                ? `o arquivo guardado tem ${MB(depois.bytes)} e deveria ter `
+                    + `${MB(FLOOR10_RASCUNHADOR_MODEL.bytes)}; apaguei, tente de novo`
+                : `o arquivo guardado tem o tamanho certo mas perdeu o registro `
+                    + `da origem; apaguei, tente de novo`;
             return false;
+        }
+        if (depois.tipo === 'ausente') {
+            // NÃO apago e NÃO reprovo: se a minha busca não achou, a minha
+            // busca pode estar errada — e reprovar aqui jogaria fora um
+            // download de 822 MB que talvez esteja inteiro. Quem decide é o
+            // `loadModelFromUrl`, que é quem de fato precisa do arquivo.
+            anotar('rascunhador:cache-nao-encontrado');
+            npcSet({ loadText: 'baixado; não localizei no cache, vou tentar abrir mesmo assim…' });
         }
 
         anotar('rascunhador:no-aparelho');

@@ -24,7 +24,18 @@ const REGRAS: readonly (readonly [RegExp, Diagnostico])[] = Object.freeze([
     // ── COTA DE DISCO ────────────────────────────────────────────────────
     // Vem antes de tudo porque é a causa mais provável NESTE jogo: são 4,2 GB
     // de modelos, e o rascunhador entra por último.
-    [/quota|cota|storage|espaço|QuotaExceeded|no space/i, {
+    // ── E ELA SÓ CASA COM O QUE O NAVEGADOR DIZ ─────────────────────────
+    //
+    // Esta regra chegou a acusar cota de disco num aparelho com 10 GB livres,
+    // porque uma mensagem MINHA continha a palavra "cota" — eu tinha chutado a
+    // causa dentro do texto do erro, e a regra repetiu o chute com ar de
+    // certeza. O dono do jogo respondeu: "esse erro está errado, pois eu tenho
+    // 10 gbs de espaço".
+    //
+    // Agora ela casa com os termos que o NAVEGADOR emite (`QuotaExceededError`,
+    // `storage`, `no space`), e não com prosa nossa. Se uma mensagem nossa
+    // precisar de diagnóstico, ela ganha regra própria — dita como hipótese.
+    [/QuotaExceeded|quota exceeded|no space left|storage full|DOMException.*[Qq]uota/, {
         resumo: 'não coube: o navegador não deu espaço suficiente',
         saidas: [
             'apague os modelos que não vai usar agora (o botão de limpar cache no ?mente)',
@@ -64,12 +75,27 @@ const REGRAS: readonly (readonly [RegExp, Diagnostico])[] = Object.freeze([
     // sucedido, porque o `download` do wllama volta na hora quando a chave já
     // existe, sem conferir o tamanho. Uma tentativa interrompida antes deixa um
     // pedaço de arquivo que passa por pronto.
-    [/model file not found|não ficou guardado|guardado está incompleto/i, {
-        resumo: 'o arquivo no cache está incompleto (não é 404 do servidor)',
+    [/model file not found|perdeu o registro da origem|e deveria ter/i, {
+        resumo: 'o arquivo no cache está quebrado (não é 404 do servidor)',
         saidas: [
-            'uma tentativa anterior parou no meio e deixou um pedaço que passava por pronto',
-            'a limpeza agora é automática: tente de novo e ele baixa do zero',
-            'se voltar sempre, é cota de disco — o arquivo não cabe inteiro e sempre para no meio',
+            'MEDIDO neste projeto: uma escrita interrompida deixa o arquivo no disco e APAGA o registro da origem — e é justamente esse registro que o wllama procura ao abrir',
+            'seu celular desligou durante um download; é a interrupção mais completa possível',
+            'a limpeza agora alcança esse caso (ela procura pela chave, não pelo registro que sumiu), então tentar de novo baixa do zero',
+            'se voltar SEMPRE, aí sim vale desconfiar de espaço — mas só depois de repetir, não na primeira vez',
+        ],
+    }],
+
+    // ── EU NÃO ACHEI, E ISSO NÃO É UMA CAUSA ─────────────────────────────
+    //
+    // Quando a conferência não encontra o arquivo, o honesto é dizer que não
+    // encontrou — não decretar por quê. A versão anterior decretava "cota de
+    // disco no limite" e estava errada.
+    [/não localizei no cache/i, {
+        resumo: 'baixou, mas a minha conferência não achou o arquivo no cache',
+        saidas: [
+            'isto é o que EU vi, não uma causa — a conferência pode estar errada, e por isso ela não reprova nada',
+            'quem decide é a abertura do modelo, no botão "subir o rascunhador"',
+            'se a abertura funcionar, era a minha busca que estava errada e o download está bom',
         ],
     }],
 

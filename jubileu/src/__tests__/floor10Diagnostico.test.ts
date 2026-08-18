@@ -47,6 +47,27 @@ describe('diagnosticar', () => {
         }
     });
 
+    it('NÃO acusa cota de disco por causa de prosa NOSSA', () => {
+        // Isto aconteceu: uma mensagem minha continha a palavra "cota" (eu tinha
+        // chutado a causa dentro do texto do erro) e esta regra repetiu o chute
+        // com ar de certeza, num aparelho com 10 GB livres. O dono do jogo:
+        // "esse erro está errado, pois eu tenho 10 gbs de espaço".
+        //
+        // A regra passou a casar só com o que o NAVEGADOR emite.
+        const d = diagnosticar('baixado; não localizei no cache, vou tentar abrir mesmo assim…');
+        expect(d?.resumo).not.toMatch(/não coube|espaço suficiente/i);
+        expect(d?.resumo).toMatch(/não achou|conferência/i);
+        // E ela diz que é observação, não causa.
+        expect(d?.saidas.join(' ')).toMatch(/não uma causa|pode estar errada/i);
+    });
+
+    it('e o cache quebrado explica o mecanismo MEDIDO, sem decretar cota', () => {
+        const d = diagnosticar('Model file not found: https://huggingface.co/x.gguf');
+        expect(d?.saidas.join(' ')).toMatch(/APAGA o registro da origem/);
+        // "cota" só pode aparecer como último recurso, e condicionada.
+        expect(d?.saidas.join(' ')).not.toMatch(/é cota de disco —/);
+    });
+
     it('NÃO inventa diagnóstico para o que não reconhece', () => {
         // Um palpite com ar de certeza manda a pessoa consertar a coisa errada,
         // e aí ela perde a tarde. `null` faz a sala mostrar o texto cru, que é
@@ -252,11 +273,18 @@ describe('o carregador confere o cache em vez de confiar nele', () => {
         expect(corpo).toContain('const antes = await conferirCache(cache)');
         expect(corpo).toContain('const depois = await conferirCache(cache)');
         expect(corpo).toContain('await limparDoCache(cache)');
+        // E a busca é pela CHAVE, não pela metadata — o campo que some quando a
+        // escrita é interrompida é justamente `originalURL`, então procurar por
+        // ele nunca alcançava a entrada quebrada.
+        expect(rasc).toContain('getNameFromURL');
     });
 
     it('e compara TAMANHO, que é o que o download não olha', () => {
-        expect(rasc).toContain('meu.size === esperado');
-        expect(rasc).toContain('meu.size === FLOOR10_RASCUNHADOR_MODEL.bytes');
+        expect(rasc).toContain('meu.size !== FLOOR10_RASCUNHADOR_MODEL.bytes');
+        // E confere o registro de origem também: com o tamanho certo mas sem
+        // `originalURL`, o `loadModelFromUrl` diz "Model file not found" mesmo
+        // com o arquivo inteiro no disco.
+        expect(rasc).toContain("return { tipo: 'sem-metadata'");
     });
 
     it('conferir nunca pode barrar o download', () => {
@@ -265,8 +293,12 @@ describe('o carregador confere o cache em vez de confiar nele', () => {
         // ausência dela.
         const i = rasc.indexOf('async function conferirCache');
         const corpo = rasc.slice(i, rasc.indexOf('async function limparDoCache'));
-        expect(corpo).toMatch(/return 'ok';\s*\/\/ sem API/);
-        expect(corpo).toMatch(/catch \{[\s\S]*return 'ok';/);
+        // Os estados viraram objetos (`{ tipo, bytes }`) para carregarem o que
+        // foi MEDIDO — ver o comentário em `EstadoDoCache`. O que este teste
+        // prende continua sendo o mesmo: sem API ou com erro, ela responde
+        // 'ok' e sai da frente.
+        expect(corpo).toMatch(/return \{ tipo: 'ok', bytes: -1 \};/);
+        expect(corpo).toMatch(/catch \{[\s\S]*return \{ tipo: 'ok', bytes: -1 \};/);
     });
 });
 

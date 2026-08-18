@@ -2642,3 +2642,64 @@ segundos custam nada perto dos minutos que a fila inteira leva.
 > janela entre eles.
 
 Há teste travando as três coisas.
+
+---
+
+## "Esse erro está errado, pois eu tenho 10 gbs de espaço"
+
+E ele tinha razão. A tela dizia:
+
+```
+não coube: o navegador não deu espaço suficiente
+  o download terminou mas nada ficou guardado — cota de disco no limite
+```
+
+Aquela segunda linha é uma string **minha**. Quando a conferência de cache não
+encontrava o arquivo, eu escrevi que a causa era cota de disco. Eu não tinha
+como saber isso — e, pior, escolhi uma palavra ("cota") que fez a camada de
+diagnóstico **repetir o meu chute com ar de certeza**, porque a regra de cota
+casa com `/cota|storage|espaço/`.
+
+Duas lições numa frase só:
+
+1. **Não decrete causa dentro da mensagem de erro.** A mensagem carrega o fato;
+   a hipótese é trabalho do diagnóstico, que a apresenta como hipótese.
+2. **A regra de diagnóstico só pode casar com o que o NAVEGADOR emite.** Casar
+   com prosa nossa é um circuito fechado: eu chuto, a regra confirma o meu
+   chute, e a tela apresenta os dois como se fossem duas fontes.
+
+### E embaixo do chute havia um defeito de verdade
+
+A conferência procurava o arquivo por `metadata.originalURL`. Só que
+`originalURL` é **exatamente o campo que desaparece** quando a escrita é
+interrompida — medido aqui, no wllama de verdade:
+
+```
+depois do download ......... size=3000000  metadata=sim
+depois de escrever parcial . size=1024     metadata=SEM
+```
+
+O celular dele **desligou** no meio de um download. É a interrupção mais
+completa possível. A entrada que sobrou é justamente a que não tem
+`originalURL` — invisível para a busca, e portanto **impossível de limpar pela
+limpeza que eu escrevi para limpá-la**.
+
+O conserto é procurar pela CHAVE (`getNameFromURL`, um hash da URL), que existe
+mesmo sem metadata nenhuma. E isso também explica o `Model file not found`: o
+`loadModelFromUrl` procura por `originalURL`, então ele diz "não achei" mesmo
+com os 822 MB inteiros no disco.
+
+### Os estados agora carregam o que foi medido
+
+```
+ok ................ tamanho certo, registro de origem presente
+tamanho-errado .... "tem 412 MB e deveria ter 822 MB; apaguei, tente de novo"
+sem-metadata ...... tamanho certo, registro sumiu → apaga e rebaixa
+ausente ........... NÃO apaga e NÃO reprova
+```
+
+O último é o mais importante. Se a minha busca não achou, **a minha busca pode
+estar errada** — e reprovar ali jogaria fora um download de 822 MB que talvez
+esteja inteiro. Quem decide é a abertura do modelo, que é quem de fato precisa
+do arquivo. A tela passa a dizer isso com todas as letras: *"isto é o que EU vi,
+não uma causa"*.
