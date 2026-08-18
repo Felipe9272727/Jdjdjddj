@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import {
     abrasileirar, desabreviar, registroDoTradutor, FLOOR10_TRADUTOR_BYTES,
 } from '../npc/floor10Tradutor';
@@ -199,5 +199,65 @@ describe('registroDoTradutor', () => {
         // O bucket da Mozilla não manda `access-control-allow-origin`, então o
         // navegador recusa. O espelho do HF tem os mesmos bytes e CORS `*`.
         expect(registroDoTradutor()).toContain('huggingface.co');
+    });
+});
+
+describe('o runtime vem da NOSSA origem — o Worker cross-origin não existe', () => {
+    const fonte = readFileSync(new URL('../npc/floor10Tradutor.ts', import.meta.url), 'utf8');
+
+    it('o `translator.js` NÃO pode vir de CDN', () => {
+        // ── O DEFEITO, e ele é da biblioteca ─────────────────────────────
+        //
+        // `translator.js` faz, sem opção para desligar:
+        //
+        //     new Worker(new URL('./worker/translator-worker.js', import.meta.url))
+        //
+        // Servido por um CDN, `import.meta.url` é o CDN e essa URL fica
+        // CROSS-ORIGIN. O navegador proíbe `new Worker()` cross-origin. O erro
+        // cai no `onerror` interno da biblioteca, a promessa de `translate()`
+        // nunca resolve, e o sintoma é ESPERA INFINITA — não um erro.
+        //
+        // No celular do dono do jogo: o juiz (110 MB do HF) e o revisor
+        // (1,25 GB) desceram, e só o tradutor pendurou até o prazo de 120 s.
+        // A rede estava boa; o Worker é que era ilegal.
+        const i = fonte.indexOf('const RUNTIME =');
+        const linha = fonte.slice(i, fonte.indexOf(';', i));
+        expect(linha).toContain("'/bergamot'");
+        expect(linha).not.toMatch(/jsdelivr|unpkg|https:/);
+    });
+
+    it('e os arquivos estão de fato em public/', () => {
+        // Sem eles no deploy, o `import()` dá 404 e volta a pendurar — só que
+        // por outro motivo. O worker e o wasm têm de viajar junto.
+        for (const arq of [
+            'translator.js',
+            'worker/translator-worker.js',
+            'worker/bergamot-translator-worker.js',
+            'worker/bergamot-translator-worker.wasm',
+        ]) {
+            const caminho = new URL(`../../public/bergamot/${arq}`, import.meta.url);
+            expect(existsSync(caminho), `falta public/bergamot/${arq}`).toBe(true);
+        }
+    });
+
+    it('os MODELOS continuam no HuggingFace, e isso é de propósito', () => {
+        // A restrição é só na construção do Worker. `fetch` cross-origin com
+        // CORS é permitido, e o HF manda `allow-origin: *` — então os 51 MB
+        // continuam na rede em vez de engordar o nosso deploy.
+        expect(registroDoTradutor()).toContain('huggingface.co');
+    });
+
+    it('a bancada e o jogo passam a usar a MESMA origem para o runtime', () => {
+        // ── A CAUSA RAIZ, e ela é de método ──────────────────────────────
+        //
+        // A bancada servia o Bergamot do próprio servidor de teste e apontava o
+        // registro para arquivos locais. Os 83 ms por frase são reais, mas
+        // mediram uma configuração que o jogo NÃO usava — runtime same-origin
+        // contra runtime de CDN. Dar ao teste uma condição mais fácil que a de
+        // produção e depois confiar no número é o erro que se repetiu aqui.
+        //
+        // Agora as duas servem o runtime da própria origem, então o que a
+        // bancada mede é o que o jogo roda.
+        expect(fonte).toMatch(/bancada.*MESMO servidor|MESMO servidor de teste/s);
     });
 });

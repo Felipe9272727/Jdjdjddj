@@ -26,7 +26,8 @@
 // `access-control-allow-origin` — o navegador recusa. O espelho
 // `mukowaty/firefox-translations` no HuggingFace tem os mesmos três arquivos,
 // byte por byte (23.340.019 / 2.117.608 / 408.686), e o HF serve com CORS `*`.
-// O runtime vem do npm pelo jsdelivr, também com CORS.
+// O RUNTIME é servido por nós, de `public/bergamot/` — ver o comentário longo
+// em `RUNTIME` abaixo: de um CDN ele não funciona, e o sintoma é espera eterna.
 //
 // ── A ARMADILHA QUE CUSTOU MEIA HORA ──────────────────────────────────────
 //
@@ -38,10 +39,39 @@
 
 import { comPrazo, PRAZO_RUNTIME_MS, PRAZO_REDE_MS } from './floor10Carga';
 
-const BERGAMOT_V = '0.4.9';
+/** A versão vendorizada em `public/bergamot/`. `bergamot-buscar.sh` a busca. */
+export const BERGAMOT_V = '0.4.9';
 
+/**
+ * ── O RUNTIME VEM DA NOSSA ORIGEM, E ISSO NÃO É PREFERÊNCIA ──────────────
+ *
+ * Ele vinha do jsdelivr, e no celular do dono do jogo o tradutor pendurava até
+ * o prazo de 120 s estourar — enquanto o juiz (110 MB do HuggingFace) e o
+ * revisor (1,25 GB) desciam sem reclamar. Ou seja: a rede dele estava boa.
+ *
+ * A causa está DENTRO do `translator.js`, e não tem opção para desligar:
+ *
+ *     new Worker(new URL('./worker/translator-worker.js', import.meta.url))
+ *
+ * Com o runtime servido pelo jsdelivr, `import.meta.url` é o jsdelivr, e essa
+ * URL é CROSS-ORIGIN. O navegador proíbe `new Worker()` cross-origin, ponto. O
+ * erro cai no `onerror` interno da biblioteca, a promessa de `translate()`
+ * nunca resolve, e o que se vê é uma espera infinita — não um erro.
+ *
+ * ── E POR QUE A BANCADA NUNCA PEGOU ISSO ────────────────────────────────
+ *
+ * Porque ela servia o Bergamot do MESMO servidor de teste (`${BASE}/bergamot/`)
+ * e apontava o registro para arquivos locais. Os 83 ms por frase são reais, mas
+ * mediram uma configuração que o jogo não usa. É o mesmo erro de método que já
+ * apareceu duas vezes aqui: dar ao teste uma condição mais fácil que a de
+ * produção e depois confiar no número.
+ *
+ * Os MODELOS continuam no HuggingFace — eles são buscados por `fetch`, e fetch
+ * cross-origin com CORS é permitido. A restrição é só na construção do Worker.
+ * São 5,1 MB de runtime no nosso deploy contra 51 MB de modelos na rede dele.
+ */
 const RUNTIME = (globalThis as { __bergamotCdn?: string }).__bergamotCdn
-    ?? `https://cdn.jsdelivr.net/npm/@browsermt/bergamot-translator@${BERGAMOT_V}`;
+    ?? '/bergamot';
 
 const MODELOS = (globalThis as { __bergamotModelos?: string }).__bergamotModelos
     ?? 'https://huggingface.co/mukowaty/firefox-translations/resolve/main';
@@ -113,12 +143,16 @@ export function prepararTradutor(): Promise<Tradutor | null> {
             // Foi o helper morando dentro do rascunhador que criou o buraco:
             // um utilitário guardado dentro de um cliente é um utilitário que
             // os outros clientes não acham. Agora ele mora em `floor10Carga`.
+            //
+            // Hoje isto vem da NOSSA origem, então o prazo aqui só protege
+            // contra um deploy quebrado — o que pendurava de verdade era o
+            // Worker cross-origin, e esse morreu na raiz.
             const mod = await comPrazo(
                 import(/* @vite-ignore */ `${RUNTIME}/translator.js`) as Promise<{
                     LatencyOptimisedTranslator: new (o: Record<string, unknown>) => Tradutor;
                 }>,
                 PRAZO_RUNTIME_MS,
-                'o CDN do tradutor (jsdelivr)',
+                'o runtime do tradutor',
             );
             // O registro vira um Blob porque ele aponta para o HF, e não existe
             // arquivo nosso para servir.

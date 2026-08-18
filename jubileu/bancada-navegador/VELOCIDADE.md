@@ -2516,3 +2516,75 @@ Fingir precisão com o número de outra peça é pior que admitir que não há n
 
 Cada uma desiste sozinha, a fila segue, e o nome da etapa diz qual conserto
 tentar.
+
+---
+
+## O tradutor pendurava por um Worker ilegal — e a bancada nunca ia pegar
+
+Estado depois dos prazos: rascunhador ✓ (822 MB), juiz ✓ (110 MB do HF), revisor
+✓ (1,25 GB), e **só o tradutor** estourando o prazo:
+
+```
+✗ tradutor · Bergamot en↔pt
+    o par en→pt do tradutor não respondeu em 120s
+```
+
+Três peças desceram, duas delas do HuggingFace. **A rede estava boa.**
+
+### A causa está dentro da biblioteca, e não tem opção para desligar
+
+```js
+new Worker(new URL('./worker/translator-worker.js', import.meta.url))
+```
+
+Servido pelo jsdelivr, `import.meta.url` é o jsdelivr — e essa URL fica
+**cross-origin**. O navegador proíbe `new Worker()` cross-origin, ponto final. O
+erro cai no `onerror` interno do `translator.js`, a promessa de `translate()`
+**nunca resolve**, e o que se vê é espera infinita, não um erro.
+
+Conferido: os seis arquivos do Bergamot no HF respondem 302 → CDN normalmente. O
+problema nunca foi rede nem CORS de modelo.
+
+### Por que a bancada mediu 83 ms e o jogo travou
+
+Porque a bancada servia o Bergamot do **mesmo servidor de teste**
+(`${BASE}/bergamot/`) e apontava o registro para arquivos locais. Os 83 ms são
+reais — mediram uma configuração que **o jogo não usava**: runtime same-origin
+contra runtime de CDN.
+
+> Dar ao teste uma condição mais fácil que a de produção e depois confiar no
+> número. É a terceira vez nesta sessão, e as três foram minhas:
+>
+> 1. dar ao rascunhador a pergunta já em inglês (o par `pt → en` não existia)
+> 2. bloquear o HF em vez de pendurar (media o caminho de erro, não o de travar)
+> 3. servir o Bergamot da mesma origem (o Worker cross-origin nunca aparecia)
+
+### O conserto
+
+O runtime passa a ser servido por nós, de `public/bergamot/` — 5,1 MB no deploy:
+
+```
+translator.js ............................. 30 KB
+worker/translator-worker.js ............... 17 KB
+worker/bergamot-translator-worker.js ...... 80 KB
+worker/bergamot-translator-worker.wasm .... 5,1 MB
+```
+
+Os **modelos continuam no HuggingFace**: a restrição é só na construção do
+Worker, e `fetch` cross-origin com CORS é permitido. São 51 MB que seguem na
+rede em vez de engordar o deploy.
+
+`bergamot-buscar.sh` passou a copiar o runtime para `public/` ao final, para a
+bancada e o jogo não voltarem a divergir.
+
+### Conferido no navegador, com o runtime da própria origem
+
+```
+✓ runtime importado da própria origem
+✓ Worker construído — sem SecurityError
+✓ traduziu em 2507ms: "A porta está lá. Não se abre para mim."
+```
+
+Os 2.507 ms são a **primeira** tradução — ela paga a carga do WASM e do modelo.
+As seguintes ficam nos ~83 ms já medidos; é por isso que `prepararTradutor`
+aquece os dois pares na instalação, e não na primeira fala do jogador.

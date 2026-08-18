@@ -73,5 +73,25 @@ cat > registry.json <<'JSON'
   }
 }
 JSON
+# ── E O RUNTIME VAI JUNTO PARA public/ ──────────────────────────────────
+#
+# O jogo NÃO pode carregar o `translator.js` de um CDN. Ele faz, sem opção:
+#
+#     new Worker(new URL('./worker/translator-worker.js', import.meta.url))
+#
+# De um CDN essa URL é cross-origin, o navegador proíbe, o erro cai num
+# `onerror` interno e a promessa nunca resolve — espera infinita, não erro. Foi
+# assim que o tradutor pendurou 120 s no celular do dono do jogo enquanto o juiz
+# e o revisor desciam normalmente.
+#
+# Copiar para `public/` mantém a bancada e o jogo na MESMA configuração. Sem
+# isto a bancada volta a medir uma condição mais fácil que a de produção.
+DESTINO="../public/bergamot"
+mkdir -p "$DESTINO/worker"
+cp translator.js "$DESTINO/"
+cp worker/translator-worker.js worker/bergamot-translator-worker.js \
+   worker/bergamot-translator-worker.wasm "$DESTINO/worker/"
+echo "── runtime copiado para public/bergamot ($(du -sh "$DESTINO" | cut -f1))"
+
 echo "── pronto. Sirva bancada-navegador/ e use registryUrl=/bergamot/registry.json"
 echo "   (pivotLanguage: null — senão ele tenta baixar en->en e falha)"

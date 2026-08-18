@@ -309,7 +309,7 @@ describe('TODA peça tem prazo — a lição que eu aprendi tarde', () => {
         // é o que decide o conserto, então cada chamada carrega o seu.
         const etapas: Record<string, string[]> = {
             floor10Rascunhador: ['o CDN do motor (jsdelivr)', 'a abertura do modelo'],
-            floor10Tradutor: ['o CDN do tradutor (jsdelivr)', 'o par en→pt do tradutor'],
+            floor10Tradutor: ['o runtime do tradutor', 'o par en→pt do tradutor'],
             floor10VetorDeTom: ['o CDN do juiz (jsdelivr)', 'o download do juiz de tom'],
         };
         for (const [nome, esperadas] of Object.entries(etapas)) {
