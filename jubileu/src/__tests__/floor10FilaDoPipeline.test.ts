@@ -261,3 +261,64 @@ describe('as duas URLs do pipeline', () => {
         }
     });
 });
+
+describe('a sala NUNCA sobe dois runtimes pesados ao mesmo tempo', () => {
+    const sala = readFileSync(
+        new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+    );
+
+    it('a fila só BAIXA — subir é passo separado', () => {
+        // ── O QUE ACONTECEU ──────────────────────────────────────────────
+        //
+        // A sala fazia, em sequência e sem pausa: baixar+SUBIR o granite
+        // (822 MB), depois baixar+SUBIR o LFM2.5 (1,25 GB). Dois llama.cpp de
+        // pé com seus pools de thread, mais o runtime ONNX do juiz, mais o
+        // worker WASM do Bergamot — quatro runtimes num celular.
+        //
+        // O celular do dono do jogo DESLIGOU no meio dessa instalação.
+        //
+        // A fila do JOGO nunca fez isso, e o comentário em `passosDoAndar10`
+        // guarda o motivo com as palavras dele: "quando começa a baixar [a
+        // vontade], começa a travar meu celular todo". Por isso ela usa
+        // `baixarVontade` — baixar é rede, subir é núcleo. Eu sabia e escrevi a
+        // sala ignorando.
+        expect(sala).toContain('carregar: baixarRascunhador');
+        expect(sala).toContain('carregar: baixarVontade');
+        expect(sala).not.toContain('carregar: precarregarVontade');
+        // E o `subirRascunhador` não pode estar dentro do `carregar` de peça.
+        expect(sala).not.toMatch(/carregar:[^\n]*subirRascunhador/);
+    });
+
+    it('e descarrega a vontade ANTES de subir o rascunhador', () => {
+        // A garantia de que nunca existem dois llama.cpp de pé. A vontade volta
+        // sozinha quando o juiz marcar uma frase — e aí o rascunhador já
+        // terminou de escrever, então eles não se cruzam.
+        const i = sala.indexOf('const subirParaRodar');
+        const corpo = sala.slice(i, sala.indexOf('/** Uma peça só', i));
+        const desliga = corpo.indexOf('unloadSmallBrain()');
+        const sobe = corpo.indexOf('subirRascunhador()');
+        expect(desliga).toBeGreaterThan(-1);
+        expect(sobe).toBeGreaterThan(desliga);
+    });
+
+    it('e a fila respira entre uma peça e outra', () => {
+        // Downloads colados, cada um terminando com uma gravação grande em
+        // disco, não dão ao aparelho janela para dissipar calor nem para o
+        // coletor de lixo rodar.
+        expect(sala).toContain('await esperar(RESPIRO_ENTRE_PECAS_MS)');
+    });
+});
+
+describe('a fila do JOGO também respira', () => {
+    it('entre um passo e outro, e dá para zerar no teste', () => {
+        // Mesmo motivo, no caminho que o jogador de verdade percorre. O
+        // override existe porque dormir 3 s por passo levou a suíte de 12 s a
+        // 80 s e não testava nada — o que importa é a ORDEM.
+        const fonte = readFileSync(
+            new URL('../npc/floor10Precarga.ts', import.meta.url), 'utf8',
+        );
+        expect(fonte).toContain('RESPIRO_ENTRE_PASSOS_MS');
+        expect(fonte).toContain('__f10RespiroMs');
+        expect(fonte).toMatch(/if \(respiro > 0\) await esperar\(respiro\)/);
+    });
+});

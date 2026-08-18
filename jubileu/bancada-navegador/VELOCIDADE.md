@@ -2588,3 +2588,57 @@ bancada e o jogo não voltarem a divergir.
 Os 2.507 ms são a **primeira** tradução — ela paga a carga do WASM e do modelo.
 As seguintes ficam nos ~83 ms já medidos; é por isso que `prepararTradutor`
 aquece os dois pares na instalação, e não na primeira fala do jogador.
+
+---
+
+## O celular DESLIGOU durante a instalação — e a culpa é da sala
+
+Relato: *"no DOWNLOAD, o meu celular desligou por conta de lag"*.
+
+A sala fazia, em sequência e sem pausa nenhuma:
+
+```
+1. baixar o granite (822 MB) e SUBIR o runtime
+2. subir o Bergamot (worker WASM)
+3. subir o juiz (runtime ONNX + 110 MB)
+4. baixar o LFM2.5 (1,25 GB) e SUBIR outro llama.cpp
+```
+
+**Quatro runtimes de pé ao mesmo tempo, dois deles llama.cpp** com seus pools de
+thread, num celular que já estava com 13% de bateria e carregando.
+
+### O pior é que este projeto já sabia
+
+A fila do JOGO nunca fez isso, e o comentário em `passosDoAndar10` guarda o
+motivo com as palavras do próprio dono do jogo:
+
+> "quando começa a baixar [a vontade], começa a travar meu celular todo"
+
+Por isso ela usa `baixarVontade` e não `precarregarVontade`: **baixar é rede,
+subir é núcleo**, e os dois no mesmo passo foi exatamente o que travava o
+aparelho. Eu escrevi a sala chamando `precarregarVontade`.
+
+### O que mudou
+
+```
+a fila SÓ BAIXA .............. baixarRascunhador + baixarVontade
+subir virou passo separado ... botão próprio, com o aparelho parado
+antes de subir ............... descarrega a vontade (nunca dois llama.cpp)
+entre uma peça e outra ....... 3 s de respiro
+```
+
+O respiro entrou também na fila do jogo (`iniciarPrecarga`). Downloads colados,
+cada um terminando com o navegador gravando centenas de MB no disco, não dão ao
+aparelho janela para dissipar calor nem para o coletor de lixo rodar. Três
+segundos custam nada perto dos minutos que a fila inteira leva.
+
+`__f10RespiroMs` zera o respiro nos testes: dormir de verdade levou a suíte de
+12 s para 80 s e não testava nada — o que importa é a ORDEM dos passos.
+
+### A regra, escrita para não ser esquecida de novo
+
+> Numa fila de instalação, **subir um runtime é o passo caro**, não o download.
+> Nunca mais de um runtime pesado de pé, nunca dois no mesmo passo, e sempre uma
+> janela entre eles.
+
+Há teste travando as três coisas.

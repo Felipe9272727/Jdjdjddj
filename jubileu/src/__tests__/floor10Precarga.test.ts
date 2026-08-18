@@ -10,6 +10,11 @@ import {
 } from '../npc/floor10Fila';
 import { npcSet } from '../npc/npcStore';
 
+// A fila respira 3 s entre passos para o celular não cozinhar (ver
+// `RESPIRO_ENTRE_PASSOS_MS`). Dormir de verdade aqui levaria a suíte de 12 s a
+// 80 s e não testaria nada — o que importa é a ORDEM dos passos.
+(globalThis as { __f10RespiroMs?: number }).__f10RespiroMs = 0;
+
 const ordem: string[] = [];
 const carregador = (nome: string, ms = 0) => () => {
     ordem.push(`inicio:${nome}`);

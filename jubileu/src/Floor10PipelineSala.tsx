@@ -32,7 +32,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
     FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
-    rascunhadorJaCarregado, descarregarRascunhador, ultimoErroDoRascunhador,
+    descarregarRascunhador, ultimoErroDoRascunhador,
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
@@ -40,7 +40,10 @@ import {
     traduzirPerguntaParaIngles, ultimoErroDoTradutor,
 } from './npc/floor10Tradutor';
 import { diagnosticar } from './npc/floor10Diagnostico';
-import { SMALL_BRAIN_MODEL, precarregarVontade, vontadeJaCarregada } from './npc/floor10SmallBrain';
+import {
+    SMALL_BRAIN_MODEL, baixarVontade, unloadSmallBrain,
+} from './npc/floor10SmallBrain';
+import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
 import { enumerarEmIngles } from './npc/floor10Pipeline';
 import { formatBytes, type DownloadSample } from './npc/floor10Download';
@@ -121,6 +124,9 @@ const VAZIO: Corrida = {
     marcadas: 0, remendadas: 0, limpezas: 0, ms: 0, msTraducao: 0, erro: '',
 };
 
+/** Ver o uso: uma janela para o aparelho respirar entre um passo e outro. */
+const RESPIRO_ENTRE_PECAS_MS = 3_000;
+
 const CAIXA = {
     background: '#141414',
     border: '1px solid #2a2a2a',
@@ -174,8 +180,11 @@ export default function Floor10PipelineSala() {
             nome: 'rascunhador · granite 1B-A400M',
             bytes: FLOOR10_RASCUNHADOR_MODEL.bytes,
             detalhe: 'escreve o primeiro jato em inglês · 400M ativos por token',
-            carregado: rascunhadorJaCarregado,
-            carregar: async () => (await baixarRascunhador()) && (await subirRascunhador()) !== null,
+            // A fila SÓ BAIXA. Subir os 822 MB para dentro do WASM é o passo
+            // mais pesado de todos e ganhou botão próprio, para acontecer com o
+            // aparelho parado — e não no meio de mais três downloads.
+            carregado: () => false,
+            carregar: baixarRascunhador,
             motivo: ultimoErroDoRascunhador,
             reportaProgresso: true,
         },
@@ -200,8 +209,24 @@ export default function Floor10PipelineSala() {
             nome: `revisor · ${SMALL_BRAIN_MODEL.label}`,
             bytes: SMALL_BRAIN_MODEL.bytes,
             detalhe: 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
-            carregado: vontadeJaCarregada,
-            carregar: precarregarVontade,
+            // ── SÓ BAIXA. NÃO SOBE. ──────────────────────────────────────
+            //
+            // Aqui estava `precarregarVontade`, que sobe um llama.cpp INTEIRO
+            // de 1,25 GB — ao lado do granite de 822 MB que a primeira peça já
+            // tinha subido. Dois llama.cpp com seus pools de thread, mais o
+            // ONNX do juiz, mais o worker do Bergamot: quatro runtimes de pé ao
+            // mesmo tempo num celular.
+            //
+            // O celular do dono do jogo DESLIGOU durante essa instalação.
+            //
+            // A fila do jogo nunca fez isso, e o comentário em
+            // `passosDoAndar10` diz por quê, com as palavras dele: "quando
+            // começa a baixar [a vontade], começa a travar meu celular todo".
+            // Por isso ela usa `baixarVontade` — baixar é rede, subir é núcleo,
+            // e os dois no mesmo passo foi o que travava o aparelho. Eu sabia
+            // disso e escrevi a sala ignorando.
+            carregado: () => false,
+            carregar: baixarVontade,
             // A vontade já escreve o próprio motivo na tela do jogo há muito
             // tempo; aqui é só reaproveitar o mesmo campo.
             motivo: () => npc.deliberationLoadText,
@@ -275,8 +300,47 @@ export default function Floor10PipelineSala() {
                 }));
             }
             setTique((t) => t + 1);
+            // ── RESPIRO ENTRE AS PEÇAS ───────────────────────────────────
+            // Quatro downloads colados, cada um terminando com o navegador
+            // gravando centenas de MB no disco, não dão ao aparelho nenhuma
+            // janela para dissipar calor nem para o coletor de lixo rodar. O
+            // jogo já respira depois de descarregar (`RESPIRO_APOS_DESCARGA_MS`
+            // = 12 s); aqui bastam 3 s entre passos.
+            await esperar(RESPIRO_ENTRE_PECAS_MS);
         }
         setBaixando(false);
+    };
+
+    /**
+     * ── SUBIR O RASCUNHADOR, SOZINHO ─────────────────────────────────────
+     *
+     * Separado da fila de propósito. A regra que o jogo já seguia e que eu
+     * quebrei aqui: **baixar é rede, subir é núcleo**, e os dois no mesmo passo
+     * travam o aparelho. A sala fazia baixar+subir do granite e, logo em
+     * seguida, baixar+subir do LFM2.5 — dois llama.cpp de pé com seus pools de
+     * thread, mais o ONNX do juiz, mais o worker do Bergamot.
+     *
+     * O celular do dono do jogo desligou no meio disso.
+     *
+     * Descarregar a vontade antes não é zelo: é a garantia de que nunca existem
+     * dois llama.cpp de pé ao mesmo tempo. Ela volta sozinha quando o juiz
+     * marcar uma frase — e aí o rascunhador já terminou de escrever.
+     */
+    const subirParaRodar = async () => {
+        setOcupado(true);
+        setAviso('descarregando a vontade, para não haver dois llama.cpp de pé…');
+        try {
+            await unloadSmallBrain();
+            await esperar(RESPIRO_ENTRE_PECAS_MS);
+            setAviso('subindo o rascunhador (822 MB para a RAM)…');
+            const e = await subirRascunhador();
+            setAviso(e ? '' : `não subiu: ${ultimoErroDoRascunhador() || 'sem motivo'}`);
+        } catch (erro) {
+            setAviso(`não subiu: ${erro instanceof Error ? erro.message : String(erro)}`);
+        } finally {
+            setOcupado(false);
+            setTique((t) => t + 1);
+        }
     };
 
     /** Uma peça só, para tentar de novo sem refazer a fila inteira. */
@@ -533,10 +597,37 @@ export default function Floor10PipelineSala() {
                     );
                 })}
 
+                {/* ── SUBIR É UM PASSO SEPARADO, E SOZINHO ──────────────
+                    Baixar é rede; subir é núcleo e memória. Os dois no mesmo
+                    passo, quatro vezes seguidas, foi o que desligou o celular
+                    do dono do jogo. Aqui ele acontece uma vez, com o aparelho
+                    parado, e depois de tudo já estar no disco. */}
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #2a2a2a' }}>
+                    <button
+                        type="button"
+                        onClick={() => void subirParaRodar()}
+                        disabled={baixando || ocupado || pronto}
+                        style={{
+                            background: pronto ? '#1d3a2a' : '#2f6b4f',
+                            color: pronto ? '#7fe0b0' : '#eaffee',
+                            border: '1px solid #333', borderRadius: 6,
+                            padding: '8px 14px',
+                            cursor: (baixando || ocupado || pronto) ? 'default' : 'pointer',
+                        }}
+                    >
+                        {pronto ? '✓ rascunhador de pé' : 'subir o rascunhador (822 MB para a RAM)'}
+                    </button>
+                    <div style={{ marginTop: 6, color: '#777', fontSize: 12 }}>
+                        Baixar é rede; subir é núcleo e memória. Este passo roda sozinho, com o
+                        resto parado — e descarrega o revisor antes, para nunca existirem dois
+                        llama.cpp de pé ao mesmo tempo neste aparelho.
+                    </div>
+                </div>
+
                 <div style={{ marginTop: 10, color: pronto ? '#7fe0b0' : '#f5c96b' }}>
                     {pronto
                         ? 'o pipeline pode rodar'
-                        : 'falta o rascunhador — sem ele de pé o pipeline nem tenta'}
+                        : 'falta subir o rascunhador — sem ele de pé o pipeline nem tenta'}
                 </div>
                 {pronto && faltando.length > 0 && (
                     <div style={{ marginTop: 4, color: '#888', fontSize: 12 }}>

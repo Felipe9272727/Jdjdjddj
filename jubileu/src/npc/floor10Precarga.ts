@@ -25,6 +25,7 @@
 // celular é a receita da travada que já aconteceu aqui.
 import { npc, npcSubscribe } from './npcStore';
 import { floor10Fila } from './floor10Fila';
+import { esperar } from './floor10Carga';
 import { composicaoDaFila, pecasEssenciais, type PapelNaFila } from './floor10Composicao';
 
 export type PrecargaEtapa =
@@ -204,6 +205,26 @@ function motivoDaTela(etapa: PrecargaEtapa): string {
     return npc.loadText || 'não foi possível baixar';
 }
 
+/**
+ * A janela entre um passo e outro da fila.
+ *
+ * Ver o uso, em `iniciarPrecarga`: quatro downloads colados, cada um terminando
+ * com uma gravação grande em disco, não dão ao aparelho tempo de dissipar calor
+ * nem de coletar lixo. Três segundos custam nada perto dos minutos que a fila
+ * inteira leva, e o relato que os motivou foi um celular DESLIGANDO.
+ */
+export const RESPIRO_ENTRE_PASSOS_MS = 3_000;
+
+/**
+ * O respiro em vigor. Um teste pode zerá-lo — como já faz com
+ * `__f10TetoEsperaMs` — em vez de dormir 3 s por passo, o que transformou a
+ * suíte de 12 s em 80 s na primeira versão.
+ */
+function respiroEmVigor(): number {
+    const forcado = (globalThis as { __f10RespiroMs?: number }).__f10RespiroMs;
+    return typeof forcado === 'number' && forcado >= 0 ? forcado : RESPIRO_ENTRE_PASSOS_MS;
+}
+
 let emCurso: Promise<void> | null = null;
 let etapa: PrecargaEtapa = 'fala';
 
@@ -347,6 +368,21 @@ export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
                     if (pouparMemoriaLigado() && passo.liberar) {
                         try { await passo.liberar(); } catch { /* já saiu */ }
                     }
+                    // ── UM RESPIRO ANTES DO PRÓXIMO ──────────────────
+                    //
+                    // Os passos rodavam colados. Cada um termina com o
+                    // navegador gravando centenas de MB no disco e, alguns
+                    // deles, subindo um runtime — e o próximo já começava. Num
+                    // celular isso é calor sem janela para dissipar e memória
+                    // sem janela para o coletor de lixo rodar.
+                    //
+                    // O relato foi "meu celular DESLIGOU por conta de lag" no
+                    // meio do download. Este projeto já tinha o número
+                    // (`RESPIRO_APOS_DESCARGA_MS` = 12 s depois de descarregar);
+                    // faltava um respiro entre um passo e outro, que é mais
+                    // curto porque aqui ninguém está esperando uma fala.
+                    const respiro = respiroEmVigor();
+                    if (respiro > 0) await esperar(respiro);
                 } else {
                     // FALHA ≠ CONCLUÍDO. Marcar como concluído somava à barra bytes
                     // que nunca desceram, e ela pulava para o próximo como se
