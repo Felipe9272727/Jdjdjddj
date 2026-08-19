@@ -78,6 +78,9 @@ import {
 // O revisor vive aqui, mas o VOCABULÁRIO do desfecho é do pipeline: é ele que
 // confronta a resposta com a frase original e decide "trocou" ou "manteve".
 import { primeiraFraseFechada, type RespostaDoRevisor } from './floor10Pipeline';
+// Qual modelo o REMENDO quer de pé. `null` quando o revisor é a própria
+// vontade, que é o padrão e o caso sem download novo.
+import { cerebroDoRevisor } from './floor10Revisores';
 
 export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import {
@@ -99,9 +102,50 @@ const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 // quando falta cota para a fala. Duas cópias da mesma regra é como este projeto
 // já criou buraco antes (a fila perguntando a si mesma se a conversa estava
 // ocupada). floor10Brains não importa motor nenhum, então não há ciclo.
+/**
+ * ── UM MOTOR, DOIS PAPÉIS, ÀS VEZES DOIS ARQUIVOS ────────────────────────
+ *
+ * O mesmo slot de llama.cpp serve a VONTADE (o Nilo pensando entre falas) e o
+ * REVISOR (remendar uma frase marcada). Enquanto os dois eram o mesmo arquivo,
+ * isso era detalhe. Deixou de ser quando o revisor virou escolha: com
+ * `?revisor=llama` o remendo quer o Llama 3.2 e a vontade continua querendo o
+ * LFM2.5 — dois arquivos no mesmo slot, um de cada vez.
+ *
+ * NÃO PODEM COEXISTIR, e isso não é economia: dois modelos de ~1 GB vivos ao
+ * mesmo tempo é literalmente como o aparelho do dono do jogo desligou. Por isso
+ * `assumirPapel` descarrega antes de trocar, do mesmo jeito que `setSmallBrain`
+ * já fazia para a troca de vontade.
+ */
+let papelDoMotor: 'vontade' | 'revisor' = 'vontade';
+
 function brainAtual() {
+    if (papelDoMotor === 'revisor') {
+        const doRevisor = cerebroDoRevisor();
+        const achado = doRevisor
+            ? SMALL_BRAIN_CATALOG.find((m) => m.id === doRevisor)
+            : undefined;
+        if (achado) return achado;
+    }
     return SMALL_BRAIN_CATALOG.find((m) => m.id === cerebroEscolhido()) ?? SMALL_BRAIN_CATALOG[0];
 }
+
+/**
+ * Passa o motor para um papel, descarregando ANTES se o arquivo mudar.
+ *
+ * A conferência é pelo ID do modelo, e não pelo papel: quando o revisor é a
+ * própria vontade (o padrão), trocar de papel não troca de arquivo e não custa
+ * carga nenhuma. Descarregar aí seria jogar fora 1,25 GB já abertos para
+ * recarregar os mesmos 1,25 GB.
+ */
+async function assumirPapel(papel: 'vontade' | 'revisor'): Promise<void> {
+    if (papelDoMotor === papel) return;
+    const antes = brainAtual().id;
+    papelDoMotor = papel;
+    if (brainAtual().id !== antes) await unloadSmallBrain();
+}
+
+/** Só para os testes: qual papel o motor está servindo. */
+export function papelDoMotorParaTestes(): 'vontade' | 'revisor' { return papelDoMotor; }
 
 /**
  * Continua sendo lido como um objeto simples em todo o resto do arquivo, mas
@@ -297,7 +341,16 @@ let rodadaDeliberacao = 0;
  * primeira preempção e a deliberação desistiria para sempre, achando que
  * precisaria baixar 1,32 GB de novo. Encerrar o worker não apaga o arquivo.
  */
-let pesosNoAparelho = false;
+/**
+ * Os IDs cujos pesos já estão no aparelho.
+ *
+ * ERA UM BOOLEANO, e virou conjunto quando o revisor pôde ter arquivo próprio.
+ * Com um `let pesosNoAparelho = false` global, baixar a vontade marcava "já
+ * tenho" e o download do revisor saía pela porta dos fundos na primeira linha
+ * (`if (pesosNoAparelho) return true`) — a barra fechava, o arquivo nunca
+ * descia, e o remendo só falharia depois, na hora de abrir o modelo.
+ */
+const pesosBaixados = new Set<string>();
 
 export const SMALL_BRAIN_HANDOFF_TIMEOUT_MS = 3_000;
 
@@ -359,7 +412,7 @@ export function abortDeliberation(): void {
     //
     // Os pesos NÃO são perdidos: eles estão no OPFS. `enginePromise` é zerado
     // para a próxima rodada reabrir o runtime lendo do disco, sem baixar nada —
-    // e `pesosNoAparelho` garante que a deliberação saiba disso.
+    // e `pesosBaixados` garante que a deliberação saiba disso.
     const gerando = generatingEngine;
     generatingEngine = null;
     if (gerando) {
@@ -547,7 +600,7 @@ function ensureSmallEngine(
         // toda volta passa por aqui — e anunciar isso como download fazia a tela
         // mostrar uma barra de 1,32 GB que não existe, escondendo justamente o
         // "ele está voltando a pensar" que o jogador queria ver.
-        const reabrindo = pesosNoAparelho;
+        const reabrindo = pesosBaixados.has(SMALL_BRAIN_MODEL.id);
         anotar(reabrindo ? 'vontade:reabrindo' : 'vontade:carregando', {
             modelo: SMALL_BRAIN_MODEL.id,
         });
@@ -690,7 +743,7 @@ function ensureSmallEngine(
             });
             // O .gguf está no OPFS a partir daqui. Encerrar o worker na pausa
             // não desfaz isto — por isso a bandeira é separada do runtime.
-            pesosNoAparelho = true;
+            pesosBaixados.add(SMALL_BRAIN_MODEL.id);
             anotar('vontade:pronta', {
                 ms: Date.now() - comecouACarregar,
                 reabertura: reabrindo,
@@ -966,8 +1019,8 @@ export function deliberationYieldedTurn(): boolean { return cedeuAVez; }
  * ── O RUNTIME ESTÁ DE PÉ AGORA? ──────────────────────────────────────────
  *
  * Diferente de `vontadeJaCarregada`, e a diferença travou o jogo. Aquela
- * responde `enginePromise !== null || pesosNoAparelho`, e `baixarVontade` marca
- * `pesosNoAparelho = true` — então, depois de apenas BAIXAR, ela já diz "sim".
+ * responde `enginePromise !== null || pesosBaixados.has(…)`, e `baixarVontade`
+ * marca o id como baixado — então, depois de apenas BAIXAR, ela já diz "sim".
  *
  * O pipeline usava ela para decidir se podia chamar o revisor. Passava, e o
  * `remendarFraseEmIngles` ia SUBIR 1,25 GB no meio de uma fala, com o
@@ -984,9 +1037,9 @@ export function vontadeDePeAgora(): boolean {
 
 export function vontadeJaCarregada(): boolean {
     // `enginePromise` deixou de ser a única prova: a pausa encerra o runtime
-    // para devolver CPU, mas o .gguf continua no aparelho. Sem `pesosNoAparelho`
+    // para devolver CPU, mas o .gguf continua no aparelho. Sem `pesosBaixados`
     // a deliberação desistiria de vez depois da primeira fala do jogador.
-    return enginePromise !== null || pesosNoAparelho;
+    return enginePromise !== null || pesosBaixados.has(SMALL_BRAIN_MODEL.id);
 }
 
 /**
@@ -1548,7 +1601,7 @@ export async function deliberarObservando(
  * hora. Degradar é aceitável; ficar sem vontade não é.
  */
 export async function baixarVontade(): Promise<boolean> {
-    if (pesosNoAparelho) return true;
+    if (pesosBaixados.has(SMALL_BRAIN_MODEL.id)) return true;
     try {
         const backend = await probeModelStorageBackend();
         if (!backend.ok) return false;
@@ -1623,7 +1676,7 @@ export async function baixarVontade(): Promise<boolean> {
         }
 
         // OS PESOS ESTÃO NO APARELHO, e nada está de pé por causa deles.
-        pesosNoAparelho = true;
+        pesosBaixados.add(SMALL_BRAIN_MODEL.id);
         npcSet({
             deliberationPhase: 'off',
             deliberationLoadProgress: 1,
@@ -1640,6 +1693,37 @@ export async function baixarVontade(): Promise<boolean> {
 }
 
 export async function precarregarVontade(): Promise<boolean> {
+    await assumirPapel('vontade');
+    const engine = await floor10ModelCoordinator.activate(
+        'deliberation',
+        () => ensureSmallEngine(false),
+    );
+    return engine !== null;
+}
+
+/**
+ * Sobe o modelo que vai REMENDAR — que pode não ser o da vontade.
+ *
+ * Existe separado de `precarregarVontade` porque `?revisor=llama` aponta os
+ * dois papéis para arquivos diferentes. Com o padrão (`?revisor=lfm`) as duas
+ * funções fazem exatamente a mesma coisa, e é de propósito: o caminho comum não
+ * paga nada pela existência da opção.
+ */
+/**
+ * Baixa os pesos do revisor SEM subir runtime nenhum.
+ *
+ * Devolve `true` na hora quando o revisor é a própria vontade: não há arquivo
+ * novo, e a peça nem aparece na fila nesse caso. Quando há, ele assume o papel
+ * antes de baixar — é o papel que decide qual URL o `SMALL_BRAIN_MODEL` aponta.
+ */
+export async function baixarRevisor(): Promise<boolean> {
+    if (cerebroDoRevisor() === null) return true;
+    await assumirPapel('revisor');
+    return baixarVontade();
+}
+
+export async function precarregarRevisor(): Promise<boolean> {
+    await assumirPapel('revisor');
     const engine = await floor10ModelCoordinator.activate(
         'deliberation',
         () => ensureSmallEngine(false),
@@ -1649,6 +1733,8 @@ export async function precarregarVontade(): Promise<boolean> {
 
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
+    papelDoMotor = 'vontade';
+    pesosBaixados.clear();
     abortDeliberation();
     resetFloor10MotorBrainForTests();
     floor10ModelCoordinator.markUnloaded('deliberation');

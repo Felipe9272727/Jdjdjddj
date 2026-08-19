@@ -43,9 +43,11 @@
 
 import { pipelineLigado } from './floor10Pipeline';
 import { FLOOR10_TRADUTOR_BYTES } from './floor10Tradutor';
+import { revisorAtual } from './floor10Revisores';
 
 export type PapelNaFila =
-    | 'fala' | 'rascunho' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'juiz' | 'tradutor';
+    | 'fala' | 'rascunho' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'juiz' | 'tradutor'
+    | 'revisor';
 
 export type PecaDaFila = {
     papel: PapelNaFila;
@@ -113,7 +115,34 @@ export function composicaoDaFila(busca?: string): PecaDaFila[] {
         // só vai ao revisor quando o juiz marca alguma coisa.
         PECA_VONTADE,
         PECA_MOTOR,
+        // ── O REVISOR PRÓPRIO, QUANDO ELE EXISTE ─────────────────────────
+        //
+        // Com `?revisor=llama` o remendo passa a ter arquivo só dele, e ele
+        // TEM de aparecer aqui: a barra única promete um total, e um download
+        // de 1 GB fora da conta é a barra mentindo — que é exatamente o
+        // defeito que a fila única foi criada para acabar. Com o padrão
+        // (`?revisor=lfm`) esta linha some, porque não há byte novo nenhum.
+        ...(pecaDoRevisor() ? [pecaDoRevisor() as PecaDaFila] : []),
     ];
+}
+
+/**
+ * A peça do revisor, ou `null` quando ele é a própria vontade.
+ *
+ * NÃO é essencial, pela mesma razão da vontade: o rascunho só vai ao revisor
+ * quando o juiz marca alguma coisa, e sem ele a frase marcada simplesmente
+ * segue como está. Fazer a conversa esperar 1 GB por uma etapa opcional seria
+ * trocar qualidade por silêncio.
+ */
+export function pecaDoRevisor(): PecaDaFila | null {
+    const r = revisorAtual();
+    if (r.bytesExtras <= 0) return null;
+    return Object.freeze({
+        papel: 'revisor' as const,
+        label: r.label,
+        bytes: r.bytesExtras,
+        essencial: false,
+    });
 }
 
 /** Quantos bytes a fila inteira baixa. É o número que a barra promete. */

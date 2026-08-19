@@ -51,7 +51,7 @@ describe('as peças reais', () => {
         const i = real.indexOf('async function trocarRascunhadorPeloRevisor');
         const corpo = real.slice(i, real.indexOf('async function devolverORascunhador'));
         expect(corpo.indexOf('descarregarRascunhador()'))
-            .toBeLessThan(corpo.indexOf('precarregarVontade()'));
+            .toBeLessThan(corpo.indexOf('precarregarRevisor()'));
     });
 
     it('e o revisor tem prazo, porque era a última peça que podia pendurar', () => {
@@ -128,7 +128,7 @@ describe('a troca de modelo — o revisor entra quando é a hora dele', () => {
         const i = real.indexOf('async function trocarRascunhadorPeloRevisor');
         const corpo = real.slice(i, real.indexOf('async function devolverORascunhador'));
         const descarrega = corpo.indexOf('descarregarRascunhador()');
-        const carrega = corpo.indexOf('precarregarVontade()');
+        const carrega = corpo.indexOf('precarregarRevisor()');
         expect(descarrega).toBeGreaterThan(-1);
         expect(carrega).toBeGreaterThan(descarrega);
         // E respira entre os dois: o sistema demora a devolver a memória.

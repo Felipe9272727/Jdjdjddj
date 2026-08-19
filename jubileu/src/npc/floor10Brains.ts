@@ -10,8 +10,8 @@
 // fala, não. Então a fala pode reciclar isto aqui, e só isto.
 
 export type SmallBrainId =
-    | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b' | 'lfm2-1b'
-    | 'llama32-horror';
+    | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
+    | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -43,6 +43,30 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf',
         bytes: 1_321_083_008,
         nota: 'assina a escolha em 14/15 rodadas e fala em 1ª pessoa — o Q4 fazia 5/15',
+    },
+    {
+        // ── O Q6, QUE ENTROU PELO POSTO DE REVISOR ────────────────────────
+        //
+        // Não é candidato a vontade: para assinar escolha o LFM2.5 faz 15/15 e
+        // o Llama faz 2/5 de primeira. Ele entrou porque o posto de REVISOR
+        // tem outra exigência, e nela ele ganha do titular — medido no mesmo
+        // processo, com o enunciado que leva o motivo:
+        //
+        //     LFM2.5 1.2B .... 3/6 consertou · 52,1 s por frase · lê 267 tok
+        //     Llama 3.2 Q6 ... 4/6 consertou · 11,6 s por frase · lê  97 tok
+        //
+        // Os 4,5x não são sorte: `llama` é transformer puro, o llama.cpp
+        // reaproveita o prefixo entre chamadas e ele relê só o que mudou. O
+        // `lfm2` é híbrido (`shortconv.l_cache` no gguf) e relê tudo, sempre.
+        //
+        // Q6 e não Q8 por 300 MB: este projeto mediu que o Llama 3.2 1B em Q4
+        // despenca (5/15 contra 14/15), e o Q6 é o degrau que preserva sem
+        // pagar o arquivo inteiro.
+        id: 'llama32-1b-q6',
+        label: 'Llama 3.2 1B (Q6, revisor)',
+        url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q6_K.gguf',
+        bytes: 1_021_800_576,
+        nota: 'revisor: 4/6 em 11,6s contra 3/6 em 52,1s do LFM2.5 — lê 97 tokens contra 267',
     },
     {
         // A MESMA cabeça em 4 bits. Fica no catálogo porque o cofre do

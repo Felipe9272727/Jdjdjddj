@@ -474,6 +474,12 @@ export function passosDoAndar10(carregadores: {
     juiz?: () => Promise<unknown>;
     tradutor?: () => Promise<unknown>;
     /**
+     * O revisor com arquivo PRÓPRIO (`?revisor=llama`). Ausente, cai no
+     * carregador da vontade — que é o certo, porque os dois disputam o mesmo
+     * slot de cérebro pequeno e quem escolhe o arquivo é o papel do motor.
+     */
+    revisor?: () => Promise<unknown>;
+    /**
      * Como devolver a memória da vontade e do motor depois de baixados. Só a
      * vontade e o motor: a fala e a memória são exatamente os dois que o dono
      * do jogo descreveu como devendo ficar de pé com o chat aberto, e o
@@ -491,6 +497,11 @@ export function passosDoAndar10(carregadores: {
         reflexo: carregadores.reflexo,
         vontade: carregadores.vontade,
         motor: carregadores.motor,
+        // O revisor próprio baixa pelo MESMO carregador da vontade: os dois são
+        // o slot de cérebro pequeno, e quem decide qual arquivo desce é o
+        // `papelDoMotor` lá dentro. Sem isto a peça apareceria na barra e
+        // ninguém a baixaria — barra prometendo o que não chega.
+        revisor: carregadores.revisor ?? carregadores.vontade,
     };
     // ── OS LEVES TAMBÉM ESPERAM, MAS SÓ A GERAÇÃO ────────────────────────
     // A memória e o reflexo não tinham `adiarEnquanto` NENHUM: carregavam no

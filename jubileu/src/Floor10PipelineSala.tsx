@@ -48,6 +48,12 @@ import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10Pipeline
 import {
     enumerarEmIngles, type DesfechoDoRemendo, type PassoDoPipeline,
 } from './npc/floor10Pipeline';
+import { revisorAtual } from './npc/floor10Revisores';
+
+/** "LFM2.5" ou "Llama 3.2" — o rótulo do catálogo cortado antes do parêntese. */
+function nomeCurtoDoRevisor(): string {
+    return revisorAtual().label.split('(')[0].trim();
+}
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
 import { liberarRolagem } from './npc/floor10PaginaRolavel';
@@ -951,7 +957,13 @@ function Passo({ p }: { p: PassoDoPipeline }) {
     if (p.passo === 'remendo') {
         return (
             <div style={cx}>
-                <div style={tit}>5. o LFM2.5 na frase {p.n} · {(p.ms / 1000).toFixed(1)}s</div>
+                {/* O NOME SAI DA ESCOLHA, e não de um literal: com
+                    `?revisor=llama` quem remenda é outro modelo, e uma tela
+                    dizendo "LFM2.5" enquanto o Llama trabalha faria a próxima
+                    medição comparar a coisa errada com a coisa errada. */}
+                <div style={tit}>
+                    5. o {nomeCurtoDoRevisor()} na frase {p.n} · {(p.ms / 1000).toFixed(1)}s
+                </div>
                 <div style={{ ...sub, textDecoration: 'line-through' }}>{p.antes}</div>
                 <Desfecho d={p.desfecho} />
             </div>

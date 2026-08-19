@@ -227,6 +227,10 @@ const ROTULO: Record<PapelNaFila, string> = {
     reflexo: 'reflexo',
     vontade: 'vontade',
     motor: 'movimento (reserva)',
+    // Mesmo rótulo do juiz de propósito: do lado de fora, apontar o erro e
+    // consertá-lo são a mesma coisa chegando — "revisão". O jogador não precisa
+    // saber que são dois modelos, e a fila fica com uma etiqueta a menos.
+    revisor: 'revisão',
 };
 
 /**
@@ -274,7 +278,7 @@ const ROTULO: Record<PapelNaFila, string> = {
  */
 export function definirFilaDoAndar10(bytes: {
     fala: number; vontade: number; motor: number; memoria: number; reflexo?: number;
-    rascunho?: number; juiz?: number; tradutor?: number;
+    rascunho?: number; juiz?: number; tradutor?: number; revisor?: number;
 }, busca?: string): void {
     const tamanho: Record<PapelNaFila, number | undefined> = {
         fala: bytes.fala,
@@ -285,6 +289,10 @@ export function definirFilaDoAndar10(bytes: {
         rascunho: bytes.rascunho,
         juiz: bytes.juiz,
         tradutor: bytes.tradutor,
+        // Sem tamanho não entra, e é assim que `?revisor=lfm` (o padrão)
+        // simplesmente não tem esta linha: quem chama passa o número só quando
+        // a escolha custa arquivo próprio.
+        revisor: bytes.revisor,
     };
     // Quem não trouxe tamanho não entra. É como o reflexo sempre funcionou
     // ("sem tamanho, nem aparece"), e vale agora para as três do pipeline.

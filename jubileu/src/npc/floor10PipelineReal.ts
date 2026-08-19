@@ -32,7 +32,7 @@ import {
 import { frasesForaDoTom } from './floor10VetorDeTom';
 import { traduzirParaPtBr } from './floor10Tradutor';
 import {
-    remendarFraseEmIngles, vontadeDePeAgora, precarregarVontade, unloadSmallBrain,
+    remendarFraseEmIngles, vontadeDePeAgora, precarregarRevisor, unloadSmallBrain,
 } from './floor10SmallBrain';
 import { comPrazo, esperar, PRAZO_CARGA_MS, RESPIRO_APOS_DESCARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
@@ -202,7 +202,10 @@ async function trocarRascunhadorPeloRevisor(): Promise<boolean> {
         npcSet({ etapa: 'trocando o rascunhador pelo revisor…' });
         await descarregarRascunhador();
         await esperar(RESPIRO_APOS_DESCARGA_MS);
-        const ok = await comPrazo(precarregarVontade(), PRAZO_CARGA_MS, 'a carga do revisor');
+        // `precarregarRevisor` e não `precarregarVontade`: com `?revisor=llama`
+        // os dois papéis apontam para arquivos diferentes, e é este que sobe o
+        // do REMENDO. No padrão as duas fazem a mesma coisa.
+        const ok = await comPrazo(precarregarRevisor(), PRAZO_CARGA_MS, 'a carga do revisor');
         trocamosNesteTurno = ok;
         anotar('pipeline:troca', { ok: ok ? 1 : 0 });
         return ok;
