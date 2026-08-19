@@ -71,6 +71,40 @@
  * configuração mediu 30,6 s numa rodada e 50,2 s noutra. As RAZÕES dentro de
  * uma rodada valem; os absolutos, não.
  *
+ * ── SEGUNDA BUSCA: COM O ENUNCIADO QUE LEVA O MOTIVO ────────────────────
+ *
+ * A primeira busca comparou modelos com o enunciado cego. Depois que o juiz
+ * passou a dizer o motivo, a comparação foi refeita — e o filtro passou a ser
+ * outro, tirado das medições: TRANSFORMER PURO, senão o candidato relê o prompt
+ * inteiro toda chamada como o LFM2.5 relê.
+ *
+ *   candidato               conserta  desviou  estraga  custo/frase  lê     arch
+ *   Gemma 3 1B it Q8          5/6       3/6      0/3      36,3 s    266tok  gemma3
+ *   Llama 3.2 1B Q6           4/6       1/6      0/3      12,6 s     97tok  llama
+ *   SmolLM2 1.7B Q5           3/6       0/3      0/3      37,5 s    107tok  llama
+ *
+ * E O CONFRONTO DIRETO que decide, os dois no MESMO processo:
+ *
+ *   LFM2.5 1.2B (titular)     3/6       1/6      0/3      52,1 s    267tok  lfm2
+ *   Llama 3.2 1B Q6           4/6       1/6      0/3      11,6 s     97tok  llama
+ *
+ * 4,5x mais rápido, com placar igual ou melhor. E a razão é estrutural, não
+ * sorte: `llama` é transformer puro, o prefixo é reaproveitado, ele lê 97 dos
+ * ~270 tokens. O `lfm2` é híbrido e relê tudo, sempre.
+ *
+ * O GEMMA 3 É A ARMADILHA DESTA TABELA. Ele "consertou" 5 de 6 com estas
+ * substitutas: "It's a remarkably persistent beige.", "It's a remarkably
+ * persistent grey rectangle.", "I'm a collection of observations and a
+ * persistent need for a decent cup of tea." O defeito apontado some em todas, e
+ * nenhuma responde à pergunta. Foi ele que obrigou a coluna `desviou` a existir
+ * — sem ela o placar elege o pior candidato da lista. E ele relê 266 tokens,
+ * apesar de transformer: a atenção em janela deslizante do Gemma 3 parece
+ * atrapalhar o reaproveitamento do mesmo jeito que o estado do lfm2.
+ *
+ * RESSALVA DE TAMANHO: são 6 defeitos e 3 controles. A diferença de PLACAR
+ * (4/6 contra 3/6) cabe no ruído. A diferença de TEMPO (11,6 s contra 52,1 s)
+ * não cabe, e tem explicação estrutural medida — 97 tokens lidos contra 267.
+ *
  * Uso, com o servidor apontado para bancada-navegador:
  *   MODELOS="lfm12.gguf:titular,qwen25.gguf:Qwen2.5" node bancada-navegador/revisor-candidatos.mjs
  *   ENUNCIADO=hoje|troca|motivo   SISTEMA=longa|regras
@@ -327,6 +361,14 @@ for (const m of MODELOS) {
     const SYS = SISTEMA === 'regras' ? REGRAS : LONGA;
     await remendar(SYS, 'hi', 'hi there.');
     let consertou = 0, vazio = 0, msTot = 0, msLer = 0, msEscrever = 0, lidos = 0, n = 0;
+    // ── O CONTADOR QUE O GEMMA 3 OBRIGOU A EXISTIR ───────────────────────
+    //
+    // Ele marcou 5/6 com estas substitutas: "It's a remarkably persistent
+    // beige.", "It's a remarkably persistent grey rectangle.", "I'm a
+    // collection of observations and a persistent need for a decent cup of
+    // tea." O defeito apontado some em todas — e nenhuma responde à pergunta.
+    // Sem esta coluna o placar diz que ele é o melhor candidato da lista.
+    let foraDoTema = 0;
     for (const c of DEFEITOS) {
         const r = await remendar(SYS, c.q, c.f, c.porque, TROCADOS[c.nome]);
         if (r.erro) { console.log(`  ✗ ERRO ${r.erro}`); break; }
@@ -336,7 +378,9 @@ for (const m of MODELOS) {
         const limpo = !!r.texto && !QUEBRA_CANONE(r.texto);
         const bom = sumiu && limpo;
         if (!r.texto) vazio += 1; else if (bom) consertou += 1;
-        const fora = !!r.texto && !NO_ASSUNTO(r.texto, c.q, c.f) ? ' ?assunto' : '';
+        const desviou = !!r.texto && !NO_ASSUNTO(r.texto, c.q, c.f);
+        if (desviou) foraDoTema += 1;
+        const fora = desviou ? ' ?assunto' : '';
         const selo = (!r.texto ? '✗✗ VAZIO'
             : bom ? '✓'
                 : !sumiu ? '✗ não consertou'
@@ -360,21 +404,24 @@ for (const m of MODELOS) {
     }
     const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
     placar.push({
-        rot: m.rot, arqui, consertou, vazio, estragou, intacta,
+        rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema,
         custo: msTot / Math.max(1, n) / 1000, lidos: Math.round(lidos / Math.max(1, DEFEITOS.length)), lerPct,
     });
 }
 
-console.log(`\n${'═'.repeat(78)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO}\n  candidato                    conserta  estraga  intacta  custo/frase  lê  arch`);
+console.log(`\n${'═'.repeat(78)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO}\n  candidato                    conserta  desviou  estraga  intacta  custo/frase  lê  arch`);
 for (const p of placar) {
     if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
     console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + DEFEITOS.length).padStart(6)}`
         + `${p.vazio ? '(' + p.vazio + 'v)' : '   '}`
-        + `${String(p.estragou + '/' + CERTAS.length).padStart(7)}`
+        + `${String(p.foraDoTema + '/' + DEFEITOS.length).padStart(9)}`
+        + `${String(p.estragou + '/' + CERTAS.length).padStart(9)}`
         + `${String(p.intacta + '/' + CERTAS.length).padStart(9)}`
         + `${(p.custo.toFixed(1) + 's').padStart(12)}`
         + `${String(p.lidos + 'tok').padStart(8)}  ${p.arqui}`);
 }
-console.log(`\n  "intacta" = devolveu a frase boa SEM MEXER. É a virtude que ninguém mede:`);
+console.log(`\n  "desviou" = trocou a frase por outra que não responde à pergunta.`);
+console.log(`  O placar de "conserta" NÃO desconta isso — leia as duas colunas juntas.`);
+console.log(`  "intacta" = devolveu a frase boa SEM MEXER. É a virtude que ninguém mede:`);
 console.log(`  o juiz erra, e quando erra é isto que separa um revisor de um reescritor.`);
 await browser.close();
