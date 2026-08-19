@@ -22,6 +22,30 @@
         firestoreDatabaseId: "(default)"
       };
     </script>
+    <script>
+      // ── TROCAR A VERSÃO DO wllama PELA URL ────────────────────────────
+      //
+      // `?wllama=3.6.0` aponta os quatro cérebros para outra versão do runtime
+      // sem tocar no padrão. Existe porque a pergunta "vale atualizar?" só se
+      // responde no aparelho de quem joga, e trocar a versão no código para
+      // descobrir isso arrisca o único celular onde o jogo é testado.
+      //
+      // TEM DE SER AQUI, e não no main.tsx: os módulos leem `__wllamaCdn` na
+      // hora em que são importados (`const CDN = globalThis.__wllamaCdn ?? …`),
+      // e o main.tsx importa o App na primeira linha. Qualquer atribuição lá
+      // dentro chegaria tarde.
+      //
+      // O que muda entre versões é o llama.cpp embutido — 3.5.1 traz a b9640,
+      // 3.6.0 traz a b10454 —, e é lá embaixo que moram o backend WebGPU e as
+      // otimizações de leitura de prompt que este jogo espera.
+      try {
+        var __v = new URLSearchParams(location.search).get('wllama');
+        if (__v && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(__v)) {
+          window.__wllamaCdn = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@' + __v + '/esm';
+          console.info('[floor10] wllama trocado para ' + __v + ' por ?wllama=');
+        }
+      } catch (e) { /* sem URL não há troca, e o padrão segue */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

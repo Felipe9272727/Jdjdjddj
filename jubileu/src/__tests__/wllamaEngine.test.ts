@@ -748,3 +748,43 @@ describe('a etiqueta de leitura não pode assustar com o melhor caso', () => {
         expect(txt).toContain('leitura 6 tok/s');
     });
 });
+
+// ── TROCAR O RUNTIME PELA URL ─────────────────────────────────────────────
+//
+// `?wllama=3.6.0` existe porque "vale atualizar o runtime?" é pergunta que só
+// o aparelho de quem joga responde, e trocar a versão no código para descobrir
+// arrisca o único celular onde este jogo é testado. O que muda entre versões é
+// o llama.cpp embutido — a 3.5.1 traz a b9640, a 3.6.0 traz a b10454 — e é lá
+// que moram o backend WebGPU e o custo de leitura de prompt.
+describe('a chave ?wllama= no index.html', () => {
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+
+    it('roda ANTES do módulo do jogo, senão não adianta nada', () => {
+        // Os cérebros leem `__wllamaCdn` no momento do import
+        // (`const CDN = globalThis.__wllamaCdn ?? …`), e o main.tsx importa o
+        // App na primeira linha. Atribuir lá dentro chegaria tarde e a chave
+        // pareceria simplesmente não funcionar.
+        const chave = html.indexOf('__wllamaCdn');
+        const modulo = html.indexOf('src="/src/main.tsx"');
+        expect(chave).toBeGreaterThan(-1);
+        expect(chave, 'a troca precisa vir antes do <script type=module>')
+            .toBeLessThan(modulo);
+    });
+
+    it('só aceita número de versão, e não uma URL qualquer', () => {
+        // A chave monta uma URL de CDN e manda o navegador EXECUTAR o que vier
+        // de lá. Sem o filtro, `?wllama=` viraria uma porta para carregar
+        // código arbitrário no jogo de quem abrir um link.
+        expect(html).toContain('/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(__v)');
+        expect(html).toContain('cdn.jsdelivr.net/npm/@wllama/wllama@');
+    });
+
+    it('e sem a chave o padrão do código continua valendo', () => {
+        // Nada de `window.__wllamaCdn = ` fora do `if`: o valor só é escrito
+        // quando alguém pede.
+        const bloco = html.slice(html.indexOf("get('wllama')"), html.indexOf('</script>', html.indexOf("get('wllama')")));
+        const atribuicoes = bloco.match(/window\.__wllamaCdn\s*=/g) ?? [];
+        expect(atribuicoes).toHaveLength(1);
+        expect(bloco).toContain('if (__v &&');
+    });
+});
