@@ -64,6 +64,31 @@ const WASM = `${CDN}/wasm/wllama.wasm`;
 /** O lugar dele na fila. */
 export const FILA_RASCUNHO = 'rascunho';
 
+/**
+ * ── POR QUE Q4, SE ESTE PROJETO MEDIU QUE Q4 DESPENCA ────────────────────
+ *
+ * A contradição foi apontada olhando o código, e era justa: o
+ * `floor10Rascunhadores.ts` usa "este projeto MEDIU que o Llama 3.2 1B em Q4
+ * despenca (5/15 contra 14/15)" para BARRAR um candidato, e o rascunhador —
+ * que escreve TODA fala do Nilo — estava em Q4_K_M sem uma linha de
+ * justificativa. Parecia esquecimento.
+ *
+ * FUI MEDIR (`bancada-navegador/rascunhador-quant.mjs`), 12 perguntas
+ * distintas x 3 amostras, parâmetros do jogo:
+ *
+ *     Q4_K_M .... 11/36 falas fora do cânone · 5,8 s por fala ·  784 MB
+ *     Q6_K ...... 11/36 falas fora do cânone · 7,6 s por fala · 1048 MB
+ *
+ * Empate, e o Q6 é 31% mais lento. Os 264 MB a mais não compram nada.
+ *
+ * O "Q4 despenca" continua valendo ONDE FOI MEDIDO: num Llama 3.2 1B denso, na
+ * tarefa de assinar escolha. Não transferiu para este MoE de 400M ativos nesta
+ * tarefa. A exceção agora é medida, e não esquecimento.
+ *
+ * RESSALVA: a primeira rodada, com 12 falas e um verificador mais frouxo, deu
+ * 4/12 contra 1/12 e parecia decisiva a favor do Q6. Era amostra pequena mais
+ * régua com fresta. Se alguém repetir isto, repita com as três rodadas.
+ */
 export const FLOOR10_RASCUNHADOR_MODEL = Object.freeze({
     id: 'granite-a400m',
     label: 'Rascunhador granite 1B-A400M',
