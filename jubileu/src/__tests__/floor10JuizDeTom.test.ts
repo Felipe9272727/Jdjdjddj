@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
     julgarTom, semelhanca, FLOOR10_MARGEM_DE_TOM, motivoDoTom,
@@ -159,5 +160,48 @@ describe('as duas listas de âncoras ruins andam juntas', () => {
         for (const porque of FLOOR10_PORQUE_RUINS) {
             expect(porque[0]).toBe(porque[0].toLowerCase());
         }
+    });
+});
+
+// ── A SONDA DO CAMINHO ONNX+WEBGPU ────────────────────────────────────────
+//
+// Pergunta do dono do jogo: "talvez o caminho não seja com o llama, e sim com
+// outra arquitetura (tipo o onnx), procure novas arquiteturas". A intuição é
+// boa e tem apoio nos números desta sessão: o juiz roda em ONNX e é a peça mais
+// rápida do pipeline, enquanto tudo que é caro roda em llama.cpp/wasm.
+//
+// O que muda de verdade não é o modelo, é o BACKEND: o WebGPU do wllama é
+// experimental e já quebrou duas vezes neste aparelho; o do onnxruntime-web é
+// outra implementação, muito mais rodada.
+//
+// `?gpu=onnx` liga isso no JUIZ — a cobaia mais barata que existe aqui.
+describe('`?gpu=onnx` — testar WebGPU onde não custa nada', () => {
+    const fonte = readFileSync(new URL('../npc/floor10VetorDeTom.ts', import.meta.url), 'utf8');
+
+    it('só liga quando pedido E quando o aparelho tem adaptador', () => {
+        expect(fonte).toContain("get('gpu') === 'onnx'");
+        expect(fonte).toContain("'gpu' in navigator");
+    });
+
+    it('e CAI PARA A CPU quando a GPU falha, em vez de sumir', () => {
+        // ── A REGRA QUE ISTO PROTEGE ─────────────────────────────────────
+        //
+        // Um juiz que não sobe faz o rascunho passar SEM revisão nenhuma — e
+        // aí o pipeline inteiro perde a etapa que decide se vale remendar.
+        // A GPU deste andar já custou duas falas perdidas; ela não vai custar
+        // o juiz também.
+        const bloco = fonte.slice(fonte.indexOf('if (querGpu)'), fonte.indexOf("'o download do juiz de tom'"));
+        expect(bloco).toContain('catch');
+        expect(bloco).toContain("anotar('juiz:webgpu'");
+        // O caminho da CPU vem DEPOIS do try/catch, fora dele — se estivesse
+        // dentro, uma falha de GPU levaria o juiz junto.
+        expect(fonte.indexOf('return await comPrazo(abrir()'))
+            .toBeGreaterThan(fonte.indexOf('if (querGpu)'));
+    });
+
+    it('e o resultado vai para a caixa-preta nos DOIS casos', () => {
+        // Sem isto, "funcionou?" viraria impressão. Com isto, é um registro.
+        const bloco = fonte.slice(fonte.indexOf('if (querGpu)'), fonte.indexOf("'o download do juiz de tom'"));
+        expect((bloco.match(/anotar\('juiz:webgpu'/g) ?? []).length).toBe(2);
     });
 });

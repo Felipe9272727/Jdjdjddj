@@ -24,6 +24,7 @@ import {
 } from './floor10JuizDeTom';
 import type { Marcacao } from './floor10Pipeline';
 import { comPrazo, PRAZO_RUNTIME_MS, PRAZO_REDE_MS } from './floor10Carga';
+import { anotar } from './floor10CaixaPreta';
 
 const TRANSFORMERS_V = '3.8.1';
 const CDN = (globalThis as { __onnxCdn?: string }).__onnxCdn
@@ -83,13 +84,50 @@ async function extrator(): Promise<Extractor | null> {
             // uma rede que pendura deixa a fila parada para sempre — foi o que
             // aconteceu com o tradutor depois que só o rascunhador foi
             // protegido.
-            return await comPrazo(
-                mod.pipeline('feature-extraction', FLOOR10_TOM_MODEL.repo, {
-                    dtype: FLOOR10_TOM_MODEL.dtype,
-                }),
-                PRAZO_REDE_MS,
-                'o download do juiz de tom',
+            // ── `?gpu=onnx`: A SONDA BARATA DO CAMINHO ONNX+WEBGPU ──────
+            //
+            // A pergunta que ela responde: o WebGPU funciona NESTE celular
+            // quando quem o dirige é o ONNX Runtime Web, e não o llama.cpp?
+            //
+            // Ela importa porque as duas coisas não são a mesma. O backend
+            // WebGPU do wllama é experimental — o próprio llama.cpp o
+            // classifica assim — e já quebrou duas vezes no aparelho do dono
+            // do jogo, com 3 de 36 camadas ("(ABORT)", "loadModel() is not yet
+            // called"). O do onnxruntime-web é outra implementação, muito mais
+            // rodada, e é a que move as dezenas de demos de LLM no navegador.
+            //
+            // E O JUIZ É A COBAIA CERTA, por três motivos:
+            //   · os 110 MB dele JÁ estão no aparelho — não custa download;
+            //   · ele NÃO é essencial: se cair, o rascunho passa sem julgamento
+            //     (o `catch` abaixo já trata isso desde sempre);
+            //   · ele roda em todo turno e o custo dele aparece na tela, então
+            //     a comparação é imediata (1211 ms medidos no celular, em CPU).
+            //
+            // Se ele voar aqui, vale portar o REVISOR para ONNX; se travar,
+            // ficamos sabendo por 0 bytes em vez de por 2 GB.
+            const querGpu = typeof window !== 'undefined'
+                && new URLSearchParams(window.location.search).get('gpu') === 'onnx'
+                && 'gpu' in navigator;
+            const abrir = (device?: 'webgpu') => mod.pipeline(
+                'feature-extraction',
+                FLOOR10_TOM_MODEL.repo,
+                { dtype: FLOOR10_TOM_MODEL.dtype, ...(device ? { device } : {}) },
             );
+            if (querGpu) {
+                try {
+                    const naGpu = await comPrazo(abrir('webgpu'), PRAZO_REDE_MS, 'o juiz na GPU');
+                    anotar('juiz:webgpu', { ok: true });
+                    return naGpu;
+                } catch (e) {
+                    // CAI PARA A CPU, e não some. A regra deste andar é que uma
+                    // otimização que falha não pode custar a fala — e um juiz
+                    // que não sobe faz o rascunho passar sem revisão nenhuma.
+                    anotar('juiz:webgpu', {
+                        ok: false, motivo: (e instanceof Error ? e.message : String(e)).slice(0, 120),
+                    });
+                }
+            }
+            return await comPrazo(abrir(), PRAZO_REDE_MS, 'o download do juiz de tom');
         } catch (erro) {
             // Um juiz que não sobe não pode custar a fala: quem chama trata
             // `null` como "não julguei" e o rascunho passa direto. Mas o MOTIVO
