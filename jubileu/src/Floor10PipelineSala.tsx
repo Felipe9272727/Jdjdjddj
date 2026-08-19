@@ -925,11 +925,26 @@ function Passo({ p }: { p: PassoDoPipeline }) {
                         ? 'não marcou nada — é aqui que o pipeline ganha do 3B'
                         : 'cada marcada custa uma chamada de revisor (~30 s medidos)'}
                 </div>
-                <div style={{ marginTop: 4, color: p.marcadas.length ? '#ff9c9c' : '#7fe0b0' }}>
-                    {p.marcadas.length === 0
-                        ? '✓ nenhuma frase fora do tom'
-                        : `✗ marcou a(s) frase(s) ${p.marcadas.join(', ')}`}
-                </div>
+                {p.marcadas.length === 0 ? (
+                    <div style={{ marginTop: 4, color: '#7fe0b0' }}>
+                        ✓ nenhuma frase fora do tom
+                    </div>
+                ) : (
+                    <div style={{ marginTop: 4 }}>
+                        {/* O MOTIVO, que antes morria aqui. Ele vai junto ao
+                            revisor (2/6 → 4/6 medidos) e aparece na tela pelo
+                            mesmo preço: dá para ver se o juiz marcou por um
+                            motivo que faz sentido, ou só por parecer errado. */}
+                        {p.marcadas.map((m) => (
+                            <div key={m.n} style={{ marginTop: 4 }}>
+                                <span style={{ color: '#ff9c9c' }}>✗ frase {m.n}</span>
+                                <span style={{ ...sub, marginLeft: 6 }}>
+                                    {m.porque || 'marcou sem saber dizer por quê — o revisor vai às cegas'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     }

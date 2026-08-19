@@ -159,3 +159,73 @@ describe('a troca de modelo — o revisor entra quando é a hora dele', () => {
             .toBeGreaterThanOrEqual(2);
     });
 });
+
+// ── O JUIZ PASSOU A DIZER O QUE VIU ───────────────────────────────────────
+//
+// Ele sempre soube: a trava sabe qual regex casou, e o juiz de tom sabe de
+// qual âncora ruim a frase chegou perto (é o argmax da conta que já fazia).
+// Os dois motivos iam para o lixo a um passo do revisor — que, sem eles,
+// conserta 2 de 6 em vez de 4 de 6, medido com o LFM2.5 de produção.
+describe('o motivo sai do juiz e vai ao revisor', () => {
+    it('a marcação carrega o motivo, e não só o índice', () => {
+        // `Map` e não `Set`: um `Set<number>` não tem onde guardar o porquê, e
+        // foi essa a estrutura que descartava a informação.
+        expect(real).toContain('const marcadas = new Map<number, string>();');
+        expect(real).toContain('.map(([n, porque]) => ({ n, porque }))');
+    });
+
+    it('a TRAVA ganha da âncora de tom quando as duas apontam a mesma frase', () => {
+        // A trava tem certeza (um regex casou); a âncora é palpite (foi a mais
+        // próxima). Deixar o palpite sobrescrever o fato seria trocar um
+        // diagnóstico verdadeiro por um provável.
+        expect(real).toContain('if (alvo && !marcadas.has(alvo.n)) marcadas.set(alvo.n, m.porque);');
+    });
+
+    it('e o motivo chega ao revisor, não morre no caminho', () => {
+        expect(real).toContain('remendarFraseEmIngles(pergunta, frase, porque)');
+    });
+
+    it('cada trava tem o SEU motivo escrito, nenhuma fica muda', () => {
+        // Uma trava sem `porque` marca a frase e manda o revisor às cegas — o
+        // estado exato de antes desta mudança, só que em uma trava só, o que é
+        // muito mais difícil de notar.
+        const bloco = real.slice(real.indexOf('const TRAVAS:'), real.indexOf('function travaQuePegou'));
+        const quantos = (re: RegExp) => (bloco.match(re) ?? []).length;
+        expect(quantos(/\bqual:/g)).toBeGreaterThanOrEqual(4);
+        expect(quantos(/\bporque:/g)).toBe(quantos(/\bqual:/g));
+    });
+});
+
+describe('o enunciado do remendo, com e sem motivo', () => {
+    const frase = 'I would advise you to remain calm.';
+
+    it('com motivo, usa o molde que foi MEDIDO em 4/6', () => {
+        const e = enunciadoDoRemendo('Will it come?', frase, 'it gives the player advice.');
+        expect(e).toContain('It is wrong because it gives the player advice.');
+        // Esta linha é o que impede o modelo de trocar de assunto. Num teste com
+        // enunciado que EXIGIA saída diferente, o placar foi de 0/6 a 6/6 na
+        // régua frouxa — e as frases eram "the endless loop of rooms and
+        // CORRIDORS" e "I should find my way BACK DOWN".
+        expect(e).toContain('Keep what it was saying, fix only that error.');
+    });
+
+    it('sem motivo, volta ao enunciado antigo em vez de inventar um', () => {
+        // Motivo inventado manda consertar o que não está quebrado. O juiz de
+        // tom pode marcar sem âncora vencedora, e aí o honesto é não dizer.
+        const e = enunciadoDoRemendo('Will it come?', frase, '');
+        expect(e).toContain('this sentence is wrong');
+        expect(e).not.toContain('It is wrong because');
+    });
+
+    it('e espaço em branco conta como "não sei dizer"', () => {
+        expect(enunciadoDoRemendo('Will it come?', frase, '   \n ')).not.toContain('It is wrong because');
+    });
+
+    it('a frase e a pergunta continuam aparecendo nos dois moldes', () => {
+        for (const porque of ['', 'it sounds like advice.']) {
+            const e = enunciadoDoRemendo('Will it come?', frase, porque);
+            expect(e).toContain(frase);
+            expect(e).toContain('Will it come?');
+        }
+    });
+});

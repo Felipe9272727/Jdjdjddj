@@ -18,7 +18,11 @@
 // 25× de velocidade. O MiniLM é a alternativa se 110 MB pesar demais: perde um
 // caso e custa 3 ms.
 
-import { FLOOR10_ANCORAS_BOAS, FLOOR10_ANCORAS_RUINS, julgarTom, type VeredictoDeTom } from './floor10JuizDeTom';
+import {
+    FLOOR10_ANCORAS_BOAS, FLOOR10_ANCORAS_RUINS, julgarTom, motivoDoTom,
+    type VeredictoDeTom,
+} from './floor10JuizDeTom';
+import type { Marcacao } from './floor10Pipeline';
 import { comPrazo, PRAZO_RUNTIME_MS, PRAZO_REDE_MS } from './floor10Carga';
 
 const TRANSFORMERS_V = '3.8.1';
@@ -158,16 +162,18 @@ export function esquecerJuizDeTom(): void {
  * mesmo lugar de propósito: o rascunho passa. Marcar por engano custa uma
  * chamada de revisor (~11,6 s); não julgar custa o que já custava antes.
  */
-export async function frasesForaDoTom(frases: readonly string[]): Promise<number[]> {
+export async function frasesForaDoTom(frases: readonly string[]): Promise<Marcacao[]> {
     if (frases.length === 0) return [];
     const anc = await ancoras();
     if (!anc) return [];
-    const fora: number[] = [];
+    const fora: Marcacao[] = [];
     for (const [i, f] of frases.entries()) {
         const v = await vetor(f);
         if (!v) continue;
         const veredicto: VeredictoDeTom = julgarTom(v, anc.boas, anc.ruins);
-        if (veredicto.foraDoTom) fora.push(i + 1);
+        // O motivo sai da MESMA conta que já decidiu o `foraDoTom` — a âncora
+        // ruim mais próxima. Ele vale 2/6 → 4/6 no revisor e custa zero.
+        if (veredicto.foraDoTom) fora.push({ n: i + 1, porque: motivoDoTom(veredicto) });
     }
     return fora;
 }

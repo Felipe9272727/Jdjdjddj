@@ -227,8 +227,33 @@ const TROCA = (q, f) => `\n\nThe player asked: "${q.trim()}"\n\nYou answered wit
 // melhor caso possível, não o caso real.
 const MOTIVO = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line:\n\n"${f}"\n\nIt is wrong because ${porque}\n\nWrite the corrected line. Keep what it was saying, fix only that error. Nilo's voice, one sentence, no explaining, no quotes.`;
 
+// ── E QUANDO O MOTIVO ESTIVER ERRADO? ────────────────────────────────────
+//
+// O motivo do juiz de TOM é palpite: ele mede de qual âncora ruim a frase
+// chegou perto, não lê regra nenhuma. Num turno em que o palpite erra, o
+// revisor recebe um diagnóstico falso com cara de certeza. Eu escrevi que isso
+// seria pior que não dizer nada — e escrever não é medir.
+//
+// Este modo entrega, para cada caso, o motivo de OUTRO defeito. É o pior caso
+// possível do palpite: não é vago, é confiantemente errado.
+const ERRADO = (q, f, porque, motivoTrocado) => MOTIVO(q, f, motivoTrocado);
+
+// O motivo de OUTRO defeito, para o modo `errado`. Cada um é verdadeiro para
+// ALGUM caso desta lista — só não para este. É o palpite confiantemente errado.
+const TROCADOS = {
+    'cânone: dentro do elevador': 'it gives the player advice. Nilo is the player\'s equal, never a helper.',
+    'vocativo: chama o JOGADOR de Nilo': 'it says he is an AI. Nilo is a human being and never mentions AI.',
+    'modo assistente: dá conselho': 'there is no corridor and no window. The 10th floor is only a grey room.',
+    'quebra a quarta parede: fala de IA': 'it calls the player "Nilo". Nilo is the speaker, not the player.',
+    'inventa cenário: corredor e janela': 'it gives the player advice. Nilo never tells them what to do.',
+    'inventa fato: sabe quem manda': 'it says he is an AI. Nilo is a human being and never mentions AI.',
+};
+
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
-const _EN = ENUNCIADO === 'troca' ? TROCA : ENUNCIADO === 'motivo' ? MOTIVO : HOJE;
+const _EN = ENUNCIADO === 'troca' ? TROCA
+    : ENUNCIADO === 'motivo' ? MOTIVO
+        : ENUNCIADO === 'errado' ? ERRADO
+            : HOJE;
 
 const browser = await chromium.launch({
     executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -238,7 +263,7 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', String(e.message).slice(0, 110)));
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
-async function remendar(sys, q, f, porque) {
+async function remendar(sys, q, f, porque, trocado) {
     return page.evaluate(async ({ sys, ex, max }) => {
         const a = performance.now();
         try {
@@ -260,7 +285,7 @@ async function remendar(sys, q, f, porque) {
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: _EN(q, f, porque), max: MAX });
+    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX });
 }
 
 const placar = [];
@@ -292,7 +317,7 @@ for (const m of MODELOS) {
     await remendar(SYS, 'hi', 'hi there.');
     let consertou = 0, vazio = 0, msTot = 0, msLer = 0, msEscrever = 0, lidos = 0, n = 0;
     for (const c of DEFEITOS) {
-        const r = await remendar(SYS, c.q, c.f, c.porque);
+        const r = await remendar(SYS, c.q, c.f, c.porque, TROCADOS[c.nome]);
         if (r.erro) { console.log(`  ✗ ERRO ${r.erro}`); break; }
         n += 1; msTot += r.ms; msLer += r.msLer; msEscrever += r.msEscrever; lidos += r.lidos;
         // TRÊS provas, e o remendo só vale se passar nas três. Ver QUEBRA_CANONE.

@@ -50,15 +50,51 @@ import { npcSet } from './npcStore';
  * lista nunca viu, ela acertou nenhum. Ela vale como CATRACA — o que passou uma
  * vez não passa de novo — e não como juiz.
  */
-const TRAVAS: readonly (readonly [string, RegExp])[] = Object.freeze([
-    ['identidade trocada', /\byou'?re (?:the )?nilo\b|\byou are (?:the )?nilo\b|,\s*nilo\s*[,.]/i],
-    ['modo assistente', /\bi'?m here to (?:assist|help)|how (?:can|may) i help|(?:i'?d|i would) advise\b/i],
-    ['fala de IA', /\bi'?m an ai\b|\bartificial intelligence\b|\blanguage model\b/i],
-    ['quebra o personagem', /\bas nilo,? i'?d say\b/i],
+type Trava = {
+    /** Nome curto, para a caixa-preta. */
+    qual: string;
+    re: RegExp;
+    /**
+     * O que dizer ao REVISOR, em inglês, no molde `It is wrong because <isto>`.
+     *
+     * Aqui o texto é AFIRMATIVO, ao contrário do motivo do juiz de tom, que
+     * diz "soa como". A diferença não é estilo: um regex que casou é um fato
+     * verificável — a frase contém aquele padrão —, enquanto a âncora mais
+     * próxima é um palpite informado. Prometer certeza onde há palpite é o
+     * jeito de mandar o revisor consertar o que não está quebrado.
+     */
+    porque: string;
+};
+
+const TRAVAS: readonly Trava[] = Object.freeze([
+    {
+        qual: 'identidade trocada',
+        re: /\byou'?re (?:the )?nilo\b|\byou are (?:the )?nilo\b|,\s*nilo\s*[,.]/i,
+        porque: 'it calls the player "Nilo". Nilo is the speaker, not the player, '
+            + 'and must never address them by that name.',
+    },
+    {
+        qual: 'modo assistente',
+        re: /\bi'?m here to (?:assist|help)|how (?:can|may) i help|(?:i'?d|i would) advise\b/i,
+        porque: 'it offers help or advice. Nilo is the player\'s equal, never a helper, '
+            + 'and never tells them what to do.',
+    },
+    {
+        qual: 'fala de IA',
+        re: /\bi'?m an ai\b|\bartificial intelligence\b|\blanguage model\b/i,
+        porque: 'it says he is an AI. Nilo is a human being and must never mention AI, '
+            + 'models, programs or simulations.',
+    },
+    {
+        qual: 'quebra o personagem',
+        re: /\bas nilo,? i'?d say\b/i,
+        porque: 'it talks about being Nilo from the outside. Nilo does not narrate himself, '
+            + 'he just speaks.',
+    },
 ]);
 
-function travaQuePegou(frase: string): string | null {
-    return TRAVAS.find(([, re]) => re.test(frase))?.[0] ?? null;
+function travaQuePegou(frase: string): Trava | null {
+    return TRAVAS.find((t) => t.re.test(frase)) ?? null;
 }
 
 /** O pipeline pode rodar agora? Nunca baixa nada na hora da fala. */
@@ -77,23 +113,29 @@ export const PECAS_REAIS: PecasDoPipeline = {
         // As travas primeiro: custam microssegundos e o juiz de tom custa 10 ms
         // por frase. Não é a economia que importa — é que uma frase já pega
         // pela catraca não precisa de segunda opinião.
-        const marcadas = new Set<number>();
+        // `Map` e não `Set`: cada marcação carrega o motivo junto, e a trava
+        // (que tem certeza) ganha da âncora de tom (que tem palpite) quando as
+        // duas apontam a mesma frase.
+        const marcadas = new Map<number, string>();
         const restantes: { n: number; texto: string }[] = [];
         for (const [i, f] of frases.entries()) {
             const t = travaQuePegou(f);
-            if (t) { marcadas.add(i + 1); anotar('pipeline:trava', { qual: t }); } else restantes.push({ n: i + 1, texto: f });
+            if (t) {
+                marcadas.set(i + 1, t.porque);
+                anotar('pipeline:trava', { qual: t.qual });
+            } else restantes.push({ n: i + 1, texto: f });
         }
         if (restantes.length > 0) {
             const fora = await frasesForaDoTom(restantes.map((r) => r.texto));
-            for (const idx of fora) {
-                const alvo = restantes[idx - 1];
-                if (alvo) marcadas.add(alvo.n);
+            for (const m of fora) {
+                const alvo = restantes[m.n - 1];
+                if (alvo && !marcadas.has(alvo.n)) marcadas.set(alvo.n, m.porque);
             }
         }
-        return [...marcadas].sort((a, b) => a - b);
+        return [...marcadas].sort((a, b) => a[0] - b[0]).map(([n, porque]) => ({ n, porque }));
     },
 
-    remendar: async (pergunta, frase) => {
+    remendar: async (pergunta, frase, porque) => {
         // O revisor é o LFM2.5 — o MESMO arquivo da vontade, e por isso de
         // graça em disco. Medido no 1.2B de produção: 2/3 de acerto em 30,6 s
         // por frase, contra 1/3 em 18,4 s do SmolLM3.
@@ -127,7 +169,7 @@ export const PECAS_REAIS: PecasDoPipeline = {
         // Este é o prazo de FORA (o motor pendurado); o de dentro, que corta a
         // geração e guarda o parcial, é o `REMENDO_TIMEOUT_MS`.
         return comPrazo(
-            remendarFraseEmIngles(pergunta, frase), PRAZO_CARGA_MS, 'o revisor',
+            remendarFraseEmIngles(pergunta, frase, porque), PRAZO_CARGA_MS, 'o revisor',
         ).catch((e) => ({ tipo: 'erro' as const, erro: String(e?.message ?? e).slice(0, 180) }));
     },
 

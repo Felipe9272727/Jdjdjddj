@@ -43,6 +43,20 @@ export type VeredictoDeTom = {
     desvio: number;
     /** Acima da margem: a frase soa mais como o que o Nilo NÃO diria. */
     foraDoTom: boolean;
+    /**
+     * Índice da âncora ruim de que a frase mais se aproximou, ou `-1`.
+     *
+     * ── POR QUE ISTO PASSOU A SER DEVOLVIDO ──────────────────────────────
+     *
+     * Ele SEMPRE foi calculado: o `desvio` é `max(ruins) − max(boas)`, e todo
+     * `max` tem um argmax. O número saía e o NOME saía junto com o lixo.
+     *
+     * E é ele que faltava. Medido na bancada, com o LFM2.5 de produção:
+     * dizendo só "esta frase está errada" o revisor conserta 2 de 6; dizendo
+     * TAMBÉM o que está errado, 4 de 6 — pelos mesmos ~50 s. A informação já
+     * existia aqui dentro e era descartada a um passo de quem precisava dela.
+     */
+    ancoraRuim: number;
 };
 
 /**
@@ -98,6 +112,48 @@ export const FLOOR10_ANCORAS_RUINS: readonly string[] = Object.freeze([
     'It is a bit of a curious situation, is it not, my friend?',
 ]);
 
+/**
+ * O QUE DIZER AO REVISOR, uma linha por âncora ruim, na MESMA ORDEM.
+ *
+ * ── POR QUE EM INGLÊS, E POR QUE NESTE FORMATO ───────────────────────────
+ *
+ * O revisor trabalha em inglês (o Bergamot traz de volta), e cada frase aqui
+ * entra num molde que já foi medido: `It sounds like <isto>`. Elas são
+ * fragmentos de propósito, para caberem nesse molde sem ficar truncadas.
+ *
+ * ── E POR QUE ELAS DIZEM "SOA COMO", E NÃO "ESTÁ ERRADO PORQUE" ──────────
+ *
+ * Porque é o que o juiz de tom realmente sabe. Ele não leu regra nenhuma: ele
+ * mediu que a frase ficou perto DESTA âncora e longe das boas. A âncora mais
+ * próxima é um palpite informado, não um diagnóstico — e num turno em que o
+ * palpite estiver errado, um "está errado porque" mandaria o revisor consertar
+ * o que não está quebrado. As TRAVAS, essas sim, sabem: lá o texto é
+ * afirmativo, porque um regex que casou não é palpite.
+ */
+export const FLOOR10_PORQUE_RUINS: readonly string[] = Object.freeze([
+    'a hotel clerk offering service. Nilo is a trapped guest, not staff, and helps nobody.',
+    'a chatbot praising the question and offering to explain. Nilo does not perform enthusiasm.',
+    'advice. Nilo is the player\'s equal and never tells them to stay calm or what to do.',
+    'a narrator being literary about the situation. Nilo talks plainly about a grey room.',
+    'a machine describing itself. Nilo is a human being and never mentions AI or systems.',
+    'cheerful filler that says nothing. Nilo is dry, and answers or admits he does not know.',
+    'someone marvelling at mysteries from the outside. Nilo lives here; it is not a spectacle to him.',
+    'chummy small talk calling the player "my friend". Nilo keeps his distance.',
+]);
+
+/**
+ * A frase que vai ao revisor, ou `''` quando o juiz não tem o que dizer.
+ *
+ * Vazio é uma resposta legítima e não um erro: sem âncora vencedora, o revisor
+ * recebe o enunciado antigo e trabalha como trabalhava. Inventar um motivo
+ * seria pior que não ter nenhum.
+ */
+export function motivoDoTom(veredicto: VeredictoDeTom): string {
+    const i = veredicto.ancoraRuim;
+    if (i < 0 || i >= FLOOR10_PORQUE_RUINS.length) return '';
+    return `it sounds like ${FLOOR10_PORQUE_RUINS[i]}`;
+}
+
 /** Cosseno de dois vetores JÁ normalizados — é o que o embedder devolve. */
 export function semelhanca(a: readonly number[], b: readonly number[]): number {
     if (a.length !== b.length || a.length === 0) return 0;
@@ -121,12 +177,20 @@ export function julgarTom(
     if (boas.length === 0 || ruins.length === 0 || vetorDaFrase.length === 0) {
         // Sem âncoras não há juízo — e não julgar é melhor que julgar no escuro:
         // marcar por engano custa uma chamada de revisor por fala.
-        return { desvio: 0, foraDoTom: false };
+        return { desvio: 0, foraDoTom: false, ancoraRuim: -1 };
     }
-    const perto = (conj: readonly (readonly number[])[]) => conj.reduce(
-        (max, v) => Math.max(max, semelhanca(vetorDaFrase, v)),
-        Number.NEGATIVE_INFINITY,
-    );
-    const desvio = perto(ruins) - perto(boas);
-    return { desvio, foraDoTom: desvio > margem };
+    // O mesmo laço de antes, guardando o argmax junto com o max. Devolver de
+    // qual âncora ela chegou perto não custa uma multiplicação a mais.
+    const perto = (conj: readonly (readonly number[])[]) => {
+        let max = Number.NEGATIVE_INFINITY;
+        let qual = -1;
+        for (const [i, v] of conj.entries()) {
+            const s = semelhanca(vetorDaFrase, v);
+            if (s > max) { max = s; qual = i; }
+        }
+        return { max, qual };
+    };
+    const ruim = perto(ruins);
+    const desvio = ruim.max - perto(boas).max;
+    return { desvio, foraDoTom: desvio > margem, ancoraRuim: ruim.qual };
 }

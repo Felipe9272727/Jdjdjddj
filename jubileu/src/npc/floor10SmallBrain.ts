@@ -1810,9 +1810,37 @@ export const REMENDO_TIMEOUT_MS = 70_000;
  * está errada E escreva a substituta") faz o modelo contradizer a si mesmo e
  * deslocar índices. Aqui há um grau de liberdade só: a frase vem citada, e a
  * saída não tem número para errar.
+ *
+ * ── E AGORA ELE DIZ O QUE ESTÁ ERRADO ────────────────────────────────────
+ *
+ * A versão anterior dizia "esta frase está errada" e parava aí. O juiz sabia o
+ * motivo — a trava sabe qual regex casou, o juiz de tom sabe de qual âncora
+ * ruim a frase chegou perto — e o motivo era descartado a um passo daqui.
+ *
+ * MEDIDO na bancada com o LFM2.5 de produção, régua conferindo o cânone
+ * inteiro (`bancada-navegador/revisor-candidatos.mjs`):
+ *
+ *     "esta frase está errada", e só ......... 2/6 · 50,2 s
+ *     dizendo TAMBÉM o que está errado ....... 4/6 · 53,0 s
+ *
+ * O texto abaixo é o que foi medido, não uma variação bonita dele. Duas
+ * escolhas dentro dele custaram medição e não devem ser mexidas sem outra:
+ *
+ *   · "Keep what it was saying, fix only that error" — sem isso o modelo troca
+ *     de assunto. Num teste com enunciado que EXIGIA saída diferente, o placar
+ *     foi de 0/6 a 6/6 na régua frouxa e as frases eram "the endless loop of
+ *     rooms and CORRIDORS" e "I should find my way BACK DOWN".
+ *   · `porque` vazio volta ao enunciado antigo. Um motivo inventado manda
+ *     consertar o que não está quebrado, e isso é pior que não dizer nada.
  */
-export function enunciadoDoRemendo(perguntaEmIngles: string, frase: string): string {
-    return `
+export function enunciadoDoRemendo(
+    perguntaEmIngles: string,
+    frase: string,
+    porque = '',
+): string {
+    const motivo = porque.trim();
+    if (!motivo) {
+        return `
 
 CORRECTION. One sentence only.
 
@@ -1821,6 +1849,20 @@ In your reply to "${perguntaEmIngles.trim()}", this sentence is wrong:
 "${frase}"
 
 Rewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
+    }
+    return `
+
+CORRECTION. One sentence only.
+
+The player asked: "${perguntaEmIngles.trim()}"
+
+You answered with this line:
+
+"${frase}"
+
+It is wrong because ${motivo}
+
+Write the corrected line. Keep what it was saying, fix only that error. Nilo's voice, one sentence, no explaining, no quotes.`;
 }
 
 /** Tira as aspas que ele às vezes põe em volta da frase inteira. */
@@ -1858,6 +1900,8 @@ function semAspas(t: string): string {
 export async function remendarFraseEmIngles(
     perguntaEmIngles: string,
     frase: string,
+    /** O que o juiz viu. Vazio = ele marcou sem saber dizer por quê. */
+    porque = '',
 ): Promise<RespostaDoRevisor> {
     const engine = await ensureSmallEngine(false).catch(() => null);
     if (!engine) return { tipo: 'sem-revisor' };
@@ -1874,7 +1918,7 @@ export async function remendarFraseEmIngles(
         const stream = await engine.createChatCompletion({
             messages: [
                 { role: 'system', content: PERSONA_DO_REVISOR },
-                { role: 'user', content: enunciadoDoRemendo(perguntaEmIngles, frase) },
+                { role: 'user', content: enunciadoDoRemendo(perguntaEmIngles, frase, porque) },
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
             stream: true,

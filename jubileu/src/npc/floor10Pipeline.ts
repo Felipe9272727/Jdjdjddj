@@ -39,10 +39,12 @@ import { abrasileirar } from './floor10Tradutor';
 export type PecasDoPipeline = {
     /** Escreve o primeiro jato, em inglês. */
     rascunhar: (perguntaEmIngles: string) => Promise<string | null>;
-    /** Devolve os índices 1-based das frases que soam fora do personagem. */
-    julgar: (frases: readonly string[]) => Promise<number[]>;
+    /** Aponta as frases fora do personagem — e DIZ o que viu em cada uma. */
+    julgar: (frases: readonly string[]) => Promise<readonly Marcacao[]>;
     /** Reescreve UMA frase, em inglês — e DIZ o que aconteceu (ver `RespostaDoRevisor`). */
-    remendar: (perguntaEmIngles: string, frase: string) => Promise<RespostaDoRevisor>;
+    remendar: (
+        perguntaEmIngles: string, frase: string, porque: string,
+    ) => Promise<RespostaDoRevisor>;
     /** Traduz o texto final para pt-BR. */
     traduzir: (textoEmIngles: string) => Promise<string | null>;
 };
@@ -83,6 +85,36 @@ export type PecasDoPipeline = {
  * Um tipo por desfecho não é preciosismo: é o que impede o próximo relato de
  * ser "não sei se ele errou ou escolheu".
  */
+/**
+ * ── O QUE O JUIZ VIU, E NÃO SÓ ONDE ──────────────────────────────────────
+ *
+ * O juiz sempre soube o motivo e sempre o jogou fora. A trava sabe qual regex
+ * casou; o juiz de tom sabe de qual âncora ruim a frase chegou perto — é o
+ * argmax da conta que ele já fazia. Os dois iam para o lixo a um passo de quem
+ * precisava deles.
+ *
+ * MEDIDO na bancada com o LFM2.5 de produção (`revisor-candidatos.mjs`), régua
+ * conferindo o cânone inteiro:
+ *
+ *     enunciado de hoje ("esta frase está errada") .... 2/6 · 50,2 s
+ *     dizendo TAMBÉM o que está errado ................ 4/6 · 53,0 s
+ *
+ * Dobrar o conserto por três segundos, sem baixar um byte novo. Foi o melhor
+ * retorno de toda a busca por revisor — e a busca por um MODELO melhor não
+ * achou nenhum: o Qwen2.5-1.5B custa 4× menos e devolve a frase errada letra
+ * por letra em 4 de 6, inclusive quando o motivo é entregue de bandeja.
+ *
+ * `porque` pode ser `''`, e isso é uma resposta: quer dizer "marquei, e não sei
+ * dizer por quê". O revisor então recebe o enunciado antigo. Motivo inventado
+ * seria pior que motivo nenhum.
+ */
+export type Marcacao = {
+    /** Índice 1-based da frase. */
+    n: number;
+    /** Fragmento em inglês, ou `''`. Entra no enunciado do remendo. */
+    porque: string;
+};
+
 export type RespostaDoRevisor =
     /** Saiu UMA frase inteira. `cortado` diz se o prazo estourou antes de ele parar sozinho. */
     | { tipo: 'frase'; texto: string; cortado: boolean }
@@ -107,7 +139,7 @@ export type DesfechoDoRemendo =
 export type PassoDoPipeline =
     | { passo: 'rascunho'; textoEmIngles: string; ms: number }
     | { passo: 'frases'; frases: readonly string[] }
-    | { passo: 'juiz'; marcadas: readonly number[]; ms: number }
+    | { passo: 'juiz'; marcadas: readonly Marcacao[]; ms: number }
     | { passo: 'limpeza'; n: number; antes: string; depois: string }
     | { passo: 'remendo'; n: number; antes: string; desfecho: DesfechoDoRemendo; ms: number }
     | { passo: 'traducao'; antesEmIngles: string; depoisEmPtBr: string; ms: number };
@@ -245,12 +277,14 @@ export async function falarPeloPipeline(
 
     const finais = [...frases];
     let remendadas = 0;
-    for (const n of marcadas) {
+    for (const { n, porque } of marcadas) {
         const i = n - 1;
         if (i < 0 || i >= finais.length) continue;
         const t2 = Date.now();
         const antes = finais[i];
-        const desfecho = aplicarRemendo(antes, await pecas.remendar(perguntaEmIngles, antes));
+        const desfecho = aplicarRemendo(
+            antes, await pecas.remendar(perguntaEmIngles, antes, porque),
+        );
         // Só `trocou` mexe no texto. `manteve` é uma escolha do revisor — foi o
         // que o SmolLM3 fez em 2 de 3 ("(No correction needed)") — e contá-la
         // como troca inflaria o placar; os outros quatro desfechos são falhas

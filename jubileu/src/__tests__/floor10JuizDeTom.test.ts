@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-    julgarTom, semelhanca, FLOOR10_MARGEM_DE_TOM,
-    FLOOR10_ANCORAS_BOAS, FLOOR10_ANCORAS_RUINS,
+    julgarTom, semelhanca, FLOOR10_MARGEM_DE_TOM, motivoDoTom,
+    FLOOR10_ANCORAS_BOAS, FLOOR10_ANCORAS_RUINS, FLOOR10_PORQUE_RUINS,
 } from '../npc/floor10JuizDeTom';
 
 /**
@@ -98,5 +98,66 @@ describe('as âncoras', () => {
     it('nenhuma âncora aparece nos dois lados', () => {
         const cruz = FLOOR10_ANCORAS_BOAS.filter((b) => FLOOR10_ANCORAS_RUINS.includes(b));
         expect(cruz).toEqual([]);
+    });
+});
+
+// ── O MOTIVO, QUE SEMPRE EXISTIU E ERA JOGADO FORA ────────────────────────
+//
+// O `desvio` é `max(ruins) − max(boas)`, e todo `max` tem um argmax: qual
+// âncora ruim venceu. Esse nome saía junto com o lixo, a um passo do revisor —
+// que, sem ele, conserta 2 de 6 em vez de 4 de 6 (medido com o LFM2.5 de
+// produção, régua conferindo o cânone inteiro).
+describe('o juiz devolve DE QUAL âncora ruim a frase chegou perto', () => {
+    const unit = (v: number[]) => {
+        const n = Math.hypot(...v);
+        return v.map((x) => x / n);
+    };
+    // Três eixos: uma boa, e duas ruins distinguíveis.
+    const boas = [unit([1, 0, 0])];
+    const ruins = [unit([0, 1, 0]), unit([0, 0, 1])];
+
+    it('aponta a segunda quando a frase se parece com a segunda', () => {
+        expect(julgarTom(unit([0, 0.1, 1]), boas, ruins).ancoraRuim).toBe(1);
+    });
+
+    it('e a primeira quando é a primeira', () => {
+        expect(julgarTom(unit([0, 1, 0.1]), boas, ruins).ancoraRuim).toBe(0);
+    });
+
+    it('sem âncoras, devolve -1 e motivo VAZIO — não inventa', () => {
+        // Motivo inventado é pior que motivo nenhum: manda o revisor consertar
+        // o que não está quebrado. Vazio faz o enunciado voltar ao antigo.
+        const v = julgarTom(unit([0, 1, 0]), [], ruins);
+        expect(v.ancoraRuim).toBe(-1);
+        expect(motivoDoTom(v)).toBe('');
+    });
+
+    it('o motivo entra no molde "it sounds like …", que é o medido', () => {
+        const v = julgarTom(unit([0, 1, 0]), boas, ruins);
+        expect(motivoDoTom(v).startsWith('it sounds like ')).toBe(true);
+    });
+});
+
+describe('as duas listas de âncoras ruins andam juntas', () => {
+    it('há um motivo para CADA âncora, e na mesma ordem', () => {
+        // ── O RISCO QUE ESTE TESTE COBRE ─────────────────────────────────
+        //
+        // São dois vetores paralelos ligados por índice. Acrescentar uma
+        // âncora e esquecer o motivo não quebra compilação, não quebra teste
+        // nenhum e não aparece na tela: o revisor só recebe `undefined` virando
+        // motivo vazio, silenciosamente, e volta a consertar 2 de 6. É o tipo
+        // de regressão que só apareceria numa medição meses depois.
+        expect(FLOOR10_PORQUE_RUINS).toHaveLength(FLOOR10_ANCORAS_RUINS.length);
+        for (const [i, porque] of FLOOR10_PORQUE_RUINS.entries()) {
+            expect(porque.trim(), `âncora ${i} sem motivo`).not.toBe('');
+        }
+    });
+
+    it('e nenhum motivo começa com maiúscula ou termina em ponto solto', () => {
+        // Eles são FRAGMENTOS: entram depois de "it sounds like ". Um motivo
+        // escrito como frase inteira sai como "it sounds like A hotel clerk…".
+        for (const porque of FLOOR10_PORQUE_RUINS) {
+            expect(porque[0]).toBe(porque[0].toLowerCase());
+        }
     });
 });

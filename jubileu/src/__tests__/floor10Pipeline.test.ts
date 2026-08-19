@@ -5,6 +5,9 @@ import {
     type PassoDoPipeline, type PecasDoPipeline,
 } from '../npc/floor10Pipeline';
 
+/** Açúcar: marcar frases sem repetir o motivo em todo teste que não é sobre ele. */
+const marca = (...ns: number[]) => async () => ns.map((n) => ({ n, porque: '' }));
+
 /** Açúcar: o desfecho feliz do revisor, que é o que quase todo teste quer. */
 const frase = (texto: string) => async () => ({ tipo: 'frase' as const, texto, cortado: false });
 
@@ -18,7 +21,7 @@ const frase = (texto: string) => async () => ({ tipo: 'frase' as const, texto, c
  */
 const pecas = (over: Partial<PecasDoPipeline> = {}): PecasDoPipeline => ({
     rascunhar: async () => 'I am Nilo. The door does not obey me.',
-    julgar: async () => [],
+    julgar: marca(),
     remendar: frase('A patched sentence.'),
     traduzir: async (t) => `PT<${t}>`,
     ...over,
@@ -48,7 +51,7 @@ describe('falarPeloPipeline', () => {
 
     it('remenda SÓ a frase marcada, e conta certo', async () => {
         const r = await falarPeloPipeline('Who are you?', pecas({
-            julgar: async () => [2],
+            julgar: marca(2),
             remendar: frase('It never opens.'),
         }));
         expect(r?.marcadas).toBe(1);
@@ -63,7 +66,7 @@ describe('falarPeloPipeline', () => {
         // "(No correction needed)". Contar isso como conserto inflaria o placar
         // e esconderia que o revisor não serve para o posto.
         const r = await falarPeloPipeline('Who are you?', pecas({
-            julgar: async () => [1],
+            julgar: marca(1),
             remendar: frase('I am Nilo.'),
         }));
         expect(r?.marcadas).toBe(1);
@@ -72,7 +75,7 @@ describe('falarPeloPipeline', () => {
 
     it('índice fora da lista é ignorado, não quebra', async () => {
         // O juiz do 3B chegou a apontar a "frase 4" de um rascunho com duas.
-        const r = await falarPeloPipeline('Who are you?', pecas({ julgar: async () => [9, 0] }));
+        const r = await falarPeloPipeline('Who are you?', pecas({ julgar: marca(9, 0) }));
         expect(r?.remendadas).toBe(0);
         expect(r?.fala).toBeTruthy();
     });
@@ -91,7 +94,7 @@ describe('falarPeloPipeline', () => {
     it('juiz que falha (lista vazia) deixa o rascunho passar', async () => {
         // Não julgar custa o que já custava; marcar por engano custa ~11,6 s de
         // revisor por fala. O lado certo do erro é deixar passar.
-        const r = await falarPeloPipeline('Who are you?', pecas({ julgar: async () => [] }));
+        const r = await falarPeloPipeline('Who are you?', pecas({ julgar: marca() }));
         expect(r?.fala).toBeTruthy();
         expect(r?.marcadas).toBe(0);
     });
@@ -153,7 +156,7 @@ describe('o desfecho do remendo diz de QUEM é a culpa', () => {
         ] as const) {
             const passos: PassoDoPipeline[] = [];
             const saida = await falarPeloPipeline('Who are you?', pecas({
-                julgar: async () => [2],
+                julgar: marca(2),
                 remendar: async () => r,
             }), (p) => passos.push(p));
             expect(saida?.remendadas, r.tipo).toBe(0);
@@ -161,6 +164,60 @@ describe('o desfecho do remendo diz de QUEM é a culpa', () => {
             const remendo = passos.find((p) => p.passo === 'remendo');
             expect(remendo?.passo === 'remendo' && remendo.desfecho.tipo, r.tipo).toBe(r.tipo);
         }
+    });
+});
+
+// ── O MOTIVO TEM DE CHEGAR AO REVISOR ─────────────────────────────────────
+//
+// Toda a mudança vale por isto, e é um fio fácil de cortar sem perceber: o
+// juiz calcula o motivo, o orquestrador o repassa, o revisor o usa. Se
+// qualquer um dos três parar de carregar o `porque`, nada quebra — o revisor
+// só volta a trabalhar às cegas, consertando 2 de 6 em vez de 4 de 6, e
+// ninguém fica sabendo até a próxima medição com modelo de verdade.
+describe('o que o juiz viu chega a quem vai consertar', () => {
+    it('o motivo da frase marcada é entregue ao revisor', async () => {
+        const vistos: string[] = [];
+        await falarPeloPipeline('Who are you?', pecas({
+            julgar: async () => [{ n: 2, porque: 'it gives the player advice.' }],
+            remendar: async (_p, _f, porque) => {
+                vistos.push(porque);
+                return { tipo: 'frase', texto: 'It never opens.', cortado: false };
+            },
+        }));
+        expect(vistos).toEqual(['it gives the player advice.']);
+    });
+
+    it('cada frase leva o SEU motivo, não o da vizinha', async () => {
+        const pares: string[] = [];
+        await falarPeloPipeline('Who are you?', pecas({
+            julgar: async () => [
+                { n: 1, porque: 'motivo da um' },
+                { n: 2, porque: 'motivo da dois' },
+            ],
+            remendar: async (_p, frase, porque) => {
+                pares.push(`${frase} :: ${porque}`);
+                return { tipo: 'sem-revisor' };
+            },
+        }));
+        expect(pares).toEqual([
+            'I am Nilo. :: motivo da um',
+            'The door does not obey me. :: motivo da dois',
+        ]);
+    });
+
+    it('motivo vazio passa como vazio — sem inventar nada no caminho', async () => {
+        // O juiz de tom pode marcar sem âncora vencedora. O honesto é o revisor
+        // receber '' e cair no enunciado antigo, e não o orquestrador preencher
+        // com um palpite que ninguém mediu.
+        const vistos: string[] = [];
+        await falarPeloPipeline('Who are you?', pecas({
+            julgar: async () => [{ n: 1, porque: '' }],
+            remendar: async (_p, _f, porque) => {
+                vistos.push(porque);
+                return { tipo: 'sem-revisor' };
+            },
+        }));
+        expect(vistos).toEqual(['']);
     });
 });
 
