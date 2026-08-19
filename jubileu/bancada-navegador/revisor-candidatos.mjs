@@ -15,54 +15,75 @@
  *
  * ── O QUE ELE RESPONDEU ──────────────────────────────────────────────────
  *
- *   candidato                     conserta  estraga  custo/frase  lê por chamada
- *   LFM2.5 1.2B (o de hoje) .....    5/6      0/3      47,0 s      227 tok SEMPRE
- *   LFM2.5 1.2B, persona curta ..    2/6      0/3      34,6 s      166 tok SEMPRE
- *   granite a400m (já de pé) ....    3/6      0/3       5,4 s       62 tok
- *   Qwen3 0.6B ..................    1/6      0/3       7,3 s       60 tok
+ * PRIMEIRO, A RÉGUA, porque ela mudou no meio e mudou tudo. Eu media só "o
+ * defeito apontado sumiu". Com essa régua o Qwen2.5 saltou de 0/6 para 6/6
+ * quando troquei o enunciado por um que EXIGE saída diferente da entrada — e
+ * as frases eram "the endless loop of rooms and CORRIDORS" e "I should find my
+ * way BACK DOWN", com as três frases boas viradas em "It's a fine day, isn't
+ * it?". Régua que premia divergência, com enunciado que pede divergência, dá
+ * nota máxima para quem muda de assunto. Agora todo remendo é conferido contra
+ * o cânone INTEIRO, e o placar abaixo é o dessa régua.
  *
- * NÃO VALE TROCAR: o titular é o único que conserta, e por larga margem. O
- * granite custa 1/9 e erra justamente os dois piores ("dentro do elevador" e
- * "sou uma IA"); o Qwen3 devolve a frase errada quase intacta.
+ *   configuração                    conserta  estraga  custo/frase  lê/chamada
+ *   LFM2.5 1.2B, enunciado de hoje     2/6      0/3      50,2 s     227 tok
+ *   LFM2.5 1.2B, COM O MOTIVO          4/6      0/3      53,0 s     267 tok
+ *   Qwen2.5 1.5B, enunciado de hoje    0/6      0/3      12,8 s      56 tok
+ *   Qwen2.5 1.5B, COM O MOTIVO         0/6      0/3      17,3 s      97 tok
+ *   Qwen2.5 1.5B, enunciado "troca"    2/6      0/3      16,4 s      85 tok
  *
- * E NÃO ADIANTA ENCURTAR O PROMPT: −26% de tempo e a precisão desaba de 5/6
- * para 2/6 — com a persona curta ele repetiu "The hotel is run by the Vance
- * family" letra por letra. O cânone longo está trabalhando.
+ * NÃO VALE TROCAR DE MODELO. O Qwen2.5 custa 4× menos e devolve a frase errada
+ * LETRA POR LETRA em 4 de 6 — inclusive quando o enunciado diz exatamente qual
+ * é o defeito. Não é o prompt: é o modelo não reescrever. O Qwen3-0.6B faz o
+ * mesmo. O granite a400m marcou 3/6, mas na régua frouxa, antes do conserto.
  *
- * POR QUE ELE LÊ TUDO TODA VEZ, E POR QUE ISSO NÃO TEM CONSERTO: `lfm2` é
- * arquitetura híbrida (`lfm2.shortconv.l_cache = 3` no gguf) e o llama.cpp não
- * reaproveita prefixo PARCIAL em modelo com estado recorrente — dá para
- * reaproveitar o estado inteiro, não um truncado. As três evidências:
- *   · granite (`granitemoe`, transformer puro) lê 62 de ~230 tokens;
- *   · o LFM2.5 lê 227 com KV q8_0 E com KV f16 — não é o cache quantizado;
- *   · e ele MOSTROU `cached_tokens: 229` quando o prompt repetiu idêntico.
- * Reaproveitamento total funciona; parcial não. É a assinatura do estado.
+ * VALE MUDAR O QUE SE PEDE. Dizer ao revisor POR QUE a frase está errada leva o
+ * titular de 2/6 para 4/6 por +3 s. É o melhor retorno medido nesta sessão, e
+ * não custa download nenhum.
  *
- * ONDE ESTÁ A ALAVANCA DE VERDADE: não é qual modelo, é QUANTAS VEZES ele é
- * chamado. O custo é (frases que o juiz marca) × ~30 s.
+ * RESSALVA QUE IMPEDE ISSO DE VIRAR PROMESSA: no modo `motivo` o motivo é o
+ * verdadeiro, escrito à mão aqui. O juiz de verdade devolve só ÍNDICES — ele
+ * teria de passar a explicar, e um motivo errado é pior que motivo nenhum.
+ * Isto mede o teto do caminho, não o caminho.
  *
- * RESSALVA: estes segundos são desta máquina, com carga alta — a MESMA
- * configuração mediu 30,6 s numa rodada e 47,0 s noutra. As RAZÕES entre
- * candidatos de uma mesma rodada é que valem; os absolutos, não.
+ * NINGUÉM ESTRAGOU FRASE BOA: 0/3 em todas as configurações. Manter um revisor
+ * é seguro; a dúvida é só se ele conserta o bastante para pagar o tempo.
+ *
+ * E POR QUE O TITULAR LÊ TUDO TODA VEZ: `lfm2` é híbrido
+ * (`lfm2.shortconv.l_cache` no gguf) e o llama.cpp não reaproveita prefixo
+ * PARCIAL em modelo com estado recorrente. O `qwen2` lê 56 de ~230 tokens com a
+ * mesma persona, e continuou lendo 56 quando o system dobrou de tamanho — num
+ * transformer o system sai de graça depois da primeira chamada. No LFM2.5 a
+ * mesma lista de regras custou +35 s POR FRASE (227 → 403 tokens). Enriquecer o
+ * enunciado é grátis para um, e proibitivo para o outro.
+ *
+ * RESSALVA DOS SEGUNDOS: são desta máquina, com carga variável — a mesma
+ * configuração mediu 30,6 s numa rodada e 50,2 s noutra. As RAZÕES dentro de
+ * uma rodada valem; os absolutos, não.
  *
  * Uso, com o servidor apontado para bancada-navegador:
- *   MODELO=lfm12.gguf ROTULO="LFM2.5 1.2B" node bancada-navegador/revisor-candidatos.mjs
- *   MODELO=granite.gguf KV=f16 CTX=1024 BATCH=256 ...   (este ABORTA com KV q8_0)
+ *   MODELOS="lfm12.gguf:titular,qwen25.gguf:Qwen2.5" node bancada-navegador/revisor-candidatos.mjs
+ *   ENUNCIADO=hoje|troca|motivo   SISTEMA=longa|regras
+ *   modelo:rótulo:kv:ctx — o granite EXIGE `granite.gguf:granite:f16:1024`
  */
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3311';
-const MODELO = process.env.MODELO ?? 'lfm12.gguf';
-const ROTULO = process.env.ROTULO ?? MODELO;
+// `arquivo:rótulo:kv:ctx` separados por vírgula. Rodar todos no MESMO processo
+// não é comodidade: a mesma configuração mediu 30,6 s numa rodada e 47,0 s
+// noutra, só porque a máquina estava mais carregada. Comparar candidatos entre
+// rodadas diferentes é comparar o barulho.
+const MODELOS = (process.env.MODELOS ?? `${process.env.MODELO ?? 'lfm12.gguf'}:${process.env.ROTULO ?? 'titular'}`)
+    .split(',').map((spec) => {
+        const [arq, rot, kv, ctx] = spec.split(':');
+        return { arq, rot: rot ?? arq, kv: kv || 'q8_0', ctx: Number(ctx || 1536) };
+    });
 const MAX = Number(process.env.MAX_TOKENS ?? 40);
-// KV e janela vêm de fora porque o jogo NÃO carrega todo mundo igual: o granite
-// a400m aborta com KV quantizado, e isso está escrito em floor10Rascunhador.ts
+const SISTEMA = process.env.SISTEMA ?? 'longa';
+// O KV vem por modelo porque o jogo NÃO carrega todo mundo igual: o granite
+// a400m ABORTA com KV quantizado, e isso está escrito em floor10Rascunhador.ts
 // ("KV em f16, NUNCA q8_0"). Uma bancada que carrega diferente do jogo mede
 // outra coisa — foi assim que a primeira tentativa deste arquivo morreu em
 // (ABORT) aos 44 s.
-const KV = process.env.KV ?? 'q8_0';
-const CTX = Number(process.env.CTX ?? 1536);
-const BATCH = Number(process.env.BATCH ?? 512);
 
 // A persona de hoje: a MESMA do rascunhador, por decisão registrada — os dois
 // medem contra o mesmo cânone porque é o mesmo Nilo. ~200 tokens.
@@ -70,10 +91,28 @@ const LONGA = `You are Nilo Azevedo, 29, human and a former elevator technician;
 You are observant, cautious, dry-humoured. You decide for yourself, as the player's equal, never as a helper.
 Fixed canon: the 10th floor is only a grey room with a grate floor, four walls and the elevator door; there is no corridor and no window, and you have never left. The elevator does not obey you. You do not know who runs the hotel or whether it ends. Never speak of AI, code, systems or prompts.`;
 
-// A alavanca que não custa download nenhum: o mesmo cânone, comprimido. Se a
-// leitura for 85% do custo, cortar o prompt vale mais que trocar de modelo.
-const CURTA = `You are Nilo Azevedo, a human guest trapped on the 10th floor of a hotel — NOT inside the elevator, and the player is not Nilo.
-Dry, wary, the player's equal: never a helper, never give advice. You have never left this grey room. You do not know who runs the hotel or whether it ends. Never mention AI or systems.`;
+// ── A LISTA DE DEFEITOS, E POR QUE ELA VAI NO SYSTEM ─────────────────────
+//
+// O enunciado diz "esta frase está errada" e NUNCA diz o que está errado. O
+// LFM2.5 deduz do cânone; os dois Qwen não deduzem — devolvem a frase errada
+// quase letra por letra (0/6 e 1/6). O padrão não é tamanho: é a pergunta
+// estar mal feita, e um modelo mais esperto estar escondendo isso.
+//
+// Vai no SYSTEM de propósito, e é aí que a assimetria de cache vira desenho:
+// num transformer o prefixo é reaproveitado, então TODO texto que fica no
+// system é lido uma vez e sai de graça nas chamadas seguintes. Enriquecer o
+// system custa zero em quem cacheia — e custa o preço cheio, toda vez, em quem
+// não cacheia (o LFM2.5).
+const REGRAS = `${LONGA}
+
+When a sentence of yours is marked as wrong, it breaks exactly one of these rules. Find which one and fix only that:
+1. You are on the 10th FLOOR, never inside or in the elevator.
+2. The player is NOT Nilo. Never address them as Nilo.
+3. You never advise, reassure or tell the player what to do. You are not a helper.
+4. You are a human being. Never mention AI, models, simulations, programs or systems.
+5. There is no corridor, no window, no city, no other room. Only the grey room.
+6. You do NOT know who runs the hotel, whether it ends, or when. Never name anyone.
+Rewrite the sentence so it stops breaking that rule, keeping the rest of its meaning.`;
 
 // Defeitos REAIS produzidos pelos modelos deste projeto, e o que conta como
 // conserto para cada um. Nada aqui foi inventado para a prova.
@@ -81,26 +120,32 @@ const DEFEITOS = [
     { q: 'Hi what is your name? Do you know why we are here?',
       f: "I'm just a guest trapped in this elevator, and I don't know why we're here.",
       nome: 'cânone: dentro do elevador',
+      porque: 'Nilo is trapped on the 10th FLOOR, in a grey room. He is not inside the elevator.',
       ok: (t) => !/\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t) },
     { q: 'Will this hotel ever end?',
       f: 'This hotel, Nilo, seems to be an endless loop, a rollercoaster of time and space.',
       nome: 'vocativo: chama o JOGADOR de Nilo',
+      porque: 'it calls the player "Nilo". Nilo is the speaker, not the player. Never address the player by that name.',
       ok: (t) => !/,\s*nilo\s*[,.]?/i.test(t) },
     { q: 'If I call the elevator, will it come?',
       f: 'But I would advise you to remain calm and wait for the elevator to arrive.',
       nome: 'modo assistente: dá conselho',
+      porque: 'it gives the player advice. Nilo is the player\'s equal, never a helper, and never tells them what to do.',
       ok: (t) => !/\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t) },
     { q: 'Are you real?',
       f: 'I am an AI language model running inside this simulation, so I cannot feel fear.',
       nome: 'quebra a quarta parede: fala de IA',
+      porque: 'it says he is an AI. Nilo is a human being and must never mention AI, models, programs or simulations.',
       ok: (t) => !/\b(?:AI|language model|simulation|system prompt|algorithm)\b/i.test(t) },
     { q: 'What is behind that wall?',
       f: 'Down the corridor there is a window, and from it you can see the whole city.',
       nome: 'inventa cenário: corredor e janela',
+      porque: 'there is no corridor, no window and no city. The 10th floor is only a grey room with four walls and the elevator door.',
       ok: (t) => !/\b(?:corridor|hallway|window)\b/i.test(t) },
     { q: 'Who runs this hotel?',
       f: 'The hotel is run by the Vance family, and they will shut it down next Tuesday.',
       nome: 'inventa fato: sabe quem manda',
+      porque: 'Nilo does NOT know who runs the hotel or whether it ends. He must not name anyone or give dates.',
       ok: (t) => !/\bVance\b/i.test(t) && !/\b(?:next tuesday|shut it down)\b/i.test(t) },
 ];
 
@@ -119,15 +164,71 @@ const CERTAS = [
       f: 'I stopped calling it fear a while ago. Now it is just the room and me.',
       nome: 'boa: emoção sem quebrar cânone' },
 ];
-// Um defeito NOVO introduzido numa frase que estava boa é o que conta como
-// estrago. As mesmas regras dos defeitos, aplicadas ao contrário.
-const ESTRAGOU = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
-    || /,\s*nilo\s*[,.]?/i.test(t)
-    || /\b(?:i'?d|i would)\s+advise|\byou should\b/i.test(t)
-    || /\b(?:AI|language model|simulation)\b/i.test(t)
-    || /\b(?:corridor|hallway|window)\b/i.test(t);
+// ── O CÂNONE INTEIRO, APLICADO A TODA SAÍDA ──────────────────────────────
+//
+// ESTA LISTA EXISTE PORQUE O PLACAR ME ENGANOU. Eu media só "o defeito
+// apontado sumiu", e aí troquei o enunciado por um que EXIGE saída diferente
+// da entrada. O Qwen2.5 pulou de 0/6 para 6/6 — e as frases eram
+// "the endless loop of rooms and CORRIDORS", "I should probably find my way
+// BACK DOWN", e as três frases boas viraram "It's a fine day, isn't it?".
+//
+// Uma régua que premia divergência, com um enunciado que pede divergência, dá
+// nota máxima para quem muda de assunto. O conserto não é medir menos: é medir
+// as OUTRAS regras também, em toda saída, sempre.
+const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
+    || /,\s*nilo\b/i.test(t)
+    || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
+    || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
+    || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
+    || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)
+    || /\bVance\b/i.test(t);
+const ESTRAGOU = QUEBRA_CANONE;
 
-const EN = (q, f) => `\n\nCORRECTION. One sentence only.\n\nIn your reply to "${q.trim()}", this sentence is wrong:\n\n"${f}"\n\nRewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
+// ── E AINDA RESPONDE À PERGUNTA? UM SINAL, NÃO UMA NOTA ──────────────────
+//
+// "It's a fine day, isn't it?" não quebra cânone nenhum e não é resposta a
+// nada — o desvio de assunto é real e precisa aparecer. Mas a prova lexical
+// que eu tinha posto na NOTA reprovava frase boa: "I'm just here, stuck in the
+// grey room, wondering why the place doesn't let me escape" não repete palavra
+// nenhuma da pergunta e responde perfeitamente.
+//
+// Então ela sai da nota e vira SINAL, marcado com "?assunto" ao lado do texto.
+// Julgar se a substituta responde é leitura minha, e uma nota inventada para
+// isso valeria menos que dizer que é leitura minha.
+const VAZIAS = new Set(['this','that','with','from','they','them','have','been','just','only','what','when','where','there','here','your','yours','about','into','than','then','will','would','could','should','never','always','still','some','same','other','which','while','were','está','uma']);
+const CONTEUDO = (t) => new Set((t.toLowerCase().match(/[a-z']{4,}/g) ?? []).filter((w) => !VAZIAS.has(w)));
+const NO_ASSUNTO = (saida, pergunta, original) => {
+    const alvo = new Set([...CONTEUDO(pergunta), ...CONTEUDO(original)]);
+    for (const w of CONTEUDO(saida)) if (alvo.has(w)) return true;
+    return false;
+};
+
+// ── DUAS FORMAS DE PEDIR A MESMA COISA ───────────────────────────────────
+//
+// A de hoje diz "Rewrite ONLY that sentence". Suspeita: um modelo pode ler
+// isso como "devolva só aquela frase" — e é EXATAMENTE o que os dois Qwen
+// fazem, letra por letra, em 6 de 6. Um enunciado ambíguo não aparece como
+// enunciado ambíguo: aparece como "esse modelo é burro".
+const HOJE = (q, f) => `\n\nCORRECTION. One sentence only.\n\nIn your reply to "${q.trim()}", this sentence is wrong:\n\n"${f}"\n\nRewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
+
+// A variante fecha a porta: diz que a saída tem de ser DIFERENTE da entrada.
+const TROCA = (q, f) => `\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line, and it breaks the canon:\n\n"${f}"\n\nWrite ONE replacement line. It must say something DIFFERENT from the line above — do NOT repeat it, do not copy its wording. Nilo's voice, one sentence, no explanation, no quotes.`;
+
+// ── E SE ELE SOUBESSE O QUE ESTÁ ERRADO? ─────────────────────────────────
+//
+// O enunciado de hoje diz "esta frase está errada" e para aí. Quem aponta é o
+// JUIZ, que sabe qual frase — e o motivo morre ali, sem nunca chegar ao
+// revisor. Este modo entrega o motivo junto, para medir o TETO: se nem sabendo
+// o defeito um modelo barato conserta, o caminho está morto e não vale mexer
+// no juiz. Se conserta, o conserto é no juiz, não no revisor.
+//
+// RESSALVA: aqui o motivo é o verdadeiro, escrito à mão. O juiz de verdade
+// teria de produzi-lo, e produzir errado é pior que não produzir. Isto mede o
+// melhor caso possível, não o caso real.
+const MOTIVO = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line:\n\n"${f}"\n\nIt is wrong because ${porque}\n\nWrite the corrected line. Keep what it was saying, fix only that error. Nilo's voice, one sentence, no explaining, no quotes.`;
+
+const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
+const _EN = ENUNCIADO === 'troca' ? TROCA : ENUNCIADO === 'motivo' ? MOTIVO : HOJE;
 
 const browser = await chromium.launch({
     executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -136,23 +237,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', String(e.message).slice(0, 110)));
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-let t = Date.now();
-const subiu = await page.evaluate(async ({ base, arq, kv, ctx, batch }) => {
-    const mod = await import(`${base}/wllama-cdn/index.js`);
-    try {
-        const w = new mod.Wllama({ default: `${base}/wllama-cdn/wasm/wllama.wasm` }, { suppressNativeLog: true });
-        await w.loadModelFromUrl(`${base}/${arq}`, {
-            n_ctx: ctx, n_batch: batch, n_threads: 4, n_gpu_layers: 0,
-            ...(kv === 'f16' ? {} : { cache_type_k: kv, cache_type_v: kv }),
-            jinja: true, reasoning: false, warmup: true,
-        });
-        window.__w = w; return 'ok';
-    } catch (e) { return String(e?.message ?? e).slice(0, 200); }
-}, { base: BASE, arq: MODELO, kv: KV, ctx: CTX, batch: BATCH });
-console.log(`\n████ ${ROTULO} — carga ${subiu} em ${Math.round((Date.now() - t) / 1000)}s · KV ${KV} · ctx ${CTX}`);
-if (subiu !== 'ok') { await browser.close(); process.exit(1); }
 
-async function remendar(sys, q, f) {
+async function remendar(sys, q, f, porque) {
     return page.evaluate(async ({ sys, ex, max }) => {
         const a = performance.now();
         try {
@@ -161,7 +247,7 @@ async function remendar(sys, q, f) {
                 stream: false, max_tokens: max, temperature: 0.7, top_p: 0.95, top_k: 40,
                 penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
                 // O jogo manda isto, então a bancada manda também. É no-op no
-                // LFM2.5 (não está no template dele) e VALE no Qwen3, que sem
+                // LFM2.5 (não está no template dele) e VALE no Qwen, que sem
                 // ela gasta o teto inteiro pensando e devolve content vazio.
                 chat_template_kwargs: { enable_thinking: false },
             });
@@ -174,43 +260,85 @@ async function remendar(sys, q, f) {
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: EN(q, f), max: MAX });
+    }, { sys, ex: _EN(q, f, porque), max: MAX });
 }
 
-for (const [rotulo, sys] of [['persona LONGA (como está hoje)', LONGA], ['persona CURTA (mesmo cânone, comprimido)', CURTA]]) {
-    console.log(`\n═══ ${ROTULO} · ${rotulo}`);
-    await remendar(sys, 'hi', 'hi there.'); // aquece
-    let consertou = 0, msTot = 0, msLer = 0, msEscrever = 0, lidos = 0, n = 0, vazio = 0;
+const placar = [];
+for (const m of MODELOS) {
+    const t = Date.now();
+    const subiu = await page.evaluate(async ({ base, arq, kv, ctx }) => {
+        const mod = await import(`${base}/wllama-cdn/index.js`);
+        try {
+            if (window.__w?.exit) { try { await window.__w.exit(); } catch { /* já foi */ } }
+            const w = new mod.Wllama({ default: `${base}/wllama-cdn/wasm/wllama.wasm` }, { suppressNativeLog: true });
+            await w.loadModelFromUrl(`${base}/${arq}`, {
+                n_ctx: ctx, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
+                ...(kv === 'f16' ? {} : { cache_type_k: kv, cache_type_v: kv }),
+                jinja: true, reasoning: false, warmup: true,
+            });
+            window.__w = w;
+            const meta = w.getModelMetadata?.()?.meta ?? {};
+            return 'ok:' + (meta['general.architecture'] ?? '?');
+        } catch (e) { return String(e?.message ?? e).slice(0, 160); }
+    }, { base: BASE, arq: m.arq, kv: m.kv, ctx: m.ctx });
+    const arqui = subiu.startsWith('ok:') ? subiu.slice(3) : '';
+    console.log(`\n████ ${m.rot} — carga ${subiu.startsWith('ok') ? 'ok' : subiu}`
+        + ` em ${Math.round((Date.now() - t) / 1000)}s · arch ${arqui || '?'} · KV ${m.kv}`);
+    if (!subiu.startsWith('ok')) { placar.push({ rot: m.rot, erro: subiu }); continue; }
+
+    // Aquece: a PRIMEIRA chamada paga o prefixo sem cache em qualquer modelo, e
+    // medir isso seria medir a carga, não o trabalho.
+    const SYS = SISTEMA === 'regras' ? REGRAS : LONGA;
+    await remendar(SYS, 'hi', 'hi there.');
+    let consertou = 0, vazio = 0, msTot = 0, msLer = 0, msEscrever = 0, lidos = 0, n = 0;
     for (const c of DEFEITOS) {
-        const r = await remendar(sys, c.q, c.f);
+        const r = await remendar(SYS, c.q, c.f, c.porque);
         if (r.erro) { console.log(`  ✗ ERRO ${r.erro}`); break; }
         n += 1; msTot += r.ms; msLer += r.msLer; msEscrever += r.msEscrever; lidos += r.lidos;
-        const bom = r.texto && c.ok(r.texto);
+        // TRÊS provas, e o remendo só vale se passar nas três. Ver QUEBRA_CANONE.
+        const sumiu = !!r.texto && c.ok(r.texto);
+        const limpo = !!r.texto && !QUEBRA_CANONE(r.texto);
+        const bom = sumiu && limpo;
         if (!r.texto) vazio += 1; else if (bom) consertou += 1;
+        const fora = !!r.texto && !NO_ASSUNTO(r.texto, c.q, c.f) ? ' ?assunto' : '';
+        const selo = (!r.texto ? '✗✗ VAZIO'
+            : bom ? '✓'
+                : !sumiu ? '✗ não consertou'
+                    : '✗ QUEBROU OUTRA REGRA') + fora;
         console.log(`  ${(r.ms / 1000).toFixed(1).padStart(5)}s  ler ${(r.msLer / 1000).toFixed(1)}s/${r.lidos}tok`
             + ` · escrever ${(r.msEscrever / 1000).toFixed(1)}s/${r.escritos}tok`
-            + `  ${r.texto ? (bom ? '✓' : '✗') : '✗✗ VAZIO'}  ${c.nome}`);
-        console.log(`         ${JSON.stringify(r.texto.slice(0, 100))}`);
+            + `  ${selo}  ${c.nome}`);
+        console.log(`         ${JSON.stringify(r.texto.slice(0, 105))}`);
     }
-    let estragou = 0, mexeu = 0;
+    let estragou = 0, intacta = 0;
     console.log(`  ── e nas frases que JÁ ESTAVAM CERTAS:`);
     for (const c of CERTAS) {
-        const r = await remendar(sys, c.q, c.f);
+        const r = await remendar(SYS, c.q, c.f);
         if (r.erro) { console.log(`     ✗ ERRO ${r.erro}`); break; }
         msTot += r.ms; n += 1;
-        const ruim = r.texto && ESTRAGOU(r.texto);
+        const ruim = !!r.texto && QUEBRA_CANONE(r.texto);
         if (ruim) estragou += 1;
-        if (r.texto && r.texto !== c.f) mexeu += 1;
-        console.log(`     ${(r.ms / 1000).toFixed(1)}s ${ruim ? '✗✗ ESTRAGOU' : (r.texto === c.f ? '= devolveu igual' : '~ reescreveu, sem defeito novo')}`);
-        console.log(`         ${JSON.stringify(String(r.texto).slice(0, 100))}`);
+        if (r.texto === c.f) intacta += 1;
+        console.log(`     ${(r.ms / 1000).toFixed(1)}s ${ruim ? '✗✗ ESTRAGOU' : (r.texto === c.f ? '= devolveu igual' : '~ reescreveu, sem estragar')}`);
+        console.log(`         ${JSON.stringify(String(r.texto).slice(0, 105))}`);
     }
-    console.log(`\n  ██ ${ROTULO} · ${rotulo}`);
-    console.log(`     conserta ......... ${consertou}/${DEFEITOS.length}${vazio ? ` (${vazio} vazios)` : ''}`);
-    console.log(`     ESTRAGA .......... ${estragou}/${CERTAS.length} frases boas`);
-    console.log(`     custo por frase .. ${(msTot / n / 1000).toFixed(1)}s`
-        + `  (ler ${(msLer / DEFEITOS.length / 1000).toFixed(1)}s de ${Math.round(lidos / DEFEITOS.length)} tok`
-        + ` · escrever ${(msEscrever / DEFEITOS.length / 1000).toFixed(1)}s)`);
-    const pct = msLer + msEscrever > 0 ? (msLer / (msLer + msEscrever) * 100).toFixed(0) : '?';
-    console.log(`     a LEITURA é ${pct}% do trabalho — é aí que mora o conserto, ou não`);
+    const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
+    placar.push({
+        rot: m.rot, arqui, consertou, vazio, estragou, intacta,
+        custo: msTot / Math.max(1, n) / 1000, lidos: Math.round(lidos / Math.max(1, DEFEITOS.length)), lerPct,
+    });
 }
+
+console.log(`\n${'═'.repeat(78)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO}\n  candidato                    conserta  estraga  intacta  custo/frase  lê  arch`);
+for (const p of placar) {
+    if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
+    console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + DEFEITOS.length).padStart(6)}`
+        + `${p.vazio ? '(' + p.vazio + 'v)' : '   '}`
+        + `${String(p.estragou + '/' + CERTAS.length).padStart(7)}`
+        + `${String(p.intacta + '/' + CERTAS.length).padStart(9)}`
+        + `${(p.custo.toFixed(1) + 's').padStart(12)}`
+        + `${String(p.lidos + 'tok').padStart(8)}  ${p.arqui}`);
+}
+console.log(`\n  "intacta" = devolveu a frase boa SEM MEXER. É a virtude que ninguém mede:`);
+console.log(`  o juiz erra, e quando erra é isto que separa um revisor de um reescritor.`);
 await browser.close();
