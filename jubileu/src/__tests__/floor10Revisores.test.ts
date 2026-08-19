@@ -131,3 +131,56 @@ describe('um motor, dois papéis, às vezes dois arquivos', () => {
         expect(fonte).toContain("if (cerebroDoRevisor() === null) return true;");
     });
 });
+
+// ── DUAS LISTAS PARA A MESMA INSTALAÇÃO ───────────────────────────────────
+//
+// `?revisor=llama` não mudou nada na primeira tentativa, e o relato foi seco:
+// "não mudou de revisor". A escolha estava ligada em `composicaoDaFila` — a
+// fila do JOGO — e a sala do `?pipeline` tem lista PRÓPRIA, com quatro peças
+// fixas e o modelo da vontade escrito no meio. Ela nunca leu de lá.
+//
+// O defeito de origem é haver duas listas. Até virarem uma só, esta suíte
+// prende o mínimo: a segunda tem de responder às mesmas perguntas que a
+// primeira responde.
+describe('a sala do ?pipeline obedece à escolha de revisor', () => {
+    const sala = readFileSync(new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8');
+    // A fatia procura o fim A PARTIR do começo. A primeira versão usava um
+    // `indexOf` solto e pegava o `reportaProgresso` do TRADUTOR, que vem antes:
+    // a fatia saía vazia e as asserções passavam a testar string vazia — o
+    // silêncio mais perigoso que um teste de fonte pode ter.
+    const inicio = sala.indexOf("id: 'revisor',");
+    const peca = sala.slice(inicio, sala.indexOf('reportaProgresso: true', inicio));
+
+    it('a fatia lida é o bloco do revisor, e não vazio', () => {
+        expect(inicio).toBeGreaterThan(-1);
+        expect(peca.length).toBeGreaterThan(200);
+    });
+
+    it('o nome e o tamanho saem da ESCOLHA, não de um literal', () => {
+        expect(peca).toContain('modeloDoRevisor().label');
+        expect(peca).toContain('modeloDoRevisor().bytes');
+    });
+
+    it('e baixa pelo caminho que conhece o arquivo próprio', () => {
+        // `baixarVontade` desce o modelo da VONTADE. Com `?revisor=llama` o
+        // arquivo é outro, e a barra fecharia sem ter baixado o que promete.
+        expect(peca).toContain('carregar: baixarRevisor');
+    });
+
+    it('modeloDoRevisor NÃO pode depender do papel corrente do motor', () => {
+        // `SMALL_BRAIN_MODEL` responde ao papel que o motor está servindo, e no
+        // momento em que a lista é montada o papel ainda é 'vontade' — a tela
+        // mostraria o arquivo errado até alguém remendar uma frase.
+        const fn = sala.slice(sala.indexOf('function modeloDoRevisor'), sala.indexOf('const PALAVRA') > 0
+            ? sala.indexOf('const PALAVRA') : sala.indexOf('function modeloDoRevisor') + 600);
+        expect(fn).toContain('cerebroDoRevisor()');
+        expect(fn).toContain('SMALL_BRAIN_CATALOG.find');
+    });
+
+    it('e o detalhe diz ao jogador se aquilo custa download novo', () => {
+        // A diferença entre "é o mesmo arquivo da vontade" e "arquivo próprio"
+        // é 1,02 GB do plano de dados dele.
+        expect(peca).toContain('cerebroDoRevisor() === null');
+        expect(peca).toContain('arquivo próprio');
+    });
+});

@@ -41,18 +41,32 @@ import {
 } from './npc/floor10Tradutor';
 import { diagnosticar } from './npc/floor10Diagnostico';
 import {
-    SMALL_BRAIN_MODEL, baixarVontade, unloadSmallBrain,
+    SMALL_BRAIN_MODEL, baixarRevisor, unloadSmallBrain,
 } from './npc/floor10SmallBrain';
 import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
 import {
     enumerarEmIngles, type DesfechoDoRemendo, type PassoDoPipeline,
 } from './npc/floor10Pipeline';
-import { revisorAtual } from './npc/floor10Revisores';
+import { revisorAtual, cerebroDoRevisor } from './npc/floor10Revisores';
+import { SMALL_BRAIN_CATALOG } from './npc/floor10Brains';
 
 /** "LFM2.5" ou "Llama 3.2" — o rótulo do catálogo cortado antes do parêntese. */
 function nomeCurtoDoRevisor(): string {
     return revisorAtual().label.split('(')[0].trim();
+}
+
+/**
+ * O modelo que o revisor VAI baixar — o próprio dele, ou o da vontade.
+ *
+ * Não dá para usar `SMALL_BRAIN_MODEL` aqui: ele responde ao PAPEL que o motor
+ * está servindo, e no momento em que esta lista é montada o papel ainda é
+ * 'vontade'. A tela mostraria o arquivo errado até alguém remendar uma frase.
+ */
+function modeloDoRevisor(): { label: string; bytes: number } {
+    const id = cerebroDoRevisor();
+    const achado = id ? SMALL_BRAIN_CATALOG.find((m) => m.id === id) : undefined;
+    return achado ?? SMALL_BRAIN_MODEL;
 }
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
@@ -265,10 +279,23 @@ export default function Floor10PipelineSala() {
             motivo: ultimoErroDoJuiz,
         },
         {
+            // ── A PEÇA QUE OBEDECE À ESCOLHA ─────────────────────────────
+            //
+            // ESTA SALA TEM LISTA PRÓPRIA, e foi por isso que `?revisor=llama`
+            // não mudou nada na primeira tentativa: eu liguei a escolha em
+            // `composicaoDaFila` — a fila do JOGO — e esta tela nunca leu de
+            // lá. Ela mostrava quatro peças fixas com o modelo da vontade
+            // escrito no meio, e o relato veio na hora: "não mudou de revisor".
+            //
+            // Duas listas para a mesma instalação é o defeito de origem; até
+            // elas virarem uma só, esta tem de perguntar a mesma coisa que a
+            // outra pergunta.
             id: 'revisor',
-            nome: `revisor · ${SMALL_BRAIN_MODEL.label}`,
-            bytes: SMALL_BRAIN_MODEL.bytes,
-            detalhe: 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
+            nome: `revisor · ${modeloDoRevisor().label}`,
+            bytes: modeloDoRevisor().bytes,
+            detalhe: cerebroDoRevisor() === null
+                ? 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade'
+                : 'só entra nas frases que o juiz marcou · arquivo próprio, 4,5x mais rápido que o LFM2.5',
             // ── SÓ BAIXA. NÃO SOBE. ──────────────────────────────────────
             //
             // Aqui estava `precarregarVontade`, que sobe um llama.cpp INTEIRO
@@ -282,11 +309,11 @@ export default function Floor10PipelineSala() {
             // A fila do jogo nunca fez isso, e o comentário em
             // `passosDoAndar10` diz por quê, com as palavras dele: "quando
             // começa a baixar [a vontade], começa a travar meu celular todo".
-            // Por isso ela usa `baixarVontade` — baixar é rede, subir é núcleo,
+            // Por isso ela usa `baixarRevisor` — baixar é rede, subir é núcleo,
             // e os dois no mesmo passo foi o que travava o aparelho. Eu sabia
             // disso e escrevi a sala ignorando.
             carregado: () => false,
-            carregar: baixarVontade,
+            carregar: baixarRevisor,
             // Ele publica em `deliberationDownload`, e não em `loadDownload` —
             // é o campo que a tela da VONTADE usa no jogo há muito tempo. Sem
             // dizer isso aqui, a barra dele ficava invisível.
