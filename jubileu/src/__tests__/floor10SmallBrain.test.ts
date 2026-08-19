@@ -12,6 +12,8 @@ import {
     escolhaAssinada,
     raceWithAbort,
     readCompletionText,
+    REMENDO_MAX_TOKENS,
+    REMENDO_TIMEOUT_MS,
 } from '../npc/floor10SmallBrain';
 import { MAX_SPEECH_THREADS } from '../npc/wllamaEngine';
 import { Floor10WillBrain } from '../npc/floor10Will';
@@ -282,5 +284,36 @@ describe('npc/floor10SmallBrain — a rodada acaba quando ele assina', () => {
         expect(escolhaAssinada('devo terminar com CHOICE: idle no fim')).toBe(false);
         expect(escolhaAssinada('nada aqui')).toBe(false);
         expect(escolhaAssinada('')).toBe(false);
+    });
+});
+
+// ── O REVISOR QUE NUNCA TEVE CHANCE ───────────────────────────────────────
+//
+// Relato, diante da tela: *"o revisor até foi acionado (tanto que parece que
+// ele pensou) mas ele simplesmente decide não mudar — será um bug, ou uma
+// escolha?"*. Bug, e o relógio já dizia: 45,6 s e 30,6 s com o teto em 25 s.
+// Uma guarda recusando custa 0,0 s.
+//
+// MEDIDO no navegador com o LFM2.5-1.2B de produção (`revisor-pensa.mjs`),
+// mesmo código, mudando só o prazo:
+//
+//     corte em 25 s .......... 0/3 consertou · 3 VAZIOS · 26,1 s por frase
+//     prazo de sobra ......... 2/3 consertou · 0 vazios · 30,6 s por frase
+//
+// A chamada custa ~30 s e o corte caía aos 25. Ele nunca entregou nada.
+describe('o prazo do remendo cabe uma chamada inteira', () => {
+    it('não pode voltar para baixo de um minuto', () => {
+        // 30,6 s NESTA bancada; o celular do dono do jogo é mais lento. E cortar
+        // não devolve tempo: `abortSignal` só é conferido entre leituras de
+        // resultado, e um corte aos 8 s levou 37,9 s para voltar — vazio.
+        expect(REMENDO_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+    });
+
+    it('e o teto de tokens fica em 40, que é o que o aparelho sente', () => {
+        // O `abort` do wllama 3.5.1 não devolve CPU: ele só faz o JS parar de
+        // ler, e o worker segue gerando. `max_tokens` é o único número aqui que
+        // o aparelho obedece — e sete frases medidas fecharam entre 15 e 30
+        // tokens, com uma não fechando dentro de 32.
+        expect(REMENDO_MAX_TOKENS).toBeGreaterThanOrEqual(40);
     });
 });

@@ -8,11 +8,19 @@
 //
 //     granite a400m rascunha em inglês ...... 3,2 s   (3,5× a leitura do 3B)
 //     juiz de tom marca o que soa errado .... 0,5 s   (5/6 nas cegas)
-//     LFM2.5 remenda SÓ a frase marcada .... 11,6 s   (3/3 de acerto)
+//     LFM2.5 remenda SÓ a frase marcada .... 30,6 s   (2/3 de acerto)
 //     Bergamot traduz + passe pt-BR ........ 0,13 s   (26× o m2m100)
 //
 //     juiz não marcou ...  3,9 s   contra 13,0 s do SmolLM3 direto   0,30×
-//     juiz marcou 3/3 ... 15,4 s   contra 13,4 s                     1,01×
+//
+// O 11,6 s que já esteve escrito nesta linha do remendo era de uma medição com
+// outro formato de chamada, e sustentou um teto de 25 s que cortava TODAS as
+// chamadas antes do fim — o revisor devolvia vazio sempre. Refeito com o
+// LFM2.5-1.2B de produção (`bancada-navegador/revisor-pensa.mjs`): 30,6 s.
+//
+// Isso muda a conta do desenho e o número fica aqui à vista: o remendo é a
+// etapa CARA, e é por isso que o juiz existe — quando ele não marca nada, o
+// pipeline inteiro custa 3,9 s. Cada frase marcada soma ~30 s.
 
 import {
     falarPeloPipeline, pipelineLigado,
@@ -87,8 +95,8 @@ export const PECAS_REAIS: PecasDoPipeline = {
 
     remendar: async (pergunta, frase) => {
         // O revisor é o LFM2.5 — o MESMO arquivo da vontade, e por isso de
-        // graça em disco. Medido, ele faz 3/3 de acerto em 11,6 s contra 1/3
-        // em 18,4 s do SmolLM3.
+        // graça em disco. Medido no 1.2B de produção: 2/3 de acerto em 30,6 s
+        // por frase, contra 1/3 em 18,4 s do SmolLM3.
         //
         // ── A TROCA, E POR QUE ELA PRECISOU EXISTIR ──────────────────────
         //
@@ -112,13 +120,15 @@ export const PECAS_REAIS: PecasDoPipeline = {
         // sobrando exatamente quando o revisor precisa de um.
         if (!vontadeDePeAgora()) {
             const trocou = await trocarRascunhadorPeloRevisor();
-            if (!trocou) return null;
+            if (!trocou) return { tipo: 'sem-revisor' };
         }
         npcSet({ etapa: 'corrigindo uma frase…' });
         // Prazo mesmo assim: um remendo que não volta não pode custar a fala.
+        // Este é o prazo de FORA (o motor pendurado); o de dentro, que corta a
+        // geração e guarda o parcial, é o `REMENDO_TIMEOUT_MS`.
         return comPrazo(
             remendarFraseEmIngles(pergunta, frase), PRAZO_CARGA_MS, 'o revisor',
-        ).catch(() => null);
+        ).catch((e) => ({ tipo: 'erro' as const, erro: String(e?.message ?? e).slice(0, 180) }));
     },
 
     traduzir: async (texto) => {

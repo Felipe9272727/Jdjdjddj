@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     falarPeloPipeline, limparFrase, enumerarEmIngles, pipelineLigado,
-    type PecasDoPipeline,
+    aplicarRemendo, primeiraFraseFechada,
+    type PassoDoPipeline, type PecasDoPipeline,
 } from '../npc/floor10Pipeline';
+
+/** Açúcar: o desfecho feliz do revisor, que é o que quase todo teste quer. */
+const frase = (texto: string) => async () => ({ tipo: 'frase' as const, texto, cortado: false });
 
 /**
  * A ORQUESTRAÇÃO do pipeline, testada sem baixar 1 GB.
@@ -15,14 +19,14 @@ import {
 const pecas = (over: Partial<PecasDoPipeline> = {}): PecasDoPipeline => ({
     rascunhar: async () => 'I am Nilo. The door does not obey me.',
     julgar: async () => [],
-    remendar: async () => 'A patched sentence.',
+    remendar: frase('A patched sentence.'),
     traduzir: async (t) => `PT<${t}>`,
     ...over,
 });
 
 describe('falarPeloPipeline', () => {
     it('caminho feliz: juiz não marca, revisor nem é chamado', () => expect((async () => {
-        const remendar = vi.fn(async () => 'nunca');
+        const remendar = vi.fn(frase('nunca'));
         const r = await falarPeloPipeline('Who are you?', pecas({ remendar }));
         expect(remendar).not.toHaveBeenCalled();
         expect(r?.marcadas).toBe(0);
@@ -45,7 +49,7 @@ describe('falarPeloPipeline', () => {
     it('remenda SÓ a frase marcada, e conta certo', async () => {
         const r = await falarPeloPipeline('Who are you?', pecas({
             julgar: async () => [2],
-            remendar: async () => 'It never opens.',
+            remendar: frase('It never opens.'),
         }));
         expect(r?.marcadas).toBe(1);
         expect(r?.remendadas).toBe(1);
@@ -60,7 +64,7 @@ describe('falarPeloPipeline', () => {
         // e esconderia que o revisor não serve para o posto.
         const r = await falarPeloPipeline('Who are you?', pecas({
             julgar: async () => [1],
-            remendar: async () => 'I am Nilo.',
+            remendar: frase('I am Nilo.'),
         }));
         expect(r?.marcadas).toBe(1);
         expect(r?.remendadas).toBe(0);
@@ -90,6 +94,100 @@ describe('falarPeloPipeline', () => {
         const r = await falarPeloPipeline('Who are you?', pecas({ julgar: async () => [] }));
         expect(r?.fala).toBeTruthy();
         expect(r?.marcadas).toBe(0);
+    });
+});
+
+/**
+ * ── BUG OU ESCOLHA: A PERGUNTA QUE ESTE BLOCO FECHA ──────────────────────
+ *
+ * O relato foi, olhando a tela: *"ele simplesmente decide não mudar — será um
+ * bug, ou uma escolha?"*. Era bug, e a tela não tinha como dizer: quatro
+ * desfechos com preços e culpados diferentes chegavam como o mesmo `null`.
+ *
+ * O que denunciou foi o RELÓGIO — 45,6 s e 30,6 s, com o teto do revisor em
+ * 25 s. Uma guarda recusando custa 0,0 s; quem gasta meio minuto trabalhou, e
+ * o `WllamaAbortError` subia sem o texto parcial. Daqui para a frente a
+ * diferença é verificável sem modelo, sem celular e sem captura de tela.
+ */
+describe('o desfecho do remendo diz de QUEM é a culpa', () => {
+    const antes = 'I am just a guest trapped in this elevator.';
+
+    it('frase diferente é troca', () => {
+        expect(aplicarRemendo(antes, { tipo: 'frase', texto: 'I am on the tenth floor.', cortado: false }))
+            .toEqual({ tipo: 'trocou', depois: 'I am on the tenth floor.' });
+    });
+
+    it('a MESMA frase é ESCOLHA dele, e tem nome próprio', () => {
+        // Não é `vazio` nem `cortado`: ele leu, achou bom e não mexeu. Custou
+        // o preço cheio, e é legítimo. Confundir isto com falha foi o que fez a
+        // pergunta existir.
+        expect(aplicarRemendo(antes, { tipo: 'frase', texto: antes, cortado: false }))
+            .toEqual({ tipo: 'manteve' });
+    });
+
+    it('e a comparação acontece DEPOIS da limpeza', () => {
+        // Senão `"Nilo: <a mesma frase>"` passaria por remendo — o revisor
+        // ganharia crédito por ter colado um rótulo.
+        expect(aplicarRemendo(antes, { tipo: 'frase', texto: `Nilo: ${antes}`, cortado: false }))
+            .toEqual({ tipo: 'manteve' });
+    });
+
+    it('os quatro modos de falha passam INTEIROS, cada um com seu nome', () => {
+        // O ponto do tipo: nenhum deles vira `null` no caminho.
+        for (const r of [
+            { tipo: 'sem-revisor' },
+            { tipo: 'vazio' },
+            { tipo: 'cortado', parcial: 'I am on the ten' },
+            { tipo: 'erro', erro: 'WllamaError: inference_error' },
+        ] as const) {
+            expect(aplicarRemendo(antes, r)).toEqual(r);
+        }
+    });
+
+    it('e nenhum deles mexe no texto — a frase original segue', async () => {
+        for (const r of [
+            { tipo: 'sem-revisor' },
+            { tipo: 'vazio' },
+            { tipo: 'cortado', parcial: 'It nev' },
+            { tipo: 'erro', erro: 'x' },
+        ] as const) {
+            const passos: PassoDoPipeline[] = [];
+            const saida = await falarPeloPipeline('Who are you?', pecas({
+                julgar: async () => [2],
+                remendar: async () => r,
+            }), (p) => passos.push(p));
+            expect(saida?.remendadas, r.tipo).toBe(0);
+            expect(saida?.fala, r.tipo).toContain('does not obey');
+            const remendo = passos.find((p) => p.passo === 'remendo');
+            expect(remendo?.passo === 'remendo' && remendo.desfecho.tipo, r.tipo).toBe(r.tipo);
+        }
+    });
+});
+
+describe('primeiraFraseFechada — parar na frase pedida, e salvar o que deu tempo', () => {
+    it('para na primeira, mesmo quando ele já começou a segunda', () => {
+        // O enunciado pede UMA frase; ele escreve duas assim mesmo, e cada
+        // token da segunda é tempo do jogador no celular.
+        expect(primeiraFraseFechada('The door is there. It never opens for me.'))
+            .toBe('The door is there.');
+    });
+
+    it('devolve null enquanto a frase não fechou — é o sinal de "continue lendo"', () => {
+        expect(primeiraFraseFechada('The door is the')).toBeNull();
+        expect(primeiraFraseFechada('')).toBeNull();
+    });
+
+    it('e "Mr." não vira frase, mas o texto não é descartado por causa dele', () => {
+        // O piso de 12 caracteres pula o ponto cedo demais e CONTINUA
+        // procurando; descartar seria jogar fora uma frase boa.
+        expect(primeiraFraseFechada('Mr. Azevedo never came back.'))
+            .toBe('Mr. Azevedo never came back.');
+    });
+
+    it('aceita ! ? e reticências, e a aspa depois do ponto', () => {
+        expect(primeiraFraseFechada('It never opens! Never.')).toBe('It never opens!');
+        expect(primeiraFraseFechada('Who runs this place? No idea.')).toBe('Who runs this place?');
+        expect(primeiraFraseFechada('"I do not know that." he said')).toBe('"I do not know that."');
     });
 });
 

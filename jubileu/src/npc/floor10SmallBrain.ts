@@ -75,6 +75,9 @@ import {
     chunkDelta, chunkOpensReply, cpuThreadCount, speechModelReady,
     type ChatChunk,
 } from './wllamaEngine';
+// O revisor vive aqui, mas o VOCABULÁRIO do desfecho é do pipeline: é ele que
+// confronta a resposta com a frase original e decide "trocou" ou "manteve".
+import { primeiraFraseFechada, type RespostaDoRevisor } from './floor10Pipeline';
 
 export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import {
@@ -1755,9 +1758,50 @@ export async function rascunharFala(
 // LFM2.5-2.6B. Por isso escrever a fala INTEIRA custa 30,8 s nele. Ele serve
 // como REMENDADOR e nunca como a fala.
 
-/** Teto do remendo: uma frase. Doze tokens bastaram nos três casos medidos. */
+/**
+ * Teto do remendo: uma frase.
+ *
+ * FICA EM 40, e a tentativa de baixar para 32 foi medida e desfeita. O
+ * raciocínio para baixar era certo — o `abort` do wllama 3.5.1 não devolve CPU
+ * (`getResponse` só para de LER; o worker segue gerando), então `max_tokens` é
+ * o único número que o aparelho obedece. Mas a conta não fecha:
+ *
+ *     as frases fecharam em 15, 17, 18, 21, 24, 27 e 30 tokens ... e uma NÃO
+ *     fechou dentro de 32, voltando truncada e sem ponto final
+ *     os 8 tokens economizados valem ~1,7 s na bancada
+ *     a leitura do prompt sozinha é 85% da chamada
+ *
+ * Economizar 4% do custo e perder o remendo inteiro de vez em quando é o lado
+ * errado da troca. Sem ponto final não há frase, e a original fica.
+ */
 export const REMENDO_MAX_TOKENS = 40;
-export const REMENDO_TIMEOUT_MS = 25_000;
+
+/**
+ * ── O TETO QUE ERA O BUG ─────────────────────────────────────────────────
+ *
+ * A pergunta foi: *"o revisor até foi acionado (tanto que parece que ele
+ * pensou) mas ele simplesmente decide não mudar — será um bug, ou uma
+ * escolha?"*. Bug, e o relógio já denunciava: 45,6 s e 30,6 s na tela, com o
+ * teto aqui em 25 s. Uma guarda recusando custa 0,0 s.
+ *
+ * Os 25 s vieram de 11,6 s "medidos" — só que naquela medição a chamada tinha
+ * outro formato. REFEITO com o LFM2.5-1.2B DE PRODUÇÃO, no navegador, nos três
+ * defeitos reais desta bancada (`bancada-navegador/revisor-pensa.mjs`):
+ *
+ *     como estava, corte em 25 s ...... 0/3 · 3 VAZIOS · 26,1 s por frase
+ *     o MESMO código, prazo de sobra ... 2/3 ·  0 vazios · 30,6 s por frase
+ *
+ * Uma linha de diferença, e ela é esta. A chamada custa ~30 s nesta bancada e
+ * o corte caía aos 25 — antes do fim, sempre, nas três. O revisor nunca teve
+ * chance de entregar nada, em nenhuma fala, desde que foi ligado.
+ *
+ * 70 s porque o celular dele é mais lento que esta máquina e o teto tem de
+ * caber a chamada INTEIRA: `abortSignal` no wllama 3.5.1 é conferido entre uma
+ * leitura de resultado e outra, então um corte durante a leitura do prompt não
+ * volta mais cedo nem devolve nada — medido, um corte aos 8 s levou 37,9 s para
+ * voltar, vazio. Prazo curto aqui não protege ninguém: só perde o trabalho.
+ */
+export const REMENDO_TIMEOUT_MS = 70_000;
 
 /**
  * O ENUNCIADO, e ele é curto por medição.
@@ -1779,43 +1823,107 @@ In your reply to "${perguntaEmIngles.trim()}", this sentence is wrong:
 Rewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
 }
 
+/** Tira as aspas que ele às vezes põe em volta da frase inteira. */
+function semAspas(t: string): string {
+    return t.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim();
+}
+
+
 /**
- * Reescreve UMA frase, em inglês. `''` em qualquer tropeço.
+ * Reescreve UMA frase, em inglês, e DIZ o que aconteceu.
  *
- * Não sobe o modelo: se a vontade não estiver de pé, quem chama desiste do
- * remendo e a frase original segue. Um rascunho com uma frase torta é melhor
- * que 30 s de espera para carregar um revisor.
+ * Não sobe o modelo: se a vontade não estiver de pé, devolve `sem-revisor` e a
+ * frase original segue. Um rascunho com uma frase torta é melhor que 30 s de
+ * espera para carregar um revisor.
+ *
+ * ── POR QUE ISTO LÊ EM STREAM PARA UMA FRASE SÓ ──────────────────────────
+ *
+ * Não é para mostrar o texto aparecendo — ninguém vê esta chamada. É porque o
+ * `abort` do wllama levanta `WllamaAbortError` e NÃO devolve o parcial: sem o
+ * laço, o corte no prazo apagava tudo o que ele já tinha escrito. Foi assim
+ * que "45,6 s" virou "não remendou" na tela do dono do jogo.
+ *
+ * Lendo pedaço a pedaço, o texto é MEU antes de o prazo chegar, e três coisas
+ * passam a existir de graça:
+ *
+ *   1. o prazo vira "fico com o que já saiu", e não "perco tudo";
+ *   2. dá para PARAR na primeira frase fechada, em vez de esperar o teto —
+ *      o enunciado pede uma frase e ele costuma escrever a segunda mesmo assim;
+ *   3. o desfecho fica distinguível: cortado, mudo, tropeço ou frase.
+ *
+ * O descarte no `chunkOpensReply` não é zelo: o stream do wllama entrega os
+ * restos da geração anterior antes do primeiro pedaço real, e foi ele que já
+ * transformou "CHOICE: idle" em "OSE: idleCHO" neste mesmo arquivo.
  */
 export async function remendarFraseEmIngles(
     perguntaEmIngles: string,
     frase: string,
-): Promise<string> {
+): Promise<RespostaDoRevisor> {
     const engine = await ensureSmallEngine(false).catch(() => null);
-    if (!engine) return '';
+    if (!engine) return { tipo: 'sem-revisor' };
     const abort = new AbortController();
     const relogio = globalThis.setTimeout(() => abort.abort(), REMENDO_TIMEOUT_MS);
+    let acumulado = '';
+    let tropeco = '';
+    // `length` significa "parei porque acabaram os tokens", e é a única forma
+    // de saber que a frase está truncada quando ela não trouxe ponto final.
+    // Sem isto eu teria de adivinhar pela pontuação, e uma frase boa que ele
+    // fechou sem ponto viraria "cortado" à toa.
+    let noTeto = false;
     try {
-        const resposta = await engine.createChatCompletion({
+        const stream = await engine.createChatCompletion({
             messages: [
                 { role: 'system', content: PERSONA_DO_REVISOR },
                 { role: 'user', content: enunciadoDoRemendo(perguntaEmIngles, frase) },
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
-            stream: false,
+            stream: true,
             max_tokens: REMENDO_MAX_TOKENS,
             grammar: undefined,
+            // NO-OP NESTE MODELO, e fica registrado para ninguém confiar nele:
+            // `enable_thinking` é chave do Qwen, e o chat template do LFM2.5-1.2B
+            // não a menciona (li o gguf). Não faz mal e volta a valer se o posto
+            // de revisor mudar de modelo — mas quem resolveu o vazio foi o
+            // prazo, não isto.
             chat_template_kwargs: { enable_thinking: false },
             abortSignal: abort.signal,
-        }) as { choices?: Array<{ message?: { content?: string } }> } | undefined;
-        const bruto = resposta?.choices?.[0]?.message?.content ?? '';
-        const t = typeof bruto === 'string' ? bruto.trim() : '';
-        // Tira as aspas que ele às vezes põe em volta da frase inteira.
-        return t.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim();
-    } catch {
-        return '';
+        }) as AsyncIterable<unknown>;
+        for await (const bruto of stream) {
+            const c = bruto as ChatChunk;
+            // Os restos da geração anterior chegam na frente do primeiro pedaço
+            // real — foi isso que já virou "CHOICE: idle" em "OSE: idleCHO"
+            // neste arquivo.
+            if (chunkOpensReply(c)) { acumulado = ''; noTeto = false; }
+            acumulado += chunkDelta(c);
+            const razao = (c as { choices?: Array<{ finish_reason?: string }> })
+                .choices?.[0]?.finish_reason;
+            if (razao) noTeto = razao === 'length';
+            // NÃO sai no primeiro ponto: medido, a leitura do prompt é ~85% da
+            // chamada e a escrita inteira são poucos segundos, então sair cedo
+            // economiza quase nada e deixa o worker gerando sozinho.
+            if (abort.signal.aborted) break;
+        }
+    } catch (e) {
+        // Cortar no prazo cai AQUI (`WllamaAbortError`), e não é tropeço — por
+        // isso o texto de erro só vale quando o sinal não foi acionado.
+        if (!abort.signal.aborted) tropeco = String((e as Error)?.message ?? e).slice(0, 180);
     } finally {
         globalThis.clearTimeout(relogio);
     }
+    const cortado = abort.signal.aborted;
+    const limpo = semAspas(acumulado);
+    const fechada = primeiraFraseFechada(limpo);
+    if (fechada) return { tipo: 'frase', texto: fechada, cortado };
+    if (tropeco) return { tipo: 'erro', erro: tropeco };
+    // Terminou por vontade dele, sem ponto final e sem bater no teto: é uma
+    // frase inteira que só não trouxe pontuação, e vale.
+    if (limpo.length > 2 && !cortado && !noTeto) {
+        return { tipo: 'frase', texto: limpo, cortado: false };
+    }
+    // Truncada de verdade. Enfiar meio período na fala do Nilo é pior que
+    // deixar a original — e a tela diz qual dos dois aconteceu.
+    if (cortado || limpo) return { tipo: 'cortado', parcial: limpo };
+    return { tipo: 'vazio' };
 }
 
 /**

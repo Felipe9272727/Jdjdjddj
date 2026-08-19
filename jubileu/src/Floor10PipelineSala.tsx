@@ -45,7 +45,9 @@ import {
 } from './npc/floor10SmallBrain';
 import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
-import { enumerarEmIngles, type PassoDoPipeline } from './npc/floor10Pipeline';
+import {
+    enumerarEmIngles, type DesfechoDoRemendo, type PassoDoPipeline,
+} from './npc/floor10Pipeline';
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
 import { liberarRolagem } from './npc/floor10PaginaRolavel';
@@ -921,7 +923,7 @@ function Passo({ p }: { p: PassoDoPipeline }) {
                 <div style={sub}>
                     {p.marcadas.length === 0
                         ? 'não marcou nada — é aqui que o pipeline ganha do 3B'
-                        : 'cada marcada custa uma chamada de revisor (~11,6 s)'}
+                        : 'cada marcada custa uma chamada de revisor (~30 s medidos)'}
                 </div>
                 <div style={{ marginTop: 4, color: p.marcadas.length ? '#ff9c9c' : '#7fe0b0' }}>
                     {p.marcadas.length === 0
@@ -936,17 +938,7 @@ function Passo({ p }: { p: PassoDoPipeline }) {
             <div style={cx}>
                 <div style={tit}>5. o LFM2.5 na frase {p.n} · {(p.ms / 1000).toFixed(1)}s</div>
                 <div style={{ ...sub, textDecoration: 'line-through' }}>{p.antes}</div>
-                {p.depois === null ? (
-                    <div style={{ color: '#f5c96b' }}>
-                        não remendou — o revisor não estava de pé, ou desistiu
-                    </div>
-                ) : p.depois === p.antes ? (
-                    <div style={{ color: '#f5c96b' }}>
-                        devolveu a MESMA frase — não conta como remendo
-                    </div>
-                ) : (
-                    <div style={{ color: '#7fe0b0' }}>{p.depois}</div>
-                )}
+                <Desfecho d={p.desfecho} />
             </div>
         );
     }
@@ -955,6 +947,59 @@ function Passo({ p }: { p: PassoDoPipeline }) {
             <div style={tit}>6. Bergamot en → pt · {p.ms} ms</div>
             <div style={sub}>{p.antesEmIngles}</div>
             <div style={{ marginTop: 4 }}>{p.depoisEmPtBr}</div>
+        </div>
+    );
+}
+
+/**
+ * ── BUG OU ESCOLHA, LADO A LADO ──────────────────────────────────────────
+ *
+ * A pergunta que este pedaço de tela existe para responder foi feita assim:
+ * *"ele simplesmente decide não mudar (...) será um bug, ou uma escolha?"* —
+ * e a tela de antes não conseguia responder, porque escrevia a MESMA linha
+ * ("não remendou — o revisor não estava de pé, ou desistiu") para quatro
+ * desfechos que não têm nada em comum além do resultado.
+ *
+ * Cada linha aqui diz também de QUEM é a culpa, porque é isso que decide o que
+ * fazer a seguir: aumentar prazo, trocar de modelo, ou não mexer em nada.
+ */
+function Desfecho({ d }: { d: DesfechoDoRemendo }) {
+    const sub = { color: '#666', fontSize: 12 };
+    if (d.tipo === 'trocou') return <div style={{ color: '#7fe0b0' }}>{d.depois}</div>;
+    if (d.tipo === 'manteve') {
+        return (
+            <div style={{ color: '#f5c96b' }}>
+                devolveu a MESMA frase — foi ESCOLHA dele, não falha. Ele leu, achou
+                que estava bom e não mexeu. Custou o preço cheio mesmo assim.
+            </div>
+        );
+    }
+    if (d.tipo === 'sem-revisor') {
+        return (
+            <div style={{ color: '#f5c96b' }}>
+                o revisor não estava de pé, e não subiu — nada foi tentado (por isso 0,0s)
+            </div>
+        );
+    }
+    if (d.tipo === 'cortado') {
+        return (
+            <div>
+                <div style={{ color: '#ff9c9c' }}>
+                    CORTADO: ele estava escrevendo e o prazo (ou o teto de tokens) chegou
+                    antes de a frase fechar. A original ficou.
+                </div>
+                {d.parcial
+                    ? <div style={{ ...sub, marginTop: 4 }}>o que deu tempo: “{d.parcial}”</div>
+                    : <div style={{ ...sub, marginTop: 4 }}>não saiu um token sequer</div>}
+            </div>
+        );
+    }
+    if (d.tipo === 'erro') {
+        return <div style={{ color: '#ff9c9c' }}>tropeçou: {d.erro}</div>;
+    }
+    return (
+        <div style={{ color: '#f5c96b' }}>
+            rodou até o fim e ficou mudo — custou o tempo inteiro e não escreveu nada
         </div>
     );
 }

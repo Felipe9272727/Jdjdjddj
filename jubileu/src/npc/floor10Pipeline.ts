@@ -41,8 +41,8 @@ export type PecasDoPipeline = {
     rascunhar: (perguntaEmIngles: string) => Promise<string | null>;
     /** Devolve os índices 1-based das frases que soam fora do personagem. */
     julgar: (frases: readonly string[]) => Promise<number[]>;
-    /** Reescreve UMA frase, em inglês. */
-    remendar: (perguntaEmIngles: string, frase: string) => Promise<string | null>;
+    /** Reescreve UMA frase, em inglês — e DIZ o que aconteceu (ver `RespostaDoRevisor`). */
+    remendar: (perguntaEmIngles: string, frase: string) => Promise<RespostaDoRevisor>;
     /** Traduz o texto final para pt-BR. */
     traduzir: (textoEmIngles: string) => Promise<string | null>;
 };
@@ -62,12 +62,54 @@ export type PecasDoPipeline = {
  * Isto NÃO é telemetria: é o conteúdo, frase a frase, com o veredito do juiz e
  * o antes/depois de cada remendo.
  */
+/**
+ * ── O QUE O REVISOR DEVOLVE, E POR QUE NÃO É MAIS `string | null` ─────────
+ *
+ * Isto nasceu de uma pergunta feita diante da tela: *"ele simplesmente decide
+ * não mudar — será um bug, ou uma escolha?"*. A tela NÃO TINHA COMO RESPONDER,
+ * porque quatro desfechos com preços e culpados diferentes chegavam aqui como
+ * o mesmo `null`:
+ *
+ *     não estava de pé ....... custou 0 s; nada foi tentado
+ *     o prazo cortou ......... custou o preço INTEIRO, e o trabalho foi jogado fora
+ *     rodou e ficou mudo ..... custou o preço inteiro; a culpa é do modelo
+ *     devolveu a MESMA frase . custou o preço inteiro, e foi uma ESCOLHA dele
+ *
+ * Era bug: na tela dele apareceram 45,6 s e 30,6 s com o teto do revisor em
+ * 25 s. Uma guarda recusando custa 0,0 s — quem gasta meio minuto trabalhou.
+ * O `abort` do wllama levanta `WllamaAbortError` e não devolve o parcial, então
+ * o `catch { return ''; }` daqui apagava uma frase pronta.
+ *
+ * Um tipo por desfecho não é preciosismo: é o que impede o próximo relato de
+ * ser "não sei se ele errou ou escolheu".
+ */
+export type RespostaDoRevisor =
+    /** Saiu UMA frase inteira. `cortado` diz se o prazo estourou antes de ele parar sozinho. */
+    | { tipo: 'frase'; texto: string; cortado: boolean }
+    /** O prazo estourou sem fechar uma frase. `parcial` é o que já tinha saído. */
+    | { tipo: 'cortado'; parcial: string }
+    /** O motor não estava de pé. Não gastou um milissegundo de modelo. */
+    | { tipo: 'sem-revisor' }
+    /** Rodou até o fim e não escreveu nada aproveitável. */
+    | { tipo: 'vazio' }
+    /** Tropeçou. `erro` é o texto cru, sem interpretação. */
+    | { tipo: 'erro'; erro: string };
+
+/** O mesmo, já confrontado com a frase original: `trocou` e `manteve` só existem aqui. */
+export type DesfechoDoRemendo =
+    | { tipo: 'trocou'; depois: string }
+    | { tipo: 'manteve' }
+    | { tipo: 'cortado'; parcial: string }
+    | { tipo: 'sem-revisor' }
+    | { tipo: 'vazio' }
+    | { tipo: 'erro'; erro: string };
+
 export type PassoDoPipeline =
     | { passo: 'rascunho'; textoEmIngles: string; ms: number }
     | { passo: 'frases'; frases: readonly string[] }
     | { passo: 'juiz'; marcadas: readonly number[]; ms: number }
     | { passo: 'limpeza'; n: number; antes: string; depois: string }
-    | { passo: 'remendo'; n: number; antes: string; depois: string | null; ms: number }
+    | { passo: 'remendo'; n: number; antes: string; desfecho: DesfechoDoRemendo; ms: number }
     | { passo: 'traducao'; antesEmIngles: string; depoisEmPtBr: string; ms: number };
 
 export type SaidaDoPipeline = {
@@ -113,6 +155,43 @@ export function limparFrase(frase: string): { texto: string; mudou: boolean } {
         if (re.test(t)) { t = t.replace(re, por).trim(); mudou = true; }
     }
     return { texto: t.trim(), mudou };
+}
+
+/**
+ * A PRIMEIRA frase FECHADA de um texto que ainda está chegando — ou `null`.
+ *
+ * Serve a duas coisas que parecem uma só e não são:
+ *   • PARAR DE LER assim que a frase pedida terminou. O enunciado do remendo diz
+ *     "One sentence", e o modelo costuma escrever a segunda mesmo assim.
+ *   • SALVAR o que deu tempo quando o prazo estoura no meio da segunda frase.
+ *
+ * O piso de 12 caracteres existe por causa de "Mr.", "St." e "No." — um ponto
+ * cedo demais devolveria uma frase que não é frase. Ele não descarta o texto:
+ * a busca continua no próximo ponto.
+ */
+export function primeiraFraseFechada(texto: string): string | null {
+    const re = /[.!?…]["”]?(?=\s|$)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(texto)) !== null) {
+        const f = texto.slice(0, m.index + m[0].length).trim();
+        if (f.length >= 12) return f;
+    }
+    return null;
+}
+
+/**
+ * Confronta a resposta do revisor com a frase original.
+ *
+ * É aqui — e só aqui — que "trocou" e "manteve" nascem, e é por isso que esta
+ * função é pura: a diferença entre bug e escolha passou a ser verificável num
+ * teste de mesa, sem modelo, sem celular e sem captura de tela.
+ */
+export function aplicarRemendo(antes: string, r: RespostaDoRevisor): DesfechoDoRemendo {
+    if (r.tipo !== 'frase') return r;
+    const { texto } = limparFrase(r.texto);
+    if (texto.length <= 2) return { tipo: 'vazio' };
+    if (texto === antes) return { tipo: 'manteve' };
+    return { tipo: 'trocou', depois: texto };
 }
 
 /** Quebra em frases, do mesmo jeito que o resto do andar. */
@@ -171,19 +250,13 @@ export async function falarPeloPipeline(
         if (i < 0 || i >= finais.length) continue;
         const t2 = Date.now();
         const antes = finais[i];
-        const nova = await pecas.remendar(perguntaEmIngles, antes);
-        if (!nova) {
-            // Um remendo que não veio é informação: significa que o revisor não
-            // estava de pé, ou desistiu. Sem isto some da tela.
-            aoPassar?.({ passo: 'remendo', n, antes, depois: null, ms: Date.now() - t2 });
-            continue;
-        }
-        const { texto } = limparFrase(nova);
-        // Um remendo que devolve a MESMA frase não é remendo — foi o que o
-        // SmolLM3 fez em 2 de 3 ("(No correction needed)"). Contar como troca
-        // inflaria o placar e esconderia que o revisor não serve.
-        if (texto && texto !== antes) { finais[i] = texto; remendadas += 1; }
-        aoPassar?.({ passo: 'remendo', n, antes, depois: texto, ms: Date.now() - t2 });
+        const desfecho = aplicarRemendo(antes, await pecas.remendar(perguntaEmIngles, antes));
+        // Só `trocou` mexe no texto. `manteve` é uma escolha do revisor — foi o
+        // que o SmolLM3 fez em 2 de 3 ("(No correction needed)") — e contá-la
+        // como troca inflaria o placar; os outros quatro desfechos são falhas
+        // com donos diferentes, e a frase original segue em todos eles.
+        if (desfecho.tipo === 'trocou') { finais[i] = desfecho.depois; remendadas += 1; }
+        aoPassar?.({ passo: 'remendo', n, antes, desfecho, ms: Date.now() - t2 });
     }
 
     const t3 = Date.now();
