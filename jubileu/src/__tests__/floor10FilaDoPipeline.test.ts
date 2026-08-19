@@ -286,12 +286,10 @@ describe('a sala NUNCA sobe dois runtimes pesados ao mesmo tempo', () => {
         // `baixarVontade` — baixar é rede, subir é núcleo. Eu sabia e escrevi a
         // sala ignorando.
         expect(sala).toContain('carregar: baixarRascunhador');
-        // `baixarRevisor` desce o arquivo do revisor ESCOLHIDO — que pode não
-        // ser o da vontade — e por dentro cai no mesmo `baixarVontade`: baixa
-        // sem subir runtime. O nome mudou; a invariante é a mesma.
-        expect(sala).toContain('carregar: baixarRevisor');
+        expect(sala).toContain('carregar: baixarVontade');
         expect(sala).not.toContain('carregar: precarregarVontade');
-        // E o caminho novo não pode reabrir a porta pelo outro nome.
+        // `precarregarRevisor` é apelido de `precarregarVontade` — sobe o
+        // runtime do mesmo jeito, e não pode entrar aqui por outro nome.
         expect(sala).not.toContain('carregar: precarregarRevisor');
         // E o `subirRascunhador` não pode estar dentro do `carregar` de peça.
         expect(sala).not.toMatch(/carregar:[^\n]*subirRascunhador/);

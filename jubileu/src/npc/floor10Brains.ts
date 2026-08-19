@@ -9,6 +9,10 @@
 // Nilo simplesmente parava de falar. A vontade é opcional por construção; a
 // fala, não. Então a fala pode reciclar isto aqui, e só isto.
 
+// Só o mapa `revisor -> cérebro`. Import de TIPO no outro sentido, então não
+// há ciclo em tempo de execução.
+import { cerebroDoRevisor } from './floor10Revisores';
+
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
     | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror';
@@ -227,7 +231,19 @@ export const SMALL_BRAIN_STORAGE_KEY = 'floor10-small-brain';
 function readBrainFromUrl(): SmallBrainId | null {
     try {
         const busca = globalThis.location?.search ?? '';
-        const pedido = new URLSearchParams(busca).get('vontade');
+        // ── `?revisor=` TAMBÉM ESCOLHE O CÉREBRO ─────────────────────────
+        //
+        // E não é atalho: no pipeline o cérebro pequeno serve DOIS papéis, a
+        // vontade e o revisor, com UM arquivo. Baixar dois modelos de 1 GB para
+        // usar um só foi o que o dono do jogo cortou — "isso é burrice, não
+        // precisa baixar os dois". Então a chave que escolhe o revisor é a
+        // mesma que escolhe o que desce.
+        //
+        // `?vontade=` continua ganhando quando as duas aparecem: ela nomeia um
+        // modelo do catálogo diretamente, é mais específica, e existe desde
+        // antes para quem quer testar um cérebro que nem é candidato a revisor.
+        const pedido = new URLSearchParams(busca).get('vontade')
+            ?? (new URLSearchParams(busca).has('revisor') ? cerebroDoRevisor() : null);
         if (!pedido) return null;
         const achado = SMALL_BRAIN_CATALOG.find((m) => m.id === pedido);
         if (!achado) return null;

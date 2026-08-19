@@ -43,11 +43,11 @@
 
 import { pipelineLigado } from './floor10Pipeline';
 import { FLOOR10_TRADUTOR_BYTES } from './floor10Tradutor';
-import { revisorAtual } from './floor10Revisores';
+import { cerebroDoRevisor } from './floor10Revisores';
+import { SMALL_BRAIN_CATALOG } from './floor10Brains';
 
 export type PapelNaFila =
-    | 'fala' | 'rascunho' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'juiz' | 'tradutor'
-    | 'revisor';
+    | 'fala' | 'rascunho' | 'vontade' | 'motor' | 'memoria' | 'reflexo' | 'juiz' | 'tradutor';
 
 export type PecaDaFila = {
     papel: PapelNaFila;
@@ -65,9 +65,19 @@ export const PECA_FALA: PecaDaFila = Object.freeze({
 export const PECA_RASCUNHO: PecaDaFila = Object.freeze({
     papel: 'rascunho', label: 'granite-3.1-1b-a400m (MoE, 400M ativos)', bytes: 821_847_360, essencial: true,
 });
-export const PECA_VONTADE: PecaDaFila = Object.freeze({
-    papel: 'vontade', label: 'LFM2.5-1.2B', bytes: 1_246_253_888, essencial: false,
-});
+/**
+ * O cérebro pequeno, que no pipeline serve DOIS papéis com UM arquivo.
+ *
+ * Deixou de ser constante quando `?revisor=` passou a trocar o modelo: com
+ * `llama` a fila baixa 1,02 GB de Llama 3.2 em vez de 1,25 GB de LFM2.5 — não
+ * os dois. Um rótulo fixo aqui faria a barra prometer o arquivo errado.
+ */
+export function pecaDaVontade(): PecaDaFila {
+    const m = SMALL_BRAIN_CATALOG.find((b) => b.id === cerebroDoRevisor()) ?? SMALL_BRAIN_CATALOG[0];
+    return Object.freeze({
+        papel: 'vontade' as const, label: m.label, bytes: m.bytes, essencial: false,
+    });
+}
 export const PECA_MOTOR: PecaDaFila = Object.freeze({
     papel: 'motor', label: 'Qwen3-0.6B', bytes: 639_446_688, essencial: false,
 });
@@ -102,7 +112,7 @@ export const PECA_TRADUTOR: PecaDaFila = Object.freeze({
  */
 export function composicaoDaFila(busca?: string): PecaDaFila[] {
     if (!pipelineLigado(busca ?? globalThis.location?.search ?? '')) {
-        return [PECA_FALA, PECA_MEMORIA, PECA_REFLEXO, PECA_VONTADE, PECA_MOTOR];
+        return [PECA_FALA, PECA_MEMORIA, PECA_REFLEXO, pecaDaVontade(), PECA_MOTOR];
     }
     return [
         PECA_RASCUNHO,
@@ -110,39 +120,17 @@ export function composicaoDaFila(busca?: string): PecaDaFila[] {
         PECA_JUIZ,
         PECA_MEMORIA,
         PECA_REFLEXO,
-        // A vontade é também o REVISOR do pipeline — o mesmo arquivo, dois
-        // papéis. Ela não é essencial para a primeira fala porque o rascunho
-        // só vai ao revisor quando o juiz marca alguma coisa.
-        PECA_VONTADE,
-        PECA_MOTOR,
-        // ── O REVISOR PRÓPRIO, QUANDO ELE EXISTE ─────────────────────────
+        // A vontade é também o REVISOR do pipeline — UM arquivo, dois papéis,
+        // e é `?revisor=` que escolhe qual. Ela não é essencial para a
+        // primeira fala porque o rascunho só vai ao revisor quando o juiz
+        // marca alguma coisa.
         //
-        // Com `?revisor=llama` o remendo passa a ter arquivo só dele, e ele
-        // TEM de aparecer aqui: a barra única promete um total, e um download
-        // de 1 GB fora da conta é a barra mentindo — que é exatamente o
-        // defeito que a fila única foi criada para acabar. Com o padrão
-        // (`?revisor=lfm`) esta linha some, porque não há byte novo nenhum.
-        ...(pecaDoRevisor() ? [pecaDoRevisor() as PecaDaFila] : []),
+        // NÃO EXISTE UMA SEGUNDA PEÇA AQUI, e essa foi a correção: a primeira
+        // versão acrescentava o Llama ao lado do LFM2.5 — 2,27 GB de cérebro
+        // pequeno para usar um.
+        pecaDaVontade(),
+        PECA_MOTOR,
     ];
-}
-
-/**
- * A peça do revisor, ou `null` quando ele é a própria vontade.
- *
- * NÃO é essencial, pela mesma razão da vontade: o rascunho só vai ao revisor
- * quando o juiz marca alguma coisa, e sem ele a frase marcada simplesmente
- * segue como está. Fazer a conversa esperar 1 GB por uma etapa opcional seria
- * trocar qualidade por silêncio.
- */
-export function pecaDoRevisor(): PecaDaFila | null {
-    const r = revisorAtual();
-    if (r.bytesExtras <= 0) return null;
-    return Object.freeze({
-        papel: 'revisor' as const,
-        label: r.label,
-        bytes: r.bytesExtras,
-        essencial: false,
-    });
 }
 
 /** Quantos bytes a fila inteira baixa. É o número que a barra promete. */

@@ -41,7 +41,7 @@ import {
 } from './npc/floor10Tradutor';
 import { diagnosticar } from './npc/floor10Diagnostico';
 import {
-    SMALL_BRAIN_MODEL, baixarRevisor, unloadSmallBrain,
+    SMALL_BRAIN_MODEL, baixarVontade, unloadSmallBrain,
 } from './npc/floor10SmallBrain';
 import { esperar } from './npc/floor10Carga';
 import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10PipelineReal';
@@ -57,16 +57,12 @@ function nomeCurtoDoRevisor(): string {
 }
 
 /**
- * O modelo que o revisor VAI baixar — o próprio dele, ou o da vontade.
- *
- * Não dá para usar `SMALL_BRAIN_MODEL` aqui: ele responde ao PAPEL que o motor
- * está servindo, e no momento em que esta lista é montada o papel ainda é
- * 'vontade'. A tela mostraria o arquivo errado até alguém remendar uma frase.
+ * O modelo que o revisor vai usar — que é o mesmo da vontade, escolhido por
+ * `?revisor=`. Vem do catálogo e não de `SMALL_BRAIN_MODEL` porque esta lista é
+ * montada no topo do módulo, antes de qualquer escolha ser aplicada.
  */
 function modeloDoRevisor(): { label: string; bytes: number } {
-    const id = cerebroDoRevisor();
-    const achado = id ? SMALL_BRAIN_CATALOG.find((m) => m.id === id) : undefined;
-    return achado ?? SMALL_BRAIN_MODEL;
+    return SMALL_BRAIN_CATALOG.find((m) => m.id === cerebroDoRevisor()) ?? SMALL_BRAIN_MODEL;
 }
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
@@ -293,9 +289,7 @@ export default function Floor10PipelineSala() {
             id: 'revisor',
             nome: `revisor · ${modeloDoRevisor().label}`,
             bytes: modeloDoRevisor().bytes,
-            detalhe: cerebroDoRevisor() === null
-                ? 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade'
-                : 'só entra nas frases que o juiz marcou · arquivo próprio, 4,5x mais rápido que o LFM2.5',
+            detalhe: 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
             // ── SÓ BAIXA. NÃO SOBE. ──────────────────────────────────────
             //
             // Aqui estava `precarregarVontade`, que sobe um llama.cpp INTEIRO
@@ -309,11 +303,11 @@ export default function Floor10PipelineSala() {
             // A fila do jogo nunca fez isso, e o comentário em
             // `passosDoAndar10` diz por quê, com as palavras dele: "quando
             // começa a baixar [a vontade], começa a travar meu celular todo".
-            // Por isso ela usa `baixarRevisor` — baixar é rede, subir é núcleo,
+            // Por isso ela usa `baixarVontade` — baixar é rede, subir é núcleo,
             // e os dois no mesmo passo foi o que travava o aparelho. Eu sabia
             // disso e escrevi a sala ignorando.
             carregado: () => false,
-            carregar: baixarRevisor,
+            carregar: baixarVontade,
             // Ele publica em `deliberationDownload`, e não em `loadDownload` —
             // é o campo que a tela da VONTADE usa no jogo há muito tempo. Sem
             // dizer isso aqui, a barra dele ficava invisível.

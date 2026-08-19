@@ -5,150 +5,117 @@ import {
     cerebroDoRevisor, definirRevisor, resetRevisorParaTestes,
 } from '../npc/floor10Revisores';
 import { SMALL_BRAIN_CATALOG } from '../npc/floor10Brains';
-import { composicaoDaFila, bytesDaFila, pecaDoRevisor, pecasEssenciais } from '../npc/floor10Composicao';
+import {
+    composicaoDaFila, bytesDaFila, pecaDaVontade, pecasEssenciais,
+} from '../npc/floor10Composicao';
 
 afterEach(() => resetRevisorParaTestes());
 
 /**
- * ── A ESCOLHA DE REVISOR ──────────────────────────────────────────────────
+ * ── UM CÉREBRO PEQUENO, NÃO DOIS ──────────────────────────────────────────
  *
- * Pedido do dono do jogo: "coloca o llama como revisor — eu quero que deixe
- * como opção no pipeline, colocar o llama ou o lfm, aí vc escolhe, e entra na
- * linha única de download". As duas metades são testadas aqui, e a segunda é a
- * que tem armadilha: os dois candidatos não custam o mesmo em disco.
+ * A primeira versão desta escolha ACRESCENTAVA o Llama à fila, ao lado do
+ * LFM2.5 — 2,27 GB de cérebro pequeno para usar um. O dono do jogo cortou:
+ * "isso é burrice, não precisa baixar os dois; no ?revisor=llama deixe baixar
+ * só o llama, e no pipeline normal, o lfm".
+ *
+ * Esta suíte prende a versão certa: a escolha troca QUAL arquivo desce, e a
+ * fila continua com um cérebro pequeno só.
  */
-describe('os dois candidatos a revisor', () => {
-    it('o padrão é o que NÃO baixa nada', () => {
-        // 1,02 GB numa fila que já tem 4,2 GB é decisão de quem baixa. Este
-        // projeto já derrubou o celular do dono do jogo com download e já viu a
-        // cota recusar 2,07 GB e emudecer o Nilo.
+describe('a escolha de revisor troca o arquivo, não acrescenta um', () => {
+    const PIPE = '?pipeline';
+
+    it('o padrão é o LFM2.5 — "por enquanto", e por deliberar melhor', () => {
         expect(REVISOR_PADRAO).toBe('lfm');
         expect(revisorEscolhido()).toBe('lfm');
-        expect(revisorAtual().bytesExtras).toBe(0);
+        expect(cerebroDoRevisor()).toBe('lfm2-1b');
     });
 
-    it('o padrão NÃO tem cérebro próprio — é o mesmo arquivo da vontade', () => {
-        // `null` aqui é o que faz a peça sumir da fila e o motor não trocar de
-        // arquivo ao mudar de papel.
-        expect(cerebroDoRevisor()).toBeNull();
-    });
-
-    it('`llama` aponta para um modelo que EXISTE no catálogo', () => {
-        // Um id órfão não quebra compilação: `brainAtual()` não acha, cai no
-        // fallback e o revisor volta a ser a vontade — em silêncio, com a fila
-        // tendo cobrado 1,02 GB por um arquivo que ninguém usa.
+    it('a fila tem UM cérebro pequeno, nas duas escolhas', () => {
+        // Este é o teste que a versão anterior teria reprovado: lá eram dois.
+        const conta = (busca: string) =>
+            composicaoDaFila(busca).filter((p) => p.papel === 'vontade').length;
+        expect(conta(PIPE)).toBe(1);
         definirRevisor('llama');
-        const id = cerebroDoRevisor();
-        expect(id).toBe('llama32-1b-q6');
-        expect(SMALL_BRAIN_CATALOG.some((m) => m.id === id)).toBe(true);
+        expect(conta(PIPE)).toBe(1);
     });
 
-    it('e os bytes da escolha batem com os do modelo no catálogo', () => {
-        // Dois números para o mesmo arquivo: um na fila (o que a barra promete)
-        // e outro no catálogo (o que de fato desce). Divergir é a barra mentir.
-        const entrada = REVISORES.find((r) => r.id === 'llama')!;
-        const modelo = SMALL_BRAIN_CATALOG.find((m) => m.id === entrada.cerebro)!;
-        expect(entrada.bytesExtras).toBe(modelo.bytes);
+    it('e trocar de revisor troca o TAMANHO da fila, não soma', () => {
+        // Se somasse, a diferença seria +1,02 GB. Trocando, ela é a diferença
+        // entre os dois arquivos: o Llama Q6 é 224 MB MENOR que o LFM2.5 Q8.
+        const comLfm = bytesDaFila(PIPE);
+        definirRevisor('llama');
+        const comLlama = bytesDaFila(PIPE);
+        expect(comLlama).toBeLessThan(comLfm);
+        expect(comLfm - comLlama).toBe(1_246_253_888 - 1_021_800_576);
+    });
+
+    it('a peça mostra o modelo que vai MESMO descer', () => {
+        expect(pecaDaVontade().bytes).toBe(1_246_253_888);
+        definirRevisor('llama');
+        expect(pecaDaVontade().label).toContain('Llama 3.2');
+        expect(pecaDaVontade().bytes).toBe(1_021_800_576);
+    });
+
+    it('e ele continua NÃO sendo essencial', () => {
+        // O rascunho só vai ao revisor quando o juiz marca alguma coisa. Fazer
+        // a conversa esperar 1 GB por uma etapa opcional troca qualidade por
+        // silêncio, e silêncio é o pior defeito deste andar.
+        definirRevisor('llama');
+        expect(pecaDaVontade().essencial).toBe(false);
+        expect(pecasEssenciais(PIPE).some((p) => p.papel === 'vontade')).toBe(false);
+    });
+
+    it('cada escolha aponta um modelo que EXISTE no catálogo', () => {
+        // Um id órfão não quebra compilação: o `find` falha, cai no fallback, e
+        // a fila cobra por um arquivo enquanto o motor abre outro.
+        for (const r of REVISORES) {
+            expect(
+                SMALL_BRAIN_CATALOG.some((m) => m.id === r.cerebro),
+                `${r.id} aponta para ${r.cerebro}, que não está no catálogo`,
+            ).toBe(true);
+        }
     });
 
     it('id desconhecido não troca nada', () => {
         definirRevisor('llama');
         definirRevisor('nao-existe' as never);
         expect(revisorEscolhido()).toBe(REVISOR_PADRAO);
+        expect(revisorAtual().cerebro).toBe('lfm2-1b');
     });
 });
 
-describe('a fila única aprende a contar o revisor', () => {
-    const PIPE = '?pipeline';
+describe('`?revisor=` é quem escolhe o cérebro que desce', () => {
+    const brains = readFileSync(new URL('../npc/floor10Brains.ts', import.meta.url), 'utf8');
 
-    it('com o padrão, a peça não existe e a fila não muda de tamanho', () => {
-        expect(pecaDoRevisor()).toBeNull();
-        expect(composicaoDaFila(PIPE).some((p) => p.papel === 'revisor')).toBe(false);
+    it('o leitor de URL consulta a escolha de revisor', () => {
+        // Sem esta linha, `?revisor=llama` mudaria o rótulo na tela e baixaria
+        // o LFM2.5 assim mesmo — a barra prometendo um arquivo e trazendo outro.
+        expect(brains).toContain("new URLSearchParams(busca).has('revisor') ? cerebroDoRevisor() : null");
     });
 
-    it('com `llama`, a peça entra e a barra cobra o 1,02 GB', () => {
-        // É ISTO que "entra na linha única de download" quer dizer: um download
-        // de 1 GB fora da conta é a barra mentindo — o defeito exato que a fila
-        // única foi criada para acabar.
-        const semLlama = bytesDaFila(PIPE);
-        definirRevisor('llama');
-        const peca = pecaDoRevisor();
-        expect(peca?.papel).toBe('revisor');
-        expect(composicaoDaFila(PIPE).some((p) => p.papel === 'revisor')).toBe(true);
-        expect(bytesDaFila(PIPE) - semLlama).toBe(1_021_800_576);
-    });
-
-    it('e ele NÃO é essencial — a conversa não espera por um remendo', () => {
-        // Mesma razão da vontade: o rascunho só vai ao revisor quando o juiz
-        // marca alguma coisa, e sem ele a frase marcada segue como está. Fazer
-        // a conversa esperar 1 GB por uma etapa opcional troca qualidade por
-        // silêncio, e silêncio é o pior defeito deste andar.
-        definirRevisor('llama');
-        expect(pecaDoRevisor()?.essencial).toBe(false);
-        expect(pecasEssenciais(PIPE).some((p) => p.papel === 'revisor')).toBe(false);
-    });
-
-    it('fora do pipeline ele não entra nem escolhido', () => {
-        definirRevisor('llama');
-        expect(composicaoDaFila('').some((p) => p.papel === 'revisor')).toBe(false);
+    it('e `?vontade=` continua ganhando quando as duas aparecem', () => {
+        // Ela nomeia um modelo do catálogo diretamente — é mais específica, e
+        // existe desde antes para testar cérebros que nem são candidatos a
+        // revisor.
+        const linha = brains.slice(brains.indexOf('const pedido = new URLSearchParams'), brains.indexOf('if (!pedido) return null;'));
+        expect(linha.indexOf("get('vontade')")).toBeLessThan(linha.indexOf("has('revisor')"));
     });
 });
 
-describe('um motor, dois papéis, às vezes dois arquivos', () => {
-    const fonte = readFileSync(new URL('../npc/floor10SmallBrain.ts', import.meta.url), 'utf8');
-
-    it('trocar de papel DESCARREGA antes, quando o arquivo muda', () => {
-        // Dois modelos de ~1 GB vivos ao mesmo tempo é literalmente como o
-        // aparelho do dono do jogo desligou.
-        expect(fonte).toContain('if (brainAtual().id !== antes) await unloadSmallBrain();');
-    });
-
-    it('e NÃO descarrega quando o arquivo é o mesmo', () => {
-        // No padrão os dois papéis são o mesmo arquivo. Descarregar aí seria
-        // jogar fora 1,25 GB já abertos para recarregar os mesmos 1,25 GB.
-        expect(fonte).toContain('const antes = brainAtual().id;');
-        expect(fonte).toContain("if (papelDoMotor === papel) return;");
-    });
-
-    it('os pesos baixados são rastreados POR MODELO, não por um booleano', () => {
-        // ── O DEFEITO QUE ISTO IMPEDE ────────────────────────────────────
-        //
-        // Com um `pesosNoAparelho` global, baixar a vontade marcava "já tenho"
-        // e o download do revisor saía pela porta dos fundos na primeira linha
-        // de `baixarVontade`. A barra fechava, o arquivo nunca descia, e a
-        // falha só apareceria minutos depois, na hora de abrir o modelo.
-        expect(fonte).toContain('const pesosBaixados = new Set<string>()');
-        expect(fonte).toContain('pesosBaixados.has(SMALL_BRAIN_MODEL.id)');
-        // A DECLARAÇÃO, na coluna zero — e não a palavra solta. A primeira
-        // versão desta linha era `not.toContain('let pesosNoAparelho')` e
-        // reprovou casando com o COMENTÁRIO logo acima do conjunto, que cita o
-        // código antigo para explicar o defeito. Já aconteceu antes neste
-        // repositório: asserção de fonte que lê prosa em vez de código.
-        expect(fonte).not.toMatch(/^let pesosNoAparelho/m);
-    });
-
-    it('baixarRevisor não baixa nada quando o revisor é a própria vontade', () => {
-        expect(fonte).toContain("if (cerebroDoRevisor() === null) return true;");
-    });
-});
-
-// ── DUAS LISTAS PARA A MESMA INSTALAÇÃO ───────────────────────────────────
-//
-// `?revisor=llama` não mudou nada na primeira tentativa, e o relato foi seco:
-// "não mudou de revisor". A escolha estava ligada em `composicaoDaFila` — a
-// fila do JOGO — e a sala do `?pipeline` tem lista PRÓPRIA, com quatro peças
-// fixas e o modelo da vontade escrito no meio. Ela nunca leu de lá.
-//
-// O defeito de origem é haver duas listas. Até virarem uma só, esta suíte
-// prende o mínimo: a segunda tem de responder às mesmas perguntas que a
-// primeira responde.
-describe('a sala do ?pipeline obedece à escolha de revisor', () => {
+describe('a sala do ?pipeline mostra o modelo escolhido', () => {
+    // ── DUAS LISTAS PARA A MESMA INSTALAÇÃO ──────────────────────────────
+    //
+    // `?revisor=llama` não mudou nada na primeira tentativa, e o relato foi
+    // seco: "não mudou de revisor". A escolha estava ligada em
+    // `composicaoDaFila` — a fila do JOGO — e esta sala tem lista PRÓPRIA, com
+    // quatro peças fixas. Ela nunca leu de lá. O defeito de origem é haver duas
+    // listas, e ele continua de pé; até virarem uma só, isto prende o mínimo.
     const sala = readFileSync(new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8');
-    // A fatia procura o fim A PARTIR do começo. A primeira versão usava um
-    // `indexOf` solto e pegava o `reportaProgresso` do TRADUTOR, que vem antes:
-    // a fatia saía vazia e as asserções passavam a testar string vazia — o
-    // silêncio mais perigoso que um teste de fonte pode ter.
     const inicio = sala.indexOf("id: 'revisor',");
+    // A busca do fim parte do COMEÇO: um `indexOf` solto casava com o
+    // `reportaProgresso` do tradutor, anterior ao bloco, e a fatia saía vazia —
+    // as asserções passavam testando string vazia.
     const peca = sala.slice(inicio, sala.indexOf('reportaProgresso: true', inicio));
 
     it('a fatia lida é o bloco do revisor, e não vazio', () => {
@@ -161,26 +128,11 @@ describe('a sala do ?pipeline obedece à escolha de revisor', () => {
         expect(peca).toContain('modeloDoRevisor().bytes');
     });
 
-    it('e baixa pelo caminho que conhece o arquivo próprio', () => {
-        // `baixarVontade` desce o modelo da VONTADE. Com `?revisor=llama` o
-        // arquivo é outro, e a barra fecharia sem ter baixado o que promete.
-        expect(peca).toContain('carregar: baixarRevisor');
-    });
-
-    it('modeloDoRevisor NÃO pode depender do papel corrente do motor', () => {
-        // `SMALL_BRAIN_MODEL` responde ao papel que o motor está servindo, e no
-        // momento em que a lista é montada o papel ainda é 'vontade' — a tela
-        // mostraria o arquivo errado até alguém remendar uma frase.
-        const fn = sala.slice(sala.indexOf('function modeloDoRevisor'), sala.indexOf('const PALAVRA') > 0
-            ? sala.indexOf('const PALAVRA') : sala.indexOf('function modeloDoRevisor') + 600);
+    it('e `modeloDoRevisor` resolve pelo catálogo, não por SMALL_BRAIN_MODEL', () => {
+        // `SMALL_BRAIN_MODEL` é lido no topo do módulo, antes de a escolha ser
+        // aplicada — a tela mostraria o padrão para sempre.
+        const fn = sala.slice(sala.indexOf('function modeloDoRevisor'), sala.indexOf('function modeloDoRevisor') + 300);
         expect(fn).toContain('cerebroDoRevisor()');
         expect(fn).toContain('SMALL_BRAIN_CATALOG.find');
-    });
-
-    it('e o detalhe diz ao jogador se aquilo custa download novo', () => {
-        // A diferença entre "é o mesmo arquivo da vontade" e "arquivo próprio"
-        // é 1,02 GB do plano de dados dele.
-        expect(peca).toContain('cerebroDoRevisor() === null');
-        expect(peca).toContain('arquivo próprio');
     });
 });

@@ -8,7 +8,6 @@ import {
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
-import { pecaDoRevisor } from './npc/floor10Composicao';
 import { FLOOR10_REFLEXO_MODEL, precarregarReflexo } from './npc/floor10Reflexo';
 import {
     FLOOR10_MOTOR_MODEL,
@@ -30,9 +29,7 @@ import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Pr
 import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { vigiarMemoria } from './npc/floor10Memoriametro';
-import {
-    baixarVontade, baixarRevisor, precarregarVontade, unloadSmallBrain,
-} from './npc/floor10SmallBrain';
+import { baixarVontade, precarregarVontade, unloadSmallBrain } from './npc/floor10SmallBrain';
 import { baixarMotor, unloadFloor10MotorBrain } from './npc/floor10MotorBrain';
 import {
     FLOOR10_MEMORIA_MODEL,
@@ -64,10 +61,6 @@ definirFilaDoAndar10({
     rascunho: FLOOR10_RASCUNHADOR_MODEL.bytes,
     juiz: FLOOR10_TOM_MODEL.bytes,
     tradutor: FLOOR10_TRADUTOR_BYTES,
-    // Só existe com `?revisor=llama`. No padrão `pecaDoRevisor()` é null, o
-    // tamanho vai `undefined` e a peça some da fila — que é como as peças
-    // opcionais sempre funcionaram aqui ("sem tamanho, nem aparece").
-    revisor: pecaDoRevisor()?.bytes,
 });
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
@@ -229,10 +222,6 @@ const Floor10NpcChat: React.FC = () => {
             // runtime sobe quando a vontade for de fato usada, que é fora do
             // chat, com o aparelho livre.
             vontade: () => baixarVontade(),
-            // O revisor com arquivo próprio. Baixa sem subir runtime, igual à
-            // vontade e pelo mesmo motivo medido: um llama.cpp inteiro subindo
-            // no fim do download é o que travava o aparelho do dono do jogo.
-            revisor: () => baixarRevisor(),
             // Mesmo desenho da vontade: a fila traz os pesos, o runtime sobe
             // quando o cérebro for usado.
             motor: () => baixarMotor(),

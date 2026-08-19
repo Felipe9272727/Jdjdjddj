@@ -78,9 +78,6 @@ import {
 // O revisor vive aqui, mas o VOCABULÁRIO do desfecho é do pipeline: é ele que
 // confronta a resposta com a frase original e decide "trocou" ou "manteve".
 import { primeiraFraseFechada, type RespostaDoRevisor } from './floor10Pipeline';
-// Qual modelo o REMENDO quer de pé. `null` quando o revisor é a própria
-// vontade, que é o padrão e o caso sem download novo.
-import { cerebroDoRevisor } from './floor10Revisores';
 
 export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import {
@@ -103,49 +100,20 @@ const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 // já criou buraco antes (a fila perguntando a si mesma se a conversa estava
 // ocupada). floor10Brains não importa motor nenhum, então não há ciclo.
 /**
- * ── UM MOTOR, DOIS PAPÉIS, ÀS VEZES DOIS ARQUIVOS ────────────────────────
+ * ── UM MOTOR, DOIS PAPÉIS, UM ARQUIVO ────────────────────────────────────
  *
  * O mesmo slot de llama.cpp serve a VONTADE (o Nilo pensando entre falas) e o
- * REVISOR (remendar uma frase marcada). Enquanto os dois eram o mesmo arquivo,
- * isso era detalhe. Deixou de ser quando o revisor virou escolha: com
- * `?revisor=llama` o remendo quer o Llama 3.2 e a vontade continua querendo o
- * LFM2.5 — dois arquivos no mesmo slot, um de cada vez.
+ * REVISOR (remendar uma frase marcada), e os dois usam o MESMO gguf — quem
+ * escolhe qual é `?revisor=`, lá no `floor10Brains`.
  *
- * NÃO PODEM COEXISTIR, e isso não é economia: dois modelos de ~1 GB vivos ao
- * mesmo tempo é literalmente como o aparelho do dono do jogo desligou. Por isso
- * `assumirPapel` descarrega antes de trocar, do mesmo jeito que `setSmallBrain`
- * já fazia para a troca de vontade.
+ * AQUI CHEGOU A EXISTIR UMA MÁQUINA DE TROCAR DE PAPEL, com descarga do modelo
+ * no meio, para o revisor poder ter arquivo próprio. Ela foi apagada junto com
+ * o segundo download: "não precisa baixar os dois". Com um arquivo só, trocar
+ * de papel não troca de nada, e a função mais segura é a que não existe.
  */
-let papelDoMotor: 'vontade' | 'revisor' = 'vontade';
-
 function brainAtual() {
-    if (papelDoMotor === 'revisor') {
-        const doRevisor = cerebroDoRevisor();
-        const achado = doRevisor
-            ? SMALL_BRAIN_CATALOG.find((m) => m.id === doRevisor)
-            : undefined;
-        if (achado) return achado;
-    }
     return SMALL_BRAIN_CATALOG.find((m) => m.id === cerebroEscolhido()) ?? SMALL_BRAIN_CATALOG[0];
 }
-
-/**
- * Passa o motor para um papel, descarregando ANTES se o arquivo mudar.
- *
- * A conferência é pelo ID do modelo, e não pelo papel: quando o revisor é a
- * própria vontade (o padrão), trocar de papel não troca de arquivo e não custa
- * carga nenhuma. Descarregar aí seria jogar fora 1,25 GB já abertos para
- * recarregar os mesmos 1,25 GB.
- */
-async function assumirPapel(papel: 'vontade' | 'revisor'): Promise<void> {
-    if (papelDoMotor === papel) return;
-    const antes = brainAtual().id;
-    papelDoMotor = papel;
-    if (brainAtual().id !== antes) await unloadSmallBrain();
-}
-
-/** Só para os testes: qual papel o motor está servindo. */
-export function papelDoMotorParaTestes(): 'vontade' | 'revisor' { return papelDoMotor; }
 
 /**
  * Continua sendo lido como um objeto simples em todo o resto do arquivo, mas
@@ -1693,7 +1661,6 @@ export async function baixarVontade(): Promise<boolean> {
 }
 
 export async function precarregarVontade(): Promise<boolean> {
-    await assumirPapel('vontade');
     const engine = await floor10ModelCoordinator.activate(
         'deliberation',
         () => ensureSmallEngine(false),
@@ -1702,38 +1669,15 @@ export async function precarregarVontade(): Promise<boolean> {
 }
 
 /**
- * Sobe o modelo que vai REMENDAR — que pode não ser o da vontade.
+ * Sobe o modelo que vai REMENDAR.
  *
- * Existe separado de `precarregarVontade` porque `?revisor=llama` aponta os
- * dois papéis para arquivos diferentes. Com o padrão (`?revisor=lfm`) as duas
- * funções fazem exatamente a mesma coisa, e é de propósito: o caminho comum não
- * paga nada pela existência da opção.
+ * É o MESMO arquivo da vontade — o nome existe para quem lê o pipeline saber o
+ * que está sendo carregado e por quê, não porque o caminho seja outro.
  */
-/**
- * Baixa os pesos do revisor SEM subir runtime nenhum.
- *
- * Devolve `true` na hora quando o revisor é a própria vontade: não há arquivo
- * novo, e a peça nem aparece na fila nesse caso. Quando há, ele assume o papel
- * antes de baixar — é o papel que decide qual URL o `SMALL_BRAIN_MODEL` aponta.
- */
-export async function baixarRevisor(): Promise<boolean> {
-    if (cerebroDoRevisor() === null) return true;
-    await assumirPapel('revisor');
-    return baixarVontade();
-}
-
-export async function precarregarRevisor(): Promise<boolean> {
-    await assumirPapel('revisor');
-    const engine = await floor10ModelCoordinator.activate(
-        'deliberation',
-        () => ensureSmallEngine(false),
-    );
-    return engine !== null;
-}
+export const precarregarRevisor = precarregarVontade;
 
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
-    papelDoMotor = 'vontade';
     pesosBaixados.clear();
     abortDeliberation();
     resetFloor10MotorBrainForTests();

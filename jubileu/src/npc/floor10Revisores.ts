@@ -10,11 +10,27 @@
 // Pedido do dono do jogo: "coloca o llama como revisor — eu quero que deixe
 // como opção no pipeline, colocar o llama ou o lfm, aí vc escolhe, e entra na
 // linha única de download". As duas metades importam, e a segunda é a que
-// obriga este módulo a existir: os dois candidatos NÃO custam o mesmo em
-// disco, então a escolha muda a fila de download e precisa ser lida por ela.
+// obriga este módulo a existir: a escolha muda QUAL arquivo a fila baixa, e
+// portanto precisa ser lida por ela.
 //
-//     LFM2.5 ..... 0 bytes novos. É o MESMO arquivo da vontade, dois papéis.
-//     Llama 3.2 .. +1,02 GB. Arquivo próprio, que ninguém mais usa.
+// ── UM CÉREBRO PEQUENO, NÃO DOIS ─────────────────────────────────────────
+//
+// A primeira versão disto ACRESCENTAVA o Llama à fila, ao lado do LFM2.5 — 2,27
+// GB de cérebro pequeno para usar um. O dono do jogo cortou na hora: "isso é
+// burrice, não precisa baixar os dois; no ?revisor=llama deixe baixar só o
+// llama, e no pipeline normal, o lfm".
+//
+// Ele está certo, e a consequência é maior que economia de banda: se só existe
+// UM arquivo, ele serve os dois papéis (vontade e revisor) e toda a máquina de
+// "trocar de papel descarregando o modelo" que eu tinha escrito some junto.
+//
+//     ?pipeline ................. baixa o LFM2.5, 1,25 GB
+//     ?pipeline&revisor=llama ... baixa o Llama 3.2, 1,02 GB
+//
+// O QUE ISSO CUSTA, e não é zero: com `llama` a DELIBERAÇÃO também passa a ser
+// o Llama. Medido em `floor10Brains`, ele assina a escolha em 14/15 rodadas
+// contra 15/15 do LFM2.5, e a rodada sobe de 44,8 s para 64,8 s. Pior, não
+// quebrado — e é o preço de não baixar dois modelos de 1 GB.
 //
 // ── O QUE FOI MEDIDO ─────────────────────────────────────────────────────
 //
@@ -35,13 +51,6 @@
 // RESSALVA QUE IMPEDE ISSO DE VIRAR PROPAGANDA: são 6 defeitos e 3 controles. A
 // diferença de PLACAR (4/6 contra 3/6) cabe no ruído. A de TEMPO não cabe, e
 // tem causa medida — 97 tokens lidos contra 267.
-//
-// ── E POR QUE O PADRÃO CONTINUA SENDO O LFM2.5 ───────────────────────────
-//
-// Porque 1,02 GB a mais numa fila que já tem 4,2 GB é decisão de quem baixa, no
-// aparelho de quem baixa. Este projeto já derrubou o celular do dono do jogo
-// com download, já viu a cota do navegador recusar 2,07 GB e emudecer o Nilo. O
-// ganho é real e está medido; o custo também. `?revisor=llama` liga.
 
 import type { SmallBrainId } from './floor10Brains';
 
@@ -50,39 +59,33 @@ export type RevisorId = 'lfm' | 'llama';
 export type RevisorEntry = {
     id: RevisorId;
     label: string;
-    /**
-     * O modelo no catálogo dos cérebros pequenos, ou `null` quando o revisor é
-     * a PRÓPRIA vontade — e aí não há arquivo novo nenhum.
-     */
-    cerebro: SmallBrainId | null;
-    /** Bytes que ESTA escolha acrescenta à fila. Zero quando reusa a vontade. */
-    bytesExtras: number;
+    /** O cérebro pequeno que esta escolha coloca na fila. Sempre existe um. */
+    cerebro: SmallBrainId;
     nota: string;
 };
 
 export const REVISORES: readonly RevisorEntry[] = Object.freeze([
     {
         id: 'lfm',
-        label: 'LFM2.5 1.2B (o mesmo arquivo da vontade)',
-        cerebro: null,
-        bytesExtras: 0,
-        nota: 'de graça em disco, mas relê os ~270 tokens do enunciado toda chamada: 52,1s por frase',
+        label: 'LFM2.5 1.2B',
+        cerebro: 'lfm2-1b',
+        nota: 'relê os ~270 tokens do enunciado toda chamada: 52,1s por frase — mas delibera melhor',
     },
     {
         id: 'llama',
-        label: 'Llama 3.2 1B Q6 (arquivo próprio)',
+        label: 'Llama 3.2 1B Q6',
         cerebro: 'llama32-1b-q6',
-        bytesExtras: 1_021_800_576,
-        nota: '4,5x mais rápido (11,6s por frase) porque reaproveita o prefixo — custa 1,02 GB na fila',
+        nota: '4,5x mais rápido para remendar (11,6s) porque reaproveita o prefixo — e 230 MB menor',
     },
 ]);
 
 /**
- * O PADRÃO É O DE GRAÇA.
+ * O PADRÃO CONTINUA O LFM2.5 — "por enquanto", nas palavras do dono do jogo.
  *
- * Não é timidez: é a mesma regra que este andar segue desde o começo — uma
- * otimização que falha não pode custar a fala, e um download que não cabe
- * emudece o Nilo antes de qualquer otimização entrar em cena.
+ * Ele ganha do Llama na DELIBERAÇÃO (15/15 contra 14/15 ao assinar a escolha,
+ * e 44,8 s contra 64,8 s por rodada) e perde feio no REMENDO (52,1 s contra
+ * 11,6 s). Enquanto um arquivo só serve os dois papéis, a escolha é essa
+ * troca — e ela ainda não foi medida no aparelho de quem joga.
  */
 export const REVISOR_PADRAO: RevisorId = 'lfm';
 
@@ -115,10 +118,12 @@ export function revisorAtual(): RevisorEntry {
 }
 
 /**
- * O modelo que o motor precisa ter de pé para remendar — ou `null` quando é a
- * própria vontade, e aí não há troca de arquivo nenhuma.
+ * O cérebro pequeno que esta escolha põe na fila — e que serve os DOIS papéis.
+ *
+ * É lido por `floor10Brains` para decidir qual arquivo desce, o que faz de
+ * `?revisor=` a chave que troca o modelo inteiro, e não um segundo download.
  */
-export function cerebroDoRevisor(): SmallBrainId | null {
+export function cerebroDoRevisor(): SmallBrainId {
     return revisorAtual().cerebro;
 }
 
