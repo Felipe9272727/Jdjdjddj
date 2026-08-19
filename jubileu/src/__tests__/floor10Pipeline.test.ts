@@ -208,7 +208,8 @@ describe('o que o juiz viu chega a quem vai consertar', () => {
     it('motivo vazio passa como vazio — sem inventar nada no caminho', async () => {
         // O juiz de tom pode marcar sem âncora vencedora. O honesto é o revisor
         // receber '' e cair no enunciado antigo, e não o orquestrador preencher
-        // com um palpite que ninguém mediu.
+        // com um palpite que ninguém apurou. (O palpite ERRADO, esse, foi
+        // medido e é barato: 2/6 e 0/3 estragou, igual a ir às cegas.)
         const vistos: string[] = [];
         await falarPeloPipeline('Who are you?', pecas({
             julgar: async () => [{ n: 1, porque: '' }],

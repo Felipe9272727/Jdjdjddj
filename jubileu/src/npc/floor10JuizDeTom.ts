@@ -125,10 +125,24 @@ export const FLOOR10_ANCORAS_RUINS: readonly string[] = Object.freeze([
  *
  * Porque é o que o juiz de tom realmente sabe. Ele não leu regra nenhuma: ele
  * mediu que a frase ficou perto DESTA âncora e longe das boas. A âncora mais
- * próxima é um palpite informado, não um diagnóstico — e num turno em que o
- * palpite estiver errado, um "está errado porque" mandaria o revisor consertar
- * o que não está quebrado. As TRAVAS, essas sim, sabem: lá o texto é
- * afirmativo, porque um regex que casou não é palpite.
+ * próxima é palpite informado, não diagnóstico — e as TRAVAS, essas sim, sabem:
+ * lá o texto é afirmativo, porque um regex que casou não é palpite.
+ *
+ * ── E QUANTO CUSTA O PALPITE ERRADO? MEDIDO, E NÃO É CARO ────────────────
+ *
+ * Eu tinha escrito aqui que um motivo errado seria PIOR que motivo nenhum. Fui
+ * medir antes de deixar a frase de pé, entregando ao revisor o motivo de OUTRO
+ * defeito — palpite confiantemente errado, o pior caso:
+ *
+ *     sem motivo ......... 2/6 consertou · 0/3 estragou
+ *     motivo CERTO ....... 4/6 consertou · 0/3 estragou
+ *     motivo ERRADO ...... 2/6 consertou · 0/3 estragou
+ *
+ * Empata com ir às cegas, e não quebra cânone: diante de um diagnóstico que
+ * não bate com a frase, o revisor fica CONSERVADOR (devolveu "The hotel is run
+ * by the Vance family." quase intacta) em vez de consertar o que não está
+ * quebrado. O risco do palpite é limitado, e por isso ele pode ser passado sem
+ * um limiar de confiança inventado por mim.
  */
 export const FLOOR10_PORQUE_RUINS: readonly string[] = Object.freeze([
     'a hotel clerk offering service. Nilo is a trapped guest, not staff, and helps nobody.',
@@ -145,8 +159,9 @@ export const FLOOR10_PORQUE_RUINS: readonly string[] = Object.freeze([
  * A frase que vai ao revisor, ou `''` quando o juiz não tem o que dizer.
  *
  * Vazio é uma resposta legítima e não um erro: sem âncora vencedora, o revisor
- * recebe o enunciado antigo e trabalha como trabalhava. Inventar um motivo
- * seria pior que não ter nenhum.
+ * recebe o enunciado antigo e trabalha como trabalhava. Não é para evitar
+ * estrago — medido, motivo errado empata com motivo nenhum — é para não
+ * afirmar o que ninguém apurou.
  */
 export function motivoDoTom(veredicto: VeredictoDeTom): string {
     const i = veredicto.ancoraRuim;

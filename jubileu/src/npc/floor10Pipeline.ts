@@ -105,8 +105,12 @@ export type PecasDoPipeline = {
  * por letra em 4 de 6, inclusive quando o motivo é entregue de bandeja.
  *
  * `porque` pode ser `''`, e isso é uma resposta: quer dizer "marquei, e não sei
- * dizer por quê". O revisor então recebe o enunciado antigo. Motivo inventado
- * seria pior que motivo nenhum.
+ * dizer por quê". O revisor então recebe o enunciado antigo.
+ *
+ * E o motivo ERRADO custa pouco, o que também foi medido em vez de suposto:
+ * entregando de propósito o motivo de outro defeito, o placar é 2/6 e 0/3
+ * estragou — empata com ir às cegas. Diante de um diagnóstico que não bate, o
+ * revisor fica conservador em vez de consertar o que não está quebrado.
  */
 export type Marcacao = {
     /** Índice 1-based da frase. */

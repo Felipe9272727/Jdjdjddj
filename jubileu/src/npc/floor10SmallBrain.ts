@@ -1830,8 +1830,9 @@ export const REMENDO_TIMEOUT_MS = 70_000;
  *     de assunto. Num teste com enunciado que EXIGIA saída diferente, o placar
  *     foi de 0/6 a 6/6 na régua frouxa e as frases eram "the endless loop of
  *     rooms and CORRIDORS" e "I should find my way BACK DOWN".
- *   · `porque` vazio volta ao enunciado antigo. Um motivo inventado manda
- *     consertar o que não está quebrado, e isso é pior que não dizer nada.
+ *   · `porque` vazio volta ao enunciado antigo — por honestidade, não por
+ *     medo: medido, um motivo ERRADO dá 2/6 e 0/3 estragou, o mesmo que ir às
+ *     cegas. O revisor ignora o diagnóstico que não bate em vez de obedecê-lo.
  */
 export function enunciadoDoRemendo(
     perguntaEmIngles: string,

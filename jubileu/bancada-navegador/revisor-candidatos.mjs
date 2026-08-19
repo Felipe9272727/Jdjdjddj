@@ -40,10 +40,21 @@
  * titular de 2/6 para 4/6 por +3 s. É o melhor retorno medido nesta sessão, e
  * não custa download nenhum.
  *
- * RESSALVA QUE IMPEDE ISSO DE VIRAR PROMESSA: no modo `motivo` o motivo é o
- * verdadeiro, escrito à mão aqui. O juiz de verdade devolve só ÍNDICES — ele
- * teria de passar a explicar, e um motivo errado é pior que motivo nenhum.
- * Isto mede o teto do caminho, não o caminho.
+ * E O MOTIVO ERRADO? Medido também, porque eu tinha escrito que seria pior que
+ * motivo nenhum e escrever não é medir. Modo `errado`: cada caso recebe o
+ * motivo de OUTRO defeito — palpite confiantemente errado, o pior caso.
+ *
+ *   LFM2.5, motivo ERRADO .............. 2/6      0/3      32,3 s     259 tok
+ *
+ * Empata com ir às cegas, e não quebra cânone. Diante de um diagnóstico que não
+ * bate com a frase, o revisor fica CONSERVADOR — devolveu "The hotel is run by
+ * the Vance family." quase intacta — em vez de consertar o que não está
+ * quebrado. O risco do palpite é limitado, e por isso o juiz de tom pode passar
+ * a âncora mais próxima sem um limiar de confiança inventado.
+ *
+ * O QUE CONTINUA SENDO TETO: no modo `motivo` o motivo é o verdadeiro, escrito
+ * à mão aqui. O juiz de tom real acerta a âncora às vezes, e o placar de
+ * produção vai cair entre 2/6 e 4/6 conforme essa taxa — que não foi medida.
  *
  * NINGUÉM ESTRAGOU FRASE BOA: 0/3 em todas as configurações. Manter um revisor
  * é seguro; a dúvida é só se ele conserta o bastante para pagar o tempo.

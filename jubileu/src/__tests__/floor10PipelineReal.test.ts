@@ -210,8 +210,9 @@ describe('o enunciado do remendo, com e sem motivo', () => {
     });
 
     it('sem motivo, volta ao enunciado antigo em vez de inventar um', () => {
-        // Motivo inventado manda consertar o que não está quebrado. O juiz de
-        // tom pode marcar sem âncora vencedora, e aí o honesto é não dizer.
+        // Por honestidade, não por medo: medido, um motivo ERRADO dá 2/6 e
+        // 0/3 estragou — o mesmo que ir às cegas. O juiz de tom pode marcar sem
+        // âncora vencedora, e aí o honesto é não afirmar o que não se apurou.
         const e = enunciadoDoRemendo('Will it come?', frase, '');
         expect(e).toContain('this sentence is wrong');
         expect(e).not.toContain('It is wrong because');
