@@ -34,6 +34,7 @@
 // sem baixar 1 GB. As peças reais são ligadas em `wllamaEngine`.
 
 import { abrasileirar } from './floor10Tradutor';
+import { quebrasDeCanone, type QuebraDeCanone } from './floor10CanoneDoNilo';
 
 /** As quatro peças. Qualquer uma devolvendo vazio/nulo aborta o pipeline. */
 export type PecasDoPipeline = {
@@ -135,6 +136,16 @@ export type RespostaDoRevisor =
 export type DesfechoDoRemendo =
     | { tipo: 'trocou'; depois: string }
     | { tipo: 'manteve' }
+    /**
+     * O revisor escreveu algo que QUEBRA O CÂNONE, e a frase original ficou.
+     *
+     * Relato depois de testar no celular: *"em um dos casos, o revisor PIOROU
+     * a resposta"*. Ele devolveu `The player asks, "I've been on the ground
+     * floor…"` — inventou uma fala do JOGADOR — e aquilo chegou à tela. O
+     * remendo era aceito sem conferência: a etapa que existe para consertar
+     * podia estragar, e estragava calada.
+     */
+    | { tipo: 'recusado'; depois: string; quebras: readonly QuebraDeCanone[] }
     | { tipo: 'cortado'; parcial: string }
     | { tipo: 'sem-revisor' }
     | { tipo: 'vazio' }
@@ -227,6 +238,16 @@ export function aplicarRemendo(antes: string, r: RespostaDoRevisor): DesfechoDoR
     const { texto } = limparFrase(r.texto);
     if (texto.length <= 2) return { tipo: 'vazio' };
     if (texto === antes) return { tipo: 'manteve' };
+    // ── A CONFERÊNCIA QUE NÃO EXISTIA ────────────────────────────────────
+    //
+    // O remendo entrava sem ninguém olhar. Uma frase torta que o juiz marcou é
+    // ruim; uma frase que inventa cenário ou fala pelo jogador é MUITO pior, e
+    // chega ao jogador como cânone. Na dúvida, fica a original.
+    //
+    // Vale para QUALQUER revisor: isto não é conserto de um modelo, é a etapa
+    // deixando de confiar cegamente em quem quer que esteja no posto.
+    const quebras = quebrasDeCanone(texto);
+    if (quebras.length > 0) return { tipo: 'recusado', depois: texto, quebras };
     return { tipo: 'trocou', depois: texto };
 }
 

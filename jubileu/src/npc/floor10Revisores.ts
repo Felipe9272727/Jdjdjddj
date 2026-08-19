@@ -42,7 +42,16 @@
 //     LFM2.5 1.2B         3/6      1/6      0/3      52,1 s    267 tok
 //     Llama 3.2 1B Q6     4/6      1/6      0/3      11,6 s     97 tok
 //
-// 4,5x mais rápido com placar igual ou melhor. E o motivo é estrutural, não
+// E O PLACAR DE QUALIDADE NÃO SOBREVIVEU À REPETIÇÃO: numa segunda rodada, o
+// mesmo Llama fez 2/6, ecoando a frase errada letra por letra em três casos.
+// Com 6 casos e temperatura 0,7, o "4/6 contra 3/6" era ruído — eu avisei que
+// cabia no ruído e mesmo assim usei o número para recomendar. Só a diferença de
+// TEMPO era estrutural, e ela também não se confirmou no celular (ver abaixo).
+//
+// Medido depois, no mesmo processo: granite 3.3 2B Q4 fez 5/6 com ZERO desvios
+// — o melhor placar que qualquer candidato tirou aqui — a 34,7 s por frase,
+// lendo 109 tokens. É a pista viva; ainda não foi repetida nem testada no
+// aparelho, e a lição desta seção é justamente não recomendar antes disso. E o motivo é estrutural, não
 // sorte: `llama` é transformer puro e o llama.cpp reaproveita o prefixo entre
 // chamadas, então ele relê só o que mudou. O `lfm2` é híbrido
 // (`shortconv.l_cache` no gguf) e não aceita reaproveitamento PARCIAL — relê os
@@ -72,10 +81,32 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         nota: 'relê os ~270 tokens do enunciado toda chamada: 52,1s por frase — mas delibera melhor',
     },
     {
+        // ── REPROVADO NO APARELHO, e o registro fica ─────────────────────
+        //
+        // Na bancada ele marcou 11,6 s por frase contra 52,1 s do LFM2.5, e eu
+        // recomendei a troca. NO CELULAR DO DONO DO JOGO ele custou 14,7 s,
+        // 21,4 s, 64,5 s e 71,9 s — "a ponto de chegar numa demora nível
+        // smollm3 sozinho" — e o veredito foi "llama está DESCARTADO".
+        //
+        // Duas coisas explicam a diferença, e as duas são falha da minha
+        // medição, não do modelo:
+        //
+        //   1. a bancada AQUECE antes de medir (`await remendar(SYS, 'hi'…)`),
+        //      e no jogo o revisor sobe do zero a cada turno — a primeira frase
+        //      marcada paga a persona inteira, sem cache nenhum;
+        //   2. o celular dele é muito mais lento que esta caixa, e eu nunca
+        //      medi nada lá.
+        //
+        // E o pior não foi o tempo: numa das falas ele devolveu `The player
+        // asks, "I've been on the ground floor…"` — inventou uma fala do
+        // JOGADOR, que chegou traduzida à tela. Isso virou a conferência de
+        // cânone em `floor10CanoneDoNilo`, que vale para qualquer revisor.
+        //
+        // Continua selecionável para a bancada. Não é recomendação.
         id: 'llama',
-        label: 'Llama 3.2 1B Q6',
+        label: 'Llama 3.2 1B Q6 (REPROVADO no aparelho)',
         cerebro: 'llama32-1b-q6',
-        nota: '4,5x mais rápido para remendar (11,6s) porque reaproveita o prefixo — e 230 MB menor',
+        nota: 'rápido na bancada (11,6s) e lento no celular (14,7 a 71,9s); inventou fala do jogador uma vez',
     },
 ]);
 

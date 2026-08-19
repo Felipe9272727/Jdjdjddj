@@ -1042,6 +1042,23 @@ function Desfecho({ d }: { d: DesfechoDoRemendo }) {
             </div>
         );
     }
+    if (d.tipo === 'recusado') {
+        return (
+            <div>
+                <div style={{ color: '#ff9c9c' }}>
+                    RECUSADO: o remendo quebrava o cânone, e a frase original ficou.
+                </div>
+                <div style={{ ...sub, marginTop: 4, textDecoration: 'line-through' }}>
+                    “{d.depois}”
+                </div>
+                {d.quebras.map((q, i) => (
+                    <div key={i} style={{ ...sub, color: '#f5c96b' }}>
+                        · {q.regra} — “{q.trecho}”
+                    </div>
+                ))}
+            </div>
+        );
+    }
     if (d.tipo === 'erro') {
         return <div style={{ color: '#ff9c9c' }}>tropeçou: {d.erro}</div>;
     }
