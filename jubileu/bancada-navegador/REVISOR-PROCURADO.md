@@ -325,3 +325,65 @@ só isto". O titular está no meio dessa curva, e nenhum candidato oferece um sa
 
 **A conclusão da caçada inteira, em uma frase:** não há revisor melhor à
 espera; há um custo de recarga que nenhum revisor resolve.
+
+
+## 9. "Usa o falcon via ONNX" — o que existe e o que não existe
+
+Pedido depois de reprovar o WebGPU do wllama no aparelho ("o do wllama é muito
+ruim, o do onnx deu menos problema"). Fui atrás, e o caminho tem quatro fatos.
+
+### 1. O Falcon-H1 de 1.5B NÃO tem build ONNX
+
+Procurado no hub inteiro (`?search=Falcon-H1&filter=onnx`), o que existe é só a
+família Tiny:
+
+    onnx-community/Falcon-H1-Tiny-90M-Instruct-ONNX
+    onnx-community/Falcon-H1-Tiny-Multilingual-100M-Instruct-ONNX
+    onnx-community/Falcon-H1-Tiny-Coder-90M-ONNX
+
+**90M contra 1500M.** Nesta mesma caçada o granite 4.0 de 350M colapsou em ECO
+— sete das doze respostas eram a pergunta do jogador de volta. 90M está bem
+abaixo disso.
+
+### 2. Mas a arquitetura RODA no transformers.js — e só na 4.2.0
+
+    grep -c falcon_h1  transformers.js 4.2.0 ....... 14
+    grep -c falcon_h1  transformers.js 3.8.1 ......  0   ← a que o jogo usa
+
+E não é só declaração: o Tiny-90M em fp32 **carregou** como pipeline em 29 s
+(`revisor-onnx.mjs`). Ou seja, se um dia existir o 1.5B em ONNX, a biblioteca
+dá conta — desde que a gente suba de versão. A 4.2.0 já foi medida aqui e é
+**2,4× mais lenta que a 3.8.1 na CPU** para o juiz, então a subida não é grátis.
+
+### 3. A geração não completou, e o defeito é do meu arreio, não do modelo
+
+    TypeError: Cannot read properties of null (reading 'add_bos_token')
+        at t._call (transformers.min.js)
+
+O mesmo erro aparece com o `Xenova/all-mpnet-base-v2`, que esta bancada já usa
+sem problema por outro caminho — então é a forma como eu carrego modelo local na
+4.2.0, e não este repositório. Fica registrado como defeito meu, não como
+reprovação do Falcon: dizer "o falcon em ONNX não funciona" com base nisso seria
+culpar o modelo pelo meu arreio.
+
+### 4. E esta caixa não pode responder a pergunta do WebGPU
+
+    navigator.gpu existe, mas SEM adaptador
+
+A sonda antiga imprimia `WebGPU: true` só por o objeto existir — e isso me fez
+procurar o problema no lugar errado por uma rodada inteira. Perguntar pelo
+ADAPTADOR é a pergunta certa, e a resposta aqui é não. **Só o aparelho dele pode
+medir isso.**
+
+### O que sobra, então
+
+| caminho | existe hoje? | o que falta |
+|---|---|---|
+| Falcon-H1 1.5B via wllama | **sim** — `?revisor=falcon` | nada; e `?ngl=7` liga a GPU que ele quer testar |
+| Falcon-H1 1.5B via ONNX | **não** | exportar com o optimum (torch + ~6 GB) e hospedar ~1,5 GB |
+| LFM2.5 1.2B via ONNX | build oficial existe (`LiquidAI/LFM2.5-1.2B-Instruct-ONNX`), e `lfm2` está na 4.2.0 | subir a transformers.js e consertar o carregamento local (item 3) |
+
+O caminho do ONNX que dá para andar hoje é com o **titular**, não com o Falcon —
+e é uma troca real: o Falcon conserta 8/12 contra 7/12, mas fica preso ao backend
+que ele reprovou; o LFM2.5 perde um conserto em doze e roda no backend que
+funciona no aparelho dele.
