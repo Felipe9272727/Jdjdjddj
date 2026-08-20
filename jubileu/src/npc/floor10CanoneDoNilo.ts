@@ -55,8 +55,28 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // pior: o Nilo deixa de ser um personagem e vira um narrador roteirizando
     // a cena. O jogador lê a própria fala inventada, e nada no jogo indica que
     // aquilo não é canônico.
-    ['fala pelo jogador', /\bthe player (?:asks|says|replies|answers|responds)\b/i],
-    ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b/i],
+    // ── "THE PLAYER", SEM VERBO NENHUM ───────────────────────────────────
+    //
+    // A regra antiga exigia um verbo de fala (`the player asks|says|…`) porque
+    // nasceu de um caso em que o revisor inventava DIÁLOGO do jogador. Aí o
+    // revisor de ONNX devolveu isto, e passou livre:
+    //
+    //     "The elevator is a quiet space where the player can reflect on
+    //      their journey."
+    //
+    // Chegou traduzido à tela. O erro não é o verbo — é a EXPRESSÃO: o Nilo
+    // fala com o jogador em segunda pessoa, sempre. Quem diz "the player" está
+    // descrevendo a cena de fora, e isso nunca é fala dele.
+    ['fala pelo jogador', /\bthe player\b/i],
+
+    // ── E QUEM DIZ "THE NARRATOR" ESTÁ FORA DA CENA ──────────────────────
+    //
+    //     "The elevator is currently on the 10th floor of the hotel, and the
+    //      narrator is a former elevator technician."
+    //
+    // É a ficha do personagem, escrita em terceira pessoa, entregue como se
+    // fosse a fala dele. Também passou livre, também chegou à tela.
+    ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b|\bthe (?:narrator|speaker|protagonist)\b/i],
 
     // ── CÂNONE DO ANDAR ───────────────────────────────────────────────────
     ['está no 10º andar, não dentro do elevador', /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i],
@@ -72,7 +92,10 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // ── FALAR SOBRE A PRÓPRIA FRASE ───────────────────────────────────────
     // O LFM2.5 fez isso: "That sentence is still wrong—maybe the city's just a
     // blur". Ele comenta a tarefa em vez de cumpri-la.
-    ['comenta a frase em vez de reescrevê-la', /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i],
+    // Terceiro caso do mesmo relato: em vez de responder, ele CLASSIFICA a
+    // pergunta — "The question is about a hotel room on the 10th floor, which
+    // is a dry, formal statement." O Nilo não faz resenha do enunciado.
+    ['comenta a frase em vez de reescrevê-la', /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b|\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i],
 ]);
 
 /**

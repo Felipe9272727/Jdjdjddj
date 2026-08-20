@@ -108,3 +108,44 @@ describe('e as falas BOAS do Nilo passam', () => {
         });
     }
 });
+
+describe('o que o revisor de ONNX pôs na tela do dono do jogo', () => {
+    // AS TRÊS SÃO REAIS. Chegaram traduzidas ao jogador em 20/08, com o revisor
+    // por ONNX + WebGPU, e as três PASSARAM LIVRES pela lista de então.
+    //
+    // O relato foi "em geral ele piorou a mensagem do granite" — e a defesa que
+    // existe justamente para isso (`aplicarRemendo` recusar remendo que quebra
+    // cânone) não disparou em nenhuma. Uma regra que não pega o caso que ela
+    // existe para pegar é pior que não ter regra: dá a sensação de proteção.
+    const doAparelho = [
+        ['fala pelo jogador',
+            'The elevator is a quiet space where the player can reflect on their journey.'],
+        ['narra em vez de falar',
+            'The elevator is currently on the 10th floor of the hotel, and the narrator is a former elevator technician.'],
+        ['comenta a frase em vez de reescrevê-la',
+            'The question is about a hotel room on the 10th floor, which is a dry, formal statement.'],
+    ] as const;
+
+    for (const [regra, frase] of doAparelho) {
+        it(`reprova: ${frase.slice(0, 46)}…`, () => {
+            const quebras = quebrasDeCanone(frase);
+            expect(quebras.length).toBeGreaterThan(0);
+            expect(quebras.map((q) => q.regra)).toContain(regra);
+        });
+    }
+
+    // O outro lado da moeda: alargar regra é fácil demais, e uma régua que
+    // reprova fala boa cala o Nilo. Estas são falas legítimas dele.
+    const legitimas = [
+        'It opens when it wants to, and never when I ask.',
+        'Long enough to stop counting, and not long enough to stop listening.',
+        'I stopped calling it fear a while ago. Now it is just the room and me.',
+        "You keep asking about the door. I keep not having an answer.",
+        'I am not going to tell you it is fine, because it is not.',
+    ];
+    for (const frase of legitimas) {
+        it(`deixa passar: ${frase.slice(0, 40)}…`, () => {
+            expect(quebrasDeCanone(frase)).toHaveLength(0);
+        });
+    }
+});

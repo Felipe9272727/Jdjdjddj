@@ -74,7 +74,9 @@ export // AS REGRAS ABAIXO SÃO AS DE `src/npc/floor10CanoneDoNilo.ts`. Duas del
 // end?\"", que é narração pura. Enquanto a bancada for .mjs e o jogo .ts, esta
 // cópia existe; se divergirem de novo, é aqui que o placar mente.
 const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
-    || /\bthe player(?:'s)?\s+(?:asks|says|replies|answers|responds|question)\b/i.test(t)
+    || /\bthe player\b/i.test(t)
+    || /\bthe (?:narrator|speaker|protagonist)\b/i.test(t)
+    || /\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i.test(t)
     || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b/i.test(t)
     || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
