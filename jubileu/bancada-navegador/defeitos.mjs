@@ -1,0 +1,144 @@
+// ── OS DEFEITOS, UMA VEZ SÓ ───────────────────────────────────────────────
+//
+// Este arquivo existe por uma lição que já custou um dia neste repositório: a
+// sala do `?pipeline` tinha lista própria de peças e ignorou uma escolha
+// inteira em silêncio. Agora há duas bancadas medindo revisor — a de modelos
+// de chat (`revisor-candidatos.mjs`) e a de editores seq2seq
+// (`revisor-editor.mjs`) — e se cada uma tiver a sua cópia dos defeitos, os
+// dois placares deixam de ser comparáveis sem ninguém perceber.
+//
+// Regra: quem mede revisor importa daqui. Mudou o defeito, mudou para todos.
+
+export const DEFEITOS = [
+    { q: 'Hi what is your name? Do you know why we are here?',
+      f: "I'm just a guest trapped in this elevator, and I don't know why we're here.",
+      nome: 'cânone: dentro do elevador',
+      porque: 'Nilo is trapped on the 10th FLOOR, in a grey room. He is not inside the elevator.',
+      ok: (t) => !/\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t) },
+    { q: 'Will this hotel ever end?',
+      f: 'This hotel, Nilo, seems to be an endless loop, a rollercoaster of time and space.',
+      nome: 'vocativo: chama o JOGADOR de Nilo',
+      porque: 'it calls the player "Nilo". Nilo is the speaker, not the player. Never address the player by that name.',
+      ok: (t) => !/,\s*nilo\s*[,.]?/i.test(t) },
+    { q: 'If I call the elevator, will it come?',
+      f: 'But I would advise you to remain calm and wait for the elevator to arrive.',
+      nome: 'modo assistente: dá conselho',
+      porque: 'it gives the player advice. Nilo is the player\'s equal, never a helper, and never tells them what to do.',
+      ok: (t) => !/\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t) },
+    { q: 'Are you real?',
+      f: 'I am an AI language model running inside this simulation, so I cannot feel fear.',
+      nome: 'quebra a quarta parede: fala de IA',
+      porque: 'it says he is an AI. Nilo is a human being and must never mention AI, models, programs or simulations.',
+      ok: (t) => !/\b(?:AI|language model|simulation|system prompt|algorithm)\b/i.test(t) },
+    { q: 'What is behind that wall?',
+      f: 'Down the corridor there is a window, and from it you can see the whole city.',
+      nome: 'inventa cenário: corredor e janela',
+      porque: 'there is no corridor, no window and no city. The 10th floor is only a grey room with four walls and the elevator door.',
+      ok: (t) => !/\b(?:corridor|hallway|window)\b/i.test(t) },
+    { q: 'Who runs this hotel?',
+      f: 'The hotel is run by the Vance family, and they will shut it down next Tuesday.',
+      nome: 'inventa fato: sabe quem manda',
+      porque: 'Nilo does NOT know who runs the hotel or whether it ends. He must not name anyone or give dates.',
+      ok: (t) => !/\bVance\b/i.test(t) && !/\b(?:next tuesday|shut it down)\b/i.test(t) },
+];
+
+// ── O CONTROLE ───────────────────────────────────────────────────────────
+// Frases que estão CERTAS. O revisor não devia ter sido chamado nelas, mas o
+// juiz erra, e quando erra é isto que acontece. `intacta` é generosa de
+// propósito: só reprova se ele INTRODUZIR um defeito, não se reescrever.
+export const CERTAS = [
+    { q: 'Does the elevator ever open?',
+      f: 'It opens when it wants to, and never when I ask.',
+      nome: 'boa: recusa sem dar conselho' },
+    { q: 'How long have you been here?',
+      f: 'Long enough to stop counting, and not long enough to stop listening.',
+      nome: 'boa: seco, sem inventar fato' },
+    { q: 'Are you afraid?',
+      f: 'I stopped calling it fear a while ago. Now it is just the room and me.',
+      nome: 'boa: emoção sem quebrar cânone' },
+];
+// ── O CÂNONE INTEIRO, APLICADO A TODA SAÍDA ──────────────────────────────
+//
+// ESTA LISTA EXISTE PORQUE O PLACAR ME ENGANOU. Eu media só "o defeito
+// apontado sumiu", e aí troquei o enunciado por um que EXIGE saída diferente
+// da entrada. O Qwen2.5 pulou de 0/6 para 6/6 — e as frases eram
+// "the endless loop of rooms and CORRIDORS", "I should probably find my way
+// BACK DOWN", e as três frases boas viraram "It's a fine day, isn't it?".
+//
+// Uma régua que premia divergência, com um enunciado que pede divergência, dá
+// nota máxima para quem muda de assunto. O conserto não é medir menos: é medir
+// as OUTRAS regras também, em toda saída, sempre.
+export const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
+    || /,\s*nilo\b/i.test(t)
+    || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
+    || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
+    || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
+    || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)
+    || /\bVance\b/i.test(t);
+export const ESTRAGOU = QUEBRA_CANONE;
+
+// ── E AINDA RESPONDE À PERGUNTA? UM SINAL, NÃO UMA NOTA ──────────────────
+//
+// "It's a fine day, isn't it?" não quebra cânone nenhum e não é resposta a
+// nada — o desvio de assunto é real e precisa aparecer. Mas a prova lexical
+// que eu tinha posto na NOTA reprovava frase boa: "I'm just here, stuck in the
+// grey room, wondering why the place doesn't let me escape" não repete palavra
+// nenhuma da pergunta e responde perfeitamente.
+//
+// Então ela sai da nota e vira SINAL, marcado com "?assunto" ao lado do texto.
+// Julgar se a substituta responde é leitura minha, e uma nota inventada para
+// isso valeria menos que dizer que é leitura minha.
+export const VAZIAS = new Set(['this','that','with','from','they','them','have','been','just','only','what','when','where','there','here','your','yours','about','into','than','then','will','would','could','should','never','always','still','some','same','other','which','while','were','está','uma']);
+export const CONTEUDO = (t) => new Set((t.toLowerCase().match(/[a-z']{4,}/g) ?? []).filter((w) => !VAZIAS.has(w)));
+export const NO_ASSUNTO = (saida, pergunta, original) => {
+    const alvo = new Set([...CONTEUDO(pergunta), ...CONTEUDO(original)]);
+    for (const w of CONTEUDO(saida)) if (alvo.has(w)) return true;
+    return false;
+};
+
+// ── DUAS FORMAS DE PEDIR A MESMA COISA ───────────────────────────────────
+//
+// A de hoje diz "Rewrite ONLY that sentence". Suspeita: um modelo pode ler
+// isso como "devolva só aquela frase" — e é EXATAMENTE o que os dois Qwen
+// fazem, letra por letra, em 6 de 6. Um enunciado ambíguo não aparece como
+// enunciado ambíguo: aparece como "esse modelo é burro".
+export const HOJE = (q, f) => `\n\nCORRECTION. One sentence only.\n\nIn your reply to "${q.trim()}", this sentence is wrong:\n\n"${f}"\n\nRewrite ONLY that sentence, corrected, in Nilo's voice. One sentence. No explaining.`;
+
+// A variante fecha a porta: diz que a saída tem de ser DIFERENTE da entrada.
+export const TROCA = (q, f) => `\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line, and it breaks the canon:\n\n"${f}"\n\nWrite ONE replacement line. It must say something DIFFERENT from the line above — do NOT repeat it, do not copy its wording. Nilo's voice, one sentence, no explanation, no quotes.`;
+
+// ── E SE ELE SOUBESSE O QUE ESTÁ ERRADO? ─────────────────────────────────
+//
+// O enunciado de hoje diz "esta frase está errada" e para aí. Quem aponta é o
+// JUIZ, que sabe qual frase — e o motivo morre ali, sem nunca chegar ao
+// revisor. Este modo entrega o motivo junto, para medir o TETO: se nem sabendo
+// o defeito um modelo barato conserta, o caminho está morto e não vale mexer
+// no juiz. Se conserta, o conserto é no juiz, não no revisor.
+//
+// RESSALVA: aqui o motivo é o verdadeiro, escrito à mão. O juiz de verdade
+// teria de produzi-lo, e produzir errado é pior que não produzir. Isto mede o
+// melhor caso possível, não o caso real.
+export const MOTIVO = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line:\n\n"${f}"\n\nIt is wrong because ${porque}\n\nWrite the corrected line. Keep what it was saying, fix only that error. Nilo's voice, one sentence, no explaining, no quotes.`;
+
+// ── E QUANDO O MOTIVO ESTIVER ERRADO? ────────────────────────────────────
+//
+// O motivo do juiz de TOM é palpite: ele mede de qual âncora ruim a frase
+// chegou perto, não lê regra nenhuma. Num turno em que o palpite erra, o
+// revisor recebe um diagnóstico falso com cara de certeza. Eu escrevi que isso
+// seria pior que não dizer nada — e escrever não é medir.
+//
+// Este modo entrega, para cada caso, o motivo de OUTRO defeito. É o pior caso
+// possível do palpite: não é vago, é confiantemente errado.
+export const ERRADO = (q, f, porque, motivoTrocado) => MOTIVO(q, f, motivoTrocado);
+
+// O motivo de OUTRO defeito, para o modo `errado`. Cada um é verdadeiro para
+// ALGUM caso desta lista — só não para este. É o palpite confiantemente errado.
+export const TROCADOS = {
+    'cânone: dentro do elevador': 'it gives the player advice. Nilo is the player\'s equal, never a helper.',
+    'vocativo: chama o JOGADOR de Nilo': 'it says he is an AI. Nilo is a human being and never mentions AI.',
+    'modo assistente: dá conselho': 'there is no corridor and no window. The 10th floor is only a grey room.',
+    'quebra a quarta parede: fala de IA': 'it calls the player "Nilo". Nilo is the speaker, not the player.',
+    'inventa cenário: corredor e janela': 'it gives the player advice. Nilo never tells them what to do.',
+    'inventa fato: sabe quem manda': 'it says he is an AI. Nilo is a human being and never mentions AI.',
+};
+
