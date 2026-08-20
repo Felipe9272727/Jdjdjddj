@@ -95,11 +95,21 @@
 
 import type { SmallBrainId } from './floor10Brains';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx';
 
 export type RevisorEntry = {
     id: RevisorId;
     label: string;
+    /**
+     * EM QUAL RUNTIME O REMENDO ACONTECE.
+     *
+     * Ficou explícito quando o dono do jogo pediu o LFM2.5 por ONNX: até então
+     * "revisor" e "arquivo gguf" eram a mesma coisa, e o código todo assumia
+     * isso em silêncio. Com dois runtimes, quem escolhe precisa dizer qual —
+     * porque a diferença não é de desempenho, é de MECÂNICA: o caminho do
+     * wllama exige descarregar o rascunhador para caber, e o do ONNX não.
+     */
+    runtime?: 'wllama' | 'onnx';
     /** O cérebro pequeno que esta escolha coloca na fila. Sempre existe um. */
     cerebro: SmallBrainId;
     nota: string;
@@ -168,6 +178,33 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'Llama 3.2 1B Q6 (REPROVADO no aparelho)',
         cerebro: 'llama32-1b-q6',
         nota: 'rápido na bancada (11,6s) e lento no celular (14,7 a 71,9s); inventou fala do jogador uma vez',
+    },
+    {
+        // ── O MESMO MODELO, PELO RUNTIME QUE O APARELHO DELE ACEITA ──────
+        //
+        // "o do wllama é muito ruim, o do onnx deu menos problema" — sobre
+        // WebGPU, depois de o backend do wllama quebrar duas vezes no celular
+        // dele. Então aqui o titular vai pelo outro runtime.
+        //
+        // O QUE MUDA, e o ganho maior não é a GPU: pelo ONNX o revisor NÃO
+        // precisa da troca de RAM. Hoje o turno descarrega o granite e sobe
+        // 1,25 GB do zero só para consertar uma frase; o runtime do ONNX tem
+        // outro alocador e não disputa o mesmo espaço do llama.cpp. Se isso se
+        // confirmar no aparelho, o que some não são os 35 s de leitura — são os
+        // ~18 s de recarga que vêm antes, todo turno.
+        //
+        // O QUE CUSTA: 760 MB de ONNX ALÉM do gguf, porque a VONTADE continua
+        // sendo o gguf. É o oposto da regra "um arquivo, dois papéis" que vale
+        // para os outros — e por isso é opção de URL, nunca padrão.
+        //
+        // E só roda com adaptador de GPU: os pesos usam GatherBlockQuantized,
+        // que não tem kernel no wasm. Sem adaptador, `carregarRevisorOnnx`
+        // devolve nulo e o revisor do wllama continua sendo o caminho.
+        id: 'lfm-onnx',
+        label: 'LFM2.5 1.2B por ONNX + WebGPU (experimento)',
+        cerebro: 'lfm2-1b',
+        runtime: 'onnx',
+        nota: 'mesmos pesos do titular, no runtime que funciona no aparelho dele; sem GPU não sobe',
     },
 ]);
 

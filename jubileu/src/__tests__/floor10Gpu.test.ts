@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     FLOOR10_GPU_FPS_FLOOR,
     FLOOR10_GPU_FIRST_RUNG,

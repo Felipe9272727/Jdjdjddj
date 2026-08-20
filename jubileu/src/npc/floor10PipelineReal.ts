@@ -34,6 +34,8 @@ import { traduzirParaPtBr } from './floor10Tradutor';
 import {
     remendarFraseEmIngles, vontadeDePeAgora, precarregarRevisor, unloadSmallBrain,
 } from './floor10SmallBrain';
+import { remendarPorOnnx } from './floor10RevisorOnnx';
+import { revisorAtual } from './floor10Revisores';
 import { comPrazo, esperar, PRAZO_CARGA_MS, RESPIRO_APOS_DESCARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
 import { npcSet } from './npcStore';
@@ -160,6 +162,22 @@ export const PECAS_REAIS: PecasDoPipeline = {
         // usar"*. E existe uma hora certa — **o rascunhador JÁ ESCREVEU**. Ele
         // não é preciso outra vez neste turno, então o lugar dele na RAM está
         // sobrando exatamente quando o revisor precisa de um.
+        // ── E QUANDO O REVISOR NÃO É UM llama.cpp ────────────────────────
+        //
+        // `?revisor=lfm-onnx` põe o MESMO LFM2.5 no runtime do ONNX, e aí a
+        // troca acima não deve acontecer: ela existe porque dois llama.cpp de
+        // 1 GB no mesmo celular desligaram o aparelho do dono do jogo, e o
+        // ONNX não é um llama.cpp. Descarregar o rascunhador aqui seria pagar
+        // ~18 s de recarga por turno para resolver uma disputa que não existe.
+        //
+        // Este é o ganho que o experimento mede, e ele vale mesmo se a GPU não
+        // ajudar em nada: some a recarga, não só a leitura.
+        if (revisorAtual().runtime === 'onnx') {
+            npcSet({ etapa: 'corrigindo uma frase (ONNX)…' });
+            return comPrazo(
+                remendarPorOnnx(pergunta, frase, porque), PRAZO_CARGA_MS, 'o revisor de ONNX',
+            ).catch((e) => ({ tipo: 'erro' as const, erro: String(e?.message ?? e).slice(0, 180) }));
+        }
         if (!vontadeDePeAgora()) {
             const trocou = await trocarRascunhadorPeloRevisor();
             if (!trocou) return { tipo: 'sem-revisor' };
