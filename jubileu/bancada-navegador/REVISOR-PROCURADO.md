@@ -117,7 +117,7 @@ Marcados assim de propósito: `verificado` = o repositório existe e eu conferi;
 
 | candidato | por que interessa | ressalva |
 |---|---|---|
-| granite 3.3 2B Q4 | 5/6 com 0 desvios, o melhor placar que alguém tirou aqui | uma rodada só, com aquecimento — é o que está sendo medido agora |
+| ~~granite 3.3 2B Q4~~ | **medido e descartado** — ver seção 5 | empatou em qualidade e custa o dobro a frio |
 | Qwen3.5-2B | não conferido | arquitetura Gated DeltaNet: **atenção linear híbrida**, ou seja o mesmo problema do lfm2 com reaproveitamento de prefixo |
 | Ministral-3-3B | não conferido | transformer puro (bom para cache), mas 3,85B é grande demais para caber ao lado do granite |
 | Phi-4-mini-instruct | não conferido | transformer puro, sem pensamento; 3,8B, mesmo problema de tamanho |
@@ -127,3 +127,37 @@ O padrão que aparece nessa tabela: **os candidatos com a arquitetura certa para
 o cache são grandes demais para caber ao lado do rascunhador, e os pequenos o
 bastante têm a arquitetura errada.** Isso reforça a seção 3.2 — o ganho grande
 não está em achar outro modelo.
+
+
+## 5. O granite como revisor: medido, e descartado
+
+A pista era "5/6 com zero desvios, o melhor placar da lista". Repetida com a
+bancada corrigida (2 rodadas, 12 frases, mesmo processo, sem aquecimento):
+
+    candidato        conserta  desviou  estraga  intacta   1ª FRIA   depois   lê
+    LFM2.5 1.2B        8/12      3/12     0/3      0/3      35,0 s   34,6 s  267 tok
+    granite 3.3 2B     8/12      3/12     0/3      0/3      66,2 s   27,4 s  125 tok
+
+**Empate em tudo que é qualidade.** O 5/6 era do mesmo tamanho de ruído que o
+4/6 do Llama: seis casos, temperatura 0,7.
+
+E o tempo troca de lado conforme a coluna que se lê — o erro exato que me custou
+o Llama, agora visível porque a coluna existe:
+
+- o granite é transformer puro, então o llama.cpp reaproveita o prefixo: 306
+  tokens na primeira chamada, 110 nas seguintes;
+- o LFM2.5 é híbrido (`shortconv.l_cache`) e lê 267 **sempre**.
+
+Numa conversa em que o revisor **fica de pé**, o granite ganha (27,4 s contra
+34,6 s). O jogo não faz isso: ele sobe o revisor do zero todo turno. Toda chamada
+do jogo é a coluna **fria**, e lá o granite custa **quase o dobro**.
+
+A vantagem estrutural do transformer puro é real e é **inútil para nós enquanto
+a troca de RAM existir** — o que reforça, pela terceira vez neste arquivo, que o
+ganho grande está em matar a recarga (seção 3.2), não em trocar de modelo.
+
+Uma observação que vale para os dois e que ninguém tinha medido: **`intacta` é
+0/3 em ambos**. Nenhum dos dois devolve sem mexer uma frase que já estava certa.
+Quando o juiz marca errado, os dois reescrevem — e é por isso que
+`aplicarRemendo` recusar remendo que quebra cânone não é zelo, é a única defesa
+que existe nesse caso.

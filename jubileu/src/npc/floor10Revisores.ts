@@ -59,10 +59,39 @@
 // marcada paga a persona inteira, que é justamente o que o reaproveitamento
 // pouparia. Eu medi o caso que o jogo não faz.
 //
-// Medido depois, no mesmo processo: granite 3.3 2B Q4 fez 5/6 com ZERO desvios
-// — o melhor placar que qualquer candidato tirou aqui — a 34,7 s por frase,
-// lendo 109 tokens. É a pista viva; ainda não foi repetida nem medida a frio, e
-// a lição desta seção é exatamente não recomendar antes disso.
+// ── A PISTA DO GRANITE FOI ATRÁS, E MORREU MEDIDA ────────────────────────
+//
+// Estava escrito aqui que o granite 3.3 2B Q4 fez 5/6 com zero desvios a 34,7 s
+// — "a pista viva", com a ressalva de que não tinha sido repetida nem medida a
+// frio. As duas ressalvas se confirmaram, e na direção contrária à pista.
+//
+// Repetido (2 rodadas, 12 frases, mesmo processo, bancada SEM aquecimento):
+//
+//     candidato        conserta  desviou  estraga  intacta   1ª FRIA   depois   lê
+//     LFM2.5 1.2B        8/12      3/12     0/3      0/3      35,0 s   34,6 s  267 tok
+//     granite 3.3 2B     8/12      3/12     0/3      0/3      66,2 s   27,4 s  125 tok
+//
+// EMPATE EM TUDO QUE É QUALIDADE. O 5/6 era a mesma coisa que o 4/6 do Llama:
+// seis casos a 0,7 de temperatura.
+//
+// E o TEMPO inverte de lado dependendo de qual coluna se lê — que é exatamente
+// o erro que me custou o Llama. O granite lê 306 tokens na primeira chamada e
+// 110 nas seguintes, porque é transformer puro e o llama.cpp reaproveita o
+// prefixo. O LFM2.5 lê 267 SEMPRE (é híbrido, `shortconv.l_cache`, sem
+// reaproveitamento parcial).
+//
+// Numa conversa em que o revisor fica de pé, o granite ganha: 27,4 s contra
+// 34,6 s. SÓ QUE O JOGO NÃO FAZ ISSO. `trocarRascunhadorPeloRevisor` descarrega
+// o rascunhador e sobe o revisor do ZERO a cada turno — porque dois llama.cpp
+// de 1 GB foi o que desligou o aparelho do dono do jogo. Toda chamada do jogo é
+// a coluna FRIA. E lá o granite custa 66,2 s contra 35,0 s: quase o dobro.
+//
+// A vantagem estrutural do transformer puro é real e é inútil para nós
+// enquanto a troca de RAM existir. O titular fica.
+//
+// (Nota que vale para os dois: `intacta` é 0/3 em ambos. Nenhum dos dois
+// devolve intacta uma frase que já estava certa — os dois reescrevem sempre.
+// Quando o juiz erra, erram junto.)
 
 import type { SmallBrainId } from './floor10Brains';
 
