@@ -161,3 +161,42 @@ Uma observação que vale para os dois e que ninguém tinha medido: **`intacta` 
 Quando o juiz marca errado, os dois reescrevem — e é por isso que
 `aplicarRemendo` recusar remendo que quebra cânone não é zelo, é a única defesa
 que existe nesse caso.
+
+
+## 6. O que o nosso binário aceita — a lista, tirada do wasm
+
+Eu vinha escolhendo candidato por reputação e depois descobrindo se rodava. Dá
+para fazer ao contrário: as arquiteturas que o llama.cpp compilou estão como
+strings dentro de `wllama-cdn/wasm/wllama.wasm`. A lista (filtrada para as que
+importam aqui):
+
+    arcee bitnet deci dream ernie4_5 exaone exaone3 exaone4 falcon falcon-h1
+    falcon3 gemma gemma2 gemma3 gemma3n gemma4a gemma4v glm4 granite
+    granitehybrid granitemoe hunyuan hunyuan-dense hunyuan-moe internlm2 jamba
+    lfm2 lfm2a lfm2moe llada mamba mamba2 minicpm minicpm3 minicpm5 nemotron
+    nemotron_h nemotron_h_moe olmo olmo2 olmoe openelm orion phi2 phi3 plamo
+    plamo2 plamo3 qwen2a qwen2moe qwen2vl qwen3 qwen35 qwen35moe qwen3a qwen3moe
+    qwen3next qwen3vl rwkv rwkv6 rwkv6qwen2 smollm smollm3 stablelm t5encoder
+    xverse
+
+E os tipos de quantização ternária também estão: `tq1_0`, `tq2_0` (além de
+`iq1_s`, `iq1_m`). Ou seja, **BitNet roda** — isso não estava escrito em lugar
+nenhum.
+
+Cruzando com o que já foi tentado (`JA-TENTADO.md`), as famílias que este
+projeto NUNCA tocou e que são de fato outra coisa:
+
+| arquitetura | o que muda | situação |
+|---|---|---|
+| `bitnet` | pesos ternários (1,58 bit): muito menos banda de memória por token, que é onde o prefill dói | **medindo** |
+| `granitehybrid` | Granite 4.0: mamba2 + atenção. Estado recorrente em vez de KV que cresce | **medindo** |
+| `mamba` / `mamba2` puros | SSM puro, sem KV nenhum | **sem candidato**: não existe modelo instruído de ~1B em GGUF; SSM instruído só existe em híbrido |
+| `rwkv` / `rwkv6` | RNN, estado de tamanho fixo | os GGUF de ~1,6B são modelos "world" **base**, sem template de chat |
+| `llada` / `dream` | difusão, decodificação paralela | **beco fechado, já documentado**: o wllama carrega e morre num assert de `n_outputs_max` (VELOCIDADE.md §993) |
+| `falcon-h1`, `nemotron_h`, `plamo2` | outras topologias híbridas mamba+atenção | candidatos, não medidos |
+| `qwen3`, `exaone4` | transformers com atenção local/global | candidatos, não medidos (o Qwen**2.5** fez 0/6, o 3 é outro bicho) |
+
+O padrão que essa tabela expõe, e que eu não tinha visto: **as arquiteturas
+realmente diferentes (SSM puro, RNN, difusão) ou não têm modelo instruído no
+nosso tamanho, ou batem numa parede do runtime.** O que sobra de novo para
+medir é híbrido e ternário — que é exatamente o que está na bancada agora.
