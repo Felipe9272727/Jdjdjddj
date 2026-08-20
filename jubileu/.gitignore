@@ -18,3 +18,10 @@ public/wllama/
 
 # fotos das sondas (saída, não fonte)
 tools/out-*.png
+
+# ── O QUE A BANCADA BAIXA PARA MEDIR, E NÃO ENTRA NO REPOSITÓRIO ──────────
+# O Chromium desta caixa não alcança a internet, então as sondas precisam da
+# biblioteca e do modelo servidos localmente. São ~214 MB de binário, acima do
+# limite do GitHub — e reconstituíveis com `bancada-navegador/tjs-buscar.sh`.
+bancada-navegador/tjs/
+bancada-navegador/modelos/

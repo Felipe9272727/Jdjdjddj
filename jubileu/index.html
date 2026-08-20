@@ -45,6 +45,36 @@
           console.info('[floor10] wllama trocado para ' + __v + ' por ?wllama=');
         }
       } catch (e) { /* sem URL não há troca, e o padrão segue */ }
+
+      // ── `?onnx=4.2.0` — TROCAR O transformers.js PELA URL ─────────────
+      //
+      // Mesma ideia da chave acima, para o outro runtime: o juiz de tom e o
+      // reflexo rodam em ONNX, e a versão em uso é a 3.8.1 (dez/2025). A atual
+      // é a 4.2.0 (abr/2026), com um salto de major no meio.
+      //
+      // MEDIDO na bancada, com biblioteca e modelo servidos localmente:
+      //
+      //     3.8.1 em CPU ..... 243 ms por frase
+      //     4.2.0 em CPU ..... 579 ms por frase   (2,4x MAIS LENTA)
+      //     vetores .......... IDÊNTICOS nas 8 primeiras dimensões
+      //
+      // O "idênticos" é a parte que importa para a segurança: o juiz decide por
+      // cosseno contra âncoras com margem ZERO, um número varrido e calibrado
+      // nos vetores da 3.8.1. Vetor diferente seria o juiz marcando frases
+      // diferentes sem ninguém perceber. Ele não muda.
+      //
+      // A lentidão em CPU é real e desaconselha a troca — a única razão para
+      // subir é o backend WebGPU, que melhorou muito nessa faixa e que esta
+      // caixa não sabe medir (aqui não há adaptador de GPU de verdade). Por
+      // isso a chave: a resposta está no celular, não aqui.
+      try {
+        var __o = new URLSearchParams(location.search).get('onnx');
+        if (__o && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(__o)) {
+          window.__onnxCdn = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@' + __o;
+          window.__onnxModuleUrl = window.__onnxCdn + '/dist/transformers.min.js';
+          console.info('[floor10] transformers.js trocado para ' + __o + ' por ?onnx=');
+        }
+      } catch (e) { /* sem URL não há troca, e o padrão segue */ }
     </script>
   </head>
   <body>

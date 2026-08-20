@@ -788,3 +788,41 @@ describe('a chave ?wllama= no index.html', () => {
         expect(bloco).toContain('if (__v &&');
     });
 });
+
+// ── A CHAVE ?onnx= , E O RISCO QUE ELA CARREGA ────────────────────────────
+//
+// O juiz de tom e o reflexo rodam em transformers.js. A versão em uso é a
+// 3.8.1; a atual é a 4.2.0, com salto de major no meio. A chave existe pelo
+// mesmo motivo da `?wllama=`: a resposta está no aparelho de quem joga.
+//
+// MEDIDO na bancada, biblioteca e modelo servidos localmente:
+//     3.8.1 em CPU .... 243 ms por frase
+//     4.2.0 em CPU .... 579 ms por frase  (2,4x mais lenta)
+//     vetores ......... IDÊNTICOS
+//
+// O "idênticos" é o que torna a troca SEGURA de testar: o juiz decide por
+// cosseno com margem ZERO, calibrada nos vetores da 3.8.1. Se mudassem, ele
+// passaria a marcar frases diferentes sem ninguém perceber.
+describe('a chave ?onnx= no index.html', () => {
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+
+    it('roda ANTES do módulo do jogo', () => {
+        // `floor10VetorDeTom` e `floor10Reflexo` leem `__onnxCdn` no import.
+        const chave = html.indexOf('__onnxCdn');
+        expect(chave).toBeGreaterThan(-1);
+        expect(chave).toBeLessThan(html.indexOf('src="/src/main.tsx"'));
+    });
+
+    it('define as DUAS variáveis que os módulos leem', () => {
+        // `__onnxCdn` é a raiz (usada para montar caminhos) e `__onnxModuleUrl`
+        // é o arquivo do módulo. Definir só a primeira deixaria o import
+        // apontando para a versão velha, e a troca pareceria não funcionar.
+        expect(html).toContain('window.__onnxCdn =');
+        expect(html).toContain('window.__onnxModuleUrl =');
+    });
+
+    it('e só aceita número de versão, como a do wllama', () => {
+        const bloco = html.slice(html.indexOf("get('onnx')"), html.indexOf("get('onnx')") + 600);
+        expect(bloco).toContain('/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(__o)');
+    });
+});
