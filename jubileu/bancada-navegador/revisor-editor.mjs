@@ -34,7 +34,7 @@
 //   node revisor-editor.mjs
 //   MODELOS="Xenova/LaMini-Flan-T5-248M:LaMini-248M" ENUNCIADO=motivo|coedit node revisor-editor.mjs
 import { pipeline, env } from '@huggingface/transformers';
-import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO } from './defeitos.mjs';
+import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO } from './defeitos.mjs';
 
 env.allowLocalModels = false;
 
@@ -101,7 +101,7 @@ for (const m of MODELOS) {
         if (n === 1) msFria = ms; else { msMorna += ms; nMorna += 1; }
         const sumiu = !!saida && c.ok(saida);
         const limpo = !!saida && !QUEBRA_CANONE(saida);
-        const bom = sumiu && limpo;
+        const bom = sumiu && limpo && !ECOOU(saida, c.q, c.f) && !FRAGMENTO(saida);
         if (!saida) vazio += 1; else if (bom) consertou += 1;
         const fora = !!saida && !NO_ASSUNTO(saida, c.q, c.f);
         if (fora) desviou += 1;

@@ -200,3 +200,66 @@ O padrão que essa tabela expõe, e que eu não tinha visto: **as arquiteturas
 realmente diferentes (SSM puro, RNN, difusão) ou não têm modelo instruído no
 nosso tamanho, ou batem numa parede do runtime.** O que sobra de novo para
 medir é híbrido e ternário — que é exatamente o que está na bancada agora.
+
+
+## 7. Três arquiteturas novas medidas — e a régua tinha dois buracos
+
+Medidos no mesmo processo, sem aquecimento, 2 rodadas, enunciado com o motivo:
+
+    candidato            arch            1ª FRIA   depois   lê
+    granite4-h-350m      granitehybrid    10,4 s    9,2 s   262 tok
+    granite4-h-1B        granitehybrid    31,9 s   32,3 s   262 tok
+    BitNet-2B ternário   bitnet           84,5 s   40,4 s   109 tok
+
+O `granitehybrid` (Granite 4.0: mamba2 + atenção) **carrega e funciona** — é a
+primeira arquitetura de estado recorrente que roda neste projeto. E o 350M lê
+262 tokens em 9,2 s contra os 32,8 s do LFM2.5: **3,5× no prefill**, que é onde
+está 89% da nossa dor.
+
+Aí eu quase recomendei ele, porque o placar dizia 9/12.
+
+### O que o placar estava contando
+
+    pergunta "Are you real?"             → resposta "Are you real?"
+    pergunta "What is behind that wall?" → resposta "What is behind that wall?"
+
+Ele devolve **a pergunta do jogador**. Passava em `ok()` (não tem palavra
+proibida) e passava em `NO_ASSUNTO` (as palavras da pergunta são justamente o
+conjunto-alvo do teste de assunto — o buraco é estrutural, não azar).
+
+Fechado esse buraco com `ECOOU`, apareceu o segundo, no h-1B:
+
+    "I'm just a guest"   "Nilo"   "\""   "I'm just a guest trapped on the 10"
+
+Não são ecos, não quebram cânone, e também não são frases. O defeito some
+porque a frase some. `FRAGMENTO` usa o corte do próprio jogo
+(`primeiraFraseFechada`: período fechado com 12 caracteres ou mais).
+
+E faltavam ainda duas regras de cânone que o jogo tem e a bancada não: narração
+e "comenta a frase em vez de reescrevê-la". O h-1B passou com `The player's
+question, "Will this hotel ever end?"`, que é narração pura.
+
+### O placar depois das três correções
+
+`re-julgar.mjs` re-julga os logs já gravados — sem gastar CPU e sem baixar nada,
+o que importa porque a alternativa é comparar placar novo com placar velho
+calculado por outra régua, que foi exatamente como eu elegi o Llama.
+
+    candidato            conserta  ECOOU  pedaço  desviou  quebrou  vazio
+    LFM2.5-1.2B            7/12      2      0        3        4       0
+    granite-3.3-2B         8/12      0      0        3        4       0
+    granite4-h-350m        4/12      7      0        4        2       1
+    granite4-h-1B          3/12      0      5        5        4       0
+    BitNet-2B ternário     2/12      1      0        3       10       0
+
+**As três arquiteturas novas reprovam.** O h-350m confirma a 2ª lei do projeto
+(abaixo de ~1B colapsa) por um caminho novo — ele não colapsa numa resposta só,
+ele colapsa em ECO. O h-1B colapsa em fragmento. O BitNet quebra cânone em 10
+de 12 e ainda é o mais LENTO da lista: 67 s para ler 264 tokens, porque não há
+kernel ternário otimizado no wasm — a promessa de "menos banda de memória" não
+sobrevive à falta de kernel.
+
+E o placar corrigido move o resultado da seção 5: LFM2.5 7/12 contra granite 3.3
+8/12, e não 8/12 contra 8/12. A diferença continua dentro do ruído para 12
+casos, e a conclusão não muda (o granite custa quase o dobro a frio), mas o
+número que eu tinha dado estava inflado por dois ecos do LFM2.5.

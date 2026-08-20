@@ -170,7 +170,7 @@ Rewrite the sentence so it stops breaking that rule, keeping the rest of its mea
 // `defeitos.mjs` — a bancada dos editores seq2seq mede os MESMOS casos, e dois
 // placares só se comparam se a régua for literalmente o mesmo arquivo.
 import {
-    DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO,
+    DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO,
     HOJE, TROCA, MOTIVO, ERRADO, TROCADOS,
 } from './defeitos.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
@@ -263,6 +263,9 @@ for (const m of MODELOS) {
     // tea." O defeito apontado some em todas — e nenhuma responde à pergunta.
     // Sem esta coluna o placar diz que ele é o melhor candidato da lista.
     let foraDoTema = 0;
+    // Ecoar a pergunta e devolver um pedaço de frase são as duas formas de
+    // fazer o defeito sumir sem consertar nada. Ver `defeitos.mjs`.
+    let ecos = 0, pedacos = 0;
     for (let rodada = 1; rodada <= RODADAS; rodada += 1) {
     if (RODADAS > 1) console.log(`  ── rodada ${rodada}/${RODADAS}`);
     for (const c of DEFEITOS) {
@@ -273,15 +276,21 @@ for (const m of MODELOS) {
         // TRÊS provas, e o remendo só vale se passar nas três. Ver QUEBRA_CANONE.
         const sumiu = !!r.texto && c.ok(r.texto);
         const limpo = !!r.texto && !QUEBRA_CANONE(r.texto);
-        const bom = sumiu && limpo;
+        const eco = !!r.texto && ECOOU(r.texto, c.q, c.f);
+        const pedaco = !!r.texto && FRAGMENTO(r.texto);
+        if (eco) ecos += 1;
+        if (pedaco) pedacos += 1;
+        const bom = sumiu && limpo && !eco && !pedaco;
         if (!r.texto) vazio += 1; else if (bom) consertou += 1;
         const desviou = !!r.texto && !NO_ASSUNTO(r.texto, c.q, c.f);
         if (desviou) foraDoTema += 1;
         const fora = desviou ? ' ?assunto' : '';
         const selo = (!r.texto ? '✗✗ VAZIO'
             : bom ? '✓'
-                : !sumiu ? '✗ não consertou'
-                    : '✗ QUEBROU OUTRA REGRA') + fora;
+                : eco ? '✗ ECOOU'
+                    : pedaco ? '✗ PEDAÇO'
+                        : !sumiu ? '✗ não consertou'
+                            : '✗ QUEBROU OUTRA REGRA') + fora;
         console.log(`  ${(r.ms / 1000).toFixed(1).padStart(5)}s  ler ${(r.msLer / 1000).toFixed(1)}s/${r.lidos}tok`
             + ` · escrever ${(r.msEscrever / 1000).toFixed(1)}s/${r.escritos}tok`
             + `  ${selo}  ${c.nome}`);
@@ -302,17 +311,19 @@ for (const m of MODELOS) {
     }
     const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
     placar.push({
-        rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema, tentativas: nDef,
+        rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema, ecos, pedacos, tentativas: nDef,
         custo: msTot / Math.max(1, n) / 1000, lidos: Math.round(lidos / Math.max(1, nDef)), lerPct,
         fria: msFria / 1000, morna: nMorna ? msMorna / nMorna / 1000 : 0,
     });
 }
 
-console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  desviou  estraga  intacta   1ª FRIA   depois  lê  arch`);
+console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  desviou  estraga  intacta   1ª FRIA   depois  lê  arch`);
 for (const p of placar) {
     if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
     console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + p.tentativas).padStart(6)}`
         + `${p.vazio ? '(' + p.vazio + 'v)' : '   '}`
+        + `${String(p.ecos).padStart(6)}`
+        + `${String(p.pedacos).padStart(8)}`
         + `${String(p.foraDoTema + '/' + p.tentativas).padStart(9)}`
         + `${String(p.estragou + '/' + CERTAS.length).padStart(9)}`
         + `${String(p.intacta + '/' + CERTAS.length).padStart(9)}`

@@ -68,7 +68,15 @@ export const CERTAS = [
 // Uma régua que premia divergência, com um enunciado que pede divergência, dá
 // nota máxima para quem muda de assunto. O conserto não é medir menos: é medir
 // as OUTRAS regras também, em toda saída, sempre.
-export const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
+export // AS REGRAS ABAIXO SÃO AS DE `src/npc/floor10CanoneDoNilo.ts`. Duas delas
+// faltavam aqui — narração e "comenta a frase em vez de reescrevê-la" — e o
+// granite 4.0 h-1B passou com "The player's question, \"Will this hotel ever
+// end?\"", que é narração pura. Enquanto a bancada for .mjs e o jogo .ts, esta
+// cópia existe; se divergirem de novo, é aqui que o placar mente.
+const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
+    || /\bthe player(?:'s)?\s+(?:asks|says|replies|answers|responds|question)\b/i.test(t)
+    || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b/i.test(t)
+    || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
     || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
     || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
@@ -95,6 +103,66 @@ export const NO_ASSUNTO = (saida, pergunta, original) => {
     for (const w of CONTEUDO(saida)) if (alvo.has(w)) return true;
     return false;
 };
+
+// ── ECOAR NÃO É CONSERTAR, E A RÉGUA DEIXAVA PASSAR ──────────────────────
+//
+// Terceira vez que uma régua frouxa elege o pior candidato desta bancada, e a
+// mais cara: o granite 4.0 h-350m tirou 9/12 devolvendo isto —
+//
+//     pergunta "Are you real?"          → resposta "Are you real?"
+//     pergunta "What is behind that wall?" → resposta "What is behind that wall?"
+//
+// Ele repete a PERGUNTA DO JOGADOR. Passa em `ok()` porque não contém palavra
+// proibida, e passa em `NO_ASSUNTO` porque as palavras da pergunta são
+// justamente o conjunto-alvo do teste de assunto — o buraco é estrutural, não
+// azar.
+//
+// `ECOOU` fecha os dois casos em que a saída não é conserto nenhum:
+//   - devolveu a pergunta;
+//   - devolveu a frase original (o `manteve` do pipeline).
+//
+// Comparação por conjunto de palavras, não por igualdade: os modelos ecoam com
+// pontuação e capitalização diferentes, e "It opens when it wants, and never
+// when I ask." não pode contar como eco de "It opens when it wants to, and
+// never when I ask." — é reescrita. O corte é 0,8 de sobreposição nos dois
+// sentidos, medido nas saídas reais deste arquivo de log.
+const PALAVRAS = (t) => new Set((String(t).toLowerCase().match(/[a-z']+/g) ?? []));
+const SOBREPOE = (a, b) => {
+    const A = PALAVRAS(a), B = PALAVRAS(b);
+    if (A.size === 0 || B.size === 0) return 0;
+    let comuns = 0;
+    for (const w of A) if (B.has(w)) comuns += 1;
+    return comuns / Math.max(A.size, B.size);
+};
+export const ECOOU = (saida, pergunta, original) => SOBREPOE(saida, pergunta) >= 0.8
+    || SOBREPOE(saida, original) >= 0.8;
+
+// ── FRAGMENTO NÃO É CONSERTO (o segundo buraco da mesma régua) ───────────
+//
+// Depois que `ECOOU` derrubou o granite 4.0 h-350m de 9/12 para 4/12, o h-1B
+// ficou com 9/12 devolvendo isto:
+//
+//     "I'm just a guest"      "Nilo"      "\""      "I'm just a guest trapped on the 10"
+//
+// Não são ecos e não quebram cânone. Também não são frases: o defeito "some"
+// porque a frase inteira sumiu. É a mesma fraude do eco por outro caminho.
+//
+// O corte é o do JOGO, e não um número que eu inventei: `primeiraFraseFechada`
+// procura o primeiro período fechado com 12 caracteres ou mais. O que não fecha
+// período E tem menos de oito palavras é fragmento — o jogo até aceitaria (ele
+// aceita saída sem pontuação quando o modelo parou sozinho), mas contar isso
+// como CONSERTO é o que estava errado.
+export const FRASE_FECHADA = (t) => {
+    const re = /[.!?…]["”]?(?=\s|$)/g;
+    let m;
+    while ((m = re.exec(t)) !== null) {
+        const f = t.slice(0, m.index + m[0].length).trim();
+        if (f.length >= 12) return f;
+    }
+    return null;
+};
+export const FRAGMENTO = (t) => !FRASE_FECHADA(t)
+    && (String(t).match(/[A-Za-z']+/g) ?? []).length < 8;
 
 // ── DUAS FORMAS DE PEDIR A MESMA COISA ───────────────────────────────────
 //
