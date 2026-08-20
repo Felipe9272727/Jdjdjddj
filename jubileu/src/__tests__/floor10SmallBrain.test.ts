@@ -56,6 +56,11 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
             expect(m.url).toMatch(/^https:\/\/huggingface\.co\/.*\.gguf$/);
             // Dois modelos de 800 MB vivos ao mesmo tempo é como o aparelho
             // trava; nenhum candidato pode ser gordo.
+            //
+            // Salvo quem DECLARA que só serve de revisor: esse não convive com
+            // a fala, e `revisorAtual` recusa a escolha fora do `?pipeline`.
+            // A declaração é o que separa "medimos e cabe" de "esqueci o teto".
+            if (m.soRevisor) continue;
             expect(m.bytes).toBeLessThan(1_400_000_000);
         }
     });

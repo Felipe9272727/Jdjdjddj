@@ -203,3 +203,39 @@ describe('o Falcon-H1 entra como escolha de revisor', () => {
         expect(REVISORES.map((r) => r.id)).toContain('falcon');
     });
 });
+
+describe('um revisor grande demais não vaza para o jogo', () => {
+    // O granite MoE tem 2,02 GB e serve porque, no ?pipeline, o companheiro de
+    // RAM é o rascunhador de 822 MB. FORA do pipeline o companheiro é a fala,
+    // que sozinha já pede ~2,07 GB de cota — e a cota do aparelho do dono do
+    // jogo recusou esse total uma vez. Sem esta guarda, `?revisor=moe` sem
+    // `?pipeline` mandaria a fila baixar 2 GB para conviver com 1,9 GB.
+    it('com ?pipeline, a escolha do MoE vale', () => {
+        definirRevisor('moe');
+        const antes = globalThis.location;
+        Object.defineProperty(globalThis, 'location', {
+            value: { search: '?pipeline' }, configurable: true,
+        });
+        try {
+            expect(revisorAtual().id).toBe('moe');
+            expect(cerebroDoRevisor()).toBe('granite3-3b-a800m');
+        } finally {
+            Object.defineProperty(globalThis, 'location', { value: antes, configurable: true });
+            resetRevisorParaTestes();
+        }
+    });
+
+    it('sem ?pipeline, ela cai para o titular em vez de sufocar a fala', () => {
+        definirRevisor('moe');
+        const antes = globalThis.location;
+        Object.defineProperty(globalThis, 'location', {
+            value: { search: '' }, configurable: true,
+        });
+        try {
+            expect(revisorAtual().id).toBe('lfm');
+        } finally {
+            Object.defineProperty(globalThis, 'location', { value: antes, configurable: true });
+            resetRevisorParaTestes();
+        }
+    });
+});

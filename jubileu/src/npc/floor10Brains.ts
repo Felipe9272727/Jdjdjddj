@@ -15,7 +15,8 @@ import { cerebroDoRevisor } from './floor10Revisores';
 
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
-    | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b';
+    | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b'
+    | 'granite3-3b-a800m';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -24,6 +25,20 @@ export type SmallBrainEntry = {
     bytes: number;
     /** O que a medição no prompt real do Andar 10 mostrou sobre ele. */
     nota: string;
+    /**
+     * SÓ SERVE DE REVISOR, NUNCA DE VONTADE AO LADO DA FALA.
+     *
+     * Existe por causa de um guarda medido: nenhum cérebro pode passar de 1,4
+     * GB, porque a fala (SmolLM3) já pede ~2,07 GB de cota e a cota do aparelho
+     * do dono do jogo JÁ RECUSOU esse total uma vez. Quem paga essa conta é a
+     * fala.
+     *
+     * O granite MoE tem 2,02 GB e mesmo assim entra — mas só no `?pipeline`,
+     * onde não existe SmolLM3 nenhum: lá o companheiro de RAM é o rascunhador
+     * de 822 MB. Marcar a entrada é mais honesto que afrouxar o teto de todo
+     * mundo para caber um caso.
+     */
+    soRevisor?: boolean;
 };
 
 /**
@@ -194,6 +209,41 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         // Conferido no arquivo baixado, não no card do repositório.
         bytes: 1_280_071_424,
         nota: 'empata com o melhor placar de remendo (8/12) e escreve frase inteira; 41,2s a frio, e não reaproveita prefixo',
+    },
+    {
+        // ── O MoE QUE O DONO DO JOGO LIBEROU ATÉ 4B PARA ACHAR ───────────
+        //
+        // "te libero até 4 b, desde que seja muito rápido (provavelmente uma
+        // arquitetura MoE)". Este é o que existe dentro dessa faixa E abaixo da
+        // parede de 2 GiB por gguf: 3B totais, 800M ATIVOS por token, 2,02 GB
+        // em Q4_K_M.
+        //
+        // MEDIDO COMO REVISOR, a frio, 2 rodadas, régua que reprova eco e
+        // fragmento: 6/12, contra 7/12 do titular e 8/12 do Falcon-H1. Dentro
+        // do ruído para 12 casos — o que NÃO está dentro do ruído é o tempo:
+        //
+        //     1ª FRIA   22,6 s   (titular 35,0 · Falcon 41,2 · granite 3.3 66,2)
+        //     depois    11,5 s   (titular 34,6 · Falcon 37,8)
+        //     lê        125 tok  (titular 267 — transformer puro reaproveita)
+        //
+        // É o revisor mais rápido que passou de 5/12 nesta bancada, e por larga
+        // margem no aquecido: 800M ativos custam 800M, não 3B.
+        //
+        // O QUE A TABELA NÃO MOSTRA, e o `JA-TENTADO` já dizia deste modelo em
+        // OUTRO papel ("mais rápido e menos Nilo"): ele escreve empolado. Saíram
+        // coisas como "a mirage, a trick of the light", "shrouded in mystery",
+        // "the weight of the silence". O Nilo é seco. Seis dos doze remendos
+        // quebraram alguma regra de cânone — o pior índice entre os que
+        // consertam — e ele bateu no teto de 40 tokens em 7 das 12.
+        //
+        // Entra como OPÇÃO porque a escolha entre 12 s e uma frase seca é do
+        // dono do jogo, e só o aparelho dele decide se a empolação incomoda.
+        id: 'granite3-3b-a800m',
+        soRevisor: true,
+        label: 'granite 3.1 3B-A800M (MoE, 800M ativos)',
+        url: 'https://huggingface.co/bartowski/granite-3.1-3b-a800m-instruct-GGUF/resolve/main/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf',
+        bytes: 2_016_888_384,
+        nota: 'o mais rápido que consertou: 22,6s a frio e 11,5s depois, contra 35,0s do titular — mas escreve empolado e quebra cânone em 6 de 12',
     },
     {
         id: 'minicpm5-1b',

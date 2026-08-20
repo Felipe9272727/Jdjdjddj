@@ -94,8 +94,9 @@
 // Quando o juiz erra, erram junto.)
 
 import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
+import { pipelineLigado } from './floor10Pipeline';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -180,6 +181,21 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         nota: 'rápido na bancada (11,6s) e lento no celular (14,7 a 71,9s); inventou fala do jogador uma vez',
     },
     {
+        // ── O MAIS RÁPIDO QUE CONSERTA ───────────────────────────────────
+        //
+        // 6/12 contra 7/12 do titular — empate dentro do ruído — a 22,6 s a
+        // frio contra 35,0 s, e 11,5 s nas chamadas seguintes. É a troca que o
+        // dono do jogo pediu ao liberar 4B: velocidade, com o cânone conferido
+        // por `aplicarRemendo` segurando o resto.
+        //
+        // O custo está escrito no catálogo e é de escrita, não de placar: ele é
+        // empolado ("a mirage, a trick of the light") onde o Nilo é seco.
+        id: 'moe',
+        label: 'granite 3.1 3B-A800M (MoE, o mais rápido)',
+        cerebro: 'granite3-3b-a800m',
+        nota: '22,6s a frio contra 35,0s do titular; 6/12 contra 7/12; escreve empolado',
+    },
+    {
         // ── O MESMO MODELO, PELO RUNTIME QUE O APARELHO DELE ACEITA ──────
         //
         // "o do wllama é muito ruim, o do onnx deu menos problema" — sobre
@@ -243,7 +259,20 @@ export function revisorEscolhido(): RevisorId {
 
 /** A entrada em vigor, inteira. */
 export function revisorAtual(): RevisorEntry {
-    return REVISORES.find((r) => r.id === revisorEscolhido()) ?? REVISORES[0];
+    const escolha = REVISORES.find((r) => r.id === revisorEscolhido()) ?? REVISORES[0];
+    // ── UM REVISOR GRANDE DEMAIS NÃO VAZA PARA O JOGO ────────────────────
+    //
+    // O granite MoE tem 2,02 GB e serve porque no `?pipeline` o companheiro de
+    // RAM é o rascunhador de 822 MB. FORA do pipeline o companheiro é a fala,
+    // que sozinha pede ~2,07 GB — e a cota do aparelho do dono do jogo já
+    // recusou esse total uma vez.
+    //
+    // Sem esta guarda, `?revisor=moe` sem `?pipeline` mandaria a fila do jogo
+    // baixar 2 GB para conviver com 1,9 GB. O teste de tamanho no catálogo
+    // pegaria isso em CI; aqui é o aparelho que estaria pagando.
+    const cerebro = SMALL_BRAIN_CATALOG.find((b) => b.id === escolha.cerebro);
+    if (cerebro?.soRevisor && !pipelineLigado()) return REVISORES[0];
+    return escolha;
 }
 
 /**
