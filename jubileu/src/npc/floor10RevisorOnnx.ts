@@ -78,8 +78,35 @@ export const REVISOR_ONNX_REPO = 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX';
 export const REVISOR_ONNX_BYTES = 760_279_040;
 
 const TRANSFORMERS_V = '3.8.1';
-const MODULO = (globalThis as { __onnxModuleUrl?: string }).__onnxModuleUrl
-    ?? `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${TRANSFORMERS_V}/dist/transformers.min.js`;
+/** A que o juiz já usa, e a mais nova. A ordem é a das tentativas. */
+const VERSOES_A_TENTAR = [TRANSFORMERS_V, '4.2.0'] as const;
+const urlDaVersao = (v: string) =>
+    `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${v}/dist/transformers.min.js`;
+
+/**
+ * ── DUAS TENTATIVAS, E O MOTIVO É QUE O ERRO NÃO DIZ NADA ────────────────
+ *
+ * A primeira carga no aparelho do dono do jogo baixou os 764 MB inteiros e
+ * morreu com isto, cru, na tela:
+ *
+ *     o revisor por ONNX não subiu: 223748832
+ *
+ * Um NÚMERO. É assim que o ONNX Runtime em wasm entrega exceção — um ponteiro
+ * do emscripten, sem mensagem, sem pilha. Não dá para agir sobre ele.
+ *
+ * O que dá para agir é sobre a hipótese mais provável: o build ONNX do LFM2.5 é
+ * de janeiro de 2026 e a 3.8.1 é anterior a ele. `lfm2` existe nessa versão —
+ * conferido — mas LFM2.5 não é LFM2, e um grafo exportado com opset mais novo
+ * falha exatamente assim: sem mensagem.
+ *
+ * Então, se a primeira falhar, tenta a 4.2.0. Custa 1,3 MB de biblioteca, e não
+ * um segundo download do modelo: os 764 MB já estão no cache do navegador.
+ *
+ * Se o dono do jogo fixar a versão na URL (`?onnx=`), a escolha é dele e não há
+ * segunda tentativa — ele está medindo alguma coisa, e eu trocar o runtime por
+ * baixo estragaria a medição.
+ */
+const FIXADA = (globalThis as { __onnxModuleUrl?: string }).__onnxModuleUrl;
 
 export type PlanoDoRevisorOnnx =
     | { pode: true; device: 'webgpu'; dtype: 'q4f16'; bytes: number; motivo: string }
@@ -136,8 +163,10 @@ export function carregarRevisorOnnx(
         anotar('revisor-onnx:carregando', {
             device: plano.device, dtype: plano.dtype, motivo: plano.motivo,
         });
+        const urls = FIXADA ? [FIXADA] : VERSOES_A_TENTAR.map(urlDaVersao);
+        for (let i = 0; i < urls.length; i += 1) {
         try {
-            const mod = await import(/* @vite-ignore */ MODULO) as {
+            const mod = await import(/* @vite-ignore */ urls[i]) as {
                 pipeline: (tarefa: string, repo: string, opcoes: Record<string, unknown>) => Promise<Gerador>;
             };
             const gerador = await mod.pipeline('text-generation', REVISOR_ONNX_REPO, {
@@ -152,7 +181,9 @@ export function carregarRevisorOnnx(
                     progresso?.(soma.loaded, Math.max(soma.total, REVISOR_ONNX_BYTES));
                 },
             });
-            anotar('revisor-onnx:pronto', { ms: Date.now() - t0, device: plano.device });
+            anotar('revisor-onnx:pronto', {
+                ms: Date.now() - t0, device: plano.device, lib: urls[i],
+            });
             return gerador;
         } catch (e) {
             // ── O TEXTO CRU, E NÃO UM RESUMO MEU ─────────────────────────
@@ -161,13 +192,33 @@ export function carregarRevisorOnnx(
             // mais que um palpite meu" e logo abaixo... nenhum texto cru, só a
             // minha frase genérica. O motivo real morria aqui, no `anotar`, e a
             // caixa-preta não é o que o jogador está olhando.
-            ultimoErro = String((e as Error)?.message ?? e).slice(0, 200);
-            anotar('revisor-onnx:falhou', { device: plano.device, motivo: ultimoErro });
-            geradorPromise = null;
-            return null;
+            ultimoErro = descreverFalha(e, urls[i]);
+            anotar('revisor-onnx:falhou', { device: plano.device, motivo: ultimoErro, lib: urls[i] });
+            // A última tentativa é a que decide. As anteriores viram registro.
+            if (i === urls.length - 1) { geradorPromise = null; return null; }
         }
+        }
+        geradorPromise = null;
+        return null;
     })();
     return geradorPromise;
+}
+
+/**
+ * O ERRO DO ONNX RUNTIME NÃO É UM `Error`, E ISSO PRECISA APARECER.
+ *
+ * `String(223748832)` na tela é pior que inútil: parece um número de versão, ou
+ * um tamanho, ou qualquer coisa. É um ponteiro do emscripten. Dizer o que ele é
+ * — e o que costuma ser a causa — vale mais que repetir o número sozinho.
+ */
+export function descreverFalha(e: unknown, lib: string): string {
+    const versao = lib.match(/transformers@([\d.]+)/)?.[1] ?? lib;
+    if (typeof e === 'number') {
+        return `o ONNX Runtime abortou sem mensagem (código ${e}, lib ${versao})`
+            + ' — costuma ser memória ou grafo que a versão não entende';
+    }
+    const msg = String((e as Error)?.message ?? e).slice(0, 160);
+    return `${msg} (lib ${versao})`;
 }
 
 /** Devolve o que o pipeline devolve, para o desfecho ser o mesmo dos dois lados. */

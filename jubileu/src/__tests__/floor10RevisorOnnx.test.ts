@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     planejarRevisorOnnx, textoDaSaida, REVISOR_ONNX_BYTES, REVISOR_ONNX_REPO,
-    resetRevisorOnnxParaTestes, SomaDeArquivos,
+    resetRevisorOnnxParaTestes, SomaDeArquivos, descreverFalha,
 } from '../npc/floor10RevisorOnnx';
 import { REVISORES } from '../npc/floor10Revisores';
 
@@ -131,5 +131,25 @@ describe('SomaDeArquivos — a barra que andava para trás', () => {
         const soma = new SomaDeArquivos();
         expect(soma.push({ loaded: 10, total: 20 }).loaded).toBe(10);
         expect(soma.push({ loaded: 15, total: 20 }).loaded).toBe(15);
+    });
+});
+
+describe('descreverFalha — quando o erro é só um número', () => {
+    // O CASO REAL: a tela mostrou "o revisor por ONNX não subiu: 223748832".
+    // É um ponteiro do emscripten, que é como o ONNX Runtime em wasm entrega
+    // exceção. Repetir o número sozinho parece versão, tamanho ou qualquer
+    // coisa — e não dá ao dono do jogo nada com que decidir.
+    it('explica que é aborto sem mensagem, e diz a versão da biblioteca', () => {
+        const t = descreverFalha(223748832, 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js');
+        expect(t).toContain('223748832');
+        expect(t).toContain('3.8.1');
+        expect(t).toMatch(/abortou sem mensagem/);
+        expect(t).toMatch(/memória|grafo/);
+    });
+
+    it('para erro de verdade, mostra a mensagem e ainda diz a versão', () => {
+        const t = descreverFalha(new Error('no available backend found'), 'https://x/transformers@4.2.0/dist/transformers.min.js');
+        expect(t).toContain('no available backend found');
+        expect(t).toContain('4.2.0');
     });
 });
