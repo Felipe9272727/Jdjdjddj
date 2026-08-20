@@ -123,9 +123,10 @@ let geradorPromise: Promise<Gerador | null> | null = null;
  * revisor do wllama continua sendo o caminho, e a caixa-preta registra por quê.
  */
 export function carregarRevisorOnnx(
-    progresso?: (fracao: number) => void,
+    progresso?: (loaded: number, total: number) => void,
 ): Promise<Gerador | null> {
     geradorPromise ??= (async () => {
+        const somador = new SomaDeArquivos();
         const plano = await planejarRevisorOnnx();
         if (!plano.pode) {
             anotar('revisor-onnx:sem-gpu', { motivo: plano.motivo });
@@ -142,17 +143,26 @@ export function carregarRevisorOnnx(
             const gerador = await mod.pipeline('text-generation', REVISOR_ONNX_REPO, {
                 dtype: plano.dtype,
                 device: plano.device,
-                progress_callback: (p: { progress?: number }) => {
-                    if (typeof p?.progress === 'number') progresso?.(p.progress / 100);
+                progress_callback: (p: EventoDeArquivo) => {
+                    const soma = somador.push(p);
+                    // O denominador nunca encolhe abaixo do prometido: a
+                    // biblioteca só conhece o tamanho dos arquivos que já
+                    // começou, e sem este piso a barra mostraria "100% de
+                    // config.json" nos primeiros segundos.
+                    progresso?.(soma.loaded, Math.max(soma.total, REVISOR_ONNX_BYTES));
                 },
             });
             anotar('revisor-onnx:pronto', { ms: Date.now() - t0, device: plano.device });
             return gerador;
         } catch (e) {
-            anotar('revisor-onnx:falhou', {
-                device: plano.device,
-                motivo: String((e as Error)?.message ?? e).slice(0, 120),
-            });
+            // ── O TEXTO CRU, E NÃO UM RESUMO MEU ─────────────────────────
+            //
+            // A tela dele mostrou "não reconheci este erro — o texto cru vale
+            // mais que um palpite meu" e logo abaixo... nenhum texto cru, só a
+            // minha frase genérica. O motivo real morria aqui, no `anotar`, e a
+            // caixa-preta não é o que o jogador está olhando.
+            ultimoErro = String((e as Error)?.message ?? e).slice(0, 200);
+            anotar('revisor-onnx:falhou', { device: plano.device, motivo: ultimoErro });
             geradorPromise = null;
             return null;
         }
@@ -209,6 +219,55 @@ export function resetRevisorOnnxParaTestes(): void {
 
 const medidor = new DownloadMeter();
 
+/** O que a transformers.js emite a cada pedaço de arquivo. */
+export type EventoDeArquivo = {
+    status?: string; file?: string; loaded?: number; total?: number; progress?: number;
+};
+
+/**
+ * ── POR QUE ISTO EXISTE, E O QUE ELE CONSERTA ────────────────────────────
+ *
+ * A primeira versão lia `p.progress` e tratava como progresso do DOWNLOAD. Não
+ * é: é a porcentagem DAQUELE ARQUIVO. O revisor de ONNX baixa vários — config,
+ * tokenizer, o grafo, e o blob de 760 MB — então a barra subia, chegava perto
+ * do fim e VOLTAVA para zero quando o arquivo seguinte começava.
+ *
+ * O dono do jogo fotografou exatamente isso: "922 MB de 1,74 GB" virando "162
+ * MB de 1,74 GB". E o estrago não foi só visual — o vigia de download mede
+ * PROGRESSO, e um número que não anda para a frente é indistinguível de um
+ * download travado. Depois de 36 s parado ele desistiu, e a peça falhou.
+ *
+ * A soma guarda o último `loaded` de CADA arquivo e devolve o total. Monótona
+ * por construção: um arquivo só cresce, e arquivo novo só acrescenta.
+ */
+export class SomaDeArquivos {
+    private readonly porArquivo = new Map<string, { loaded: number; total: number }>();
+
+    push(e: EventoDeArquivo): { loaded: number; total: number } {
+        const nome = e.file ?? '(sem nome)';
+        const loaded = Number(e.loaded ?? 0);
+        const total = Number(e.total ?? 0);
+        if (Number.isFinite(loaded) && loaded >= 0) {
+            const antes = this.porArquivo.get(nome);
+            this.porArquivo.set(nome, {
+                // `Math.max` porque um evento fora de ordem não pode encolher o
+                // que já desceu — que é o defeito inteiro desta classe.
+                loaded: Math.max(antes?.loaded ?? 0, loaded),
+                total: Math.max(antes?.total ?? 0, Number.isFinite(total) ? total : 0),
+            });
+        }
+        let somaL = 0; let somaT = 0;
+        for (const v of this.porArquivo.values()) { somaL += v.loaded; somaT += v.total; }
+        return { loaded: somaL, total: somaT };
+    }
+
+    reset(): void { this.porArquivo.clear(); }
+}
+
+/** O último motivo de o revisor de ONNX não subir — cru, para a tela. */
+let ultimoErro = '';
+export function ultimoErroDoRevisorOnnx(): string { return ultimoErro; }
+
 /**
  * A PEÇA DA FILA — o que `baixarVontade` chama quando o revisor é de ONNX.
  *
@@ -245,24 +304,26 @@ export async function baixarRevisorOnnx(): Promise<boolean> {
         return false;
     }
     medidor.reset();
+    ultimoErro = '';
     npcSet({ deliberationPhase: 'loading', deliberationDownload: DOWNLOAD_ZERO });
-    const gerador = await carregarRevisorOnnx((fracao) => {
-        const lidos = Math.round(fracao * plano.bytes);
-        const amostra = medidor.push(lidos, plano.bytes);
+    const gerador = await carregarRevisorOnnx((lidos, total) => {
+        const amostra = medidor.push(lidos, total);
         // As DUAS barras: a da fila e a da tela da vontade. É o mesmo par de
         // campos que `baixarVontade` alimenta — sem isso a barra dele some, que
         // é exatamente a reclamação que originou `reportaProgresso`.
         floor10Fila.progresso(FILA_VONTADE, amostra);
         npcSet({
             deliberationDownload: amostra,
-            deliberationLoadProgress: Math.min(1, fracao),
+            deliberationLoadProgress: total ? Math.min(1, lidos / total) : 0,
             deliberationLoadText: `baixando ${REVISOR_ONNX_REPO.split('/')[1]} · ${downloadLine(amostra)}`,
         });
     });
     if (!gerador) {
         npcSet({
             deliberationPhase: 'unavailable',
-            deliberationLoadText: 'o revisor por ONNX não subiu — o do wllama segue valendo',
+            deliberationLoadText: ultimoErroDoRevisorOnnx()
+                ? `o revisor por ONNX não subiu: ${ultimoErroDoRevisorOnnx()}`
+                : 'o revisor por ONNX não subiu — o do wllama segue valendo',
         });
         return false;
     }
