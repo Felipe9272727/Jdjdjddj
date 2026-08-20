@@ -48,7 +48,8 @@ import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10Pipeline
 import {
     enumerarEmIngles, type DesfechoDoRemendo, type PassoDoPipeline,
 } from './npc/floor10Pipeline';
-import { revisorAtual, cerebroDoRevisor } from './npc/floor10Revisores';
+import { revisorAtual, pesoDoRevisor } from './npc/floor10Revisores';
+import { revisorOnnxDePe } from './npc/floor10RevisorOnnx';
 import { SMALL_BRAIN_CATALOG } from './npc/floor10Brains';
 
 /** "LFM2.5" ou "Llama 3.2" — o rótulo do catálogo cortado antes do parêntese. */
@@ -62,7 +63,10 @@ function nomeCurtoDoRevisor(): string {
  * montada no topo do módulo, antes de qualquer escolha ser aplicada.
  */
 function modeloDoRevisor(): { label: string; bytes: number } {
-    return SMALL_BRAIN_CATALOG.find((m) => m.id === cerebroDoRevisor()) ?? SMALL_BRAIN_MODEL;
+    // Uma linha, e ela é a correção do defeito que fez `?revisor=llama` não
+    // mudar nada: esta sala derivava a resposta do catálogo de gguf por conta
+    // própria. Agora pergunta ao mesmo lugar que a fila do jogo pergunta.
+    return pesoDoRevisor();
 }
 import { formatBytes, DOWNLOAD_ZERO, type DownloadSample } from './npc/floor10Download';
 import { npc, npcSet, npcSubscribe } from './npc/npcStore';
@@ -289,7 +293,12 @@ export default function Floor10PipelineSala() {
             id: 'revisor',
             nome: `revisor · ${modeloDoRevisor().label}`,
             bytes: modeloDoRevisor().bytes,
-            detalhe: 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
+            detalhe: revisorAtual().runtime === 'onnx'
+                // Com o ONNX a frase "é o mesmo arquivo da vontade" deixa de
+                // ser verdade: são 760 MB À PARTE do gguf, e em troca o turno
+                // não descarrega o rascunhador para caber o revisor.
+                ? 'só entra nas frases que o juiz marcou · runtime próprio, sem trocar a RAM'
+                : 'só entra nas frases que o juiz marcou · é o mesmo arquivo da vontade',
             // ── SÓ BAIXA. NÃO SOBE. ──────────────────────────────────────
             //
             // Aqui estava `precarregarVontade`, que sobe um llama.cpp INTEIRO
@@ -306,7 +315,9 @@ export default function Floor10PipelineSala() {
             // Por isso ela usa `baixarVontade` — baixar é rede, subir é núcleo,
             // e os dois no mesmo passo foi o que travava o aparelho. Eu sabia
             // disso e escrevi a sala ignorando.
-            carregado: () => false,
+            // O gguf responde `false` sempre porque a peça dele SÓ BAIXA — não há
+            // nada de pé para reportar. A de ONNX sobe, então ela sabe dizer.
+            carregado: () => (revisorAtual().runtime === 'onnx' ? revisorOnnxDePe() : false),
             carregar: baixarVontade,
             // Ele publica em `deliberationDownload`, e não em `loadDownload` —
             // é o campo que a tela da VONTADE usa no jogo há muito tempo. Sem

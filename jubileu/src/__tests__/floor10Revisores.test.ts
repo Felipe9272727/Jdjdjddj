@@ -128,12 +128,32 @@ describe('a sala do ?pipeline mostra o modelo escolhido', () => {
         expect(peca).toContain('modeloDoRevisor().bytes');
     });
 
-    it('e `modeloDoRevisor` resolve pelo catálogo, não por SMALL_BRAIN_MODEL', () => {
-        // `SMALL_BRAIN_MODEL` é lido no topo do módulo, antes de a escolha ser
-        // aplicada — a tela mostraria o padrão para sempre.
-        const fn = sala.slice(sala.indexOf('function modeloDoRevisor'), sala.indexOf('function modeloDoRevisor') + 300);
-        expect(fn).toContain('cerebroDoRevisor()');
-        expect(fn).toContain('SMALL_BRAIN_CATALOG.find');
+    it('e `modeloDoRevisor` pergunta ao mesmo lugar que a fila do jogo pergunta', () => {
+        // A regra ANTIGA era "resolve pelo catálogo, não por SMALL_BRAIN_MODEL",
+        // porque `SMALL_BRAIN_MODEL` é lido no topo do módulo, antes de a
+        // escolha ser aplicada, e a tela mostraria o padrão para sempre.
+        //
+        // A regra continua a mesma; o que mudou foi ONDE a resposta é
+        // derivada. Com `?revisor=lfm-onnx` o arquivo não está no catálogo de
+        // gguf — são 760 MB de ONNX — e esta sala, derivando por conta própria,
+        // prometeria 1,25 GB de LFM2.5 enquanto a rede baixasse outra coisa.
+        // Agora quem sabe é `pesoDoRevisor`, e `pecaDaVontade` lê do mesmo
+        // lugar. Uma verdade, um dono.
+        const fn = sala.slice(sala.indexOf('function modeloDoRevisor'), sala.indexOf('function modeloDoRevisor') + 400);
+        expect(fn).toContain('pesoDoRevisor()');
+        expect(fn).not.toMatch(/SMALL_BRAIN_CATALOG\.find|SMALL_BRAIN_MODEL/);
+    });
+
+    it('e a fila do jogo deriva do MESMO lugar, senão as duas telas discordam', () => {
+        const composicao = readFileSync(
+            new URL('../npc/floor10Composicao.ts', import.meta.url), 'utf8',
+        );
+        const fn = composicao.slice(
+            composicao.indexOf('export function pecaDaVontade'),
+            composicao.indexOf('export function pecaDaVontade') + 600,
+        );
+        expect(fn).toContain('pesoDoRevisor()');
+        expect(fn).not.toMatch(/SMALL_BRAIN_CATALOG\.find/);
     });
 });
 

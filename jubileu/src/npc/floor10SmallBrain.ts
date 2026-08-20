@@ -35,6 +35,7 @@ import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
 import { completar as completarNoMicro } from './floor10Reflexo';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
+import { revisorAtual } from './floor10Revisores';
 import { camadasNoPipeline, gpuDoPipelineCaiu, marcarGpuDoPipelineReprovada } from './floor10Gpu';
 import {
     descartarPensamento,
@@ -1601,6 +1602,20 @@ export async function deliberarObservando(
  * hora. Degradar é aceitável; ficar sem vontade não é.
  */
 export async function baixarVontade(): Promise<boolean> {
+    // ── QUANDO O REVISOR NÃO É UM GGUF ───────────────────────────────────
+    //
+    // `?revisor=lfm-onnx` põe o mesmo LFM2.5 no runtime do ONNX. Esta função é
+    // o ÚNICO ponto por onde as duas filas passam para trazer essa peça — a do
+    // jogo (`passosDoAndar10`) e a da sala do ?pipeline — então o desvio mora
+    // aqui, e não em cada tela. Foi ter a mesma verdade em duas telas que fez
+    // `?revisor=llama` não mudar nada da primeira vez.
+    //
+    // `import()` dinâmico e não estático: `floor10RevisorOnnx` importa a
+    // persona e o enunciado DAQUI, e um import estático fecharia o ciclo.
+    if (revisorAtual().runtime === 'onnx') {
+        const { baixarRevisorOnnx } = await import('./floor10RevisorOnnx');
+        return baixarRevisorOnnx();
+    }
     if (pesosBaixados.has(SMALL_BRAIN_MODEL.id)) return true;
     try {
         const backend = await probeModelStorageBackend();

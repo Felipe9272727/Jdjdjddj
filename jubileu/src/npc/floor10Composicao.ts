@@ -43,7 +43,7 @@
 
 import { pipelineLigado } from './floor10Pipeline';
 import { FLOOR10_TRADUTOR_BYTES } from './floor10Tradutor';
-import { cerebroDoRevisor } from './floor10Revisores';
+import { cerebroDoRevisor, pesoDoRevisor } from './floor10Revisores';
 import { SMALL_BRAIN_CATALOG } from './floor10Brains';
 
 export type PapelNaFila =
@@ -73,7 +73,11 @@ export const PECA_RASCUNHO: PecaDaFila = Object.freeze({
  * os dois. Um rótulo fixo aqui faria a barra prometer o arquivo errado.
  */
 export function pecaDaVontade(): PecaDaFila {
-    const m = SMALL_BRAIN_CATALOG.find((b) => b.id === cerebroDoRevisor()) ?? SMALL_BRAIN_CATALOG[0];
+    // `pesoDoRevisor` e não o catálogo: com `?revisor=lfm-onnx` o arquivo não
+    // é um gguf, e ler o catálogo aqui prometia 1,25 GB enquanto a rede baixava
+    // 760 MB. O PAPEL continua sendo 'vontade' — é a mesma peça, outro arquivo,
+    // exatamente como `?revisor=llama` já fazia.
+    const m = pesoDoRevisor();
     return Object.freeze({
         papel: 'vontade' as const, label: m.label, bytes: m.bytes, essencial: false,
     });

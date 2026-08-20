@@ -63,6 +63,9 @@
 // procurar o defeito no lugar errado por uma rodada inteira.
 
 import { anotar } from './floor10CaixaPreta';
+import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
+import { floor10Fila, FILA_VONTADE } from './floor10Fila';
+import { npcSet } from './npcStore';
 import { primeiraFraseFechada, type RespostaDoRevisor } from './floor10Pipeline';
 import {
     PERSONA_DO_REVISOR, REMENDO_MAX_TOKENS, enunciadoDoRemendo,
@@ -202,4 +205,76 @@ export function textoDaSaida(bruto: unknown): string {
 
 export function resetRevisorOnnxParaTestes(): void {
     geradorPromise = null;
+}
+
+const medidor = new DownloadMeter();
+
+/**
+ * A PEÇA DA FILA — o que `baixarVontade` chama quando o revisor é de ONNX.
+ *
+ * ── POR QUE ESTA SOBE, SE A DO GGUF SÓ BAIXA ─────────────────────────────
+ *
+ * A peça do gguf tem uma regra dura escrita na sala do ?pipeline: *"SÓ BAIXA.
+ * NÃO SOBE."*. O motivo está registrado e é sério — subir um segundo llama.cpp
+ * de 1,25 GB ao lado do granite DESLIGOU o celular do dono do jogo.
+ *
+ * Aqui é o contrário, e é justamente o que este experimento existe para medir:
+ * o ONNX não é um llama.cpp, tem outro alocador, e a aposta é que ele CABE ao
+ * lado do rascunhador. Se couber, o pipeline deixa de descarregar e recarregar
+ * 1,25 GB por turno — os ~18 s que somem antes dos 35 s de leitura.
+ *
+ * Então esta peça sobe de propósito, e é honesto que ela suba na FILA: se o
+ * aparelho não aguentar, ele falha aqui, na instalação, com a barra na tela —
+ * e não no meio de uma conversa.
+ *
+ * A segunda razão é técnica: a transformers.js baixa e cria a sessão na mesma
+ * chamada (`pipeline()`), e não há API de "só baixar". Fingir que separa, com
+ * um `fetch` manual esperando acertar a chave do cache dela, seria adivinhação
+ * que eu não consigo verificar nesta caixa — e adivinhação já custou caro aqui.
+ */
+export async function baixarRevisorOnnx(): Promise<boolean> {
+    const plano = await planejarRevisorOnnx();
+    if (!plano.pode) {
+        // A fila SEGUE. Sem GPU não há revisor de ONNX, e o do wllama continua
+        // sendo o caminho — a mesma degradação que a peça do gguf já pratica.
+        npcSet({
+            deliberationPhase: 'unavailable',
+            deliberationLoadText: `revisor por ONNX não sobe: ${plano.motivo}`,
+        });
+        anotar('revisor-onnx:sem-gpu', { motivo: plano.motivo });
+        return false;
+    }
+    medidor.reset();
+    npcSet({ deliberationPhase: 'loading', deliberationDownload: DOWNLOAD_ZERO });
+    const gerador = await carregarRevisorOnnx((fracao) => {
+        const lidos = Math.round(fracao * plano.bytes);
+        const amostra = medidor.push(lidos, plano.bytes);
+        // As DUAS barras: a da fila e a da tela da vontade. É o mesmo par de
+        // campos que `baixarVontade` alimenta — sem isso a barra dele some, que
+        // é exatamente a reclamação que originou `reportaProgresso`.
+        floor10Fila.progresso(FILA_VONTADE, amostra);
+        npcSet({
+            deliberationDownload: amostra,
+            deliberationLoadProgress: Math.min(1, fracao),
+            deliberationLoadText: `baixando ${REVISOR_ONNX_REPO.split('/')[1]} · ${downloadLine(amostra)}`,
+        });
+    });
+    if (!gerador) {
+        npcSet({
+            deliberationPhase: 'unavailable',
+            deliberationLoadText: 'o revisor por ONNX não subiu — o do wllama segue valendo',
+        });
+        return false;
+    }
+    npcSet({
+        deliberationPhase: 'off',
+        deliberationLoadProgress: 1,
+        deliberationLoadText: 'revisor por ONNX no aparelho · em espera',
+    });
+    return true;
+}
+
+/** Para a sala do ?pipeline saber se a peça já está de pé. */
+export function revisorOnnxDePe(): boolean {
+    return geradorPromise !== null;
 }

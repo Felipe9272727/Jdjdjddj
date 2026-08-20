@@ -93,7 +93,7 @@
 // devolve intacta uma frase que já estava certa — os dois reescrevem sempre.
 // Quando o juiz erra, erram junto.)
 
-import type { SmallBrainId } from './floor10Brains';
+import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 
 export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx';
 
@@ -263,4 +263,29 @@ export function definirRevisor(id: RevisorId): void {
 
 export function resetRevisorParaTestes(): void {
     escolhido = null;
+}
+
+/**
+ * O QUE A BARRA DE DOWNLOAD DEVE PROMETER — em bytes e em rótulo.
+ *
+ * Existe porque `?revisor=lfm-onnx` quebrou uma suposição que estava espalhada:
+ * até então "o revisor" era sempre uma entrada do catálogo de gguf, e duas
+ * telas liam esse catálogo direto (`pecaDaVontade` e a sala do ?pipeline). Com
+ * o revisor de ONNX o arquivo não está no catálogo, e as duas prometeriam
+ * 1,25 GB de LFM2.5 enquanto a rede baixasse 760 MB de ONNX.
+ *
+ * É o mesmo defeito de sempre neste repositório, na sua terceira forma: uma
+ * verdade derivada em dois lugares. Agora ela é derivada aqui, e as duas leem.
+ */
+export function pesoDoRevisor(): { label: string; bytes: number } {
+    const atual = revisorAtual();
+    if (atual.runtime === 'onnx') {
+        // Os 760 MB do q4f16 — o único dtype que roda no WebGPU e cabe num
+        // celular. O número mora em `floor10RevisorOnnx` e é repetido aqui de
+        // propósito: importar aquele módulo por causa de uma constante puxaria
+        // o carregador inteiro para dentro da fila.
+        return { label: atual.label, bytes: 760_279_040 };
+    }
+    const m = SMALL_BRAIN_CATALOG.find((b) => b.id === atual.cerebro) ?? SMALL_BRAIN_CATALOG[0];
+    return { label: m.label, bytes: m.bytes };
 }
