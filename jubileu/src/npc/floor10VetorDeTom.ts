@@ -103,8 +103,37 @@ async function extrator(): Promise<Extractor | null> {
             //   · ele roda em todo turno e o custo dele aparece na tela, então
             //     a comparação é imediata (1211 ms medidos no celular, em CPU).
             //
-            // Se ele voar aqui, vale portar o REVISOR para ONNX; se travar,
-            // ficamos sabendo por 0 bytes em vez de por 2 GB.
+            // ── O QUE ELA RESPONDEU, MEDIDO NO CELULAR ──────────────────
+            //
+            //     em CPU ....... 1211 ms para 4 frases  (303 ms por frase)
+            //     em WebGPU .... 2834 ms para 3 frases  (945 ms por frase)
+            //
+            // A resposta que importa é SIM: o ONNX Runtime Web sobe no WebGPU
+            // deste aparelho, gera vetores corretos e não derruba nada — onde o
+            // backend do wllama abortava duas vezes em duas. O caminho existe.
+            //
+            // A resposta que NÃO importa é o tempo, e a culpa de tê-lo medido
+            // aqui é minha: o juiz é o pior trabalho possível para uma GPU. Ele
+            // embute três ou quatro frases curtas, e cada chamada é uma passada
+            // minúscula — o custo de subir dados, compilar shader e descer o
+            // resultado engole qualquer ganho. GPU rende em matriz grande, e
+            // este é o oposto disso. O REVISOR, que lê ~230 tokens de uma vez,
+            // é o trabalho com a forma certa; ele é que precisa ser medido.
+            //
+            // ── E O JOGO DESENHA NA MESMA GPU ───────────────────────────
+            //
+            // Preocupação do dono do jogo ao ver isto funcionar: "me preocupo,
+            // pois se eu não me engano o three js usa web gpu tbm". Ele está
+            // certo, e não é palpite — está medido e escrito em `floor10Gpu`:
+            // o trabalho da LLM entope a fila de submissão e o render perde o
+            // quadro (arXiv 2501.14794). Por isso o caminho do llama.cpp tem um
+            // gerente inteiro, com piso de FPS e teto de camadas.
+            //
+            // ESTA SONDA NÃO TEM NADA DISSO. É sonda: serve para responder
+            // "funciona?" numa etapa que roda fora do desenho e cujo prejuízo
+            // máximo é o rascunho passar sem julgamento. Ligar isso por padrão,
+            // ou estendê-lo ao revisor, exige passar pelo mesmo gerente — senão
+            // é repetir com o ONNX o erro que já foi cometido com o wllama.
             const querGpu = typeof window !== 'undefined'
                 && new URLSearchParams(window.location.search).get('gpu') === 'onnx'
                 && 'gpu' in navigator;

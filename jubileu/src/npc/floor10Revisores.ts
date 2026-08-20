@@ -48,18 +48,21 @@
 // cabia no ruído e mesmo assim usei o número para recomendar. Só a diferença de
 // TEMPO era estrutural, e ela também não se confirmou no celular (ver abaixo).
 //
+// A diferença de TEMPO, essa, é estrutural e não sorte: `llama` é transformer
+// puro e o llama.cpp reaproveita o prefixo entre chamadas, então ele relê só o
+// que mudou. O `lfm2` é híbrido (`shortconv.l_cache` no gguf) e não aceita
+// reaproveitamento PARCIAL — relê os ~270 tokens inteiros, toda vez.
+//
+// SÓ QUE NEM ELA SOBREVIVEU AO APARELHO: no celular o Llama custou 14,7 s a
+// 71,9 s por frase, contra os 11,6 s desta bancada. A bancada AQUECE antes de
+// medir, e no jogo o revisor sobe do zero a cada turno — a primeira frase
+// marcada paga a persona inteira, que é justamente o que o reaproveitamento
+// pouparia. Eu medi o caso que o jogo não faz.
+//
 // Medido depois, no mesmo processo: granite 3.3 2B Q4 fez 5/6 com ZERO desvios
 // — o melhor placar que qualquer candidato tirou aqui — a 34,7 s por frase,
-// lendo 109 tokens. É a pista viva; ainda não foi repetida nem testada no
-// aparelho, e a lição desta seção é justamente não recomendar antes disso. E o motivo é estrutural, não
-// sorte: `llama` é transformer puro e o llama.cpp reaproveita o prefixo entre
-// chamadas, então ele relê só o que mudou. O `lfm2` é híbrido
-// (`shortconv.l_cache` no gguf) e não aceita reaproveitamento PARCIAL — relê os
-// ~270 tokens inteiros, toda vez, para sempre.
-//
-// RESSALVA QUE IMPEDE ISSO DE VIRAR PROPAGANDA: são 6 defeitos e 3 controles. A
-// diferença de PLACAR (4/6 contra 3/6) cabe no ruído. A de TEMPO não cabe, e
-// tem causa medida — 97 tokens lidos contra 267.
+// lendo 109 tokens. É a pista viva; ainda não foi repetida nem medida a frio, e
+// a lição desta seção é exatamente não recomendar antes disso.
 
 import type { SmallBrainId } from './floor10Brains';
 
