@@ -263,3 +263,65 @@ E o placar corrigido move o resultado da seção 5: LFM2.5 7/12 contra granite 3
 8/12, e não 8/12 contra 8/12. A diferença continua dentro do ruído para 12
 casos, e a conclusão não muda (o granite custa quase o dobro a frio), mas o
 número que eu tinha dado estava inflado por dois ecos do LFM2.5.
+
+
+## 8. Falcon-H1 e Qwen3 — o primeiro candidato novo que não colapsa
+
+    candidato        conserta  ecoou  pedaço  desviou  estraga  intacta   1ª FRIA  depois  lê     arch
+    Falcon-H1-1.5B      8/12      2      0      2/12     0/3     1/3      41,2 s   37,8 s  291   falcon-h1
+    Qwen3-1.7B          0/12     10      0      0/12     0/3     3/3      35,5 s   15,3 s  115   qwen3
+
+### Qwen3: a família inteira está fora, e agora com duas gerações medidas
+
+Zero em doze, com **dez ecos letra por letra**:
+
+    "But I would advise you to remain calm and wait for the elevator to arrive."
+    → "But I would advise you to remain calm and wait for the elevator to arrive."
+
+Idêntico ao que o Qwen2.5-1.5B fez (0/6). Duas gerações, o mesmo defeito, com o
+motivo do juiz na mão e `enable_thinking: false` — que neste modelo é um kwarg
+de verdade, e não o no-op que era no LFM2.5.
+
+O `intacta 3/3` dele não é virtude: ele devolve tudo intacto, inclusive o que
+precisava mudar. É a mesma coluna dizendo a mesma coisa por outro lado.
+
+E ele é **rápido**: 15,3 s mornas, lendo 115 tokens (transformer puro,
+reaproveitamento de prefixo funcionando). Velocidade sem conserto não serve.
+
+### Falcon-H1: empata com o melhor e é o único candidato novo vivo
+
+8/12 é o mesmo placar do granite 3.3 e melhor que os 7/12 do titular. Frases
+inteiras, no assunto, sem fragmento:
+
+    "The elevator will come when it is programmed to, and I cannot predict when
+     that might be."
+    "The hotel operates under a mysterious regime, but its fate remains uncertain."
+
+E é o único da lista com `intacta 1/3` sem ser por eco — devolveu uma frase boa
+sem estragar, que é o que se quer quando o juiz erra.
+
+**O preço é o de sempre, e é estrutural:** 41,2 s a frio contra 35,0 s do
+LFM2.5. Ele lê 301 tokens na primeira chamada e 283–295 nas seguintes — ou seja
+**não reaproveita prefixo**, porque é híbrido mamba2+atenção, exatamente como o
+lfm2. A arquitetura que dá conta da tarefa é a mesma que não deixa o cache
+funcionar.
+
+### O placar completo, todos sob a mesma régua
+
+    candidato            conserta  ECOOU  pedaço  desviou  quebrou   1ª FRIA
+    granite-3.3-2B         8/12      0      0        3        4       66,2 s
+    Falcon-H1-1.5B         8/12      2      0        2        4       41,2 s
+    LFM2.5-1.2B            7/12      2      0        3        4       35,0 s
+    granite4-h-350m        4/12      7      0        4        2       10,4 s
+    granite4-h-1B          3/12      0      5        5        4       31,9 s
+    BitNet-2B ternário     2/12      1      0        3       10       84,5 s
+    Qwen3-1.7B             0/12     10      0        0       12       35,5 s
+
+Sete modelos, cinco arquiteturas, e **a ordem de qualidade é quase a ordem
+inversa da velocidade a frio**. Não é coincidência: a leitura sem cache custa
+proporcionalmente ao tamanho, e o tamanho é o que faz o modelo entender "conserte
+só isto". O titular está no meio dessa curva, e nenhum candidato oferece um salto
+— o melhor troca 6 s a mais por 1 conserto a mais em 12, dentro do ruído.
+
+**A conclusão da caçada inteira, em uma frase:** não há revisor melhor à
+espera; há um custo de recarga que nenhum revisor resolve.
