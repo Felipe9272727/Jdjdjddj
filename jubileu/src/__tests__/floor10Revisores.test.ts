@@ -136,3 +136,50 @@ describe('a sala do ?pipeline mostra o modelo escolhido', () => {
         expect(fn).toContain('SMALL_BRAIN_CATALOG.find');
     });
 });
+
+/**
+ * ── O FALCON-H1 COMO TERCEIRA OPÇÃO ───────────────────────────────────────
+ *
+ * Pedido do dono do jogo: "deixe ele como revisor (parecido de como a gente
+ * fez com o llama, tipo pipeline revisor=falcon)".
+ *
+ * Ele entrou por medição, e a medição está no comentário da entrada: sete
+ * modelos e cinco arquiteturas mediram o mesmo remendo, com a régua que reprova
+ * eco e fragmento, e ele foi o único candidato NOVO que não colapsou.
+ *
+ * O que esta suíte prende é o que já quebrou antes: a escolha tem de trocar o
+ * ARQUIVO que desce, e a fila tem de continuar com um cérebro pequeno só.
+ */
+describe('o Falcon-H1 entra como escolha de revisor', () => {
+    it('está no catálogo, apontando para o Q6_K medido', () => {
+        const alvo = SMALL_BRAIN_CATALOG.find((m) => m.id === 'falcon-h1-1.5b');
+        expect(alvo).toBeDefined();
+        expect(alvo?.url).toContain('Falcon-H1-1.5B-Instruct-Q6_K.gguf');
+        // Conferido no arquivo baixado, não no card do repositório: um `bytes`
+        // errado faz a barra de download mentir e a conta de espaço recusar
+        // instalação que caberia.
+        expect(alvo?.bytes).toBe(1_280_071_424);
+    });
+
+    it('?revisor=falcon troca o arquivo que desce, e não acrescenta um', () => {
+        definirRevisor('falcon');
+        expect(revisorEscolhido()).toBe('falcon');
+        expect(cerebroDoRevisor()).toBe('falcon-h1-1.5b');
+        expect(revisorAtual().label).toContain('Falcon');
+
+        const peca = pecaDaVontade();
+        expect(peca.bytes).toBe(1_280_071_424);
+        // UM cérebro pequeno na fila, sempre. Ver a suíte acima.
+        const pequenos = composicaoDaFila('?pipeline&revisor=falcon')
+            .filter((p) => p.bytes === 1_280_071_424 || p.bytes === 1_246_253_888);
+        expect(pequenos).toHaveLength(1);
+    });
+
+    it('continua fora do padrão — a diferença medida cabe no ruído', () => {
+        // 8/12 contra 7/12 do titular, por 6 s a mais a frio. Este arquivo já
+        // registra duas vezes o preço de trocar o titular por diferença que não
+        // se repete (o Llama, o granite). A terceira não acontece por descuido.
+        expect(REVISOR_PADRAO).toBe('lfm');
+        expect(REVISORES.map((r) => r.id)).toContain('falcon');
+    });
+});

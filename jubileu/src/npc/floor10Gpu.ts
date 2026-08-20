@@ -496,3 +496,73 @@ export function looksCorrupted(texto: string): boolean {
     const semVogal = (limpo.match(/\b[^\s\Waeiouáéíóúàâêôãõü]{5,}\b/giu) ?? []).length;
     return proporcaoLetras < 0.72 || camelEstranho >= 2 || semVogal >= 3;
 }
+
+// ── E O BOTÃO DO PIPELINE, QUE É OUTRO ────────────────────────────────────
+//
+// Tudo acima é o governador da FALA: ele aprende sozinho, mede FPS porque o
+// Three.js divide a GPU, e sobe degrau só quando bate a linha de base da CPU.
+//
+// O pipeline do Andar 10 precisa de outra coisa, e o pedido do dono do jogo diz
+// qual: *"coloque 7 camadas ativa nele, e vms ver se ele fica bom"*. Isso é um
+// EXPERIMENTO — número escolhido por ele, aplicado de propósito, para comparar
+// dois turnos no mesmo aparelho. Um governador que aprende sozinho não serve
+// para isso: ele mudaria o degrau no meio da comparação.
+//
+// ── POR QUE O PADRÃO CONTINUA ZERO ───────────────────────────────────────
+//
+// Palavras dele, na mesma conversa: *"o do wllama é muito ruim, o do onnx deu
+// menos problema"*. E o histórico confirma: `FLOOR10_GPU_START_LAYERS` está em
+// zero porque o WebGPU do wllama falhou DUAS VEZES no aparelho dele — "(ABORT)"
+// numa fala e "loadModel() is not yet called" na outra.
+//
+// Ligar 7 camadas por padrão faria toda frase marcada de todo jogador passar
+// pelo backend que ele acabou de chamar de muito ruim. Então o botão existe,
+// vale 7 quando ele pede, e quem aperta é a URL:
+//
+//     ?pipeline&revisor=falcon&ngl=7 ..... o experimento dele
+//     ?pipeline&revisor=falcon .......... CPU, como hoje
+//
+export const NGL_SUGERIDO_PELO_DONO = 7;
+
+/** Uma falha com GPU derruba a GPU pelo resto da sessão, não a vontade. */
+let gpuDoPipelineReprovada = false;
+
+/**
+ * Marcado quando uma carga com camadas na GPU falhou.
+ *
+ * O desenho do pipeline diz que uma otimização que falha não pode custar a
+ * fala. Aqui isso é literal: a carga seguinte volta para a CPU sozinha, e o
+ * jogador vê o revisor funcionando em vez de ver o revisor sumir.
+ */
+export function marcarGpuDoPipelineReprovada(): void {
+    gpuDoPipelineReprovada = true;
+}
+
+export function gpuDoPipelineCaiu(): boolean {
+    return gpuDoPipelineReprovada;
+}
+
+export function resetGpuDoPipelineParaTestes(): void {
+    gpuDoPipelineReprovada = false;
+}
+
+/**
+ * Quantas camadas do cérebro do pipeline vão para a GPU nesta carga.
+ *
+ * `?ngl=7` liga o experimento; `?ngl=0` (ou a ausência) mantém a CPU. Depois de
+ * uma falha com GPU, devolve 0 para sempre nesta sessão.
+ */
+export function camadasNoPipeline(): number {
+    if (gpuDoPipelineReprovada) return 0;
+    const forcado = (globalThis as { __f10Ngl?: number }).__f10Ngl;
+    if (typeof forcado === 'number' && Number.isFinite(forcado)) {
+        return Math.max(0, Math.floor(forcado));
+    }
+    if (typeof window === 'undefined') return 0;
+    const pedido = new URLSearchParams(window.location.search).get('ngl');
+    if (pedido === null) return 0;
+    const n = Number(pedido);
+    // `?ngl=abc` não pode virar NaN e descer para o llama.cpp.
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(Math.floor(n), FLOOR10_GPU_MAX_LAYERS * 4);
+}

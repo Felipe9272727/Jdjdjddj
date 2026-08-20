@@ -35,6 +35,7 @@ import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
 import { completar as completarNoMicro } from './floor10Reflexo';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
+import { camadasNoPipeline, gpuDoPipelineCaiu, marcarGpuDoPipelineReprovada } from './floor10Gpu';
 import {
     descartarPensamento,
     emendarPensamento,
@@ -666,6 +667,9 @@ function ensureSmallEngine(
             const loadTask = engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, {
                 ...SMALL_BRAIN_LOAD_CONFIG,
                 n_threads: smallBrainThreads(),
+                // Depois do spread, de propósito: é esta linha que vence o zero
+                // do objeto congelado quando `?ngl=` liga o experimento da GPU.
+                n_gpu_layers: camadasNoPipeline(),
                 // O wllama usa `signal` no download; raceWithAbort também cobre
                 // a abertura do cache e a inicialização do Worker/WASM.
                 signal: controller.signal,
@@ -716,6 +720,9 @@ function ensureSmallEngine(
                 ms: Date.now() - comecouACarregar,
                 reabertura: reabrindo,
                 threads: smallBrainThreads(),
+                // Sem isto, uma rodada com `?ngl=7` no celular dele é
+                // indistinguível de uma sem, e o experimento vira opinião.
+                ngl: camadasNoPipeline(),
             });
             return engine;
         } catch (falha) {
@@ -735,6 +742,31 @@ function ensureSmallEngine(
                 });
                 enginePromise = null;
                 return ensureSmallEngine(cederParaFala, false, tentativa);
+            }
+            // ── A GPU FALHOU? VOLTA PARA A CPU, E A FALA CONTINUA ────────
+            //
+            // O WebGPU do wllama já quebrou duas vezes no aparelho do dono do
+            // jogo — "(ABORT)" numa fala, "loadModel() is not yet called" na
+            // outra — e ele resumiu: "o do wllama é muito ruim". Se o
+            // experimento de `?ngl=` reproduzir isso, o revisor NÃO pode sumir
+            // junto: a regra do pipeline é que otimização que falha não custa a
+            // fala.
+            //
+            // Uma vez por sessão, e daí em diante `camadasNoPipeline()` devolve
+            // zero sozinho — não adianta tentar de novo com o mesmo binário no
+            // mesmo aparelho.
+            if (!controller.signal.aborted && camadasNoPipeline() > 0 && !gpuDoPipelineCaiu()) {
+                marcarGpuDoPipelineReprovada();
+                anotar('vontade:gpu-caiu', {
+                    motivo: (falha instanceof Error ? falha.message : String(falha)).slice(0, 80),
+                });
+                npcSet({
+                    deliberationPhase: 'loading',
+                    deliberationLoadProgress: 0,
+                    deliberationLoadText: 'a GPU falhou; recarregando na CPU…',
+                });
+                enginePromise = null;
+                return ensureSmallEngine(cederParaFala, recoverBrokenCache, tentativa);
             }
             // REDE CAIU ≠ VONTADE INDISPONÍVEL. Este é o arquivo mais pesado do
             // andar: 1,32 GB são muitos minutos de exposição a uma rede de

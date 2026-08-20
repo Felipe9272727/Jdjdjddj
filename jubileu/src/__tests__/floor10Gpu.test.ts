@@ -9,6 +9,11 @@ import {
     FpsSampler,
     layersThatFit,
     looksCorrupted,
+    camadasNoPipeline,
+    NGL_SUGERIDO_PELO_DONO,
+    marcarGpuDoPipelineReprovada,
+    gpuDoPipelineCaiu,
+    resetGpuDoPipelineParaTestes,
 } from '../npc/floor10Gpu';
 
 // O ambiente de teste é `node` puro: não existe localStorage. Sem este
@@ -284,5 +289,55 @@ describe('sanidade antes de velocidade — o lixo que passou por "estável"', ()
         expect(s.verdict).toBe('recuado');
         expect(s.nextLayers).toBe(0);
         expect(s.reason).toContain('corrompida');
+    });
+});
+
+/**
+ * ── O BOTÃO DE GPU DO PIPELINE ────────────────────────────────────────────
+ *
+ * Pedido do dono do jogo: "coloque 7 camadas ativa nele, e vms ver se ele fica
+ * bom". É experimento, não termostato — por isso não passa pelo governador
+ * acima, que aprende sozinho e mudaria o degrau no meio da comparação.
+ *
+ * E o padrão continua ZERO porque quem joga já disse como é: "o do wllama é
+ * muito ruim, o do onnx deu menos problema". Ligar 7 por padrão jogaria toda
+ * frase marcada de todo jogador no backend que ele acabou de reprovar.
+ */
+describe('as camadas de GPU do pipeline', () => {
+    const comBusca = (busca: string) => {
+        (globalThis as { window?: unknown }).window = { location: { search: busca } };
+    };
+    afterEach(() => {
+        delete (globalThis as { window?: unknown }).window;
+        delete (globalThis as { __f10Ngl?: number }).__f10Ngl;
+        resetGpuDoPipelineParaTestes();
+    });
+
+    it('sem ?ngl, fica na CPU', () => {
+        comBusca('?pipeline&revisor=falcon');
+        expect(camadasNoPipeline()).toBe(0);
+    });
+
+    it('?ngl=7 liga o experimento que ele pediu', () => {
+        comBusca('?pipeline&revisor=falcon&ngl=7');
+        expect(camadasNoPipeline()).toBe(7);
+        expect(NGL_SUGERIDO_PELO_DONO).toBe(7);
+    });
+
+    it('?ngl=abc não vira NaN descendo para o llama.cpp', () => {
+        comBusca('?ngl=abc');
+        expect(camadasNoPipeline()).toBe(0);
+        comBusca('?ngl=-3');
+        expect(camadasNoPipeline()).toBe(0);
+    });
+
+    it('depois de uma falha com GPU, volta para a CPU pelo resto da sessão', () => {
+        comBusca('?ngl=7');
+        expect(camadasNoPipeline()).toBe(7);
+        // O WebGPU do wllama já quebrou duas vezes no aparelho dele. Se
+        // quebrar de novo, o revisor não pode sumir junto.
+        marcarGpuDoPipelineReprovada();
+        expect(gpuDoPipelineCaiu()).toBe(true);
+        expect(camadasNoPipeline()).toBe(0);
     });
 });

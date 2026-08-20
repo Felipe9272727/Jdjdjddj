@@ -15,7 +15,7 @@ import { cerebroDoRevisor } from './floor10Revisores';
 
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
-    | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror';
+    | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -158,6 +158,42 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/DavidAU/Llama-3.2-1B-Instruct-NEO-WEE-HORROR-GGUF/resolve/main/Llama-3.2-1B-Instruct-NEO-WEE-HORROR-Q6_K-imat.gguf',
         bytes: 1_021_800_544,
         nota: 'mesmo Llama 3.2 (declara pt), quantizado com imatrix de terror; NÃO medido na vontade — entrou como candidato a rascunhador',
+    },
+    {
+        // ── O ÚNICO CANDIDATO NOVO QUE SOBREVIVEU À CAÇADA DO REVISOR ─────
+        //
+        // Sete modelos e cinco arquiteturas foram medidos procurando revisor.
+        // Este é o único que empatou com o melhor placar e não colapsou:
+        //
+        //     candidato            conserta  ecoou  pedaço   1ª FRIA
+        //     granite-3.3-2B         8/12      0      0      66,2 s
+        //     Falcon-H1-1.5B         8/12      2      0      41,2 s
+        //     LFM2.5-1.2B (titular)  7/12      2      0      35,0 s
+        //     granite4-h-350m        4/12      7      0      10,4 s
+        //     granite4-h-1B          3/12      0      5      31,9 s
+        //     BitNet-2B ternário     2/12      1      0      84,5 s
+        //     Qwen3-1.7B             0/12     10      0      35,5 s
+        //
+        // Arquitetura `falcon-h1`: híbrido mamba2 + atenção. Ele escreve frases
+        // inteiras ("The elevator will come when it is programmed to, and I
+        // cannot predict when that might be.") em vez de ecoar a entrada ou
+        // devolver pedaço, que foi como todos os outros novos falharam.
+        //
+        // O QUE ELE NÃO RESOLVE: 41,2 s a frio contra 35,0 s do titular. Ele lê
+        // 301 tokens na primeira chamada e 283-295 nas seguintes, ou seja NÃO
+        // reaproveita prefixo — mesmo limite do lfm2, pelo mesmo motivo
+        // (estado recorrente). A arquitetura que dá conta da tarefa é a mesma
+        // que impede o cache de ajudar.
+        //
+        // Entra como ESCOLHA (`?revisor=falcon`), não como padrão: 1 conserto a
+        // mais em 12 por 6 s a mais cabe no ruído, e trocar o titular por isso
+        // seria a quarta vez que eu recomendo por diferença que não se repete.
+        id: 'falcon-h1-1.5b',
+        label: 'Falcon-H1 1.5B (revisor, híbrido mamba2)',
+        url: 'https://huggingface.co/tiiuae/Falcon-H1-1.5B-Instruct-GGUF/resolve/main/Falcon-H1-1.5B-Instruct-Q6_K.gguf',
+        // Conferido no arquivo baixado, não no card do repositório.
+        bytes: 1_280_071_424,
+        nota: 'empata com o melhor placar de remendo (8/12) e escreve frase inteira; 41,2s a frio, e não reaproveita prefixo',
     },
     {
         id: 'minicpm5-1b',

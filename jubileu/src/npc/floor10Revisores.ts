@@ -95,7 +95,7 @@
 
 import type { SmallBrainId } from './floor10Brains';
 
-export type RevisorId = 'lfm' | 'llama';
+export type RevisorId = 'lfm' | 'llama' | 'falcon';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -111,6 +111,35 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'LFM2.5 1.2B',
         cerebro: 'lfm2-1b',
         nota: 'relê os ~270 tokens do enunciado toda chamada: 52,1s por frase — mas delibera melhor',
+    },
+    {
+        // ── O ÚNICO SOBREVIVENTE DA CAÇADA, E POR QUE NÃO É O PADRÃO ─────
+        //
+        // Sete modelos, cinco arquiteturas, todos com a mesma régua (a que
+        // reprova eco e fragmento — as duas fraudes que quase me fizeram
+        // recomendar um 350M que devolvia a pergunta do jogador):
+        //
+        //     candidato            conserta  ecoou  pedaço  quebrou   1ª FRIA
+        //     granite-3.3-2B         8/12      0      0        4      66,2 s
+        //     Falcon-H1-1.5B         8/12      2      0        4      41,2 s
+        //     LFM2.5-1.2B            7/12      2      0        4      35,0 s
+        //     granite4-h-350m        4/12      7      0        2      10,4 s
+        //     granite4-h-1B          3/12      0      5        4      31,9 s
+        //     BitNet-2B ternário     2/12      1      0       10      84,5 s
+        //     Qwen3-1.7B             0/12     10      0       12      35,5 s
+        //
+        // Ele empata com o melhor e é o único candidato NOVO que não colapsa:
+        // escreve frase inteira, no assunto, e foi o único a devolver uma frase
+        // boa sem estragar (`intacta 1/3`) — que é o que importa quando o juiz
+        // marca errado.
+        //
+        // NÃO é o padrão porque 1 conserto a mais em 12 por 6 s a mais cabe no
+        // ruído desta bancada, e este arquivo já registra duas vezes o preço de
+        // trocar o titular por diferença que não se repete.
+        id: 'falcon',
+        label: 'Falcon-H1 1.5B (empata com o melhor, 6s mais lento)',
+        cerebro: 'falcon-h1-1.5b',
+        nota: '8/12 no remendo contra 7/12 do titular, frases inteiras; 41,2s a frio e sem reaproveitar prefixo',
     },
     {
         // ── REPROVADO NO APARELHO, e o registro fica ─────────────────────
