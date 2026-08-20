@@ -34,9 +34,13 @@ for (let i = 0; i < linhas.length; i += 1) {
     if (cab) { modelo = cab[1]; guardar(modelo); continue; }
     if (!modelo) continue;
     // A linha do veredicto traz o nome do defeito no fim; a seguinte traz a saída.
-    const m = l.match(/^\s+[\d.]+s\s+ler .*?(✓|✗✗ VAZIO|✗ não consertou|✗ QUEBROU OUTRA REGRA)(?: \?assunto)?\s+(.+)$/);
+    const m = l.match(/^\s+[\d.]+s\s+ler .*?(✓|✗✗ VAZIO|✗ ECOOU|✗ PEDAÇO|✗ não consertou|✗ QUEBROU OUTRA REGRA)(?: \?assunto)?\s+(.+)$/);
     if (!m) continue;
     const caso = PORNOME.get(m[2].trim());
+    // Um defeito no log que não existe mais em `defeitos.mjs` é ruído de uma
+    // régua antiga, e some do placar. Já um SELO novo que o parser não conhece
+    // faria o caso sumir calado — por isso os selos entram na alternância
+    // acima, e não num `.*`.
     if (!caso) continue;
     const bruto = (linhas[i + 1] ?? '').trim();
     let saida = '';
