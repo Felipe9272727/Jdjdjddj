@@ -263,7 +263,29 @@ const RESPOSTAS_DE_EXEMPLO = [
     'I have not been anywhere else. This floor is all there is.',
     'I keep looking at that door. It keeps not opening.',
 ];
-export const COPIOU_EXEMPLO = (saida) => RESPOSTAS_DE_EXEMPLO.some((e) => SOBREPOE(saida, e) >= 0.8)
+// ── CÓPIA PARCIAL É CÓPIA, E A GRAMÁTICA PROVOU ISSO ────────────────────
+//
+// A primeira versão usava `SOBREPOE`, que divide pelo MAIOR conjunto. Com a
+// gramática de uma frase só ligada, o modelo passou a copiar METADE do exemplo:
+//
+//     "I keep looking at that door."      (o Exemplo 2 sem a segunda frase)
+//     "I have not been anywhere else."    (o Exemplo 1 sem a segunda frase)
+//
+// São 6 palavras de 10, ou seja 0,6 — abaixo do corte, e o Llama subiu de 4/12
+// para um 10/12 falso. É o MESMO buraco que eu tinha acabado de tapar no jogo e
+// esqueci aqui: duas cópias da mesma verdade, pela quinta vez nesta caçada.
+//
+// O que importa é CONTENÇÃO: se quase tudo que ele escreveu veio de um exemplo,
+// é cópia mesmo que tenha parado no meio.
+const CONTIDO_EM = (saida, exemplo) => {
+    const A = PALAVRAS(saida), B = PALAVRAS(exemplo);
+    if (A.size === 0) return false;
+    let comuns = 0;
+    for (const w of A) if (B.has(w)) comuns += 1;
+    if (comuns < 4) return false;
+    return comuns / A.size >= 0.9 || comuns / B.size >= 0.9;
+};
+export const COPIOU_EXEMPLO = (saida) => RESPOSTAS_DE_EXEMPLO.some((e) => CONTIDO_EM(saida, e))
     // E o andaime do próprio enunciado, que o Llama também devolveu inteiro.
     || /\bwrong line:|\bcorrected line:|\bthe player asked:/i.test(String(saida));
 
