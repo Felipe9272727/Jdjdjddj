@@ -47,6 +47,17 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:3311';
 const REPO = process.env.REPO ?? 'onnx-community/Falcon-H1-Tiny-90M-Instruct-ONNX';
 const DTYPE = process.env.DTYPE ?? 'quantized';
 const DEVICE = process.env.DEVICE ?? 'wasm';
+// ── ENDEREÇAR O ARQUIVO, E NÃO O `dtype` ─────────────────────────────────
+//
+// O mapa de dtype da transformers.js é fixo: `q8` resolve para
+// `model_quantized.onnx`. No build da Liquid esse arquivo usa
+// GatherBlockQuantized, que não tem kernel no wasm — e o `model_q8.onnx`, que é
+// limpo, fica inalcançável por dtype nenhum.
+//
+// `model_file_name` alcança. É como se testa a hipótese que sobrou depois do
+// relato do aparelho ("travou meu celular" + "qualidade é uma merda"): que os
+// dois problemas eram do q4f16 na GPU, e não do modelo.
+const ARQUIVO = process.env.ARQUIVO ?? '';
 const MAX = Number(process.env.MAX_TOKENS ?? 40);
 
 // A MESMA persona do rascunhador e do revisor do wllama. Sem isso o placar não
@@ -78,18 +89,21 @@ const gpu = await page.evaluate(async () => {
 });
 console.log(`WebGPU neste navegador: ${gpu}`);
 
-const subiu = await page.evaluate(async ({ base, repo, dtype, device }) => {
+const DIR = process.env.TJS ?? 'v381';
+const subiu = await page.evaluate(async ({ base, repo, dtype, device, arquivo, dir }) => {
     try {
-        const mod = await import(`${base}/tjs/v420/transformers.min.js`);
+        const mod = await import(`${base}/tjs/${dir}/transformers.min.js`);
         mod.env.allowRemoteModels = false;
         mod.env.allowLocalModels = true;
         mod.env.localModelPath = `${base}/modelos/`;
         mod.env.backends.onnx.wasm.wasmPaths = `${base}/tjs/v420/`;
         const t = performance.now();
-        window.__g = await mod.pipeline('text-generation', repo, { dtype, device });
+        window.__g = await mod.pipeline('text-generation', repo, {
+            dtype, device, ...(arquivo ? { model_file_name: arquivo } : {}),
+        });
         return { ok: true, ms: Math.round(performance.now() - t) };
     } catch (e) { return { ok: false, erro: String(e?.message ?? e).slice(0, 220) }; }
-}, { base: BASE, repo: REPO, dtype: DTYPE, device: DEVICE });
+}, { base: BASE, repo: REPO, dtype: DTYPE, device: DEVICE, arquivo: ARQUIVO, dir: DIR });
 
 if (!subiu.ok) {
     console.log(`\n████ ${REPO} — NÃO CARREGOU\n     ${subiu.erro}`);
@@ -98,7 +112,7 @@ if (!subiu.ok) {
     await browser.close();
     process.exit(0);
 }
-console.log(`\n████ ${REPO} — carga ok em ${(subiu.ms / 1000).toFixed(1)}s · dtype ${DTYPE} · ${DEVICE}\n`);
+console.log(`\n████ ${REPO} — carga ok em ${(subiu.ms / 1000).toFixed(1)}s · ${ARQUIVO || DTYPE} · ${DEVICE} · ${DIR}\n`);
 
 const gerar = (sistema, texto) => page.evaluate(async ({ sistema, texto, max }) => {
     const t = performance.now();
@@ -149,7 +163,7 @@ for (const c of CERTAS) {
 }
 
 console.log(`\n${'═'.repeat(80)}`);
-console.log(`  ${REPO}  ·  ${DTYPE} · ${DEVICE} · transformers.js 4.2.0`);
+console.log(`  ${REPO}  ·  ${ARQUIVO || DTYPE} · ${DEVICE} · ${DIR}`);
 console.log(`  conserta ${conserta}/${DEFEITOS.length} · ecoou ${ecos} · pedaço ${pedacos}`
     + ` · desviou ${desviou}/${DEFEITOS.length} · estraga ${estragou}/${CERTAS.length}`
     + ` · intacta ${intacta}/${CERTAS.length}`);
