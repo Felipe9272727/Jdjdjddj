@@ -146,6 +146,27 @@ const RODADAS = Number(process.env.RODADAS ?? 1);
 const TEMP = Number(process.env.TEMPERATURA ?? 0.7);
 // Corta o vazamento clássico do enunciado com exemplos: em vez de parar depois
 // da frase, o modelo continua o padrão e escreve o próximo exercício.
+// ── A GRAMÁTICA DO REMENDO ───────────────────────────────────────────────
+//
+// Três dos nossos modos de falha são de FORMA, não de conteúdo — e forma é
+// exatamente o que a gramática do llama.cpp resolve, zerando o logit de todo
+// token inválido a cada passo:
+//
+//   fragmento sem pontuação ..... `end` é obrigatório
+//   duas ou três frases ......... `.!?` só aparece no fim, uma vez
+//   andaime do enunciado ........ os dois-pontos estão proibidos, então
+//                                 `Wrong line:` e `The player asked:` são
+//                                 impossíveis de escrever
+//   aspas em volta da fala ...... `"` proibido
+//
+// O que ela NÃO resolve, e é importante não fingir: eco, cópia de exemplo e
+// palavra proibida de cânone. Restrição de VOCABULÁRIO por gramática é
+// laboriosa e frágil, e `logit_bias` é pior — banir um subtoken o tira de toda
+// palavra que o contém, e o modelo contorna com grafia errada.
+const GRAMATICA_DO_REMENDO = `root ::= [A-Z] rest end
+rest ::= [^"\\n:.!?]+
+end ::= "." | "!" | "?"`;
+const GRAMATICA = process.env.GRAMATICA === '1' ? GRAMATICA_DO_REMENDO : undefined;
 const PARADA = process.env.PARADA === '1'
     ? ['\nWrong line:', '\nExample', '\nIt is wrong because', '\n\n']
     : undefined;
@@ -210,13 +231,14 @@ page.on('pageerror', (e) => console.log('[pageerror]', String(e.message).slice(0
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
 async function remendar(sys, q, f, porque, trocado) {
-    return page.evaluate(async ({ sys, ex, max, temp, parada }) => {
+    return page.evaluate(async ({ sys, ex, max, temp, parada, gramatica }) => {
         const a = performance.now();
         try {
             const res = await window.__w.createChatCompletion({
                 messages: [{ role: 'system', content: sys }, { role: 'user', content: ex }],
                 stream: false, max_tokens: max, temperature: temp, top_p: 0.95, top_k: 40,
                 ...(parada ? { stop: parada } : {}),
+                ...(gramatica ? { grammar: gramatica } : {}),
                 penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
                 // O jogo manda isto, então a bancada manda também. É no-op no
                 // LFM2.5 (não está no template dele) e VALE no Qwen, que sem
@@ -232,7 +254,7 @@ async function remendar(sys, q, f, porque, trocado) {
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX, temp: TEMP, parada: PARADA });
+    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA });
 }
 
 const placar = [];
