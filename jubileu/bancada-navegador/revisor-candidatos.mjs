@@ -167,6 +167,10 @@ const GRAMATICA_DO_REMENDO = `root ::= [A-Z] rest end
 rest ::= [^"\\n:.!?]+
 end ::= "." | "!" | "?"`;
 const GRAMATICA = process.env.GRAMATICA === '1' ? GRAMATICA_DO_REMENDO : undefined;
+// O interruptor MACIO do Qwen3: quando o template não traz `enable_thinking`,
+// a família ainda obedece a `/no_think` no fim da mensagem. O Huihui-MoE é um
+// merge experimental e gastou os 40 tokens inteiros dentro de <think>.
+const SUFIXO = process.env.SUFIXO ? `\n${process.env.SUFIXO}` : '';
 const PARADA = process.env.PARADA === '1'
     ? ['\nWrong line:', '\nExample', '\nIt is wrong because', '\n\n']
     : undefined;
@@ -248,13 +252,28 @@ async function remendar(sys, q, f, porque, trocado) {
             const ti = res?.timings ?? {};
             return {
                 ms: Math.round(performance.now() - a),
-                texto: String(res?.choices?.[0]?.message?.content ?? '')
-                    .replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim(),
+                // ── O RACIOCÍNIO NÃO É A RESPOSTA ────────────────────────
+                //
+                // Modelos com modo de pensamento devolvem `<think>…</think>` e
+                // depois a fala. Julgar o bloco inteiro reprova o modelo pelo
+                // que ele PENSOU, não pelo que ele disse — e o Huihui-MoE
+                // marcou 0/12 assim, com as doze saídas começando em "<think>
+                // Okay, let's see."
+                //
+                // Alguns modelos abrem o bloco e nunca fecham (o teto corta
+                // antes). Nesse caso não há resposta nenhuma, e o vazio é o
+                // veredito honesto.
+                texto: (() => {
+                    const cru = String(res?.choices?.[0]?.message?.content ?? '');
+                    const fim = cru.lastIndexOf('</think>');
+                    const util = fim >= 0 ? cru.slice(fim + 8) : (cru.includes('<think>') ? '' : cru);
+                    return util.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim();
+                })(),
                 lidos: ti.prompt_n ?? 0, escritos: ti.predicted_n ?? 0,
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA });
+    }, { sys, ex: _EN(q, f, porque, trocado) + SUFIXO, max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA });
 }
 
 const placar = [];
