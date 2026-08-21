@@ -3,7 +3,7 @@ import {
     falarPeloPipeline, limparFrase, enumerarEmIngles, pipelineLigado,
     aplicarRemendo, primeiraFraseFechada,
     type PassoDoPipeline, type PecasDoPipeline,
-} from '../npc/floor10Pipeline';
+ semRaciocinio,} from '../npc/floor10Pipeline';
 
 /** Açúcar: marcar frases sem repetir o motivo em todo teste que não é sobre ele. */
 const marca = (...ns: number[]) => async () => ns.map((n) => ({ n, porque: '' }));
@@ -319,5 +319,25 @@ describe('copiar o exemplo não é consertar', () => {
             cortado: false,
         });
         expect(d.tipo).toBe('trocou');
+    });
+});
+
+describe('o raciocínio não é a fala', () => {
+    // O Huihui-MoE devolve `<think>…</think>` antes da frase, e o remendo nunca
+    // tratou disso porque nenhum revisor pensava. Sem isto, o raciocínio ia
+    // inteiro para o tradutor e para a tela do jogador.
+    it('devolve só o que vem depois do fechamento', () => {
+        expect(semRaciocinio("<think>\nOkay, let's see. The user wants…\n</think>\nI keep my distance."))
+            .toBe('I keep my distance.');
+    });
+
+    it('bloco aberto e nunca fechado é VAZIO, não meio pensamento', () => {
+        // O teto de tokens cortou no meio. Devolver o pedaço seria pôr
+        // "Okay, let's see. The user wants me to" na boca do Nilo.
+        expect(semRaciocinio("<think>\nOkay, let's see. The user wants me to")).toBe('');
+    });
+
+    it('texto sem raciocínio passa intacto', () => {
+        expect(semRaciocinio('It opens when it wants to.')).toBe('It opens when it wants to.');
     });
 });

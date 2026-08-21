@@ -16,7 +16,7 @@ import { cerebroDoRevisor } from './floor10Revisores';
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
     | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b'
-    | 'granite3-3b-a800m';
+    | 'granite3-3b-a800m' | 'huihui-moe-08b';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -244,6 +244,19 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/bartowski/granite-3.1-3b-a800m-instruct-GGUF/resolve/main/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf',
         bytes: 2_016_888_384,
         nota: 'o mais rápido que consertou: 22,6s a frio e 11,5s depois, contra 35,0s do titular — mas escreve empolado e quebra cânone em 6 de 12',
+    },
+    {
+        // MoE experimental de 2 especialistas, ≈300M ativos por token, e o
+        // primeiro candidato a revisor que PENSA. Medido: 0/12 com teto de 40
+        // tokens (tudo preso no `<think>`) e 8/12 com 320.
+        // Sem `soRevisor`: essa marca existe para arquivo que não cabe ao lado
+        // da fala (o teto medido é 1,4 GB), e 712 MB cabe folgado. Ele é
+        // candidato a revisor por MEDIÇÃO, não por restrição de tamanho.
+        id: 'huihui-moe-08b',
+        label: 'Huihui-MoE 0.8B-2E (MoE, ~300M ativos)',
+        url: 'https://huggingface.co/mradermacher/Huihui-MoE-0.8B-2E-GGUF/resolve/main/Huihui-MoE-0.8B-2E.Q6_K.gguf',
+        bytes: 712_096_256,
+        nota: 'pensa antes de responder: 8/12 com teto de 320 tokens, 0/12 com 40; em 2 de 12 pensa até o teto e devolve vazio',
     },
     {
         id: 'minicpm5-1b',

@@ -96,7 +96,7 @@
 import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import { pipelineLigado } from './floor10Pipeline';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador' | 'huihui';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -111,6 +111,14 @@ export type RevisorEntry = {
      * wllama exige descarregar o rascunhador para caber, e o do ONNX não.
      */
     runtime?: 'wllama' | 'onnx' | 'rascunhador';
+    /**
+     * ELE PENSA ANTES DE RESPONDER — e isso muda o teto de tokens.
+     *
+     * Um revisor de raciocínio devolve `<think>…</think>` e só depois a frase.
+     * Com os 40 tokens do remendo normal ele gasta tudo dentro do bloco e não
+     * chega a responder: medido no Huihui-MoE, 0/12 com 40 e 8/12 com 320.
+     */
+    pensa?: boolean;
     /** O cérebro pequeno que esta escolha coloca na fila. Sempre existe um. */
     cerebro: SmallBrainId;
     nota: string;
@@ -179,6 +187,39 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'Llama 3.2 1B Q6 (REPROVADO no aparelho)',
         cerebro: 'llama32-1b-q6',
         nota: 'rápido na bancada (11,6s) e lento no celular (14,7 a 71,9s); inventou fala do jogador uma vez',
+    },
+    {
+        // ── O CANDIDATO QUE O DONO DO JOGO ACHOU ─────────────────────────
+        //
+        // "já anota que o huihui é ótimo, e possível candidato a revisor".
+        //
+        // Ele é um MoE experimental de 0,8B com 2 especialistas (≈300M ativos
+        // por token), arquitetura `qwen3_moe`, 712 MB em Q6. E é o primeiro
+        // revisor desta caçada que PENSA — o que mudou tudo para ele:
+        //
+        //     teto 40 tokens ..... 0/12   as doze saídas presas em "<think>"
+        //     teto 320 tokens .... 8/12   empatando com o SmolLM2-1.7B
+        //     teto 512 tokens .... 8/12   igual: o teto maior não recupera nada
+        //
+        // Isso derrubou uma coisa que EU vinha repetindo desde o
+        // LFM2.5-Thinking: que pensar era defeito. Não era. O defeito era a
+        // medição julgar o pensamento como se fosse a resposta, e o orçamento
+        // acabar antes de ele terminar.
+        //
+        // ── AS DUAS RESSALVAS, E ELAS SÃO SÉRIAS ─────────────────────────
+        //
+        // Em 2 dos 12 ele pensa até o teto e devolve VAZIO — um deles gastou
+        // 40,9 s escrevendo 512 tokens para não entregar frase nenhuma. Com
+        // teto ele perde esses dois por definição; sem teto, o jogador espera
+        // sem limite. E em 2 ele copiou a linha de um exemplo do enunciado.
+        //
+        // Custo: 35 s de carga + 29,6 s por frase = 64 s de turno, contra 71 s
+        // do titular. Ganha por pouco no tempo e por um conserto na qualidade.
+        id: 'huihui',
+        label: 'Huihui-MoE 0.8B-2E (pensa antes de responder)',
+        cerebro: 'huihui-moe-08b',
+        pensa: true,
+        nota: '8/12 pensando (0/12 sem pensar), 64s de turno; em 2 de 12 pensa até o teto e devolve vazio',
     },
     {
         // ── UM MODELO SÓ, PARA OS DOIS PAPÉIS ────────────────────────────

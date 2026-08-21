@@ -387,3 +387,50 @@ O caminho do ONNX que dá para andar hoje é com o **titular**, não com o Falco
 e é uma troca real: o Falcon conserta 8/12 contra 7/12, mas fica preso ao backend
 que ele reprovou; o LFM2.5 perde um conserto em doze e roda no backend que
 funciona no aparelho dele.
+
+
+## 10. O Huihui-MoE, e a coisa que eu vinha repetindo errado
+
+Candidato trazido pelo dono do jogo. MoE experimental de 0,8B com 2 especialistas
+(≈300M ativos por token), arquitetura `qwen3_moe`, 712 MB em Q6 — e o primeiro
+revisor desta caçada que **pensa antes de responder**.
+
+    teto de   40 tokens .....  0/12    as doze saídas presas dentro de <think>
+    teto de  320 tokens .....  8/12    empata com o SmolLM2-1.7B
+    teto de  512 tokens .....  8/12    o teto maior não recupera nada
+
+**O 0/12 era defeito meu de medição.** As doze saídas começavam em
+`"<think>\nOkay, let's see. The user wants me to correct a sentence…"` e a
+bancada julgava o bloco inteiro: eu estava reprovando o modelo pelo que ele
+PENSOU, não pelo que ele disse. Desde o LFM2.5-Thinking eu vinha tratando
+"pensar" como defeito, e estava errado — o defeito era o orçamento acabar antes
+de o modelo terminar, e a régua não separar raciocínio de resposta.
+
+Falas dele, já sem o bloco:
+
+    "I'm just a guest trapped on the 10th floor."
+    "The grey room has four walls and the elevator door."
+    "I don't know who runs the hotel or whether it ends."
+
+**As duas ressalvas, e são sérias.** Em 2 dos 12 ele pensa até o teto e devolve
+VAZIO — um deles gastou 40,9 s escrevendo 512 tokens para não entregar frase
+nenhuma. Com teto ele perde esses dois por definição; sem teto, o jogador espera
+sem limite. E em 2 ele copiou a linha de um exemplo do enunciado.
+
+Custo: 35 s de carga + 29,6 s por frase = **64 s de turno**, contra 71 s do
+titular. Ganha por pouco no tempo e por um conserto na qualidade.
+
+Está no catálogo como `?pipeline&revisor=huihui`, e ele obrigou o jogo a
+aprender duas coisas que faltavam: `semRaciocinio` (o remendo nunca tratou
+`<think>`, porque nenhum revisor pensava) e um teto de tokens por revisor
+(`pensa: true` → 320 em vez de 40).
+
+### O que a triagem dos outros candidatos dele mostrou
+
+| candidato | alegação | veredito |
+|---|---|---|
+| MobileLLM-R1-950M (Meta) | feito para o aparelho, e o "R1" é raciocínio | `llama4_text`, aceito pelo nosso wasm — **na fila** |
+| helium-1-2b (Kyutai) | modelo de borda | arch `llama`, aceito — possível, mas 2B |
+| Zamba2-1.2B (Zyphra) | "25% menos TTFT, 20% mais tok/s", 314 mil downloads | arch `zamba2`: **zero ocorrências** no nosso wasm — não carrega |
+| MoLM-350M-4B (IBM) | 350M ativos de 4B totais | arch `moduleformer`: não existe no llama.cpp — não carrega |
+| Time-MoE-50M | 50M totais | previsão de série temporal, não gera linguagem |

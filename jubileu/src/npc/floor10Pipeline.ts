@@ -274,6 +274,26 @@ function palavras(t: string): Set<string> {
     return new Set((t.toLowerCase().match(/[a-z']+/g) ?? []));
 }
 
+/**
+ * ── O RACIOCÍNIO NÃO É A FALA ────────────────────────────────────────────
+ *
+ * Modelos com modo de pensamento devolvem `<think>…</think>` e só depois a
+ * frase. O remendo nunca tratou disso porque nenhum revisor pensava — e a
+ * bancada, que também não tratava, deu 0/12 ao Huihui-MoE com as doze saídas
+ * começando em "<think> Okay, let's see." Eu estava reprovando o modelo pelo
+ * que ele PENSOU.
+ *
+ * Aberto e nunca fechado é o caso que importa aqui: o teto de tokens cortou no
+ * meio do pensamento, e não existe resposta. Devolver o pensamento pela metade
+ * seria pôr "Okay, let's see. The user wants me to" na boca do Nilo — então
+ * este caso vira vazio, e quem chama trata como remendo que não veio.
+ */
+export function semRaciocinio(texto: string): string {
+    const fim = texto.lastIndexOf('</think>');
+    if (fim >= 0) return texto.slice(fim + '</think>'.length).trim();
+    return texto.includes('<think>') ? '' : texto;
+}
+
 export function copiouOExemplo(texto: string): boolean {
     const a = palavras(texto);
     if (a.size === 0) return false;

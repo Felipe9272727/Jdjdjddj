@@ -79,7 +79,9 @@ import {
 } from './wllamaEngine';
 // O revisor vive aqui, mas o VOCABULÁRIO do desfecho é do pipeline: é ele que
 // confronta a resposta com a frase original e decide "trocou" ou "manteve".
-import { primeiraFraseFechada, type RespostaDoRevisor } from './floor10Pipeline';
+import {
+    primeiraFraseFechada, semRaciocinio, type RespostaDoRevisor,
+} from './floor10Pipeline';
 
 export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import {
@@ -1854,6 +1856,24 @@ export async function rascunharFala(
 export const REMENDO_MAX_TOKENS = 40;
 
 /**
+ * O teto do remendo, e ele dobra de natureza quando o revisor PENSA.
+ *
+ * 40 tokens bastam para uma frase — e são fatais para um modelo de raciocínio,
+ * que gasta os 40 dentro do `<think>` e não chega a responder. Medido no
+ * Huihui-MoE: 0/12 com 40 tokens, 8/12 com 320.
+ *
+ * O teto continua existindo, e o motivo também está medido: com 512 ele NÃO
+ * melhorou (8/12 igual), e em 2 dos 12 casos gastou o orçamento inteiro
+ * pensando para devolver vazio — um deles em 40,9 s. Pensamento sem teto é o
+ * jogador esperando quarenta segundos por nada.
+ */
+export const REMENDO_TOKENS_PENSANDO = 320;
+
+export function tokensDoRemendo(): number {
+    return revisorAtual().pensa ? REMENDO_TOKENS_PENSANDO : REMENDO_MAX_TOKENS;
+}
+
+/**
  * ── O TETO QUE ERA O BUG ─────────────────────────────────────────────────
  *
  * A pergunta foi: *"o revisor até foi acionado (tanto que parece que ele
@@ -2000,7 +2020,7 @@ export async function remendarFraseEmIngles(
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
             stream: true,
-            max_tokens: REMENDO_MAX_TOKENS,
+            max_tokens: tokensDoRemendo(),
             grammar: undefined,
             // NO-OP NESTE MODELO, e fica registrado para ninguém confiar nele:
             // `enable_thinking` é chave do Qwen, e o chat template do LFM2.5-1.2B
@@ -2033,7 +2053,9 @@ export async function remendarFraseEmIngles(
         globalThis.clearTimeout(relogio);
     }
     const cortado = abort.signal.aborted;
-    const limpo = semAspas(acumulado);
+    // Um revisor que pensa devolve `<think>…</think>` antes da frase. Sem esta
+    // linha o raciocínio ia inteiro para o tradutor e para a tela.
+    const limpo = semAspas(semRaciocinio(acumulado));
     const fechada = primeiraFraseFechada(limpo);
     if (fechada) return { tipo: 'frase', texto: fechada, cortado };
     if (tropeco) return { tipo: 'erro', erro: tropeco };
