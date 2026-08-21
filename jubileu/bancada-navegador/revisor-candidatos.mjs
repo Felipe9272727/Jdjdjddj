@@ -231,6 +231,7 @@ for (const m of MODELOS) {
         } catch (e) { return String(e?.message ?? e).slice(0, 160); }
     }, { base: BASE, arq: m.arq, kv: m.kv, ctx: m.ctx });
     const arqui = subiu.startsWith('ok:') ? subiu.slice(3) : '';
+    const msCarga = Date.now() - t;
     console.log(`\n████ ${m.rot} — carga ${subiu.startsWith('ok') ? 'ok' : subiu}`
         + ` em ${Math.round((Date.now() - t) / 1000)}s · arch ${arqui || '?'} · KV ${m.kv}`);
     if (!subiu.startsWith('ok')) { placar.push({ rot: m.rot, erro: subiu }); continue; }
@@ -312,12 +313,13 @@ for (const m of MODELOS) {
     const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
     placar.push({
         rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema, ecos, pedacos, tentativas: nDef,
+        carga: msCarga / 1000,
         custo: msTot / Math.max(1, n) / 1000, lidos: Math.round(lidos / Math.max(1, nDef)), lerPct,
         fria: msFria / 1000, morna: nMorna ? msMorna / nMorna / 1000 : 0,
     });
 }
 
-console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  desviou  estraga  intacta   1ª FRIA   depois  lê  arch`);
+console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  desviou  intacta    CARGA   1ª FRIA   TURNO  lê  arch`);
 for (const p of placar) {
     if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
     console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + p.tentativas).padStart(6)}`
@@ -325,10 +327,10 @@ for (const p of placar) {
         + `${String(p.ecos).padStart(6)}`
         + `${String(p.pedacos).padStart(8)}`
         + `${String(p.foraDoTema + '/' + p.tentativas).padStart(9)}`
-        + `${String(p.estragou + '/' + CERTAS.length).padStart(9)}`
         + `${String(p.intacta + '/' + CERTAS.length).padStart(9)}`
+        + `${(p.carga.toFixed(0) + 's').padStart(9)}`
         + `${(p.fria.toFixed(1) + 's').padStart(10)}`
-        + `${((p.morna || p.custo).toFixed(1) + 's').padStart(9)}`
+        + `${((p.carga + p.fria).toFixed(0) + 's').padStart(8)}`
         + `${String(p.lidos + 'tok').padStart(8)}  ${p.arqui}`);
 }
 console.log(`\n  "desviou" = trocou a frase por outra que não responde à pergunta.`);
@@ -338,4 +340,9 @@ console.log(`  o juiz erra, e quando erra é isto que separa um revisor de um re
 console.log(`  "1ª FRIA" = a primeira chamada, sem cache de prefixo. É ESSA que o jogo faz:`);
 console.log(`  o revisor sobe do zero, atende a frase marcada e cai. "depois" é a média das`);
 console.log(`  demais — o número bonito que fez o Llama parecer 6x mais rápido do que é.`);
+console.log(`  "TURNO" = CARGA + 1ª FRIA, e é o único número que o jogador sente: o jogo`);
+console.log(`  descarrega o rascunhador, SOBE o revisor do zero, conserta uma frase e cai.`);
+console.log(`  A carga escala com o TAMANHO DO ARQUIVO — 1,25 GB custou 36 s, 2,02 GB custou`);
+console.log(`  63 s. Para este papel, arquivo menor é mais rápido, e nenhum ganho de`);
+console.log(`  arquitetura no meio da conta paga uma carga que dobrou.`);
 await browser.close();
