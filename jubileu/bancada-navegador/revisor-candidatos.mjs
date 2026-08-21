@@ -257,15 +257,34 @@ async function remendar(sys, q, f, porque, trocado) {
             // turno o modelo recebe outra coisa do que receberia no jogo — mas
             // é a diferença entre medir e não medir.
             if (cru) {
-                const bruto = await window.__w.createCompletion(`${sys}\n\n${ex}\n`, {
-                    nPredict: max,
-                    sampling: { temp, top_p: 0.95, top_k: 40 },
+                // A ASSINATURA. `createCompletion(prompt, { nPredict, sampling })`
+                // é a API da wllama 2.x. Nesta versão o método recebe UM objeto,
+                // e passar a string como `options` faz o decodificador ler o
+                // cabeçalho do protocolo interno como se fosse tamanho de buffer:
+                //
+                //   Invalid typed array length: 1163217991
+                //   (1163217991 = 0x45554c47 = "GLUE", a marca das mensagens)
+                //
+                // Não era o modelo falhando. Era a chamada. Os campos aqui são
+                // os do `/completion` do llama.cpp, não os do chat.
+                const bruto = await window.__w.createCompletion({
+                    prompt: `${sys}\n\n${ex}\n`,
+                    stream: false, n_predict: max, max_tokens: max,
+                    temperature: temp, top_p: 0.95, top_k: 40,
+                    ...(parada ? { stop: parada } : {}),
+                    penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
                 });
-                const t2 = typeof bruto === 'string' ? bruto : String(bruto?.content ?? '');
+                const ti2 = bruto?.timings ?? {};
+                // No caminho cru a resposta é `choices[0].text`, e não
+                // `choices[0].message.content` do chat.
+                const c2 = String(bruto?.choices?.[0]?.text ?? bruto?.content ?? '');
+                const f2 = c2.lastIndexOf('</think>');
+                const u2 = f2 >= 0 ? c2.slice(f2 + 8) : (c2.includes('<think>') ? '' : c2);
                 return {
                     ms: Math.round(performance.now() - a),
-                    texto: t2.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim(),
-                    lidos: 0, escritos: 0, msLer: 0, msEscrever: 0,
+                    texto: u2.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim(),
+                    lidos: ti2.prompt_n ?? 0, escritos: ti2.predicted_n ?? 0,
+                    msLer: Math.round(ti2.prompt_ms ?? 0), msEscrever: Math.round(ti2.predicted_ms ?? 0),
                 };
             }
             const res = await window.__w.createChatCompletion({
@@ -320,14 +339,26 @@ for (const m of MODELOS) {
                 jinja: true, reasoning: false, warmup: true,
             });
             window.__w = w;
+            // ── "CARGA OK" NÃO É PROVA DE QUE O MODELO SUBIU ─────────
+            //
+            // Quando o llama.cpp recusa o modelo (o MobileLLM-R1 bateu em
+            // "llama4 model cannot have zero experts"), o wllama RESOLVE a
+            // promessa de carga assim mesmo. A bancada imprimia
+            // `carga ok em 16s · arch ?` e o erro só aparecia na primeira
+            // chamada, longe da causa — eu li `arch ?` duas vezes sem ver.
+            //
+            // Sem arquitetura não há modelo. Isso é falha de carga.
             const meta = w.getModelMetadata?.()?.meta ?? {};
-            return 'ok:' + (meta['general.architecture'] ?? '?');
+            const arqui = meta['general.architecture'];
+            if (!arqui) return 'NÃO CARREGOU (o llama.cpp recusou o modelo; o wllama promete carga assim mesmo — rode sonda-abort.mjs)';
+            return 'ok:' + arqui;
         } catch (e) { return String(e?.message ?? e).slice(0, 160); }
     }, { base: BASE, arq: m.arq, kv: m.kv, ctx: m.ctx });
     const arqui = subiu.startsWith('ok:') ? subiu.slice(3) : '';
     const msCarga = Date.now() - t;
-    console.log(`\n████ ${m.rot} — carga ${subiu.startsWith('ok') ? 'ok' : subiu}`
-        + ` em ${Math.round((Date.now() - t) / 1000)}s · arch ${arqui || '?'} · KV ${m.kv}`);
+    console.log(`\n████ ${m.rot} — ${subiu.startsWith('ok')
+        ? `carga ok em ${Math.round(msCarga / 1000)}s · arch ${arqui}`
+        : `${subiu} (${Math.round(msCarga / 1000)}s)`} · KV ${m.kv}`);
     if (!subiu.startsWith('ok')) { placar.push({ rot: m.rot, erro: subiu }); continue; }
 
     // ── NÃO AQUECE, E O AQUECIMENTO FOI O ERRO MAIS CARO DESTA BANCADA ──

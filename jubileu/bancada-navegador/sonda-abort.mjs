@@ -7,6 +7,7 @@
 import { chromium } from 'playwright';
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3405';
 const ARQ = process.env.ARQ ?? 'mobile.gguf';
+const process_TUDO = process.env.TUDO === '1';
 
 const browser = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -15,8 +16,11 @@ const browser = await chromium.launch({
 const page = await browser.newPage();
 page.on('console', (m) => {
     const t = m.text();
-    if (/error|abort|unknown|unsupported|missing|failed|not found|arch/i.test(t)) {
-        console.log('  ‹nativo› ' + t.slice(0, 200));
+    // TUDO=1 repete o log inteiro. O filtro abaixo é bom para achar a linha
+    // do erro, e ruim para achar a linha ANTES do erro — que no caso do
+    // MobileLLM era a que importava.
+    if (process_TUDO || /error|abort|unknown|unsupported|missing|failed|not found|arch|template|jinja|chat/i.test(t)) {
+        console.log('  ‹nativo› ' + t.slice(0, 300));
     }
 });
 page.on('pageerror', (e) => console.log('  ‹página› ' + String(e.message).slice(0, 200)));

@@ -434,3 +434,83 @@ aprender duas coisas que faltavam: `semRaciocinio` (o remendo nunca tratou
 | Zamba2-1.2B (Zyphra) | "25% menos TTFT, 20% mais tok/s", 314 mil downloads | arch `zamba2`: **zero ocorrências** no nosso wasm — não carrega |
 | MoLM-350M-4B (IBM) | 350M ativos de 4B totais | arch `moduleformer`: não existe no llama.cpp — não carrega |
 | Time-MoE-50M | 50M totais | previsão de série temporal, não gera linguagem |
+
+## 11. O MobileLLM e o helium — e o "(ABORT)" que eu expliquei errado duas vezes
+
+O Felipe pediu duas coisas: descobrir por que o MobileLLM não carregou, e
+tentar de novo junto do helium. As duas respostas estão fechadas, e a primeira
+me obrigou a desdizer o que eu tinha escrito.
+
+### O que eu disse, e por que estava errado
+
+Eu disse que o gguf do MobileLLM-R1-950M tinha sido **publicado sem chat
+template**, e que era por isso que ele abortava dentro do wasm em
+`GGML_ASSERT(chat_templates != nullptr)`. Está errado. O gguf **tem** template
+— o do Llama 3.1 inteiro, 3.804 bytes, começando em `{{- bos_token }}`, na
+chave `tokenizer.chat_template`. Eu tinha lido só os primeiros 3 MB do arquivo
+com `strings`, e o template dele mora no byte 7.819.190.
+
+Ironia registrada: quem **não** tem template é o helium, e o helium carregou.
+
+### A causa real, com o log nativo ligado
+
+```
+llama_model_loader: - kv 21:  llama4.expert_count u32 = 0
+...
+load_tensors: loading model tensors, this can take a while...
+llama_model_load: error loading model: llama4 model cannot have zero experts
+llama_model_load_from_file_impl: failed to load model
+srv    load_model: failed to load model
+```
+
+O modelo **nunca subiu**. A conversão carimbou `general.architecture = llama4`
+com zero peritos, e o llama.cpp recusa: a arquitetura llama4 é MoE por
+definição no carregador dele. O `chat_templates` é nulo depois disso porque não
+há modelo — o assert é o sintoma, três passos depois da causa.
+
+E há um agravante que é culpa da bancada, não do modelo: **o wllama resolve a
+promessa de `loadModelFromUrl` mesmo quando o llama.cpp recusou**. A bancada
+imprimia `carga ok em 16s · arch ?` e seguia em frente. O `arch ?` era o aviso,
+e eu passei por ele duas vezes. Agora sem arquitetura é falha de carga, dita
+com essas palavras.
+
+### A tentativa de contornar: reescrever a arquitetura do gguf
+
+O MobileLLM-R1 é um Llama denso comum pelo que o cabeçalho mostra — 22 camadas,
+200 tensores (9 por camada: norm, q, k, v, o, ffn_norm, gate, up, down), GQA
+24/6, rope base 8e6, **nenhum** tensor de q_norm/k_norm, nenhum perito. Então
+`arch-para-llama.mjs` reescreve o cabeçalho trocando `llama4` por `llama`
+(18 chaves) e copia os tensores byte a byte.
+
+Ele **carrega**. E devolve ruído:
+
+```
+"The capital of France is" → " France. ..PHCT……jddfotm000ffffFomst Dateret,$("
+```
+
+Ou seja: o grafo do llama4 não é decoração para este modelo (NoPE por camada,
+temperatura de atenção — o que for, está no grafo e não nos pesos). Rodar com o
+grafo do `llama` não dá erro, dá lixo — que é exatamente o risco escrito no
+cabeçalho do script. **Fechado: a família MobileLLM-R1/R1.5 não roda neste
+wasm**, e não é conversão de um publicador só — R1.5 (sasa2000, Q8) tem o mesmo
+cabeçalho `llama4`/0 peritos, e todo mundo converte com o mesmo script.
+
+Sobra de valor: `arch-do-gguf.mjs` lê arquitetura, peritos, camadas e existência
+de template com um Range de 16 MB, **sem baixar o modelo**. O MobileLLM custou
+787 MB e dois diagnósticos errados para revelar uma linha de metadado.
+
+### helium-1-2b: medido, e o motivo do zero não é velocidade
+
+| candidato | conserta | copiou | vazio | intacta | CARGA | 1ª FRIA | TURNO |
+|---|---|---|---|---|---|---|---|
+| helium-1-2b Q6 (1,66 GB) | **0/12** | 4 | 8 | 0/3 | 53 s | 72,7 s | **126 s** |
+
+Oito das doze saídas foram **vazias** (4 tokens, tudo quebra de linha) e as
+outras quatro copiaram a linha do exemplo (`The player asked: "..."`). O motivo
+está no cabeçalho: o gguf do helium **não tem chat template**, então o
+llama.cpp cai no chatml padrão — e o kyutai só publicou o helium como **modelo
+base**, sem versão instruída (as variantes books/science/pop/stem/life são
+fine-tunes de domínio, não de instrução). Um modelo base recebendo marcadores
+de turno que ele nunca viu no treino responde com uma linha em branco.
+
+E mesmo que respondesse: 126 s de turno contra os 71 s do titular. Fechado.
