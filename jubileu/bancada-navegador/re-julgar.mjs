@@ -13,9 +13,11 @@
 // resposta truncada em 105 caracteres não pode ser julgada quanto a "fechou a
 // frase", e sai contada à parte em vez de virar nota.
 import { readFileSync } from 'node:fs';
-import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, COPIOU_EXEMPLO, PROMETEU } from './defeitos.mjs';
+import { CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, COPIOU_EXEMPLO, PROMETEU } from './defeitos.mjs';
+// A prova grande CONTÉM os 6 antigos, então um mapa só serve para os dois logs.
+import { GRANDE } from './prova.mjs';
 
-const PORNOME = new Map(DEFEITOS.map((d) => [d.nome, d]));
+const PORNOME = new Map(GRANDE.map((d) => [d.nome, d]));
 
 const linhas = process.argv.slice(2).flatMap((f) => readFileSync(f, 'utf8').split('\n'));
 

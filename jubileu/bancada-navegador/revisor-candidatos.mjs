@@ -223,6 +223,10 @@ import {
 // O revisor treinado usa o MESMO arquivo que gerou o corpus — uma string só,
 // sem segunda cópia para divergir.
 import { PERSONA as PERSONA_TREINADA, enunciado as enunciadoTreinado } from './corpus/enunciado.mjs';
+// PROVA=grande troca os 6 defeitos históricos pelos 24 (os mesmos 6 na frente,
+// mais 18 em perguntas novas). Placar de prova grande NÃO se compara com placar
+// de prova pequena — o denominador muda, e a linha do cabeçalho diz qual rodou.
+import { GRANDE } from './prova.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
 // ── O ENUNCIADO DO REVISOR TREINADO ──────────────────────────────────────
 // Sem os três exemplos e com a persona curta: é o formato EXATO em que o
@@ -335,6 +339,7 @@ async function remendar(sys, q, f, porque, trocado) {
     }, { sys, ex: _EN(q, f, porque, trocado) + SUFIXO, max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA, cru: CRU });
 }
 
+const PROVA = process.env.PROVA === 'grande' ? GRANDE : DEFEITOS;
 const placar = [];
 for (const m of MODELOS) {
     const t = Date.now();
@@ -404,7 +409,7 @@ for (const m of MODELOS) {
     let ecos = 0, pedacos = 0, copias = 0, promessas = 0;
     for (let rodada = 1; rodada <= RODADAS; rodada += 1) {
     if (RODADAS > 1) console.log(`  ── rodada ${rodada}/${RODADAS}`);
-    for (const c of DEFEITOS) {
+    for (const c of PROVA) {
         const r = await remendar(SYS, c.q, c.f, c.porque, TROCADOS[c.nome]);
         if (r.erro) { console.log(`  ✗ ERRO ${r.erro}`); rodada = RODADAS; break; }
         n += 1; nDef += 1; msTot += r.ms; msLer += r.msLer; msEscrever += r.msEscrever; lidos += r.lidos;
@@ -461,7 +466,7 @@ for (const m of MODELOS) {
     });
 }
 
-console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  copiou  promete  desviou  intacta   CARGA  1ª FRIA  TURNO  lê  arch`);
+console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS} · PROVA: ${PROVA.length} casos\n  candidato                    conserta  ecoou  pedaço  copiou  promete  desviou  intacta   CARGA  1ª FRIA  TURNO  lê  arch`);
 for (const p of placar) {
     if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
     console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + p.tentativas).padStart(6)}`
