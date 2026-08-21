@@ -47,7 +47,7 @@ for (let i = 0; i < linhas.length; i += 1) {
     try { saida = JSON.parse(bruto); } catch { continue; }
     const p = guardar(modelo);
     p.n += 1;
-    if (saida.length >= 105) p.truncado += 1;
+    if (saida.length >= 240) p.truncado += 1;
     if (!saida) { p.vazio += 1; continue; }
     const ecoou = ECOOU(saida, caso.q, caso.f);
     const sumiu = caso.ok(saida);

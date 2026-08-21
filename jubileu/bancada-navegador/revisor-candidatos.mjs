@@ -296,7 +296,7 @@ for (const m of MODELOS) {
         console.log(`  ${(r.ms / 1000).toFixed(1).padStart(5)}s  ler ${(r.msLer / 1000).toFixed(1)}s/${r.lidos}tok`
             + ` · escrever ${(r.msEscrever / 1000).toFixed(1)}s/${r.escritos}tok`
             + `  ${selo}  ${c.nome}`);
-        console.log(`         ${JSON.stringify(r.texto.slice(0, 105))}`);
+        console.log(`         ${JSON.stringify(r.texto.slice(0, 240))}`);
     }
     }
     let estragou = 0, intacta = 0;
@@ -309,7 +309,7 @@ for (const m of MODELOS) {
         if (ruim) estragou += 1;
         if (r.texto === c.f) intacta += 1;
         console.log(`     ${(r.ms / 1000).toFixed(1)}s ${ruim ? '✗✗ ESTRAGOU' : (r.texto === c.f ? '= devolveu igual' : '~ reescreveu, sem estragar')}`);
-        console.log(`         ${JSON.stringify(String(r.texto).slice(0, 105))}`);
+        console.log(`         ${JSON.stringify(String(r.texto).slice(0, 240))}`);
     }
     const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
     placar.push({

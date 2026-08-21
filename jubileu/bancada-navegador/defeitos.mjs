@@ -81,6 +81,8 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
     || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
+    || /\bi'?m an? (?:assistant|ai|bot)\b|\bi can help you\b|\bformulate a response\b/i.test(t)
+    || /\b(?:now,? )?let'?s continue\b|\bwrong line:|\bcorrected line:/i.test(t)
     || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
     || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
     || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)

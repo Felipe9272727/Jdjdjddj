@@ -87,7 +87,19 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // ── QUEM ELE É ────────────────────────────────────────────────────────
     ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b/i],
     ['o jogador não se chama Nilo', /,\s*nilo\b/i],
-    ['não é ajudante e não dá conselho', /\b(?:i'?d|i would)\s+advise\b|\byou should\b|\bremain calm\b|\bi'?m here to (?:help|assist)\b/i],
+    // ── "I'M AN ASSISTANT" — o buraco que o few-shot escancarou ──────────
+    //
+    // A regra pegava OFERTA de ajuda ("I'm here to help") e conselho
+    // ("you should"). Não pegava o modelo se APRESENTANDO como ajudante, que é
+    // pior, e foi o que saiu do rascunhador com enunciado de exemplos:
+    //
+    //     "I'm an assistant, not a character in a story. However, I can help
+    //      you formulate a response."
+    //
+    // Passou livre e contou como CONSERTO no placar. É a quarta vez nesta
+    // caçada que uma régua frouxa premia lixo — as três anteriores foram eco,
+    // fragmento e narração.
+    ['não é ajudante e não dá conselho', /\b(?:i'?d|i would)\s+advise\b|\byou should\b|\bremain calm\b|\bi'?m here to (?:help|assist)\b|\bi'?m an? (?:assistant|ai|bot)\b|\bi can help you\b|\bformulate a response\b/i],
 
     // ── FALAR SOBRE A PRÓPRIA FRASE ───────────────────────────────────────
     // O LFM2.5 fez isso: "That sentence is still wrong—maybe the city's just a
@@ -95,7 +107,10 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // Terceiro caso do mesmo relato: em vez de responder, ele CLASSIFICA a
     // pergunta — "The question is about a hotel room on the 10th floor, which
     // is a dry, formal statement." O Nilo não faz resenha do enunciado.
-    ['comenta a frase em vez de reescrevê-la', /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b|\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i],
+    // "Now, let's continue" é o vazamento clássico do enunciado com exemplos:
+    // em vez de parar depois da frase, o modelo continua o PADRÃO e escreve o
+    // próximo exercício. Não é fala do Nilo, é o modelo trabalhando em voz alta.
+    ['comenta a frase em vez de reescrevê-la', /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b|\bthe question is about\b|\b(?:dry|formal|literary) statement\b|\b(?:now,? )?let'?s continue\b|\bwrong line:|\bcorrected line:/i],
 ]);
 
 /**

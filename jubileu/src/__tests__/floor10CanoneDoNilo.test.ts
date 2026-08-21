@@ -149,3 +149,34 @@ describe('o que o revisor de ONNX pôs na tela do dono do jogo', () => {
         });
     }
 });
+
+describe('o que o enunciado com exemplos fez o rascunhador dizer', () => {
+    // Quarta vez nesta caçada que uma régua frouxa premia lixo. As três
+    // anteriores foram eco, fragmento e narração; esta é o modelo se
+    // APRESENTANDO como ajudante — que a regra não pegava porque ela cobria
+    // oferta de ajuda ("I'm here to help") e conselho ("you should"), e não
+    // identidade.
+    it('reprova o modelo dizendo que é um assistente', () => {
+        const q = quebrasDeCanone(
+            "I'm an assistant, not a character in a story. However, I can help you formulate a response.",
+        );
+        expect(q.map((x) => x.regra)).toContain('não é ajudante e não dá conselho');
+    });
+
+    // E o vazamento clássico do few-shot: em vez de parar depois da frase, ele
+    // continua o PADRÃO e começa o próximo exercício.
+    it('reprova a continuação do próprio exercício', () => {
+        for (const t of [
+            "This hotel seems to be an endless loop. Now, let's continue the exercise.",
+            'Wrong line: "I went downstairs." Corrected line: "I never left."',
+        ]) {
+            expect(quebrasDeCanone(t).length).toBeGreaterThan(0);
+        }
+    });
+
+    it('e continua deixando passar o Nilo oferecendo companhia, que é fala dele', () => {
+        expect(quebrasDeCanone("I'll wait here. If it doesn't come, I'll call you.")).toHaveLength(0);
+        expect(quebrasDeCanone("I keep trying to push the button. It's just not working.")).toHaveLength(0);
+        expect(quebrasDeCanone("I can't see anything beyond this wall. It's all I have to go on.")).toHaveLength(0);
+    });
+});
