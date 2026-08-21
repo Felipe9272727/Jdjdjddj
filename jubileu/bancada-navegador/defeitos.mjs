@@ -77,7 +77,7 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     || /\bthe player\b/i.test(t)
     || /\bthe (?:narrator|speaker|protagonist)\b/i.test(t)
     || /\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i.test(t)
-    || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b/i.test(t)
+    || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b/i.test(t)
     || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
     || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
@@ -86,7 +86,8 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
     || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
     || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)
-    || /\bVance\b/i.test(t);
+    || /\bVance\b/i.test(t)
+    || /\b(?:corporation|company|conglomerate|management|ownership|owned by|run by the)\b/i.test(t);
 export const ESTRAGOU = QUEBRA_CANONE;
 
 // ── E AINDA RESPONDE À PERGUNTA? UM SINAL, NÃO UMA NOTA ──────────────────

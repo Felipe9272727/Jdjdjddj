@@ -180,3 +180,36 @@ describe('o que o enunciado com exemplos fez o rascunhador dizer', () => {
         expect(quebrasDeCanone("I can't see anything beyond this wall. It's all I have to go on.")).toHaveLength(0);
     });
 });
+
+describe('enumerar não é regra — as duas que o rascunhador furou', () => {
+    // A regra de narração listava cinco verbos que eu tinha visto acontecer.
+    // Ele escreveu "Nilo STANDS at the door" e passou livre. O erro nunca foi o
+    // verbo: é a terceira pessoa.
+    it('reprova qualquer "Nilo + verbo", não só os cinco que eu tinha visto', () => {
+        for (const t of [
+            'Nilo stands at the door, his eyes fixed on the unresponsive elevator.',
+            'Nilo takes a deep breath and waits.',
+            'Nilo remains where he is.',
+        ]) {
+            expect(quebrasDeCanone(t).map((q) => q.regra)).toContain('narra em vez de falar');
+        }
+    });
+
+    // E a de "quem manda" citava a família Vance, porque foi o nome que
+    // apareceu numa medição. Ele inventou outro.
+    it('reprova qualquer dono inventado, não só a família Vance', () => {
+        for (const t of [
+            'The hotel operates under the ownership of the Normal Elevator Corporation.',
+            'This place is run by the company that built the shafts.',
+        ]) {
+            expect(quebrasDeCanone(t).map((q) => q.regra))
+                .toContain('não sabe quem manda nem quando acaba');
+        }
+    });
+
+    it('e o vocativo continua sendo outro defeito, com regra própria', () => {
+        const q = quebrasDeCanone('This hotel, Nilo, seems to be an endless loop.');
+        expect(q.map((x) => x.regra)).toContain('o jogador não se chama Nilo');
+        expect(q.map((x) => x.regra)).not.toContain('narra em vez de falar');
+    });
+});

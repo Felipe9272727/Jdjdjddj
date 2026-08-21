@@ -69,6 +69,18 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // descrevendo a cena de fora, e isso nunca é fala dele.
     ['fala pelo jogador', /\bthe player\b/i],
 
+    // ── ENUMERAR VERBOS NÃO FUNCIONA, E ESTA É A PROVA ───────────────────
+    //
+    // A regra listava `looks|says|asks|nods|sighs` — cinco verbos que eu tinha
+    // visto acontecer. O rascunhador escreveu "Nilo STANDS at the door, his
+    // eyes fixed on the unresponsive elevator" e passou livre, porque `stands`
+    // não estava na minha lista.
+    //
+    // O erro não é o verbo, é a TERCEIRA PESSOA: qualquer "Nilo + verbo" é
+    // alguém narrando de fora. `Nilo\s+[a-z]{2,}s` pega a forma, não a
+    // enumeração — e continua deixando passar o vocativo ("This hotel, Nilo,"),
+    // que é outro defeito, com regra própria.
+    //
     // ── E QUEM DIZ "THE NARRATOR" ESTÁ FORA DA CENA ──────────────────────
     //
     //     "The elevator is currently on the 10th floor of the hotel, and the
@@ -76,13 +88,20 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     //
     // É a ficha do personagem, escrita em terceira pessoa, entregue como se
     // fosse a fala dele. Também passou livre, também chegou à tela.
-    ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo (?:looks|says|asks|nods|sighs)\b|\bthe (?:narrator|speaker|protagonist)\b/i],
+    ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b|\bthe (?:narrator|speaker|protagonist)\b/i],
 
     // ── CÂNONE DO ANDAR ───────────────────────────────────────────────────
     ['está no 10º andar, não dentro do elevador', /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i],
     ['não há corredor, janela nem cidade', /\b(?:corridor|hallway|window|the city|lobby)\b/i],
     ['nunca saiu do andar', /\b(?:ground floor|downstairs|back down|another floor|other floors)\b/i],
-    ['não sabe quem manda nem quando acaba', /\bVance\b|\bnext (?:tuesday|week|month)\b/i],
+    // ── E "VANCE" TAMBÉM ERA ENUMERAÇÃO ──────────────────────────────────
+    //
+    // A regra citava a família Vance porque foi o nome que apareceu numa
+    // medição. O rascunhador inventou outro: "the hotel operates under the
+    // ownership of the NORMAL ELEVATOR CORPORATION, and the last known
+    // operation was on the…". Passou livre, e é o mesmo defeito — ele não sabe
+    // quem manda, então não pode nomear ninguém nem descrever a estrutura.
+    ['não sabe quem manda nem quando acaba', /\bVance\b|\bnext (?:tuesday|week|month)\b|\b(?:corporation|company|conglomerate|management|ownership|owned by|run by the)\b/i],
 
     // ── QUEM ELE É ────────────────────────────────────────────────────────
     ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b/i],
