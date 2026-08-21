@@ -81,7 +81,16 @@ treino = Remendos(AQUI / 'treino.jsonl')
 afere = Remendos(AQUI / 'afericao.jsonl')
 print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo {MODELO}', flush=True)
 
-modelo = AutoModelForCausalLM.from_pretrained(MODELO, dtype=torch.float32)
+# ── CPU E GPU NA MESMA RECEITA ───────────────────────────────────────────
+# Na CPU só float32 treina de verdade; numa T4 o que existe é fp16, e da L4 em
+# diante bf16, que é o único dos três que não pede escalonamento de perda.
+NA_GPU = torch.cuda.is_available()
+BF16 = NA_GPU and torch.cuda.is_bf16_supported()
+modelo = AutoModelForCausalLM.from_pretrained(
+    MODELO, dtype=torch.bfloat16 if BF16 else torch.float32)
+if NA_GPU:
+    modelo.cuda()
+    print(f'  GPU: {torch.cuda.get_device_name(0)} · {"bf16" if BF16 else "fp16"}', flush=True)
 modelo.config.use_cache = False
 alvos = [n for n, _ in modelo.named_modules() if n.endswith(('q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'))]
 sufixos = sorted({n.split('.')[-1] for n in alvos})
@@ -103,7 +112,8 @@ Trainer(
         # `warmup_ratio` saiu do TrainingArguments nesta versão; o que restou é
         # `warmup_steps`, e 10% dos passos é a mesma coisa dita em passos.
         warmup_steps=max(2, int(0.1 * EPOCAS * len(treino) / (int(os.environ.get('LOTE', 4)) * int(os.environ.get('ACUMULA', 2))))),
-        logging_steps=5, save_strategy='no', report_to=[], use_cpu=True,
+        logging_steps=5, save_strategy='no', report_to=[], use_cpu=not NA_GPU,
+        bf16=BF16, fp16=NA_GPU and not BF16,
         eval_strategy='epoch' if len(afere) else 'no',
     ),
     train_dataset=treino, eval_dataset=afere if len(afere) else None,
@@ -114,6 +124,10 @@ Trainer(
 print('\n  mesclando o LoRA nos pesos…', flush=True)
 inteiro = modelo.merge_and_unload()
 inteiro.config.use_cache = True
+if NA_GPU:
+    # O gguf sai de pesos em CPU; e float32 na conversão evita uma segunda
+    # perda de precisão antes do q8_0.
+    inteiro = inteiro.to(torch.float32).cpu()
 inteiro.save_pretrained(SAIDA)
 tok.save_pretrained(SAIDA)
 print(f'  pronto em {(time.time() - t0) / 60:.1f} min → {SAIDA}', flush=True)
