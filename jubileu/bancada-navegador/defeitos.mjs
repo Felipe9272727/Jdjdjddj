@@ -246,6 +246,27 @@ export const COM_EXEMPLOS = (q, f, porque) => `\n\nCORRECTION. One sentence only
 // modelo — inclusive os que já passaram por aqui.
 export const COM_EXEMPLOS2 = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\n${EXEMPLOS}\n\nRules for your answer:\n- Do NOT mention the mistake, not even to deny it. Write the line as if the mistake had never been there.\n- Do NOT reuse the example lines above.\n\nNow do the same.\n\nThe player asked: "${q.trim()}"\nWrong line: "${f}"\nIt is wrong because ${porque}\nCorrected line:`;
 
+// ── COPIAR O EXEMPLO NÃO É CONSERTAR (oitavo buraco da régua) ────────────
+//
+// O Llama-3.2-1B marcou 8/12 devolvendo isto, duas vezes:
+//
+//     "I keep looking at that door. It keeps not opening."
+//
+// É a linha corrigida do MEU Exemplo 2, letra por letra. E em outras ele
+// devolveu o andaime do prompt: `Wrong line: "…"`, `The player asked: "…"`.
+//
+// Nenhuma quebra cânone, nenhuma é eco da pergunta, nenhuma é fragmento — e
+// nenhuma é conserto. O enunciado com exemplos criou uma forma nova de fingir,
+// e a régua precisa da conferência correspondente: eu tinha posto "não
+// reutilize os exemplos" no PROMPT e esquecido de pôr na MEDIÇÃO.
+const RESPOSTAS_DE_EXEMPLO = [
+    'I have not been anywhere else. This floor is all there is.',
+    'I keep looking at that door. It keeps not opening.',
+];
+export const COPIOU_EXEMPLO = (saida) => RESPOSTAS_DE_EXEMPLO.some((e) => SOBREPOE(saida, e) >= 0.8)
+    // E o andaime do próprio enunciado, que o Llama também devolveu inteiro.
+    || /\bwrong line:|\bcorrected line:|\bthe player asked:/i.test(String(saida));
+
 // ── E QUANDO O MOTIVO ESTIVER ERRADO? ────────────────────────────────────
 //
 // O motivo do juiz de TOM é palpite: ele mede de qual âncora ruim a frase

@@ -13,7 +13,7 @@
 // resposta truncada em 105 caracteres não pode ser julgada quanto a "fechou a
 // frase", e sai contada à parte em vez de virar nota.
 import { readFileSync } from 'node:fs';
-import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO } from './defeitos.mjs';
+import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, COPIOU_EXEMPLO } from './defeitos.mjs';
 
 const PORNOME = new Map(DEFEITOS.map((d) => [d.nome, d]));
 
@@ -23,7 +23,7 @@ let modelo = null;
 const placar = new Map();
 const guardar = (rot) => {
     if (!placar.has(rot)) {
-        placar.set(rot, { rot, n: 0, conserta: 0, ecoou: 0, fragmento: 0, desviou: 0, quebrou: 0, vazio: 0, truncado: 0 });
+        placar.set(rot, { rot, n: 0, conserta: 0, ecoou: 0, fragmento: 0, copias: 0, desviou: 0, quebrou: 0, vazio: 0, truncado: 0 });
     }
     return placar.get(rot);
 };
@@ -53,22 +53,25 @@ for (let i = 0; i < linhas.length; i += 1) {
     const sumiu = caso.ok(saida);
     const limpo = !QUEBRA_CANONE(saida);
     const fragmento = FRAGMENTO(saida);
+    const copiou = COPIOU_EXEMPLO(saida);
+    if (copiou) p.copias += 1;
     if (ecoou) p.ecoou += 1;
     if (fragmento) p.fragmento += 1;
     if (!NO_ASSUNTO(saida, caso.q, caso.f)) p.desviou += 1;
     if (!limpo) p.quebrou += 1;
     // A regra nova: ecoar não é consertar, mesmo que o defeito "suma".
-    if (sumiu && limpo && !ecoou && !fragmento) p.conserta += 1;
+    if (sumiu && limpo && !ecoou && !fragmento && !copiou) p.conserta += 1;
 }
 
 console.log(`\n${'═'.repeat(80)}`);
 console.log(`  RE-JULGADO com a régua que reprova eco (${CERTAS.length} controles não entram aqui)`);
-console.log(`  candidato                    conserta  ECOOU  pedaco  desviou  quebrou  vazio  (105ch)`);
+console.log(`  candidato                    conserta  ECOOU  pedaco  copiou  desviou  quebrou  vazio`);
 for (const p of placar.values()) {
     if (!p.n) continue;
     console.log(`  ${p.rot.padEnd(28)} ${String(p.conserta + '/' + p.n).padStart(7)}`
         + `${String(p.ecoou).padStart(7)}`
         + `${String(p.fragmento).padStart(8)}`
+        + `${String(p.copias).padStart(8)}`
         + `${String(p.desviou).padStart(9)}`
         + `${String(p.quebrou).padStart(9)}`
         + `${String(p.vazio).padStart(7)}`
