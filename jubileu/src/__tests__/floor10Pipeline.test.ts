@@ -289,3 +289,35 @@ describe('pipelineLigado', () => {
         expect(pipelineLigado('?fresh=1&pipeline')).toBe(true);
     });
 });
+
+describe('copiar o exemplo não é consertar', () => {
+    // Relato do aparelho, com o rascunhador remendando: ele devolveu "I have
+    // not been anywhere else." — a linha corrigida do Exemplo 1 do enunciado,
+    // letra por letra. Não quebra cânone: é fala boa do Nilo. E não é conserto,
+    // porque o defeito apontado continua lá.
+    //
+    // A conferência existia na BANCADA e faltava no JOGO — o mesmo defeito de
+    // origem que já apareceu três vezes aqui: uma verdade em dois lugares.
+    it('recusa a linha do exemplo, mesmo sendo uma fala boa', () => {
+        const d = aplicarRemendo('I went downstairs to check.', {
+            tipo: 'frase', texto: 'I have not been anywhere else.', cortado: false,
+        });
+        expect(d.tipo).toBe('recusado');
+    });
+
+    it('recusa o andaime do enunciado devolvido como fala', () => {
+        for (const t of ['Wrong line: "I never left."', 'The player asked: "Are you real?"']) {
+            expect(aplicarRemendo('qualquer coisa', { tipo: 'frase', texto: t, cortado: false }).tipo)
+                .toBe('recusado');
+        }
+    });
+
+    it('e deixa passar um conserto de verdade que só PARECE com o exemplo', () => {
+        const d = aplicarRemendo('I went downstairs to check the lobby.', {
+            tipo: 'frase',
+            texto: 'I stopped counting the days I have spent in this grey room.',
+            cortado: false,
+        });
+        expect(d.tipo).toBe('trocou');
+    });
+});

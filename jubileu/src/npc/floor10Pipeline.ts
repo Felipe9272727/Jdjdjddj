@@ -246,6 +246,59 @@ Wrong line: "Nilo sighs and looks at the elevator door."
 It is wrong because it narrates him from outside instead of letting him speak.
 Corrected line: "I keep looking at that door. It keeps not opening."`;
 
+/**
+ * ── COPIOU O EXEMPLO EM VEZ DE CONSERTAR ─────────────────────────────────
+ *
+ * Relato do aparelho, com o rascunhador remendando: ele devolveu
+ *
+ *     "I have not been anywhere else."
+ *
+ * que é a linha corrigida do Exemplo 1 acima, letra por letra. Não quebra
+ * cânone nenhum — é uma fala perfeitamente boa do Nilo — e mesmo assim não é
+ * conserto: é o modelo repetindo o que viu, e a frase marcada continua errada.
+ *
+ * Eu já tinha construído esta conferência na BANCADA e não a tinha trazido para
+ * o jogo. É o mesmo defeito de origem que já apareceu aqui três vezes: uma
+ * verdade que existe num lugar e falta no outro.
+ *
+ * A comparação é por conjunto de palavras, não por igualdade: o modelo copia
+ * com pontuação diferente, e "I have not been anywhere else, I think" continua
+ * sendo cópia.
+ */
+const RESPOSTAS_DOS_EXEMPLOS = Object.freeze([
+    'I have not been anywhere else. This floor is all there is.',
+    'I keep looking at that door. It keeps not opening.',
+]);
+
+function palavras(t: string): Set<string> {
+    return new Set((t.toLowerCase().match(/[a-z']+/g) ?? []));
+}
+
+export function copiouOExemplo(texto: string): boolean {
+    const a = palavras(texto);
+    if (a.size === 0) return false;
+    return RESPOSTAS_DOS_EXEMPLOS.some((exemplo) => {
+        const b = palavras(exemplo);
+        let comuns = 0;
+        for (const w of a) if (b.has(w)) comuns += 1;
+        // ── CÓPIA PARCIAL TAMBÉM É CÓPIA ─────────────────────────────────
+        //
+        // A primeira versão dividia pelo MAIOR dos dois conjuntos, e um teste
+        // a derrubou na hora: o aparelho devolveu "I have not been anywhere
+        // else." — metade do Exemplo 1, sem a segunda frase. São 6 palavras de
+        // 11, ou seja 0,55, e passava.
+        //
+        // O que importa é CONTENÇÃO: se quase tudo que ele escreveu veio de um
+        // exemplo, é cópia, mesmo que ele tenha parado no meio. O piso de 4
+        // palavras evita que uma resposta curtíssima case por acaso.
+        if (comuns < 4) return false;
+        return comuns / a.size >= 0.9 || comuns / b.size >= 0.9;
+    })
+        // E o andaime do próprio enunciado, que o Llama devolveu inteiro na
+        // bancada: `Wrong line: "…"`, `Corrected line:`, `The player asked:`.
+        || /\bwrong line:|\bcorrected line:|\bthe player asked:/i.test(texto);
+}
+
 export function enunciadoComExemplos(
     perguntaEmIngles: string, frase: string, porque: string,
 ): string {
@@ -295,6 +348,15 @@ export function aplicarRemendo(antes: string, r: RespostaDoRevisor): DesfechoDoR
     //
     // Vale para QUALQUER revisor: isto não é conserto de um modelo, é a etapa
     // deixando de confiar cegamente em quem quer que esteja no posto.
+    // Copiar a resposta de um exemplo é uma forma de fingir que a conferência
+    // de cânone não pega: a frase é boa, só não é conserto. Entra como quebra
+    // para o desfecho ser o mesmo — a original fica de pé.
+    if (copiouOExemplo(texto)) {
+        return {
+            tipo: 'recusado', depois: texto,
+            quebras: [{ regra: 'copiou a resposta do exemplo', trecho: texto.slice(0, 60) }],
+        };
+    }
     const quebras = quebrasDeCanone(texto);
     if (quebras.length > 0) return { tipo: 'recusado', depois: texto, quebras };
     return { tipo: 'trocou', depois: texto };
