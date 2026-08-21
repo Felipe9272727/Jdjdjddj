@@ -167,6 +167,8 @@ const GRAMATICA_DO_REMENDO = `root ::= [A-Z] rest end
 rest ::= [^"\\n:.!?]+
 end ::= "." | "!" | "?"`;
 const GRAMATICA = process.env.GRAMATICA === '1' ? GRAMATICA_DO_REMENDO : undefined;
+// Para gguf publicado sem chat template — ver o comentário dentro de `remendar`.
+const CRU = process.env.CRU === '1';
 // O interruptor MACIO do Qwen3: quando o template não traz `enable_thinking`,
 // a família ainda obedece a `/no_think` no fim da mensagem. O Huihui-MoE é um
 // merge experimental e gastou os 40 tokens inteiros dentro de <think>.
@@ -235,9 +237,37 @@ page.on('pageerror', (e) => console.log('[pageerror]', String(e.message).slice(0
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
 async function remendar(sys, q, f, porque, trocado) {
-    return page.evaluate(async ({ sys, ex, max, temp, parada, gramatica }) => {
+    return page.evaluate(async ({ sys, ex, max, temp, parada, gramatica, cru }) => {
         const a = performance.now();
         try {
+            // ── QUANDO O GGUF NÃO TEM CHAT TEMPLATE ──────────────────
+            //
+            // `createChatCompletion` monta a conversa pelo template do arquivo,
+            // e quando ele não existe o llama.cpp NÃO devolve erro legível:
+            // aborta dentro do wasm —
+            //
+            //   common/chat.cpp:2708: GGML_ASSERT(chat_templates != nullptr)
+            //
+            // e a bancada via só `(ABORT)`. Foi exatamente o caso do
+            // MobileLLM-R1-950M: modelo íntegro, arquitetura suportada, e a
+            // conversão publicada SEM template.
+            //
+            // O modo cru monta o prompt à mão e chama `createCompletion`, que
+            // não toca em template. NÃO é equivalente — sem os marcadores de
+            // turno o modelo recebe outra coisa do que receberia no jogo — mas
+            // é a diferença entre medir e não medir.
+            if (cru) {
+                const bruto = await window.__w.createCompletion(`${sys}\n\n${ex}\n`, {
+                    nPredict: max,
+                    sampling: { temp, top_p: 0.95, top_k: 40 },
+                });
+                const t2 = typeof bruto === 'string' ? bruto : String(bruto?.content ?? '');
+                return {
+                    ms: Math.round(performance.now() - a),
+                    texto: t2.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim(),
+                    lidos: 0, escritos: 0, msLer: 0, msEscrever: 0,
+                };
+            }
             const res = await window.__w.createChatCompletion({
                 messages: [{ role: 'system', content: sys }, { role: 'user', content: ex }],
                 stream: false, max_tokens: max, temperature: temp, top_p: 0.95, top_k: 40,
@@ -273,7 +303,7 @@ async function remendar(sys, q, f, porque, trocado) {
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: _EN(q, f, porque, trocado) + SUFIXO, max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA });
+    }, { sys, ex: _EN(q, f, porque, trocado) + SUFIXO, max: MAX, temp: TEMP, parada: PARADA, gramatica: GRAMATICA, cru: CRU });
 }
 
 const placar = [];
