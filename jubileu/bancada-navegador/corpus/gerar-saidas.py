@@ -33,7 +33,10 @@ print(f'  {len(casos)} casos (prova + controles) · modelo {MODELO}', flush=True
 
 # Um caminho local que não existe vira "repo do Hub" no transformers, e o erro
 # que chega é um 401 do huggingface.co — que não tem nada a ver com o problema.
-if ('/' in MODELO or MODELO.startswith('.')) and not Path(MODELO).exists() and MODELO.count('/') != 1:
+# `corpus/revisor-360m` tem uma barra, igual a `org/modelo` do Hub. O que
+# separa os dois é o PAI existir aqui: se `corpus/` existe e o filho não,
+# a intenção era local.
+if not Path(MODELO).exists() and Path(MODELO).parent.exists() and str(Path(MODELO).parent) != '.':
     sys.exit(f'  não existe: {MODELO}\n  (treine antes: python3 corpus/treinar.py)')
 
 tok = AutoTokenizer.from_pretrained(MODELO)
