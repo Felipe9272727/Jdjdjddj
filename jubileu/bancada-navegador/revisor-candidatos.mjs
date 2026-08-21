@@ -171,12 +171,13 @@ Rewrite the sentence so it stops breaking that rule, keeping the rest of its mea
 // placares só se comparam se a régua for literalmente o mesmo arquivo.
 import {
     DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO,
-    HOJE, TROCA, MOTIVO, ERRADO, TROCADOS,
+    HOJE, TROCA, MOTIVO, ERRADO, COM_EXEMPLOS, TROCADOS,
 } from './defeitos.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
 const _EN = ENUNCIADO === 'troca' ? TROCA
     : ENUNCIADO === 'motivo' ? MOTIVO
-        : ENUNCIADO === 'errado' ? ERRADO
+        : ENUNCIADO === 'exemplos' ? COM_EXEMPLOS
+            : ENUNCIADO === 'errado' ? ERRADO
             : HOJE;
 
 const browser = await chromium.launch({

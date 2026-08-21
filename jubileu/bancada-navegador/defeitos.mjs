@@ -190,6 +190,39 @@ export const TROCA = (q, f) => `\n\nThe player asked: "${q.trim()}"\n\nYou answe
 // melhor caso possível, não o caso real.
 export const MOTIVO = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\nThe player asked: "${q.trim()}"\n\nYou answered with this line:\n\n"${f}"\n\nIt is wrong because ${porque}\n\nWrite the corrected line. Keep what it was saying, fix only that error. Nilo's voice, one sentence, no explaining, no quotes.`;
 
+// ── E SE O PROBLEMA NÃO FOR O MODELO, FOR O ENUNCIADO? ───────────────────
+//
+// Onze modelos medidos, sete arquiteturas, e o teto é 8/12. Quando candidato
+// nenhum passa de um número, a suspeita deixa de ser sobre os candidatos.
+//
+// Já há prova de que o ENUNCIADO manda mais que o modelo aqui: entregar o
+// motivo do juiz dobrou o placar do titular (2/6 → 4/6) sem trocar uma linha
+// do modelo. E os fracassos se repetem em famílias inteiras — ECO em Qwen2.5,
+// Qwen3 e granite 350M; FRAGMENTO no granite h-1B. Modelo pequeno que ecoa é o
+// sintoma clássico de instrução sem EXEMPLO: ele não sabe que forma tem a
+// resposta, então devolve a forma que recebeu.
+//
+// Este modo mostra dois pares errado→certo antes de pedir o terceiro. Custa
+// ~90 tokens de leitura a mais, que nesta bancada são ~4 s.
+//
+// ── OS EXEMPLOS NÃO PODEM SER OS CASOS DE TESTE ──────────────────────────
+//
+// Regra dura, e é o erro clássico deste tipo de medição: se um exemplo mostrar
+// um dos seis defeitos da lista, o placar mede memória e não conserto. Os dois
+// abaixo usam defeitos que NÃO estão em DEFEITOS — "saiu do andar" e "narra em
+// terceira pessoa" — e por isso podem ser mostrados sem contaminar nada.
+const EXEMPLOS = `Example 1:
+Wrong line: "I went downstairs to check the lobby, but it was empty."
+It is wrong because he has never left the 10th floor.
+Corrected line: "I have not been anywhere else. This floor is all there is."
+
+Example 2:
+Wrong line: "Nilo sighs and looks at the elevator door."
+It is wrong because it narrates him from outside instead of letting him speak.
+Corrected line: "I keep looking at that door. It keeps not opening."`;
+
+export const COM_EXEMPLOS = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\n${EXEMPLOS}\n\nNow do the same.\n\nThe player asked: "${q.trim()}"\nWrong line: "${f}"\nIt is wrong because ${porque}\nCorrected line:`;
+
 // ── E QUANDO O MOTIVO ESTIVER ERRADO? ────────────────────────────────────
 //
 // O motivo do juiz de TOM é palpite: ele mede de qual âncora ruim a frase
