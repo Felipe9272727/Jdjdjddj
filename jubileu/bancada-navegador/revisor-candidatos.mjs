@@ -139,7 +139,11 @@ const RODADAS = Number(process.env.RODADAS ?? 1);
 // E o preço disso está medido sem eu ter procurado: o a400m deu 6/12 numa
 // rodada e 7/12 na seguinte, com o MESMO arquivo, o MESMO enunciado e os
 // MESMOS defeitos. A diferença era o sorteio.
-const TEMP = Number(process.env.TEMP ?? 0.7);
+// NOME: `TEMPERATURA`, e não `TEMP`. `TEMP` é a variável de DIRETÓRIO
+// TEMPORÁRIO do sistema — passar `TEMP=0` fez o Playwright tentar criar
+// arquivo numa pasta chamada "0" e morrer com ENOENT antes de abrir o
+// navegador. Duas rodadas perdidas por causa de um nome.
+const TEMP = Number(process.env.TEMPERATURA ?? 0.7);
 // Corta o vazamento clássico do enunciado com exemplos: em vez de parar depois
 // da frase, o modelo continua o padrão e escreve o próximo exercício.
 const PARADA = process.env.PARADA === '1'
@@ -187,11 +191,12 @@ Rewrite the sentence so it stops breaking that rule, keeping the rest of its mea
 // placares só se comparam se a régua for literalmente o mesmo arquivo.
 import {
     DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO,
-    HOJE, TROCA, MOTIVO, ERRADO, COM_EXEMPLOS, TROCADOS,
+    HOJE, TROCA, MOTIVO, ERRADO, COM_EXEMPLOS, COM_EXEMPLOS2, TROCADOS,
 } from './defeitos.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
 const _EN = ENUNCIADO === 'troca' ? TROCA
     : ENUNCIADO === 'motivo' ? MOTIVO
+        : ENUNCIADO === 'exemplos2' ? COM_EXEMPLOS2
         : ENUNCIADO === 'exemplos' ? COM_EXEMPLOS
             : ENUNCIADO === 'errado' ? ERRADO
             : HOJE;

@@ -226,6 +226,26 @@ Corrected line: "I keep looking at that door. It keeps not opening."`;
 
 export const COM_EXEMPLOS = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\n${EXEMPLOS}\n\nNow do the same.\n\nThe player asked: "${q.trim()}"\nWrong line: "${f}"\nIt is wrong because ${porque}\nCorrected line:`;
 
+// ── NEGAR NÃO É CONSERTAR, E O MODELO NEGAVA ─────────────────────────────
+//
+// Com `exemplos` e temperatura 0, o a400m estabilizou em 6/12 — e os SEIS que
+// faltavam falhavam todos do mesmo jeito:
+//
+//     defeito "remain calm"    → "I remain calm and wait for the elevator."
+//     defeito "ele diz que é IA" → "I am a human being, not an AI."
+//     defeito "família Vance"  → "I only know that it's not the Vance family."
+//
+// Ele NEGA o defeito em vez de evitá-lo, e ao negar repete a palavra proibida.
+// Não é limitação de tamanho: é consequência direta do enunciado, que diz
+// "está errado porque X" e recebe de volta "não é X".
+//
+// E havia um segundo vazamento: "I have not been anywhere else. This floor is
+// all there is." é a frase do PRIMEIRO EXEMPLO, copiada letra por letra.
+//
+// As duas correções são de instrução, custam ~20 tokens e valem para qualquer
+// modelo — inclusive os que já passaram por aqui.
+export const COM_EXEMPLOS2 = (q, f, porque) => `\n\nCORRECTION. One sentence only.\n\n${EXEMPLOS}\n\nRules for your answer:\n- Do NOT mention the mistake, not even to deny it. Write the line as if the mistake had never been there.\n- Do NOT reuse the example lines above.\n\nNow do the same.\n\nThe player asked: "${q.trim()}"\nWrong line: "${f}"\nIt is wrong because ${porque}\nCorrected line:`;
+
 // ── E QUANDO O MOTIVO ESTIVER ERRADO? ────────────────────────────────────
 //
 // O motivo do juiz de TOM é palpite: ele mede de qual âncora ruim a frase
