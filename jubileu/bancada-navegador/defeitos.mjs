@@ -19,6 +19,15 @@ export const DEFEITOS = [
       f: 'This hotel, Nilo, seems to be an endless loop, a rollercoaster of time and space.',
       nome: 'vocativo: chama o JOGADOR de Nilo',
       porque: 'it calls the player "Nilo". Nilo is the speaker, not the player. Never address the player by that name.',
+      // ── A RESPOSTA CERTA ERA REPROVADA ───────────────────────────────
+      // Décimo primeiro buraco da régua, e o primeiro que erra CONTRA o
+      // candidato. Aqui o conserto certo é apagar duas palavras — o
+      // enunciado até pede isso ("fix only that error"). Só que a frase
+      // resultante tem 92% das palavras da original, e `ECOOU` reprovava
+      // como se fosse devolver a entrada. Dois dos doze pontos de cada
+      // rodada eram inganháveis para quem fazia o certo.
+      // `minima` é o conserto mínimo correto: bater com ele isenta do eco.
+      minima: 'This hotel seems to be an endless loop, a rollercoaster of time and space.',
       ok: (t) => !/,\s*nilo\s*[,.]?/i.test(t) },
     { q: 'If I call the elevator, will it come?',
       f: 'But I would advise you to remain calm and wait for the elevator to arrive.',
@@ -143,8 +152,12 @@ const SOBREPOE = (a, b) => {
     for (const w of A) if (B.has(w)) comuns += 1;
     return comuns / Math.max(A.size, B.size);
 };
-export const ECOOU = (saida, pergunta, original) => SOBREPOE(saida, pergunta) >= 0.8
-    || SOBREPOE(saida, original) >= 0.8;
+export const ECOOU = (saida, pergunta, original, minima) => SOBREPOE(saida, pergunta) >= 0.8
+    // Devolver a original é fraude; PARECER com a original depois de apagar o
+    // defeito é o conserto pedido. `minima` separa os dois casos, e sem ela a
+    // regra volta a ser a antiga.
+    || (SOBREPOE(saida, original) >= 0.8
+        && !(minima && SOBREPOE(saida, minima) >= 0.9 && SOBREPOE(saida, original) < 1));
 
 // ── FRAGMENTO NÃO É CONSERTO (o segundo buraco da mesma régua) ───────────
 //

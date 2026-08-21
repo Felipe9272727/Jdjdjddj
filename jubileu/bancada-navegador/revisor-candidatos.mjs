@@ -402,7 +402,7 @@ for (const m of MODELOS) {
         // TRÊS provas, e o remendo só vale se passar nas três. Ver QUEBRA_CANONE.
         const sumiu = !!r.texto && c.ok(r.texto);
         const limpo = !!r.texto && !QUEBRA_CANONE(r.texto);
-        const eco = !!r.texto && ECOOU(r.texto, c.q, c.f);
+        const eco = !!r.texto && ECOOU(r.texto, c.q, c.f, c.minima);
         const pedaco = !!r.texto && FRAGMENTO(r.texto);
         if (eco) ecos += 1;
         if (pedaco) pedacos += 1;

@@ -52,7 +52,7 @@ for (let i = 0; i < linhas.length; i += 1) {
     p.n += 1;
     if (saida.length >= 240) p.truncado += 1;
     if (!saida) { p.vazio += 1; continue; }
-    const ecoou = ECOOU(saida, caso.q, caso.f);
+    const ecoou = ECOOU(saida, caso.q, caso.f, caso.minima);
     const sumiu = caso.ok(saida);
     const limpo = !QUEBRA_CANONE(saida);
     const fragmento = FRAGMENTO(saida);
