@@ -86,8 +86,15 @@ describe('o catálogo', () => {
         expect(onnx?.cerebro).toBe('lfm2-1b');
     });
 
-    it('os outros continuam no wllama, sem precisar declarar nada', () => {
-        for (const r of REVISORES.filter((x) => x.id !== 'lfm-onnx')) {
+    it('só quem sai do wllama declara runtime; o resto é wllama por omissão', () => {
+        // A omissão é o padrão de propósito: a maioria dos revisores é um gguf
+        // no llama.cpp, e obrigar cada um a declarar isso seria ruído. Quem
+        // declara está avisando que o CAMINHO é outro — e cada um desses tem
+        // consequência no pipeline: o de ONNX não troca a RAM, o do
+        // rascunhador não sobe nada.
+        const declaram = REVISORES.filter((r) => r.runtime && r.runtime !== 'wllama');
+        expect(declaram.map((r) => r.id).sort()).toEqual(['lfm-onnx', 'rascunhador']);
+        for (const r of REVISORES.filter((x) => !declaram.includes(x))) {
             expect(r.runtime ?? 'wllama').toBe('wllama');
         }
     });

@@ -43,7 +43,7 @@
 
 import { pipelineLigado } from './floor10Pipeline';
 import { FLOOR10_TRADUTOR_BYTES } from './floor10Tradutor';
-import { cerebroDoRevisor, pesoDoRevisor } from './floor10Revisores';
+import { cerebroDoRevisor, pesoDoRevisor, revisorAtual } from './floor10Revisores';
 import { SMALL_BRAIN_CATALOG } from './floor10Brains';
 
 export type PapelNaFila =
@@ -132,7 +132,13 @@ export function composicaoDaFila(busca?: string): PecaDaFila[] {
         // NÃO EXISTE UMA SEGUNDA PEÇA AQUI, e essa foi a correção: a primeira
         // versão acrescentava o Llama ao lado do LFM2.5 — 2,27 GB de cérebro
         // pequeno para usar um.
-        pecaDaVontade(),
+        // ── E COM `?revisor=rascunhador` NEM ISSO DESCE ──────────────────
+        //
+        // Quando quem remenda é o próprio rascunhador, o cérebro pequeno não
+        // tem papel nenhum no pipeline — e são 1,25 GB. Manter a peça na fila
+        // seria baixar um modelo para não usar, que é exatamente a crítica que
+        // o dono do jogo fez quando a fila baixava dois.
+        ...(revisorAtual().runtime === 'rascunhador' ? [] : [pecaDaVontade()]),
         PECA_MOTOR,
     ];
 }

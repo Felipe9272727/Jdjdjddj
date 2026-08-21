@@ -239,3 +239,38 @@ describe('um revisor grande demais não vaza para o jogo', () => {
         }
     });
 });
+
+describe('um modelo só, para os dois papéis', () => {
+    // "vamo na do só o a400m fica como revisor e rascunhador". O ganho vem de
+    // NÃO subir nada: ele acabou de escrever a frase e continua de pé.
+    it('com ?revisor=rascunhador a fila NÃO baixa cérebro pequeno', async () => {
+        const { composicaoDaFila } = await import('../npc/floor10Composicao');
+        definirRevisor('rascunhador');
+        try {
+            const papeis = composicaoDaFila('?pipeline').map((p) => p.papel);
+            expect(papeis).toContain('rascunho');
+            // 1,25 GB que deixam de descer — baixar um modelo para não usar é
+            // exatamente a crítica que já derrubou uma versão desta fila.
+            expect(papeis).not.toContain('vontade');
+        } finally { resetRevisorParaTestes(); }
+    });
+
+    it('e no padrão ela continua baixando, porque lá o revisor é um gguf', async () => {
+        const { composicaoDaFila } = await import('../npc/floor10Composicao');
+        resetRevisorParaTestes();
+        expect(composicaoDaFila('?pipeline').map((p) => p.papel)).toContain('vontade');
+    });
+
+    it('o pipeline não troca a RAM quando o revisor é o rascunhador', () => {
+        const fonte = readFileSync(
+            new URL('../npc/floor10PipelineReal.ts', import.meta.url), 'utf8',
+        );
+        const i = fonte.indexOf("runtime === 'rascunhador'");
+        expect(i).toBeGreaterThan(-1);
+        const bloco = fonte.slice(i, i + 500);
+        expect(bloco).toContain('remendarComRascunhador');
+        // A troca custa ~18 s de recarga e existe para não haver dois llama.cpp
+        // de pé. Aqui não há segundo modelo, então ela não pode acontecer.
+        expect(bloco).not.toContain('trocarRascunhadorPeloRevisor');
+    });
+});

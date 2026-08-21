@@ -47,6 +47,10 @@ import {
 } from './floor10ModelStorage';
 import { npcSet } from './npcStore';
 import {
+    enunciadoComExemplos, primeiraFraseFechada, PARADAS_DO_REMENDO,
+    type RespostaDoRevisor,
+} from './floor10Pipeline';
+import {
     conferirCacheDeModelo, limparModeloDoCache, type CacheDoWllama,
 } from './floor10CacheDeModelos';
 import {
@@ -126,6 +130,13 @@ export const FLOOR10_RASCUNHADOR_LOAD_CONFIG = Object.freeze({
 
 /** Teto do rascunho. O revisor conserta uma frase; o rascunho tem duas. */
 export const FLOOR10_RASCUNHO_TOKENS = 56;
+/**
+ * O teto do REMENDO quando quem remenda é o próprio rascunhador.
+ *
+ * 40 e não 56: o remendo devolve UMA frase, e o resto do orçamento só dá
+ * espaço para ele continuar o padrão dos exemplos.
+ */
+export const FLOOR10_REMENDO_TOKENS = 40;
 export const FLOOR10_RASCUNHO_TIMEOUT_MS = 30_000;
 
 export const FLOOR10_RASCUNHO_COMPLETION_CONFIG = Object.freeze({
@@ -382,6 +393,78 @@ export async function rascunharEmIngles(perguntaEmIngles: string): Promise<strin
 }
 
 /** Descarrega. Medido: ~98% da RAM volta em menos de 5 s (`81ba41ad`). */
+/**
+ * ── O RASCUNHADOR REMENDA A PRÓPRIA FRASE ────────────────────────────────
+ *
+ * Escolha do dono do jogo, e a piada dele acertou o mecanismo: *"se aproximamos
+ * do mtp kkk"*. É por outro caminho, mas é a mesma economia — o remendo
+ * REAPROVEITA a conta que o rascunho acabou de fazer.
+ *
+ * O que isso apaga do turno, e é quase tudo:
+ *
+ *     hoje ..... descarrega o granite · sobe 1,25 GB · remenda · devolve
+ *                = 36 s de carga + 35 s de leitura fria = 71 s
+ *     assim .... ele já está de pé, e QUENTE do rascunho
+ *                = 0 s de carga + ~5 s = 5 s
+ *
+ * ── POR QUE A PERSONA AQUI É A DO RASCUNHO, E NÃO A DO REVISOR ───────────
+ *
+ * É esta linha que faz o ganho existir, e é fácil de destruir sem perceber. O
+ * `cache_prompt` do llama.cpp só reaproveita PREFIXO IDÊNTICO: se o remendo
+ * mandar uma persona diferente da que o rascunho mandou, o cache é descartado e
+ * ele relê tudo. Medido: com o prefixo casando ele lê 66 a 84 tokens; sem
+ * casar, 400.
+ *
+ * Então o system é `PERSONA_DO_RASCUNHO` — a MESMA string, byte por byte, da
+ * chamada anterior. A instrução de remendo vai toda no `user`.
+ *
+ * ── O QUE ELE CONSEGUE, MEDIDO ───────────────────────────────────────────
+ *
+ * 6 de 12 defeitos, determinístico, sem eco e sem desvio. É menos que os 7/12
+ * do titular — e as seis que ele erra são quebras de cânone que `aplicarRemendo`
+ * RECUSA, então a fala original fica de pé. Ele conserta metade de graça e
+ * nunca estraga.
+ */
+export async function remendarComRascunhador(
+    perguntaEmIngles: string, frase: string, porque = '',
+): Promise<RespostaDoRevisor> {
+    if (!residente) return { tipo: 'sem-revisor' };
+    const t0 = Date.now();
+    try {
+        const resposta = await residente.createChatCompletion({
+            messages: [
+                { role: 'system', content: PERSONA_DO_RASCUNHO },
+                { role: 'user', content: enunciadoComExemplos(perguntaEmIngles, frase, porque) },
+            ],
+            ...FLOOR10_RASCUNHO_COMPLETION_CONFIG,
+            // ── ESCOLHER, NÃO SORTEAR ────────────────────────────────────
+            //
+            // O resto do pipeline gera com `temperature: 0.7` porque variedade é
+            // personagem. Consertar não é conversar: existe uma resposta boa e o
+            // que se quer é o token mais provável. Medido, guloso levou os
+            // desvios de 3/12 a 0/12 e tornou o resultado repetível — antes o
+            // mesmo arquivo dava 6/12 numa rodada e 7/12 na seguinte.
+            temperature: 0,
+            stop: [...PARADAS_DO_REMENDO],
+            max_tokens: FLOOR10_REMENDO_TOKENS,
+            cache_prompt: true,
+            chat_template_kwargs: { enable_thinking: false },
+        });
+        const bruto = lerTexto(resposta);
+        anotar('remendo:rascunhador', { ms: Date.now() - t0, chars: bruto.length });
+        if (!bruto) return { tipo: 'vazio' };
+        const fechada = primeiraFraseFechada(bruto);
+        if (fechada) return { tipo: 'frase', texto: fechada, cortado: false };
+        if (bruto.length > 2) return { tipo: 'frase', texto: bruto, cortado: false };
+        return { tipo: 'vazio' };
+    } catch (erro) {
+        return {
+            tipo: 'erro',
+            erro: (erro instanceof Error ? erro.message : String(erro)).slice(0, 180),
+        };
+    }
+}
+
 export async function descarregarRascunhador(): Promise<void> {
     abortoDaCarga?.abort();
     abortoDaCarga = null;

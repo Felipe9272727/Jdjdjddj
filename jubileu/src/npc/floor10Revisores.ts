@@ -96,7 +96,7 @@
 import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import { pipelineLigado } from './floor10Pipeline';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -110,7 +110,7 @@ export type RevisorEntry = {
      * porque a diferença não é de desempenho, é de MECÂNICA: o caminho do
      * wllama exige descarregar o rascunhador para caber, e o do ONNX não.
      */
-    runtime?: 'wllama' | 'onnx';
+    runtime?: 'wllama' | 'onnx' | 'rascunhador';
     /** O cérebro pequeno que esta escolha coloca na fila. Sempre existe um. */
     cerebro: SmallBrainId;
     nota: string;
@@ -179,6 +179,33 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'Llama 3.2 1B Q6 (REPROVADO no aparelho)',
         cerebro: 'llama32-1b-q6',
         nota: 'rápido na bancada (11,6s) e lento no celular (14,7 a 71,9s); inventou fala do jogador uma vez',
+    },
+    {
+        // ── UM MODELO SÓ, PARA OS DOIS PAPÉIS ────────────────────────────
+        //
+        // "vamo na do só o a400m fica como revisor e rascunhador (se
+        // aproximamos do mtp kkk)". A piada acertou o mecanismo: não é MTP, mas
+        // é a mesma economia — o remendo reaproveita a conta que o rascunho
+        // acabou de fazer, porque o prefixo é o mesmo e o modelo já está de pé.
+        //
+        //     hoje ..... 36 s de carga + 35 s de leitura = 71 s por frase
+        //     assim .... 0 s de carga  + ~5 s            =  5 s
+        //
+        // E a fila encolhe junto: sem cérebro pequeno para baixar, a instalação
+        // do pipeline cai de 1,74 GB para ~0,98 GB.
+        //
+        // O PREÇO, medido e honesto: 6/12 contra 7/12 do titular. As seis que
+        // ele erra são quebras de cânone, e `aplicarRemendo` recusa todas — a
+        // fala original fica de pé. Ele conserta metade de graça e nunca
+        // estraga.
+        id: 'rascunhador',
+        label: 'o próprio rascunhador (granite a400m)',
+        // `cerebro` continua apontando para o LFM2.5 porque a VONTADE do jogo
+        // ainda usa um cérebro pequeno; o que muda é que o pipeline não baixa
+        // mais nenhum para revisar.
+        cerebro: 'lfm2-1b',
+        runtime: 'rascunhador',
+        nota: '6/12 contra 7/12 do titular, a ~5s por frase em vez de 71s, e sem baixar nada',
     },
     {
         // ── O MAIS RÁPIDO QUE CONSERTA ───────────────────────────────────

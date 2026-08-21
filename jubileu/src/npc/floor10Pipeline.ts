@@ -216,6 +216,55 @@ export function limparFrase(frase: string): { texto: string; mudou: boolean } {
  * cedo demais devolveria uma frase que não é frase. Ele não descarta o texto:
  * a busca continua no próximo ponto.
  */
+/**
+ * ── O ENUNCIADO QUE MOSTRA, EM VEZ DE SÓ MANDAR ──────────────────────────
+ *
+ * A maior alavanca medida nesta caçada, e nenhuma delas foi trocar de modelo:
+ *
+ *     LFM2.5 1.2B ..... 7/12 → 12/12
+ *     granite a400m ... 2/12 →  6/12, e 7 ECOS foram a zero
+ *
+ * Modelo pequeno que ecoa a frase errada não é burro: ele não sabe que FORMA
+ * tem a resposta, então devolve a forma que recebeu. Dois pares errado→certo
+ * resolvem isso, e custam ~90 tokens.
+ *
+ * ── OS EXEMPLOS NÃO PODEM SER OS DEFEITOS REAIS ──────────────────────────
+ *
+ * Os dois abaixo usam defeitos que o juiz também marca — "saiu do andar" e
+ * "narra em terceira pessoa" — mas com frases que não são as do jogo. Se um
+ * exemplo mostrasse a correção exata de um caso comum, o revisor aprenderia a
+ * resposta em vez do procedimento; medido na bancada, o Llama 3.2 devolveu a
+ * linha do Exemplo 2 letra por letra em 8 de 12 casos.
+ */
+const EXEMPLOS_DO_REMENDO = `Example 1:
+Wrong line: "I went downstairs to check the lobby, but it was empty."
+It is wrong because he has never left the 10th floor.
+Corrected line: "I have not been anywhere else. This floor is all there is."
+
+Example 2:
+Wrong line: "Nilo sighs and looks at the elevator door."
+It is wrong because it narrates him from outside instead of letting him speak.
+Corrected line: "I keep looking at that door. It keeps not opening."`;
+
+export function enunciadoComExemplos(
+    perguntaEmIngles: string, frase: string, porque: string,
+): string {
+    return `\n\nCORRECTION. One sentence only.\n\n${EXEMPLOS_DO_REMENDO}`
+        + `\n\nNow do the same.\n\nThe player asked: "${perguntaEmIngles.trim()}"`
+        + `\nWrong line: "${frase}"\nIt is wrong because ${porque}\nCorrected line:`;
+}
+
+/**
+ * Onde a geração deve PARAR, e não é zelo.
+ *
+ * Medido: com exemplos, o modelo continua o PADRÃO em vez de parar depois da
+ * frase — devolve "Now, let's continue", ou escreve o próximo exercício
+ * inteiro com `Wrong line:` e tudo.
+ */
+export const PARADAS_DO_REMENDO = Object.freeze([
+    '\nWrong line:', '\nExample', '\nIt is wrong because', '\n\n',
+]);
+
 export function primeiraFraseFechada(texto: string): string | null {
     const re = /[.!?…]["”]?(?=\s|$)/g;
     let m: RegExpExecArray | null;

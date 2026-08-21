@@ -28,6 +28,7 @@ import {
 } from './floor10Pipeline';
 import {
     rascunharEmIngles, rascunhadorJaCarregado, descarregarRascunhador, subirRascunhador,
+    remendarComRascunhador,
 } from './floor10Rascunhador';
 import { frasesForaDoTom } from './floor10VetorDeTom';
 import { traduzirParaPtBr } from './floor10Tradutor';
@@ -172,6 +173,17 @@ export const PECAS_REAIS: PecasDoPipeline = {
         //
         // Este é o ganho que o experimento mede, e ele vale mesmo se a GPU não
         // ajudar em nada: some a recarga, não só a leitura.
+        // ── O RASCUNHADOR REMENDA, E NADA SOBE ───────────────────────────
+        //
+        // Nem troca de RAM, nem carga: ele acabou de escrever a frase e ainda
+        // está de pé, com a persona quente no cache. É o caminho mais curto que
+        // existe entre a marca do juiz e a fala corrigida.
+        if (revisorAtual().runtime === 'rascunhador') {
+            npcSet({ etapa: 'corrigindo uma frase…' });
+            return comPrazo(
+                remendarComRascunhador(pergunta, frase, porque), PRAZO_CARGA_MS, 'o revisor',
+            ).catch((e) => ({ tipo: 'erro' as const, erro: String(e?.message ?? e).slice(0, 180) }));
+        }
         if (revisorAtual().runtime === 'onnx') {
             npcSet({ etapa: 'corrigindo uma frase (ONNX)…' });
             return comPrazo(
