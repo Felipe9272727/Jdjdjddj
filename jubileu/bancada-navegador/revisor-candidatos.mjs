@@ -220,8 +220,18 @@ import {
     DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, PROMETEU,
     HOJE, TROCA, MOTIVO, ERRADO, COM_EXEMPLOS, COM_EXEMPLOS2, COPIOU_EXEMPLO, TROCADOS,
 } from './defeitos.mjs';
+// O revisor treinado usa o MESMO arquivo que gerou o corpus — uma string só,
+// sem segunda cópia para divergir.
+import { PERSONA as PERSONA_TREINADA, enunciado as enunciadoTreinado } from './corpus/enunciado.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
-const _EN = ENUNCIADO === 'troca' ? TROCA
+// ── O ENUNCIADO DO REVISOR TREINADO ──────────────────────────────────────
+// Sem os três exemplos e com a persona curta: é o formato EXATO em que o
+// modelo treinado viu a tarefa, e medir num formato diferente do treino é o
+// jeito mais discreto de perder meio ponto por frase e culpar o modelo.
+// Vem de corpus/enunciado.mjs — o MESMO arquivo que gerou o treino, para que
+// não exista uma segunda cópia da string para divergir.
+const _EN = ENUNCIADO === 'treinado' ? enunciadoTreinado   // sem \n\n na frente: os outros enunciados trazem o seu, o treino não tinha
+    : ENUNCIADO === 'troca' ? TROCA
     : ENUNCIADO === 'motivo' ? MOTIVO
         : ENUNCIADO === 'exemplos2' ? COM_EXEMPLOS2
         : ENUNCIADO === 'exemplos' ? COM_EXEMPLOS
@@ -376,7 +386,7 @@ for (const m of MODELOS) {
     // é o que o jogo faz.
     //
     // Agora a primeira chamada é DADO, e sai em coluna própria.
-    const SYS = SISTEMA === 'regras' ? REGRAS : LONGA;
+    const SYS = SISTEMA === 'treinado' ? PERSONA_TREINADA : SISTEMA === 'regras' ? REGRAS : LONGA;
     let consertou = 0, vazio = 0, msTot = 0, msLer = 0, msEscrever = 0, lidos = 0, n = 0;
     // `fria` é a 1ª chamada deste modelo, sem cache de prefixo, como no jogo.
     // `morna` é a média das demais — o número que a bancada media antes.
