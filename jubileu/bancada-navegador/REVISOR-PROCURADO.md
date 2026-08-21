@@ -514,3 +514,45 @@ fine-tunes de domínio, não de instrução). Um modelo base recebendo marcadore
 de turno que ele nunca viu no treino responde com uma linha em branco.
 
 E mesmo que respondesse: 126 s de turno contra os 71 s do titular. Fechado.
+
+## 12. A onda dos pequenos (≤0,8B), e o buraco de régua que punia acerto
+
+Seis candidatos novos, todos aprovados antes do download pela triagem de
+cabeçalho de `arch-do-gguf.mjs` (arquitetura na lista do wasm + template
+presente), medidos com o protocolo de sempre — exemplos, temperatura 0, parada,
+2 rodadas, a frio — e **re-julgados** com a régua corrigida:
+
+| candidato | arch | conserta | ecoou | pedaço | copiou | promete | desviou | CARGA | 1ª FRIA | TURNO |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Hunyuan-0.5B | hunyuan-dense | **6/12** | 0 | 0 | 4 | 0 | 8 | 14 s | 20,9 s | **35 s** |
+| Qwen3.5-0.8B | qwen35 | 6/12 | 2 | 0 | 4 | 0 | 6 | 19 s | 28,6 s | 47 s |
+| SmolLM2-360M | llama | 2/12 | 6 | 0 | 6 | 0 | 2 | 7 s | 17,1 s | 24 s |
+| LFM2.5-350M | lfm2 | 2/12 | 0 | 10 | 10 | 10 | 10 | 6 s | 12,7 s | 19 s |
+| ERNIE-4.5-0.3B | ernie4_5 | 0/12 | 4 | 0 | 2 | 0 | 4 | 6 s | 13,7 s | 20 s |
+| gemma-3-270m-it | gemma3 | 0/12 | 0 | 0 | 0 | 10 | 10 | 6 s | 12,9 s | 19 s |
+
+Referências sob a mesma régua: LFM2.5-1,2B **12/12** a 112 s, Huihui-MoE
+**8/12** a 64 s, granite a400m **6/12** a 39 s.
+
+**Nenhum titular novo.** O melhor da onda empata em nota com o a400m e ganha
+4 s de turno. E a conclusão que a tabela fecha é a que interessa: **abaixo de
+~0,5B, modelo geral de prateleira não faz esta tarefa** — não por incapacidade
+de escrever, mas por nunca ter visto o pedido. O gemma-3-270m escreve inglês
+perfeito e responde `"Okay, I understand. I will do my best to provide a
+corrected and accurate response."`
+
+### Dois furos de régua, achados lendo saída
+
+**PROMETEU** (décimo). Aceitar a tarefa não é fazer a tarefa, e nada na régua
+perguntava "isto é uma FALA?". O gemma marcava 6/12 tendo consertado zero.
+
+**A régua reprovava a resposta CERTA** (décimo primeiro, e o primeiro que erra
+contra o candidato). No defeito do vocativo o conserto certo é apagar duas
+palavras — e a frase resultante fica com 92% das palavras da original, o que
+`ECOOU` tratava como devolver a entrada. Dois dos doze pontos de cada rodada
+eram inganháveis para quem obedecia ao enunciado. Agora o defeito carrega
+`minima`, o conserto mínimo correto, e bater com ela isenta do eco — sem
+isentar quem devolve a original com a pontuação trocada.
+
+Este só apareceu porque eu fui **escrever** as respostas certas para o corpus
+de treino. Julgar as respostas dos outros não bastava.

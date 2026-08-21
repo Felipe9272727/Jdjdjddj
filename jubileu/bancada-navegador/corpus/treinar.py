@@ -99,7 +99,10 @@ Trainer(
         output_dir=str(SAIDA / 'passos'), num_train_epochs=EPOCAS,
         per_device_train_batch_size=int(os.environ.get('LOTE', 4)),
         gradient_accumulation_steps=int(os.environ.get('ACUMULA', 2)),
-        learning_rate=LR, lr_scheduler_type='cosine', warmup_ratio=0.1,
+        learning_rate=LR, lr_scheduler_type='cosine',
+        # `warmup_ratio` saiu do TrainingArguments nesta versão; o que restou é
+        # `warmup_steps`, e 10% dos passos é a mesma coisa dita em passos.
+        warmup_steps=max(2, int(0.1 * EPOCAS * len(treino) / (int(os.environ.get('LOTE', 4)) * int(os.environ.get('ACUMULA', 2))))),
         logging_steps=5, save_strategy='no', report_to=[], use_cpu=True,
         eval_strategy='epoch' if len(afere) else 'no',
     ),
