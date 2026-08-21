@@ -217,7 +217,7 @@ Rewrite the sentence so it stops breaking that rule, keeping the rest of its mea
 // `defeitos.mjs` — a bancada dos editores seq2seq mede os MESMOS casos, e dois
 // placares só se comparam se a régua for literalmente o mesmo arquivo.
 import {
-    DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO,
+    DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, PROMETEU,
     HOJE, TROCA, MOTIVO, ERRADO, COM_EXEMPLOS, COM_EXEMPLOS2, COPIOU_EXEMPLO, TROCADOS,
 } from './defeitos.mjs';
 const ENUNCIADO = process.env.ENUNCIADO ?? 'hoje';
@@ -391,7 +391,7 @@ for (const m of MODELOS) {
     let foraDoTema = 0;
     // Ecoar a pergunta e devolver um pedaço de frase são as duas formas de
     // fazer o defeito sumir sem consertar nada. Ver `defeitos.mjs`.
-    let ecos = 0, pedacos = 0, copias = 0;
+    let ecos = 0, pedacos = 0, copias = 0, promessas = 0;
     for (let rodada = 1; rodada <= RODADAS; rodada += 1) {
     if (RODADAS > 1) console.log(`  ── rodada ${rodada}/${RODADAS}`);
     for (const c of DEFEITOS) {
@@ -408,7 +408,10 @@ for (const m of MODELOS) {
         if (pedaco) pedacos += 1;
         const copiou = !!r.texto && COPIOU_EXEMPLO(r.texto);
         if (copiou) copias += 1;
-        const bom = sumiu && limpo && !eco && !pedaco && !copiou;
+        // Aceitar a tarefa não é fazer a tarefa — ver PROMETEU em defeitos.mjs.
+        const prometeu = !!r.texto && PROMETEU(r.texto);
+        if (prometeu) promessas += 1;
+        const bom = sumiu && limpo && !eco && !pedaco && !copiou && !prometeu;
         if (!r.texto) vazio += 1; else if (bom) consertou += 1;
         const desviou = !!r.texto && !NO_ASSUNTO(r.texto, c.q, c.f);
         if (desviou) foraDoTema += 1;
@@ -416,6 +419,7 @@ for (const m of MODELOS) {
         const selo = (!r.texto ? '✗✗ VAZIO'
             : bom ? '✓'
                 : eco ? '✗ ECOOU'
+                    : prometeu ? '✗ PROMETEU'
                     : copiou ? '✗ COPIOU O EXEMPLO'
                     : pedaco ? '✗ PEDAÇO'
                         : !sumiu ? '✗ não consertou'
@@ -440,14 +444,14 @@ for (const m of MODELOS) {
     }
     const lerPct = msLer + msEscrever > 0 ? Math.round(msLer / (msLer + msEscrever) * 100) : 0;
     placar.push({
-        rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema, ecos, pedacos, copias, tentativas: nDef,
+        rot: m.rot, arqui, consertou, vazio, estragou, intacta, foraDoTema, ecos, pedacos, copias, promessas, tentativas: nDef,
         carga: msCarga / 1000,
         custo: msTot / Math.max(1, n) / 1000, lidos: Math.round(lidos / Math.max(1, nDef)), lerPct,
         fria: msFria / 1000, morna: nMorna ? msMorna / nMorna / 1000 : 0,
     });
 }
 
-console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  copiou  desviou  intacta   CARGA  1ª FRIA  TURNO  lê  arch`);
+console.log(`\n${'═'.repeat(86)}\n  SYSTEM: ${SISTEMA} · ENUNCIADO: ${ENUNCIADO} · RODADAS: ${RODADAS}\n  candidato                    conserta  ecoou  pedaço  copiou  promete  desviou  intacta   CARGA  1ª FRIA  TURNO  lê  arch`);
 for (const p of placar) {
     if (p.erro) { console.log(`  ${p.rot.padEnd(28)} NÃO CARREGOU: ${p.erro.slice(0, 40)}`); continue; }
     console.log(`  ${p.rot.padEnd(28)} ${String(p.consertou + '/' + p.tentativas).padStart(6)}`
@@ -455,6 +459,7 @@ for (const p of placar) {
         + `${String(p.ecos).padStart(6)}`
         + `${String(p.pedacos).padStart(8)}`
         + `${String(p.copias).padStart(8)}`
+        + `${String(p.promessas).padStart(9)}`
         + `${String(p.foraDoTema + '/' + p.tentativas).padStart(9)}`
         + `${String(p.intacta + '/' + CERTAS.length).padStart(9)}`
         + `${(p.carga.toFixed(0) + 's').padStart(9)}`

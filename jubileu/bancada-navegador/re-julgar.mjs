@@ -13,7 +13,7 @@
 // resposta truncada em 105 caracteres não pode ser julgada quanto a "fechou a
 // frase", e sai contada à parte em vez de virar nota.
 import { readFileSync } from 'node:fs';
-import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, COPIOU_EXEMPLO } from './defeitos.mjs';
+import { DEFEITOS, CERTAS, QUEBRA_CANONE, NO_ASSUNTO, ECOOU, FRAGMENTO, COPIOU_EXEMPLO, PROMETEU } from './defeitos.mjs';
 
 const PORNOME = new Map(DEFEITOS.map((d) => [d.nome, d]));
 
@@ -23,7 +23,7 @@ let modelo = null;
 const placar = new Map();
 const guardar = (rot) => {
     if (!placar.has(rot)) {
-        placar.set(rot, { rot, n: 0, conserta: 0, ecoou: 0, fragmento: 0, copias: 0, desviou: 0, quebrou: 0, vazio: 0, truncado: 0 });
+        placar.set(rot, { rot, n: 0, conserta: 0, ecoou: 0, fragmento: 0, copias: 0, prometeu: 0, desviou: 0, quebrou: 0, vazio: 0, truncado: 0 });
     }
     return placar.get(rot);
 };
@@ -34,9 +34,12 @@ for (let i = 0; i < linhas.length; i += 1) {
     if (cab) { modelo = cab[1]; guardar(modelo); continue; }
     if (!modelo) continue;
     // A linha do veredicto traz o nome do defeito no fim; a seguinte traz a saída.
-    const m = l.match(/^\s+[\d.]+s\s+ler .*?(✓|✗✗ VAZIO|✗ ECOOU|✗ PEDAÇO|✗ não consertou|✗ QUEBROU OUTRA REGRA)(?: \?assunto)?\s+(.+)$/);
+    const m = l.match(/^\s+[\d.]+s\s+ler .*?(✓|✗✗ VAZIO|✗✗ ESTRAGOU|✗ ECOOU|✗ PEDAÇO|✗ COPIOU O EXEMPLO|✗ PROMETEU|✗ não consertou|✗ QUEBROU OUTRA REGRA)(?: \?assunto)?\s+(.+)$/);
     if (!m) continue;
     const caso = PORNOME.get(m[2].trim());
+    // O selo `✗ COPIOU O EXEMPLO` já era emitido pela bancada e NÃO estava
+    // nesta alternância: todo caso de cópia sumia calado do re-julgamento,
+    // exatamente o acidente que o comentário abaixo manda evitar.
     // Um defeito no log que não existe mais em `defeitos.mjs` é ruído de uma
     // régua antiga, e some do placar. Já um SELO novo que o parser não conhece
     // faria o caso sumir calado — por isso os selos entram na alternância
@@ -55,23 +58,26 @@ for (let i = 0; i < linhas.length; i += 1) {
     const fragmento = FRAGMENTO(saida);
     const copiou = COPIOU_EXEMPLO(saida);
     if (copiou) p.copias += 1;
+    const prometeu = PROMETEU(saida);
+    if (prometeu) p.prometeu += 1;
     if (ecoou) p.ecoou += 1;
     if (fragmento) p.fragmento += 1;
     if (!NO_ASSUNTO(saida, caso.q, caso.f)) p.desviou += 1;
     if (!limpo) p.quebrou += 1;
     // A regra nova: ecoar não é consertar, mesmo que o defeito "suma".
-    if (sumiu && limpo && !ecoou && !fragmento && !copiou) p.conserta += 1;
+    if (sumiu && limpo && !ecoou && !fragmento && !copiou && !prometeu) p.conserta += 1;
 }
 
 console.log(`\n${'═'.repeat(80)}`);
 console.log(`  RE-JULGADO com a régua que reprova eco (${CERTAS.length} controles não entram aqui)`);
-console.log(`  candidato                    conserta  ECOOU  pedaco  copiou  desviou  quebrou  vazio`);
+console.log(`  candidato                    conserta  ECOOU  pedaco  copiou  promete  desviou  quebrou  vazio`);
 for (const p of placar.values()) {
     if (!p.n) continue;
     console.log(`  ${p.rot.padEnd(28)} ${String(p.conserta + '/' + p.n).padStart(7)}`
         + `${String(p.ecoou).padStart(7)}`
         + `${String(p.fragmento).padStart(8)}`
         + `${String(p.copias).padStart(8)}`
+        + `${String(p.prometeu).padStart(9)}`
         + `${String(p.desviou).padStart(9)}`
         + `${String(p.quebrou).padStart(9)}`
         + `${String(p.vazio).padStart(7)}`
@@ -81,4 +87,7 @@ console.log(`\n  "ECOOU" = devolveu a pergunta do jogador ou a frase original, c
 console.log(`  das palavras em comum. Não é conserto, e a régua antiga contava como acerto.`);
 console.log(`  "pedaco" = não fechou período e tem menos de 8 palavras — o defeito some`);
 console.log(`  porque a frase some. Mesma fraude do eco, por outro caminho.`);
-console.log(`  "(105ch)" = saídas cortadas pelo log; o texto existe, o julgamento é parcial.`);
+console.log(`  "promete" = aceitou a tarefa em vez de fazer ("Okay, I understand. I will do`);
+console.log(`  my best to provide a corrected response."). Não quebra cânone, não ecoa, não`);
+console.log(`  é fragmento — e não é fala do Nilo. Só aparece em modelo pequeno.`);
+console.log(`  "(240ch)" = saídas cortadas pelo log; o texto existe, o julgamento é parcial.`);

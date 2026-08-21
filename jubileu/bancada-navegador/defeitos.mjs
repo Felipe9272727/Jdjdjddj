@@ -80,8 +80,12 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b/i.test(t)
     || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
-    || /\b(?:i'?d|i would)\s+advise|\byou should\b|\bremain calm\b/i.test(t)
-    || /\bi'?m an? (?:assistant|ai|bot)\b|\bi can help you\b|\bformulate a response\b/i.test(t)
+    // DIVERGIU DE NOVO, e o aviso acima estava certo: o jogo já tinha
+    // `i'?m here to (help|assist)` desde o buraco do few-shot, e esta cópia
+    // não. O ERNIE-4.5 marcou ✓ duas vezes com "Hi, my name is Nilo Azevedo.
+    // I'm here to help you with your questions." — reprovado no jogo, aprovado
+    // na bancada. Agora as duas linhas são a mesma linha.
+    || /\b(?:i'?d|i would)\s+advise\b|\byou should\b|\bremain calm\b|\bi'?m here to (?:help|assist)\b|\bi'?m an? (?:assistant|ai|bot)\b|\bi can help you\b|\bformulate a response\b/i.test(t)
     || /\b(?:now,? )?let'?s continue\b|\bwrong line:|\bcorrected line:/i.test(t)
     || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
     || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
@@ -157,6 +161,37 @@ export const ECOOU = (saida, pergunta, original) => SOBREPOE(saida, pergunta) >=
 // período E tem menos de oito palavras é fragmento — o jogo até aceitaria (ele
 // aceita saída sem pontuação quando o modelo parou sozinho), mas contar isso
 // como CONSERTO é o que estava errado.
+// ── PROMETER NÃO É CONSERTAR ─────────────────────────────────────────────
+//
+// DÉCIMO buraco da régua, e o primeiro que aparece só em modelo pequeno. O
+// gemma-3-270m devolveu isto, quatro vezes, e marcou ✓ nas quatro:
+//
+//     "Okay, I understand. I will do my best to provide a corrected and
+//      accurate response."
+//     "Okay, I understand. I will focus on the player's question and the
+//      hotel's history, rather than directly addressing the player."
+//
+// Ele não conserta a frase: ele ACEITA A TAREFA. Passa em `QUEBRA_CANONE`
+// (não há palavra proibida), passa em `ECOOU` (não repete a pergunta), passa
+// em `FRAGMENTO` (é período fechado e longo) e passa em `COPIOU_EXEMPLO` (não
+// é o meu exemplo) — porque nenhuma dessas perguntas é "isto é uma FALA?".
+//
+// O `?assunto` marcava, mas `?assunto` não desconta nota por decisão de
+// projeto. Então o placar dizia 4/12 para um modelo que consertou zero.
+//
+// A régua nova pergunta a coisa certa: o Nilo está falando com o jogador
+// DENTRO do jogo. Ele nunca diz "vou fornecer", "entendi", "aqui está a
+// versão corrigida" — isso é o modelo falando com quem escreveu o enunciado.
+export const PROMETEU = (t) => {
+    const x = String(t).trim();
+    return /^(ok(ay)?|sure|understood|got it|alright|certainly|of course)\b/i.test(x)
+        || /\bi (will|'ll|can|shall) (do|try|focus|avoid|provide|write|rewrite|give|make|correct|fix)\b/i.test(x)
+        || /\bhere('s| is| are)? (the |your )?(corrected|revised|fixed|new|updated)\b/i.test(x)
+        || /\b(corrected|revised|rewritten) (line|sentence|version)\s*[:.]?\s*$/i.test(x)
+        || /\bi (understand|apologize|see)\b/i.test(x)
+        || /\b(let me|i'?ll) (know|rephrase|rewrite|try)\b/i.test(x);
+};
+
 export const FRASE_FECHADA = (t) => {
     const re = /[.!?…]["”]?(?=\s|$)/g;
     let m;
