@@ -129,6 +129,22 @@ const SISTEMA = process.env.SISTEMA ?? 'longa';
 // rodada e 2/6 na seguinte, com os MESMOS defeitos e a MESMA configuração.
 // Uma volta é anedota; três é o mínimo para a diferença significar algo.
 const RODADAS = Number(process.env.RODADAS ?? 1);
+// ── AMOSTRAR OU ESCOLHER ─────────────────────────────────────────────────
+//
+// O jogo pede remendo com `temperature: 0.7, top_p: 0.95, top_k: 40` — a
+// mesma configuração da FALA. Faz sentido para o Nilo conversar: variedade é
+// personagem. Não faz sentido nenhum para consertar uma frase, onde só existe
+// uma resposta boa e o que se quer é o token mais provável.
+//
+// E o preço disso está medido sem eu ter procurado: o a400m deu 6/12 numa
+// rodada e 7/12 na seguinte, com o MESMO arquivo, o MESMO enunciado e os
+// MESMOS defeitos. A diferença era o sorteio.
+const TEMP = Number(process.env.TEMP ?? 0.7);
+// Corta o vazamento clássico do enunciado com exemplos: em vez de parar depois
+// da frase, o modelo continua o padrão e escreve o próximo exercício.
+const PARADA = process.env.PARADA === '1'
+    ? ['\nWrong line:', '\nExample', '\nIt is wrong because', '\n\n']
+    : undefined;
 // O KV vem por modelo porque o jogo NÃO carrega todo mundo igual: o granite
 // a400m ABORTA com KV quantizado, e isso está escrito em floor10Rascunhador.ts
 // ("KV em f16, NUNCA q8_0"). Uma bancada que carrega diferente do jogo mede
@@ -189,12 +205,13 @@ page.on('pageerror', (e) => console.log('[pageerror]', String(e.message).slice(0
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
 async function remendar(sys, q, f, porque, trocado) {
-    return page.evaluate(async ({ sys, ex, max }) => {
+    return page.evaluate(async ({ sys, ex, max, temp, parada }) => {
         const a = performance.now();
         try {
             const res = await window.__w.createChatCompletion({
                 messages: [{ role: 'system', content: sys }, { role: 'user', content: ex }],
-                stream: false, max_tokens: max, temperature: 0.7, top_p: 0.95, top_k: 40,
+                stream: false, max_tokens: max, temperature: temp, top_p: 0.95, top_k: 40,
+                ...(parada ? { stop: parada } : {}),
                 penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
                 // O jogo manda isto, então a bancada manda também. É no-op no
                 // LFM2.5 (não está no template dele) e VALE no Qwen, que sem
@@ -210,7 +227,7 @@ async function remendar(sys, q, f, porque, trocado) {
                 msLer: Math.round(ti.prompt_ms ?? 0), msEscrever: Math.round(ti.predicted_ms ?? 0),
             };
         } catch (e) { return { erro: String(e?.message ?? e).slice(0, 140) }; }
-    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX });
+    }, { sys, ex: _EN(q, f, porque, trocado), max: MAX, temp: TEMP, parada: PARADA });
 }
 
 const placar = [];
