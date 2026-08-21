@@ -197,11 +197,16 @@ export const ECOOU = (saida, pergunta, original, minima) => SOBREPOE(saida, perg
 // versão corrigida" — isso é o modelo falando com quem escreveu o enunciado.
 export const PROMETEU = (t) => {
     const x = String(t).trim();
+    // DUAS FALSAS ACUSAÇÕES, corrigidas depois de o revisor treinado ser
+    // reprovado por elas: `i can do` pegava "Nothing here that I can do for
+    // you", que é o Nilo RECUSANDO ajuda — o oposto de prometer; e `i see`
+    // pegava qualquer frase em que ele enxerga alguma coisa. Promessa é sobre
+    // o que ele VAI fazer com a tarefa, então só `will`/`'ll` entram.
     return /^(ok(ay)?|sure|understood|got it|alright|certainly|of course)\b/i.test(x)
-        || /\bi (will|'ll|can|shall) (do|try|focus|avoid|provide|write|rewrite|give|make|correct|fix)\b/i.test(x)
+        || /\bi (will|'ll) (do|try|focus|avoid|provide|write|rewrite|give|make|correct|fix)\b/i.test(x)
         || /\bhere('s| is| are)? (the |your )?(corrected|revised|fixed|new|updated)\b/i.test(x)
         || /\b(corrected|revised|rewritten) (line|sentence|version)\s*[:.]?\s*$/i.test(x)
-        || /\bi (understand|apologize|see)\b/i.test(x)
+        || /\bi (understand|apologize)\b/i.test(x)
         || /\b(let me|i'?ll) (know|rephrase|rewrite|try)\b/i.test(x);
 };
 
