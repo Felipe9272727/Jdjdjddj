@@ -120,6 +120,20 @@ INTEIRO = os.environ.get('INTEIRO', '1') == '1'   # treinar os 873M, não só Lo
 LR = float(os.environ.get('LR', 1.5e-5 if INTEIRO else 1e-4))
 TETO_PROMPT = int(os.environ.get('TETO_PROMPT', 512))
 
+# ── SALVAR FORA DA MÁQUINA, DURANTE O TREINO ─────────────────────────────
+#
+# O Colab derruba a sessão, e quando derruba leva o disco junto. Um treino de
+# duas horas de A100 que salva só no fim é um treino que se perde inteiro na
+# primeira desconexão — e desconexão em sessão longa não é acidente raro, é o
+# comportamento normal do serviço.
+#
+# Por isso o checkpoint vai para o Hugging Face a cada `SALVA_CADA` passos, e
+# não só para o disco local. Custa segundos e é a diferença entre retomar do
+# passo 400 e recomeçar do zero.
+REPO_HF = os.environ.get('REPO_HF', '')          # ex.: usuario/nilo-revisor-08b
+HF_TOKEN = os.environ.get('HF_TOKEN', '')
+SALVA_CADA = int(os.environ.get('SALVA_CADA', 100))
+
 print(f'  professor {MESTRE} em {BITS} bits · aluno {ALUNO}', flush=True)
 assert torch.cuda.is_available(), 'isto precisa de GPU'
 livre, total = torch.cuda.mem_get_info()
@@ -310,6 +324,12 @@ agenda = torch.optim.lr_scheduler.OneCycleLR(
     otim, max_lr=LR, total_steps=passos_totais, pct_start=0.1)
 
 SAIDA.mkdir(parents=True, exist_ok=True)
+if REPO_HF and HF_TOKEN:
+    # Criado agora, e não no primeiro checkpoint: se o token estiver errado, é
+    # melhor descobrir no segundo 1 do que no passo 100.
+    from huggingface_hub import HfApi
+    HfApi().create_repo(REPO_HF, token=HF_TOKEN, exist_ok=True)
+    print(f'  checkpoints vão para https://huggingface.co/{REPO_HF}', flush=True)
 ordem = torch.randperm(len(enunciados)).tolist()
 cursor = 0
 t0 = time.time()
@@ -348,12 +368,30 @@ for passo in range(1, passos_totais + 1):
         pico = torch.cuda.max_memory_allocated() / 2**30
         print(f'  passo {passo}/{passos_totais} · KL {perda.item():.4f} · '
               f'{gasto / passo:.1f}s/passo · pico {pico:.1f} GiB', flush=True)
-    if passo % 100 == 0:
+    if passo % SALVA_CADA == 0:
         aluno.save_pretrained(str(SAIDA))
+        tok.save_pretrained(str(SAIDA))
         print(f'  salvo em {SAIDA}', flush=True)
+        if REPO_HF and HF_TOKEN:
+            try:
+                from huggingface_hub import HfApi
+                HfApi().upload_folder(
+                    folder_path=str(SAIDA), repo_id=REPO_HF, token=HF_TOKEN,
+                    commit_message=f'passo {passo}/{passos_totais} · KL {perda.item():.4f}')
+                print(f'  enviado para {REPO_HF}', flush=True)
+            except Exception as e:
+                # Falha de rede não pode derrubar o treino: o disco local já tem
+                # o checkpoint, e a próxima janela de salvamento tenta de novo.
+                print(f'  ‹envio falhou, treino segue› {str(e)[:120]}', flush=True)
 
 aluno.save_pretrained(str(SAIDA))
 tok.save_pretrained(str(SAIDA))
+if REPO_HF and HF_TOKEN:
+    from huggingface_hub import HfApi
+    HfApi().create_repo(REPO_HF, token=HF_TOKEN, exist_ok=True)
+    HfApi().upload_folder(folder_path=str(SAIDA), repo_id=REPO_HF, token=HF_TOKEN,
+                          commit_message='treino terminado')
+    print(f'  enviado para https://huggingface.co/{REPO_HF}', flush=True)
 print(f'\n  pronto em {(time.time() - t0) / 60:.1f} min · em {SAIDA}', flush=True)
 if INTEIRO:
     print('  são os pesos completos: dá para converter para gguf direto.', flush=True)
