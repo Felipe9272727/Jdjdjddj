@@ -45,17 +45,37 @@ print(f'  {len(casos)} casos (prova + controles) · modelo {MODELO}', flush=True
 if not Path(MODELO).exists() and Path(MODELO).parent.exists() and str(Path(MODELO).parent) != '.':
     sys.exit(f'  não existe: {MODELO}\n  (treine antes: python3 corpus/treinar.py)')
 
-tok = AutoTokenizer.from_pretrained(MODELO)
-# A família qwen3_5 se declara image-text-to-text no hub e nem toda versão do
-# transformers registra o alias de CausalLM para ela.
-try:
-    modelo = AutoModelForCausalLM.from_pretrained(
-        MODELO, dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32)
-except (ValueError, KeyError):
-    import transformers
-    classe = getattr(transformers, 'AutoModelForMultimodalLM')
-    modelo = classe.from_pretrained(
-        MODELO, dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32)
+# ── ADAPTADOR OU PESOS COMPLETOS ─────────────────────────────────────────
+#
+# Com MESCLAR=0 o treino guarda só o LoRA, e a pasta não tem pesos: carregar
+# ela como modelo devolve lixo ou erro. A presença de `adapter_config.json` diz
+# qual é o caso, e o próprio arquivo diz de qual base ele saiu — não é preciso
+# lembrar nem passar por variável.
+DE_ADAPTADOR = (Path(MODELO) / 'adapter_config.json').exists()
+DTIPO = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+
+
+def carregar(nome):
+    # A família qwen3_5 se declara image-text-to-text no hub e nem toda versão
+    # do transformers registra o alias de CausalLM para ela.
+    try:
+        return AutoModelForCausalLM.from_pretrained(nome, dtype=DTIPO)
+    except (ValueError, KeyError):
+        import transformers
+        return getattr(transformers, 'AutoModelForMultimodalLM').from_pretrained(nome, dtype=DTIPO)
+
+
+if DE_ADAPTADOR:
+    cfg = json.loads((Path(MODELO) / 'adapter_config.json').read_text())
+    base = cfg['base_model_name_or_path']
+    print(f'  adaptador sobre {base}', flush=True)
+    from peft import PeftModel
+    tok = AutoTokenizer.from_pretrained(base)
+    modelo = PeftModel.from_pretrained(carregar(base), MODELO)
+    modelo = modelo.merge_and_unload()
+else:
+    tok = AutoTokenizer.from_pretrained(MODELO)
+    modelo = carregar(MODELO)
 modelo.eval()
 if torch.cuda.is_available():
     modelo.cuda()

@@ -80,7 +80,38 @@ def juntar(lote):
 # O caminho do corpus é parâmetro desde que o treino passou a ter versões: a
 # v1 sai do corpus escrito à mão, a v2 soma o destilado, a v3 soma o on-policy.
 treino = Remendos(Path(os.environ.get('TREINO', AQUI / 'treino.jsonl')))
-afere = Remendos(AQUI / 'afericao.jsonl')
+
+# ── A AFERIÇÃO TEM QUE FALAR A LÍNGUA DO TREINO ──────────────────────────
+#
+# Os 24 alvos de `afericao.jsonl` são só a frase, sem bloco de pensamento —
+# foram escritos antes de existir destilação. Quando o corpus passa a ter
+# <think>…</think>, o modelo aprende a escrever o bloco e a perda de aferição
+# SOBE por isso, não por decorar. Medido na primeira v2: treino de 1,05 para
+# 0,30 e aferição de 3,60 para 4,85, com o modelo melhorando.
+#
+# Um instrumento que sobe quando a coisa melhora é pior que instrumento
+# nenhum, porque parece que está funcionando. Então quando os formatos
+# divergem, a aferição sai de uma FATIA SEPARADA do próprio corpus — mesma
+# língua, e aí a subida volta a significar decorar.
+def _tem_bloco(caminho):
+    import json as _j
+    for linha in Path(caminho).read_text().splitlines():
+        if linha.strip():
+            return _j.loads(linha)['messages'][-1]['content'].startswith('<think>')
+    return False
+
+
+_arq_treino = Path(os.environ.get('TREINO', AQUI / 'treino.jsonl'))
+_arq_afere = Path(os.environ.get('AFERE', AQUI / 'afericao.jsonl'))
+if _tem_bloco(_arq_treino) != _tem_bloco(_arq_afere):
+    corte = max(8, int(0.06 * len(treino.itens)))
+    afere = Remendos.__new__(Remendos)
+    afere.itens = treino.itens[-corte:]
+    treino.itens = treino.itens[:-corte]
+    print(f'  aferição: {corte} linhas separadas do próprio corpus '
+          f'(o arquivo de aferição está noutro formato e mediria errado)', flush=True)
+else:
+    afere = Remendos(_arq_afere)
 print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo {MODELO}', flush=True)
 
 # ── CPU E GPU NA MESMA RECEITA ───────────────────────────────────────────
