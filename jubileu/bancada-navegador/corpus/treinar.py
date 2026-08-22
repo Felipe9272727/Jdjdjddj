@@ -77,7 +77,9 @@ def juntar(lote):
     }
 
 
-treino = Remendos(AQUI / 'treino.jsonl')
+# O caminho do corpus é parâmetro desde que o treino passou a ter versões: a
+# v1 sai do corpus escrito à mão, a v2 soma o destilado, a v3 soma o on-policy.
+treino = Remendos(Path(os.environ.get('TREINO', AQUI / 'treino.jsonl')))
 afere = Remendos(AQUI / 'afericao.jsonl')
 print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo {MODELO}', flush=True)
 
