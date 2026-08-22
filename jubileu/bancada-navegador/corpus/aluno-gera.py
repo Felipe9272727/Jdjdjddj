@@ -18,6 +18,8 @@ import json
 import os
 import sys
 
+from pathlib import Path
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -27,8 +29,20 @@ POR_CASO = int(os.environ.get('POR_CASO', '2'))
 TEMPERATURA = float(os.environ.get('TEMPERATURA', '0.9'))
 TETO = int(os.environ.get('TETO', '48'))
 
+# ── BASE + ADAPTADOR, SEM MESCLAR ────────────────────────────────────────
+#
+# Para gerar não é preciso mesclar: o PEFT carrega o LoRA por cima da base e
+# responde igual. Isso economiza ~1,5 GB de disco, que é mais do que esta caixa
+# tem sobrando — e a mesclagem fica para a hora de converter em gguf.
 tok = AutoTokenizer.from_pretrained(MODELO)
-modelo = AutoModelForCausalLM.from_pretrained(MODELO, dtype=torch.float32)
+if (Path(MODELO) / 'adapter_config.json').exists():
+    from peft import PeftModel
+    base = json.loads((Path(MODELO) / 'adapter_config.json').read_text())['base_model_name_or_path']
+    modelo = PeftModel.from_pretrained(
+        AutoModelForCausalLM.from_pretrained(base, dtype=torch.float32), MODELO)
+    print(f'  base {base} + adaptador {MODELO}', file=sys.stderr)
+else:
+    modelo = AutoModelForCausalLM.from_pretrained(MODELO, dtype=torch.float32)
 modelo.eval()
 
 feitos = 0

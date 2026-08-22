@@ -136,6 +136,19 @@ Trainer(
 
 # Sai MESCLADO: o gguf não carrega adaptador solto, e o jogo carrega gguf.
 print('\n  mesclando o LoRA nos pesos…', flush=True)
+# ── MESCLAR É OPCIONAL, E AQUI O DISCO MANDA ─────────────────────────────
+#
+# O aluno de 0,8B mesclado ocupa ~1,5 GB em bf16, e esta caixa tem menos que
+# isso livre. Para GERAR (que é o que o on-policy precisa em seguida) o adaptador
+# basta: o PEFT carrega base + LoRA e responde igual. A mesclagem só é obrigatória
+# para converter em gguf, e aí dá para liberar espaço antes.
+if os.environ.get('MESCLAR', '1') != '1':
+    modelo.save_pretrained(SAIDA)
+    tok.save_pretrained(SAIDA)
+    print(f'\n  adaptador salvo (sem mesclar) em {SAIDA}', flush=True)
+    print(f'  pronto em {(time.time() - t0) / 60:.1f} min', flush=True)
+    raise SystemExit(0)
+
 inteiro = modelo.merge_and_unload()
 # bf16 e não fp32: 752M em fp32 são 3 GB, e este disco não comporta.
 inteiro = inteiro.to(torch.bfloat16)
