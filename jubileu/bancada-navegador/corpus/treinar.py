@@ -111,10 +111,30 @@ sufixos = sorted({
     if isinstance(mod, nn.Linear) and not nome.endswith('lm_head')
 })
 print(f'  LoRA em {sufixos}', flush=True)
-modelo = get_peft_model(modelo, LoraConfig(
-    r=32, lora_alpha=64, lora_dropout=0.05, bias='none', task_type='CAUSAL_LM',
-    target_modules=sufixos,
-))
+# ── O DESPACHANTE DO peft PODE EXPLODIR ANTES DE COMEÇAR ─────────────────
+#
+# `get_peft_model` percorre uma lista de despachantes para decidir que tipo de
+# camada LoRA criar, e um deles pergunta se o torchao está disponível. Essa
+# pergunta LEVANTA ImportError quando o torchao existe numa versão velha, em
+# vez de responder "não" — e o Colab traz a 0.10.0 pré-instalada, enquanto o
+# peft exige 0.16. O treino morria antes do primeiro passo, com um erro que não
+# fala de LoRA nem de treino.
+#
+# A mensagem aqui existe porque o traceback do peft não diz o que fazer.
+try:
+    modelo = get_peft_model(modelo, LoraConfig(
+        r=32, lora_alpha=64, lora_dropout=0.05, bias='none',
+        task_type='CAUSAL_LM', target_modules=sufixos,
+    ))
+except ImportError as e:
+    if 'torchao' not in str(e):
+        raise
+    raise SystemExit(
+        f'  {e}\n\n'
+        '  Isto não é o treino: é o despachante do peft perguntando pelo torchao\n'
+        '  e recebendo uma exceção em vez de um "não". Nada aqui usa torchao.\n'
+        '  Tire ele da frente e rode de novo:\n\n'
+        '      pip uninstall -y torchao\n')
 modelo.print_trainable_parameters()
 
 t0 = time.time()

@@ -225,6 +225,21 @@ professor.config.use_cache = False
 for p in professor.parameters():
     p.requires_grad_(False)
 
+# O mesmo despachante do peft que derruba o treino da v2 derruba a CARGA do
+# adaptador dela aqui. Se o torchao velho ainda estiver instalado, é melhor
+# dizer isso agora do que depois de o professor de 56 GB estar na memória.
+try:
+    import torchao, importlib.metadata as _md
+    from packaging import version as _v
+    if _v.parse(_md.version('torchao')) < _v.parse('0.16.0'):
+        raise SystemExit(
+            f'  torchao {_md.version("torchao")} instalado, e o peft exige >= 0.16.\n'
+            '  A checagem dele levanta ImportError em vez de responder "não" e\n'
+            '  derruba a carga do adaptador. Nada aqui usa torchao:\n\n'
+            '      pip uninstall -y torchao\n')
+except ImportError:
+    pass
+
 aluno = carregar(BASE_ALUNO, dtype=torch.bfloat16).cuda()
 if Path(ALUNO).exists():
     # A v2 sai da SFT como adaptador. Aqui ela é ABSORVIDA nos pesos antes de
