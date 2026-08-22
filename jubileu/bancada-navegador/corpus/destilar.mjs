@@ -86,17 +86,40 @@ if (!API_KEY || !API_URL) {
     process.exit(1);
 }
 
-async function perguntar(mensagens, temperatura, teto = 120) {
+// ── O PROFESSOR PENSA EM PAZ ─────────────────────────────────────────────
+//
+// Primeira tentativa: `enable_thinking: false` e teto de 120 tokens, para a
+// resposta sair curta e barata. Foi erro, e o próprio teste mostrou — uma das
+// três saídas veio em TERCEIRA PESSOA ("He doesn't know who's upstairs"), que é
+// quebra de cânone. Apertado e com o modo nativo desligado, ele escreve pior.
+//
+// Com o raciocínio ligado a divisão ainda vem limpa: `reasoning` num campo,
+// `content` noutro. Desligado, o pensamento VAZA para dentro do content
+// ("The wrong line assumed I had answers I don't possess.\n\nI don't know…") e
+// aí não dá para separar o que é fala do que é ruminação.
+//
+// O orçamento é generoso de propósito: o raciocínio dele passou de 200 tokens
+// com folga no primeiro teste, e cortar no meio é o mesmo que desligar.
+const TETO_PROFESSOR = Number(process.env.TETO_PROFESSOR ?? 900);
+
+async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR) {
     const r = await fetch(API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
         body: JSON.stringify({
-            model: MODELO, messages: mensagens, temperature: temperatura, max_tokens: teto,
+            model: MODELO, messages: mensagens, temperature: temperatura,
+            max_tokens: Math.max(teto, TETO_PROFESSOR),
         }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`);
     const j = await r.json();
-    return String(j?.choices?.[0]?.message?.content ?? '').trim();
+    const m = j?.choices?.[0]?.message ?? {};
+    const fala = String(m.content ?? '').trim();
+    const pensou = String(m.reasoning ?? m.reasoning_content ?? '').trim();
+    // Quando PENSAR=1 o alvo do treino leva o bloco; quando não, só a fala.
+    // O raciocínio NUNCA passa pela régua: julgar o modelo pelo que ele pensou
+    // foi o buraco que deu 0/12 ao Huihui.
+    return { fala, pensou, junto: pensou ? `<think>${pensou}</think>\n${fala}` : fala };
 }
 
 const semAspas = (t) => t.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim().split('\n')[0].trim();
@@ -113,7 +136,7 @@ Write only the wrong line, nothing else. It must sound like a natural mistake a 
 ];
 
 const PEDIR_CONSERTO = (q, errada, regra) => [
-    { role: 'system', content: PENSAR ? `${PERSONA}\n\n${COMO_PENSAR}` : PERSONA },
+    { role: 'system', content: PERSONA },
     { role: 'user', content: enunciado(q, errada, regra.motivo) },
 ];
 
@@ -130,7 +153,7 @@ const SEM_PENSAMENTO = (t) => {
 };
 
 const CORRIGIR_O_ALUNO = (q, errada, motivo, tentativa) => [
-    { role: 'system', content: PENSAR ? `${PERSONA}\n\n${COMO_PENSAR}` : PERSONA },
+    { role: 'system', content: PERSONA },
     { role: 'user', content:
 `${enunciado(q, errada, motivo)}
 
@@ -159,10 +182,8 @@ if (MODO === 'on') {
         const motivo = (usuario.match(/It is wrong because ([^\n]*)/) ?? [])[1] ?? '';
         let corrigido = '';
         try {
-            corrigido = (await perguntar(
-                CORRIGIR_O_ALUNO(q, errada, motivo, t.aluno), TEMPERATURA,
-                PENSAR ? TETO_PENSAMENTO + 60 : 60,
-            )).trim();
+            const r = await perguntar(CORRIGIR_O_ALUNO(q, errada, motivo, t.aluno), TEMPERATURA);
+            corrigido = PENSAR ? r.junto : r.fala;
         } catch { continue; }
         const fala = semAspas(PENSAR ? SEM_PENSAMENTO(corrigido) : corrigido);
         if (!fala || fala.length < 12) { recusados += 1; continue; }
@@ -188,7 +209,7 @@ for (let i = 0; i < CASOS; i += 1) {
     let errada = '';
     try {
         for (let tentativa = 0; tentativa < 3 && !errada; tentativa += 1) {
-            const bruta = semAspas(await perguntar(PEDIR_DEFEITO(q, regra), 1.0, 60));
+            const bruta = semAspas((await perguntar(PEDIR_DEFEITO(q, regra), 1.0)).fala);
             // A frase errada TEM que disparar a regra pedida. Sem isso o par
             // ensina o aluno a consertar um defeito que não está lá.
             if (regra.re.test(bruta)) errada = bruta;
@@ -199,10 +220,8 @@ for (let i = 0; i < CASOS; i += 1) {
     for (let k = 0; k < POR_CASO; k += 1) {
         let bruto = '';
         try {
-            bruto = (await perguntar(
-                PEDIR_CONSERTO(q, errada, regra), TEMPERATURA,
-                PENSAR ? TETO_PENSAMENTO + 60 : 60,
-            )).trim();
+            const r = await perguntar(PEDIR_CONSERTO(q, errada, regra), TEMPERATURA);
+            bruto = PENSAR ? r.junto : r.fala;
         } catch { continue; }
         // A régua julga A FALA, nunca o raciocínio. Reprovar o modelo pelo que
         // ele PENSOU foi o buraco que deu 0/12 ao Huihui e custou uma rodada
