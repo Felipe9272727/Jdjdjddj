@@ -401,10 +401,30 @@ function readSavedBrain(): SmallBrainId | null {
     }
 }
 
-let escolhido: SmallBrainId = readBrainFromUrl() ?? readSavedBrain() ?? SMALL_BRAIN_DEFAULT;
+// ── A ESCOLHA É PREGUIÇOSA, E ISSO É CONSERTO DE BUG ─────────────────────
+//
+// Isto era `let escolhido = readBrainFromUrl() ?? …`, resolvido no INSTANTE em
+// que o módulo era avaliado. E `readBrainFromUrl` chama `cerebroDoRevisor()`,
+// que mora em `floor10Revisores` — que por sua vez importa este arquivo. Com o
+// ciclo, quem é avaliado primeiro depende de quem foi importado primeiro lá em
+// cima: se `floor10Brains` roda enquanto `floor10Revisores` ainda está no meio
+// da inicialização, `REVISORES` está na zona morta, a chamada estoura, o
+// `catch` devolve null e a escolha cai no padrão — em silêncio.
+//
+// Medido: com `?pipeline&revisor=treinado`, a fila baixou 1,25 GB de LFM2.5 em
+// vez dos 386 MB do revisor treinado, e o remendo saiu `sem-revisor`. Importando
+// `floor10Brains` primeiro, num teste isolado, a mesma URL resolvia certo. Ou
+// seja: a ORDEM DE IMPORT decidia qual modelo o jogador baixava.
+//
+// Resolver na primeira LEITURA elimina a corrida: quando alguém pergunta qual é
+// o cérebro, os dois módulos já estão de pé.
+let escolhido: SmallBrainId | null = null;
 
 /** O id da vontade em vigor. Fonte única — o motor da fala lê daqui também. */
-export function cerebroEscolhido(): SmallBrainId { return escolhido; }
+export function cerebroEscolhido(): SmallBrainId {
+    escolhido ??= readBrainFromUrl() ?? readSavedBrain() ?? SMALL_BRAIN_DEFAULT;
+    return escolhido;
+}
 
 /** Troca a escolha. Quem descarrega o cérebro anterior é floor10SmallBrain. */
 export function definirCerebroEscolhido(id: SmallBrainId): void { escolhido = id; }

@@ -349,7 +349,12 @@ export function revisorEscolhido(): RevisorId {
     if (escolhido) return escolhido;
     const forcado = (globalThis as { __f10Revisor?: RevisorId }).__f10Revisor;
     if (forcado && REVISORES.some((r) => r.id === forcado)) return forcado;
-    const busca = typeof window === 'undefined' ? '' : window.location.search;
+    // `globalThis.location` e não `window.location`: é o mesmo objeto no
+    // navegador, é o que o resto do código já usa (`pipelineLigado`,
+    // `readBrainFromUrl`), e é o único que dá para trocar num teste. Enquanto
+    // os dois módulos liam a URL de globais diferentes, um teste conseguia
+    // escolher o cérebro e não conseguia escolher o revisor.
+    const busca = globalThis.location?.search ?? '';
     return lerDaUrl(busca) ?? REVISOR_PADRAO;
 }
 

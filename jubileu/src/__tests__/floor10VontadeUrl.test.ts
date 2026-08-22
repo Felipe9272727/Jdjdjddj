@@ -37,6 +37,15 @@ async function carregarCom(busca: string) {
     try {
         const pequeno = await import('../npc/floor10SmallBrain');
         const catalogo = await import('../npc/floor10Brains');
+        // ── A LEITURA PRECISA ACONTECER COM A `location` TROCADA ─────────
+        //
+        // A escolha do cérebro passou a ser resolvida na primeira LEITURA e não
+        // na avaliação do módulo — foi assim que se corrigiu a corrida entre
+        // `floor10Brains` e `floor10Revisores`, em que a ordem de import
+        // decidia qual modelo o jogador baixava. Aqui isso significa que o
+        // `finally` abaixo devolveria a `location` original antes de alguém
+        // perguntar, e o teste passaria a medir a URL errada.
+        catalogo.cerebroEscolhido();
         return { ...pequeno, ...catalogo };
     } finally {
         Object.defineProperty(globalThis, 'location', {
@@ -113,5 +122,40 @@ describe('a troca de modelo deixa lixo no OPFS — e a fala não pode pagar por 
     it('nunca sobra a lista inteira: o em uso sai de fora sempre', async () => {
         const m = await carregarCom('');
         expect(m.cachesDescartaveis().length).toBe(m.SMALL_BRAIN_CATALOG.length - 1);
+    });
+});
+
+/**
+ * ── A CORRIDA QUE FAZIA `?revisor=` NÃO VALER ─────────────────────────────
+ *
+ * `floor10Brains` e `floor10Revisores` se importam em ciclo. Enquanto a escolha
+ * do cérebro era resolvida na AVALIAÇÃO do módulo, quem ganhava dependia de
+ * quem tinha sido importado primeiro lá em cima: com `floor10Revisores` ainda
+ * inicializando, `REVISORES` estava na zona morta, `cerebroDoRevisor()`
+ * estourava, o `catch` devolvia null e a escolha caía no padrão — calada.
+ *
+ * Medido no navegador com `?pipeline&revisor=treinado`: a fila baixou 1,25 GB
+ * de LFM2.5 em vez dos 386 MB do revisor treinado, e o remendo saiu
+ * `sem-revisor` porque o arquivo certo nunca desceu.
+ *
+ * Este caso importa o módulo do REVISOR primeiro, que é a ordem que quebrava.
+ */
+describe('?revisor= escolhe o cérebro, em qualquer ordem de import', () => {
+    it('vale quando floor10Revisores é importado antes de floor10Brains', async () => {
+        vi.resetModules();
+        const original = globalThis.location;
+        Object.defineProperty(globalThis, 'location', {
+            value: { search: '?pipeline&revisor=treinado' }, writable: true, configurable: true,
+        });
+        try {
+            const revisores = await import('../npc/floor10Revisores');
+            const catalogo = await import('../npc/floor10Brains');
+            expect(revisores.revisorEscolhido()).toBe('treinado');
+            expect(catalogo.cerebroEscolhido()).toBe('nilo-revisor-360m');
+        } finally {
+            Object.defineProperty(globalThis, 'location', {
+                value: original, writable: true, configurable: true,
+            });
+        }
     });
 });
