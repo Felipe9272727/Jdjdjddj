@@ -3,6 +3,10 @@
 # um jsonl pela metade guarda um estado que nunca existiu. O corpus PRONTO entra
 # no repositório num commit próprio, com a contagem de linhas e aberturas.
 corpus/destilado.jsonl
+# As partes da produção seguem a mesma regra: cada reinício do gerador escreve
+# uma, e a que está aberta muda a cada segundo. Elas viram UM corpus por
+# `corpus/juntar.mjs`, e é o resultado dele que entra no repositório.
+corpus/destilado-p*.jsonl
 corpus/aluno.jsonl
 corpus/on-policy.jsonl
 corpus/casos.jsonl
