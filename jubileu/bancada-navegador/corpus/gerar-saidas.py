@@ -13,7 +13,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 AQUI = Path(__file__).parent
 MODELO = os.environ.get('MODELO', str(AQUI / 'revisor-360m'))
 SAIDAS = Path(os.environ.get('SAIDAS', AQUI / 'saidas.jsonl'))
-TETO = int(os.environ.get('TETO', 48))
+# ── O TETO TEM QUE CABER O PENSAMENTO ────────────────────────────────────
+#
+# 48 tokens bastavam para um revisor que só escrevia a frase. Um aluno
+# destilado escreve <think>…</think> ANTES dela, e 48 tokens acabam no meio do
+# bloco: a prova sairia sem uma única resposta e o placar diria que o treino
+# fracassou, quando o que faltou foi espaço.
+TETO = int(os.environ.get('TETO', 200))
 
 # A prova e o enunciado vêm do JS, que é onde eles moram. Um `node -e` evita
 # manter uma segunda cópia da prova em Python — a duplicata é o defeito que
@@ -40,8 +46,16 @@ if not Path(MODELO).exists() and Path(MODELO).parent.exists() and str(Path(MODEL
     sys.exit(f'  não existe: {MODELO}\n  (treine antes: python3 corpus/treinar.py)')
 
 tok = AutoTokenizer.from_pretrained(MODELO)
-modelo = AutoModelForCausalLM.from_pretrained(
-    MODELO, dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32)
+# A família qwen3_5 se declara image-text-to-text no hub e nem toda versão do
+# transformers registra o alias de CausalLM para ela.
+try:
+    modelo = AutoModelForCausalLM.from_pretrained(
+        MODELO, dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32)
+except (ValueError, KeyError):
+    import transformers
+    classe = getattr(transformers, 'AutoModelForMultimodalLM')
+    modelo = classe.from_pretrained(
+        MODELO, dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32)
 modelo.eval()
 if torch.cuda.is_available():
     modelo.cuda()
@@ -55,7 +69,17 @@ with SAIDAS.open('w', encoding='utf-8') as fora:
             # Guloso, como no jogo para o remendo: conserto é escolha, não sorteio.
             saida = modelo.generate(entrada, max_new_tokens=TETO, do_sample=False,
                                     pad_token_id=tok.pad_token_id or tok.eos_token_id)
-        texto = tok.decode(saida[0][entrada.shape[-1]:], skip_special_tokens=True).strip()
-        fora.write(json.dumps({'nome': caso['nome'], 'saida': texto}, ensure_ascii=False) + '\n')
+        bruto = tok.decode(saida[0][entrada.shape[-1]:], skip_special_tokens=True).strip()
+        # ── O QUE VAI PARA A RÉGUA É O QUE O JOGO USARIA ─────────────────
+        #
+        # O jogo descarta o bloco de pensamento e fica com a primeira frase. Se
+        # a prova mandar o bloco inteiro para o juiz, ele julga um texto que o
+        # jogador nunca veria — e reprova o modelo por raciocinar, que foi
+        # exatamente o buraco que zerou um candidato numa rodada anterior desta
+        # caçada. A régua julga a FALA.
+        fim = bruto.rfind('</think>')
+        texto = (bruto[fim + 8:] if fim >= 0 else ('' if '<think>' in bruto else bruto)).strip()
+        fora.write(json.dumps({'nome': caso['nome'], 'saida': texto, 'pensou': fim >= 0},
+                              ensure_ascii=False) + '\n')
         print(f'  {i + 1:2}/{len(casos)}  {caso["nome"][:38]:38} {texto[:70]}', flush=True)
 print(f'\n  → {SAIDAS}\n  agora: node corpus/julgar-saidas.mjs {SAIDAS}', flush=True)
