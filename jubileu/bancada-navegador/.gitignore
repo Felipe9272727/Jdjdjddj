@@ -7,6 +7,10 @@ corpus/destilado.jsonl
 # uma, e a que está aberta muda a cada segundo. Elas viram UM corpus por
 # `corpus/juntar.mjs`, e é o resultado dele que entra no repositório.
 corpus/destilado-p*.jsonl
+# As perguntas geradas saem de uma vez, no fim do processo: enquanto ele roda o
+# arquivo tem zero byte. Ele entra no repositorio quando estiver fechado, com a
+# contagem e quantas foram descartadas por baterem com a prova.
+corpus/perguntas-geradas.json
 corpus/aluno.jsonl
 corpus/on-policy.jsonl
 corpus/casos.jsonl
