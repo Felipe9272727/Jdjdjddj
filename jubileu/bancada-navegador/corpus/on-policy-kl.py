@@ -83,6 +83,16 @@
 import json, math, os, time
 from pathlib import Path
 
+# ── FRAGMENTAÇÃO É O QUE MATA UM TREINO LONGO PELA METADE ────────────────
+#
+# O pico medido foi 63,5 GiB de 79, com enunciados que calharam curtos. O teto
+# de prompt é 512 tokens, então um lote com quatro longos sobe isso — e o que
+# derruba não costuma ser a falta de memória total, é ela estar picotada em
+# pedaços pequenos demais para o próximo tensor de logits, que é grande e
+# contíguo. Segmentos expansíveis existem exatamente para esse caso, e não
+# custam nada quando não são necessários.
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
