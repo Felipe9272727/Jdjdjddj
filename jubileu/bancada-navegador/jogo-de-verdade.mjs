@@ -176,6 +176,11 @@ const carga = await page.evaluate(async () => {
     await marcar('juiz de tom (mpnet)', () => J.prepararJuizDeTom());
     await marcar('memória (embeddinggemma 300M)', () => M.baixarMemoria());
     await marcar('memória de pé', () => M.precarregarMemoria());
+    // O REVISOR TAMBÉM DESCE NA FILA. A primeira execução esqueceu dele e o
+    // remendo voltou vazio em 12 s — não porque o modelo errou, mas porque
+    // nunca tinha sido baixado. `remendar` não baixa nada na hora da fala.
+    const S = await import('/src/npc/floor10SmallBrain.ts');
+    await marcar('revisor (na fila, sem subir)', () => S.baixarVontade());
     return { marcos, memoriaCarregada: M.memoriaJaCarregada() };
 });
 for (const m of carga.marcos) {
@@ -195,25 +200,55 @@ for (const pergunta of PERGUNTAS) {
         const t1 = Date.now();
         const saida = await pipeline.falarPeloPipelineReal(
             emIngles ?? perguntaPt,
-            (p) => passos.push({ passo: p.passo, ms: p.ms, texto: (p.textoEmIngles ?? p.frase ?? '').slice(0, 200) }),
+            (p) => passos.push({
+                passo: p.passo,
+                ms: p.ms ?? 0,
+                // Cada passo carrega um campo diferente, e ler só
+                // `textoEmIngles` fazia "frases", "juiz" e "remendo" saírem
+                // como string vazia — parecendo falha quando eram o normal.
+                texto: p.passo === 'rascunho' ? p.textoEmIngles
+                    : p.passo === 'frases' ? `${p.frases.length} frase(s)`
+                    : p.passo === 'juiz' ? p.marcadas.map((m) => `«${m.frase ?? ''}» ${m.porque ?? ''}`).join(' · ')
+                    : p.passo === 'limpeza' ? `${p.antes} → ${p.depois}`
+                    : p.passo === 'remendo' ? `[${p.desfecho?.tipo ?? '?'}] ${p.desfecho?.depois ?? p.antes}`
+                    : p.passo === 'traducao' ? p.depoisEmPtBr
+                    : '',
+            }),
             perguntaPt,
         );
         return {
             emIngles, tTrad, passos,
             ms: Date.now() - t1,
-            texto: saida?.texto ?? null,
+            fala: saida?.fala ?? null,
             marcadas: saida?.marcadas ?? 0,
             remendadas: saida?.remendadas ?? 0,
         };
     }, pergunta);
     linhas.push({ pergunta, ...r });
+    // ── O RASCUNHADOR VOLTA DEPOIS DA FALA, E ISSO LEVA TEMPO ────────────
+    //
+    // `falarPeloPipelineReal` termina e só então chama `devolverORascunhador`,
+    // sem esperar — quem precisa dele é a PRÓXIMA pergunta. No jogo, o jogador
+    // gasta segundos digitando e não percebe. Na bancada as perguntas vêm
+    // coladas, e a primeira execução mostrou o efeito: as cinco falas seguintes
+    // voltaram `null` em 0,0 s, porque `pipelineDisponivel()` era falso.
+    const voltou = await page.evaluate(async () => {
+        const R = await import('/src/npc/floor10Rascunhador.ts');
+        const t = Date.now();
+        for (let i = 0; i < 240; i += 1) {
+            if (R.rascunhadorJaCarregado()) return (Date.now() - t) / 1000;
+            await new Promise((ok) => setTimeout(ok, 500));
+        }
+        return -1;
+    });
+    console.log(`   (rascunhador de volta em ${voltou < 0 ? 'NUNCA' : voltou.toFixed(1) + 's'})`);
     console.log(`\n▸ ${pergunta}`);
     console.log(`   pt→en ${(r.tTrad / 1000).toFixed(1)}s · "${r.emIngles}"`);
     for (const p of r.passos) {
         console.log(`   ${String(p.passo).padEnd(10)} ${((p.ms ?? 0) / 1000).toFixed(1).padStart(5)}s  ${JSON.stringify(p.texto).slice(0, 150)}`);
     }
     console.log(`   ── ${(r.ms / 1000).toFixed(1)}s no total · ${r.marcadas} marcada(s), ${r.remendadas} remendada(s)`);
-    console.log(`   ➜ ${JSON.stringify(r.texto)}`);
+    console.log(`   ➜ ${JSON.stringify(r.fala)}`);
 }
 
 const total = linhas.reduce((s, l) => s + l.ms + l.tTrad, 0) / linhas.length / 1000;
@@ -221,6 +256,14 @@ console.log(`\n${'═'.repeat(78)}`);
 console.log(`  ${linhas.length} falas · média de ${total.toFixed(1)}s por turno (tradução da pergunta incluída)`);
 console.log(`  marcadas ${linhas.reduce((s, l) => s + l.marcadas, 0)} · remendadas ${linhas.reduce((s, l) => s + l.remendadas, 0)}`);
 console.log(`  revisor: ${REVISOR}`);
+const memoria = await page.evaluate(async () => {
+    const C = await import('/src/npc/floor10CaixaPreta.ts');
+    return C.eventosDaCaixaPreta()
+        .filter((e) => String(e.evento ?? e.nome ?? '').startsWith('pipeline:memoria'))
+        .map((e) => JSON.stringify(e.dados ?? e));
+});
+console.log(`\n  o que a memória entregou em cada fala:`);
+for (const m of memoria) console.log(`    ${m}`);
 await browser.close();
 servidorDaPonte.close();
 fs.rmSync(CACHE, { recursive: true, force: true });
