@@ -51,7 +51,25 @@
 #
 #   professor 27,78B em 4 bits NF4  ~16 GB     cabe com folga
 #   professor 27,78B em int8        ~28 GB     cabe raspando
+#   professor 27,78B em FP8 oficial ~28 GB     cabe, MAS precisa de Ada/Hopper
 #   professor 27,78B em bf16        ~56 GB     não cabe
+#
+# ── SOBRE "USAR A QUANTIZAÇÃO OFICIAL" ───────────────────────────────────
+#
+# A Qwen publica UMA quantização oficial e ela é FP8 (Qwen/Qwen3.8-27B-FP8),
+# não 4 bits. Não existe 4 bits oficial da Qwen, e não é oversight: o "4 bits"
+# daqui é NF4 do bitsandbytes, calculado NA HORA DA CARGA a partir dos pesos
+# bf16, na máquina de quem roda. Ninguém publica esse arquivo, então não há
+# versão oficial dele para preferir — a escolha é usar ou não usar.
+#
+# E o FP8 oficial tem um porém de hardware, não de qualidade: FP8 é instrução
+# de Ada (L4, 4090) e Hopper (H100). A A100 é Ampere e não tem. Carregar o FP8
+# nela obriga a desfazer a quantização para bf16, e aí são 56 GB de novo, que é
+# o que a gente estava evitando. O L4 tem FP8 e tem 24 GB, e 28 não cabe em 24.
+#
+# Ou seja, no hardware do Colab a escada real é NF4 ou int8, e é por isso que
+# `quanto-a-quantizacao-estraga.py` existe: cinco minutos de medida em vez de
+# uma escolha por fé.
 #   aluno 0,8B bf16 + LoRA + otim   ~5 GB
 #   logits de um lote                 <1 GB    (fatiado por posição, ver abaixo)
 #
