@@ -12,6 +12,10 @@
 //
 //   VITE=http://127.0.0.1:3420 REVISOR=treinado node jogo-de-verdade.mjs
 import { chromium } from 'playwright';
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 
 const VITE = process.env.VITE ?? 'http://127.0.0.1:3420';
 const REVISOR = process.env.REVISOR ?? 'treinado';
@@ -24,12 +28,119 @@ const PERGUNTAS = (process.env.PERGUNTAS ?? [
     'O elevador vem se eu chamar?',
 ].join('|')).split('|');
 
+// ── O NAVEGADOR DESTA CAIXA NÃO ALCANÇA A INTERNET ───────────────────────
+//
+// A sessão sai por um proxy que re-termina TLS, e o Chromium do Playwright não
+// tem a CA desse proxy no armazém dele (o NSS está vazio; não há certutil para
+// instalar). Resultado: todo `fetch` para jsdelivr ou huggingface morre em
+// "Failed to fetch", e os três carregadores falham juntos no mesmo prazo —
+// 12,7 s cada, que é o timeout do CDN e não do modelo.
+//
+// A saída NÃO é desligar verificação de TLS. É interceptar: o Playwright roda
+// no Node, o Node tem o proxy e a CA configurados, então quem busca é ele e o
+// navegador recebe os bytes já resolvidos. A página nunca faz o pedido externo.
+//
+// O arquivo temporário morre assim que é entregue: o disco desta caixa não
+// comporta uma cópia local do catálogo E a cópia que o navegador guarda no
+// OPFS.
+const CACHE = process.env.CACHE ?? '/tmp/ponte';
+const PORTA_PONTE = Number(process.env.PORTA_PONTE ?? 3421);
+fs.mkdirSync(CACHE, { recursive: true });
+
+// ── ARQUIVO GRANDE NÃO PASSA POR `route.fulfill` ─────────────────────────
+//
+// O `fulfill` do Playwright serializa o corpo em base64 antes de mandar para o
+// navegador, e o V8 recusa string acima de 512 MB:
+//
+//     Error: Cannot create a string longer than 0x1fffffe8 characters
+//     ERR_STRING_TOO_LONG   ← o rascunhador tem 822 MB
+//
+// Então o grande vai por REDIRECIONAMENTO: a ponte responde 302 para um
+// servidor local que transmite o arquivo em pedaços, com Range, como qualquer
+// servidor de verdade. O navegador continua sem falar com a internet.
+const servidorDaPonte = createServer((req, res) => {
+    const nome = decodeURIComponent((req.url ?? '').replace(/^\/+/, '').split('?')[0]);
+    const caminho = `${CACHE}/${nome}`;
+    if (!nome || !fs.existsSync(caminho)) { res.writeHead(404).end(); return; }
+    const tamanho = fs.statSync(caminho).size;
+    const cabecalhos = {
+        'content-type': 'application/octet-stream',
+        'accept-ranges': 'bytes',
+        'access-control-allow-origin': '*',
+        'cross-origin-resource-policy': 'cross-origin',
+    };
+    const faixa = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? '');
+    if (faixa) {
+        const de = faixa[1] ? Number(faixa[1]) : 0;
+        const ate = faixa[2] ? Number(faixa[2]) : tamanho - 1;
+        res.writeHead(206, {
+            ...cabecalhos,
+            'content-range': `bytes ${de}-${ate}/${tamanho}`,
+            'content-length': ate - de + 1,
+        });
+        fs.createReadStream(caminho, { start: de, end: ate }).pipe(res);
+        return;
+    }
+    res.writeHead(200, { ...cabecalhos, 'content-length': tamanho });
+    fs.createReadStream(caminho).pipe(res);
+});
+await new Promise((ok) => servidorDaPonte.listen(PORTA_PONTE, '127.0.0.1', ok));
+
+const tipo = (url) => (url.endsWith('.js') || url.endsWith('.mjs') ? 'text/javascript'
+    : url.endsWith('.json') ? 'application/json'
+    : url.endsWith('.wasm') ? 'application/wasm'
+    : 'application/octet-stream');
+
+const GRANDE = 100e6;
+
+async function pelaPonte(route, request) {
+    const url = request.url();
+    const nome = createHash('sha1').update(url).digest('hex');
+    const destino = `${CACHE}/${nome}`;
+    if (!fs.existsSync(destino)) {
+        const t = Date.now();
+        const r = spawnSync('curl', ['-sL', '--fail', '--retry', '3', '-o', destino, url], { timeout: 1_800_000 });
+        if (r.status !== 0 || !fs.existsSync(destino)) {
+            console.log(`  ‹ponte› FALHOU ${url.slice(0, 90)}`);
+            return route.abort();
+        }
+        const mb = fs.statSync(destino).size / 1e6;
+        if (mb > 1) console.log(`  ‹ponte› ${mb.toFixed(0).padStart(5)} MB em ${((Date.now() - t) / 1000).toFixed(0).padStart(3)}s · ${url.split('/').pop()}`);
+    }
+    if (fs.statSync(destino).size > GRANDE) {
+        return route.fulfill({ status: 302, headers: { location: `http://127.0.0.1:${PORTA_PONTE}/${nome}` } });
+    }
+    await route.fulfill({
+        status: 200,
+        headers: {
+            'content-type': tipo(url),
+            'access-control-allow-origin': '*',
+            'cross-origin-resource-policy': 'cross-origin',
+        },
+        body: fs.readFileSync(destino),
+    });
+}
+
 const browser = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--unlimited-storage'],
 });
 const page = await browser.newPage();
+// ── A PÁGINA DE DESENVOLVIMENTO NÃO PODE SUBIR SOZINHA ───────────────────
+//
+// `floor10.html` carrega `/src/floor10-dev.tsx`, e a primeira execução desta
+// bancada mostrou o efeito: 1.915 MB de SmolLM3 baixados antes de qualquer
+// medição. Esta bancada não quer o app — quer os MÓDULOS dele, chamados na
+// ordem em que a fila do pipeline os chama. Trocar o boot por um módulo vazio
+// mantém o resto da página igual (isolamento cross-origin, cliente do vite).
+await page.route('**/src/floor10-dev.tsx', (r) => r.fulfill({
+    status: 200, contentType: 'text/javascript', body: 'export {};',
+}));
+for (const alvo of ['**://cdn.jsdelivr.net/**', '**://huggingface.co/**', '**://*.hf.co/**',
+    '**://cdn-lfs*.hf.co/**', '**://unpkg.com/**', '**://storage.googleapis.com/**']) {
+    await page.route(alvo, pelaPonte);
+}
 page.on('pageerror', (e) => console.log('  ‹página› ' + String(e.message).slice(0, 160)));
 page.on('console', (m) => {
     const t = m.text();
@@ -111,3 +222,5 @@ console.log(`  ${linhas.length} falas · média de ${total.toFixed(1)}s por turn
 console.log(`  marcadas ${linhas.reduce((s, l) => s + l.marcadas, 0)} · remendadas ${linhas.reduce((s, l) => s + l.remendadas, 0)}`);
 console.log(`  revisor: ${REVISOR}`);
 await browser.close();
+servidorDaPonte.close();
+fs.rmSync(CACHE, { recursive: true, force: true });
