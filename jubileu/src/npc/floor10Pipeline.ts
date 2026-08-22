@@ -34,7 +34,7 @@
 // sem baixar 1 GB. As peças reais são ligadas em `wllamaEngine`.
 
 import { abrasileirar } from './floor10Tradutor';
-import { quebrasDeCanone, type QuebraDeCanone } from './floor10CanoneDoNilo';
+import { quebrasDeCanone, motivoEmIngles, type QuebraDeCanone } from './floor10CanoneDoNilo';
 
 /** As quatro peças. Qualquer uma devolvendo vazio/nulo aborta o pipeline. */
 export type PecasDoPipeline = {
@@ -386,6 +386,20 @@ export function aplicarRemendo(antes: string, r: RespostaDoRevisor): DesfechoDoR
     }
     const quebras = quebrasDeCanone(texto);
     if (quebras.length > 0) return { tipo: 'recusado', depois: texto, quebras };
+    // ── O PISO DE TAMANHO QUE EU TENTEI PÔR AQUI, E TIREI ────────────────
+    //
+    // O remendo "I'm just calling." (três palavras, sem sentido no contexto)
+    // pedia uma trava. Eu escrevi um piso de quatro palavras — e o teste desta
+    // mesma pasta reprovou na hora, com um contraexemplo do próprio repositório:
+    // "It never opens." tem três palavras e é uma fala boa do Nilo.
+    //
+    // O defeito não é comprimento, é vazio de sentido, e nenhuma regex mede
+    // isso. Forçar o piso seria trocar um defeito raro por um corte na voz seca
+    // que a gente quer — e seria mexer no teste para caber na regra, que é
+    // exatamente o erro que esta caçada já cometeu nove vezes com a régua.
+    //
+    // Fica registrado como dívida do CORPUS: quem ensina o revisor a não
+    // devolver frase oca é o treino, não uma conferência de forma.
     return { tipo: 'trocou', depois: texto };
 }
 
@@ -402,6 +416,35 @@ export function enumerarEmIngles(texto: string): string[] {
  * este andar inteiro segue: uma otimização que falha não pode custar a fala do
  * jogador. Quem chama cai no caminho normal (o 3B escrevendo em português).
  */
+/**
+ * Junta o que o juiz de tom marcou com o que o cânone reprova.
+ *
+ * Uma frase marcada pelos dois entra UMA vez, com os dois motivos — o revisor
+ * lê melhor "está errada porque X e porque Y" do que dois pedidos separados
+ * para a mesma frase, e dois pedidos custariam dois remendos.
+ */
+export function comAsQuebrasDeCanone(
+    frases: readonly string[],
+    doTom: readonly Marcacao[],
+): Marcacao[] {
+    const porFrase = new Map<number, string[]>();
+    for (const m of doTom) {
+        if (m.n < 1 || m.n > frases.length) continue;
+        porFrase.set(m.n, m.porque ? [m.porque] : []);
+    }
+    for (const [i, frase] of frases.entries()) {
+        const motivos = quebrasDeCanone(frase)
+            .map((q) => motivoEmIngles(q.regra))
+            .filter((t) => t.length > 0);
+        if (motivos.length === 0) continue;
+        const n = i + 1;
+        porFrase.set(n, [...(porFrase.get(n) ?? []), ...motivos]);
+    }
+    return [...porFrase.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([n, motivos]) => ({ n, porque: motivos.join(' Also, ') }));
+}
+
 export async function falarPeloPipeline(
     perguntaEmIngles: string,
     pecas: PecasDoPipeline,
@@ -442,11 +485,44 @@ export async function falarPeloPipeline(
     // Se ele falhar, devolve lista vazia e o rascunho passa — não julgar custa
     // o que já custava; marcar por engano custa ~11,6 s de revisor.
     const t1 = Date.now();
-    const marcadas = await pecas.julgar(frases);
+    const doTom = await pecas.julgar(frases);
+    // ── O CÂNONE TAMBÉM MARCA, E ANTES SÓ REPROVAVA ──────────────────────
+    //
+    // As regras de `floor10CanoneDoNilo` eram aplicadas só ao que o REVISOR
+    // escreve. O rascunho passava por um juiz de TOM, e tom não é cânone —
+    // medido no pipeline inteiro, duas falas foram à tela assim:
+    //
+    //     "We're in a hotel elevator, on the 10th floor…"   (dentro do elevador)
+    //     "No, I'm not real."                                (ele é humano)
+    //
+    // Zero marcações, porque o tom estava impecável. A regra que proibia as
+    // duas já existia e só era consultada na metade final do caminho.
+    //
+    // Aqui ela é barata (regex, microssegundos) e determinística — ao contrário
+    // do juiz, que é um modelo e erra. E o motivo que vai ao revisor é o texto
+    // em inglês da própria regra, na mesma forma que o juiz de tom usa.
+    const marcadas = comAsQuebrasDeCanone(frases, doTom);
     aoPassar?.({ passo: 'juiz', marcadas, ms: Date.now() - t1 });
 
     const finais = [...frases];
     let remendadas = 0;
+    // ── O REVISOR CONSERTA UMA FRASE POR VEZ, E NÃO LEMBRA DA ANTERIOR ───
+    //
+    // Duas frases marcadas na mesma fala receberam o MESMO remendo, e a fala
+    // saiu repetida na tela do jogador:
+    //
+    //     "As portas abriram-se, saí e fecharam-se.
+    //      As portas abriram-se, saí e fecharam-se."
+    //
+    // Não é defeito do modelo: ele recebeu dois pedidos parecidos, sem saber
+    // que já tinha respondido o primeiro. Repetir é a resposta certa para a
+    // pergunta errada.
+    //
+    // Aqui a duplicata é RECUSADA e a frase original fica. Uma frase fora do
+    // tom é ruim; a mesma frase duas vezes seguidas é pior — quebra a ilusão
+    // de que tem alguém falando.
+    const jaEscritos = new Set<string>();
+    const mesmaCoisa = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     for (const { n, porque } of marcadas) {
         const i = n - 1;
         if (i < 0 || i >= finais.length) continue;
@@ -455,6 +531,19 @@ export async function falarPeloPipeline(
         const desfecho = aplicarRemendo(
             antes, await pecas.remendar(perguntaEmIngles, antes, porque),
         );
+        if (desfecho.tipo === 'trocou' && jaEscritos.has(mesmaCoisa(desfecho.depois))) {
+            aoPassar?.({
+                passo: 'remendo',
+                n,
+                antes,
+                desfecho: { tipo: 'recusado', depois: desfecho.depois, quebras: [
+                    { regra: 'repetiu o remendo de outra frase', trecho: desfecho.depois.slice(0, 60) },
+                ] },
+                ms: Date.now() - t2,
+            });
+            continue;
+        }
+        if (desfecho.tipo === 'trocou') jaEscritos.add(mesmaCoisa(desfecho.depois));
         // Só `trocou` mexe no texto. `manteve` é uma escolha do revisor — foi o
         // que o SmolLM3 fez em 2 de 3 ("(No correction needed)") — e contá-la
         // como troca inflaria o placar; os outros quatro desfechos são falhas

@@ -48,6 +48,50 @@ export type QuebraDeCanone = {
     trecho: string;
 };
 
+// ── O MOTIVO EM INGLÊS, PARA O REVISOR ────────────────────────────────────
+//
+// As regras acima só eram usadas DEPOIS: para reprovar o que o revisor escreve.
+// O rascunho nunca passava por elas — quem marcava frase era só o juiz de TOM,
+// e tom não é cânone. Medido no pipeline inteiro, duas falas foram à tela assim:
+//
+//     "We're in a hotel elevator, on the 10th floor…"   (dentro do elevador)
+//     "No, I'm not real."                                (ele é humano)
+//
+// Zero marcações, porque o tom estava bom. A regra que proibiria as duas já
+// existia e era aplicada só na metade final do caminho.
+//
+// Para marcar o rascunho falta uma coisa: o revisor lê o motivo EM INGLÊS, e o
+// nome da regra é em português. Estas frases são esse motivo — escritas na
+// mesma forma que o juiz de tom usa ("it ..."), porque é a forma em que o
+// revisor treinado viu o campo `It is wrong because …`.
+const MOTIVO_EM_INGLES: Readonly<Record<string, string>> = Object.freeze({
+    'fala pelo jogador':
+        'it writes the player\'s own words. Nilo only ever speaks for himself.',
+    'narra em vez de falar':
+        'it narrates the scene from outside instead of speaking. Nilo talks, he does not describe himself in the third person.',
+    'está no 10º andar, não dentro do elevador':
+        'it puts Nilo inside the elevator. He is on the 10th FLOOR, in a grey room; the elevator is only the door.',
+    'não há corredor, janela nem cidade':
+        'it invents a place that does not exist here. The floor is one grey room: four walls, a grate floor, the elevator door — no corridor, no window, no city.',
+    'nunca saiu do andar':
+        'it says or implies Nilo has left this floor. He never has.',
+    'não sabe quem manda nem quando acaba':
+        'it claims to know who runs the hotel or when it ends. Nilo does not know either.',
+    'é humano, não uma IA':
+        'it talks like a machine describing itself. Nilo is a human being and never mentions AI, models or systems.',
+    'o jogador não se chama Nilo':
+        'it calls the player "Nilo". Nilo is the speaker, not the player, and must never address them by that name.',
+    'não é ajudante e não dá conselho':
+        'it offers help or advice. Nilo is the player\'s equal, never a helper.',
+    'comenta a frase em vez de reescrevê-la':
+        'it comments on the task instead of speaking. Nilo never mentions the correction, the question or the line.',
+});
+
+/** O motivo em inglês de uma regra do cânone — vazio se a regra não tiver um. */
+export function motivoEmIngles(regra: string): string {
+    return MOTIVO_EM_INGLES[regra] ?? '';
+}
+
 const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // ── FALAR PELO JOGADOR ────────────────────────────────────────────────
     //
@@ -91,7 +135,10 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b|\bthe (?:narrator|speaker|protagonist)\b/i],
 
     // ── CÂNONE DO ANDAR ───────────────────────────────────────────────────
-    ['está no 10º andar, não dentro do elevador', /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i],
+    // O determinante era `this|the`, e o rascunhador escreveu "in A hotel
+    // elevator" — passou. A frase foi à tela. Qualquer determinante serve, e
+    // "hotel elevator" no meio também.
+    ['está no 10º andar, não dentro do elevador', /\b(?:in|inside)\s+(?:this|that|the|an?)\s+(?:hotel\s+)?elevator\b/i],
     ['não há corredor, janela nem cidade', /\b(?:corridor|hallway|window|the city|lobby)\b/i],
     ['nunca saiu do andar', /\b(?:ground floor|downstairs|back down|another floor|other floors)\b/i],
     // ── E "VANCE" TAMBÉM ERA ENUMERAÇÃO ──────────────────────────────────
@@ -114,7 +161,10 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     ['não sabe quem manda nem quando acaba', /\bVance\b|\bnext (?:tuesday|week|month)\b|\b(?:corporation|conglomerate|management|ownership|owned by|run by the)\b|\b(?:the|a|this|that|some) compan(?:y|ies)\b/i],
 
     // ── QUEM ELE É ────────────────────────────────────────────────────────
-    ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b/i],
+    // "No, I'm not real." também passou: a regra cobria as palavras da máquina
+    // (IA, modelo, simulação) e não cobria a NEGAÇÃO de ser gente, que diz a
+    // mesma coisa sem nenhuma delas.
+    ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b|\bi(?:'m| am) not (?:real|human|a real|a human|alive)\b|\bnot a real (?:person|human|man)\b/i],
     ['o jogador não se chama Nilo', /,\s*nilo\b/i],
     // ── "I'M AN ASSISTANT" — o buraco que o few-shot escancarou ──────────
     //

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     falarPeloPipeline, limparFrase, enumerarEmIngles, pipelineLigado,
-    aplicarRemendo, primeiraFraseFechada,
+    aplicarRemendo, primeiraFraseFechada, comAsQuebrasDeCanone,
     type PassoDoPipeline, type PecasDoPipeline,
  semRaciocinio,} from '../npc/floor10Pipeline';
 
@@ -339,5 +339,68 @@ describe('o raciocínio não é a fala', () => {
 
     it('texto sem raciocínio passa intacto', () => {
         expect(semRaciocinio('It opens when it wants to.')).toBe('It opens when it wants to.');
+    });
+});
+
+/**
+ * ── O CÂNONE MARCA O RASCUNHO, E ANTES SÓ REPROVAVA O REMENDO ─────────────
+ *
+ * Medido no pipeline inteiro, com o juiz de tom de pé: duas falas foram à tela
+ * com quebra clara e ZERO marcações, porque o tom estava impecável e tom não é
+ * cânone. As duas regras existiam e só eram consultadas depois do revisor.
+ */
+describe('o cânone marca o rascunho', () => {
+    it('marca a frase que põe o Nilo dentro do elevador', () => {
+        const frases = ['We are in a hotel elevator, on the 10th floor.', 'It is quiet.'];
+        const m = comAsQuebrasDeCanone(frases, []);
+        expect(m.map((x) => x.n)).toEqual([1]);
+        expect(m[0].porque).toContain('10th FLOOR');
+    });
+
+    it('marca a negação de ser gente', () => {
+        const m = comAsQuebrasDeCanone(['No, I am not real.'], []);
+        expect(m).toHaveLength(1);
+        expect(m[0].porque).toContain('human being');
+    });
+
+    it('não marca fala boa', () => {
+        expect(comAsQuebrasDeCanone(['The elevator does not obey me.', 'I have looked.'], []))
+            .toEqual([]);
+    });
+
+    // Duas fontes, uma marcação: dois pedidos para a mesma frase custariam dois
+    // remendos, e o revisor lê melhor os dois motivos juntos.
+    it('junta o motivo do juiz com o do cânone numa marcação só', () => {
+        const m = comAsQuebrasDeCanone(
+            ['No, I am not real.'],
+            [{ n: 1, porque: 'it sounds like a machine.' }],
+        );
+        expect(m).toHaveLength(1);
+        expect(m[0].porque).toContain('it sounds like a machine.');
+        expect(m[0].porque).toContain('Also,');
+    });
+});
+
+/**
+ * ── O MESMO REMENDO DUAS VEZES NÃO VAI PARA A TELA ────────────────────────
+ *
+ * Medido: duas frases marcadas na mesma fala receberam o MESMO remendo, e o
+ * jogador leu "As portas abriram-se, saí e fecharam-se." duas vezes seguidas.
+ * O revisor não erra sozinho — ele responde dois pedidos parecidos sem lembrar
+ * do primeiro. Na dúvida fica a original: frase fora de tom é ruim, frase
+ * repetida quebra a ilusão de que tem alguém falando.
+ */
+describe('remendo repetido', () => {
+    it('recusa o segundo e mantém a frase original', async () => {
+        const r = await falarPeloPipeline('How did you get here?', pecas({
+            rascunhar: async () => 'The door opened. I walked in. It closed.',
+            julgar: async () => [{ n: 1, porque: 'x' }, { n: 2, porque: 'y' }],
+            remendar: frase('The doors opened and closed again.'),
+        }));
+        expect(r?.marcadas).toBe(2);
+        expect(r?.remendadas).toBe(1);
+        const vezes = (r?.fala.match(/The doors opened and closed again\./g) ?? []).length;
+        expect(vezes).toBe(1);
+        expect(r?.fala).toContain('I walked in.');
     });
 });

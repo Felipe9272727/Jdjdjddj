@@ -82,7 +82,7 @@ export // AS REGRAS ABAIXO SÃO AS DE `src/npc/floor10CanoneDoNilo.ts`. Duas del
 // granite 4.0 h-1B passou com "The player's question, \"Will this hotel ever
 // end?\"", que é narração pura. Enquanto a bancada for .mjs e o jogo .ts, esta
 // cópia existe; se divergirem de novo, é aqui que o placar mente.
-const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test(t)
+const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|that|the|an?)\s+(?:hotel\s+)?elevator\b/i.test(t)
     || /\bthe player\b/i.test(t)
     || /\bthe (?:narrator|speaker|protagonist)\b/i.test(t)
     || /\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i.test(t)
@@ -96,7 +96,7 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     // na bancada. Agora as duas linhas são a mesma linha.
     || /\b(?:i'?d|i would)\s+advise\b|\byou should\b|\bremain calm\b|\bi'?m here to (?:help|assist)\b|\bi'?m an? (?:assistant|ai|bot)\b|\bi can help you\b|\bformulate a response\b/i.test(t)
     || /\b(?:now,? )?let'?s continue\b|\bwrong line:|\bcorrected line:/i.test(t)
-    || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b/i.test(t)
+    || /\b(?:AI|language model|simulation|program|algorithm|system prompt)\b|\bi(?:'m| am) not (?:real|human|a real|a human|alive)\b|\bnot a real (?:person|human|man)\b/i.test(t)
     || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
     || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)
     || /\bVance\b/i.test(t)
