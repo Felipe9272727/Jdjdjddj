@@ -206,6 +206,20 @@ for (const pergunta of PERGUNTAS) {
         const emIngles = await tradutor.traduzirPerguntaParaIngles(perguntaPt);
         const tTrad = Date.now() - t0;
         const passos = [];
+        // ── POR QUE UM TURNO VOLTA NULO EM 0,0 s ─────────────────────────
+        //
+        // `falarPeloPipelineReal` sai na primeira linha quando
+        // `pipelineDisponivel()` é falso, e sai ANTES de qualquer `anotar` —
+        // então a caixa-preta fica muda e o sintoma é indistinguível de um erro
+        // engolido. Estes três valores separam as três causas possíveis: a URL
+        // sem `?pipeline`, o rascunhador fora do ar, ou uma exceção lá dentro.
+        const P = await import('/src/npc/floor10Pipeline.ts');
+        const R = await import('/src/npc/floor10Rascunhador.ts');
+        const antes = {
+            ligado: P.pipelineLigado(),
+            rascunhador: R.rascunhadorJaCarregado(),
+            disponivel: pipeline.pipelineDisponivel(),
+        };
         const t1 = Date.now();
         const saida = await pipeline.falarPeloPipelineReal(
             emIngles ?? perguntaPt,
@@ -226,7 +240,7 @@ for (const pergunta of PERGUNTAS) {
             perguntaPt,
         );
         return {
-            emIngles, tTrad, passos,
+            emIngles, tTrad, passos, antes,
             ms: Date.now() - t1,
             fala: saida?.fala ?? null,
             marcadas: saida?.marcadas ?? 0,
@@ -253,6 +267,9 @@ for (const pergunta of PERGUNTAS) {
     console.log(`   (rascunhador de volta em ${voltou < 0 ? 'NUNCA' : voltou.toFixed(1) + 's'})`);
     console.log(`\n▸ ${pergunta}`);
     console.log(`   pt→en ${(r.tTrad / 1000).toFixed(1)}s · "${r.emIngles}"`);
+    if (!r.antes.disponivel) {
+        console.log(`   ⚠ pipeline indisponível — ligado:${r.antes.ligado} rascunhador:${r.antes.rascunhador}`);
+    }
     for (const p of r.passos) {
         console.log(`   ${String(p.passo).padEnd(10)} ${((p.ms ?? 0) / 1000).toFixed(1).padStart(5)}s  ${JSON.stringify(p.texto).slice(0, 150)}`);
     }
