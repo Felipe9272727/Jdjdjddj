@@ -102,7 +102,34 @@ if (!API_KEY || !API_URL) {
 // com folga no primeiro teste, e cortar no meio é o mesmo que desligar.
 const TETO_PROFESSOR = Number(process.env.TETO_PROFESSOR ?? 900);
 
+// ── MARCA-PASSO: NUNCA BATER NO MURO ─────────────────────────────────────
+//
+// A primeira versão acelerava até levar 429 e então esperava até dois minutos.
+// É o pior dos dois mundos, e o dono do jogo cortou certo: "não quero esperar
+// 300 mins". Insistir mais não resolve — resolve NÃO BATER.
+//
+// Controle de ritmo clássico (sobe devagar, corta rápido): a cada quatro
+// sucessos o intervalo entre chamadas encolhe 10%; a cada 429 ele cresce 70%.
+// Em poucos minutos converge para pouco abaixo do que a chave aceita, e o 429
+// vira exceção em vez de rotina.
+//
+// A tentativa é INFINITA, também por pedido dele: nenhum caso se perde. Com o
+// marca-passo funcionando, a espera é de segundos e não de minutos.
+let intervalo = 1500;
+let ultimaSaida = 0;
+let seguidos = 0;
+let bloqueios = 0;
+const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+async function aVez() {
+    const agora = Date.now();
+    const quando = Math.max(agora, ultimaSaida + intervalo);
+    ultimaSaida = quando;
+    if (quando > agora) await dormir(quando - agora);
+}
+
 async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativa = 0) {
+    await aVez();
     const r = await fetch(API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
@@ -118,13 +145,22 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
     // Desistir na primeira recusa jogaria fora o caso inteiro; esperar e repetir
     // custa segundos e salva a linha.
     if (r.status === 429 || r.status === 503) {
+        // O DONO DO JOGO CONHECE O RITMO: "vc pode mandar uma mensagem, e dps
+        // tem que esperar um pouco pra resetar, mas isso é em 1/2 min". É
+        // limite por MINUTO, não cota total — então a paciência precisa passar
+        // de um minuto, senão a gente desiste justamente quando ia liberar. Com
+        // teto de 30 s e 6 tentativas eu esperava 62 s no total e perdia o caso.
+        bloqueios += 1;
+        seguidos = 0;
+        intervalo = Math.min(20_000, Math.round(intervalo * 1.7));
         const espera = Number(r.headers.get('retry-after') ?? 0) * 1000
-            || Math.min(30_000, 2000 * 2 ** tentativa);
-        if (tentativa >= 5) throw new Error(`HTTP ${r.status} depois de 6 tentativas`);
-        await new Promise((ok) => setTimeout(ok, espera + Math.random() * 500));
+            || Math.min(30_000, intervalo);
+        await dormir(espera + Math.random() * 400);
         return perguntar(mensagens, temperatura, teto, tentativa + 1);
     }
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`);
+    seguidos += 1;
+    if (seguidos >= 4) { intervalo = Math.max(400, Math.round(intervalo * 0.9)); seguidos = 0; }
     const j = await r.json();
     const m = j?.choices?.[0]?.message ?? {};
     const fala = String(m.content ?? '').trim();
@@ -249,7 +285,7 @@ if (MODO === 'on') {
             console.error(`  ${i + 1}/${tentativas.length} tentativas · ${escritos} linhas · ${contagemPorAbertura.size} aberturas`);
         }
     }
-    console.error(`\n  ${escritos} correções · ${contagemPorAbertura.size} aberturas distintas · ${recusados} recusadas`);
+    console.error(`\n  ${escritos} correções · ${contagemPorAbertura.size} aberturas distintas · ${recusados} recusadas · ritmo ${(60000 / intervalo).toFixed(0)}/min · ${bloqueios} bloqueios`);
     process.exit(0);
 }
 
@@ -309,7 +345,7 @@ const raia = async () => {
         const i = proximo; proximo += 1;
         await umCaso(i);
         if ((i + 1) % 25 === 0) {
-            console.error(`  ${i + 1}/${CASOS} casos · ${escritos} linhas · ${contagemPorAbertura.size} aberturas · ${recusados} recusadas`);
+            console.error(`  ${i + 1}/${CASOS} casos · ${escritos} linhas · ${contagemPorAbertura.size} aberturas · ${recusados} recusadas · ritmo ${(60000 / intervalo).toFixed(0)}/min · ${bloqueios} bloqueios`);
         }
     }
 };
