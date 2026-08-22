@@ -19,14 +19,33 @@
 # aluno nunca visita. É o defeito que hoje faz o revisor encostar na resposta
 # decorada mais parecida quando a entrada não bate com nenhuma que ele viu.
 #
-# ── O QUE ISTO NÃO PODE ENTREGAR ─────────────────────────────────────────
+# ── O ALVO, NAS PALAVRAS DO DONO DO JOGO ─────────────────────────────────
 #
-# 873M de parâmetros no aluno contra 27,78 bilhões no professor: 32 para 1, e
-# boa parte dos 873M é tabela de embeddings de um vocabulário de 248 mil, que
-# não computa nada. Estilo, formato e forma de raciocinar transferem — são a
-# distribuição de saída, e é exatamente ela que o KL copia. Conhecimento não
-# cabe, e nenhum treino conserta capacidade. O que sai é um especialista que
-# pensa como o professor NO DOMÍNIO destilado.
+# "eu quero que ele pense como o 27b, e que ele tenha uma forma de falar do
+# 27b, eu não quero que ele tenha todas as capacidades do 27b, quero que ele
+# consiga usar ao máximo tudo o que ele tem ao favor".
+#
+# Isso não é uma versão modesta do objetivo, é um objetivo DIFERENTE, e ele
+# muda o treino em três pontos concretos:
+#
+#   1. NÃO É LoRA. LoRA prende a mudança a um subespaço de posto baixo — ótimo
+#      para ensinar uma tarefa a um modelo que já sabe se comportar, péssimo
+#      para REFAZER o comportamento. Quem quer usar ao máximo os 873M treina os
+#      873M. Cabe: pesos 1,75 GB + gradientes 1,75 GB + Adam de 8 bits 1,75 GB,
+#      contra o professor em 4 bits ocupando 16 GB na A100 de 40.
+#
+#   2. A TEMPERATURA DA DESTILAÇÃO SOBE. Com T=1 o KL é dominado pelo token
+#      mais provável, e o aluno copia a ESCOLHA. O jeito de falar não está na
+#      escolha, está na ordem dos que ele NÃO escolheu — o que o professor
+#      considerou e descartou. T=2 achata a distribuição e faz esse sinal pesar,
+#      que é literalmente o que se quer transferir aqui.
+#
+#   3. A CABEÇA DE SAÍDA ENTRA NO TREINO. Com LoRA ela fica de fora por padrão,
+#      e ela é a camada que decide a palavra. Treinar estilo sem treinar a
+#      cabeça é pedir sotaque novo proibindo mexer na boca.
+#
+# O que continua fora do alcance é conhecimento do mundo, e isso não é limite
+# deste treino, é o que ele NÃO está tentando fazer.
 #
 # ── MEMÓRIA, NA A100 DE 40 GB ────────────────────────────────────────────
 #
@@ -65,10 +84,22 @@ FRESCOR = int(os.environ.get('FRESCOR', 1))       # a cada quantos passos regera
 GERA_TOKENS = int(os.environ.get('GERA_TOKENS', 120))
 TEMPERATURA = float(os.environ.get('TEMPERATURA', 1.0))
 FATIA = int(os.environ.get('FATIA', 64))          # posições por fatia no KL
-T_KL = float(os.environ.get('T_KL', 1.0))         # temperatura da destilação
+# T=2 por padrão, e o motivo está na seção do alvo: o jeito de falar mora na
+# cauda da distribuição, não no argmax. O termo T² na perda compensa o encolhi-
+# mento dos gradientes que a temperatura causa — sem ele, subir T é o mesmo que
+# baixar a taxa de aprendizado sem querer.
+T_KL = float(os.environ.get('T_KL', 2.0))         # temperatura da destilação
 ALFA_CE = float(os.environ.get('ALFA_CE', 0.0))   # peso de uma CE auxiliar
-LR = float(os.environ.get('LR', 1e-4))
 BITS = os.environ.get('BITS', '4')                # 4 | 8 | 16
+INTEIRO = os.environ.get('INTEIRO', '1') == '1'   # treinar os 873M, não só LoRA
+# ── A TAXA MUDA COM O MODO, E MUITO ──────────────────────────────────────
+#
+# 1e-4 é taxa de LoRA: ali só uma fatia de posto baixo se move, e o resto do
+# modelo segura o passo largo. Aplicada aos 873M inteiros, ela desmancha o
+# modelo nos primeiros passos — e num treino on-policy o estrago se realimenta,
+# porque as amostras do passo seguinte saem do modelo já estragado. Ajuste fino
+# completo trabalha uma ordem de grandeza abaixo.
+LR = float(os.environ.get('LR', 1.5e-5 if INTEIRO else 1e-4))
 TETO_PROMPT = int(os.environ.get('TETO_PROMPT', 512))
 
 print(f'  professor {MESTRE} em {BITS} bits · aluno {ALUNO}', flush=True)
@@ -133,9 +164,16 @@ for p in professor.parameters():
 
 aluno = carregar(BASE_ALUNO, dtype=torch.bfloat16).cuda()
 if Path(ALUNO).exists():
-    aluno = PeftModel.from_pretrained(aluno, ALUNO, is_trainable=True)
-    print(f'  aluno continua de {ALUNO}', flush=True)
-else:
+    # A v2 sai da SFT como adaptador. Aqui ela é ABSORVIDA nos pesos antes de
+    # continuar: manter o LoRA por cima limitaria o resto do treino ao mesmo
+    # subespaço de posto baixo, que é justamente o que se quer soltar.
+    aluno = PeftModel.from_pretrained(aluno, ALUNO, is_trainable=not INTEIRO)
+    if INTEIRO:
+        aluno = aluno.merge_and_unload()
+        print(f'  v2 de {ALUNO} mesclada nos pesos', flush=True)
+    else:
+        print(f'  aluno continua de {ALUNO} como adaptador', flush=True)
+elif not INTEIRO:
     import torch.nn as nn
     sufixos = sorted({n.split('.')[-1] for n, m in aluno.named_modules()
                       if isinstance(m, nn.Linear) and not n.endswith('lm_head')})
@@ -143,7 +181,15 @@ else:
     aluno = get_peft_model(aluno, LoraConfig(
         r=32, lora_alpha=64, lora_dropout=0.05, bias='none',
         task_type='CAUSAL_LM', target_modules=sufixos))
-aluno.print_trainable_parameters()
+
+if INTEIRO:
+    for p_ in aluno.parameters():
+        p_.requires_grad_(True)
+    aluno.gradient_checkpointing_enable()
+    n_treina = sum(p_.numel() for p_ in aluno.parameters() if p_.requires_grad)
+    print(f'  treino INTEIRO: {n_treina / 1e6:.0f}M parâmetros, cabeça de saída incluída', flush=True)
+else:
+    aluno.print_trainable_parameters()
 
 # ── OS ENUNCIADOS VÊM DO CORPUS, AS RESPOSTAS NÃO ────────────────────────
 #
@@ -224,7 +270,23 @@ def kl_em_fatias(ids, atencao, inicio, mascara):
     return (perda / n) * (T_KL ** 2)
 
 
-otim = torch.optim.AdamW([p for p in aluno.parameters() if p.requires_grad], lr=LR)
+# ── ADAM DE 8 BITS QUANDO TREINA INTEIRO ─────────────────────────────────
+#
+# AdamW comum guarda dois estados em float32 por parâmetro: 873M × 8 bytes = 7
+# GB, que somados ao professor de 16 GB apertam a A100 sem necessidade. O Adam
+# de 8 bits guarda os mesmos dois estados quantizados: 1,75 GB. A diferença de
+# qualidade em ajuste fino é pequena e conhecida; a de memória é 5 GB.
+treinaveis = [p_ for p_ in aluno.parameters() if p_.requires_grad]
+otim = None
+if INTEIRO:
+    try:
+        import bitsandbytes as bnb
+        otim = bnb.optim.AdamW8bit(treinaveis, lr=LR)
+        print('  otimizador: AdamW de 8 bits', flush=True)
+    except ImportError:
+        print('  bitsandbytes ausente — AdamW comum, ~5 GB a mais', flush=True)
+if otim is None:
+    otim = torch.optim.AdamW(treinaveis, lr=LR)
 passos_totais = PASSOS
 agenda = torch.optim.lr_scheduler.OneCycleLR(
     otim, max_lr=LR, total_steps=passos_totais, pct_start=0.1)
@@ -259,7 +321,7 @@ for passo in range(1, passos_totais + 1):
         ce = (ce.view(mascara.shape) * mascara).sum() / mascara.sum().clamp(min=1)
         perda = perda + ALFA_CE * ce
     perda.backward()
-    torch.nn.utils.clip_grad_norm_([p for p in aluno.parameters() if p.requires_grad], 1.0)
+    torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
     otim.step()
     agenda.step()
     otim.zero_grad(set_to_none=True)
@@ -274,5 +336,17 @@ for passo in range(1, passos_totais + 1):
 
 aluno.save_pretrained(str(SAIDA))
 tok.save_pretrained(str(SAIDA))
-print(f'\n  pronto em {(time.time() - t0) / 60:.1f} min · adaptador em {SAIDA}', flush=True)
-print('  o adaptador é só o LoRA: para o gguf, mescle com a base antes de converter.', flush=True)
+print(f'\n  pronto em {(time.time() - t0) / 60:.1f} min · em {SAIDA}', flush=True)
+if INTEIRO:
+    print('  são os pesos completos: dá para converter para gguf direto.', flush=True)
+    # ── O PRÓXIMO CORTE, E ELE É DESTE MESMO PEDIDO ──────────────────────
+    #
+    # "usar ao máximo tudo o que ele tem": 254M dos 873M são tabela de
+    # embeddings de um vocabulário de 248 mil tokens. O Nilo fala inglês e
+    # emite algumas centenas de padrões. Podar o vocabulário depois da
+    # destilação devolve quase um terço do arquivo sem tocar em uma única
+    # camada que computa — e tem que ser DEPOIS, porque o KL exige o
+    # vocabulário casado com o do professor.
+    print('  próximo passo: podar o vocabulário (o KL já terminou, pode cortar).', flush=True)
+else:
+    print('  é só o adaptador: para o gguf, mescle com a base antes de converter.', flush=True)
