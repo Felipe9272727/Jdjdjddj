@@ -265,14 +265,16 @@ console.log(`\n${'═'.repeat(78)}`);
 console.log(`  ${linhas.length} falas · média de ${total.toFixed(1)}s por turno (tradução da pergunta incluída)`);
 console.log(`  marcadas ${linhas.reduce((s, l) => s + l.marcadas, 0)} · remendadas ${linhas.reduce((s, l) => s + l.remendadas, 0)}`);
 console.log(`  revisor: ${REVISOR}`);
-const memoria = await page.evaluate(async () => {
+// O campo é `tipo` — a primeira versão filtrava por `evento`/`nome` e não
+// imprimia nada, o que parecia "a memória não rodou" quando era o filtro.
+const eventos = await page.evaluate(async () => {
     const C = await import('/src/npc/floor10CaixaPreta.ts');
     return C.eventosDaCaixaPreta()
-        .filter((e) => String(e.evento ?? e.nome ?? '').startsWith('pipeline:memoria'))
-        .map((e) => JSON.stringify(e.dados ?? e));
+        .filter((e) => /^(pipeline|rascunhador|revisor|vontade):/.test(String(e.tipo ?? '')))
+        .map((e) => `${String(e.tipo).padEnd(24)} ${JSON.stringify(e.dados ?? {})}`);
 });
-console.log(`\n  o que a memória entregou em cada fala:`);
-for (const m of memoria) console.log(`    ${m}`);
+console.log(`\n  a caixa-preta do andar, filtrada:`);
+for (const m of eventos.slice(-40)) console.log(`    ${m}`);
 await browser.close();
 servidorDaPonte.close();
 fs.rmSync(CACHE, { recursive: true, force: true });
