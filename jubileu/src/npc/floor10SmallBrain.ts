@@ -33,7 +33,8 @@ import {
 } from './floor10MotorCortex';
 import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
 import {
-    PERSONA_DO_REVISOR_TREINADO, REMENDO_TREINADO_TOKENS, enunciadoTreinado,
+    PERSONA_DO_REVISOR_TREINADO, REMENDO_TREINADO_TOKENS, TEMPERATURA_DO_TREINADO,
+    enunciadoTreinado,
 } from './floor10RevisorTreinado';
 import { completar as completarNoMicro } from './floor10Reflexo';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
@@ -2038,9 +2039,10 @@ export async function remendarFraseEmIngles(
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
             stream: true,
-            // Guloso no treinado: conserto é escolha, não sorteio, e foi assim
-            // que ele foi afinado e medido (temperatura 0, sem top_p/top_k).
-            ...(treinado ? { temperature: 0 } : {}),
+            // NÃO guloso no treinado — ver TEMPERATURA_DO_TREINADO: guloso
+            // devolve a mesma frase para entrada parecida, e era isso que fazia
+            // as três respostas de "Você é real?" começarem igual.
+            ...(treinado ? { temperature: TEMPERATURA_DO_TREINADO } : {}),
             max_tokens: treinado ? REMENDO_TREINADO_TOKENS : tokensDoRemendo(),
             grammar: undefined,
             // NO-OP NESTE MODELO, e fica registrado para ninguém confiar nele:

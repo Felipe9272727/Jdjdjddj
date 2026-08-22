@@ -39,3 +39,26 @@ export function enunciadoTreinado(
  * escrever depois da frase.
  */
 export const REMENDO_TREINADO_TOKENS = 40;
+
+/**
+ * ── A TEMPERATURA DO REVISOR TREINADO, E POR QUE NÃO É ZERO ──────────────
+ *
+ * Eu tinha fixado 0 aqui, por uma medição feita ANTES de este modelo existir:
+ * nos revisores de prateleira, guloso matava os desvios (3/12 → 0/12) e tornava
+ * o resultado determinístico. A conclusão não sobreviveu ao modelo treinado.
+ *
+ * O dono do jogo apontou que o revisor "parece um bot com frase pré-programada"
+ * — as três respostas de "Você é real?" começavam com a MESMA frase, palavra
+ * por palavra. Medido na prova de 24 casos, duas rodadas:
+ *
+ *     temperatura 0     44/48 consertos · 26/51 aberturas distintas
+ *     temperatura 0,7   43/48 consertos · 39/51 aberturas distintas
+ *
+ * Metade a mais de repertório por um conserto a menos em 48, e ZERO quebras de
+ * cânone nas duas — o treino segura o cânone sozinho, que era o trabalho que a
+ * temperatura 0 estava fazendo antes.
+ *
+ * Em temperatura 0 duas chamadas iguais devolvem a mesma frase por construção;
+ * era isso que o jogador estava vendo, e não falta de vocabulário do modelo.
+ */
+export const TEMPERATURA_DO_TREINADO = 0.7;
