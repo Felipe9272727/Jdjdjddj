@@ -260,12 +260,27 @@ elif not INTEIRO:
         r=32, lora_alpha=64, lora_dropout=0.05, bias='none',
         task_type='CAUSAL_LM', target_modules=sufixos))
 
+# ── RECALCULAR ATIVAÇÕES SÓ SE FALTAR MEMÓRIA ────────────────────────────
+#
+# `gradient_checkpointing` troca memória por tempo: joga as ativações fora e
+# recalcula no backward. Numa GPU apertada é o que viabiliza o treino; numa de
+# 80 GiB, onde o pico medido foi 54 GiB, é só imposto.
+#
+# E ele cobra duas vezes, porque o transformers desliga o cache de atenção junto
+# — a geração passa a reprocessar a sequência inteira a cada token novo, o que a
+# torna quadrática. Com 120 tokens gerados por amostra, é a maior fatia do passo.
+RECALCULA = os.environ.get('RECALCULA', 'auto')
+if RECALCULA == 'auto':
+    RECALCULA = 'sim' if (torch.cuda.mem_get_info()[0] / 2**30) < 18 else 'nao'
+
 if INTEIRO:
     for p_ in aluno.parameters():
         p_.requires_grad_(True)
-    aluno.gradient_checkpointing_enable()
+    if RECALCULA == 'sim':
+        aluno.gradient_checkpointing_enable()
     n_treina = sum(p_.numel() for p_ in aluno.parameters() if p_.requires_grad)
-    print(f'  treino INTEIRO: {n_treina / 1e6:.0f}M parâmetros, cabeça de saída incluída', flush=True)
+    print(f'  treino INTEIRO: {n_treina / 1e6:.0f}M parâmetros, cabeça de saída incluída'
+          f' · recalcular ativações: {RECALCULA}', flush=True)
 else:
     aluno.print_trainable_parameters()
 
@@ -299,11 +314,20 @@ def um_lote(indices):
     entrada = torch.tensor([[tok.pad_token_id] * (largura - len(p)) + p for p in prompts]).cuda()
     atencao = torch.tensor([[0] * (largura - len(p)) + [1] * len(p) for p in prompts]).cuda()
     aluno.eval()
+    # O cache vale mesmo quando o recálculo está ligado: aqui não há backward,
+    # então desligar o checkpointing durante a geração não custa memória de
+    # gradiente nenhuma, e devolve a geração linear.
+    if RECALCULA == 'sim':
+        aluno.gradient_checkpointing_disable()
+    aluno.config.use_cache = True
     with torch.no_grad():
         saida = aluno.generate(
             input_ids=entrada, attention_mask=atencao,
             max_new_tokens=GERA_TOKENS, do_sample=True, temperature=TEMPERATURA,
             top_p=0.95, pad_token_id=tok.pad_token_id, use_cache=True)
+    aluno.config.use_cache = False
+    if RECALCULA == 'sim':
+        aluno.gradient_checkpointing_enable()
     aluno.train()
     gerado = saida[:, largura:]
     # A perda só vale nas posições que o ALUNO escreveu: o enunciado é contexto
@@ -414,7 +438,7 @@ for passo in range(1, passos_totais + 1):
     otim.step()
     agenda.step()
     otim.zero_grad(set_to_none=True)
-    if passo % 10 == 0 or passo == 1:
+    if passo <= 5 or passo % 10 == 0:
         gasto = time.time() - t0
         pico = torch.cuda.max_memory_allocated() / 2**30
         print(f'  passo {passo}/{passos_totais} · KL {perda.item():.4f} · '
