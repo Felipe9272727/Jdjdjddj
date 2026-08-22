@@ -33,8 +33,22 @@
 //
 // ── USO ──────────────────────────────────────────────────────────────────
 //
-//   API_KEY=... API_URL=https://…/chat/completions MODELO=qwen3.8-27b \
-//   CASOS=400 POR_CASO=4 node corpus/destilar.mjs > corpus/destilado.jsonl
+//   API_KEY=... API_URL=https://…/chat/completions MODELO=… \
+//   CASOS=300 POR_CASO=3 PENSAR=1 PARALELO=6 node corpus/destilar.mjs \
+//     > corpus/destilado.jsonl 2> producao.log
+//
+// ── QUEM É O PROFESSOR, E POR QUE ────────────────────────────────────────
+//
+// Escolhido por medição, não por tamanho. Na prova de seis casos:
+//
+//   nemotron-3-ultra-550b   6/6 na régua · 6/6 aberturas · 12 palavras
+//   kimi-k3                 6/6 na régua · 6/6 aberturas · 24 palavras
+//
+// As duas passam; a de 12 palavras é a que escreve o Nilo, que é seco. E a
+// vazão desempatou de vez, medida com o prompt de verdade, doze chamadas
+// seguidas: o ultra deu 10/12 (dois 503 passageiros, nenhum bloqueio de cota),
+// o k3 deu 0/12 — todas recusadas por cota, mesmo a três chamadas por minuto.
+// Um professor que não responde não é professor.
 //
 // Serve qualquer API no formato OpenAI. Sem chave ele não roda e não inventa
 // nada — corpus de mentira é pior que corpus pequeno.
@@ -115,7 +129,7 @@ const TETO_PROFESSOR = Number(process.env.TETO_PROFESSOR ?? 900);
 //
 // A tentativa é INFINITA, também por pedido dele: nenhum caso se perde. Com o
 // marca-passo funcionando, a espera é de segundos e não de minutos.
-let intervalo = 1500;
+let intervalo = Number(process.env.RITMO_MS ?? 1500);
 let ultimaSaida = 0;
 let seguidos = 0;
 let bloqueios = 0;
@@ -153,8 +167,16 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
         bloqueios += 1;
         seguidos = 0;
         intervalo = Math.min(20_000, Math.round(intervalo * 1.7));
-        const espera = Number(r.headers.get('retry-after') ?? 0) * 1000
-            || Math.min(30_000, intervalo);
+        // ── O `retry-after` PRECISA DE TETO ──────────────────────────────
+        //
+        // Custou três minutos de produção MUDA para descobrir: sem teto, um
+        // `retry-after` grande manda o laço dormir sem imprimir nada, e de fora
+        // isso é indistinguível de um travamento. O limite desta chave reseta
+        // em um ou dois minutos — o dono do jogo mediu isso na mão — então
+        // dormir mais que isso é desperdício, não paciência.
+        const pedido = Number(r.headers.get('retry-after') ?? 0) * 1000;
+        const espera = Math.min(60_000, pedido || Math.min(30_000, intervalo));
+        console.error(`  ‹${r.status}› espera ${(espera / 1000).toFixed(1)}s (pedido ${(pedido / 1000) || '-'}s) · ritmo ${(60000 / intervalo).toFixed(0)}/min · bloqueio ${bloqueios}`);
         await dormir(espera + Math.random() * 400);
         return perguntar(mensagens, temperatura, teto, tentativa + 1);
     }
@@ -170,9 +192,17 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
     // foi o buraco que deu 0/12 ao Huihui.
     // O bloco pedido vem DENTRO do content. O campo nativo só entra se o
     // professor tiver ignorado a forma — e aí ele é meta, então não vai ao alvo.
+    // Primeiro a forma rotulada, que é a que o professor entrega de verdade;
+    // depois a tag literal, para o caso de trocar de professor sem trocar isto.
+    const porQue = /^\s*WHY:\s*(.+)$/mi.exec(fala);
+    const aLinha = /^\s*LINE:\s*(.+)$/mi.exec(fala);
     const doTexto = /<think>([\s\S]*?)<\/think>/.exec(fala);
-    const raciocinio = doTexto ? doTexto[1].trim() : '';
-    const linha = UMA_FRASE(doTexto ? fala.slice(doTexto.index + doTexto[0].length) : fala);
+    const raciocinio = porQue ? porQue[1].trim() : (doTexto ? doTexto[1].trim() : '');
+    const linha = UMA_FRASE(
+        aLinha ? aLinha[1]
+            : doTexto ? fala.slice(doTexto.index + doTexto[0].length)
+                : fala.replace(/^\s*WHY:.*$/mi, ''),
+    );
     return {
         fala: linha,
         pensou: raciocinio || pensou,
@@ -223,11 +253,25 @@ const PEDIR_CONSERTO = (q, errada, regra) => [
 //
 // Pedindo a forma no sistema, ele entrega raciocínio sobre o DEFEITO e uma
 // frase só — medido antes de produzir.
+// ── POR QUE `WHY:` / `LINE:` E NÃO `<think>` ─────────────────────────────
+//
+// Pedir a tag literal falhou, e falhou em silêncio: o professor RACIOCINA de
+// verdade (283 e 810 chars de raciocínio nativo nos dois casos medidos), só que
+// o servidor separa esse texto no campo `reasoning_content` e entrega o
+// `content` já limpo, sem tag nenhuma. O corpus saía sem um único bloco de
+// pensamento — ou seja, `PENSAR=1` produzia exatamente o mesmo que `PENSAR=0`,
+// e isso só apareceu porque eu abri as três primeiras linhas antes de deixar
+// rodar meia hora.
+//
+// Usar o raciocínio nativo no lugar não serve: ele é exploratório e longo, e
+// treinar nele ensina o aluno a divagar a 11,6 tok/s. Duas linhas rotuladas
+// atravessam o canal de raciocínio intactas, e a régua consegue conferir que as
+// DUAS chegaram. O bloco `<think>` é montado aqui, do lado de cá.
 const COMO_PENSAR = `
 
-Answer in exactly two parts:
-<think>one short sentence naming what the wrong line got wrong</think>
-ONE sentence in Nilo's voice. One sentence only, no label, no quotes.`;
+Answer in exactly two lines, with these labels and nothing else:
+WHY: one short sentence naming what the wrong line got wrong
+LINE: one sentence in Nilo's voice, no quotes, no label after it`;
 const SO_UMA_FRASE = `
 
 Answer with ONE sentence in Nilo's voice. One sentence only, no label, no quotes.`;
@@ -297,6 +341,7 @@ if (MODO === 'on') {
 const AO_MESMO_TEMPO = Number(process.env.PARALELO ?? 6);
 
 async function umCaso(i) {
+    let aceitos = 0;
     const q = PERGUNTAS[i % PERGUNTAS.length];
     const regra = REGRAS_DO_CANONE[Math.floor(Math.random() * REGRAS_DO_CANONE.length)];
     let errada = '';
@@ -308,7 +353,12 @@ async function umCaso(i) {
             if (regra.re.test(bruta)) errada = bruta;
         }
     } catch (e) { console.error(`  ‹erro› ${String(e.message).slice(0, 100)}`); return; }
-    if (!errada) { defeitosRuins += 1; return; }
+    if (!errada) {
+        defeitosRuins += 1;
+        console.error(`  caso ${i} · ${regra.regra} · SEM DEFEITO VÁLIDO em 3 tentativas`);
+        return;
+    }
+    console.error(`  caso ${i} · ${regra.regra} · defeito ok`);
 
     for (let k = 0; k < POR_CASO; k += 1) {
         let bruto = '';
@@ -321,6 +371,11 @@ async function umCaso(i) {
         // inteira desta caçada.
         const conserto = semAspas(PENSAR ? SEM_PENSAMENTO(bruto) : bruto);
         if (!conserto || conserto.length < 12) { recusados += 1; continue; }
+        // Com PENSAR=1 o par só serve se as DUAS partes chegaram. Sem esta
+        // conferência o corpus aceita em silêncio alvos sem bloco de
+        // pensamento, e aí `PENSAR=1` vira enfeite — foi o que aconteceu na
+        // primeira tentativa de hoje.
+        if (PENSAR && !bruto.startsWith('<think>')) { recusados += 1; continue; }
         // O professor erra. O que ele erra não vira treino.
         if (REGRAS_DO_CANONE.some((r) => r.re.test(conserto))) { recusados += 1; continue; }
         const ab = abertura(conserto);
@@ -336,8 +391,12 @@ async function umCaso(i) {
             ],
         }));
         escritos += 1;
+        aceitos += 1;
     }
+    console.error(`  caso ${i} · ${aceitos}/${POR_CASO} consertos aceitos · total ${escritos}`);
 }
+
+console.error(`  professor ${MODELO} · ${CASOS} casos × ${POR_CASO} · pensar ${PENSAR ? 'sim' : 'não'} · ${AO_MESMO_TEMPO} raias`);
 
 let proximo = 0;
 const raia = async () => {
