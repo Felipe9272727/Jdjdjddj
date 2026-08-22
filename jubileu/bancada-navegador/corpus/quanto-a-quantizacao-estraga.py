@@ -46,6 +46,10 @@
 import json, os, gc
 from pathlib import Path
 
+# Fragmentação é metade do problema quando o modelo mal cabe: sem isto o
+# carregamento morre pedindo 170 MB com 20 GB já alocados.
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+
 import torch
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -84,24 +88,43 @@ def sequencias():
     return fora
 
 
+# ── TRANSBORDAR PARA A RAM EM VEZ DE MORRER ──────────────────────────────
+#
+# A primeira versão fixava `device_map='cuda:0'` para 4 e 8 bits, e num L4 de
+# 22 GiB o professor em int8 (~28 GiB) estourava no meio da carga. O erro que
+# chega é "tried to allocate 170 MiB", que faz parecer questão de folga — não
+# é, faltam seis gigas.
+#
+# Esta medição não precisa ser rápida: são 200 posições, uma vez. Então o que
+# não cabe na GPU vai para a RAM do sistema e o accelerate traz camada por
+# camada. Numa A100 nada transborda e roda em minutos; num L4 transborda e roda
+# em dezenas de minutos — e dezenas de minutos de L4 valem mais barato que
+# cinco de A100.
 def carregar(modo, nome):
-    kw = {'dtype': torch.bfloat16}
+    livre = torch.cuda.mem_get_info()[0] / 2**30
+    # Dois gigas de folga: os logits de 248 mil colunas são alocados DEPOIS da
+    # carga, e encher a GPU até a borda troca um erro de carga por um de uso.
+    kw = {
+        'dtype': torch.bfloat16,
+        'device_map': 'auto',
+        'max_memory': {0: f'{max(2, int(livre - 2))}GiB', 'cpu': '40GiB'},
+    }
     if modo == '4':
         kw['quantization_config'] = BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_quant_type='nf4',
             bnb_4bit_compute_dtype=torch.bfloat16, bnb_4bit_use_double_quant=True)
-        kw['device_map'] = 'cuda:0'
     elif modo == '8':
-        kw['quantization_config'] = BitsAndBytesConfig(load_in_8bit=True)
-        kw['device_map'] = 'cuda:0'
-    else:
-        # bf16 não cabe em 40 GB: parte fica na RAM do sistema e o transformers
-        # traz camada por camada. Lento e exato — que é o papel da referência.
-        kw['device_map'] = 'auto'
-        kw['max_memory'] = {0: '36GiB', 'cpu': '70GiB'}
+        # Sem esta permissão o bitsandbytes recusa dividir com a CPU e o
+        # device_map='auto' não adianta nada.
+        kw['quantization_config'] = BitsAndBytesConfig(
+            load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=True)
     m = AutoModelForCausalLM.from_pretrained(nome, **kw)
     m.eval()
     m.config.use_cache = False
+    mapa = getattr(m, 'hf_device_map', {}) or {}
+    na_cpu = sum(1 for d in mapa.values() if d in ('cpu', 'disk'))
+    print(f'     {len(mapa) - na_cpu} blocos na GPU · {na_cpu} na RAM'
+          + (' (vai ser lento, e tudo bem)' if na_cpu else ''), flush=True)
     return m
 
 
@@ -112,7 +135,9 @@ def colher(modelo, seqs, limite):
     for ids in seqs:
         if contados >= limite:
             break
-        t = torch.tensor([ids]).to(modelo.device if hasattr(modelo, 'device') else 'cuda')
+        # Com o modelo repartido entre GPU e RAM, `modelo.device` não existe ou
+        # mente: quem manda é onde mora a primeira camada.
+        t = torch.tensor([ids]).to(modelo.get_input_embeddings().weight.device)
         lg = modelo(input_ids=t).logits[0].float().cpu()
         pega = min(len(ids), limite - contados)
         saida.append(lg[:pega].half())
@@ -145,6 +170,7 @@ gc.collect(); torch.cuda.empty_cache()
 
 print(f'  ── o aluno de partida: {ALUNO}', flush=True)
 al = AutoModelForCausalLM.from_pretrained(ALUNO, dtype=torch.bfloat16).cuda().eval()
+al.config.use_cache = False
 lg_aluno = colher(al, seqs, POSICOES)
 del al
 gc.collect(); torch.cuda.empty_cache()
