@@ -1,0 +1,10 @@
+
+# Corpus em produção — o arquivo é escrito enquanto o gerador roda, e commitar
+# um jsonl pela metade guarda um estado que nunca existiu. O corpus PRONTO entra
+# no repositório num commit próprio, com a contagem de linhas e aberturas.
+corpus/destilado.jsonl
+corpus/aluno.jsonl
+corpus/on-policy.jsonl
+corpus/casos.jsonl
+corpus/treino-v*.jsonl
+corpus/revisor-*/

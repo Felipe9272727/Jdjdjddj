@@ -102,7 +102,7 @@ if (!API_KEY || !API_URL) {
 // com folga no primeiro teste, e cortar no meio é o mesmo que desligar.
 const TETO_PROFESSOR = Number(process.env.TETO_PROFESSOR ?? 900);
 
-async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR) {
+async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativa = 0) {
     const r = await fetch(API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
@@ -111,6 +111,19 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR) {
             max_tokens: Math.max(teto, TETO_PROFESSOR),
         }),
     });
+    // ── 429 NÃO É ERRO, É RITMO ──────────────────────────────────────────
+    //
+    // O tier grátis da NVIDIA devolveu 429 com TRÊS chamadas simultâneas — o
+    // "sem teto diário" que eu tinha lido num blog não se sustentou no teste.
+    // Desistir na primeira recusa jogaria fora o caso inteiro; esperar e repetir
+    // custa segundos e salva a linha.
+    if (r.status === 429 || r.status === 503) {
+        const espera = Number(r.headers.get('retry-after') ?? 0) * 1000
+            || Math.min(30_000, 2000 * 2 ** tentativa);
+        if (tentativa >= 5) throw new Error(`HTTP ${r.status} depois de 6 tentativas`);
+        await new Promise((ok) => setTimeout(ok, espera + Math.random() * 500));
+        return perguntar(mensagens, temperatura, teto, tentativa + 1);
+    }
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`);
     const j = await r.json();
     const m = j?.choices?.[0]?.message ?? {};
@@ -119,8 +132,25 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR) {
     // Quando PENSAR=1 o alvo do treino leva o bloco; quando não, só a fala.
     // O raciocínio NUNCA passa pela régua: julgar o modelo pelo que ele pensou
     // foi o buraco que deu 0/12 ao Huihui.
-    return { fala, pensou, junto: pensou ? `<think>${pensou}</think>\n${fala}` : fala };
+    // O bloco pedido vem DENTRO do content. O campo nativo só entra se o
+    // professor tiver ignorado a forma — e aí ele é meta, então não vai ao alvo.
+    const doTexto = /<think>([\s\S]*?)<\/think>/.exec(fala);
+    const raciocinio = doTexto ? doTexto[1].trim() : '';
+    const linha = UMA_FRASE(doTexto ? fala.slice(doTexto.index + doTexto[0].length) : fala);
+    return {
+        fala: linha,
+        pensou: raciocinio || pensou,
+        junto: raciocinio ? `<think>${raciocinio}</think>\n${linha}` : linha,
+    };
 }
+
+// O jogo aplica `primeiraFraseFechada` no remendo. O corpus tem que ensinar a
+// mesma forma, senão o aluno escreve o que será cortado.
+const UMA_FRASE = (t) => {
+    const limpo = String(t).replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim().split('\n').filter((l) => l.trim())[0] ?? '';
+    const m = /^[\s\S]*?[.!?…]["”]?/.exec(limpo.trim());
+    return (m ? m[0] : limpo).trim();
+};
 
 const semAspas = (t) => t.replace(/^\s*["“](.*)["”]\s*$/s, '$1').trim().split('\n')[0].trim();
 const abertura = (t) => t.toLowerCase().replace(/[^a-z0-9' ]+/g, '').trim().split(/\s+/).slice(0, 4).join(' ');
@@ -136,7 +166,7 @@ Write only the wrong line, nothing else. It must sound like a natural mistake a 
 ];
 
 const PEDIR_CONSERTO = (q, errada, regra) => [
-    { role: 'system', content: PERSONA },
+    { role: 'system', content: PERSONA + (PENSAR ? COMO_PENSAR : SO_UMA_FRASE) },
     { role: 'user', content: enunciado(q, errada, regra.motivo) },
 ];
 
@@ -144,7 +174,27 @@ const PEDIR_CONSERTO = (q, errada, regra) => [
 // frase, porque cada token custa ~86 ms no aparelho e porque raciocínio longo
 // num modelo pequeno vira divagação — o Huihui gastou o teto inteiro dentro do
 // bloco em 2 de 12 e devolveu vazio.
-const COMO_PENSAR = `Before the corrected line, write ONE short sentence of reasoning between <think> and </think>: what the wrong line got wrong, and what Nilo would say instead. Then write the corrected line on its own, with no label.`;
+// ── A FORMA, PEDIDA EXPLICITAMENTE ───────────────────────────────────────
+//
+// Sem isto o professor devolveu duas coisas erradas, as duas medidas:
+//
+//   1. o `reasoning` NATIVO dele é meta e não serve de treino — saiu
+//      "Low thinking; produce a direct line from Nilo.", que ensinaria o aluno
+//      a emitir pensamento vazio;
+//   2. a resposta veio com QUATRO frases e 40 palavras. O revisor troca UMA
+//      frase e o jogo corta na primeira: treinar em parágrafo ensina o aluno a
+//      gastar tokens em texto que será descartado.
+//
+// Pedindo a forma no sistema, ele entrega raciocínio sobre o DEFEITO e uma
+// frase só — medido antes de produzir.
+const COMO_PENSAR = `
+
+Answer in exactly two parts:
+<think>one short sentence naming what the wrong line got wrong</think>
+ONE sentence in Nilo's voice. One sentence only, no label, no quotes.`;
+const SO_UMA_FRASE = `
+
+Answer with ONE sentence in Nilo's voice. One sentence only, no label, no quotes.`;
 
 const SEM_PENSAMENTO = (t) => {
     const fim = t.lastIndexOf('</think>');
@@ -153,7 +203,7 @@ const SEM_PENSAMENTO = (t) => {
 };
 
 const CORRIGIR_O_ALUNO = (q, errada, motivo, tentativa) => [
-    { role: 'system', content: PERSONA },
+    { role: 'system', content: PERSONA + (PENSAR ? COMO_PENSAR : SO_UMA_FRASE) },
     { role: 'user', content:
 `${enunciado(q, errada, motivo)}
 
@@ -203,7 +253,14 @@ if (MODO === 'on') {
     process.exit(0);
 }
 
-for (let i = 0; i < CASOS; i += 1) {
+// ── EM PARALELO, PORQUE SEQUENCIAL LEVA HORAS ────────────────────────────
+//
+// Cada caso são 1 chamada de defeito + K de conserto, e o professor pensa antes
+// de responder. Sequencial, 250 casos passavam de três horas. O tier da NVIDIA
+// aceita dezenas por minuto, então o gargalo era meu laço, não o servidor.
+const AO_MESMO_TEMPO = Number(process.env.PARALELO ?? 6);
+
+async function umCaso(i) {
     const q = PERGUNTAS[i % PERGUNTAS.length];
     const regra = REGRAS_DO_CANONE[Math.floor(Math.random() * REGRAS_DO_CANONE.length)];
     let errada = '';
@@ -214,8 +271,8 @@ for (let i = 0; i < CASOS; i += 1) {
             // ensina o aluno a consertar um defeito que não está lá.
             if (regra.re.test(bruta)) errada = bruta;
         }
-    } catch (e) { console.error(`  ‹erro› ${String(e.message).slice(0, 100)}`); continue; }
-    if (!errada) { defeitosRuins += 1; continue; }
+    } catch (e) { console.error(`  ‹erro› ${String(e.message).slice(0, 100)}`); return; }
+    if (!errada) { defeitosRuins += 1; return; }
 
     for (let k = 0; k < POR_CASO; k += 1) {
         let bruto = '';
@@ -244,9 +301,18 @@ for (let i = 0; i < CASOS; i += 1) {
         }));
         escritos += 1;
     }
-    if ((i + 1) % 25 === 0) {
-        console.error(`  ${i + 1}/${CASOS} casos · ${escritos} linhas · ${contagemPorAbertura.size} aberturas · ${recusados} recusadas`);
-    }
 }
+
+let proximo = 0;
+const raia = async () => {
+    while (proximo < CASOS) {
+        const i = proximo; proximo += 1;
+        await umCaso(i);
+        if ((i + 1) % 25 === 0) {
+            console.error(`  ${i + 1}/${CASOS} casos · ${escritos} linhas · ${contagemPorAbertura.size} aberturas · ${recusados} recusadas`);
+        }
+    }
+};
+await Promise.all(Array.from({ length: AO_MESMO_TEMPO }, raia));
 console.error(`\n  ${escritos} linhas · ${contagemPorAbertura.size} aberturas distintas`);
 console.error(`  ${recusados} consertos recusados pela régua · ${defeitosRuins} casos sem defeito válido`);
