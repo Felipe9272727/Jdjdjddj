@@ -101,7 +101,17 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // ownership of the NORMAL ELEVATOR CORPORATION, and the last known
     // operation was on the…". Passou livre, e é o mesmo defeito — ele não sabe
     // quem manda, então não pode nomear ninguém nem descrever a estrutura.
-    ['não sabe quem manda nem quando acaba', /\bVance\b|\bnext (?:tuesday|week|month)\b|\b(?:corporation|company|conglomerate|management|ownership|owned by|run by the)\b/i],
+    // ── "COMPANY" TEM DUAS ACEPÇÕES, E A REGRA SÓ QUERIA UMA ─────────────
+    //
+    // A palavra entrou aqui por causa de "the hotel is run by a company", que é
+    // invenção de dono. Só que `company` sem artigo é COMPANHIA — e o próprio
+    // cânone do Nilo diz que ele sente "necessidade de companhia". A regra
+    // reprovava a fala mais dele que existe: "I want company."
+    //
+    // Achado pelo teste que passa cada fato do cânone pelas regras do revisor:
+    // se um fato quebra a regra, o prompt manda escrever o que o revisor depois
+    // reprova. O determinante é o que separa as duas acepções.
+    ['não sabe quem manda nem quando acaba', /\bVance\b|\bnext (?:tuesday|week|month)\b|\b(?:corporation|conglomerate|management|ownership|owned by|run by the)\b|\b(?:the|a|this|that|some) compan(?:y|ies)\b/i],
 
     // ── QUEM ELE É ────────────────────────────────────────────────────────
     ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b/i],

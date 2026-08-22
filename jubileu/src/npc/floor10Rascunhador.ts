@@ -57,6 +57,7 @@ import {
     comPrazo, PRAZO_RUNTIME_MS, PRAZO_CARGA_MS, PRAZO_SONDA_MS,
 } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
+import { turnoDoRascunho } from './floor10MemoriaDoRascunho';
 import { cpuThreadCount } from './wllamaEngine';
 
 const WLLAMA_V = '3.5.1';
@@ -368,11 +369,20 @@ export async function subirRascunhador(): Promise<Instancia | null> {
  * acelerar UMA resposta é o contrário de acelerar — a mesma regra que já vale
  * para os outros rascunhadores.
  */
-export async function rascunharEmIngles(perguntaEmIngles: string): Promise<string | null> {
+export async function rascunharEmIngles(
+    perguntaEmIngles: string,
+    /**
+     * O que ele SABE que importa aqui — o fato recuperado do cânone, em inglês.
+     * Vai na mensagem do usuário e nunca no sistema: a persona é o prefixo
+     * estável que o `cache_prompt` reaproveita, e trocá-la a cada pergunta
+     * jogaria fora o cache inteiro. Ver floor10MemoriaDoRascunho.ts.
+     */
+    memoria = '',
+): Promise<string | null> {
     if (!residente) return null;
     const mensagens: Mensagem[] = [
         { role: 'system', content: PERSONA_DO_RASCUNHO },
-        { role: 'user', content: perguntaEmIngles },
+        { role: 'user', content: turnoDoRascunho(perguntaEmIngles, memoria) },
     ];
     try {
         const resposta = await residente.createChatCompletion({

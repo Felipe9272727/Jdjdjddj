@@ -100,7 +100,9 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|the)\s+elevator\b/i.test
     || /\b(?:corridor|hallway|window|city|lobby|my room|another room)\b/i.test(t)
     || /\b(?:back down|downstairs|ground floor|get out of here|leave this)\b/i.test(t)
     || /\bVance\b/i.test(t)
-    || /\b(?:corporation|company|conglomerate|management|ownership|owned by|run by the)\b/i.test(t);
+    // `company` só com determinante: sem ele a palavra é COMPANHIA, e o Nilo
+    // do cânone quer companhia. Ver o comentário longo em floor10CanoneDoNilo.ts.
+    || /\b(?:corporation|conglomerate|management|ownership|owned by|run by the)\b|\b(?:the|a|this|that|some) compan(?:y|ies)\b/i.test(t);
 export const ESTRAGOU = QUEBRA_CANONE;
 
 // ── E AINDA RESPONDE À PERGUNTA? UM SINAL, NÃO UMA NOTA ──────────────────

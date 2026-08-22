@@ -38,8 +38,15 @@ import { quebrasDeCanone, type QuebraDeCanone } from './floor10CanoneDoNilo';
 
 /** As quatro peças. Qualquer uma devolvendo vazio/nulo aborta o pipeline. */
 export type PecasDoPipeline = {
-    /** Escreve o primeiro jato, em inglês. */
-    rascunhar: (perguntaEmIngles: string) => Promise<string | null>;
+    /**
+     * Escreve o primeiro jato, em inglês.
+     *
+     * `memoria` é o fato do cânone que a pergunta pediu, já em inglês. Ele é
+     * OPCIONAL na assinatura e obrigatório na prática: sem ele o rascunhador
+     * não tem a que ser fiel, e foi essa a origem das invenções — não o
+     * tamanho do modelo.
+     */
+    rascunhar: (perguntaEmIngles: string, memoria?: string) => Promise<string | null>;
     /** Aponta as frases fora do personagem — e DIZ o que viu em cada uma. */
     julgar: (frases: readonly string[]) => Promise<readonly Marcacao[]>;
     /** Reescreve UMA frase, em inglês — e DIZ o que aconteceu (ver `RespostaDoRevisor`). */
@@ -404,9 +411,16 @@ export async function falarPeloPipeline(
      * Nunca pode alterar o resultado — é observação, não participação.
      */
     aoPassar?: (passo: PassoDoPipeline) => void,
+    /**
+     * O fato do cânone que esta pergunta pediu, em inglês. Vem por último e com
+     * padrão vazio de propósito: assim todos os chamadores antigos — os testes
+     * e a sala do `?pipeline` — continuam válidos, e quem tem memória para dar
+     * passa a dar sem que ninguém precise mudar de forma.
+     */
+    memoria = '',
 ): Promise<SaidaDoPipeline | null> {
     const t0 = Date.now();
-    const bruto = await pecas.rascunhar(perguntaEmIngles);
+    const bruto = await pecas.rascunhar(perguntaEmIngles, memoria);
     if (!bruto || !bruto.trim()) return null;
     aoPassar?.({ passo: 'rascunho', textoEmIngles: bruto, ms: Date.now() - t0 });
 

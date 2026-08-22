@@ -39,6 +39,8 @@ import { remendarPorOnnx } from './floor10RevisorOnnx';
 import { revisorAtual } from './floor10Revisores';
 import { comPrazo, esperar, PRAZO_CARGA_MS, RESPIRO_APOS_DESCARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
+import { lembrarPorSignificado } from './floor10Memoria';
+import { memoriaDoRascunho } from './floor10MemoriaDoRascunho';
 import { npcSet } from './npcStore';
 
 /**
@@ -280,11 +282,32 @@ export async function falarPeloPipelineReal(
     perguntaEmIngles: string,
     /** Só a sala passa isto; o jogo não quer ver as etapas, quer a fala. */
     aoPassar?: (passo: PassoDoPipeline) => void,
+    /**
+     * A pergunta como o JOGADOR escreveu. A memória por significado foi medida
+     * com as perguntas em português (11/12); buscar com a tradução seria medir
+     * outra coisa. Quando não vier, a inglesa serve — a busca lexical do cânone
+     * tem palavras-chave nos três idiomas.
+     */
+    perguntaOriginal = perguntaEmIngles,
 ): Promise<SaidaDoPipeline | null> {
     if (!pipelineDisponivel()) return null;
     const comecou = Date.now();
     try {
-        const saida = await falarPeloPipeline(perguntaEmIngles, PECAS_REAIS, aoPassar);
+        // ── A MEMÓRIA, ANTES DO RASCUNHO ──────────────────────────────────
+        //
+        // Custa ~200 ms quando o modelo de 333 MB está de pé e devolve null na
+        // hora quando não está — e nesse caso a busca por palavra assume, como
+        // no caminho do 3B. O que NÃO existia era isto aqui: até agora o
+        // rascunhador recebia persona + pergunta e nada mais, e é dessa
+        // ausência que saíam as invenções.
+        const lembrado = await lembrarPorSignificado(perguntaOriginal);
+        const memoria = memoriaDoRascunho(perguntaEmIngles, lembrado);
+        anotar('pipeline:memoria', {
+            achou: memoria ? 1 : 0,
+            porSignificado: lembrado ? 1 : 0,
+            chars: memoria.length,
+        });
+        const saida = await falarPeloPipeline(perguntaEmIngles, PECAS_REAIS, aoPassar, memoria);
         anotar('pipeline:fim', {
             ms: Date.now() - comecou,
             ok: saida ? 1 : 0,
