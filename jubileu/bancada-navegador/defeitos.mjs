@@ -87,6 +87,7 @@ const QUEBRA_CANONE = (t) => /\b(?:in|inside)\s+(?:this|that|the|an?)\s+(?:hotel
     || /\bthe (?:narrator|speaker|protagonist)\b/i.test(t)
     || /\bthe question is about\b|\b(?:dry|formal|literary) statement\b/i.test(t)
     || /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b/i.test(t)
+    || /^\s*Nilo\s+[a-z]/.test(t)
     || /\bthat sentence\b|\bno correction needed\b|\bcorrected version\b/i.test(t)
     || /,\s*nilo\b/i.test(t)
     // DIVERGIU DE NOVO, e o aviso acima estava certo: o jogo já tinha

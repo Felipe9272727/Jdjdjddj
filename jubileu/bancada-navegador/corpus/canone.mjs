@@ -18,7 +18,13 @@ export const REGRAS_DO_CANONE = Object.freeze([
     },
     {
         regra: 'narra em vez de falar',
-        re: /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b/i,
+        re: /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b|\bthe (?:narrator|speaker|protagonist)\b/i,
+        motivo: 'it narrates the scene from outside instead of speaking. Nilo talks, he does not describe himself in the third person.',
+    },
+    {
+        // Sem a flag `i` de propósito — ver o comentário em floor10CanoneDoNilo.ts.
+        regra: 'narra em vez de falar',
+        re: /^\s*Nilo\s+[a-z]/,
         motivo: 'it narrates the scene from outside instead of speaking. Nilo talks, he does not describe himself in the third person.',
     },
     {

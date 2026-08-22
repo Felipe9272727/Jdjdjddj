@@ -132,7 +132,22 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     //
     // É a ficha do personagem, escrita em terceira pessoa, entregue como se
     // fosse a fala dele. Também passou livre, também chegou à tela.
+    // ── "Nilo doesn't look up from picking at his thumbnail." ────────
+    //
+    // Narração em terceira pessoa que PASSOU: a regra exigia `Nilo` seguido de
+    // palavra terminada em `s` (Nilo stands, Nilo walks), e em "doesn't" o `s`
+    // é seguido de `n` — sem fronteira de palavra, sem casamento. Saiu do
+    // professor de 550B na prova de professor, e teria entrado no corpus como
+    // exemplo BOM, ensinando o aluno a narrar.
+    //
+    // `^Nilo <minúscula>` fecha a forma inteira sem pegar o legítimo: o Nilo
+    // pode dizer "Nilo Azevedo. That is my name." — maiúscula depois do nome é
+    // ele se apresentando; minúscula é alguém contando o que ele faz.
     ['narra em vez de falar', /^\s*[(*]|\bhe(?:'s| is) trapped\b|\bNilo\s+[a-z]{2,}s\b|\bthe (?:narrator|speaker|protagonist)\b/i],
+    // SEM a flag `i`: com ela, `[a-z]` casa maiúscula também e "Nilo Azevedo.
+    // That is my name." virava narração. Minúscula depois do nome é alguém
+    // contando o que ele faz; maiúscula é ele se apresentando.
+    ['narra em vez de falar', /^\s*Nilo\s+[a-z]/],
 
     // ── CÂNONE DO ANDAR ───────────────────────────────────────────────────
     // O determinante era `this|the`, e o rascunhador escreveu "in A hotel
