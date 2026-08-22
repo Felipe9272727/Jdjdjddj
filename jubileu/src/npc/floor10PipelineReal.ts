@@ -36,7 +36,7 @@ import {
     remendarFraseEmIngles, vontadeDePeAgora, precarregarRevisor, unloadSmallBrain,
 } from './floor10SmallBrain';
 import { remendarPorOnnx } from './floor10RevisorOnnx';
-import { revisorAtual } from './floor10Revisores';
+import { revisorAtual, revisorCabeJuntoDoRascunhador } from './floor10Revisores';
 import { comPrazo, esperar, PRAZO_CARGA_MS, RESPIRO_APOS_DESCARGA_MS } from './floor10Carga';
 import { anotar } from './floor10CaixaPreta';
 import { lembrarPorSignificado } from './floor10Memoria';
@@ -193,8 +193,30 @@ export const PECAS_REAIS: PecasDoPipeline = {
             ).catch((e) => ({ tipo: 'erro' as const, erro: String(e?.message ?? e).slice(0, 180) }));
         }
         if (!vontadeDePeAgora()) {
-            const trocou = await trocarRascunhadorPeloRevisor();
-            if (!trocou) return { tipo: 'sem-revisor' };
+            // ── QUANDO OS DOIS CABEM, NINGUÉM SAI DA RAM ─────────────────
+            //
+            // Ideia do dono do jogo, e a conta fecha: o revisor treinado tem
+            // 386 MB, o rascunhador 822 MB, e 1,21 GB é MENOS que o SmolLM3
+            // sozinho que o aparelho dele já rodou. Sem troca, o remendo deixa
+            // de pagar descarregar + subir + trazer o rascunhador de volta —
+            // que é de onde vinham 24 dos 32 s medidos.
+            //
+            // Se a carga do revisor falhar aqui, cai na troca: pode ser que a
+            // RAM não tenha dado, e aí é melhor um turno lento que mudo.
+            if (revisorCabeJuntoDoRascunhador()) {
+                npcSet({ etapa: 'subindo o revisor ao lado do rascunhador…' });
+                const juntos = await comPrazo(
+                    precarregarRevisor(), PRAZO_CARGA_MS, 'a carga do revisor ao lado',
+                ).catch(() => false);
+                anotar('pipeline:lado-a-lado', { ok: juntos ? 1 : 0 });
+                if (!juntos) {
+                    const trocou = await trocarRascunhadorPeloRevisor();
+                    if (!trocou) return { tipo: 'sem-revisor' };
+                }
+            } else {
+                const trocou = await trocarRascunhadorPeloRevisor();
+                if (!trocou) return { tipo: 'sem-revisor' };
+            }
         }
         npcSet({ etapa: 'corrigindo uma frase…' });
         // Prazo mesmo assim: um remendo que não volta não pode custar a fala.

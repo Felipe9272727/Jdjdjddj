@@ -407,6 +407,35 @@ export function resetRevisorParaTestes(): void {
  * É o mesmo defeito de sempre neste repositório, na sua terceira forma: uma
  * verdade derivada em dois lugares. Agora ela é derivada aqui, e as duas leem.
  */
+/**
+ * ── OS DOIS DE PÉ AO MESMO TEMPO ─────────────────────────────────────────
+ *
+ * A troca de RAM existe porque o revisor titular tem 1,25 GB e o rascunhador
+ * 822 MB: juntos são 2,07 GB, e subir os dois foi o que desligou o celular do
+ * dono do jogo. Ela custa caro — medido no pipeline inteiro, o primeiro remendo
+ * de um turno leva 32 a 35 s, dos quais o modelo usa uns 8; o resto é
+ * descarregar, subir, e depois trazer o rascunhador de volta (17 s).
+ *
+ * Com o revisor treinado a conta muda: 386 MB ao lado dos 822 MB são 1,21 GB —
+ * MENOS que o SmolLM3 sozinho, que o aparelho dele já carregou. Esse é o teto
+ * aqui: não um número inventado, e sim o maior modelo único que este jogo já
+ * rodou naquele celular.
+ *
+ * `?troca=1` força a troca de volta, para o caso de o aparelho reclamar mesmo
+ * cabendo na conta — thread pool de dois llama.cpp não aparece em byte nenhum.
+ */
+export const TETO_DOS_DOIS_JUNTOS = 1_915_305_312;
+const BYTES_DO_RASCUNHADOR = 821_847_360;
+
+export function revisorCabeJuntoDoRascunhador(busca = globalThis.location?.search ?? ''): boolean {
+    if (/[?&]troca=1\b/.test(busca)) return false;
+    const atual = revisorAtual();
+    // Estes dois já não trocam nada: um É o rascunhador, o outro vive noutro
+    // runtime. Responder "cabe" aqui não muda nada e confundiria a leitura.
+    if (atual.runtime === 'rascunhador' || atual.runtime === 'onnx') return false;
+    return BYTES_DO_RASCUNHADOR + pesoDoRevisor().bytes <= TETO_DOS_DOIS_JUNTOS;
+}
+
 export function pesoDoRevisor(): { label: string; bytes: number } {
     const atual = revisorAtual();
     if (atual.runtime === 'onnx') {
