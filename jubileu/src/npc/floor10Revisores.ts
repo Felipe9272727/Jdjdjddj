@@ -96,7 +96,7 @@
 import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import { pipelineLigado } from './floor10Pipeline';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador' | 'huihui';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador' | 'huihui' | 'treinado';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -130,6 +130,34 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'LFM2.5 1.2B',
         cerebro: 'lfm2-1b',
         nota: 'relê os ~270 tokens do enunciado toda chamada: 52,1s por frase — mas delibera melhor',
+    },
+    {
+        // ── O REVISOR QUE A GENTE FEZ, E NÃO ACHOU ───────────────────────
+        //
+        // Vinte e poucos modelos, sete arquiteturas, e o melhor de prateleira
+        // continuava custando 64 s de turno. Este custa 15 s e empata em nota,
+        // porque não precisa DESCOBRIR a tarefa lendo o enunciado: ele viu a
+        // tarefa 192 vezes.
+        //
+        // O corolário prático é o enunciado: sem precisar dos três exemplos, o
+        // prompt cai de ~350 tokens para 137, e a leitura — que é 89% do custo
+        // — cai junto. A velocidade não vem só do arquivo menor.
+        //
+        // ── O QUE ELE NÃO É ──────────────────────────────────────────────
+        //
+        // Não é vontade. Os outros revisores desta lista servem dois papéis com
+        // um arquivo (revisar e deliberar); este só sabe consertar frase. Com
+        // `?revisor=treinado` a fila baixa 386 MB em vez de 1,25 GB — e o jogo
+        // fica sem cérebro de deliberação, do mesmo jeito que já fica com
+        // `?revisor=rascunhador`. É troca consciente, não descuido.
+        //
+        // E o cânone dele é o do 10º andar, gravado nos pesos. Quando o Nilo
+        // subir, ou este arquivo é retreinado, ou ele passa a "consertar"
+        // verdade em mentira.
+        id: 'treinado',
+        label: 'revisor treinado 360M (nosso)',
+        cerebro: 'nilo-revisor-360m',
+        nota: 'empata com o titular (44/48) e custa 15s de turno contra 64s; zero quebra de cânone em 48',
     },
     {
         // ── O ÚNICO SOBREVIVENTE DA CAÇADA, E POR QUE NÃO É O PADRÃO ─────

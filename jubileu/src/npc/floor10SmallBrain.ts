@@ -32,6 +32,9 @@ import {
     metaDoPlanoMotor,
 } from './floor10MotorCortex';
 import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
+import {
+    PERSONA_DO_REVISOR_TREINADO, REMENDO_TREINADO_TOKENS, enunciadoTreinado,
+} from './floor10RevisorTreinado';
 import { completar as completarNoMicro } from './floor10Reflexo';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
@@ -2013,14 +2016,32 @@ export async function remendarFraseEmIngles(
     // fechou sem ponto viraria "cortado" à toa.
     let noTeto = false;
     try {
+        // ── O REVISOR TREINADO FALA OUTRA LÍNGUA DE ENUNCIADO ────────
+        //
+        // Os de prateleira precisam dos três exemplos para DESCOBRIR a tarefa;
+        // o treinado viu a tarefa 192 vezes e precisa da forma exata em que a
+        // viu. Mandar o enunciado com exemplos para ele seria medir uma coisa e
+        // rodar outra.
+        const treinado = revisorAtual().id === 'treinado';
         const stream = await engine.createChatCompletion({
             messages: [
-                { role: 'system', content: PERSONA_DO_REVISOR },
-                { role: 'user', content: enunciadoDoRemendo(perguntaEmIngles, frase, porque) },
+                {
+                    role: 'system',
+                    content: treinado ? PERSONA_DO_REVISOR_TREINADO : PERSONA_DO_REVISOR,
+                },
+                {
+                    role: 'user',
+                    content: treinado
+                        ? enunciadoTreinado(perguntaEmIngles, frase, porque)
+                        : enunciadoDoRemendo(perguntaEmIngles, frase, porque),
+                },
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
             stream: true,
-            max_tokens: tokensDoRemendo(),
+            // Guloso no treinado: conserto é escolha, não sorteio, e foi assim
+            // que ele foi afinado e medido (temperatura 0, sem top_p/top_k).
+            ...(treinado ? { temperature: 0 } : {}),
+            max_tokens: treinado ? REMENDO_TREINADO_TOKENS : tokensDoRemendo(),
             grammar: undefined,
             // NO-OP NESTE MODELO, e fica registrado para ninguém confiar nele:
             // `enable_thinking` é chave do Qwen, e o chat template do LFM2.5-1.2B

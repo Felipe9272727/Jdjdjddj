@@ -16,7 +16,7 @@ import { cerebroDoRevisor } from './floor10Revisores';
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
     | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b'
-    | 'granite3-3b-a800m' | 'huihui-moe-08b';
+    | 'granite3-3b-a800m' | 'huihui-moe-08b' | 'nilo-revisor-360m';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -257,6 +257,39 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/mradermacher/Huihui-MoE-0.8B-2E-GGUF/resolve/main/Huihui-MoE-0.8B-2E.Q6_K.gguf',
         bytes: 712_096_256,
         nota: 'pensa antes de responder: 8/12 com teto de 320 tokens, 0/12 com 40; em 2 de 12 pensa até o teto e devolve vazio',
+    },
+    {
+        // ── O PRIMEIRO REVISOR QUE NÃO VEIO DE PRATELEIRA ─────────────────
+        //
+        // Todos os outros desta lista foram ACHADOS. Este foi FEITO: SmolLM2-360M
+        // afinado (LoRA r=32) em 192 pares (frase errada + motivo) → (frase
+        // certa), escritos para este cânone. Medido na prova de 24 defeitos,
+        // duas rodadas, a frio, com a MESMA régua dos outros:
+        //
+        //     candidato                conserta  ecoou  copiou  quebrou  TURNO
+        //     LFM2.5-1.2B (titular)      44/48      0      0        4     64 s
+        //     este                       44/48      2      0        0     15 s
+        //     SmolLM2-360M SEM treino     8/48     18     10       28     15 s
+        //
+        // A comparação que importa é a terceira linha: mesmo arquivo, mesmo
+        // enunciado, mesma prova. O que mudou foi só o treino.
+        //
+        // ── O QUE ELE NÃO FAZ ─────────────────────────────────────────────
+        //
+        // Não delibera, não conversa, não escreve fala do zero: ele só conserta
+        // uma frase quando lhe dizem qual e por quê. E o cânone que ele aprendeu
+        // é o do 10º ANDAR — quando o Nilo subir, este arquivo precisa ser
+        // treinado de novo, ou vai "consertar" verdade em mentira. Peso de
+        // modelo é o pior lugar para guardar um fato que muda.
+        //
+        // Numa leitura humana das 24 saídas, ~8 ainda são frases plausíveis e
+        // erradas ("a door that does not exist"). Régua automática não pega
+        // isso; 192 linhas de corpus não ensinam coerência.
+        id: 'nilo-revisor-360m',
+        label: 'revisor treinado 360M (nosso)',
+        url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-360m/resolve/main/revisor-360m-q8_0.gguf',
+        bytes: 386_404_864,
+        nota: 'empata com o titular em nota (44/48) e é 4x mais rápido: 15s de turno contra 64s, e zero quebra de cânone',
     },
     {
         id: 'minicpm5-1b',
