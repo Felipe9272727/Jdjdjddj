@@ -87,9 +87,23 @@ for (const alvo of ['**://cdn.jsdelivr.net/**', '**://huggingface.co/**', '**://
         if (fs.statSync(destino).size > GRANDE) {
             return route.fulfill({ status: 302, headers: { location: `http://127.0.0.1:${PORTA}/${nome}` } });
         }
+        // ── O TIPO DO CONTEÚDO NÃO É ENFEITE ─────────────────────────────
+        //
+        // Sem `content-type: text/javascript` o navegador RECUSA o módulo — a
+        // checagem de MIME de ES module é estrita. O sintoma foi
+        // "Failed to fetch dynamically imported module: …/wllama/esm/index.js"
+        // com quatro peças em false e nenhuma pista de rede.
+        const tipo = url.endsWith('.js') || url.endsWith('.mjs') ? 'text/javascript'
+            : url.endsWith('.json') ? 'application/json'
+            : url.endsWith('.wasm') ? 'application/wasm'
+            : 'application/octet-stream';
         return route.fulfill({
             status: 200,
-            headers: { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' },
+            headers: {
+                'content-type': tipo,
+                'access-control-allow-origin': '*',
+                'cross-origin-resource-policy': 'cross-origin',
+            },
             body: fs.readFileSync(destino),
         });
     });
@@ -117,6 +131,10 @@ if (MOTOR === 'smol') {
         window.__jogo = { pipeline: await import('/src/npc/floor10PipelineReal.ts'), tradutor: T };
         const r = {};
         r.rascunhador = await R.baixarRascunhador() && !!(await R.subirRascunhador());
+        // Sem o motivo, "false" é indistinguível de "nem tentou" — e foi
+        // exatamente assim que a primeira execução desta bancada terminou com
+        // quatro peças em false e nenhuma linha de download no log.
+        if (!r.rascunhador) r.porque = R.ultimoErroDoRascunhador?.() ?? '(sem motivo)';
         r.tradutor = !!(await T.prepararTradutor());
         r.juiz = await J.prepararJuizDeTom();
         r.memoria = await M.baixarMemoria() && await M.precarregarMemoria();
