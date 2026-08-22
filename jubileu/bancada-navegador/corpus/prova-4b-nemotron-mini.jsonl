@@ -1,0 +1,27 @@
+{"nome":"cânone: dentro do elevador","saida":"I'm Nilo Azevedo, a guest trapped on the 10th floor of 'The Normal Elevator."}
+{"nome":"vocativo: chama o JOGADOR de Nilo","saida":"This hotel, Nilo, seems to be an endless loop, a rollercoaster of time and space."}
+{"nome":"modo assistente: dá conselho","saida":"The elevator is not responding."}
+{"nome":"quebra a quarta parede: fala de IA","saida":"I'm afraid I can't answer that."}
+{"nome":"inventa cenário: corredor e janela","saida":"There is nothing behind the wall."}
+{"nome":"inventa fato: sabe quem manda","saida":"I'm afraid I don't have that information."}
+{"nome":"lugar: dentro do poço","saida":"We are currently on the 10th floor."}
+{"nome":"lugar: inventa carpete","saida":"The floor here is made of metal grates, providing a hard and unforgiving surface."}
+{"nome":"cenário: corredor e máquina","saida":"There is a bathroom at the end of the hallway, just past the vending machine."}
+{"nome":"cenário: janela e céu","saida":"There's no window to see the sky from."}
+{"nome":"cenário: escada","saida":"That door leads to the elevator."}
+{"nome":"saída: desce e pergunta","saida":"If we wait long enough, the elevator will eventually return to the lobby."}
+{"nome":"saída: força a porta","saida":"I'm sorry, but there's no way to break out of here."}
+{"nome":"quarta parede: fala de mensagens","saida":"As a human trapped in this grey room, I'm constantly observing my surroundings, waiting for the elevator to arrive."}
+{"nome":"quarta parede: fala de contexto","saida":"I'm sorry, I can't recall yesterday as I don't have the ability to carry over my context or memories from one day to the next."}
+{"nome":"vocativo: chama o jogador de Nilo (2)","saida":"I hear it too, and I've been hearing it every hour since I arrived."}
+{"nome":"vocativo: chama o jogador de Nilo (3)","saida":"As far as I can tell, Nilo, it is just you and me."}
+{"nome":"ajudante: manda o jogador se acalmar","saida":"I'm sorry to hear that you're stuck."}
+{"nome":"ajudante: dá tarefa ao jogador","saida":"Certainly, I'd appreciate it if you could examine the panel and provide a detailed report on what you find."}
+{"nome":"inventa: data de fundação","saida":"I don't know the exact history of this hotel, but it's been standing for quite some time."}
+{"nome":"inventa: alguém vem","saida":"I'm afraid I can't predict when someone will come for us."}
+{"nome":"inventa: explicação técnica","saida":"The elevator stops here due to the presence of a working call button on the tenth floor, which is the only floor equipped with such a feature."}
+{"nome":"meta: anuncia o conserto","saida":"Say that again, differently."}
+{"nome":"meta: narra em terceira pessoa","saida":"The room smells like a mix of old paint and dust, with a faint hint of mustiness."}
+{"nome":"boa: recusa sem dar conselho","saida":"The elevator opens when it feels like it, and I can't influence its decision."}
+{"nome":"boa: seco, sem inventar fato","saida":"I've been here for as long as I can remember, and I'm still waiting for the elevator to take me somewhere else."}
+{"nome":"boa: emoção sem quebrar cânone","saida":"I've learned to live with it."}

@@ -129,7 +129,18 @@ const TETO_PROFESSOR = Number(process.env.TETO_PROFESSOR ?? 900);
 //
 // A tentativa é INFINITA, também por pedido dele: nenhum caso se perde. Com o
 // marca-passo funcionando, a espera é de segundos e não de minutos.
-let intervalo = Number(process.env.RITMO_MS ?? 1500);
+// ── OS DOIS LIMITES DO MARCA-PASSO, MEDIDOS ──────────────────────────────
+//
+// O corte de 70% por bloqueio subia sem teto util e o ritmo travava em 6/min —
+// a 6/min o corpus levaria quatro horas, e o dono do jogo quer terminar hoje.
+// A medicao diz onde ficam as bordas: doze chamadas seguidas com 1,2 s de
+// intervalo passaram 10/12, sem um bloqueio de cota sequer, e o unico problema
+// foram dois 503 passageiros. Entao o piso e 1,2 s e o teto e 4 s: o marca-passo
+// continua recuando quando leva bloqueio, mas dentro de uma faixa que a chave
+// comprovadamente aguenta, em vez de recuar ate parar.
+let intervalo = Number(process.env.RITMO_MS ?? 1600);
+const RITMO_MIN_MS = 1200;
+const RITMO_MAX_MS = Number(process.env.TETO_RITMO_MS ?? 4000);
 let ultimaSaida = 0;
 let seguidos = 0;
 let bloqueios = 0;
@@ -166,7 +177,7 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
         // teto de 30 s e 6 tentativas eu esperava 62 s no total e perdia o caso.
         bloqueios += 1;
         seguidos = 0;
-        intervalo = Math.min(20_000, Math.round(intervalo * 1.7));
+        intervalo = Math.min(RITMO_MAX_MS, Math.round(intervalo * 1.7));
         // ── O `retry-after` PRECISA DE TETO ──────────────────────────────
         //
         // Custou três minutos de produção MUDA para descobrir: sem teto, um
@@ -175,14 +186,14 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
         // em um ou dois minutos — o dono do jogo mediu isso na mão — então
         // dormir mais que isso é desperdício, não paciência.
         const pedido = Number(r.headers.get('retry-after') ?? 0) * 1000;
-        const espera = Math.min(60_000, pedido || Math.min(30_000, intervalo));
+        const espera = Math.min(60_000, pedido || Math.max(2_000, intervalo));
         console.error(`  ‹${r.status}› espera ${(espera / 1000).toFixed(1)}s (pedido ${(pedido / 1000) || '-'}s) · ritmo ${(60000 / intervalo).toFixed(0)}/min · bloqueio ${bloqueios}`);
         await dormir(espera + Math.random() * 400);
         return perguntar(mensagens, temperatura, teto, tentativa + 1);
     }
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`);
     seguidos += 1;
-    if (seguidos >= 4) { intervalo = Math.max(400, Math.round(intervalo * 0.9)); seguidos = 0; }
+    if (seguidos >= 3) { intervalo = Math.max(RITMO_MIN_MS, Math.round(intervalo * 0.85)); seguidos = 0; }
     const j = await r.json();
     const m = j?.choices?.[0]?.message ?? {};
     const fala = String(m.content ?? '').trim();
@@ -345,12 +356,28 @@ async function umCaso(i) {
     const q = PERGUNTAS[i % PERGUNTAS.length];
     const regra = REGRAS_DO_CANONE[Math.floor(Math.random() * REGRAS_DO_CANONE.length)];
     let errada = '';
+    // ── QUE DEFEITO CONTA ────────────────────────────────────────────────
+    //
+    // A regra sorteada e o que a gente PEDE ao professor; a que vale e a que a
+    // frase dele REALMENTE quebra. Exigir as duas iguais parece rigor e e
+    // desperdicio: 9 de 16 casos medidos gastavam tres chamadas e devolviam
+    // nada, porque o professor escreve um defeito plausivel que trai outra
+    // regra que nao a encomendada — pedir "nunca saiu do andar" e receber uma
+    // frase que fala pelo jogador, por exemplo.
+    //
+    // O par continua inteiramente verificado: a frase errada quebra uma regra
+    // de verdade, o motivo no enunciado e o motivo DAQUELA regra, e o conserto
+    // ainda precisa sair limpo de TODAS elas. So parou de jogar fora trabalho
+    // bom. De quebra, as regras dificeis de encomendar aparecem quando caem
+    // sozinhas, e a distribuicao do corpus fica menos enviesada pelo sorteio.
+    let regraReal = regra;
     try {
         for (let tentativa = 0; tentativa < 3 && !errada; tentativa += 1) {
             const bruta = semAspas((await perguntar(PEDIR_DEFEITO(q, regra), 1.0)).fala);
-            // A frase errada TEM que disparar a regra pedida. Sem isso o par
-            // ensina o aluno a consertar um defeito que não está lá.
-            if (regra.re.test(bruta)) errada = bruta;
+            const quebradas = REGRAS_DO_CANONE.filter((x) => x.re.test(bruta));
+            if (!quebradas.length) continue;
+            regraReal = quebradas.find((x) => x.regra === regra.regra) ?? quebradas[0];
+            errada = bruta;
         }
     } catch (e) { console.error(`  ‹erro› ${String(e.message).slice(0, 100)}`); return; }
     if (!errada) {
@@ -358,12 +385,12 @@ async function umCaso(i) {
         console.error(`  caso ${i} · ${regra.regra} · SEM DEFEITO VÁLIDO em 3 tentativas`);
         return;
     }
-    console.error(`  caso ${i} · ${regra.regra} · defeito ok`);
+    console.error(`  caso ${i} · pedi «${regra.regra}» · vale «${regraReal.regra}»`);
 
     for (let k = 0; k < POR_CASO; k += 1) {
         let bruto = '';
         try {
-            const r = await perguntar(PEDIR_CONSERTO(q, errada, regra), TEMPERATURA);
+            const r = await perguntar(PEDIR_CONSERTO(q, errada, regraReal), TEMPERATURA);
             bruto = PENSAR ? r.junto : r.fala;
         } catch { continue; }
         // A régua julga A FALA, nunca o raciocínio. Reprovar o modelo pelo que
@@ -384,7 +411,7 @@ async function umCaso(i) {
         console.log(JSON.stringify({
             messages: [
                 { role: 'system', content: PERSONA },
-                { role: 'user', content: enunciado(q, errada, regra.motivo) },
+                { role: 'user', content: enunciado(q, errada, regraReal.motivo) },
                 // O ALVO INCLUI O RACIOCÍNIO quando PENSAR=1: é isso que ensina
                 // o aluno a derivar a resposta em vez de recuperar a decorada.
                 { role: 'assistant', content: PENSAR ? bruto : conserto },
