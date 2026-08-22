@@ -82,7 +82,15 @@ const servidorDaPonte = createServer((req, res) => {
         return;
     }
     res.writeHead(200, { ...cabecalhos, 'content-length': tamanho });
-    fs.createReadStream(caminho).pipe(res);
+    const fluxo = fs.createReadStream(caminho);
+    // ── APAGA ASSIM QUE O NAVEGADOR TERMINOU DE LER ──────────────────────
+    //
+    // O SmolLM3 tem 1,9 GB e o disco desta caixa tem 3. Guardar a cópia local
+    // depois de o navegador já a ter no OPFS é pagar duas vezes pelo mesmo
+    // arquivo — e foi assim que uma volta morreu com 0 byte livre. Um GET
+    // inteiro que termina é a prova de que o outro lado recebeu.
+    res.on('finish', () => { if (tamanho > GRANDE) fs.rmSync(caminho, { force: true }); });
+    fluxo.pipe(res);
 });
 await new Promise((ok) => servidorDaPonte.listen(PORTA_PONTE, '127.0.0.1', ok));
 
