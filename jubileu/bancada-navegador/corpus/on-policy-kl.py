@@ -147,15 +147,46 @@ print(f'  GPU: {torch.cuda.get_device_name(0)} · {total / 2**30:.0f} GiB', flus
 # não o SmolLM3: 248.077 contra 128.256, e nenhuma ponte honesta entre os dois.
 tok = AutoTokenizer.from_pretrained(BASE_ALUNO)
 tok_mestre = AutoTokenizer.from_pretrained(MESTRE)
-if len(tok) != len(tok_mestre):
+
+# ── COMPARAR OS VOCABULÁRIOS DE VERDADE, NÃO O TAMANHO ───────────────────
+#
+# Comparar `len()` é errado nos dois sentidos, e a primeira versão disto
+# abortava um par que funciona. Medido nestes dois modelos:
+#
+#   vocabulário base   248.044 tokens, ids IDÊNTICOS, merges idênticos
+#   especiais          33 no professor, 26 no aluno
+#
+# Os 7 sobrando são <|audio_start|>, <tts_pad> e companhia, nos ids
+# 248070–248076: cauda de áudio que o professor tem porque também fala, e que o
+# aluno não tem. Nada disso desloca um único id do texto — mas `len()` difere em
+# 7 e o script morria no segundo 1 por alarme falso.
+#
+# O que importa não é o tamanho: é se cada token de texto significa a MESMA
+# coisa nos dois. Isso se confere token a token, e é o que se faz aqui.
+vocab_aluno = tok.get_vocab()
+vocab_mestre = tok_mestre.get_vocab()
+divergentes = [t for t, i in vocab_aluno.items() if vocab_mestre.get(t, i) != i]
+if divergentes:
     raise SystemExit(
-        f'  vocabulários diferentes: aluno {len(tok)} · professor {len(tok_mestre)}.\n'
-        '  KL de logits exige o mesmo tokenizador. Troque o aluno por um da mesma\n'
-        '  família do professor, ou use a destilação por sequência (MODO=on do\n'
+        f'  {len(divergentes)} tokens têm id diferente nos dois modelos '
+        f'(ex.: {divergentes[:3]}).\n'
+        '  KL de logits compara vetor com vetor posição a posição: com os ids\n'
+        '  deslocados, a comparação é entre coisas diferentes e o treino aprende\n'
+        '  ruído com convicção. Use a destilação por sequência (MODO=on do\n'
         '  destilar.mjs), que não compara logits.')
+
+# ── AS COLUNAS QUE SÓ O PROFESSOR TEM SAEM DO KL ─────────────────────────
+#
+# Ele pode botar probabilidade num token de áudio; o aluno não tem esse token, e
+# a coluna correspondente nos logits dele é peso nunca treinado. Pedir que ele
+# case aquilo é pedir que aprenda ruído. Em texto a massa ali é praticamente
+# zero, então isto quase não muda o número — mas "quase zero" a gente mascara em
+# vez de torcer.
+SO_DO_MESTRE = sorted(i for t, i in vocab_mestre.items() if t not in vocab_aluno)
 if tok.pad_token is None:
     tok.pad_token = tok.eos_token
-print(f'  vocabulário casado: {len(tok)} tokens', flush=True)
+print(f'  vocabulário conferido token a token: {len(vocab_aluno)} do aluno, '
+      f'{len(vocab_mestre)} do professor, {len(SO_DO_MESTRE)} mascarados', flush=True)
 
 quant = None
 if BITS == '4':
@@ -288,7 +319,12 @@ def kl_em_fatias(ids, atencao, inicio, mascara):
         m = mascara[:, a - p0:b - p0]
         if not m.any():
             continue
-        alvo = F.log_softmax(lg_mestre[:, a:b].float() / T_KL, dim=-1)
+        fatia_m = lg_mestre[:, a:b].float()
+        if SO_DO_MESTRE:
+            # -inf antes do softmax: a massa dessas colunas é redistribuída
+            # entre os tokens que os dois modelos têm, em vez de virar alvo.
+            fatia_m[..., SO_DO_MESTRE] = float('-inf')
+        alvo = F.log_softmax(fatia_m / T_KL, dim=-1)
         meu = F.log_softmax(lg_aluno[:, a:b].float() / T_KL, dim=-1)
         # KL direta, com o professor como alvo: o aluno é obrigado a cobrir tudo
         # que o professor considera possível, em vez de escolher um modo só —
