@@ -310,19 +310,53 @@ if not enunciados:
 print(f'  {len(enunciados)} enunciados', flush=True)
 
 
-def prompt_ids(msgs):
+# ── O PROFESSOR PRECISA SER PEDIDO NO MESMO FORMATO ──────────────────────
+#
+# Isto custou uma corrida inteira de A100 e só apareceu quando o modelo pronto
+# foi testado numa pergunta: ele saiu SEM bloco de pensamento, depois de 423
+# exemplos de treino em que 100% dos alvos tinham um.
+#
+# A causa: o sistema do corpus é só a persona, e o bloco vive no ALVO. A SFT
+# aprende "dada a persona, escreva <think>". Mas no on-policy o professor
+# recebia essa mesma persona sem instrução nenhuma de formato — e um modelo
+# grande, nessa situação, responde a frase direto. O KL então passou trezentos
+# passos ensinando o aluno a PARAR de pensar. O treino funcionou; ele só estava
+# copiando a coisa errada.
+#
+# O conserto é dar ao professor a instrução que o corpus deu a ele quando
+# gerou os alvos. Os dois passam a ver prompts DIFERENTES, e isso não quebra o
+# KL: o que precisa casar são os tokens gerados, que são os mesmos, e cada
+# modelo os pontua condicionado ao próprio enunciado. É justamente o que se
+# quer perguntar — "o que o professor, bem instruído, preveria aqui?".
+COMO_PENSAR = os.environ.get('COMO_PENSAR', '''
+
+Answer in exactly two parts:
+<think>one short sentence naming what the wrong line got wrong</think>
+ONE sentence in Nilo's voice. One sentence only, no label, no quotes.''')
+
+
+def prompt_ids(msgs, extra=''):
+    if extra:
+        msgs = [{**m, 'content': m['content'] + extra} if m['role'] == 'system' else m
+                for m in msgs]
     texto = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
     return tok(texto, add_special_tokens=False)['input_ids'][-TETO_PROMPT:]
 
 
+def empacotar(listas, preenche):
+    largura = max(len(x) for x in listas)
+    ids = torch.tensor([[preenche] * (largura - len(x)) + x for x in listas]).cuda()
+    at = torch.tensor([[0] * (largura - len(x)) + [1] * len(x) for x in listas]).cuda()
+    return ids, at, largura
+
+
 def um_lote(indices):
     """O aluno gera com os pesos DE AGORA. É isso que faz ser on-policy."""
-    prompts = [prompt_ids(enunciados[i]) for i in indices]
-    largura = max(len(p) for p in prompts)
     # Preenchimento à ESQUERDA: com preenchimento à direita o modelo geraria a
     # partir de um token de enchimento e a amostra sairia do nada.
-    entrada = torch.tensor([[tok.pad_token_id] * (largura - len(p)) + p for p in prompts]).cuda()
-    atencao = torch.tensor([[0] * (largura - len(p)) + [1] * len(p) for p in prompts]).cuda()
+    entrada, atencao, largura = empacotar(
+        [prompt_ids(enunciados[i]) for i in indices], tok.pad_token_id)
+    mestre_p = [prompt_ids(enunciados[i], COMO_PENSAR) for i in indices]
     aluno.eval()
     # O cache vale mesmo quando o recálculo está ligado: aqui não há backward,
     # então desligar o checkpointing durante a geração não custa memória de
@@ -348,27 +382,35 @@ def um_lote(indices):
         mascara &= ~(depois_do_fim & (gerado != tok.eos_token_id))
     inteiro = torch.cat([entrada, gerado], dim=1)
     at_inteiro = torch.cat([atencao, mascara.long()], dim=1)
-    return inteiro, at_inteiro, largura, mascara
+    # A mesma continuação, atrás do enunciado do PROFESSOR, que é mais longo.
+    m_ids, m_at, m_largura = empacotar(mestre_p, tok.pad_token_id)
+    m_inteiro = torch.cat([m_ids, gerado], dim=1)
+    m_at_inteiro = torch.cat([m_at, mascara.long()], dim=1)
+    return (inteiro, at_inteiro, largura,
+            m_inteiro, m_at_inteiro, m_largura, mascara)
 
 
-def kl_em_fatias(ids, atencao, inicio, mascara):
+def kl_em_fatias(ids, atencao, inicio, m_ids, m_at, m_inicio, mascara):
     """KL(professor ‖ aluno) só nas posições geradas, fatiado por posição.
 
     Fatiar não é economia opcional: com 248 mil de vocabulário, os logits de um
     lote inteiro passam de meio giga POR MODELO, e o softmax em float32 dobra.
     """
     with torch.no_grad():
-        lg_mestre = professor(input_ids=ids, attention_mask=atencao).logits
+        lg_mestre = professor(input_ids=m_ids, attention_mask=m_at).logits
     lg_aluno = aluno(input_ids=ids, attention_mask=atencao).logits
-    # O logit da posição t prevê o token t+1, então o alvo começa um antes.
+    # O logit da posição t prevê o token t+1, então o alvo começa um antes. Os
+    # dois enunciados têm comprimentos diferentes, então cada um tem seu próprio
+    # deslocamento — o que casa são as posições GERADAS, que são as mesmas.
     p0, p1 = inicio - 1, ids.shape[1] - 1
+    desloca = (m_inicio - 1) - p0
     perda, n = 0.0, 0
     for a in range(p0, p1, FATIA):
         b = min(a + FATIA, p1)
         m = mascara[:, a - p0:b - p0]
         if not m.any():
             continue
-        fatia_m = lg_mestre[:, a:b].float()
+        fatia_m = lg_mestre[:, a + desloca:b + desloca].float()
         if SO_DO_MESTRE:
             # -inf antes do softmax: a massa dessas colunas é redistribuída
             # entre os tokens que os dois modelos têm, em vez de virar alvo.
@@ -426,8 +468,8 @@ for passo in range(1, passos_totais + 1):
             cursor = 0
         guardado = um_lote(ordem[cursor:cursor + LOTE])
         cursor += LOTE
-    ids, atencao, inicio, mascara = guardado
-    perda = kl_em_fatias(ids, atencao, inicio, mascara)
+    ids, atencao, inicio, m_ids, m_at, m_inicio, mascara = guardado
+    perda = kl_em_fatias(ids, atencao, inicio, m_ids, m_at, m_inicio, mascara)
     if perda is None:
         guardado = None
         continue
@@ -435,7 +477,8 @@ for passo in range(1, passos_totais + 1):
         # CE auxiliar contra o token que o PROFESSOR escolheria: âncora barata
         # que segura o treino quando o KL fica ruidoso no começo.
         with torch.no_grad():
-            escolha = professor(input_ids=ids, attention_mask=atencao).logits.argmax(-1)
+            escolha = professor(input_ids=m_ids, attention_mask=m_at).logits.argmax(-1)
+            escolha = escolha[:, m_inicio - inicio:] if m_inicio >= inicio else escolha
         lg = aluno(input_ids=ids, attention_mask=atencao).logits
         p0 = inicio - 1
         ce = F.cross_entropy(

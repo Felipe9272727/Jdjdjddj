@@ -83,8 +83,11 @@ if torch.cuda.is_available():
 with SAIDAS.open('w', encoding='utf-8') as fora:
     for i, caso in enumerate(casos):
         msgs = [{'role': 'system', 'content': caso['sistema']}, {'role': 'user', 'content': caso['prompt']}]
-        entrada = tok.apply_chat_template(msgs, return_tensors='pt', add_generation_prompt=True)
-        entrada = entrada.to(modelo.device)
+        # `apply_chat_template(..., return_tensors='pt')` devolve um BatchEncoding nas
+        # versões novas do transformers e um tensor nas antigas, e o `generate` só
+        # aceita o tensor. Formatar e tokenizar em dois passos serve as duas.
+        _texto = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+        entrada = tok(_texto, return_tensors='pt', add_special_tokens=False)['input_ids'].to(modelo.device)
         with torch.no_grad():
             # Guloso, como no jogo para o remendo: conserto é escolha, não sorteio.
             saida = modelo.generate(entrada, max_new_tokens=TETO, do_sample=False,

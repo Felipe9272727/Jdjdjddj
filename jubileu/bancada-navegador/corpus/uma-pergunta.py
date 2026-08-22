@@ -68,7 +68,11 @@ if torch.cuda.is_available():
     modelo.cuda()
 
 msgs = [{'role': 'system', 'content': sistema}, {'role': 'user', 'content': prompt}]
-entrada = tok.apply_chat_template(msgs, return_tensors='pt', add_generation_prompt=True).to(modelo.device)
+# `apply_chat_template(..., return_tensors='pt')` devolve um BatchEncoding nas
+# versões novas do transformers e um tensor nas antigas, e o `generate` só
+# aceita o tensor. Formatar e tokenizar em dois passos serve as duas.
+_texto = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+entrada = tok(_texto, return_tensors='pt', add_special_tokens=False)['input_ids'].to(modelo.device)
 
 print('═' * 74)
 print('  O QUE O MODELO RECEBE\n')
