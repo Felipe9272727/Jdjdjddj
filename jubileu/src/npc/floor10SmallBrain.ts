@@ -34,6 +34,7 @@ import {
 import { MemoriaDeBolhas, gerarBolha } from './floor10Bolha';
 import {
     PERSONA_DO_REVISOR_TREINADO, REMENDO_TREINADO_TOKENS, TEMPERATURA_DO_TREINADO,
+    PENSAMENTO_TREINADO_TOKENS,
     enunciadoTreinado,
 } from './floor10RevisorTreinado';
 import { completar as completarNoMicro } from './floor10Reflexo';
@@ -2043,7 +2044,10 @@ export async function remendarFraseEmIngles(
             // devolve a mesma frase para entrada parecida, e era isso que fazia
             // as três respostas de "Você é real?" começarem igual.
             ...(treinado ? { temperature: TEMPERATURA_DO_TREINADO } : {}),
-            max_tokens: treinado ? REMENDO_TREINADO_TOKENS : tokensDoRemendo(),
+            max_tokens: treinado
+                ? REMENDO_TREINADO_TOKENS
+                    + (revisorAtual().pensa ? PENSAMENTO_TREINADO_TOKENS : 0)
+                : tokensDoRemendo(),
             grammar: undefined,
             // NO-OP NESTE MODELO, e fica registrado para ninguém confiar nele:
             // `enable_thinking` é chave do Qwen, e o chat template do LFM2.5-1.2B

@@ -41,6 +41,29 @@ export function enunciadoTreinado(
 export const REMENDO_TREINADO_TOKENS = 40;
 
 /**
+ * ── O ORÇAMENTO DE PENSAMENTO, QUANDO ELE PENSAR ─────────────────────────
+ *
+ * Escolha do dono do jogo: "eu quero que ele pense sim, ele é um modelo pequeno
+ * e muito rápido". A conta, medida neste revisor (~11,6 tokens/s ao escrever):
+ *
+ *     60 tokens de raciocínio ....... +5 s por remendo
+ *    120 tokens ..................... +10 s
+ *    320 tokens (o teto do Huihui) .. +27 s  ← o custo que a troca de RAM tinha
+ *
+ * Sessenta, então, e não trezentos e vinte: o raciocínio que a gente quer é uma
+ * frase — "a linha põe ele dentro do elevador; ele está no andar" — e não uma
+ * deliberação. Num modelo pequeno, raciocínio longo vira divagação: o Huihui
+ * gastou o teto inteiro dentro do bloco em 2 de 12 e devolveu vazio.
+ *
+ * Isto só vale quando o revisor treinado for treinado COM raciocínio: destilar
+ * pensamento é treinar em `<think>…</think>` mais a linha. O modelo atual não
+ * tem o bloco no corpus, então `pensa` continua desligado na entrada dele — o
+ * teto existe para o próximo, e o `semRaciocinio()` do jogo já sabe descartar o
+ * bloco quando ele aparecer.
+ */
+export const PENSAMENTO_TREINADO_TOKENS = 60;
+
+/**
  * ── A TEMPERATURA DO REVISOR TREINADO, E POR QUE NÃO É ZERO ──────────────
  *
  * Eu tinha fixado 0 aqui, por uma medição feita ANTES de este modelo existir:
