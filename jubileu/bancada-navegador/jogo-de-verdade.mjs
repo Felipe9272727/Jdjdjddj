@@ -92,6 +92,7 @@ const tipo = (url) => (url.endsWith('.js') || url.endsWith('.mjs') ? 'text/javas
     : 'application/octet-stream');
 
 const GRANDE = 100e6;
+const grandesNoDisco = [];
 
 async function pelaPonte(route, request) {
     const url = request.url();
@@ -108,6 +109,14 @@ async function pelaPonte(route, request) {
         if (mb > 1) console.log(`  ‹ponte› ${mb.toFixed(0).padStart(5)} MB em ${((Date.now() - t) / 1000).toFixed(0).padStart(3)}s · ${url.split('/').pop()}`);
     }
     if (fs.statSync(destino).size > GRANDE) {
+        // ── UM GRANDE DE CADA VEZ NO DISCO ───────────────────────────────
+        //
+        // A fila baixa um modelo por vez, então o anterior já está no OPFS do
+        // navegador quando o próximo começa. Guardar os dois é o que encheu o
+        // disco desta caixa — 0 byte livre, e o embeddinggemma falhou no meio
+        // do download.
+        for (const velho of grandesNoDisco.splice(0)) fs.rmSync(velho, { force: true });
+        grandesNoDisco.push(destino);
         return route.fulfill({ status: 302, headers: { location: `http://127.0.0.1:${PORTA_PONTE}/${nome}` } });
     }
     await route.fulfill({
@@ -134,7 +143,7 @@ const page = await browser.newPage();
 // medição. Esta bancada não quer o app — quer os MÓDULOS dele, chamados na
 // ordem em que a fila do pipeline os chama. Trocar o boot por um módulo vazio
 // mantém o resto da página igual (isolamento cross-origin, cliente do vite).
-await page.route('**/src/floor10-dev.tsx', (r) => r.fulfill({
+await page.route(/floor10-dev\.tsx/, (r) => r.fulfill({
     status: 200, contentType: 'text/javascript', body: 'export {};',
 }));
 for (const alvo of ['**://cdn.jsdelivr.net/**', '**://huggingface.co/**', '**://*.hf.co/**',
