@@ -92,8 +92,22 @@ if NA_GPU:
     modelo.cuda()
     print(f'  GPU: {torch.cuda.get_device_name(0)} · {"bf16" if BF16 else "fp16"}', flush=True)
 modelo.config.use_cache = False
-alvos = [n for n, _ in modelo.named_modules() if n.endswith(('q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'))]
-sufixos = sorted({n.split('.')[-1] for n in alvos})
+# ── OS ALVOS DO LoRA SE DESCOBREM, NÃO SE ADIVINHAM ──────────────────────
+#
+# A lista fixa (q_proj, k_proj, …) era do SmolLM2, um transformer comum. O
+# Qwen3.5-0.8B é HÍBRIDO: 18 das 24 camadas são Gated DeltaNet, e as lineares
+# delas se chamam in_proj_qkv, in_proj_z, in_proj_b, in_proj_a e out_proj. Com a
+# lista fixa, TRÊS QUARTOS das camadas não receberiam adaptação nenhuma — e o
+# treino "funcionaria", só que aprendendo com um quarto do modelo.
+#
+# Descobrir pelas camadas lineares de verdade serve qualquer arquitetura, que é
+# o que este script precisa agora que o aluno mudou de família.
+import torch.nn as nn
+sufixos = sorted({
+    nome.split('.')[-1]
+    for nome, mod in modelo.named_modules()
+    if isinstance(mod, nn.Linear) and not nome.endswith('lm_head')
+})
 print(f'  LoRA em {sufixos}', flush=True)
 modelo = get_peft_model(modelo, LoraConfig(
     r=32, lora_alpha=64, lora_dropout=0.05, bias='none', task_type='CAUSAL_LM',
@@ -123,6 +137,8 @@ Trainer(
 # Sai MESCLADO: o gguf não carrega adaptador solto, e o jogo carrega gguf.
 print('\n  mesclando o LoRA nos pesos…', flush=True)
 inteiro = modelo.merge_and_unload()
+# bf16 e não fp32: 752M em fp32 são 3 GB, e este disco não comporta.
+inteiro = inteiro.to(torch.bfloat16)
 inteiro.config.use_cache = True
 if NA_GPU:
     # O gguf sai de pesos em CPU; e float32 na conversão evita uma segunda
