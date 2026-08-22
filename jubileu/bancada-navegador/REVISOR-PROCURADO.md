@@ -556,3 +556,78 @@ isentar quem devolve a original com a pontuação trocada.
 
 Este só apareceu porque eu fui **escrever** as respostas certas para o corpus
 de treino. Julgar as respostas dos outros não bastava.
+
+## 13. A coluna que faltava na régua: parece gente?
+
+O dono do jogo leu as saídas do revisor treinado e disse o que nenhum número
+daqui dizia:
+
+> "eu escolhi o smollm3 por conta da naturalidade… não parecia que eu estava
+> conversando com um npc aleatório, parecia que eu estava conversando com um
+> player… o revisor atual parece ser só um bot com frase pré-programada."
+
+Ele está certo, e a régua deste arquivo é cúmplice: ela mede **ausência de
+defeito** — não quebrou cânone, não ecoou, não copiou, não prometeu. Um modelo
+que responde sempre a MESMA frase perfeita tira nota máxima nela. O LFM2.5 quase
+fez isso (14 das 24 respostas com "grey room") e eu chamei de empate.
+
+### O que dá para medir: variedade
+
+`naturalidade.mjs` pergunta a mesma coisa três vezes e conta quantas respostas
+diferentes saem — e com quantas **aberturas** diferentes. Abertura repetida é a
+assinatura de repertório decorado.
+
+| | pipeline (a400m + treinado) | SmolLM3 |
+|---|---|---|
+| respostas diferentes | 12/12 | 12/12 |
+| **aberturas distintas** | **8/12** | **11/12** |
+| **segundos por fala** | **21,2 s** | **127,7 s** |
+| pior caso | 50,9 s | 216,8 s |
+| subir o modelo | ~200 s (5 peças) | 441 s |
+
+### Onde o repertório falta, exatamente
+
+As quatro aberturas repetidas do pipeline são TODAS frases do revisor:
+
+    [1] Você é real? → "Eu sou tão real quanto a dor nos joelhos. Sou um hóspede…"
+    [2] Você é real? → "Eu sou tão real quanto a dor nos joelhos. Eu sou real, se…"
+    [3] Você é real? → "Eu sou tão real quanto a dor nos joelhos. Sou um personagem…"
+
+A primeira frase é idêntica nas três — é o remendo. O que varia é o resto, que é
+o rascunhador. Antes de medir eu tinha chutado o contrário ("a perda é
+provavelmente mais do rascunhador"); é do revisor, e aparece na primeira frase
+de cada resposta.
+
+Com 192 exemplos o repertório é de umas trinta formas, e o modelo circula nelas.
+"I have never met anyone who admits to running it" é quase literal uma linha que
+eu escrevi no corpus.
+
+### E o que a memória do SmolLM3 não guarda
+
+As doze respostas dele, lidas uma a uma: **cinco quebras de cânone e três frases
+cortadas no meio**.
+
+    ✗ "Sou real, mas não sou um ser humano."
+    ✗ "Não sou real, sou um personagem criado para simular…"
+    ✗ "Não sou real, sou…"
+    ✗ "O hotel parece ser governado por um sistema interno…"   (sabe quem manda)
+    ✗ "Talvez tenha caído do 10º andar…"                        (inventa a chegada)
+
+Três vezes ele nega ser humano — o defeito exato que o revisor existe para
+consertar. Ele é mais vivo E mais errado, e naquela época não havia ninguém
+atrás dele. As boas são boas mesmo: *"Não sei, e não me importo."*, *"Não. Nunca
+chame o elevador."*
+
+### A conclusão, e ela respeita o limite de velocidade
+
+O recado foi explícito: *"o motivo de eu estar com essa arquitetura nova é por
+conta da velocidade; tenha certeza de não perder ela tentando se aproximar do
+smoll"*. Então o tempo por fala sai ao lado da variedade, sempre.
+
+O déficit de naturalidade não está na arquitetura — está em **umas trinta frases
+decoradas** dentro de um arquivo de 386 MB. O conserto é **corpus com mais
+FORMAS**, não modelo maior: o revisor continua com 386 MB, subindo em 3,7 s, ao
+lado do rascunhador sem troca de RAM. Custa **zero milissegundo em execução**, e
+é a única melhoria vista até aqui que não cobra nada da velocidade.
+
+O erro do corpus não é ter 192 linhas: é ter seis aberturas.
