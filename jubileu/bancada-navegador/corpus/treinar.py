@@ -240,9 +240,22 @@ Trainer(
         # `warmup_ratio` saiu do TrainingArguments nesta versão; o que restou é
         # `warmup_steps`, e 10% dos passos é a mesma coisa dita em passos.
         warmup_steps=max(2, int(0.1 * EPOCAS * len(treino) / (int(os.environ.get('LOTE', 4)) * int(os.environ.get('ACUMULA', 2))))),
-        logging_steps=5, save_strategy='no', report_to=[], use_cpu=not NA_GPU,
+        # ── SALVAR NO CAMINHO, NÃO SÓ NO FIM ────────────────────────────
+        #
+        # Um treino de 26 minutos morreu na aferição final, depois dos 47
+        # passos completos, e levou tudo: `save_strategy='no'` significa que só
+        # existia modelo depois do último passo do script. Aferição em 24
+        # exemplos de até 4096 tokens é um pico de memória em cima do que o
+        # treino já ocupa, e é o ponto mais provável de morrer — logo depois de
+        # todo o trabalho estar feito e antes de qualquer coisa ir para o disco.
+        logging_steps=5, report_to=[], use_cpu=not NA_GPU,
+        save_strategy='steps', save_steps=int(os.environ.get('SALVA_CADA', 10)),
+        save_total_limit=1,
         bf16=BF16, fp16=NA_GPU and not BF16,
-        eval_strategy='epoch' if len(afere) else 'no',
+        # A aferição é o pico de memória do treino inteiro e vale pouco quando
+        # o conjunto é pequeno. `AFERIR=0` desliga.
+        eval_strategy=('epoch' if len(afere) and os.environ.get('AFERIR', '1') == '1' else 'no'),
+        per_device_eval_batch_size=1,
     ),
     train_dataset=treino, eval_dataset=afere if len(afere) else None,
     data_collator=juntar,
