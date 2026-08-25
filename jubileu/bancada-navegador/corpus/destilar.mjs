@@ -205,10 +205,22 @@ async function perguntar(mensagens, temperatura, teto = TETO_PROFESSOR, tentativ
     // professor tiver ignorado a forma — e aí ele é meta, então não vai ao alvo.
     // Primeiro a forma rotulada, que é a que o professor entrega de verdade;
     // depois a tag literal, para o caso de trocar de professor sem trocar isto.
-    const porQue = /^\s*WHY:\s*(.+)$/mi.exec(fala);
+    // Com passos numerados o WHY ocupa várias linhas: pega tudo entre WHY: e
+    // LINE:, não só a primeira linha.
+    const porQue = FUNDO <= 1
+        ? /^\s*WHY:\s*(.+)$/mi.exec(fala)
+        : /^\s*WHY:\s*([\s\S]*?)(?=^\s*LINE:)/mi.exec(fala);
     const aLinha = /^\s*LINE:\s*(.+)$/mi.exec(fala);
     const doTexto = /<think>([\s\S]*?)<\/think>/.exec(fala);
-    const raciocinio = porQue ? porQue[1].trim() : (doTexto ? doTexto[1].trim() : '');
+    let raciocinio = porQue ? porQue[1].trim() : (doTexto ? doTexto[1].trim() : '');
+    // O professor às vezes repete o cabeçalho da instrução ("exactly 5 numbered
+    // steps, one short line each…") antes do passo 1. Isso iria para o alvo e
+    // ensinaria o aluno a recitar o enunciado em vez de raciocinar — custando
+    // tokens no aparelho para dizer nada.
+    if (FUNDO > 1) {
+        const doPrimeiro = raciocinio.search(/^\s*1[.)]/m);
+        if (doPrimeiro > 0) raciocinio = raciocinio.slice(doPrimeiro).trim();
+    }
     const linha = UMA_FRASE(
         aLinha ? aLinha[1]
             : doTexto ? fala.slice(doTexto.index + doTexto[0].length)
@@ -278,10 +290,47 @@ const PEDIR_CONSERTO = (q, errada, regra) => [
 // treinar nele ensina o aluno a divagar a 11,6 tok/s. Duas linhas rotuladas
 // atravessam o canal de raciocínio intactas, e a régua consegue conferir que as
 // DUAS chegaram. O bloco `<think>` é montado aqui, do lado de cá.
-const COMO_PENSAR = `
+// ── QUANTO PENSAR: PARÂMETRO, E A CONTA ESTÁ AQUI ────────────────────────
+//
+// Pedido do dono do jogo: que o aluno pense como o professor, que raciocina
+// longo. A medida dos 24 casos que ele gerou: média de 2.574 tokens de
+// raciocínio, pior caso 6.608. No aparelho dele, a 11,6 tok/s, isso é 3,7
+// minutos por remendo em média e 9,5 no pior — contra 1,7 s do corpus atual.
+//
+// E o comprimento não é o que faz aquele raciocínio ser bom. Ele é BUSCA em voz
+// alta: "We need answer user's request", "Hmm.", "Need decide.", "Maybe
+// better:", com a frase final reescrita quinze vezes até parar. Um modelo de
+// 0,8B não tem capacidade para fazer essa busca; ele copia a aparência dela,
+// que é o loop. E o v3 já mostrou isso na prática — 3 de 6 casos batendo no
+// teto de tokens, repetindo a mesma sequência.
+//
+// O que transfere é a ESTRUTURA, não o tamanho: nomear o que a frase errada
+// afirma, conferir cada afirmação contra o cânone, decidir o conserto. Isso
+// cabe em passos curtos e numerados, e o número de passos é o parâmetro.
+//
+//   FUNDO=1  → uma frase (20 tokens, ~1,7 s no aparelho)
+//   FUNDO=3  → três passos (~70 tokens, ~6 s)
+//   FUNDO=5  → cinco passos (~120 tokens, ~10 s)
+//
+// Cada valor é um corpus, e a escolha entre eles é medição: qualidade na régua
+// contra segundos no aparelho. Não é gosto.
+const FUNDO = Number(process.env.FUNDO ?? 1);
+
+const COMO_PENSAR = FUNDO <= 1 ? `
 
 Answer in exactly two lines, with these labels and nothing else:
 WHY: one short sentence naming what the wrong line got wrong
+LINE: one sentence in Nilo's voice, no quotes, no label after it` : `
+
+Answer with these labels and nothing else:
+WHY: exactly ${FUNDO} numbered steps, one short line each, in this order —
+  1. name every claim the wrong line makes
+  2. check each claim against what Nilo can actually know or see${FUNDO >= 4 ? `
+  3. name which claim is the worst break and why` : ''}${FUNDO >= 5 ? `
+  4. say what Nilo would say instead, in plain terms` : ''}
+  ${FUNDO}. decide the fix in one clause
+Each step is a decision, never a question, never "maybe" or "hmm" — you are
+writing down a conclusion, not thinking out loud.
 LINE: one sentence in Nilo's voice, no quotes, no label after it`;
 const SO_UMA_FRASE = `
 
