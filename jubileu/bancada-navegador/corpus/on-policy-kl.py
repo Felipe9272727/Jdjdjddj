@@ -146,8 +146,30 @@ SALVA_CADA = int(os.environ.get('SALVA_CADA', 100))
 
 print(f'  professor {MESTRE} em {BITS} bits · aluno {ALUNO}', flush=True)
 assert torch.cuda.is_available(), 'isto precisa de GPU'
-livre, total = torch.cuda.mem_get_info()
-print(f'  GPU: {torch.cuda.get_device_name(0)} · {total / 2**30:.0f} GiB', flush=True)
+
+# ── QUE PRECISÃO A PLACA TEM, E ONDE CADA MODELO MORA ────────────────────
+#
+# bf16 é instrução de Ampere (sm_80) para cima. A T4 do Kaggle é Turing
+# (sm_75) e NÃO tem: pedir bf16 lá dá erro ou cai para emulação lenta. Como o
+# plano B do dono do jogo é justamente o Kaggle, isto precisa ser decidido pela
+# placa e não pelo que a A100 aceitava.
+#
+# E com DUAS placas de 16 GiB a divisão certa não é espalhar o professor pelas
+# duas: é dar uma placa inteira para cada um. Professor de 27,78B em 4 bits são
+# ~15 GiB e cabem numa T4 sozinha; o aluno inteiro com otimizador de 8 bits são
+# ~9 GiB e cabem na outra. Espalhar o professor deixaria as duas pela metade e
+# o aluno sem casa.
+CAP = torch.cuda.get_device_capability(0)
+TEM_BF16 = torch.cuda.is_bf16_supported()
+DTIPO = torch.bfloat16 if TEM_BF16 else torch.float16
+N_GPU = torch.cuda.device_count()
+GPU_MESTRE = int(os.environ.get('GPU_MESTRE', 0))
+GPU_ALUNO = int(os.environ.get('GPU_ALUNO', 1 if N_GPU > 1 else 0))
+for i in range(N_GPU):
+    t = torch.cuda.get_device_properties(i).total_memory / 2**30
+    print(f'  GPU{i}: {torch.cuda.get_device_name(i)} · {t:.0f} GiB', flush=True)
+print(f'  capability {CAP[0]}.{CAP[1]} · precisão {"bf16" if TEM_BF16 else "fp16"}'
+      f' · professor na GPU{GPU_MESTRE}, aluno na GPU{GPU_ALUNO}', flush=True)
 
 # ── UM TOKENIZADOR SÓ, E ISTO É CONDIÇÃO, NÃO DETALHE ────────────────────
 #
@@ -198,10 +220,23 @@ if tok.pad_token is None:
 print(f'  vocabulário conferido token a token: {len(vocab_aluno)} do aluno, '
       f'{len(vocab_mestre)} do professor, {len(SO_DO_MESTRE)} mascarados', flush=True)
 
+# ── AWQ: QUANTIZAÇÃO CALIBRADA, NÃO ARREDONDAMENTO ───────────────────────
+#
+# `BITS=awq` carrega um checkpoint já quantizado (cyankiwi/Qwen3.8-27B-AWQ-INT4)
+# em vez de quantizar na hora. A diferença importa exatamente pelo motivo que o
+# dono do jogo levantou: NF4 arredonda cego, AWQ mede quais pesos importam com
+# um conjunto de calibração e protege esses. Como a destilação a T=2 treina a
+# CAUDA da distribuição, que é onde o arredondamento cego erra mais, a versão
+# calibrada é a escolha certa quando 4 bits são inevitáveis.
+#
+# Nada é quantizado aqui: o checkpoint já vem assim e o transformers lê a
+# configuração de dentro dele.
 quant = None
-if BITS == '4':
+if BITS == 'awq':
+    pass
+elif BITS == '4':
     quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type='nf4',
-                               bnb_4bit_compute_dtype=torch.bfloat16,
+                               bnb_4bit_compute_dtype=DTIPO,
                                bnb_4bit_use_double_quant=True)
 elif BITS == '8':
     quant = BitsAndBytesConfig(load_in_8bit=True)
@@ -229,7 +264,7 @@ def carregar(nome, **kw):
 
 
 professor = carregar(
-    MESTRE, quantization_config=quant, dtype=torch.bfloat16, device_map='cuda:0')
+    MESTRE, quantization_config=quant, dtype=DTIPO, device_map=f'cuda:{GPU_MESTRE}')
 professor.eval()
 professor.config.use_cache = False
 for p in professor.parameters():
@@ -250,7 +285,7 @@ try:
 except ImportError:
     pass
 
-aluno = carregar(BASE_ALUNO, dtype=torch.bfloat16).cuda()
+aluno = carregar(BASE_ALUNO, dtype=DTIPO).to(f'cuda:{GPU_ALUNO}')
 if Path(ALUNO).exists():
     # A v2 sai da SFT como adaptador. Aqui ela é ABSORVIDA nos pesos antes de
     # continuar: manter o LoRA por cima limitaria o resto do treino ao mesmo
@@ -345,8 +380,9 @@ def prompt_ids(msgs, extra=''):
 
 def empacotar(listas, preenche):
     largura = max(len(x) for x in listas)
-    ids = torch.tensor([[preenche] * (largura - len(x)) + x for x in listas]).cuda()
-    at = torch.tensor([[0] * (largura - len(x)) + [1] * len(x) for x in listas]).cuda()
+    d = f'cuda:{GPU_ALUNO}'
+    ids = torch.tensor([[preenche] * (largura - len(x)) + x for x in listas]).to(d)
+    at = torch.tensor([[0] * (largura - len(x)) + [1] * len(x) for x in listas]).to(d)
     return ids, at, largura
 
 
@@ -397,7 +433,8 @@ def kl_em_fatias(ids, atencao, inicio, m_ids, m_at, m_inicio, mascara):
     lote inteiro passam de meio giga POR MODELO, e o softmax em float32 dobra.
     """
     with torch.no_grad():
-        lg_mestre = professor(input_ids=m_ids, attention_mask=m_at).logits
+        dm = f'cuda:{GPU_MESTRE}'
+        lg_mestre = professor(input_ids=m_ids.to(dm), attention_mask=m_at.to(dm)).logits
     lg_aluno = aluno(input_ids=ids, attention_mask=atencao).logits
     # O logit da posição t prevê o token t+1, então o alvo começa um antes. Os
     # dois enunciados têm comprimentos diferentes, então cada um tem seu próprio
@@ -410,7 +447,9 @@ def kl_em_fatias(ids, atencao, inicio, m_ids, m_at, m_inicio, mascara):
         m = mascara[:, a - p0:b - p0]
         if not m.any():
             continue
-        fatia_m = lg_mestre[:, a + desloca:b + desloca].float()
+        # A fatia atravessa de uma placa para a outra: só a fatia, nunca o
+        # tensor inteiro de 248 mil colunas × todas as posições.
+        fatia_m = lg_mestre[:, a + desloca:b + desloca].to(lg_aluno.device).float()
         if SO_DO_MESTRE:
             # -inf antes do softmax: a massa dessas colunas é redistribuída
             # entre os tokens que os dois modelos têm, em vez de virar alvo.
@@ -450,6 +489,10 @@ passos_totais = PASSOS
 agenda = torch.optim.lr_scheduler.OneCycleLR(
     otim, max_lr=LR, total_steps=passos_totais, pct_start=0.1)
 
+escalador = None if TEM_BF16 else torch.amp.GradScaler('cuda')
+if escalador is not None:
+    print('  fp16: escalonamento de perda ligado', flush=True)
+
 SAIDA.mkdir(parents=True, exist_ok=True)
 if REPO_HF and HF_TOKEN:
     # Criado agora, e não no primeiro checkpoint: se o token estiver errado, é
@@ -477,7 +520,8 @@ for passo in range(1, passos_totais + 1):
         # CE auxiliar contra o token que o PROFESSOR escolheria: âncora barata
         # que segura o treino quando o KL fica ruidoso no começo.
         with torch.no_grad():
-            escolha = professor(input_ids=m_ids, attention_mask=m_at).logits.argmax(-1)
+            dm = f'cuda:{GPU_MESTRE}'
+            escolha = professor(input_ids=m_ids.to(dm), attention_mask=m_at.to(dm)).logits.argmax(-1).to(ids.device)
             escolha = escolha[:, m_inicio - inicio:] if m_inicio >= inicio else escolha
         lg = aluno(input_ids=ids, attention_mask=atencao).logits
         p0 = inicio - 1
@@ -486,9 +530,23 @@ for passo in range(1, passos_totais + 1):
             escolha[:, p0:-1].reshape(-1), reduction='none')
         ce = (ce.view(mascara.shape) * mascara).sum() / mascara.sum().clamp(min=1)
         perda = perda + ALFA_CE * ce
-    perda.backward()
-    torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
-    otim.step()
+    # ── fp16 PRECISA DE ESCALONAMENTO, bf16 NÃO ─────────────────────────
+    #
+    # Em fp16 o menor número normal é ~6e-5: gradientes menores que isso viram
+    # zero e o treino para de andar sem dar erro nenhum — a perda fica parada e
+    # parece que o modelo convergiu. O escalonador multiplica a perda antes do
+    # backward e desfaz antes do passo, e desiste do passo quando estourar.
+    # bf16 tem o mesmo expoente do fp32 e não precisa disso.
+    if escalador is not None:
+        escalador.scale(perda).backward()
+        escalador.unscale_(otim)
+        torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
+        escalador.step(otim)
+        escalador.update()
+    else:
+        perda.backward()
+        torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
+        otim.step()
     agenda.step()
     otim.zero_grad(set_to_none=True)
     if passo <= 5 or passo % 10 == 0:
