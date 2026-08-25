@@ -118,7 +118,30 @@ print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo
 # Na CPU só float32 treina de verdade; numa T4 o que existe é fp16, e da L4 em
 # diante bf16, que é o único dos três que não pede escalonamento de perda.
 NA_GPU = torch.cuda.is_available()
-BF16 = NA_GPU and torch.cuda.is_bf16_supported()
+# ── bf16 NA CPU TAMBÉM, QUANDO A MÁQUINA TEM A INSTRUÇÃO ─────────────────
+#
+# A linha antiga só considerava bf16 na GPU e caía em float32 na CPU. Medido
+# nesta máquina, um Xeon com avx512_bf16, treinando o SmolLM2-135M:
+#
+#   float32    5,89 s por 1024 tokens   174 tok/s
+#   bfloat16   1,78 s por 1024 tokens   576 tok/s
+#
+# São 3,3 vezes, de graça, numa linha. A conta de quanto custaria um treino
+# aqui estava três vezes pessimista por causa disso, e isso quase fez a gente
+# desistir de um experimento que cabe numa tarde.
+#
+# `avx512_bf16` é o que importa: sem ele o PyTorch emula bf16 e fica MAIS lento
+# que float32, então a checagem é pela instrução e não pelo desejo.
+def _cpu_tem_bf16():
+    try:
+        return 'avx512_bf16' in Path('/proc/cpuinfo').read_text()
+    except OSError:
+        return False
+
+
+BF16 = (NA_GPU and torch.cuda.is_bf16_supported()) or (not NA_GPU and _cpu_tem_bf16())
+if BF16 and not NA_GPU:
+    print('  CPU com avx512_bf16: treinando em bf16 (3,3x mais rápido que float32)', flush=True)
 modelo = AutoModelForCausalLM.from_pretrained(
     MODELO, dtype=torch.bfloat16 if BF16 else torch.float32)
 if NA_GPU:
