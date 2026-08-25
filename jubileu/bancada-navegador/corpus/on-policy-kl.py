@@ -108,6 +108,20 @@ CORPUS = Path(os.environ.get('CORPUS', AQUI / 'destilado.jsonl'))
 
 PASSOS = int(os.environ.get('PASSOS', 600))
 LOTE = int(os.environ.get('LOTE', 2))
+# ── ACUMULAR EM VEZ DE ENCOLHER ──────────────────────────────────────────
+#
+# Num L4 de 22 GiB o professor em 4 bits ocupa ~15,5 e o aluno inteiro com
+# gradientes e Adam de 8 bits ocupa ~5,25: sobra nada para os logits, que num
+# vocabulário de 248 mil são o maior tensor do passo. O caminho fácil é baixar
+# o lote para 1, e o preço é gradiente barulhento.
+#
+# Acumular resolve os dois: cada micro-lote custa a memória de UM, e o passo do
+# otimizador só acontece depois de somar `ACUMULA` deles. O gradiente é o de um
+# lote grande; o pico de memória é o de um pequeno.
+#
+# E continua on-policy: cada micro-lote é gerado na hora, com os pesos daquele
+# instante. O que muda é quando o peso é atualizado, não de onde vem a amostra.
+ACUMULA = int(os.environ.get('ACUMULA', 1))
 FRESCOR = int(os.environ.get('FRESCOR', 1))       # a cada quantos passos regerar
 GERA_TOKENS = int(os.environ.get('GERA_TOKENS', 120))
 TEMPERATURA = float(os.environ.get('TEMPERATURA', 1.0))
@@ -491,7 +505,8 @@ if otim is None:
     otim = torch.optim.AdamW(treinaveis, lr=LR)
 passos_totais = PASSOS
 agenda = torch.optim.lr_scheduler.OneCycleLR(
-    otim, max_lr=LR, total_steps=passos_totais, pct_start=0.1)
+    otim, max_lr=LR, total_steps=max(1, passos_totais // max(1, ACUMULA)) + 1,
+    pct_start=0.1)
 
 escalador = None if TEM_BF16 else torch.amp.GradScaler('cuda')
 if escalador is not None:
@@ -520,6 +535,10 @@ for passo in range(1, passos_totais + 1):
     if perda is None:
         guardado = None
         continue
+    # A perda de cada micro-lote entra dividida, senão o gradiente somado fica
+    # `ACUMULA` vezes maior do que o de um lote daquele tamanho.
+    if ACUMULA > 1:
+        perda = perda / ACUMULA
     if ALFA_CE > 0:
         # CE auxiliar contra o token que o PROFESSOR escolheria: âncora barata
         # que segura o treino quando o KL fica ruidoso no começo.
@@ -543,16 +562,24 @@ for passo in range(1, passos_totais + 1):
     # bf16 tem o mesmo expoente do fp32 e não precisa disso.
     if escalador is not None:
         escalador.scale(perda).backward()
-        escalador.unscale_(otim)
-        torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
-        escalador.step(otim)
-        escalador.update()
     else:
         perda.backward()
-        torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
-        otim.step()
-    agenda.step()
-    otim.zero_grad(set_to_none=True)
+    # O grafo do micro-lote já foi consumido; largar as referências agora tira
+    # os logits da memória antes de gerar o próximo, que é o pico do passo.
+    guardado = None
+    del ids, atencao, m_ids, m_at, mascara, perda
+
+    if passo % ACUMULA == 0:
+        if escalador is not None:
+            escalador.unscale_(otim)
+            torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
+            escalador.step(otim)
+            escalador.update()
+        else:
+            torch.nn.utils.clip_grad_norm_(treinaveis, 1.0)
+            otim.step()
+        agenda.step()
+        otim.zero_grad(set_to_none=True)
     if passo <= 5 or passo % 10 == 0:
         gasto = time.time() - t0
         pico = torch.cuda.max_memory_allocated() / 2**30
