@@ -104,5 +104,10 @@ with SAIDAS.open('w', encoding='utf-8') as fora:
         texto = (bruto[fim + 8:] if fim >= 0 else ('' if '<think>' in bruto else bruto)).strip()
         fora.write(json.dumps({'nome': caso['nome'], 'saida': texto, 'pensou': fim >= 0},
                               ensure_ascii=False) + '\n')
+        # Descarregar a cada caso, e não no fim. Uma prova de 27 casos na CPU
+        # leva dez minutos, e se o processo morrer no caminho — por memória, por
+        # sessão caída — o que já foi gerado tem que estar em disco. Perdi uma
+        # corrida inteira por confiar no buffer.
+        fora.flush()
         print(f'  {i + 1:2}/{len(casos)}  {caso["nome"][:38]:38} {texto[:70]}', flush=True)
 print(f'\n  → {SAIDAS}\n  agora: node corpus/julgar-saidas.mjs {SAIDAS}', flush=True)
