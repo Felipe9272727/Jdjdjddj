@@ -6,6 +6,11 @@
 # uma, e a que está aberta muda a cada segundo. Elas viram UM corpus por
 # `corpus/juntar.mjs`, e é o resultado dele que entra no repositório.
 corpus/destilado-p*.jsonl
+# O mesmo vale para as variantes de profundidade de pensamento (FUNDO=N): o
+# arquivo e escrito enquanto o gerador roda, e commitar um jsonl pela metade
+# guarda um estado que nunca existiu. Ele entra fechado, num commit proprio,
+# com a contagem de linhas, de aberturas e de tokens de raciocinio.
+corpus/destilado-f*.jsonl
 # As perguntas geradas saem de uma vez, no fim do processo: enquanto ele roda o
 # arquivo tem zero byte. Ele entra no repositorio quando estiver fechado, com a
 # contagem e quantas foram descartadas por baterem com a prova.
