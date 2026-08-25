@@ -143,6 +143,10 @@ TETO_PROMPT = int(os.environ.get('TETO_PROMPT', 512))
 REPO_HF = os.environ.get('REPO_HF', '')          # ex.: usuario/nilo-revisor-08b
 HF_TOKEN = os.environ.get('HF_TOKEN', '')
 SALVA_CADA = int(os.environ.get('SALVA_CADA', 100))
+# Subir para a raiz do repositório sobrescreve o que já está lá. Quando a
+# versão anterior tem defeito conhecido, ela vale como controle — e comparar
+# depois é impossível se a nova passou por cima. Uma subpasta por versão.
+PASTA_HF = os.environ.get('PASTA_HF', '') or None
 
 print(f'  professor {MESTRE} em {BITS} bits · aluno {ALUNO}', flush=True)
 assert torch.cuda.is_available(), 'isto precisa de GPU'
@@ -563,6 +567,7 @@ for passo in range(1, passos_totais + 1):
                 from huggingface_hub import HfApi
                 HfApi().upload_folder(
                     folder_path=str(SAIDA), repo_id=REPO_HF, token=HF_TOKEN,
+                    path_in_repo=PASTA_HF,
                     commit_message=f'passo {passo}/{passos_totais} · KL {perda.item():.4f}')
                 print(f'  enviado para {REPO_HF}', flush=True)
             except Exception as e:
@@ -576,7 +581,7 @@ if REPO_HF and HF_TOKEN:
     from huggingface_hub import HfApi
     HfApi().create_repo(REPO_HF, token=HF_TOKEN, exist_ok=True)
     HfApi().upload_folder(folder_path=str(SAIDA), repo_id=REPO_HF, token=HF_TOKEN,
-                          commit_message='treino terminado')
+                          path_in_repo=PASTA_HF, commit_message='treino terminado')
     print(f'  enviado para https://huggingface.co/{REPO_HF}', flush=True)
 print(f'\n  pronto em {(time.time() - t0) / 60:.1f} min · em {SAIDA}', flush=True)
 if INTEIRO:
