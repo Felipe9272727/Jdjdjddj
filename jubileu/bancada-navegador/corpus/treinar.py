@@ -117,6 +117,18 @@ print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo
 # ── CPU E GPU NA MESMA RECEITA ───────────────────────────────────────────
 # Na CPU só float32 treina de verdade; numa T4 o que existe é fp16, e da L4 em
 # diante bf16, que é o único dos três que não pede escalonamento de perda.
+# ── LoRA OU OS PESOS INTEIROS ────────────────────────────────────────────
+#
+# LoRA prende a mudança a um subespaço de posto baixo. Para ENSINAR UMA TAREFA
+# a um modelo que já se comporta — a lore do Nilo num modelo que já fala — é o
+# certo: barato e suficiente. Para INSTALAR UMA CAPACIDADE NOVA, como raciocinar
+# longo, é subinstalação: 6,8% dos pesos não refazem um comportamento.
+#
+# Num modelo de 135M o treino inteiro cabe folgado até na CPU — pesos 288 MB em
+# bf16, gradientes 288 MB, estados do Adam 1,15 GB — então a escolha aqui é de
+# objetivo, não de orçamento.
+INTEIRO = os.environ.get('INTEIRO', '0') == '1'
+
 NA_GPU = torch.cuda.is_available()
 # ── bf16 NA CPU TAMBÉM, QUANDO A MÁQUINA TEM A INSTRUÇÃO ─────────────────
 #
@@ -159,12 +171,18 @@ modelo.config.use_cache = False
 # Descobrir pelas camadas lineares de verdade serve qualquer arquitetura, que é
 # o que este script precisa agora que o aluno mudou de família.
 import torch.nn as nn
+if INTEIRO:
+    for _p in modelo.parameters():
+        _p.requires_grad_(True)
+    _n = sum(_p.numel() for _p in modelo.parameters() if _p.requires_grad)
+    print(f'  treino INTEIRO: {_n / 1e6:.0f}M parâmetros, cabeça de saída incluída', flush=True)
 sufixos = sorted({
     nome.split('.')[-1]
     for nome, mod in modelo.named_modules()
     if isinstance(mod, nn.Linear) and not nome.endswith('lm_head')
 })
-print(f'  LoRA em {sufixos}', flush=True)
+if not INTEIRO:
+    print(f'  LoRA em {sufixos}', flush=True)
 # ── O DESPACHANTE DO peft PODE EXPLODIR ANTES DE COMEÇAR ─────────────────
 #
 # `get_peft_model` percorre uma lista de despachantes para decidir que tipo de
@@ -176,10 +194,11 @@ print(f'  LoRA em {sufixos}', flush=True)
 #
 # A mensagem aqui existe porque o traceback do peft não diz o que fazer.
 try:
-    modelo = get_peft_model(modelo, LoraConfig(
-        r=32, lora_alpha=64, lora_dropout=0.05, bias='none',
-        task_type='CAUSAL_LM', target_modules=sufixos,
-    ))
+    if not INTEIRO:
+        modelo = get_peft_model(modelo, LoraConfig(
+            r=32, lora_alpha=64, lora_dropout=0.05, bias='none',
+            task_type='CAUSAL_LM', target_modules=sufixos,
+        ))
 except ImportError as e:
     if 'torchao' not in str(e):
         raise
@@ -189,7 +208,8 @@ except ImportError as e:
         '  e recebendo uma exceção em vez de um "não". Nada aqui usa torchao.\n'
         '  Tire ele da frente e rode de novo:\n\n'
         '      pip uninstall -y torchao\n')
-modelo.print_trainable_parameters()
+if not INTEIRO:
+    modelo.print_trainable_parameters()
 
 t0 = time.time()
 Trainer(
@@ -209,6 +229,14 @@ Trainer(
     train_dataset=treino, eval_dataset=afere if len(afere) else None,
     data_collator=juntar,
 ).train()
+
+# Em treino INTEIRO não há o que mesclar: os pesos JÁ são o modelo.
+if INTEIRO:
+    modelo.config.use_cache = True
+    modelo.to(torch.bfloat16).save_pretrained(SAIDA)
+    tok.save_pretrained(SAIDA)
+    print(f'\n  pesos completos em {SAIDA} · pronto em {(time.time() - t0) / 60:.1f} min', flush=True)
+    raise SystemExit(0)
 
 # Sai MESCLADO: o gguf não carrega adaptador solto, e o jogo carrega gguf.
 print('\n  mesclando o LoRA nos pesos…', flush=True)
