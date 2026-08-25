@@ -566,6 +566,10 @@ for passo in range(1, passos_totais + 1):
         perda.backward()
     # O grafo do micro-lote já foi consumido; largar as referências agora tira
     # os logits da memória antes de gerar o próximo, que é o pico do passo.
+    # O valor sai ANTES do del: o log adiante precisa dele e o tensor não existe
+    # mais. Multiplicado de volta por ACUMULA para o número impresso ser o KL
+    # daquele micro-lote, e não a fatia dividida que foi ao gradiente.
+    valor = perda.item() * ACUMULA
     guardado = None
     del ids, atencao, m_ids, m_at, mascara, perda
 
@@ -583,7 +587,7 @@ for passo in range(1, passos_totais + 1):
     if passo <= 5 or passo % 10 == 0:
         gasto = time.time() - t0
         pico = torch.cuda.max_memory_allocated() / 2**30
-        print(f'  passo {passo}/{passos_totais} · KL {perda.item():.4f} · '
+        print(f'  passo {passo}/{passos_totais} · KL {valor:.4f} · '
               f'{gasto / passo:.1f}s/passo · pico {pico:.1f} GiB', flush=True)
     if passo % SALVA_CADA == 0:
         aluno.save_pretrained(str(SAIDA))
@@ -595,7 +599,7 @@ for passo in range(1, passos_totais + 1):
                 HfApi().upload_folder(
                     folder_path=str(SAIDA), repo_id=REPO_HF, token=HF_TOKEN,
                     path_in_repo=PASTA_HF,
-                    commit_message=f'passo {passo}/{passos_totais} · KL {perda.item():.4f}')
+                    commit_message=f"passo {passo}/{passos_totais} · KL {valor:.4f}")
                 print(f'  enviado para {REPO_HF}', flush=True)
             except Exception as e:
                 # Falha de rede não pode derrubar o treino: o disco local já tem
