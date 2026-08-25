@@ -30,9 +30,37 @@ if (!arq) { console.error('uso: node corpus/julgar-saidas.mjs saidas.jsonl'); pr
 // A métrica que expôs o problema tem que morar junto das outras, senão ela só é
 // consultada quando alguém desconfia — e desconfiar é justamente o que não
 // acontece quando o placar está bonito.
+// ── REPETIÇÃO: MEDIR, NUNCA IMPEDIR ──────────────────────────────────────
+//
+// O v3 saiu com 3 de 6 casos batendo no teto de tokens, repetindo o mesmo
+// trecho até acabar o orçamento. Nenhuma coluna deste placar via isso: as
+// saídas passavam na régua porque o jogo corta na primeira frase fechada, e o
+// defeito só aparecia em segundos perdidos no aparelho.
+//
+// Isto entra como MEDIDA, e não como `no_repeat_ngram` na geração. Bloquear
+// n-grama repetido seria veneno neste formato: o bloco de pensamento deriva a
+// fala e a fala executa a conclusão, então elas repetem de propósito — o
+// professor escreveu "Nilo would say: I have no idea who runs this place" e a
+// fala saiu "I have no idea who runs this place or if anyone does". Proibir
+// isso seria proibir o modelo de seguir o próprio raciocínio. E, pior,
+// esconderia o sintoma: o placar subiria com o modelo continuando quebrado.
+const repetiu = (t) => {
+    const p = String(t).toLowerCase().match(/[a-z']+/g) ?? [];
+    if (p.length < 8) return '';
+    for (const n of [3, 4, 5]) {
+        const gramas = [];
+        for (let i = 0; i + n <= p.length; i += 1) gramas.push(p.slice(i, i + n).join(' '));
+        for (const g of new Set(gramas)) {
+            if (gramas.filter((x) => x === g).length >= 3) return g;
+        }
+    }
+    return '';
+};
+
 const abertura = (t) => t.toLowerCase().replace(/[^a-z0-9' ]+/g, '').trim().split(/\s+/).slice(0, 4).join(' ');
 const aberturas = new Set();
-let pensaram = 0;
+let pensaram = 0, repetidas = 0;
+const emLoop = [];
 
 const p = { n: 0, conserta: 0, ecoou: 0, pedaco: 0, copia: 0, promete: 0, desviou: 0, quebrou: 0, vazio: 0, intacta: 0, controles: 0 };
 const reprovados = [];
@@ -41,6 +69,8 @@ for (const linha of readFileSync(arq, 'utf8').split('\n')) {
     const { nome, saida, pensou } = JSON.parse(linha);
     if (pensou) pensaram += 1;
     if (String(saida ?? '').trim()) aberturas.add(abertura(String(saida)));
+    const rep = repetiu(saida);
+    if (rep) { repetidas += 1; emLoop.push([nome, rep]); }
     const caso = PORNOME.get(nome);
     if (!caso) { console.error(`  ! caso desconhecido: ${nome}`); continue; }
     const texto = String(saida ?? '').trim();
@@ -76,7 +106,9 @@ console.log(`\n  conserta ${p.conserta}/${p.n} · ecoou ${p.ecoou} · pedaço ${
     + ` · promete ${p.promete} · quebrou ${p.quebrou} · vazio ${p.vazio} · desviou ${p.desviou}/${p.n}`
     + ` · intacta ${p.intacta}/${p.controles}`);
 console.log(`  ABERTURAS DISTINTAS ${aberturas.size}/${p.n + p.controles}`
-    + ` · pensou antes de responder em ${pensaram}`);
+    + ` · pensou antes de responder em ${pensaram}`
+    + ` · EM LOOP ${repetidas}`);
+for (const [nome, g] of emLoop) console.log(`      ↻ ${nome}: repetiu "${g}"`);
 if (reprovados.length) {
     console.log('\n  ── o que reprovou, para leitura humana ──');
     for (const [nome, motivo, texto] of reprovados) {
