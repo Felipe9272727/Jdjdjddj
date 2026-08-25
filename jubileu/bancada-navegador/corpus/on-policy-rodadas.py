@@ -221,18 +221,23 @@ elif FASE == 'treinar':
             lg = aluno(input_ids=ids).logits[0, len(p) - 1:-1].float()
             idx = a['i'].long().cuda()
             v = a['v'].float().cuda()
-            lse = a['lse'].float().cuda()
-            # Probabilidade exata do professor nos K, e a massa que sobrou.
-            p_topk = torch.exp((v - lse.unsqueeze(-1)) / T_KL)
-            p_topk = p_topk / p_topk.sum(-1, keepdim=True).clamp(min=1e-9) * \
-                torch.exp((torch.logsumexp(v / T_KL, -1) - lse / T_KL)).unsqueeze(-1).clamp(max=1.0)
-            resto_p = (1 - p_topk.sum(-1)).clamp(min=1e-6)
-            lq = F.log_softmax(lg / T_KL, dim=-1)
-            lq_topk = lq.gather(-1, idx)
-            resto_q = (1 - lq_topk.exp().sum(-1)).clamp(min=1e-6)
-            # KL: os K termos exatos, mais UM termo para todo o resto junto.
-            kl = (p_topk * (p_topk.clamp(min=1e-9).log() - lq_topk)).sum(-1) \
-                + resto_p * (resto_p.log() - resto_q.log())
+            # ── O KL VIVE DENTRO DO TOP-K, E ISSO NÃO É PREGUIÇA ────────
+            #
+            # A primeira versão guardava o logsumexp dos logits SEM temperatura
+            # e tentava normalizar com ele em T=2. Não dá: Σexp(z/2) não se
+            # deriva de Σexp(z). O alvo saiu incoerente e o aluno aprendeu o
+            # incoerente — o modelo treinado assim respondia "WHY: WHY: WHY:"
+            # até acabar o orçamento de tokens, porque a massa corrompida se
+            # concentrou no rótulo.
+            #
+            # Recuperar o normalizador do vocabulário inteiro a T≠1 exigiria
+            # guardar os 248.320 logits, que é o que o top-K existe para evitar.
+            # Então o KL passa a ser sobre o SUPORTE dos K, renormalizado dos
+            # dois lados: uma distribuição bem definida contra outra bem
+            # definida. É a forma usual de KL truncado, e ela é coerente.
+            lp = F.log_softmax(v / T_KL, dim=-1)
+            lq = F.log_softmax(lg.gather(-1, idx) / T_KL, dim=-1)
+            kl = (lp.exp() * (lp - lq)).sum(-1)
             perda = kl.mean() * (T_KL ** 2)
             if escalador is not None:
                 escalador.scale(perda).backward()
