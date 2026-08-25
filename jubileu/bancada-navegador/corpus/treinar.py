@@ -42,6 +42,7 @@ class Remendos(Dataset):
 
     def __init__(self, caminho):
         self.itens = []
+        self.cortados = 0
         for linha in Path(caminho).read_text(encoding='utf-8').splitlines():
             if not linha.strip():
                 continue
@@ -57,6 +58,19 @@ class Remendos(Dataset):
             for i in range(min(len(ids_prompt), len(alvo))):
                 alvo[i] = -100
             if all(a == -100 for a in alvo):
+                continue
+            # ── CORTAR O ALVO É PIOR QUE NÃO TREINAR NELE ────────────────
+            #
+            # Quando `inteiro` passa do TETO, o corte cai DENTRO da resposta: o
+            # modelo vê o começo do alvo e nunca vê o fim. Num alvo que começa
+            # com <think>, isso ensina literalmente "abra a tag e continue para
+            # sempre" — e foi o que aconteceu numa rodada inteira aqui, com 46%
+            # dos exemplos truncados e o modelo saindo sem aprender a tag.
+            #
+            # O prompt truncado à esquerda é outra coisa e é aceitável. O alvo
+            # truncado à direita não é: ele inverte a lição.
+            if len(tok(inteiro, add_special_tokens=False)['input_ids']) > TETO:
+                self.cortados += 1
                 continue
             self.itens.append({'input_ids': ids, 'labels': alvo})
 
@@ -113,6 +127,10 @@ if _tem_bloco(_arq_treino) != _tem_bloco(_arq_afere):
 else:
     afere = Remendos(_arq_afere)
 print(f'  {len(treino)} linhas de treino · {len(afere)} de aferição · modelo {MODELO}', flush=True)
+if getattr(treino, 'cortados', 0):
+    print(f'  ⚠ {treino.cortados} exemplos DESCARTADOS por passarem de TETO={TETO} tokens.', flush=True)
+    print(f'    Suba o TETO ou colha traços mais curtos: treinar em alvo cortado', flush=True)
+    print(f'    ensina a começar e nunca terminar.', flush=True)
 
 # ── CPU E GPU NA MESMA RECEITA ───────────────────────────────────────────
 # Na CPU só float32 treina de verdade; numa T4 o que existe é fp16, e da L4 em
