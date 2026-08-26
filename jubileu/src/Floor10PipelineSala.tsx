@@ -51,7 +51,9 @@ import { falarPeloPipelineReal, pipelineDisponivel } from './npc/floor10Pipeline
 import {
     enumerarEmIngles, type DesfechoDoRemendo, type PassoDoPipeline,
 } from './npc/floor10Pipeline';
-import { revisorAtual, pesoDoRevisor } from './npc/floor10Revisores';
+import {
+    revisorAtual, pesoDoRevisor, revisorPedidoDesconhecido,
+} from './npc/floor10Revisores';
 import { revisorOnnxDePe } from './npc/floor10RevisorOnnx';
 import { SMALL_BRAIN_CATALOG } from './npc/floor10Brains';
 
@@ -815,6 +817,31 @@ export default function Floor10PipelineSala() {
                     passo, quatro vezes seguidas, foi o que desligou o celular
                     do dono do jogo. Aqui ele acontece uma vez, com o aparelho
                     parado, e depois de tudo já estar no disco. */}
+                {/* ── O `?revisor=` QUE ESTE BUILD NÃO CONHECE ──────────────
+                    Três relatos seguidos de "continua mostrando que o LFM está
+                    lá", com a URL certa. E estava certa: o build é que era
+                    anterior ao revisor pedido. `lerDaUrl` devolve `null` para
+                    um id fora da lista e a escolha cai no titular EM SILÊNCIO —
+                    de fora, idêntico a não ter pedido nada.
+                    Um id desconhecido quase sempre é bundle velho: o service
+                    worker servindo uma versão de antes. */}
+                {revisorPedidoDesconhecido() && (
+                    <div style={{
+                        marginTop: 12, padding: 10, borderRadius: 6,
+                        border: '1px solid #6b4f1f', background: '#211a0d', color: '#f5c96b',
+                    }}
+                    >
+                        <strong>
+                            este build não conhece o revisor “{revisorPedidoDesconhecido()}”
+                        </strong>
+                        <div style={{ color: '#c9a961', fontSize: 12, marginTop: 4 }}>
+                            Está rodando o titular ({revisorAtual().label}) no lugar. Quase sempre
+                            é bundle velho — o service worker serve uma versão anterior à que tem
+                            esse revisor. Recarregue segurando o botão de recarregar, ou feche
+                            todas as abas do site e abra de novo.
+                        </div>
+                    </div>
+                )}
                 <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #2a2a2a' }}>
                     <button
                         type="button"

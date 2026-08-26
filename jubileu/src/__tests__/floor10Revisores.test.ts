@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
     REVISORES, REVISOR_PADRAO, revisorEscolhido, revisorAtual,
-    cerebroDoRevisor, definirRevisor, resetRevisorParaTestes,
+    cerebroDoRevisor, definirRevisor, resetRevisorParaTestes, revisorPedidoDesconhecido,
 } from '../npc/floor10Revisores';
 import { SMALL_BRAIN_CATALOG } from '../npc/floor10Brains';
 import {
@@ -272,5 +272,38 @@ describe('um modelo só, para os dois papéis', () => {
         // A troca custa ~18 s de recarga e existe para não haver dois llama.cpp
         // de pé. Aqui não há segundo modelo, então ela não pode acontecer.
         expect(bloco).not.toContain('trocarRascunhadorPeloRevisor');
+    });
+});
+
+/**
+ * ── O PEDIDO QUE O BUILD NÃO CONHECE ─────────────────────────────────────
+ *
+ * Três relatos seguidos de "continua mostrando que o LFM está lá", com a URL
+ * `?pipeline&revisor=v2` correta. Reproduzida num teste, a URL escolhia o v2 —
+ * o build no aparelho é que era anterior ao v2 existir.
+ *
+ * `lerDaUrl` devolve `null` para um id fora de `REVISORES` e a escolha cai no
+ * titular. O comportamento é certo (um parâmetro torto não pode derrubar o
+ * jogo) e o silêncio é o defeito: de fora, é idêntico a não ter pedido nada.
+ */
+describe('um ?revisor= desconhecido é dito, não engolido', () => {
+    it('devolve o id cru quando ele não está na lista', () => {
+        expect(revisorPedidoDesconhecido('?pipeline&revisor=v99')).toBe('v99');
+        expect(revisorPedidoDesconhecido('?revisor=lfm2.5-turbo')).toBe('lfm2.5-turbo');
+    });
+
+    it('e cala a boca quando o pedido é válido ou ausente', () => {
+        expect(revisorPedidoDesconhecido('?pipeline&revisor=v2')).toBeNull();
+        expect(revisorPedidoDesconhecido('?pipeline&revisor=lfm')).toBeNull();
+        expect(revisorPedidoDesconhecido('?pipeline')).toBeNull();
+        expect(revisorPedidoDesconhecido('')).toBeNull();
+    });
+
+    it('a sala mostra o aviso, que é onde o relato aconteceu', () => {
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain('revisorPedidoDesconhecido()');
+        expect(sala).toMatch(/bundle velho/i);
     });
 });

@@ -377,6 +377,31 @@ function lerDaUrl(busca: string): RevisorId | null {
     return REVISORES.find((r) => r.id === pedido)?.id ?? null;
 }
 
+/**
+ * ── O `?revisor=` QUE ESTE BUILD NÃO CONHECE ─────────────────────────────
+ *
+ * `lerDaUrl` devolve `null` para um id que não está na lista, e quem chama cai
+ * no titular. Certo como comportamento — um parâmetro torto não pode derrubar
+ * o jogo — e péssimo como diagnóstico, porque o silêncio é idêntico ao de quem
+ * não pediu nada.
+ *
+ * Foi exatamente isso que aconteceu: o dono do jogo abriu
+ * `?pipeline&revisor=v2` num deploy anterior ao v2 existir. Aquele build não
+ * tinha `'v2'` em `REVISORES`, o `find` falhou, e a tela mostrou o LFM2.5 de
+ * 1,25 GB sem dizer por quê. Ele repetiu três vezes que a URL estava certa — e
+ * estava. O build é que era outro.
+ *
+ * Um id desconhecido quase sempre significa BUNDLE VELHO: o service worker
+ * está servindo uma versão anterior à que tem o revisor pedido. Quem mostra
+ * isto na tela transforma "não mudou de revisor" em "recarregue a página".
+ */
+export function revisorPedidoDesconhecido(busca?: string): string | null {
+    const b = busca ?? globalThis.location?.search ?? '';
+    const pedido = new URLSearchParams(b).get('revisor');
+    if (!pedido) return null;
+    return REVISORES.some((r) => r.id === pedido) ? null : pedido;
+}
+
 let escolhido: RevisorId | null = null;
 
 /**
