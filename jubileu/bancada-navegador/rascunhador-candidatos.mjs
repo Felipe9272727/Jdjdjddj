@@ -112,7 +112,7 @@ for (const m of MODELOS) {
     console.log(`\n  ── ${m.rot} · carga ${carga}s ──`);
 
     let lidos = 0; let msLer = 0; let escritos = 0; let msEscrever = 0;
-    let quebras = 0; let vazias = 0;
+    let quebras = 0; let vazias = 0; let pensou = 0;
     for (const c of CASOS) {
         const r = await page.evaluate(async ({ sys, ex, teto }) => {
             const a = performance.now();
@@ -124,8 +124,26 @@ for (const m of MODELOS) {
                     cache_prompt: true, chat_template_kwargs: { enable_thinking: false },
                 });
                 const ti = res?.timings ?? {};
+                // ── A RÉGUA JULGA A FALA, NUNCA O PENSAMENTO ──────────────
+                //
+                // Erro que eu repeti aqui depois de o dossiê do revisor já o
+                // ter documentado: o v2 rascunhando devolve `<think>…</think>`
+                // antes da linha, e o bloco fala do Nilo em terceira pessoa
+                // ("but Nilo has never left") e cita "the player" — as duas
+                // formas que a régua proíbe NA FALA. Resultado: 5 de 8
+                // reprovadas por raciocinar direito.
+                //
+                // O jogo descarta o bloco (`semRaciocinio`), então a bancada
+                // tem de descartar também, ou ela mede um texto que o jogador
+                // nunca veria.
+                const bruto = String(res?.choices?.[0]?.message?.content ?? '');
+                const fim = bruto.lastIndexOf('</think>');
+                const util = fim >= 0
+                    ? bruto.slice(fim + 8)
+                    : (bruto.includes('<think>') ? '' : bruto);
                 return {
-                    texto: String(res?.choices?.[0]?.message?.content ?? '').trim(),
+                    texto: util.trim(),
+                    pensou: fim >= 0,
                     lidos: ti.prompt_n ?? 0, msLer: ti.prompt_ms ?? 0,
                     escritos: ti.predicted_n ?? 0, msEscrever: ti.predicted_ms ?? 0,
                     ms: Math.round(performance.now() - a),
@@ -139,20 +157,22 @@ for (const m of MODELOS) {
         const quais = REGRAS.filter(([, re]) => re.test(r.texto)).map(([n]) => n);
         if (quais.length) quebras += 1;
         if (!r.texto) vazias += 1;
+        if (r.pensou) pensou += 1;
         console.log(`    ${(r.ms / 1000).toFixed(1)}s ${quais.length ? '✗ ' + quais[0] : '✓'}`);
         console.log(`      "${r.texto.replace(/\n+/g, ' ⏎ ').slice(0, 190)}"`);
     }
     const lerTps = msLer ? lidos / (msLer / 1000) : 0;
     const escreverTps = msEscrever ? escritos / (msEscrever / 1000) : 0;
-    placar.push({ rot: m.rot, carga, lerTps, escreverTps, quebras, vazias,
+    placar.push({ rot: m.rot, carga, lerTps, escreverTps, quebras, vazias, pensou,
         lidos: Math.round(lidos / CASOS.length), msLer: msLer / 1000 / CASOS.length });
 }
 
 console.log(`\n${'═'.repeat(78)}`);
-console.log('  candidato          quebra  vazia   LÊ tok/s  ESCREVE tok/s   prompt   leitura');
+console.log('  candidato          quebra  vazia  pensa   LÊ tok/s  ESCREVE tok/s   prompt   leitura');
 for (const p of placar) {
     console.log(`  ${p.rot.padEnd(18)} ${String(p.quebras).padStart(2)}/${CASOS.length}`
         + `   ${String(p.vazias).padStart(2)}/${CASOS.length}`
+        + `  ${String(p.pensou).padStart(2)}/${CASOS.length}`
         + `     ${p.lerTps.toFixed(1).padStart(6)}      ${p.escreverTps.toFixed(1).padStart(6)}`
         + `      ${String(p.lidos).padStart(4)}tok  ${p.msLer.toFixed(1).padStart(5)}s`);
 }
