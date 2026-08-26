@@ -460,3 +460,34 @@ describe('a sala do ?pipeline baixa as mesmas peças que o jogo', () => {
         }
     });
 });
+
+/**
+ * ── O INTERRUPTOR DA DIREÇÃO ─────────────────────────────────────────────
+ *
+ * `?direcao=0` existe por uma suspeita minha sobre uma mudança minha. Hoje eu
+ * passei a deixar o EmbeddingGemma RESIDENTE junto do rascunhador; antes ele
+ * nunca subia nesta sala e a busca do cânone caía na lexical. No aparelho de
+ * quem joga o pipeline foi de ~25 s para 55–65 s no mesmo dia.
+ *
+ * Pode não ser isso. A primeira lei do projeto é que a bancada não prevê aquele
+ * celular — e ela vale nos dois sentidos: daqui eu não confirmo nem descarto. O
+ * que dá para fazer é entregar as duas corridas na mão de quem tem o aparelho.
+ */
+describe('a direção pode ficar fora da RAM, para a corrida de controle', () => {
+    it('desligada, a peça sai da fila — baixar 334 MB para não usar já foi criticado', () => {
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain('...(!direcaoLigada() ? [] : [{');
+    });
+
+    it('e o botão não sobe o que a fila não baixou', () => {
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain('if (!direcaoLigada()) {');
+        // A tela diz que está desligada, em vez de simplesmente não acontecer
+        // nada — foi um silêncio desses que custou três rodadas hoje.
+        expect(sala).toMatch(/direção desligada por \?direcao=0/);
+    });
+});

@@ -489,7 +489,39 @@ export async function baixarMemoria(): Promise<boolean> {
     }
 }
 
+/**
+ * ── A DIREÇÃO PODE SER DESLIGADA, E ELA PRECISA PODER ────────────────────
+ *
+ * `?direcao=0` deixa o EmbeddingGemma FORA da RAM. Existe por uma suspeita
+ * minha, sobre uma mudança minha, e o dono do jogo é o único que pode medir.
+ *
+ * O que ele relatou, no aparelho dele:
+ *
+ *     pipeline quando era bom .... ~25 s, às vezes menos
+ *     pipeline agora ............. 55–65 s, e o rascunho pior
+ *
+ * Hoje eu passei a subir a memória junto do rascunhador. Antes ela nunca
+ * ficava de pé nesta sala: a busca do cânone caía na LEXICAL, que não precisa
+ * de modelo nenhum. Agora são dois llama.cpp residentes — 822 MB do
+ * rascunhador mais 333 MB deste — num aparelho onde este projeto já mediu, mais
+ * de uma vez, que runtime a mais custa caro.
+ *
+ * Pode não ser isso. A primeira lei do `JA-TENTADO.md` é que a minha bancada
+ * não prevê o celular dele, e ela vale nos dois sentidos: eu não posso
+ * confirmar NEM descartar daqui. O que dá para fazer é entregar as duas
+ * corridas na mão de quem tem o aparelho — com direção e sem — e deixar o
+ * número decidir.
+ *
+ * Desligada, a direção não some: `memoriaDoRascunho` cai na busca lexical do
+ * cânone, que é o que a sala fazia até hoje de manhã. O rascunhador continua
+ * recebendo um fato; ele só é escolhido por palavra em vez de por significado.
+ */
+export function direcaoLigada(busca = globalThis.location?.search ?? ''): boolean {
+    return !/[?&]direcao=(?:0|nao|off)\b/i.test(busca);
+}
+
 export async function precarregarMemoria(): Promise<boolean> {
+    if (!direcaoLigada()) return false;
     const engine = await floor10ModelCoordinator.activate(
         'memory',
         () => ensureMemoriaEngine(),

@@ -211,3 +211,19 @@ describe('npc/floor10Canon — a memória por significado tem preferência', () 
         expect(prompt).toContain('manutenção noturna em elevadores');
     });
 });
+
+describe('direcaoLigada — o padrão é ligada, e só a URL desliga', () => {
+    it('desliga com as três formas', async () => {
+        const { direcaoLigada } = await import('../npc/floor10Memoria');
+        expect(direcaoLigada('?pipeline&direcao=0')).toBe(false);
+        expect(direcaoLigada('?pipeline&direcao=nao')).toBe(false);
+        expect(direcaoLigada('?pipeline&direcao=off')).toBe(false);
+    });
+
+    it('e fica ligada em todo o resto — ninguém perde a direção por engano', async () => {
+        const { direcaoLigada } = await import('../npc/floor10Memoria');
+        expect(direcaoLigada('?pipeline')).toBe(true);
+        expect(direcaoLigada('?pipeline&direcao=1')).toBe(true);
+        expect(direcaoLigada('')).toBe(true);
+    });
+});

@@ -36,7 +36,8 @@ import {
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
-    FLOOR10_MEMORIA_MODEL, baixarMemoria, memoriaJaCarregada, precarregarMemoria,
+    FLOOR10_MEMORIA_MODEL, baixarMemoria, direcaoLigada, memoriaJaCarregada,
+    precarregarMemoria,
 } from './npc/floor10Memoria';
 import {
     FLOOR10_TRADUTOR_BYTES, prepararTradutor, desabreviar,
@@ -275,7 +276,7 @@ export default function Floor10PipelineSala() {
             motivo: ultimoErroDoTradutor,
             reportaProgresso: true,
         },
-        {
+        ...(!direcaoLigada() ? [] : [{
             // ── A PEÇA QUE FALTAVA, E O DEFEITO É O MESMO DE CIMA ────────
             //
             // Relato do dono do jogo, olhando a fila desta tela: "vc não
@@ -332,7 +333,7 @@ export default function Floor10PipelineSala() {
             reportaProgresso: true,
             amostraPropria: () => npc.memoriaDownload,
             motivo: () => npc.memoriaLoadText,
-        },
+        } as Peca]),
         {
             id: 'juiz',
             nome: 'juiz de tom · all-mpnet-base-v2',
@@ -511,10 +512,19 @@ export default function Floor10PipelineSala() {
                 // Depois do rascunhador, e não antes: se a RAM não der para os
                 // dois, quem tem de sobreviver é quem escreve. Sem memória o
                 // pipeline ainda fala, com a busca por palavra assumindo.
-                setAviso('subindo a direção (334 MB para a RAM)…');
-                const m = await precarregarMemoria();
-                setAviso(m ? '' : 'o rascunhador subiu, mas a direção não — '
-                    + 'ele vai escrever com a busca por palavra, sem o cânone por significado');
+                if (!direcaoLigada()) {
+                    // `?direcao=0`: corrida de controle. Ver `direcaoLigada` —
+                    // é o interruptor que separa "o pipeline ficou lento" de
+                    // "a direção residente deixou o pipeline lento", e só o
+                    // aparelho de quem joga pode responder isso.
+                    setAviso('direção desligada por ?direcao=0 — o cânone vem da busca '
+                        + 'por palavra, e o Gemma fica fora da RAM');
+                } else {
+                    setAviso('subindo a direção (334 MB para a RAM)…');
+                    const m = await precarregarMemoria();
+                    setAviso(m ? '' : 'o rascunhador subiu, mas a direção não — '
+                        + 'ele vai escrever com a busca por palavra, sem o cânone por significado');
+                }
             }
         } catch (erro) {
             setAviso(`não subiu: ${erro instanceof Error ? erro.message : String(erro)}`);
