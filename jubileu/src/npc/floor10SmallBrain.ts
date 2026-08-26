@@ -1707,8 +1707,31 @@ export async function baixarVontade(): Promise<boolean> {
         anotar('vontade:no-aparelho');
         return true;
     } catch (erro) {
-        anotar('vontade:download-falhou', {
-            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        // ── O MOTIVO TEM QUE IR PARA A TELA, NÃO SÓ PARA A CAIXA-PRETA ───
+        //
+        // Isto aqui anotava e devolvia `false` seco. Quem chama transforma
+        // `false` sem texto em "não subiu, e não disse por quê" — e foi
+        // exatamente isso que o dono do jogo viu no aparelho quando o gguf do
+        // revisor apontava para uma URL que ainda não existia. O erro REAL era
+        // um 404, que responde a pergunta inteira; a caixa-preta sabia e a tela
+        // não, o que é a pior divisão possível de uma informação dessas.
+        //
+        // `deliberationLoadText` é o campo que a sala do ?pipeline lê como
+        // motivo (`Floor10PipelineSala.tsx`, `motivo: () => npc.deliberationLoadText`),
+        // e ele estava vazio aqui porque o caminho de sucesso é quem costuma
+        // escrever nele.
+        const cru = erro instanceof Error ? erro.message : String(erro);
+        anotar('vontade:download-falhou', { motivo: cru.slice(0, 80) });
+        // Um 404 não é falha de rede e não adianta "tentar de novo": o arquivo
+        // não está no servidor. Dizer isso com todas as letras evita a rodada
+        // de tentativas que eu mesmo faria no lugar dele.
+        const naoExiste = /\b404\b|not found/i.test(cru);
+        npcSet({
+            deliberationPhase: 'off',
+            deliberationLoadText: naoExiste
+                ? `${SMALL_BRAIN_MODEL.label}: o servidor respondeu 404 — este arquivo não `
+                    + 'está publicado. Tentar de novo não resolve.'
+                : `${SMALL_BRAIN_MODEL.label} não baixou: ${cru.slice(0, 120)}`,
         });
         return false;
     }

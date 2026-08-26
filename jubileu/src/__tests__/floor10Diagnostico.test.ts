@@ -140,6 +140,34 @@ describe('os carregadores param de engolir o motivo', () => {
         expect(atribuicoes.length).toBeGreaterThanOrEqual(5);  // 4 falhas + o reset
         expect(fonte).toContain("ultimoErro = '';");           // limpa ao recomeçar
     });
+
+    it('e a VONTADE também: o catch dela escreve na tela, não só na caixa-preta', () => {
+        // O rascunhador ganhou esta cobertura e a vontade não, e o buraco
+        // apareceu inteiro no aparelho do dono do jogo: o gguf do revisor
+        // apontava para uma URL ainda não publicada, o `download` do wllama
+        // levantou um 404, e a sala do ?pipeline mostrou "não subiu, e não
+        // disse por quê". A caixa-preta tinha o motivo o tempo todo.
+        //
+        // A sala lê `npc.deliberationLoadText` como motivo da peça, então é
+        // NELE que o catch precisa escrever — anotar sozinho não chega na tela.
+        const fonte = readFileSync(
+            new URL('../npc/floor10SmallBrain.ts', import.meta.url), 'utf8',
+        );
+        const catchDaVontade = fonte.slice(fonte.indexOf("anotar('vontade:download-falhou'"));
+        expect(catchDaVontade.slice(0, 900)).toContain('deliberationLoadText');
+    });
+
+    it('e um 404 é dito como 404, porque tentar de novo não resolve', () => {
+        // Falha de rede e arquivo inexistente pedem coisas opostas de quem
+        // está instalando: uma pede paciência, a outra pede um arquivo. A tela
+        // que trata as duas igual manda o jogador repetir um download que nunca
+        // vai completar.
+        const fonte = readFileSync(
+            new URL('../npc/floor10SmallBrain.ts', import.meta.url), 'utf8',
+        );
+        expect(fonte).toMatch(/404\\b\|not found/i);
+        expect(fonte).toContain('Tentar de novo não resolve.');
+    });
 });
 
 describe('o runtime não é o modelo — a regra que a medição obrigou', () => {
