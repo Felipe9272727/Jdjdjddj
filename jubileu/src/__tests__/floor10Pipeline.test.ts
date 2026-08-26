@@ -4,6 +4,7 @@ import {
     aplicarRemendo, primeiraFraseFechada, comAsQuebrasDeCanone,
     type PassoDoPipeline, type PecasDoPipeline,
  semRaciocinio,} from '../npc/floor10Pipeline';
+import { bateuNoTeto, semACaudaCortada } from '../npc/floor10Rascunhador';
 
 /** Açúcar: marcar frases sem repetir o motivo em todo teste que não é sobre ele. */
 const marca = (...ns: number[]) => async () => ns.map((n) => ({ n, porque: '' }));
@@ -184,7 +185,12 @@ describe('o que o juiz viu chega a quem vai consertar', () => {
                 return { tipo: 'frase', texto: 'It never opens.', cortado: false };
             },
         }));
-        expect(vistos).toEqual(['it gives the player advice.']);
+        // O motivo da marcação vem PRIMEIRO e intacto. O que vem depois é o
+        // resto da fala, para ele não repetir o que as outras frases já
+        // disseram — ver `comOResto`.
+        expect(vistos).toHaveLength(1);
+        expect(vistos[0].startsWith('it gives the player advice.')).toBe(true);
+        expect(vistos[0]).toContain('already says');
     });
 
     it('cada frase leva o SEU motivo, não o da vizinha', async () => {
@@ -199,10 +205,15 @@ describe('o que o juiz viu chega a quem vai consertar', () => {
                 return { tipo: 'sem-revisor' };
             },
         }));
-        expect(pares).toEqual([
-            'I am Nilo. :: motivo da um',
-            'The door does not obey me. :: motivo da dois',
-        ]);
+        expect(pares).toHaveLength(2);
+        expect(pares[0].startsWith('I am Nilo. :: motivo da um')).toBe(true);
+        expect(pares[1].startsWith('The door does not obey me. :: motivo da dois')).toBe(true);
+        // E o resto que cada uma recebe é o das OUTRAS, nunca a própria: mandar
+        // a frase junto do aviso "não repita isto" faria o revisor fugir da
+        // única coisa que ele tem de reescrever.
+        expect(pares[0]).not.toContain('already says: "I am Nilo."');
+        expect(pares[0]).toContain('"The door does not obey me."');
+        expect(pares[1]).toContain('"I am Nilo."');
     });
 
     it('motivo vazio passa como vazio — sem inventar nada no caminho', async () => {
@@ -218,7 +229,11 @@ describe('o que o juiz viu chega a quem vai consertar', () => {
                 return { tipo: 'sem-revisor' };
             },
         }));
-        expect(vistos).toEqual(['']);
+        // Vazio na FRENTE: nada de `Also,` solto disfarçado de motivo. O que
+        // chega é só o fato verificável — o que as outras frases dizem.
+        expect(vistos).toHaveLength(1);
+        expect(vistos[0].startsWith('Also,')).toBe(false);
+        expect(vistos[0].startsWith('The rest of the reply already says:')).toBe(true);
     });
 });
 
@@ -402,5 +417,42 @@ describe('remendo repetido', () => {
         const vezes = (r?.fala.match(/The doors opened and closed again\./g) ?? []).length;
         expect(vezes).toBe(1);
         expect(r?.fala).toContain('I walked in.');
+    });
+});
+
+/**
+ * ── A CAUDA CORTADA PELO TETO ────────────────────────────────────────────
+ *
+ * Foto de tela, com o rascunho terminando em "…I'm not going anywhere until I"
+ * e o jogador lendo "não vou a lado nenhum até eu". Os 56 tokens acabaram no
+ * meio da frase e nenhuma peça a jusante desfez: o juiz mede tom (e o tom da
+ * metade estava bom), o revisor só entra em frase marcada, e o Bergamot
+ * traduziu o toco fielmente.
+ */
+describe('semACaudaCortada — cortar só quando se SABE que cortou', () => {
+    it('tira a última frase inacabada quando o teto estourou', () => {
+        const cru = "I'm Nilo. I don't know why we're here, but I'm not going anywhere until I";
+        expect(semACaudaCortada(cru, true)).toBe("I'm Nilo. I don't know why we're here,"
+            .slice(0, "I'm Nilo.".length));
+    });
+
+    it('e NÃO mexe quando o modelo terminou por vontade própria', () => {
+        // Frase sem ponto final não prova corte: o revisor tem um caminho
+        // inteiro para "terminou sem pontuação e vale". Adivinhar aqui
+        // reprovaria frases boas.
+        const cru = 'The door is the only way out';
+        expect(semACaudaCortada(cru, false)).toBe(cru);
+    });
+
+    it('devolve tudo quando nada fechou — meia fala é ruim, nenhuma é pior', () => {
+        const cru = 'I have been standing here for what feels like';
+        expect(semACaudaCortada(cru, true)).toBe(cru);
+    });
+
+    it('lê o corte do finish_reason, que é fato, e não da pontuação', () => {
+        expect(bateuNoTeto({ choices: [{ finish_reason: 'length' }] })).toBe(true);
+        expect(bateuNoTeto({ choices: [{ finish_reason: 'stop' }] })).toBe(false);
+        expect(bateuNoTeto({ choices: [{}] })).toBe(false);
+        expect(bateuNoTeto(null)).toBe(false);
     });
 });

@@ -204,6 +204,54 @@ function lerTexto(resposta: unknown): string {
     return (r?.choices?.[0]?.message?.content ?? r?.choices?.[0]?.text ?? '').trim();
 }
 
+/**
+ * ── O RASCUNHO CORTADO NO MEIO NÃO PODE CHEGAR À TELA ────────────────────
+ *
+ * Foto de tela do dono do jogo, com o rascunho terminando assim:
+ *
+ *     "I don't know why we're here, but I'm not going anywhere until I"
+ *
+ * E, depois do Bergamot, na fala que o jogador leria: *"não vou a lado nenhum
+ * até eu"*. O teto de 56 tokens cortou no meio da palavra seguinte, e nenhuma
+ * peça a jusante desfez isso: o juiz mede TOM (e o tom da metade estava bom), o
+ * revisor só entra em frase marcada, e o tradutor traduziu o toco fielmente.
+ *
+ * ── E POR QUE `finish_reason`, E NÃO "TERMINA SEM PONTO" ─────────────────
+ *
+ * Frase sem ponto final não prova corte: o próprio revisor tem um caminho para
+ * "terminou por vontade dele, sem pontuação, e vale". Adivinhar aqui reprovaria
+ * frases inteiras.
+ *
+ * `finish_reason: 'length'` é FATO — o modelo parou porque o teto acabou, e não
+ * porque a frase acabou. O sinal estava vindo na resposta e sendo jogado fora
+ * por `lerTexto`, que lê só o conteúdo.
+ *
+ * Cortar é conserto de STRING, e a regra da casa é clara: defeito de forma sai
+ * em microssegundos e nunca falha; só defeito de conteúdo merece um modelo.
+ * Mandar o toco ao revisor custaria uma chamada de ~25 s para reescrever algo
+ * que ninguém pediu.
+ *
+ * Se NADA fechar — o teto cortou antes da primeira pontuação — devolve o texto
+ * inteiro. Meia fala é ruim; nenhuma fala é pior, e aí quem decide é o resto do
+ * pipeline, que já sabe lidar com frase torta.
+ */
+export function bateuNoTeto(resposta: unknown): boolean {
+    const r = resposta as { choices?: { finish_reason?: string }[] };
+    return r?.choices?.[0]?.finish_reason === 'length';
+}
+
+/** Corta a cauda inacabada — só quando se SABE que houve corte. */
+export function semACaudaCortada(texto: string, cortou: boolean): string {
+    if (!cortou) return texto;
+    // O último fechamento de frase que existe. `Mr.`/`10th` não confundem: o
+    // que importa é onde a última frase COMPLETA termina, e uma abreviação no
+    // meio só faria o corte ser mais conservador do que precisa.
+    const fim = Math.max(texto.lastIndexOf('.'), texto.lastIndexOf('!'), texto.lastIndexOf('?'));
+    if (fim < 0) return texto;
+    const inteiro = texto.slice(0, fim + 1).trim();
+    return inteiro || texto;
+}
+
 /** Já está de pé? O pipeline só rascunha com ele carregado — nunca baixa na hora. */
 export function rascunhadorJaCarregado(): boolean {
     return residente !== null;
@@ -392,7 +440,7 @@ export async function rascunharEmIngles(
             cache_prompt: true,
             chat_template_kwargs: { enable_thinking: false },
         });
-        const t = lerTexto(resposta);
+        const t = semACaudaCortada(lerTexto(resposta), bateuNoTeto(resposta));
         return t || null;
     } catch (erro) {
         anotar('rascunhador:geracao-falhou', {

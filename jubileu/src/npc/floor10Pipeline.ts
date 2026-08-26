@@ -159,6 +159,24 @@ export type DesfechoDoRemendo =
     | { tipo: 'erro'; erro: string };
 
 export type PassoDoPipeline =
+    /**
+     * ── A DIREÇÃO, QUE ACONTECIA ÀS ESCONDIDAS ───────────────────────────
+     *
+     * O EmbeddingGemma busca o fato do cânone que a pergunta pediu e entrega ao
+     * rascunhador ANTES de ele escrever — é a peça que decide se ele tem a que
+     * ser fiel. Ela rodava sem aparecer no diário: a sala desenhava seis passos
+     * e nenhum era este.
+     *
+     * O relato: *"o embedding não mostra o que ele faz"*. Uma peça de 334 MB
+     * que ninguém vê trabalhar é indistinguível de uma peça que não trabalha —
+     * e foi por isso que ninguém percebeu, por semanas, que na sala ela nem
+     * subia.
+     *
+     * `fato` vazio com `achou: false` é informação, não ausência dela: diz que
+     * o rascunhador escreveu no escuro, que é exatamente o que se quer saber
+     * quando a fala sai inventada.
+     */
+    | { passo: 'memoria'; fato: string; achou: boolean; porSignificado: boolean; ms: number }
     | { passo: 'rascunho'; textoEmIngles: string; ms: number }
     | { passo: 'frases'; frases: readonly string[] }
     | { passo: 'juiz'; marcadas: readonly Marcacao[]; ms: number }
@@ -445,6 +463,62 @@ export function comAsQuebrasDeCanone(
         .map(([n, motivos]) => ({ n, porque: motivos.join(' Also, ') }));
 }
 
+/**
+ * ── O REVISOR PRECISA SABER O QUE A FALA JÁ DISSE ────────────────────────
+ *
+ * Relato com a foto de tela, e o defeito está inteiro nela. O rascunho abria
+ * com `"Nilo."` — só o nome — e o juiz marcou a frase 2. O revisor consertou a
+ * 2 sozinho, sem saber da 1, e devolveu:
+ *
+ *     "I'm Nilo, and this whole 10th floor is a cage you're standing in."
+ *
+ * Que vira, na tela do jogador: *"Nilo. Sou o Nilo e este 10o andar…"* — o nome
+ * duas vezes em duas frases. As palavras dele: *"por conta do revisor ele
+ * repetiu o nome, temos que apontar isso pro revisor saber o que ele já falou,
+ * e não repetir a mesma coisa (com palavras diferentes)"*.
+ *
+ * Já existia uma guarda contra isso e ela é cega para o caso: `jaEscritos`
+ * compara TEXTO EXATO normalizado, e só entre REMENDOS. "Nilo." e "I'm Nilo,
+ * and…" são strings diferentes, e a frase 1 nem era remendo — nunca entrava na
+ * comparação.
+ *
+ * ── E POR QUE ISTO VAI DENTRO DO `porque`, E NÃO NUM CAMPO NOVO ──────────
+ *
+ * O revisor v2 foi TREINADO no formato exato de `enunciadoTreinado`: pergunta,
+ * linha errada, `It is wrong because …`, `Corrected line:`. Acrescentar uma
+ * seção nova ao molde jogaria o modelo para fora da distribuição em que ele
+ * mediu 24/24 — e o corpus nunca viu uma seção dessas.
+ *
+ * Dentro do `porque` ele continua em casa: o campo é texto livre no treino, e
+ * a emenda com `Also,` já é o idioma da casa (o próprio juiz junta motivos
+ * assim, `motivos.join(' Also, ')`).
+ *
+ * O custo é real e pequeno: a leitura do prompt é ~85% da chamada, medida em
+ * 130 tokens, e as frases irmãs acrescentam algumas dezenas.
+ */
+function comOResto(porque: string, frases: readonly string[], i: number): string {
+    const outras = frases
+        .filter((_, j) => j !== i)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 2);
+    if (outras.length === 0) return porque;
+    // Aspas em cada uma: sem elas o modelo lê as frases irmãs como continuação
+    // do motivo e tenta consertá-las também.
+    const lista = outras.map((t) => `"${t}"`).join(' ');
+    const aviso = `The rest of the reply already says: ${lista} `
+        + 'Say something those lines do not already say, and never repeat a fact '
+        + 'they already gave — your name included.';
+    // ── MOTIVO VAZIO CONTINUA VAZIO NA FRENTE ────────────────────────────
+    //
+    // O juiz de tom pode marcar sem âncora vencedora, e o `porque` vem ''. Um
+    // `Also,` solto na frente do nada é ruído, e há um teste que existe
+    // justamente para o orquestrador não INVENTAR motivo. Este aviso não é
+    // palpite — as frases irmãs estão literalmente na resposta — mas ele
+    // também não é o motivo da marcação, e não pode se disfarçar de um.
+    const base = porque.trim();
+    return base ? `${base} Also, ${aviso.charAt(0).toLowerCase()}${aviso.slice(1)}` : aviso;
+}
+
 export async function falarPeloPipeline(
     perguntaEmIngles: string,
     pecas: PecasDoPipeline,
@@ -529,7 +603,7 @@ export async function falarPeloPipeline(
         const t2 = Date.now();
         const antes = finais[i];
         const desfecho = aplicarRemendo(
-            antes, await pecas.remendar(perguntaEmIngles, antes, porque),
+            antes, await pecas.remendar(perguntaEmIngles, antes, comOResto(porque, finais, i)),
         );
         if (desfecho.tipo === 'trocou' && jaEscritos.has(mesmaCoisa(desfecho.depois))) {
             aoPassar?.({

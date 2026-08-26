@@ -322,12 +322,23 @@ export async function falarPeloPipelineReal(
         // no caminho do 3B. O que NÃO existia era isto aqui: até agora o
         // rascunhador recebia persona + pergunta e nada mais, e é dessa
         // ausência que saíam as invenções.
+        const tMem = Date.now();
         const lembrado = await lembrarPorSignificado(perguntaOriginal);
         const memoria = memoriaDoRascunho(perguntaEmIngles, lembrado);
         anotar('pipeline:memoria', {
             achou: memoria ? 1 : 0,
             porSignificado: lembrado ? 1 : 0,
             chars: memoria.length,
+        });
+        // E na TELA, não só na caixa-preta. Ver o comentário do passo 'memoria'
+        // em `floor10Pipeline`: uma peça que ninguém vê trabalhar é
+        // indistinguível de uma que não trabalha.
+        aoPassar?.({
+            passo: 'memoria',
+            fato: memoria,
+            achou: Boolean(memoria),
+            porSignificado: Boolean(lembrado),
+            ms: Date.now() - tMem,
         });
         const saida = await falarPeloPipeline(perguntaEmIngles, PECAS_REAIS, aoPassar, memoria);
         anotar('pipeline:fim', {

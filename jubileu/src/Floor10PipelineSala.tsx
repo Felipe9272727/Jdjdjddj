@@ -1093,6 +1093,30 @@ function Passo({ p }: { p: PassoDoPipeline }) {
             </div>
         );
     }
+    if (p.passo === 'memoria') {
+        return (
+            <div style={cx}>
+                {/* O passo 2,5: acontece entre a tradução da pergunta e o
+                    rascunho, e é o que decide se o rascunhador tem cânone a que
+                    ser fiel. Sem ele na tela, o relato foi "o embedding não
+                    mostra o que ele faz" — e estava certo. */}
+                <div style={tit}>
+                    · a direção · {p.ms} ms
+                    {p.porSignificado ? ' · por significado' : ' · por palavra'}
+                </div>
+                <div style={sub}>
+                    o rascunhador escreve com isto na mão — sem, ele inventa
+                </div>
+                {p.achou
+                    ? <div style={{ marginTop: 4 }}>{p.fato}</div>
+                    : (
+                        <div style={{ marginTop: 4, color: '#f5c96b' }}>
+                            nada do cânone bateu com a pergunta — ele vai escrever no escuro
+                        </div>
+                    )}
+            </div>
+        );
+    }
     if (p.passo === 'remendo') {
         return (
             <div style={cx}>
