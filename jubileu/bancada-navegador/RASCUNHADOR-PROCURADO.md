@@ -82,3 +82,79 @@ SmolLM3, que custava ~200 s lá, era inviável.
 **O caminho barato ainda não foi tentado:** consertar a FORMA do granite com um
 exemplo no prompt, e medir de novo. Se as três quebras de forma caírem, sobra
 uma de conteúdo em oito — e aí o titular continua sendo o rápido.
+
+
+---
+
+## A segunda rodada: e se o REVISOR rascunhar?
+
+A ideia não é minha. Veio de quem joga, olhando uma fala na tela:
+
+> *"pra vc ver o nível de ruindade que ele está: o revisor, que é um modelo
+> menor, e não foi treinado pra essa pergunta em específico, e mesmo assim
+> respondeu melhor. isso sinceramente é bem decepcionante"*
+
+Mesma prova, mesma persona, mesmo processo — e desta vez com a régua julgando a
+FALA e não o pensamento (a primeira rodada reprovou o v2 em 5 de 8 por causa do
+bloco `<think>`; ver o commit da correção).
+
+| candidato | quebra | pensa | LÊ tok/s | ESCREVE tok/s | prompt | por frase |
+|---|---|---|---|---|---|---|
+| granite-3.1-1b-a400m | **5/8** | 0/8 | 26,2 | 13,1 | 62 tok | ~5 s |
+| **v2 0,8B rascunhando** | **0/8** | 8/8 | 22,2 | 10,3 | 276 tok | ~16 s |
+
+### O que o granite escreveu
+
+    ✗ "1 hour, 30 minutes, and counting."
+    ✗ "(Nilo looks around, puzzled) This floor is deserted…"
+    ✗ "Nilo: "Well, Nilo, I'm sorry to hear about your predicament… I'm here
+       to help you navigate through it.""
+    ✓ "Nilo: I'm glad you're here to remind me that the hotel doesn't have an
+       end. I'll keep that in mind as I navigate this strange situation."
+
+A última PASSOU na régua e é das piores: registro de assistente, rótulo `Nilo:`,
+e ela agradece o jogador por lembrá-lo do cânone. A terceira chama o JOGADOR de
+Nilo e oferece ajuda — as duas coisas que a persona proíbe em letras maiúsculas.
+
+### O que o v2 escreveu
+
+    ✓ "Name's Nilo, fixed elevators until this floor, and I still don't know
+       what runs behind those doors."
+    ✓ "I'm not scared — I just don't want to leave this floor."
+    ✓ "I want out, and I would try it with you, but I have no safe plan."
+    ✓ "The elevator doesn't obey you, and I don't know what it is, so I'm not
+       calling it."
+
+Zero rubrica, zero rótulo, zero registro de assistente. **Ele sabe o cânone por
+PESO** — foi destilado de um professor de 27B sobre este cânone — enquanto o
+granite sabe por prompt e ignora o prompt.
+
+### O preço, e as duas partes dele que dão para tirar
+
+16 s por frase contra 5 s. Mas o custo do v2 tem dois componentes, e nenhum dos
+dois é "o modelo é lento":
+
+    leitura ...... 276 tok a 22,2 tok/s = 12,4 s   ← o granite lê 62
+    pensamento ... `<think>` em 8 de 8
+
+O granite lê 62 tokens porque o `cache_prompt` reaproveita o prefixo da persona
+entre as chamadas. O v2 relê 276 toda vez. Se o cache pegar nele também, 12,4 s
+viram ~4 s.
+
+E o `<think>` aparece mesmo com `enable_thinking: false`, porque o alvo do treino
+tinha o bloco LITERAL no texto. Como revisor isso não acontece — lá ele recebe o
+formato exato do treino e responde em 26–50 tokens. Rascunhando, fora desse
+formato, ele volta ao hábito.
+
+### O que muda no desenho, se as duas cederem
+
+    hoje ..... granite 822 MB escreve → DESCARREGA → v2 542 MB sobe → conserta
+    depois ... v2 542 MB escreve E conserta, sem troca de modelo no meio
+
+O que some não é tokens por segundo: é **um carregamento de modelo inteiro por
+turno**, que o comentário de `floor10PipelineReal` mede em 36 s de carga mais
+35 s de leitura fria. E a fila cai de 1,36 GB para 542 MB.
+
+**Ordem certa:** primeiro matar o `<think>` e destravar o cache, depois medir o
+turno inteiro. Trocar o titular antes disso seria trocar 5/8 de quebra por um
+turno que ninguém mediu.
