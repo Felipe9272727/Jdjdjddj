@@ -168,3 +168,57 @@ turno**, que o comentário de `floor10PipelineReal` mede em 36 s de carga mais
 **Ordem certa:** primeiro matar o `<think>` e destravar o cache, depois medir o
 turno inteiro. Trocar o titular antes disso seria trocar 5/8 de quebra por um
 turno que ninguém mediu.
+
+
+---
+
+## A escada dos vizinhos: a co-residência é de graça
+
+Desenho de quem joga: *"eu queria que ambos estivessem rodando juntos, pq não
+bate o limite de 2 gbs (...) testa ele primeiro sem o pipeline, depois com o
+pipeline, aí a gente vai saber exatamente o problema"*. Um degrau, uma variável.
+
+| degrau | total | escreve |
+|---|---|---|
+| A · granite sozinho, sem direção | 4,2 s | 12,1 tok/s |
+| B · + a direção do cânone | 4,3 s | 12,5 tok/s |
+| C · + revisor v2 de pé ao lado | 4,2 s | 12,5 tok/s |
+| D · + EmbeddingGemma também | 3,6 s | 13,1 tok/s |
+| E · repete C, tudo assentado | 3,1 s | 13,6 tok/s |
+
+**Plano.** Um, dois ou três llama.cpp residentes escrevem à mesma velocidade. A
+variação do "total" é quantos tokens ele escolheu escrever (41 a 52), não
+velocidade.
+
+### A primeira corrida mentiu, e a tabela se denunciou
+
+Com `warmup: true` no vizinho, C deu **8,8 s (+167%)** e D deu 3,3 s. Um terceiro
+modelo devolvendo a velocidade é impossível se a causa fosse contenção — foi
+essa contradição, e não um insight, que revelou o defeito: as medidas de C
+correram com o v2 ainda aquecendo ao lado.
+
+Ficam duas retratações: **a co-residência não custa 167%** e **a direção não
+custa 29%** — custa 3%, dentro do ruído. Os dois números vieram da corrida
+contaminada.
+
+## Então de onde vem a lentidão que ele sente?
+
+Não do rascunho, e não dos vizinhos. Dos números do próprio aparelho dele, com
+as marcações do juiz ao lado:
+
+    1 frase marcada ..... revisor 30,2 s ..... turno 65,3 s
+    2 frases marcadas ... revisor 40,2 s ..... turno 56,4 s
+    2 frases marcadas ... revisor 44,0 s ..... turno 55,1 s
+    menos marcações ..... — ................. turno 33,8 s
+
+O turno é **rascunho + (marcadas × ~21 s)**. Cada frase que o juiz marca compra
+uma chamada de revisor inteira, e é aí que o tempo mora.
+
+E quem decide quantas frases são marcadas é a QUALIDADE DO RASCUNHO. O granite
+quebra 5 de 8 nesta bancada; cada quebra é uma marcação, e cada marcação são
+~21 s no aparelho.
+
+**A lentidão é sintoma da qualidade, não um problema separado.** Isso muda a
+prioridade inteira: consertar o rascunho não é só melhorar a fala, é o caminho
+mais curto para o turno cair. E o v2 rascunhando fez 0 de 8 — zero marcações,
+zero chamadas de revisor, zero 21 s.
