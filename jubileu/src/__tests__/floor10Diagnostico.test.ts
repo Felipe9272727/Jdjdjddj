@@ -408,3 +408,50 @@ describe('TODA peça tem prazo — a lição que eu aprendi tarde', () => {
         expect(juiz).toMatch(/catch[\s\S]*extratorPromise = null;/);
     });
 });
+
+/**
+ * ── O CARIMBO DO BUILD PRECISA SER GERADO, NÃO SÓ LIDO ───────────────────
+ *
+ * `origemEstavel.ts` lê `globalThis.__TNE_BUILD__` e busca `/version.json` no
+ * endereço fixo para comparar as duas pontas. Durante meses ninguém escrevia o
+ * global e ninguém gerava o arquivo: os dois lados respondiam "build
+ * desconhecido", e o aviso feito para responder "qual versão estou rodando?"
+ * respondia "não sei".
+ *
+ * O preço apareceu em três rodadas seguidas de relato — "continua mostrando o
+ * LFM", "agora foi mas deu erro", "eu já estou no último commit" — em que nem o
+ * dono do jogo nem eu conseguíamos dizer qual código estava no aparelho. A
+ * única pista era o NÚMERO DE MB no card do revisor.
+ */
+describe('o build se identifica', () => {
+    const vite = readFileSync(new URL('../../vite.config.ts', import.meta.url), 'utf8');
+
+    it('o plugin injeta o global e emite o version.json', () => {
+        expect(vite).toContain('__TNE_BUILD__=');
+        expect(vite).toContain("fileName: 'version.json'");
+        // No <head> e antes do bundle: `buildLocal()` roda na primeira
+        // renderização do aviso, e um script no fim do body chegaria tarde.
+        expect(vite).toContain('head-prepend');
+    });
+
+    it('e está ligado — plugin escrito e não usado não carimba nada', () => {
+        expect(vite).toMatch(/plugins:\s*\[[^\]]*carimbar\(\)/);
+    });
+
+    it('o version.json sai com CORS, que é o que permite a comparação', () => {
+        // A pergunta é feita de UMA origem (o preview) para OUTRA (o endereço
+        // fixo). Sem `Access-Control-Allow-Origin` o fetch morre no navegador e
+        // `buildDoEnderecoFixo` devolve null — de novo "desconhecido". O
+        // comentário em `origemEstavel.ts` já afirmava que este cabeçalho
+        // existia; ele não existia.
+        const vercel = JSON.parse(
+            readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8'),
+        ) as { headers: { source: string; headers: { key: string; value: string }[] }[] };
+        const regra = vercel.headers.find((h) => h.source === '/version.json');
+        expect(regra, 'vercel.json não tem regra para /version.json').toBeTruthy();
+        expect(regra?.headers.map((h) => h.key)).toContain('Access-Control-Allow-Origin');
+        // `no-store`: a resposta de cinco minutos atrás não serve para decidir
+        // se um deploy novo já subiu.
+        expect(regra?.headers.map((h) => h.key)).toContain('Cache-Control');
+    });
+});
