@@ -537,8 +537,23 @@ export async function falarPeloPipeline(
     memoria = '',
 ): Promise<SaidaDoPipeline | null> {
     const t0 = Date.now();
-    const bruto = await pecas.rascunhar(perguntaEmIngles, memoria);
-    if (!bruto || !bruto.trim()) return null;
+    const cruDoRascunho = await pecas.rascunhar(perguntaEmIngles, memoria);
+    if (!cruDoRascunho || !cruDoRascunho.trim()) return null;
+    // ── O RASCUNHADOR TAMBÉM PODE PENSAR, E O BLOCO NÃO É FALA ───────────
+    //
+    // `semRaciocinio` era aplicado só ao que o REVISOR escreve, porque até
+    // hoje nenhum rascunhador pensava. Com `?rascunhador=v2` um passou a
+    // pensar, e o bloco foi inteiro para a tela do jogador — traduzido, que é
+    // o detalhe que denuncia o caminho:
+    //
+    //     "<think>A linha errada quebrou o caráter com meta linguagem…
+    //      </think> O nome é Nilo. </pensar> O nome é Nilo."
+    //
+    // O Bergamot virou `</think>` em `</pensar>`. Ou seja: o bloco atravessou
+    // o enumerador de frases, o juiz, o revisor e o tradutor, e ninguém o
+    // reconheceu como não-fala. Aqui é o primeiro ponto onde dá para saber.
+    const bruto = semRaciocinio(cruDoRascunho);
+    if (!bruto.trim()) return null;
     aoPassar?.({ passo: 'rascunho', textoEmIngles: bruto, ms: Date.now() - t0 });
 
     const cruas = enumerarEmIngles(bruto);

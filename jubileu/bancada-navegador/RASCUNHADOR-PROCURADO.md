@@ -222,3 +222,44 @@ quebra 5 de 8 nesta bancada; cada quebra é uma marcação, e cada marcação s�
 prioridade inteira: consertar o rascunho não é só melhorar a fala, é o caminho
 mais curto para o turno cair. E o v2 rascunhando fez 0 de 8 — zero marcações,
 zero chamadas de revisor, zero 21 s.
+
+
+---
+
+## O veredito, medido no aparelho de quem joga
+
+    ?pipeline&rascunhador=v2   →   turno 136,3 s
+
+A projeção desta bancada era ~145 s. Errou por 6% — a razão medida aqui (o v2
+rascunha 3,2× mais devagar que o granite) transferiu bem para o celular, o que é
+raro neste projeto e vale registrar como método: **a bancada não prevê o número
+dele, mas prevê a RAZÃO entre dois números dele.**
+
+O veredito é dele: *"F, ele só serve como revisor msm"*. E está certo — 136 s
+contra os ~74 s do granite não se paga com qualidade nenhuma, num projeto cujo
+limite de velocidade é a razão de existir da arquitetura inteira.
+
+**Fica registrado o que NÃO deu certo, para ninguém tentar de novo:**
+
+- o v2 rascunhando escreve muito melhor (0/8 contra 5/8) e é lento demais;
+- o `<think>` não se cala de fora — três formas testadas, todas falharam,
+  porque a tag é o primeiro token que ele emite;
+- e a única saída seria retreinar com um corpus de rascunho sem as tags, o que
+  está fora de alcance: as unidades de computação acabaram.
+
+O granite continua no posto **por falta de alternativa, não por mérito**. As 5
+quebras em 8 seguem lá, e a régua ainda não vê as piores delas.
+
+## O que a rodada dele achou de brinde
+
+O bloco de pensamento do rascunhador foi INTEIRO para a tela, traduzido:
+
+    "<think>A linha errada quebrou o caráter com meta linguagem…</think>
+     O nome é Nilo. </pensar> O nome é Nilo."
+
+O `</pensar>` é a assinatura do caminho: o Bergamot traduziu a tag. O bloco
+atravessou o enumerador de frases, o juiz, o revisor e o tradutor sem ninguém
+reconhecê-lo como não-fala — `semRaciocinio` só era aplicado ao que o REVISOR
+escreve, porque até então nenhum rascunhador pensava.
+
+Consertado no orquestrador, e vale para qualquer rascunhador futuro que pense.

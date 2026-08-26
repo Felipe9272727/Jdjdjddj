@@ -506,3 +506,39 @@ describe('cânone sem conserto sai da fala, em vez de ir para a tela', () => {
         expect(saida?.fala).not.toMatch(/programming/i);
     });
 });
+
+/**
+ * ── O PENSAMENTO DO RASCUNHADOR NÃO É FALA ───────────────────────────────
+ *
+ * Foto de tela do aparelho de quem joga, com `?rascunhador=v2`:
+ *
+ *     "<think>A linha errada quebrou o caráter com meta linguagem…</think>
+ *      O nome é Nilo. </pensar> O nome é Nilo."
+ *
+ * O `</pensar>` é a assinatura do caminho: o Bergamot TRADUZIU a tag. O bloco
+ * atravessou o enumerador de frases, o juiz, o revisor e o tradutor, e nenhum
+ * deles o reconheceu como não-fala — porque `semRaciocinio` só era aplicado ao
+ * que o REVISOR escreve, e até então nenhum rascunhador pensava.
+ */
+describe('o rascunho que vem com <think> não leva o bloco à tela', () => {
+    it('descarta o pensamento antes de enumerar as frases', async () => {
+        const saida = await falarPeloPipeline('What is your name?', pecas({
+            rascunhar: async () => '<think>The player wants a name and Nilo has one.</think>'
+                + " Name's Nilo. I fixed elevators before this.",
+            julgar: async () => [],
+        }));
+        expect(saida?.fala).not.toMatch(/<\/?think>/i);
+        expect(saida?.fala).toContain("Name's Nilo.");
+    });
+
+    it('e um rascunho que é SÓ pensamento não vira fala vazia na tela', async () => {
+        // Bloco aberto e nunca fechado: o teto cortou dentro do raciocínio.
+        // Não há fala nenhuma ali, e devolver `null` manda o jogo cair no
+        // caminho normal em vez de mostrar um vazio.
+        const saida = await falarPeloPipeline('What is your name?', pecas({
+            rascunhar: async () => '<think>The player wants a name and Nilo',
+            julgar: async () => [],
+        }));
+        expect(saida).toBeNull();
+    });
+});
