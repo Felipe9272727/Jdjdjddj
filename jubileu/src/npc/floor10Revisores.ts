@@ -188,8 +188,17 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         // marca o orçamento fica nos 40 tokens do remendo, o corte cai dentro
         // do pensamento, e ele nunca chega a dizer a frase — o jogo mostraria
         // vazio e pareceria modelo quebrado.
+        //
+        // A marca fica LIGADA mesmo depois de medido que ele não precisa dela
+        // aqui, e a razão está escrita para ninguém "limpar" isso depois: o
+        // remendo manda `enable_thinking: false`, o template do Qwen3.5 já
+        // entrega o bloco `<think></think>` fechado e vazio, e o modelo escreve
+        // só a frase — 26 a 50 tokens, medido no wllama nos 24 casos. Os 60
+        // tokens que esta marca acrescenta são folga, e folga é o que separa
+        // "cortou no meio" de "cortou depois do ponto". O dia em que o remendo
+        // ligar o pensamento, o orçamento já está aqui.
         pensa: true,
-        nota: 'melhor nota da bancada (23/24) e 27 aberturas em 27; pensa antes de responder, sem loop',
+        nota: 'melhor nota da bancada (24/24) com turno de 25 s; troca de assunto em 7 dos 24',
     },
     {
         // ── O ÚNICO SOBREVIVENTE DA CAÇADA, E POR QUE NÃO É O PADRÃO ─────

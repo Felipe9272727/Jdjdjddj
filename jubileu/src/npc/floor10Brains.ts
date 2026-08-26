@@ -318,11 +318,42 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         // E ele PENSA: 27 de 27 respostas vieram com bloco `<think>`, e nenhuma
         // entrou em loop. O bloco custa tokens no aparelho — é a troca a medir
         // contra os 15 s de turno do de 360M.
+        //
+        // ── DEPOIS, MEDIDO NO NAVEGADOR, QUE É ONDE O JOGO VIVE ──────────
+        //
+        // Os números acima vieram do transformers, na CPU desta caixa. O gguf
+        // no wllama saiu MELHOR, e a diferença é o `enable_thinking: false` que
+        // o jogo manda no remendo: sem o bloco de pensamento ele escreve 26–50
+        // tokens em vez de ~200, e ainda assim acerta tudo.
+        //
+        //     conserta 24/24 · ecoou 0 · pedaço 0 · copiou 0 · promete 0
+        //     desviou 7/24 · CARGA 13 s · 1ª FRIA 12,5 s · TURNO 25 s
+        //
+        // Contra a MESMA base sem treino (Qwen3.5-0.8B de prateleira, medido
+        // em `REVISOR-PROCURADO.md`): 6/12, 4 cópias, TURNO 47 s. O treino é a
+        // diferença inteira, e o q4_K_M paga a metade do turno.
+        //
+        // O buraco que fica é `desviou`: 7 de 24 vezes ele troca a frase
+        // marcada por outra que não responde à pergunta. Não quebra cânone e
+        // não copia — só muda de assunto. É a próxima coisa a consertar no
+        // corpus, não no código.
+        //
+        // ── POR QUE O ARQUIVO MUDOU DE NOME ──────────────────────────────
+        //
+        // O `nilo-revisor-v2-q8_0.gguf` que estava aqui NUNCA CARREGOU. Ele
+        // promete 25 blocos no cabeçalho e traz 24: o `merge_and_unload()` do
+        // peft derrubou os tensores da cabeça de MTP e o conversor contou a
+        // camada assim mesmo. O llama.cpp recusa com
+        // `missing tensor 'blk.24.attn_norm.weight'`, e como o wllama sobe com
+        // `suppressNativeLog: true` isso chega na tela como uma barra parada em
+        // "subindo o revisor ao lado do rascunhador…" — que é exatamente o que
+        // o dono do jogo viu no aparelho dele. `corpus/para-gguf.sh` tem a
+        // história inteira e os dois consertos.
         id: 'nilo-revisor-v2-08b',
         label: 'revisor v2 0,8B destilado (nosso)',
-        url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-08b/resolve/main/nilo-revisor-v2-q8_0.gguf',
-        bytes: 811_842_976,
-        nota: 'melhor nota da bancada (23/24) e 27 aberturas distintas em 27; pensa antes de responder e não entra em loop',
+        url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-08b/resolve/main/nilo-revisor-v2-q4_K_M.gguf',
+        bytes: 541_903_136,
+        nota: 'melhor nota da bancada (24/24) com turno de 25 s; troca de assunto em 7 dos 24',
     },
     {
         id: 'minicpm5-1b',

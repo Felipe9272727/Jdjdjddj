@@ -631,3 +631,62 @@ lado do rascunhador sem troca de RAM. Custa **zero milissegundo em execução**,
 é a única melhoria vista até aqui que não cobra nada da velocidade.
 
 O erro do corpus não é ter 192 linhas: é ter seis aberturas.
+
+---
+
+## O revisor treinado, medido no navegador (v2, 0,8B, q4_K_M)
+
+Todas as tabelas acima compararam modelos de PRATELEIRA. Esta é a primeira linha
+de um modelo treinado para o posto: Qwen3.5-0.8B destilado de um professor de
+27B, 423 linhas de corpus, treino completo (não LoRA).
+
+Mesma prova de 24 casos, mesmo enunciado, mesma régua, no wllama:
+
+| candidato | conserta | ecoou | pedaço | copiou | promete | desviou | CARGA | 1ª FRIA | TURNO |
+|---|---|---|---|---|---|---|---|---|---|
+| **v2 0,8B q4_K_M (nosso)** | **24/24** | 0 | 0 | 0 | 0 | 7/24 | 13 s | 12,5 s | **25 s** |
+| Qwen3.5-0.8B de prateleira | 6/12 | 2 | 0 | 4 | 0 | 6/12 | 19 s | 28,6 s | 47 s |
+| LFM2.5-1,2B (titular) | 12/12 | — | — | — | — | — | — | — | 112 s |
+
+A segunda linha é a MESMA BASE sem o treino. A diferença inteira — 6/12 com
+quatro cópias contra 24/24 sem nenhuma — é o corpus. O turno cai pela metade
+porque o arquivo caiu de q8_0 para q4_K_M (542 MB), não porque o modelo ficou
+mais rápido por token.
+
+**O que a tabela NÃO resolve: `desviou 7/24`.** Sete vezes ele troca a frase
+marcada por outra que não responde à pergunta. Não quebra cânone, não copia
+exemplo, não ecoa — muda de assunto:
+
+    "Which floor are we on?"  →  "The buttons don't say what they are, but the
+                                  lights flicker like they're dying."
+
+É verdade e é do Nilo, mas não é a resposta. Isso é buraco de CORPUS: as 423
+linhas ensinaram a não quebrar o cânone e não ensinaram a continuar respondendo
+o que foi perguntado. O conserto é gerar exemplos em que a frase errada e a
+consertada respondem à MESMA pergunta — não é ajuste de código.
+
+### E ele não pensa no jogo, de propósito
+
+O treino foi com bloco `<think>`, e no transformers 27 de 27 respostas vieram
+com raciocínio (~200 tokens). No jogo o remendo manda `enable_thinking: false`;
+o template do Qwen3.5 entrega `<think></think>` já fechado e ele escreve só a
+frase, **26 a 50 tokens**. A nota não cai — é 24/24 assim mesmo. O pensamento
+custa ~4× mais tokens para o mesmo placar, e o limite de velocidade decide.
+
+### A armadilha que custou um dia: MTP
+
+O primeiro gguf deste modelo **nunca carregou**, e o sintoma não parecia recusa:
+a tela do jogo ficava parada em *"subindo o revisor ao lado do rascunhador…"*.
+`arch-do-gguf.mjs` dizia `qwen35`, o nome estava na lista do wasm, e por isso eu
+concluí duas vezes que era suporte de arquitetura. Não era.
+
+`mtp_num_hidden_layers: 1` faz o conversor escrever `block_count: 25`, e
+`merge_and_unload()` do peft derruba os 15 tensores da cabeça de MTP. O arquivo
+promete 25 blocos e traz 24. `sonda-abort.mjs`, que é a única ferramenta aqui
+que CARREGA em vez de ler cabeçalho, disse em uma linha:
+
+    missing tensor 'blk.24.attn_norm.weight'
+
+**Nome de arquitetura no cabeçalho não é prova de que carrega** — é a mesma
+lição do MobileLLM-R1, aprendida de novo. `corpus/para-gguf.sh` traz os dois
+consertos e passa `--no-mtp` por padrão.
