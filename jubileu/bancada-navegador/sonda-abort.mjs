@@ -7,6 +7,7 @@
 import { chromium } from 'playwright';
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3405';
 const ARQ = process.env.ARQ ?? 'mobile.gguf';
+const PACOTE = process.env.PACOTE ?? 'wllama-cdn';
 const process_TUDO = process.env.TUDO === '1';
 
 const browser = await chromium.launch({
@@ -28,10 +29,16 @@ page.on('pageerror', (e) => console.log('  ‹página› ' + String(e.message).s
 // 404 dela polui o diagnóstico.
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
-const r = await page.evaluate(async ({ base, arq }) => {
+const r = await page.evaluate(async ({ base, arq, pacote }) => {
     try {
-        const mod = await import(`${base}/wllama-cdn/index.js`);
-        const w = new mod.Wllama({ default: `${base}/wllama-cdn/wasm/wllama.wasm` });
+        // ── QUAL BUILD DO wllama ─────────────────────────────────────────
+        //
+        // `PACOTE=wllama-360` troca a build sem tocar no resto. Existe porque o
+        // wasm de `wllama-cdn` é de 5 de agosto e o de `wllama-360` é de 19: a
+        // diferença de duas semanas é a diferença entre construir o grafo de
+        // uma arquitetura híbrida e recusar com `missing tensor`.
+        const mod = await import(`${base}/${pacote}/index.js`);
+        const w = new mod.Wllama({ default: `${base}/${pacote}/wasm/wllama.wasm` });
         await w.loadModelFromUrl(`${base}/${arq}`, {
             n_ctx: 1024, n_batch: 256, n_threads: 4, n_gpu_layers: 0, jinja: true,
         });
@@ -42,6 +49,6 @@ const r = await page.evaluate(async ({ base, arq }) => {
         });
         return { ok: true, arch: meta['general.architecture'] ?? '?', texto: JSON.stringify(saida).slice(0, 160) };
     } catch (e) { return { ok: false, erro: String(e?.message ?? e).slice(0, 300) }; }
-}, { base: BASE, arq: ARQ });
+}, { base: BASE, arq: ARQ, pacote: PACOTE });
 console.log(`\n  ${ARQ}: ${r.ok ? 'CARREGOU e gerou · arch ' + r.arch + ' · ' + r.texto : 'FALHOU · ' + r.erro}`);
 await browser.close();
