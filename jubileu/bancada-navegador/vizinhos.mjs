@@ -88,20 +88,40 @@ const r = await page.evaluate(async ({ base, persona, pergunta, direcao, rodadas
     await degrau('A · granite sozinho, sem direção', pergunta);
     await degrau('B · + a direção do cânone', `${direcao}\n\n${pergunta}`);
 
+    // ── O VIZINHO NÃO PODE ESTAR AQUECENDO QUANDO SE MEDE ────────────
+    //
+    // A primeira versão desta escada deu 8,8 s em C e 3,3 s em D — ou seja,
+    // acrescentar um TERCEIRO modelo devolveu a velocidade. Contenção de
+    // recurso não some quando se acrescenta carga, então a leitura de C estava
+    // contaminada: `warmup: true` faz o wllama rodar uma geração ao carregar, e
+    // as três medidas de C correram com o v2 ainda aquecendo ao lado.
+    //
+    // Dois consertos, e o segundo é o que fecha a questão: vizinho sobe SEM
+    // aquecimento (ele não vai gerar nada, só ocupar RAM), e a condição de C é
+    // MEDIDA DE NOVO no fim, com tudo de pé e frio. Se a penalidade for real,
+    // ela reaparece; se era aquecimento, não reaparece.
+    const assentar = () => new Promise((r) => setTimeout(r, 8000));
+
     const v = novo();
     await v.loadModelFromUrl(`${base}/nilo-v2-q4km.gguf`, {
         n_ctx: 1024, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
-        jinja: true, reasoning: false, warmup: true,
+        jinja: true, reasoning: false, warmup: false,
     });
     vizinhos.push(v);
+    await assentar();
     await degrau('C · + revisor v2 de pé ao lado', `${direcao}\n\n${pergunta}`);
 
     const e = novo();
     await e.loadModelFromUrl(`${base}/gemma300m.gguf`, {
-        n_ctx: 1024, n_threads: 2, n_gpu_layers: 0, embeddings: true,
+        n_ctx: 1024, n_threads: 2, n_gpu_layers: 0, embeddings: true, warmup: false,
     });
     vizinhos.push(e);
+    await assentar();
     await degrau('D · + EmbeddingGemma também', `${direcao}\n\n${pergunta}`);
+
+    // A prova: mesma condição de C, mas agora sem nada recém-carregado por
+    // perto. Se voltar ao patamar de B, o 167% era aquecimento.
+    await degrau('E · repete C, tudo assentado', `${direcao}\n\n${pergunta}`);
 
     for (const w of [g, ...vizinhos]) { try { await w.exit(); } catch { /* já foi */ } }
     return { cargaGranite, saida };
