@@ -126,8 +126,18 @@ Nilo e oferece ajuda — as duas coisas que a persona proíbe em letras maiúscu
        calling it."
 
 Zero rubrica, zero rótulo, zero registro de assistente. **Ele sabe o cânone por
-PESO** — foi destilado de um professor de 27B sobre este cânone — enquanto o
-granite sabe por prompt e ignora o prompt.
+PESO**, enquanto o granite sabe por prompt e ignora o prompt.
+
+E vale ser exato sobre o mecanismo, porque eu vinha escrevendo errado: o v2 NÃO
+é destilação no sentido de casar logits com o professor — isso foi tentado e
+nunca terminou. Ele é **fine-tune supervisionado off-policy em 423 linhas** que
+um professor grande gerou. O que carrega o cânone são 423 exemplos do Nilo certo,
+não a distribuição de um modelo de 27B.
+
+A diferença não é acadêmica: torna o resultado mais barato de repetir. 423
+linhas de corpus fizeram um 0,8B escrever este personagem melhor que um modelo
+de prateleira do mesmo tamanho — e 423 linhas é uma tarde de geração, não uma
+semana de GPU.
 
 ### O preço, e as duas partes dele que dão para tirar
 

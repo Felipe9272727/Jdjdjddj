@@ -163,10 +163,25 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
     {
         // ── O SUCESSOR DO DE 360M, E O QUE ELE COMPRA E COBRA ────────────
         //
-        // Mesma ideia, corpus vinte vezes maior e destilado de um professor de
+        // Mesma ideia, corpus vinte vezes maior e GERADO por um professor de
         // 27,78B em vez de escrito à mão. Melhor nota que tudo que passou por
         // aqui — 23/24 — mas o número que decidiu não foi a nota: foi 27
         // ABERTURAS DISTINTAS EM 27 RESPOSTAS.
+        //
+        // ── "DESTILADO" É EXAGERO, E O DONO DO JOGO CORRIGIU ─────────────
+        //
+        // O rótulo diz "destilado" e eu repeti isso em texto por meses, o que
+        // sugere casar logits com o professor. Não é o que aconteceu: essa
+        // destilação foi TENTADA e nunca terminou — morreu nos OOM do Colab, no
+        // desenho em fases, e num v3 que saiu sem pensar.
+        //
+        // O que existe é fine-tune supervisionado OFF-POLICY em 423 linhas que
+        // o professor gerou. Quem carrega o cânone são 423 exemplos do Nilo
+        // certo, não a distribuição de um modelo de 27B.
+        //
+        // A diferença barateia a receita em vez de encarecê-la: 423 linhas são
+        // uma tarde de geração, e foram elas que puseram um 0,8B acima de tudo
+        // que passou por esta bancada.
         //
         // O de 360M tirava 44/48 e mesmo assim soava como bot de frase pronta,
         // porque escrevia seis aberturas distintas em 48. A régua não via isso;
