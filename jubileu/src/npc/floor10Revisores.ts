@@ -96,7 +96,8 @@
 import { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 import { pipelineLigado } from './floor10Pipeline';
 
-export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador' | 'huihui' | 'treinado';
+export type RevisorId = 'lfm' | 'llama' | 'falcon' | 'lfm-onnx' | 'moe' | 'rascunhador' | 'huihui'
+    | 'treinado' | 'v2';
 
 export type RevisorEntry = {
     id: RevisorId;
@@ -158,6 +159,37 @@ export const REVISORES: readonly RevisorEntry[] = Object.freeze([
         label: 'revisor treinado 360M (nosso)',
         cerebro: 'nilo-revisor-360m',
         nota: 'empata com o titular (44/48) e custa 15s de turno contra 64s; zero quebra de cânone em 48',
+    },
+    {
+        // ── O SUCESSOR DO DE 360M, E O QUE ELE COMPRA E COBRA ────────────
+        //
+        // Mesma ideia, corpus vinte vezes maior e destilado de um professor de
+        // 27,78B em vez de escrito à mão. Melhor nota que tudo que passou por
+        // aqui — 23/24 — mas o número que decidiu não foi a nota: foi 27
+        // ABERTURAS DISTINTAS EM 27 RESPOSTAS.
+        //
+        // O de 360M tirava 44/48 e mesmo assim soava como bot de frase pronta,
+        // porque escrevia seis aberturas distintas em 48. A régua não via isso;
+        // hoje vê, e este não repete nenhuma.
+        //
+        // O QUE ELE COBRA: 774 MB contra 386 MB. Ao lado dos 822 MB do
+        // rascunhador são 1,52 GB, ainda abaixo do teto — cabem juntos, sem
+        // troca de RAM. Mas o arquivo é o dobro, então a carga é o dobro, e ele
+        // escreve um bloco de pensamento antes da frase, que é tokens a mais.
+        // Se o turno passar muito dos 15 s do de 360M, a escolha entre os dois
+        // vira decisão de projeto e não de placar.
+        //
+        // O cânone continua gravado nos pesos: quando o Nilo subir de andar,
+        // este arquivo é retreinado ou passa a "consertar" verdade em mentira.
+        id: 'v2',
+        label: 'revisor v2 0,8B destilado (nosso)',
+        cerebro: 'nilo-revisor-v2-08b',
+        // 27 de 27 respostas da prova vieram com bloco `<think>`. Sem esta
+        // marca o orçamento fica nos 40 tokens do remendo, o corte cai dentro
+        // do pensamento, e ele nunca chega a dizer a frase — o jogo mostraria
+        // vazio e pareceria modelo quebrado.
+        pensa: true,
+        nota: 'melhor nota da bancada (23/24) e 27 aberturas em 27; pensa antes de responder, sem loop',
     },
     {
         // ── O ÚNICO SOBREVIVENTE DA CAÇADA, E POR QUE NÃO É O PADRÃO ─────

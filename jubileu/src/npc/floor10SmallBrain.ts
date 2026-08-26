@@ -2024,7 +2024,17 @@ export async function remendarFraseEmIngles(
         // o treinado viu a tarefa 192 vezes e precisa da forma exata em que a
         // viu. Mandar o enunciado com exemplos para ele seria medir uma coisa e
         // rodar outra.
-        const treinado = revisorAtual().id === 'treinado';
+        // ── QUAIS REVISORES FALAM A LÍNGUA DO TREINO ────────────────────
+        //
+        // Comparar com uma id só era uma armadilha esperando o segundo revisor
+        // treinado: o v2 daria `false` aqui e receberia a persona genérica e o
+        // enunciado antigo — e responderia pior SEM DAR ERRO, que é o modo de
+        // falha mais caro de achar.
+        //
+        // A regra passa a ser a que importa de verdade: estes dois foram
+        // treinados no enunciado de `corpus/enunciado.mjs`, então é esse que
+        // eles têm que receber.
+        const treinado = revisorAtual().id === 'treinado' || revisorAtual().id === 'v2';
         const stream = await engine.createChatCompletion({
             messages: [
                 {

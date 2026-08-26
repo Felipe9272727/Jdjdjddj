@@ -16,7 +16,8 @@ import { cerebroDoRevisor } from './floor10Revisores';
 export type SmallBrainId =
     | 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'llama32-1b-q6'
     | 'minicpm5-1b' | 'lfm2-1b' | 'llama32-horror' | 'falcon-h1-1.5b'
-    | 'granite3-3b-a800m' | 'huihui-moe-08b' | 'nilo-revisor-360m';
+    | 'granite3-3b-a800m' | 'huihui-moe-08b' | 'nilo-revisor-360m'
+    | 'nilo-revisor-v2-08b';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -290,6 +291,38 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-360m/resolve/main/revisor-360m-q8_0.gguf',
         bytes: 386_404_864,
         nota: 'empata com o titular em nota (44/48) e é 4x mais rápido: 15s de turno contra 64s, e zero quebra de cânone',
+    },
+    {
+        // ── O REVISOR QUE PENSA ANTES DE CONSERTAR ───────────────────────
+        //
+        // Destilado de um professor de 27,78B: 423 pares (frase errada →
+        // conserto) gerados por ele e verificados um a um pela régua deste
+        // repositório — a frase errada tinha que quebrar uma regra de cânone de
+        // verdade, e o conserto não podia quebrar nenhuma.
+        //
+        // Na prova de 24 casos, contra tudo que já passou por esta bancada:
+        //
+        //     4B de prateleira      conserta 15/24 · quebrou 5 · 26 aberturas
+        //     LFM2.5-1.2B titular   conserta 22/24 · quebrou 0
+        //     revisor 360M          conserta 22/24 · quebrou 0
+        //     ESTE                  conserta 23/24 · quebrou 1 · 27 aberturas
+        //
+        // As 27 aberturas distintas em 27 respostas são o número que mais
+        // importa: o revisor de 360M passava na régua e mesmo assim soava como
+        // frase pré-programada, porque escrevia seis aberturas em 48 respostas.
+        // Este não repete nenhuma.
+        //
+        // A única quebra é falso positivo da régua: ele escreveu "I'm not in the
+        // elevator" e a regra é de palavra proibida, não sabe ler negação.
+        //
+        // E ele PENSA: 27 de 27 respostas vieram com bloco `<think>`, e nenhuma
+        // entrou em loop. O bloco custa tokens no aparelho — é a troca a medir
+        // contra os 15 s de turno do de 360M.
+        id: 'nilo-revisor-v2-08b',
+        label: 'revisor v2 0,8B destilado (nosso)',
+        url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-08b/resolve/main/nilo-revisor-v2-q8_0.gguf',
+        bytes: 811_842_976,
+        nota: 'melhor nota da bancada (23/24) e 27 aberturas distintas em 27; pensa antes de responder e não entra em loop',
     },
     {
         id: 'minicpm5-1b',
