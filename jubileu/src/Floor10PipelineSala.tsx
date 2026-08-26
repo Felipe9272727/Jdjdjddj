@@ -36,7 +36,7 @@ import {
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
-    FLOOR10_MEMORIA_MODEL, memoriaJaCarregada, precarregarMemoria,
+    FLOOR10_MEMORIA_MODEL, baixarMemoria, memoriaJaCarregada, precarregarMemoria,
 } from './npc/floor10Memoria';
 import {
     FLOOR10_TRADUTOR_BYTES, prepararTradutor, desabreviar,
@@ -298,14 +298,38 @@ export default function Floor10PipelineSala() {
             // Ou seja: a bancada media um pipeline pior do que o do jogo e
             // chamava isso de medida do jogo.
             //
-            // `precarregarMemoria` e não `baixarMemoria`: aqui ela precisa
-            // estar DE PÉ, não só no disco.
+            // ── E `baixarMemoria`, NÃO `precarregarMemoria` ──────────────
+            //
+            // Errei isto na primeira versão e o relato veio na volta: "ele está
+            // na fila mas não mostra baixando, antes estava funcionando
+            // certinho, agora não mais".
+            //
+            // `precarregarMemoria` passa pelo `floor10ModelCoordinator` e SOBE
+            // um llama.cpp de 333 MB. Pôr isso na fila contraria a regra que a
+            // própria peça do rascunhador tem escrita duas telas acima — "a
+            // fila SÓ BAIXA; subir é o passo mais pesado e ganhou botão
+            // próprio" — e ela existe porque o aparelho do dono do jogo
+            // DESLIGOU quando quatro runtimes subiram na mesma instalação.
+            //
+            // Baixar é rede; subir é núcleo. Quem sobe a memória aqui é o
+            // botão, junto com o rascunhador, com o aparelho parado.
             id: 'memoria',
             nome: `direção · ${FLOOR10_MEMORIA_MODEL.label}`,
             bytes: FLOOR10_MEMORIA_MODEL.bytes,
             detalhe: 'acha o fato do cânone que a pergunta pediu · guia o rascunhador antes de ele escrever',
             carregado: () => memoriaJaCarregada(),
-            carregar: precarregarMemoria,
+            carregar: baixarMemoria,
+            // ── E A BARRA PRECISA SABER ONDE ELE PUBLICA ─────────────────
+            //
+            // O segundo metade do mesmo relato. Cada peça publica o progresso
+            // num campo diferente do npcStore: o rascunhador em `loadDownload`,
+            // o revisor em `deliberationDownload`, e a memória em
+            // `memoriaDownload`. A sala lia os dois primeiros. Sem estas duas
+            // linhas a peça baixa de verdade e a tela não mostra nada — que é
+            // indistinguível, de fora, de uma peça travada.
+            reportaProgresso: true,
+            amostraPropria: () => npc.memoriaDownload,
+            motivo: () => npc.memoriaLoadText,
         },
         {
             id: 'juiz',
@@ -470,7 +494,26 @@ export default function Floor10PipelineSala() {
             await esperar(RESPIRO_ENTRE_PECAS_MS);
             setAviso('subindo o rascunhador (822 MB para a RAM)…');
             const e = await subirRascunhador();
-            setAviso(e ? '' : `não subiu: ${ultimoErroDoRascunhador() || 'sem motivo'}`);
+            if (!e) {
+                setAviso(`não subiu: ${ultimoErroDoRascunhador() || 'sem motivo'}`);
+            } else {
+            // ── E A DIREÇÃO, QUE TEM DE ESTAR DE PÉ ANTES DO RASCUNHO ────
+            //
+                // `lembrarPorSignificado()` abre com
+                // `if (!residentEngine) return semMemoria('modelo desligado')`
+                // e não sobe nada sob demanda. Baixada e desligada, ela não
+                // direciona nada — e o rascunhador volta a receber persona +
+                // pergunta e nada mais, que é a ausência de onde saem as
+                // invenções.
+                //
+                // Depois do rascunhador, e não antes: se a RAM não der para os
+                // dois, quem tem de sobreviver é quem escreve. Sem memória o
+                // pipeline ainda fala, com a busca por palavra assumindo.
+                setAviso('subindo a direção (334 MB para a RAM)…');
+                const m = await precarregarMemoria();
+                setAviso(m ? '' : 'o rascunhador subiu, mas a direção não — '
+                    + 'ele vai escrever com a busca por palavra, sem o cânone por significado');
+            }
         } catch (erro) {
             setAviso(`não subiu: ${erro instanceof Error ? erro.message : String(erro)}`);
         } finally {

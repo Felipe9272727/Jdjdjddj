@@ -425,9 +425,28 @@ describe('a sala do ?pipeline baixa as mesmas peças que o jogo', () => {
             new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
         );
         expect(sala).toContain("id: 'memoria'");
-        // De pé, e não só no disco: `lembrarPorSignificado` exige o
-        // `residentEngine`, e `baixarMemoria` não o deixa de pé.
-        expect(sala).toContain('carregar: precarregarMemoria');
+        // ── BAIXAR NA FILA, SUBIR NO BOTÃO ──────────────────────────────
+        //
+        // A primeira versão pôs `precarregarMemoria` na fila e quebrou a tela:
+        // ela SOBE um llama.cpp de 333 MB, e a fila desta sala só pode baixar
+        // — a regra está escrita na peça do rascunhador e existe porque o
+        // aparelho do dono do jogo desligou com quatro runtimes de pé.
+        expect(sala).toContain('carregar: baixarMemoria');
+        // Mas `lembrarPorSignificado` exige o `residentEngine`, então alguém
+        // tem de subir: é o botão, junto com o rascunhador.
+        expect(sala).toContain('await precarregarMemoria()');
+    });
+
+    it('e a barra lê o campo onde a memória publica, não o do rascunhador', () => {
+        // Cada peça publica em um campo diferente do npcStore. A memória usa
+        // `memoriaDownload`; sem dizer isso, ela baixa de verdade e a tela não
+        // mostra nada — "está na fila mas não mostra baixando", que de fora é
+        // igual a uma peça travada.
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain('npc.memoriaDownload');
+        expect(sala).toContain('npc.memoriaLoadText');
     });
 
     it('e não perde nenhum papel que a fila do jogo traz para o pipeline', () => {
