@@ -606,12 +606,24 @@ export async function falarPeloPipeline(
             antes, await pecas.remendar(perguntaEmIngles, antes, comOResto(porque, finais, i)),
         );
         if (desfecho.tipo === 'trocou' && jaEscritos.has(mesmaCoisa(desfecho.depois))) {
+            // A duplicata é recusada e a original volta — MENOS quando a
+            // original quebra o cânone, e aí ela sai. Ver o bloco mais abaixo:
+            // foi somando estas duas guardas certas que o Nilo apareceu na tela
+            // dizendo "é contra a minha programação".
+            const quebrouAntes = quebrasDeCanone(antes);
+            if (quebrouAntes.length > 0) finais[i] = '';
             aoPassar?.({
                 passo: 'remendo',
                 n,
                 antes,
                 desfecho: { tipo: 'recusado', depois: desfecho.depois, quebras: [
                     { regra: 'repetiu o remendo de outra frase', trecho: desfecho.depois.slice(0, 60) },
+                    ...(quebrouAntes.length > 0
+                        ? [{
+                            regra: 'e a original quebrava o cânone — a frase saiu da fala',
+                            trecho: antes.slice(0, 60),
+                        }]
+                        : []),
                 ] },
                 ms: Date.now() - t2,
             });
@@ -623,11 +635,50 @@ export async function falarPeloPipeline(
         // como troca inflaria o placar; os outros quatro desfechos são falhas
         // com donos diferentes, e a frase original segue em todos eles.
         if (desfecho.tipo === 'trocou') { finais[i] = desfecho.depois; remendadas += 1; }
+        // ── MENOS QUE ISSO: A FRASE ORIGINAL PODE SER PIOR QUE O SILÊNCIO ─
+        //
+        // "a frase original segue em todos eles" é a regra certa para TOM — uma
+        // frase que soa literária demais ainda é o Nilo falando. É a regra
+        // errada para CÂNONE, e a foto de tela mostrou o preço:
+        //
+        //   rascunho ... "It's against my programming to engage in harmful
+        //                 or violent behavior."
+        //   remendo .... recusado (repetia o remendo da frase 1)
+        //   jogador .... "É contra a minha programação para me envolver em
+        //                 comportamentos prejudiciais ou violentos."
+        //
+        // O Nilo admitindo ser uma IA, na tela, porque o conserto falhou e o
+        // caminho de falha é "deixa como estava". Duas guardas trabalharam
+        // certo — o cânone marcou a frase, a trava de repetição recusou o
+        // remendo — e o resultado das duas somadas foi publicar a quebra.
+        //
+        // Aqui a frase SAI. Nilo falando menos é sempre melhor que Nilo
+        // dizendo que é um programa; não existe leitura em que o contrário
+        // valha. E só para quebra de cânone: tom continua passando, porque tom
+        // ruim ainda é personagem.
+        if (desfecho.tipo !== 'trocou' && quebrasDeCanone(antes).length > 0) {
+            finais[i] = '';
+            aoPassar?.({
+                passo: 'remendo',
+                n,
+                antes,
+                desfecho: {
+                    tipo: 'recusado',
+                    depois: '',
+                    quebras: [...quebrasDeCanone(antes), {
+                        regra: 'sem conserto, e a original quebrava o cânone — a frase saiu da fala',
+                        trecho: antes.slice(0, 60),
+                    }],
+                },
+                ms: Date.now() - t2,
+            });
+            continue;
+        }
         aoPassar?.({ passo: 'remendo', n, antes, desfecho, ms: Date.now() - t2 });
     }
 
     const t3 = Date.now();
-    const juntas = finais.join(' ');
+    const juntas = finais.filter((f) => f.trim()).join(' ');
     const pt = await pecas.traduzir(juntas);
     if (!pt || !pt.trim()) return null;
     const fala = abrasileirar(pt);

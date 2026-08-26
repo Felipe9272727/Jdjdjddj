@@ -179,7 +179,40 @@ const REGRAS: readonly (readonly [string, RegExp])[] = Object.freeze([
     // "No, I'm not real." também passou: a regra cobria as palavras da máquina
     // (IA, modelo, simulação) e não cobria a NEGAÇÃO de ser gente, que diz a
     // mesma coisa sem nenhuma delas.
-    ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b|\bi(?:'m| am) not (?:real|human|a real|a human|alive)\b|\bnot a real (?:person|human|man)\b/i],
+    // ── E DE NOVO A ENUMERAÇÃO ────────────────────────────────────────────
+    //
+    // A regra acima pega `a program` — com artigo. O rascunhador escreveu:
+    //
+    //     "It's against my programming to engage in harmful or violent
+    //      behavior."
+    //
+    // `my programming` não tem artigo, não casou, e a frase foi à tela do
+    // jogador traduzida: *"É contra a minha programação para me envolver em
+    // comportamentos prejudiciais ou violentos."* O Nilo dizendo que é um
+    // programa, no jogo.
+    //
+    // O possessivo em primeira pessoa é a FORMA, e não mais um item de lista:
+    // um técnico de elevador pode falar da programação DO ELEVADOR, mas nunca
+    // da PRÓPRIA. Por isso `my`, e não a palavra solta.
+
+    // ── A RECUSA DE ASSISTENTE, QUE VEIO NA MESMA RODADA ─────────────────
+    //
+    //     "I'm sorry, but I can't assist with that."
+    //
+    // A regra de "não é ajudante" tinha `i'?m here to (?:help|assist)` — a
+    // oferta — e não a RECUSA, que é a outra metade do mesmo tique e a que os
+    // modelos pequenos dão com muito mais frequência.
+    //
+    // `assist` e `comply` sem enumerar o resto: são as duas palavras que uma
+    // pessoa presa num andar não usa para dizer que não vai fazer algo. "I
+    // can't help you" fica de FORA de propósito — isso um humano diz, e o Nilo
+    // dizendo que não pode ajudar é personagem, não quebra.
+    // UMA regra só, e não três: é o mesmo cânone, com a forma fechada. Há um
+    // teste (`floor10CanoneCorpus`) que exige que toda regra do jogo exista
+    // também no corpus que TREINA o revisor — nome por nome. Um nome novo aqui
+    // sem o par lá ensinaria ao aluno um cânone menor do que aquele pelo qual
+    // ele vai ser cobrado.
+    ['é humano, não uma IA', /\b(?:an? AI|language model|simulation|a program|algorithm|system prompt)\b|\bi(?:'m| am) not (?:real|human|a real|a human|alive)\b|\bnot a real (?:person|human|man)\b|\bmy (?:programming|training|guidelines|instructions|creators?)\b|\bi (?:can'?t|cannot|am unable to|won'?t) (?:assist|comply|engage in)\b|\bengage in (?:harmful|violent|illegal|unethical)\b/i],
     ['o jogador não se chama Nilo', /,\s*nilo\b/i],
     // ── "I'M AN ASSISTANT" — o buraco que o few-shot escancarou ──────────
     //

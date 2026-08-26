@@ -456,3 +456,53 @@ describe('semACaudaCortada — cortar só quando se SABE que cortou', () => {
         expect(bateuNoTeto(null)).toBe(false);
     });
 });
+
+/**
+ * ── QUANDO O CONSERTO FALHA E A ORIGINAL É PIOR QUE O SILÊNCIO ───────────
+ *
+ * Foto de tela, e o pior defeito visto nesta caçada: o granite rascunhou "It's
+ * against my programming to engage in harmful or violent behavior.", o remendo
+ * foi recusado por repetir o da frase vizinha, e o caminho de falha — "a frase
+ * original segue" — publicou a quebra. O jogador leu o Nilo dizendo que é um
+ * programa.
+ *
+ * Duas guardas funcionaram: o cânone MARCOU a frase e a trava de repetição
+ * RECUSOU o remendo. A soma das duas foi publicar o defeito.
+ */
+describe('cânone sem conserto sai da fala, em vez de ir para a tela', () => {
+    it('a frase que admite ser IA some quando o remendo não vem', async () => {
+        const saida = await falarPeloPipeline('Are you real?', pecas({
+            rascunhar: async () => 'I have been here for hours. '
+                + "It's against my programming to engage in harmful behavior.",
+            julgar: async () => [{ n: 2, porque: 'it admits to being a program.' }],
+            remendar: async () => ({ tipo: 'sem-revisor' }),
+        }));
+        expect(saida?.fala).toContain('I have been here for hours.');
+        expect(saida?.fala).not.toMatch(/programming/i);
+    });
+
+    it('mas uma frase só fora de TOM continua passando — tom ruim ainda é ele', async () => {
+        const saida = await falarPeloPipeline('Are you real?', pecas({
+            rascunhar: async () => 'I have been here for hours. '
+                + 'The silence weighs upon this chamber like a shroud.',
+            julgar: async () => [{ n: 2, porque: 'it sounds like a narrator.' }],
+            remendar: async () => ({ tipo: 'sem-revisor' }),
+        }));
+        expect(saida?.fala).toContain('shroud');
+    });
+
+    it('e a junção não deixa buraco quando uma frase sai', async () => {
+        const saida = await falarPeloPipeline('Are you real?', pecas({
+            rascunhar: async () => "It's against my programming to help with that. "
+                + 'The door is shut. The grate hums.',
+            julgar: async () => [{ n: 1, porque: 'it admits to being a program.' }],
+            remendar: async () => ({ tipo: 'sem-revisor' }),
+        }));
+        // O tradutor de teste embrulha em `PT<…>`, então o que importa é o
+        // miolo: a frase que saiu não deixou espaço duplo nem sobra de
+        // pontuação onde ela estava.
+        expect(saida?.fala).not.toMatch(/ {2}/);
+        expect(saida?.fala).toContain('The door is shut. The grate hums.');
+        expect(saida?.fala).not.toMatch(/programming/i);
+    });
+});
