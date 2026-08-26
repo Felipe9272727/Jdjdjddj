@@ -31,7 +31,7 @@
 // cada uma tem botão e diz o próprio peso.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
+    modeloDoRascunhador, baixarRascunhador, subirRascunhador,
     descarregarRascunhador, ultimoErroDoRascunhador,
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
@@ -249,8 +249,11 @@ export default function Floor10PipelineSala() {
     const PECAS: Peca[] = [
         {
             id: 'rascunho',
-            nome: 'rascunhador · granite 1B-A400M',
-            bytes: FLOOR10_RASCUNHADOR_MODEL.bytes,
+            // O NOME SAI DA ESCOLHA, e não de um literal — mesma lição que a
+            // peça do revisor já traz: uma tela dizendo "granite" enquanto o v2
+            // escreve faria a próxima medição comparar a coisa errada.
+            nome: `rascunhador · ${modeloDoRascunhador().label.replace(/^Rascunhador /, '')}`,
+            bytes: modeloDoRascunhador().bytes,
             detalhe: 'escreve o primeiro jato em inglês · 400M ativos por token',
             // A fila SÓ BAIXA. Subir os 822 MB para dentro do WASM é o passo
             // mais pesado de todos e ganhou botão próprio, para acontecer com o

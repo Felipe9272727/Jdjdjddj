@@ -455,3 +455,38 @@ describe('o build se identifica', () => {
         expect(regra?.headers.map((h) => h.key)).toContain('Cache-Control');
     });
 });
+
+/**
+ * ── `?rascunhador=v2` ────────────────────────────────────────────────────
+ *
+ * O revisor escrevendo o primeiro jato. Medido na bancada: quebra 0/8 contra
+ * 5/8 do granite, e as oito falas saíram limpas e completas — mas ~16 s por
+ * frase contra ~5 s, porque ele abre um `<think>` que o pipeline descarta.
+ *
+ * Três formas de calar o bloco foram testadas e as três falharam: com a flag do
+ * template ele pensa; com o bloco já fechado entregue à mão ele abre outro; e
+ * com `stop` no `<think>` a saída vem VAZIA — porque a tag é o primeiro token
+ * que ele emite. Está nos pesos, e não haverá novo treino.
+ *
+ * Por isso um interruptor, e não uma troca: a projeção para o aparelho de quem
+ * joga dá o dobro do turno, mas projeção não é medição e a primeira lei do
+ * projeto é que esta bancada não prevê aquele celular.
+ */
+describe('o rascunhador também se escolhe pela URL', () => {
+    it('o padrão é o granite, e só ?rascunhador=v2 troca', async () => {
+        const { rascunhadorEscolhido } = await import('../npc/floor10Rascunhador');
+        expect(rascunhadorEscolhido('?pipeline')).toBe('granite');
+        expect(rascunhadorEscolhido('')).toBe('granite');
+        expect(rascunhadorEscolhido('?pipeline&rascunhador=v2')).toBe('v2');
+        expect(rascunhadorEscolhido('?rascunhador=V2')).toBe('v2');
+    });
+
+    it('e a fila promete os bytes do escolhido, não os do titular', () => {
+        // Prometer 822 MB e baixar 542 MB é o defeito que já fez a barra
+        // mentir com `?revisor=lfm-onnx`. As duas telas leem a mesma função.
+        for (const arquivo of ['../Floor10NpcChat.tsx', '../Floor10PipelineSala.tsx']) {
+            const fonte = readFileSync(new URL(arquivo, import.meta.url), 'utf8');
+            expect(fonte, `${arquivo} promete bytes fixos`).toContain('modeloDoRascunhador().bytes');
+        }
+    });
+});

@@ -39,7 +39,7 @@ import {
     unloadFloor10Memoria,
 } from './npc/floor10Memoria';
 import {
-    FLOOR10_RASCUNHADOR_MODEL, baixarRascunhador, subirRascunhador,
+    modeloDoRascunhador, baixarRascunhador, subirRascunhador,
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom } from './npc/floor10VetorDeTom';
 import { FLOOR10_TRADUTOR_BYTES, prepararTradutor } from './npc/floor10Tradutor';
@@ -58,7 +58,7 @@ definirFilaDoAndar10({
     motor: FLOOR10_MOTOR_MODEL.bytes,
     memoria: FLOOR10_MEMORIA_MODEL.bytes,
     reflexo: FLOOR10_REFLEXO_MODEL.bytes,
-    rascunho: FLOOR10_RASCUNHADOR_MODEL.bytes,
+    rascunho: modeloDoRascunhador().bytes,
     juiz: FLOOR10_TOM_MODEL.bytes,
     tradutor: FLOOR10_TRADUTOR_BYTES,
 });

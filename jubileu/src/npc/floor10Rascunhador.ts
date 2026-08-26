@@ -94,15 +94,86 @@ export const FILA_RASCUNHO = 'rascunho';
  * 4/12 contra 1/12 e parecia decisiva a favor do Q6. Era amostra pequena mais
  * régua com fresta. Se alguém repetir isto, repita com as três rodadas.
  */
+/**
+ * ── `?rascunhador=v2`: O REVISOR ESCREVENDO O PRIMEIRO JATO ──────────────
+ *
+ * Ideia de quem joga, olhando uma fala na tela: *"o revisor, que é um modelo
+ * menor, e não foi treinado pra essa pergunta, respondeu melhor"*. Medido na
+ * bancada, com a persona e a direção reais, oito perguntas:
+ *
+ *     granite ..... quebra 5/8   ~5 s por frase
+ *     v2 .......... quebra 0/8   ~16 s por frase
+ *
+ * As oito falas do v2 saíram limpas, completas e respondendo à pergunta;
+ * nenhuma das oito do granite saiu. Mas o turno inteiro na bancada deu 10,9 s
+ * com o granite contra 17,6 s com o v2 — porque o rascunho do v2 custa mais que
+ * o rascunho do granite MAIS os quatro consertos que ele obriga.
+ *
+ * O que come esse tempo é um bloco `<think>` que o pipeline descarta em
+ * seguida. Ele não vem de um modo de pensamento: o alvo do treino trazia as
+ * tags literais, e o modelo imita o formato que viu 423 vezes.
+ *
+ * ── POR QUE O INTERRUPTOR EXISTE EM VEZ DE UMA TROCA ─────────────────────
+ *
+ * A projeção para o aparelho de quem joga, com a razão medida aqui sobre os
+ * 42,6 s de rascunho dele, dá ~145 s contra ~74 s — o dobro. Mas projeção não é
+ * medição, e a primeira lei deste projeto é que a bancada não prevê aquele
+ * celular. Ele pediu para testar lá, e está certo: só o aparelho responde.
+ *
+ * Com `?revisor=rascunhador` junto, o pipeline inteiro roda num ARQUIVO SÓ —
+ * 542 MB em vez de 1,36 GB, e sem troca de modelo no meio do turno.
+ */
+const RASCUNHADORES = Object.freeze({
+    granite: Object.freeze({
+        id: 'granite-a400m',
+        label: 'Rascunhador granite 1B-A400M',
+        url: 'https://huggingface.co/bartowski/granite-3.1-1b-a400m-instruct-GGUF/resolve/main/granite-3.1-1b-a400m-instruct-Q4_K_M.gguf',
+        bytes: 821_847_360,
+    }),
+    v2: Object.freeze({
+        id: 'nilo-revisor-v2-08b',
+        label: 'Rascunhador revisor v2 0,8B (nosso)',
+        url: 'https://huggingface.co/Felipe0282829273/nilo-revisor-08b/resolve/main/nilo-revisor-v2-q4_K_M.gguf',
+        bytes: 541_903_136,
+    }),
+});
+
+export function rascunhadorEscolhido(busca = globalThis.location?.search ?? ''): 'granite' | 'v2' {
+    const pedido = new URLSearchParams(busca).get('rascunhador');
+    return pedido?.trim().toLowerCase() === 'v2' ? 'v2' : 'granite';
+}
+
+/**
+ * O modelo do rascunhador EM VIGOR.
+ *
+ * Deixou de ser uma constante congelada porque `?rascunhador=` a escolhe em
+ * tempo de execução — e o `url` continua aceitando o override de bancada
+ * (`__rascunhadorModelUrl`), que é como os testes apontam para um arquivo local.
+ *
+ * É uma função e não um objeto para que a escolha valha na hora da chamada, e
+ * não no instante em que o módulo carregou: a sala do `?pipeline` monta a lista
+ * de peças no topo do arquivo, e foi assim que `?revisor=llama` não mudou nada
+ * da primeira vez.
+ */
+export function modeloDoRascunhador(): { id: string; label: string; url: string; bytes: number } {
+    const base = RASCUNHADORES[rascunhadorEscolhido()];
+    const forcado = (globalThis as { __rascunhadorModelUrl?: string }).__rascunhadorModelUrl;
+    return forcado ? { ...base, url: forcado } : base;
+}
+
+/**
+ * MANTIDO como objeto para quem só quer o titular de fábrica. Quem precisa
+ * respeitar `?rascunhador=` tem de chamar `modeloDoRascunhador()`.
+ */
 export const FLOOR10_RASCUNHADOR_MODEL = Object.freeze({
     id: 'granite-a400m',
     label: 'Rascunhador granite 1B-A400M',
     url: (globalThis as { __rascunhadorModelUrl?: string }).__rascunhadorModelUrl
-        ?? 'https://huggingface.co/bartowski/granite-3.1-1b-a400m-instruct-GGUF/resolve/main/granite-3.1-1b-a400m-instruct-Q4_K_M.gguf',
-    bytes: 821_847_360,
+        ?? RASCUNHADORES.granite.url,
+    bytes: RASCUNHADORES.granite.bytes,
 });
 
-export const FLOOR10_RASCUNHADOR_SIZE_LABEL = formatBytes(FLOOR10_RASCUNHADOR_MODEL.bytes);
+export const FLOOR10_RASCUNHADOR_SIZE_LABEL = formatBytes(RASCUNHADORES.granite.bytes);
 
 /** Duas threads: ele é 400M ativos e não pode disputar núcleo com o revisor. */
 export const FLOOR10_RASCUNHADOR_THREADS = 2;
@@ -275,7 +346,7 @@ export async function baixarRascunhador(): Promise<boolean> {
         }
         const plano = planModelCache(
             await comPrazo(readStorageEstimate(), PRAZO_SONDA_MS, 'a estimativa de disco'),
-            FLOOR10_RASCUNHADOR_MODEL.bytes,
+            modeloDoRascunhador().bytes,
         );
         if (!plano.ok) {
             ultimoErro = plano.message;
@@ -296,16 +367,16 @@ export async function baixarRascunhador(): Promise<boolean> {
         // `download` do wllama aceita como pronto (ele só olha se a chave
         // existe, não o tamanho). Apagar aqui é o que impede o "Model file not
         // found" de voltar em toda tentativa.
-        const antes = await conferirCacheDeModelo(cache, FLOOR10_RASCUNHADOR_MODEL.url, FLOOR10_RASCUNHADOR_MODEL.bytes);
+        const antes = await conferirCacheDeModelo(cache, modeloDoRascunhador().url, modeloDoRascunhador().bytes);
         if (antes.tipo !== 'ok' && antes.tipo !== 'ausente') {
             anotar('rascunhador:cache-quebrado-antes', { estado: antes.tipo, bytes: antes.bytes });
             npcSet({ loadText: 'o download anterior ficou pela metade; limpando…' });
-            await limparModeloDoCache(cache, FLOOR10_RASCUNHADOR_MODEL.url);
+            await limparModeloDoCache(cache, modeloDoRascunhador().url);
         }
 
         const baixou = await baixarSemSubir(
             (cofre as { cacheManager?: CofreDeModelos }).cacheManager,
-            FLOOR10_RASCUNHADOR_MODEL.url,
+            modeloDoRascunhador().url,
             (loaded, total) => {
                 const amostra = medidor.push(loaded, total);
                 floor10Fila.progresso(FILA_RASCUNHO, amostra);
@@ -315,7 +386,7 @@ export async function baixarRascunhador(): Promise<boolean> {
                     // dono do jogo via era "0 MB de 2,23 GB" para sempre. O
                     // progresso existia; só não chegava a quem desenha.
                     loadDownload: amostra,
-                    loadText: `baixando ${FLOOR10_RASCUNHADOR_MODEL.label} · ${downloadLine(amostra)}`,
+                    loadText: `baixando ${modeloDoRascunhador().label} · ${downloadLine(amostra)}`,
                 });
             },
         );
@@ -331,7 +402,7 @@ export async function baixarRascunhador(): Promise<boolean> {
         // chave já existia, ele volta na hora sem olhar o tamanho. Sem esta
         // conferência, `baixarRascunhador` devolvia `true` e quem estourava era
         // o `loadModelFromUrl`, com uma mensagem que não aponta para o cache.
-        const depois = await conferirCacheDeModelo(cache, FLOOR10_RASCUNHADOR_MODEL.url, FLOOR10_RASCUNHADOR_MODEL.bytes);
+        const depois = await conferirCacheDeModelo(cache, modeloDoRascunhador().url, modeloDoRascunhador().bytes);
         anotar('rascunhador:cache-depois', {
             estado: depois.tipo,
             bytes: depois.tipo === 'ausente' ? -1 : depois.bytes,
@@ -348,10 +419,10 @@ export async function baixarRascunhador(): Promise<boolean> {
         // diagnóstico, que as apresenta como hipóteses.
         const MB = (n: number) => `${(n / 1_000_000).toFixed(0)} MB`;
         if (depois.tipo === 'tamanho-errado' || depois.tipo === 'sem-metadata') {
-            await limparModeloDoCache(cache, FLOOR10_RASCUNHADOR_MODEL.url);
+            await limparModeloDoCache(cache, modeloDoRascunhador().url);
             ultimoErro = depois.tipo === 'tamanho-errado'
                 ? `o arquivo guardado tem ${MB(depois.bytes)} e deveria ter `
-                    + `${MB(FLOOR10_RASCUNHADOR_MODEL.bytes)}; apaguei, tente de novo`
+                    + `${MB(modeloDoRascunhador().bytes)}; apaguei, tente de novo`
                 : `o arquivo guardado tem o tamanho certo mas perdeu o registro `
                     + `da origem; apaguei, tente de novo`;
             return false;
@@ -387,7 +458,7 @@ export async function subirRascunhador(): Promise<Instancia | null> {
             );
             const e = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
             await comPrazo(
-                e.loadModelFromUrl(FLOOR10_RASCUNHADOR_MODEL.url, {
+                e.loadModelFromUrl(modeloDoRascunhador().url, {
                     ...FLOOR10_RASCUNHADOR_LOAD_CONFIG,
                     n_threads: rascunhadorThreads(),
                 }),
