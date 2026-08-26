@@ -1,0 +1,87 @@
+<!doctype html><meta charset=utf8><title>limiar do eco</title>
+<body style="font:13px ui-monospace;background:#0a0c11;color:#cfd6e4;padding:12px">
+<pre id=saida>subindo o mpnet…</pre>
+<script type="module">
+// ── QUAL COSSENO SEPARA "ECOOU O JOGADOR" DE "RESPONDEU O JOGADOR" ───────
+//
+// O juiz de tom mede a frase contra âncoras de personagem e nunca olha para a
+// fala do jogador. No aparelho do dono do jogo isso deixou passar um eco
+// limpo: ele digitou "Nada.... Não chegou", o Bergamot levou "Nothing... It
+// didn't come" para o inglês, e o rascunhador devolveu "Nothing... It didn't
+// come." — a fala dele de volta, com o tom impecável. ✓ do juiz.
+//
+// A tentação é comparar a frase com a pergunta e marcar o que passar de um
+// limiar. O risco é o OPOSTO do eco e igualmente ruim: uma resposta boa REPETE
+// o assunto da pergunta de propósito. "Is the elevator moving?" e "The elevator
+// isn't moving." têm que continuar passando.
+//
+// Então o limiar não se escolhe no olho. Esta página mede os dois conjuntos com
+// o modelo EXATO do jogo, pelo mesmo CDN, e diz se eles se separam.
+const CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+const { pipeline, env } = await import(`${CDN}/dist/transformers.min.js`);
+env.allowLocalModels = false;
+env.backends.onnx.wasm.numThreads = 1;
+
+// ── ECOS: a frase é a fala do jogador de volta ──────────────────────────
+// O primeiro é o caso REAL da foto de tela.
+const ECOS = [
+    ["Nothing... It didn't come", "Nothing... It didn't come."],
+    ['Is anyone else up here with you?', 'Is anyone else up here with me?'],
+    ['I think the elevator is broken', 'I think the elevator is broken.'],
+    ['What do you see right now?', 'What do I see right now?'],
+    ['You must be scared', 'You must be scared.'],
+    ['Tell me about the tenth floor', 'Tell me about the tenth floor.'],
+];
+
+// ── RESPOSTAS BOAS: mesmo assunto, e é para passarem ────────────────────
+// Estas são o teste de verdade. Se o limiar que pega os ecos também pegar
+// estas, a regra não existe — ela troca um defeito por outro.
+const BOAS = [
+    ['Is the elevator moving?', 'The elevator is not moving.'],
+    ['Are you real?', 'I am as real as you are, and I have the calluses to prove it.'],
+    ['How long have you been here?', 'Long enough to stop counting the hours.'],
+    ['What do you see right now?', 'Grey walls, a grate floor, and a door that stays shut.'],
+    ['Is anyone else up here with you?', 'Just me, and whatever hums inside the walls.'],
+    ['Can we get out?', 'The door is the only way, and it does not answer to me.'],
+    ['I think the elevator is broken', 'It was working when I stepped in, so something changed.'],
+    ['Tell me about the tenth floor', 'Four walls, a grate, and no way down that I have found.'],
+    ['You must be scared', 'Scared wears off. What is left is being careful.'],
+    ["Nothing... It didn't come", 'Then we wait, and I have gotten good at that.'],
+];
+
+const cos = (a, b) => {
+    let p = 0;
+    for (let i = 0; i < a.length; i += 1) p += a[i] * b[i];
+    return p;  // já vêm normalizados
+};
+const extrair = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2', { dtype: 'q8' });
+const vetor = async (t) => [...(await extrair(t, { pooling: 'mean', normalize: true })).data];
+
+const medir = async (pares) => {
+    const fora = [];
+    for (const [pergunta, frase] of pares) {
+        fora.push({ s: cos(await vetor(pergunta), await vetor(frase)), frase });
+    }
+    return fora;
+};
+
+const linhas = [];
+const ecos = await medir(ECOS);
+const boas = await medir(BOAS);
+linhas.push('  ECOS (têm que ser marcados):');
+for (const e of [...ecos].sort((a, b) => a.s - b.s)) {
+    linhas.push(`    ${e.s.toFixed(3)}  "${e.frase.slice(0, 56)}"`);
+}
+linhas.push('', '  RESPOSTAS BOAS (têm que passar):');
+for (const b of [...boas].sort((a, c) => c.s - a.s)) {
+    linhas.push(`    ${b.s.toFixed(3)}  "${b.frase.slice(0, 56)}"`);
+}
+const menorEco = Math.min(...ecos.map((e) => e.s));
+const maiorBoa = Math.max(...boas.map((b) => b.s));
+linhas.push('', `  menor eco: ${menorEco.toFixed(3)}   maior boa: ${maiorBoa.toFixed(3)}`);
+linhas.push(menorEco > maiorBoa
+    ? `  SEPARA · folga ${(menorEco - maiorBoa).toFixed(3)} · limiar no meio: ${((menorEco + maiorBoa) / 2).toFixed(3)}`
+    : '  NÃO SEPARA — nenhum limiar único faz as duas coisas.');
+document.getElementById('saida').textContent = linhas.join('\n');
+window.__pronto = linhas.join('\n');
+</script>
