@@ -653,6 +653,34 @@ quatro cópias contra 24/24 sem nenhuma — é o corpus. O turno cai pela metade
 porque o arquivo caiu de q8_0 para q4_K_M (542 MB), não porque o modelo ficou
 mais rápido por token.
 
+### O preço da temperatura 0,7, medido
+
+A tabela acima é em temperatura 0. O jogo manda **0,7** no revisor treinado, por
+uma decisão registrada em `floor10RevisorTreinado.ts`: guloso devolvia a mesma
+frase para entrada parecida, e era isso que fazia três respostas de *"Você é
+real?"* começarem iguais. Duas rodadas dos 24 casos a 0,7:
+
+| | conserta | ecoou | pedaço | copiou | promete | desviou | TURNO |
+|---|---|---|---|---|---|---|---|
+| v2 a **temperatura 0** | **24/24** | 0 | 0 | 0 | 0 | 7/24 | 25 s |
+| v2 a **temperatura 0,7** | 43/48 | 0 | 0 | 0 | 0 | 17/48 | 24 s |
+
+O sorteio custa cinco consertos em 48. Lidas uma a uma, as falhas não são todas
+iguais:
+
+    ✗ "The floor is the only window here — it's just a metal grate and the hum."
+    ✗ "First day I saw the door open and it was 1974 — no reason to guess later."
+
+A primeira é **falso positivo da régua**: a regra da janela é de palavra
+proibida, e ele usou "window" para NEGAR que exista uma. Mesmo furo que já
+reprovou *"I'm not in the elevator"*. A segunda é **quebra de verdade** — ele
+inventou 1974, que é exatamente o defeito que aquele caso testa.
+
+Então o número honesto é ~1 invenção a cada 48 remendos, e a troca está posta:
+temperatura 0 fecha o buraco e traz de volta a repetição que fez o dono do jogo
+reclamar. A temperatura fica em 0,7 porque a decisão é dele, e agora com o preço
+escrito ao lado.
+
 **O que a tabela NÃO resolve: `desviou 7/24`.** Sete vezes ele troca a frase
 marcada por outra que não responde à pergunta. Não quebra cânone, não copia
 exemplo, não ecoa — muda de assunto:

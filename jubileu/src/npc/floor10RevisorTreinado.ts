@@ -83,5 +83,23 @@ export const PENSAMENTO_TREINADO_TOKENS = 60;
  *
  * Em temperatura 0 duas chamadas iguais devolvem a mesma frase por construção;
  * era isso que o jogador estava vendo, e não falta de vocabulário do modelo.
+ *
+ * ── O PREÇO DISSO, MEDIDO NO v2 ──────────────────────────────────────────
+ *
+ * Duas rodadas da prova de 24 casos no wllama, mesmo arquivo, só mudando a
+ * temperatura:
+ *
+ *     temperatura 0     conserta 24/24
+ *     temperatura 0,7   conserta 43/48
+ *
+ * Cinco consertos a menos em 48. Uma das falhas é falso positivo da régua (ele
+ * escreveu "the floor is the only window here" NEGANDO a janela, e a regra é de
+ * palavra proibida); a outra é quebra de verdade — sorteou uma data, "it was
+ * 1974", que é o defeito que aquele caso existe para testar.
+ *
+ * Ou seja: ~1 invenção a cada 48 remendos é o que a variedade custa. O número
+ * fica escrito aqui para que a troca seja uma ESCOLHA e não um esquecimento. Se
+ * um dia a repetição deixar de incomodar mais que a invenção, o conserto é
+ * baixar isto — e não mexer no corpus.
  */
 export const TEMPERATURA_DO_TREINADO = 0.7;
