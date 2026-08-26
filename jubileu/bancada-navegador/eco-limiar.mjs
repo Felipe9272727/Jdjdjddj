@@ -7,7 +7,8 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('  ‹página› ' + String(e.message).slice(0, 200)));
-await page.goto(`${BASE}/eco-limiar.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+const QUAL = process.env.MODELO ?? 'gemma';
+await page.goto(`${BASE}/eco-limiar.html?modelo=${QUAL}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 await page.waitForFunction(() => window.__pronto, null, { timeout: 600000 });
 console.log('\n' + await page.evaluate(() => window.__pronto) + '\n');
 await browser.close();

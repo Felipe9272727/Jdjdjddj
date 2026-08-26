@@ -401,3 +401,43 @@ describe('a sala é usada no celular', () => {
         expect(sala).toContain('amostraPropria: () => npc.deliberationDownload');
     });
 });
+
+/**
+ * ── A TERCEIRA LISTA ─────────────────────────────────────────────────────
+ *
+ * `composicaoDaFila` uniu a barra e o download do JOGO. Ficou de fora uma
+ * terceira lista, escrita à mão em `Floor10PipelineSala.tsx`, e ela já cobrou
+ * dois preços:
+ *
+ *   1. `?revisor=llama` não mudou nada, porque a escolha foi ligada na fila do
+ *      jogo e esta tela nunca leu de lá (o comentário está lá, no lugar);
+ *   2. a memória NUNCA descia aqui — e como `lembrarPorSignificado()` devolve
+ *      'modelo desligado' sem subir nada sob demanda, toda rodada de pipeline
+ *      nesta sala rodou com o rascunhador às cegas, sem o fato do cânone que a
+ *      pergunta pediu. A bancada media um pipeline pior que o do jogo.
+ *
+ * Enquanto as duas listas não virarem uma, este teste é o que as obriga a
+ * concordar sobre QUEM desce.
+ */
+describe('a sala do ?pipeline baixa as mesmas peças que o jogo', () => {
+    it('inclui a memória, que é quem direciona o rascunhador', () => {
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        expect(sala).toContain("id: 'memoria'");
+        // De pé, e não só no disco: `lembrarPorSignificado` exige o
+        // `residentEngine`, e `baixarMemoria` não o deixa de pé.
+        expect(sala).toContain('carregar: precarregarMemoria');
+    });
+
+    it('e não perde nenhum papel que a fila do jogo traz para o pipeline', () => {
+        const sala = readFileSync(
+            new URL('../Floor10PipelineSala.tsx', import.meta.url), 'utf8',
+        );
+        // O reflexo e o motor ficam de fora de propósito: nenhum dos dois
+        // participa de uma fala pelo pipeline. Os outros têm de estar.
+        for (const papel of ['rascunho', 'tradutor', 'juiz', 'memoria']) {
+            expect(sala, `a sala não baixa ${papel}`).toContain(`id: '${papel}'`);
+        }
+    });
+});

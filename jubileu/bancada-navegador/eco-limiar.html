@@ -17,10 +17,45 @@
 //
 // Então o limiar não se escolhe no olho. Esta página mede os dois conjuntos com
 // o modelo EXATO do jogo, pelo mesmo CDN, e diz se eles se separam.
-const CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
-const { pipeline, env } = await import(`${CDN}/dist/transformers.min.js`);
-env.allowLocalModels = false;
-env.backends.onnx.wasm.numThreads = 1;
+// ── OS DOIS EMBEDDINGS QUE O JOGO JÁ BAIXA ──────────────────────────────
+//
+// Sob `?pipeline` descem 443 MB de embedding em dois arquivos e dois runtimes:
+//
+//     embeddinggemma-300M   333 MB   gguf/wllama    (memória)
+//     all-mpnet-base-v2     110 MB   ONNX/tjs       (juiz de tom)
+//
+// Decisão do dono do jogo, e ela não é para economizar arquivo: "o juiz
+// mantém, ele é outro muito bom, o embedding serve pra outra função, e creio
+// que ele pode servir pra direcionar o modelo, então pode colocar ambos".
+//
+// Então o mpnet continua julgando TOM, e o que se mede aqui é se o Gemma
+// serve para a função nova — pegar o eco da fala do jogador e a repetição
+// entre frases, que são as duas coisas que o juiz de tom não vê por
+// construção. `MODELO=mpnet` roda o mesmo teste no outro, para comparar.
+const QUAL = new URLSearchParams(location.search).get('modelo') ?? 'gemma';
+let vetor;
+if (QUAL === 'mpnet') {
+    const CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+    const { pipeline, env } = await import(`${CDN}/dist/transformers.min.js`);
+    env.allowLocalModels = false;
+    env.backends.onnx.wasm.numThreads = 1;
+    const extrair = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2', { dtype: 'q8' });
+    vetor = async (t) => [...(await extrair(t, { pooling: 'mean', normalize: true })).data];
+} else {
+    const { Wllama } = await import('/wllama-cdn/index.js');
+    const w = new Wllama({ default: '/wllama-cdn/wasm/wllama.wasm' }, { suppressNativeLog: true });
+    await w.loadModelFromUrl('/gemma300m.gguf', { n_ctx: 1024, n_threads: 4, embeddings: true });
+    // Sem prefixo nos DOIS lados. `textoDaPergunta`/`textoDoDocumento` do jogo
+    // são para BUSCA, onde os papéis são assimétricos de propósito; aqui as
+    // duas pontas são frases do mesmo tipo e o prefixo só torceria a conta.
+    vetor = async (t) => {
+        const bruto = (await w.createEmbedding({ input: t }))?.data?.[0]?.embedding ?? [];
+        let n = 0;
+        for (const x of bruto) n += x * x;
+        n = Math.sqrt(n) || 1;
+        return bruto.map((x) => x / n);
+    };
+}
 
 // ── ECOS: a frase é a fala do jogador de volta ──────────────────────────
 // O primeiro é o caso REAL da foto de tela.
@@ -54,9 +89,6 @@ const cos = (a, b) => {
     for (let i = 0; i < a.length; i += 1) p += a[i] * b[i];
     return p;  // já vêm normalizados
 };
-const extrair = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2', { dtype: 'q8' });
-const vetor = async (t) => [...(await extrair(t, { pooling: 'mean', normalize: true })).data];
-
 const medir = async (pares) => {
     const fora = [];
     for (const [pergunta, frase] of pares) {
@@ -65,7 +97,7 @@ const medir = async (pares) => {
     return fora;
 };
 
-const linhas = [];
+const linhas = [`  modelo: ${QUAL}`, ''];
 const ecos = await medir(ECOS);
 const boas = await medir(BOAS);
 linhas.push('  ECOS (têm que ser marcados):');

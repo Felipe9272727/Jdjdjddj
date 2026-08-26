@@ -36,6 +36,9 @@ import {
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
+    FLOOR10_MEMORIA_MODEL, memoriaJaCarregada, precarregarMemoria,
+} from './npc/floor10Memoria';
+import {
     FLOOR10_TRADUTOR_BYTES, prepararTradutor, desabreviar,
     traduzirPerguntaParaIngles, ultimoErroDoTradutor,
 } from './npc/floor10Tradutor';
@@ -269,6 +272,40 @@ export default function Floor10PipelineSala() {
             }),
             motivo: ultimoErroDoTradutor,
             reportaProgresso: true,
+        },
+        {
+            // ── A PEÇA QUE FALTAVA, E O DEFEITO É O MESMO DE CIMA ────────
+            //
+            // Relato do dono do jogo, olhando a fila desta tela: "vc não
+            // colocou o embedding pra baixar aqui nesta fila de download". Ele
+            // estava certo, e eu conferi a fila errada — fui em
+            // `composicaoDaFila`, onde `PECA_MEMORIA` está, e respondi que
+            // estava lá. Está lá NO JOGO. Aqui não estava.
+            //
+            // É a "duas listas para a mesma instalação" que o comentário do
+            // revisor logo abaixo já nomeia, cobrando o segundo preço.
+            //
+            // E o preço não é cosmético. `lembrarPorSignificado()` começa com
+            // `if (!residentEngine) return semMemoria('modelo desligado')` — não
+            // sobe nada sob demanda. No jogo quem deixa o modelo de pé é o
+            // `Floor10Campo`, que esta tela não tem. Então TODA rodada de
+            // pipeline nesta sala rodava com a memória desligada, e o
+            // rascunhador escrevia sem nada do cânone a que ser fiel:
+            //
+            //     "o rascunhador recebia persona + pergunta e nada mais, e é
+            //      dessa ausência que saíam as invenções"  (floor10PipelineReal)
+            //
+            // Ou seja: a bancada media um pipeline pior do que o do jogo e
+            // chamava isso de medida do jogo.
+            //
+            // `precarregarMemoria` e não `baixarMemoria`: aqui ela precisa
+            // estar DE PÉ, não só no disco.
+            id: 'memoria',
+            nome: `direção · ${FLOOR10_MEMORIA_MODEL.label}`,
+            bytes: FLOOR10_MEMORIA_MODEL.bytes,
+            detalhe: 'acha o fato do cânone que a pergunta pediu · guia o rascunhador antes de ele escrever',
+            carregado: () => memoriaJaCarregada(),
+            carregar: precarregarMemoria,
         },
         {
             id: 'juiz',
