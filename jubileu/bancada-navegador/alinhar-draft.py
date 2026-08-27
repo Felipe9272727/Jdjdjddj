@@ -47,6 +47,15 @@ fa = a.fields['tokenizer.ggml.tokens']
 alvo_toks = [bytes(fa.parts[i].tolist()).decode('utf-8', 'replace') for i in fa.data]
 e = a.fields['tokenizer.ggml.eos_token_id']
 EOS = e.parts[e.data[0]].tolist()[0]
+# `tokenizer.ggml.pre` só decide `add_bos` quando NÃO existe a chave explícita.
+# Quando ela existe, ela ganha — e foi assim que a parede 4 voltou no draft de
+# 200M: mesmo id de BOS (128000-128000), só a flag diferindo, `add: 0 - 1`.
+FLAGS = {}
+for chave in ('tokenizer.ggml.add_bos_token', 'tokenizer.ggml.add_eos_token'):
+    if chave in a.fields:
+        f = a.fields[chave]
+        FLAGS[chave] = bool(f.parts[f.data[0]].tolist()[0])
+print(f'  alvo: ' + (', '.join(f'{k.split(".")[-1]}={v}' for k, v in FLAGS.items()) or 'sem flags explícitas'))
 del a
 
 r = GGUFReader(DRAFT)
@@ -72,6 +81,9 @@ for nome, f in r.fields.items():
         w.add_key_value(nome, EOS, tipo)
     elif nome == 'tokenizer.ggml.pre':
         w.add_string(nome, 'smaug-bpe')
+    elif nome in ('tokenizer.ggml.add_bos_token', 'tokenizer.ggml.add_eos_token'):
+        # Sem a chave no alvo, quem manda é o `smaug-bpe` acima: add_bos falso.
+        w.add_bool(nome, FLAGS.get(nome, False))
     elif tipo == GGUFValueType.ARRAY:
         sub = f.types[1]
         w.add_array(nome, [bytes(f.parts[i].tolist()).decode('utf-8', 'replace') for i in f.data]
@@ -92,4 +104,9 @@ if saiu < entrou * 0.95:
 v = GGUFReader(SAIDA)
 fv = v.fields['tokenizer.ggml.tokens']
 print('  confere:', {i: bytes(fv.parts[fv.data[i]].tolist()).decode() for i in dif[:4]})
+for chave, esperado in FLAGS.items():
+    if chave in v.fields:
+        fv2 = v.fields[chave]
+        virou = bool(fv2.parts[fv2.data[0]].tolist()[0])
+        print(f'  {chave.split(".")[-1]}: {virou}' + ('' if virou == esperado else f'  ✗ ESPERAVA {esperado}'))
 print('  tensores:', len(v.tensors))
