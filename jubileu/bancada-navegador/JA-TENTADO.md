@@ -333,6 +333,57 @@ mais apertado o `p_min`, menos tokens são rascunhados — mas toda posição
 continua pagando uma passada do draft para descobrir que não há o que oferecer.
 O custo é a PRESENÇA do draft, não a qualidade dele.
 
+### FIM DA LINHA: o wasm não ganha nada com lote, e é disso que a técnica vive
+
+Duas correções minhas, as duas medidas:
+
+**1. O seletor de tipos JÁ funciona — não precisa recompilar.** Eu escrevi duas
+vezes que exigia rebuild. O próprio `wllama-context.h` desta árvore já tem o
+patch que sobrecarrega o `spec_draft_model`:
+
+    spec_draft_model = "types:ngram-cache"   → escolhe a implementação
+    spec_draft_model = "models/draft.gguf"   → modelo, como antes
+
+E o wasm publicado foi construído COM ele (`strings wllama.wasm | grep
+WLLAMA_PATCH_TNE` acha as duas linhas). Prova por A/B: sem os tipos sai
+`no implementations specified`; com `types:ngram-cache` a mensagem some.
+
+**2. E não adiantou.** Medido no navegador, determinístico (temp 0,
+`ignore_eos`, 64 tokens fixos, tarefa de revisor):
+
+    base .......... 12,4s  12,5s  12,8s   → 5,08 tok/s
+    ngram-cache ... 17,0s  16,1s  14,7s   → 4,03 tok/s   21% MAIS LENTO
+
+O mesmo `ngram-cache` que GANHOU no nativo (9 325 contra 9 952 ms) perde no
+wasm. E a razão fecha a tesoura:
+
+    eficiência de lote, nativo ..... 6,3×  (pp64 73,0 contra pp1 11,6 tok/s)
+    eficiência de lote, WASM ....... 1,5×  (prefill 7,8 contra geração 5,2)
+
+Com 1,5×, conferir 6 tokens custa 6 ÷ 1,5 = **4 tokens**. Seria preciso aceitar
+4 de cada 6 rascunhados só para EMPATAR — e com o rascunho de graça. O
+`ngram-cache` acerta 33%; o draft de 200M, 33–51%. Ninguém chega aos 67%.
+
+**A especulativa está morta no wasm, por qualquer caminho.** Não é rascunhador
+ruim nem implementação faltando: o wasm não ganha quase nada processando em
+lote, e é só disso que a técnica vive. Não reabrir sem antes medir de novo a
+razão prefill/geração — se um dia ela subir (SIMD melhor, WebGPU), a conta muda.
+
+### Onde a velocidade está, medida no mesmo teste
+
+    fria .... 34,9s     carga + prefill de ~300 tokens
+    quente .. 12,5s     cache_prompt reaproveitando o prefixo
+
+2,8×, e já existe hoje. É o que explica o "200 s, raramente 70 s" do aparelho:
+os 70 s são as vezes em que o cache pegou. O prefixo estável é a persona (~230
+dos 273 tokens), então o turno quente real fica ~18 s nesta bancada — ~70–80 s
+no aparelho. Com a conta de custo do dono do jogo:
+
+    granite ....  25 s + 3 frases marcadas × 21 s  =  88 s
+    SmolLM3 ....  75 s + 0 frases marcadas         =  75 s
+
+O SmolLM3 não vence por ser rápido: vence por não dar trabalho ao revisor.
+
 ### A TESOURA: por que o aceite de 100% ainda perde
 
 O negócio da especulativa é: o rascunho chuta *k* tokens barato, e o alvo
@@ -352,8 +403,7 @@ Na CPU o lote NÃO é de graça. Medido (`llama-bench`, SmolLM3-3B Q4_K_M, 4 fio
     pp16 ....  67,85 tok/s     5,8×
     pp64 ....  73,00 tok/s     6,3×  ← o teto
 
-Com `n_max 5` o alvo confere lotes de 6, e no lote 6 a eficiência é ~3,6% do
-caminho... mais exatamente ~3,6×, contra um teto de 6,3×. **Dos 6 tokens que
+Com `n_max 5` o alvo confere lotes de 6, e no lote 6 a eficiência é ~3,6×, contra um teto de 6,3×. **Dos 6 tokens que
 você esperava pagar pelo preço de 1, você paga 1,7.** A margem encolhe 70% antes
 de contar o custo do rascunho.
 
