@@ -3055,12 +3055,23 @@ var Wllama = class {
         }),
         lora_init_without_apply: params.lora_init_without_apply,
         spec_draft_model: params.spec_draft_blob ? 'models/draft.gguf' : params.spec_draft_model,
-        // ── O SELETOR DE TIPOS, QUE O wllama NUNCA EXPÔS ────────────────
-        // `common_speculative_init()` decide tudo por `types`, e o binário
-        // traz os nomes compilados (`draft-mtp`, `ngram-simple`, …). O que
-        // faltava era a ponte. Sem isto, o registro do JA-TENTADO de que o
-        // n-grama rascunhou ZERO em 6 rodadas mede um recurso desligado, e
-        // não um recurso ruim.
+        // ── ESTA PONTE NÃO CHEGA AO C++, E FICA COMO REGISTRO ───────────
+        //
+        // Eu previ que o seletor de tipos faltava só no JavaScript. Errado: os
+        // nomes (`draft-mtp`, `ngram-simple`, `ngram-map-k`) estão compilados no
+        // wasm, mas o `load_req` do wrapper C++ não tem campo para eles —
+        // passar `speculative` aqui não muda nada, e o log continua dizendo
+        // `no implementations specified for speculative decoding`.
+        //
+        // O que MUDA a mensagem é `spec_draft_model`: com um draft, o
+        // `draft-simple` é escolhido sozinho e a execução segue até a checagem
+        // de vocabulário. Ou seja, hoje:
+        //
+        //     draft-simple .......... alcançável
+        //     os outros 8 tipos ..... exigem recompilar o wasm
+        //
+        // Fica a linha porque é inofensiva e porque o próximo a tentar merece
+        // saber que este caminho já foi medido e não é por aqui.
         speculative: params.spec_types,
         spec_draft_ngl: params.spec_draft_ngl,
         spec_draft_n_max: params.spec_draft_n_max,
