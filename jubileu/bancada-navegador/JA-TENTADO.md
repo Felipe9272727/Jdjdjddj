@@ -236,3 +236,60 @@ Não são sugestões; são decisões tomadas e registradas.
 
 Existe teste travando `SMALL_BRAIN_DEFAULT` (`floor10Brains.test.ts:33`) — posto
 lá *"para que a próxima boa medição também não vire uma troca silenciosa"*.
+
+---
+
+## A DECODIFICAÇÃO ESPECULATIVA: OITO PAREDES, E O QUE SOBROU
+
+Este arquivo registrava o caminho como fechado em duas linhas:
+
+> *"rascunhador por MODELO (par especulativo): vocabulários incompatíveis —
+> SmolLM3 **128256** vs SmolLM2-360M **49152**"*
+> *"não existe draft público para esta família"*
+
+As duas estavam erradas, e a segunda por um engano de nome: o SmolLM3 **não usa
+o tokenizador dos SmolLM menores**. Ele usa o do **Llama 3.2** — `<|begin_of_text|>`
+em 128000, `<|start_header_id|>` em 128006, os ids exatos da Meta. Draft público
+para essa família existe aos montes.
+
+### Os oito degraus, cada um derrubando algo dado como definitivo
+
+| # | parede | o que era de verdade |
+|---|---|---|
+| 1 | "vocabulários incompatíveis" | o par testado era da família errada |
+| 2 | `failed to load draft model` | `spec_draft_model` é caminho de ARQUIVO; passei URL |
+| 3 | blob junto do alvo vira shard | `prepareBlobs` renomeia tudo para `model-0000N-of-M`; o draft entra só em `modelFiles.all`, nunca em `llm` |
+| 4 | `bos must match: add 0 - 1` | MESMO id (128000-128000); só a flag diferia |
+| 5 | a flag vem do pré-tokenizador | `llama-bpe` liga `add_bos`, `smaug-bpe` não — e o llama.cpp comenta a regex do SMAUG como *"same as llama3"*, idêntica |
+| 6 | dois tokens diferentes | eram **dez**: `<think>`, `</think>`, `<\|im_start\|>`, `<\|im_end\|>`, tool e code — todos `reserved_special_token_N` no Llama |
+| 7 | "`types` nunca preenchido" | os nomes ESTÃO compilados no wasm, mas o `load_req` do wrapper C++ não tem campo. **Só `draft-simple` é alcançável**; n-grama, MTP e EAGLE-3 exigem recompilar |
+| 8 | escrita truncando em silêncio | disco cheio corta o gguf sem erro; o sintoma é `(ABORT)` sem texto, igual a incompatibilidade |
+
+### E o resultado, medido
+
+    SmolLM3-3B sozinho ................. 5,2 tok/s
+    SmolLM3-3B + draft Llama-3.2-1B .... 2,6 tok/s      2× MAIS LENTO
+
+**O mecanismo funciona; este par perde.** Um draft de 1B para um alvo de 3B é
+grande demais: cada token rascunhado custa uma passada num modelo de um terço do
+alvo, e a aceitação não paga. A literatura pede ~10× de diferença — para 3B,
+seria um draft de ~300M.
+
+### O que fica de aproveitável
+
+- **`alinhar-draft.py`** difa dois vocabulários e alinha o draft ao alvo, com
+  guarda de disco (a parede 8) e conferência de tamanho. Serve para qualquer par.
+- **`wllama-espec/index.js`** monta o draft como blob em `models/draft.gguf`.
+- **A conclusão de que n-grama "rascunhou 0 em 6 rodadas" mede um recurso
+  desligado**, e não um recurso ruim: sem `types`, `common_speculative_init`
+  responde `no implementations specified`.
+
+### O que falta para valer a pena
+
+1. um draft Llama-3.2 de ~300 MB (podado ou destilado) — a busca agora é trivial
+   porque o vocabulário está destravado;
+2. **ou** recompilar o wasm expondo `types`, o que abre n-grama (zero RAM extra),
+   MTP (a cabeça do próprio revisor v2) e EAGLE-3.
+
+E mesmo que 1 funcione, a RAM continua de pé: SmolLM3 1,92 GB + draft é mais que
+o teto de 1,92 GB. Fechar exigiria o SmolLM3 em Q3.
