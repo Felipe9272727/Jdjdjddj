@@ -81,6 +81,24 @@ const REGRAS = [
     // quebra o cânone é um problema, régua que não vê é outro.
     ['diz que é personagem/ficção', /\bi'?m just a (?:char|character|guest in|fictional)\b|\bin (?:this|a) (?:story|game|simulation)\b/i],
     ['inventa número exato', /\b\d+ (?:hours?|minutes?|days?|weeks?|months?|years?)(?: and \d+ \w+)?\b/i],
+    // ── INVENÇÃO DE FATO, A CLASSE QUE A RÉGUA NÃO VIA ───────────────────
+    //
+    // Passaram com ✓ na primeira rodada, e as três são invenção pura contra um
+    // cânone que diz o contrário:
+    //
+    //   "I'm just trying to survive until the next floor opens"   (LFM2.5)
+    //   "I've been here before, and it's not like the place is friendly"
+    //   "maybe if I had a key or something"
+    //
+    // O cânone: ele NUNCA saiu do andar, o elevador NÃO obedece, e o andar tem
+    // quatro paredes, uma grade e a porta — não tem chave, janela nem escada.
+    //
+    // Isto não resolve o problema geral. "Uma porta que não existe" continua
+    // sendo indecidível por regex, e o dossiê do revisor registra isso há
+    // meses. O que dá para pegar é a forma REPETIDA: sair do andar, chegar ao
+    // andar, e objetos fora da lista.
+    ['inventa que saiu ou chegou', /\bbeen here before\b|\bwhen I (?:arrived|got here|came)\b|\bbefore I (?:came|arrived|got)\b|\bnext floor\b|\bthe floor opens\b|\bgot here\b/i],
+    ['inventa objeto fora do cânone', /\b(?:a|the|my) (?:key|phone|watch|clock|radio|light switch|button panel|staircase|ladder)\b/i],
 ];
 
 const browser = await chromium.launch({
@@ -112,7 +130,7 @@ for (const m of MODELOS) {
     console.log(`\n  ── ${m.rot} · carga ${carga}s ──`);
 
     let lidos = 0; let msLer = 0; let escritos = 0; let msEscrever = 0;
-    let quebras = 0; let vazias = 0; let pensou = 0;
+    let quebras = 0; let vazias = 0; let pensou = 0; let ecos = 0;
     for (const c of CASOS) {
         const r = await page.evaluate(async ({ sys, ex, teto }) => {
             const a = performance.now();
@@ -152,26 +170,53 @@ for (const m of MODELOS) {
         }, { sys: PERSONA, ex: c.d ? `${c.d}\n\n${c.q}` : c.q, teto: TETO });
 
         if (r.erro) { console.log(`    ERRO ${r.erro}`); continue; }
+        // ── ECO DA DIREÇÃO OU DA PERSONA ─────────────────────────────────
+        //
+        // O Nano_Imp devolveu a direção quase palavra por palavra:
+        //
+        //   dei:  "I am wary of this place and I do not pretend otherwise."
+        //   ele:  "I am wary of this place. I do not pretend otherwise."
+        //
+        // E recitou a persona: "I'm just a dry-humoured human with a mind of
+        // my own" — "dry-humoured" está no prompt do sistema.
+        //
+        // Devolver a entrada não é responder, e é a fraude mais fácil de
+        // passar despercebida num placar: o texto sai limpo, em personagem, e
+        // não diz nada que já não estivesse ali. A bancada do REVISOR mede isto
+        // há meses na coluna `ecoou`; eu não tinha portado para cá.
+        //
+        // CONTENÇÃO, e não interseção: o que importa é quanto do que ELE
+        // escreveu já estava na entrada. Metade do texto dele vinda de lá já é
+        // eco, mesmo que a entrada seja bem maior.
+        const palavras = (t) => new Set((t.toLowerCase().match(/[a-z']{4,}/g) ?? []));
+        const daEntrada = palavras(`${c.d} ${PERSONA}`);
+        const dele = palavras(r.texto);
+        let comuns = 0;
+        for (const w of dele) if (daEntrada.has(w)) comuns += 1;
+        const contido = dele.size ? comuns / dele.size : 0;
+        if (contido > 0.7 && dele.size >= 5) ecos += 1;
         lidos += r.lidos; msLer += r.msLer;
         escritos += r.escritos; msEscrever += r.msEscrever;
         const quais = REGRAS.filter(([, re]) => re.test(r.texto)).map(([n]) => n);
         if (quais.length) quebras += 1;
         if (!r.texto) vazias += 1;
         if (r.pensou) pensou += 1;
-        console.log(`    ${(r.ms / 1000).toFixed(1)}s ${quais.length ? '✗ ' + quais[0] : '✓'}`);
+        console.log(`    ${(r.ms / 1000).toFixed(1)}s ${quais.length ? '✗ ' + quais[0] : '✓'}`
+            + `${contido > 0.7 && dele.size >= 5 ? ' ⟲ ECO' : ''}`);
         console.log(`      "${r.texto.replace(/\n+/g, ' ⏎ ').slice(0, 190)}"`);
     }
     const lerTps = msLer ? lidos / (msLer / 1000) : 0;
     const escreverTps = msEscrever ? escritos / (msEscrever / 1000) : 0;
-    placar.push({ rot: m.rot, carga, lerTps, escreverTps, quebras, vazias, pensou,
+    placar.push({ rot: m.rot, carga, lerTps, escreverTps, quebras, vazias, pensou, ecos,
         lidos: Math.round(lidos / CASOS.length), msLer: msLer / 1000 / CASOS.length });
 }
 
 console.log(`\n${'═'.repeat(78)}`);
-console.log('  candidato          quebra  vazia  pensa   LÊ tok/s  ESCREVE tok/s   prompt   leitura');
+console.log('  candidato          quebra   eco  vazia  pensa   LÊ tok/s  ESCREVE tok/s  prompt  leitura');
 for (const p of placar) {
     console.log(`  ${p.rot.padEnd(18)} ${String(p.quebras).padStart(2)}/${CASOS.length}`
-        + `   ${String(p.vazias).padStart(2)}/${CASOS.length}`
+        + `  ${String(p.ecos).padStart(2)}/${CASOS.length}`
+        + `  ${String(p.vazias).padStart(2)}/${CASOS.length}`
         + `  ${String(p.pensou).padStart(2)}/${CASOS.length}`
         + `     ${p.lerTps.toFixed(1).padStart(6)}      ${p.escreverTps.toFixed(1).padStart(6)}`
         + `      ${String(p.lidos).padStart(4)}tok  ${p.msLer.toFixed(1).padStart(5)}s`);
