@@ -262,7 +262,7 @@ para essa família existe aos montes.
 | 4 | `bos must match: add 0 - 1` | MESMO id (128000-128000); só a flag diferia |
 | 5 | a flag vem do pré-tokenizador | `llama-bpe` liga `add_bos`, `smaug-bpe` não — e o llama.cpp comenta a regex do SMAUG como *"same as llama3"*, idêntica |
 | 6 | dois tokens diferentes | eram **dez**: `<think>`, `</think>`, `<\|im_start\|>`, `<\|im_end\|>`, tool e code — todos `reserved_special_token_N` no Llama |
-| 7 | "`types` nunca preenchido" | os nomes ESTÃO compilados no wasm, mas o `load_req` do wrapper C++ não tem campo. **Só `draft-simple` é alcançável**; n-grama, MTP e EAGLE-3 exigem recompilar |
+| 7 | "`types` nunca preenchido" | ~~o `load_req` do C++ não tem campo~~ **ERRADO — ver a seção seguinte.** O campo existe e chama-se `speculative.types`, ANINHADO |
 | 8 | escrita truncando em silêncio | disco cheio corta o gguf sem erro; o sintoma é `(ABORT)` sem texto, igual a incompatibilidade |
 
 ### E o resultado, medido
