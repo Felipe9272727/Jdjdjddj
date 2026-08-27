@@ -333,6 +333,57 @@ mais apertado o `p_min`, menos tokens são rascunhados — mas toda posição
 continua pagando uma passada do draft para descobrir que não há o que oferecer.
 O custo é a PRESENÇA do draft, não a qualidade dele.
 
+### O 1,5× DO WASM NÃO É LEI DA FÍSICA — É O BUILD
+
+Eu tratei a razão lote/token do wasm (1,5×, contra 6,3× no nativo) como
+propriedade do hardware e fechei a especulativa em cima disso. O dono do jogo
+cobrou pesquisa em vez de dedução, e estava certo: o número depende de QUAIS
+INSTRUÇÕES o build usa.
+
+**O que faltava: `-mrelaxed-simd`.** A PR #19590 do llama.cpp implementa
+`wasm_i32x4_relaxed_dot_i8x16_i7x16_add`, que funde extend+multiply+add numa
+instrução só nos produtos escalares dos quantizados. Ganhos que ela reporta
+(M2 MacBook Air, Chrome v144):
+
+    Q8_0 ....... 1,00–1,05×
+    Q4_0 ....... 1,28–1,53×
+    Q4_K_M ..... 1,75–2,18×   ← a do SmolLM3 e a do revisor v2
+    Q5_K_L ..... 1,52–2,02×
+
+E o build desta árvore usava `-O3 -msimd128` — sem relaxed. O código também
+não estava no `llama.cpp` daqui (`grep relaxed_dot ggml/src` → zero).
+
+Um arquivo só, `ggml/src/ggml-cpu/arch/wasm/quants.c`, 210 linhas, tudo guardado
+por `#if defined(__wasm_relaxed_simd__)` com fallback para o código atual.
+
+**CUIDADO, e é por isso que a PR não está mergeada:** a semântica "relaxed"
+só garante resultado determinístico se o segundo operando estiver na faixa i7;
+os valores q8 do llama.cpp são i8 completos. Ou seja, o resultado PODE variar
+entre navegadores. Validar sempre comparando saídas com `temp 0` antes e depois
+— se divergirem, o ganho vem com o NPC falando diferente em cada navegador.
+
+**A outra frente que eu ignorava: WebGPU.** A literatura põe 25–40 tok/s no
+WebGPU contra 2–6 tok/s no WASM, e já existe um `build-gpu` nesta árvore, de 4
+de agosto, que NUNCA foi implantado no jogo. Cobertura ~70–75% em celular. É a
+tarefa 11, e ela vale mais do que tudo que esta caça da especulativa rendeu.
+
+Ordenando as frentes pelo que valem:
+
+| frente | ganho | estado |
+|---|---|---|
+| especulativa | **0** | morta, medida por todos os caminhos |
+| relaxed SIMD | 1,75–2,18× | um patch, um arquivo |
+| cache de prefill (#10) | ~2,8× | medido no A/B frio/quente |
+| WebGPU (#11) | 5–10× (?) | build existe, nunca testado |
+
+Relaxed SIMD e cache de prefill se MULTIPLICAM: um corta o custo por token, o
+outro elimina token repetido. Juntos dariam ~5×, levando os 200 s do aparelho
+para ~40 s.
+
+**A lição, e ela é a mais cara deste arquivo:** eu passei o dia medindo com
+precisão dentro de uma caixa que eu nunca questionei. Medir bem não substitui
+perguntar se a caixa é a certa.
+
 ### FIM DA LINHA: o wasm não ganha nada com lote, e é disso que a técnica vive
 
 Duas correções minhas, as duas medidas:
