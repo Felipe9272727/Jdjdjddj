@@ -333,6 +333,47 @@ mais apertado o `p_min`, menos tokens são rascunhados — mas toda posição
 continua pagando uma passada do draft para descobrir que não há o que oferecer.
 O custo é a PRESENÇA do draft, não a qualidade dele.
 
+### A TESOURA: por que o aceite de 100% ainda perde
+
+O negócio da especulativa é: o rascunho chuta *k* tokens barato, e o alvo
+confere os *k* NUMA PASSADA. Ela ganha quando
+
+    k passadas do rascunho + 1 conferência de k tokens  <  k passadas do alvo
+
+Isso pressupõe que conferir k custe ~1. Numa GPU custa: a geração é limitada por
+banda de memória e os pesos são lidos uma vez, seja qual for o lote. **A técnica
+foi desenhada para uma máquina onde o lote é de graça.**
+
+Na CPU o lote NÃO é de graça. Medido (`llama-bench`, SmolLM3-3B Q4_K_M, 4 fios):
+
+    pp1  ....  11,62 tok/s     lote de 1 (= geração, tg128 = 11,69 ✓)
+    pp4  ....  38,57 tok/s     3,3× mais eficiente
+    pp8  ....  46,90 tok/s     4,0×
+    pp16 ....  67,85 tok/s     5,8×
+    pp64 ....  73,00 tok/s     6,3×  ← o teto
+
+Com `n_max 5` o alvo confere lotes de 6, e no lote 6 a eficiência é ~3,6% do
+caminho... mais exatamente ~3,6×, contra um teto de 6,3×. **Dos 6 tokens que
+você esperava pagar pelo preço de 1, você paga 1,7.** A margem encolhe 70% antes
+de contar o custo do rascunho.
+
+E não dá para fugir aumentando o lote, porque a outra ponta fecha:
+
+    n_max 3  ....  35,2% de aceite
+    n_max 8  ....  30,6%
+    n_max 12 ....  24,7%
+
+**Lote pequeno → eficiência de lote ruim. Lote grande → o aceite desaba.** As
+duas pontas se fecham no meio, e é no meio que a especulativa precisa viver.
+
+É por isso que o rascunho de 100% de aceite ainda ficou 43% mais lento, e é por
+isso que NENHUM ajuste salva a especulativa com segundo modelo aqui. Não é
+falta de rascunhador bom: é a premissa da técnica que não vale nesta máquina.
+
+O que continua de pé são as implementações SEM segundo modelo — `ngram-cache` e
+`draft-mtp`. Elas ainda pagam a tesoura, mas param de pagar o rascunho por cima
+dela, e é essa segunda parcela que afundava todas as medições.
+
 ### O piso de 215 MB: por que a família inteira não serve
 
     draft-1b.gguf     tensores 799,9 MB · embeddings 215,5 MB = 27%
