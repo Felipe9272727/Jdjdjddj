@@ -262,27 +262,127 @@ para essa família existe aos montes.
 | 4 | `bos must match: add 0 - 1` | MESMO id (128000-128000); só a flag diferia |
 | 5 | a flag vem do pré-tokenizador | `llama-bpe` liga `add_bos`, `smaug-bpe` não — e o llama.cpp comenta a regex do SMAUG como *"same as llama3"*, idêntica |
 | 6 | dois tokens diferentes | eram **dez**: `<think>`, `</think>`, `<\|im_start\|>`, `<\|im_end\|>`, tool e code — todos `reserved_special_token_N` no Llama |
-| 7 | "`types` nunca preenchido" | ~~o `load_req` do C++ não tem campo~~ **ERRADO — ver a seção seguinte.** O campo existe e chama-se `speculative.types`, ANINHADO |
+| 7 | "`types` nunca preenchido" | confirmado: o esquema tipado da ponte tem sete `spec_draft_*` e nenhum `speculative`. **Só `draft-simple` é alcançável**; os outros cinco exigem recompilar |
 | 8 | escrita truncando em silêncio | disco cheio corta o gguf sem erro; o sintoma é `(ABORT)` sem texto, igual a incompatibilidade |
 
-### E o resultado, medido
+### A parede 7 NÃO caiu — e eu virei a casaca duas vezes antes de medir
 
-    SmolLM3-3B sozinho ................. 5,2 tok/s
-    SmolLM3-3B + draft Llama-3.2-1B .... 2,6 tok/s      2× MAIS LENTO
+Achei o string `speculative.types` dentro do wasm e concluí que o campo existia
+e que eu só estava mandando ele solto em vez de aninhado. **Errado.** Aquele
+string vem do código do PRÓPRIO llama.cpp compilado junto (o parser de
+argumentos e o servidor), e não da ponte do wllama.
 
-**O mecanismo funciona; este par perde.** Um draft de 1B para um alvo de 3B é
-grande demais: cada token rascunhado custa uma passada num modelo de um terço do
-alvo, e a aceitação não paga. A literatura pede ~10× de diferença — para 3B,
-seria um draft de ~300M.
+A ponte serializa por um ESQUEMA TIPADO, e o esquema é a lei:
+
+    grep '"name"' index.js  →  spec_draft_model, spec_draft_ngl, spec_draft_n_max,
+                               spec_draft_n_min, spec_draft_p_min,
+                               spec_draft_threads, spec_draft_threads_batch
+
+Sete campos, e nenhum `speculative`. O que não está no esquema não atravessa.
+Medido, com `TIPOS=ngram-cache` e sem draft:
+
+    common_speculative_init: no implementations specified for speculative decoding
+
+Tentei então pelo TURNO, que não passa pelo esquema (`data_json:
+JSON.stringify({...options})`, JSON livre). Também não: o
+`common_speculative_init` roda UMA vez, na carga, e não por pedido — não sai
+log novo no turno, e o relógio confirma (8,4 s com os tipos contra 7,2 s sem,
+os dois quentes).
+
+**Então vale o que estava escrito na parede 7 desde o começo:** só
+`draft-simple` é alcançável, e mesmo ele por tabela — o wllama o escolhe
+sozinho quando `spec_draft_model` está preenchido. Os outros cinco exigem
+recompilar o wasm expondo o campo.
+
+O que MUDA em relação ao registro antigo é o inventário: são **seis**
+implementações compiladas neste wasm, não três.
+
+    draft-simple ..... alcançável hoje (auto-selecionado)
+    draft-mtp ........ compilado, inalcançável   ← a cabeça do PRÓPRIO revisor v2
+    draft-eagle3 ..... compilado, inalcançável
+    ngram-cache ...... compilado, inalcançável   ← o único que GANHOU do base
+    ngram-mod ........ compilado, inalcançável
+    ngram-simple ..... compilado, inalcançável
+
+E `draft-mtp` estar aí é a parte cara do engano: em agosto eu escrevi `--no-mtp`
+como padrão do conversor chamando a cabeça de MTP de "peso morto". Ela é peça de
+VELOCIDADE, e o binário sabe usá-la.
+
+### E o resultado, medido DE VERDADE
+
+Com a especulativa realmente ligada, no navegador:
+
+    desligada (draft só ocupando RAM) ... 2,58 tok/s
+    ligada, com 90% de aceite .......... 2,46–2,89 tok/s
+    base, sem draft .................... 5,19–5,48 tok/s
+
+Corrigir o campo **não mudou o veredito**. E nativo, na pergunta real do Nilo
+(64 tokens, `--ignore-eos`, semente fixa, CPU só para isto):
+
+| rascunhador | rascunhados | aceite | total |
+|---|---|---|---|
+| — (base, `ngram-mod` rascunha 0) | 0 | — | **9 921 ms** |
+| Llama-3.2-200M · `p_min 0,4` | 72 | 33,3% | 12 328 ms |
+| Llama-3.2-200M · `p_min 0,75` | 25 | 48,0% | 12 402 ms |
+| Llama-3.2-200M · `n_max 8, p_min 0,6` | 37 | 51,4% | 12 150 ms |
+| Llama-3.2-1B Q4 · `p_min 0,75` | 29 | 89,7% | 14 339 ms |
+| Llama-3.2-1B Q4 · `p_min 0,90` | 18 | **100,0%** | 14 940 ms |
+
+**O aceite nunca foi o gargalo.** Cheguei a 100% e ficou 43% mais lento. Quanto
+mais apertado o `p_min`, menos tokens são rascunhados — mas toda posição
+continua pagando uma passada do draft para descobrir que não há o que oferecer.
+O custo é a PRESENÇA do draft, não a qualidade dele.
+
+### O piso de 215 MB: por que a família inteira não serve
+
+    draft-1b.gguf     tensores 799,9 MB · embeddings 215,5 MB = 27%
+    draft-1b-q2.gguf  tensores 573,0 MB · embeddings 215,5 MB = 38%
+
+**A tabela de embeddings não encolhe com quantização** — 128256 × 2048 dá os
+mesmos 215,5 MB em Q4 e em Q2, byte por byte. Isso põe um piso de ~450 MB em
+qualquer Llama-3.2-1B contra um alvo de 1,78 GiB: só 3× menor, quando a regra
+prática pede 5–20×.
+
+Daí sai a especificação que faltava à busca: **vocabulário 128256 e hidden bem
+abaixo de 2048**. Quem atende é `k-l-lambda/Llama-3.2-200M` (hidden 1024, 8
+camadas) — 198 MB depois de convertido, quantizado e alinhado, e treinado de
+verdade (33–51% de aceite; aleatório daria ~0%). O autor mantém uma oficina de
+drafts: `Llama-3.2-40M`, `100M`, `200M`, `Llama-3.2-1B-vocab32k` e cabeças EAGLE.
+**Mesmo ele perde**, como mostra a tabela.
+
+### Duas armadilhas de medição que me custaram rodadas
+
+1. **`prompt eval time` está poluído** quando há draft: ele reportou *259 tokens
+   para um prompt de 18*, porque conta as passadas do draft. Subtrair prefill do
+   total para "isolar geração" dá lixo — cheguei a anunciar um ganho de 34% que
+   as outras linhas desmentiam. Para medir geração, use prompt CURTO e leia o
+   total.
+2. **Rodar qualquer outra coisa na mesma CPU invalida a linha.** Três medições
+   minhas foram para o lixo assim; numa delas o prefill caiu de 43 para 16,7
+   tok/s porque deixei um `llama-bench` por cima.
 
 ### O que fica de aproveitável
 
-- **`alinhar-draft.py`** difa dois vocabulários e alinha o draft ao alvo, com
-  guarda de disco (a parede 8) e conferência de tamanho. Serve para qualquer par.
-- **`wllama-espec/index.js`** monta o draft como blob em `models/draft.gguf`.
-- **A conclusão de que n-grama "rascunhou 0 em 6 rodadas" mede um recurso
-  desligado**, e não um recurso ruim: sem `types`, `common_speculative_init`
-  responde `no implementations specified`.
+- **`espec-nativa.sh`** mede fora do navegador, com `n_drafted`/`n_accept` que o
+  console do Chromium não devolve. A base honesta é `ngram-mod`, que nesta
+  pergunta rascunha zero: mesmo binário, mesmo caminho, zero especulação.
+- **`alinhar-draft.py`** alinha vocabulário E as flags `add_bos`/`add_eos`. A
+  parede 4 voltou pelo 200M porque a chave explícita `add_bos_token = true` ganha
+  do `tokenizer.ggml.pre`, e o alinhador arrumava o pre e deixava a flag.
+- **`wllama-espec/index.js`** monta o draft como blob e agora manda
+  `speculative: { types: [...] }`.
+
+### O veredito
+
+Para o Nilo, a especulativa ataca a metade errada do turno. No wasm o prefill
+roda a ~7,8 tok/s contra 5,2 da geração — só 1,5× mais barato por token, contra
+6× no nativo — então ~75% do turno é prefill. O draft **piora** isso, porque os
+dois modelos processam o prompt. E 1,92 GB + 198 MB estoura o teto do aparelho.
+
+O que resta de especulativa que ainda pode valer é o **n-grama no REVISOR**, não
+no rascunhador: ele reescreve uma frase que já está no prompt mudando o mínimo,
+e aí quase todo token da saída já existe na entrada. E não carrega segundo
+modelo — zero RAM extra, que é a única coisa que cabe no teto.
 
 ### O que falta para valer a pena
 

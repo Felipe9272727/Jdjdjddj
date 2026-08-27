@@ -3055,38 +3055,33 @@ var Wllama = class {
         }),
         lora_init_without_apply: params.lora_init_without_apply,
         spec_draft_model: params.spec_draft_blob ? 'models/draft.gguf' : params.spec_draft_model,
-        // ── O SELETOR DE TIPOS EXISTE, E O NOME DELE É ANINHADO ─────────
+        // ── ESTA LINHA NÃO CHEGA AO C++, E FICA COMO REGISTRO ───────────
         //
-        // Eu escrevi aqui, duas vezes, que este caminho estava fechado: que o
-        // `load_req` do C++ não tinha campo para os tipos e que só o
-        // `draft-simple` era alcançável sem recompilar o wasm. As duas estão
-        // erradas, e o próprio binário desmente:
+        // Eu achei `speculative.types` nos strings do wasm e concluí que o
+        // campo existia e era aninhado. Aquele string vem do llama.cpp
+        // compilado junto (parser de argumentos e servidor), não desta ponte.
         //
-        //     strings wllama.wasm | grep speculative
-        //     → speculative.types
-        //     → %s: adding speculative implementation 'draft-simple'
-        //     → %s: adding speculative implementation 'draft-eagle3'
-        //     → %s: adding speculative implementation 'ngram-mod'
-        //     → %s: no implementations specified for speculative decoding
+        // A ponte serializa por ESQUEMA TIPADO — veja a lista de `"name"` lá
+        // em cima. Existem sete campos de especulativa, todos `spec_draft_*`,
+        // e nenhum `speculative`. O que não está no esquema não atravessa, e o
+        // log responde `no implementations specified for speculative decoding`.
         //
-        // O campo é `speculative.types` — ANINHADO. Eu mandava um array solto
-        // em `speculative`, o C++ procurava um objeto com a chave `types`,
-        // não achava, e caía na última linha: "no implementations specified".
+        // Pelo turno também não vai: o `data_json` é JSON livre, mas o
+        // `common_speculative_init` roda UMA vez na carga, não por pedido
+        // (medido: 8,4 s com os tipos contra 7,2 s sem, os dois quentes).
         //
-        // E é por isso que a medição anterior deu 2,58 tok/s contra 5,19 da
-        // base. Não era o par que perdia: o draft subia, ocupava RAM e banda
-        // de memória, e NUNCA rascunhava um token. Eu estava medindo o custo
-        // da especulativa sem nenhum dos benefícios — o mesmo erro que já me
-        // pegou no n-gram, agora pela terceira vez nesta caça.
+        // Então hoje, sem recompilar o wasm:
         //
-        // Este wasm traz três das onze implementações do llama.cpp de hoje:
+        //     draft-simple .... alcançável, e por tabela: o wllama o escolhe
+        //                       sozinho quando `spec_draft_model` está cheio
+        //     draft-mtp ....... compilada, inalcançável  ← cabeça do revisor v2
+        //     draft-eagle3 .... compilada, inalcançável
+        //     ngram-cache ..... compilada, inalcançável  ← o único que ganhou
+        //     ngram-mod ....... compilada, inalcançável
+        //     ngram-simple .... compilada, inalcançável
         //
-        //     draft-simple .... segundo modelo, sem treino          ligado aqui
-        //     draft-eagle3 .... cabeça EAGLE-3, exige treinar em GPU
-        //     ngram-mod ....... sem modelo nenhum, copia do contexto
-        //
-        // Faltam `draft-mtp`, `ngram-cache`, `ngram-simple`, `ngram-map-k` e as
-        // outras — essas sim exigem recompilar.
+        // Fica a linha porque é inofensiva e porque o próximo a tentar merece
+        // saber que este caminho já foi medido — duas vezes, nos dois pontos.
         speculative: params.spec_types ? { types: params.spec_types } : void 0,
         spec_draft_ngl: params.spec_draft_ngl,
         spec_draft_n_max: params.spec_draft_n_max,
