@@ -333,6 +333,89 @@ mais apertado o `p_min`, menos tokens são rascunhados — mas toda posição
 continua pagando uma passada do draft para descobrir que não há o que oferecer.
 O custo é a PRESENÇA do draft, não a qualidade dele.
 
+### A CAUSA DO 1,5×: O tinyBLAS NÃO TEM KERNEL PARA WASM
+
+O dono do jogo insistiu que faltava informação, e faltava mesmo. Aqui está.
+
+O build do wasm liga `GGML_LLAMAFILE:BOOL=ON`. Com isso, todo
+`ggml_compute_forward_mul_mat` tenta primeiro o `llamafile_sgemm()` — o tinyBLAS
+do llamafile, que é quem faz multiplicação de matriz RÁPIDA, com blocagem e
+tiling de registrador. Se não houver kernel para a arquitetura, ele devolve
+false e a conta cai no laço genérico de produto escalar, linha a linha.
+
+    grep arquiteturas em ggml-cpu/llamafile/sgemm.cpp:
+      __AVX__  __AVX2__  __AVX512F__  __AVX512VL__  __AVX512VNNI__
+      __AVX512BF16__  __AVXVNNI__  __SSE__  __FMA__  __VXE__
+      __ARM_NEON  (21 ocorrências)
+      wasm ....... ZERO
+
+**x86 tem. ARM tem. wasm não tem.** O build PEDE tinyBLAS e nunca recebe.
+
+É essa a causa do número que eu tratei como lei da física:
+
+    eficiência de lote, nativo (com tinyBLAS) .... 6,3×
+    eficiência de lote, wasm  (sem tinyBLAS) ..... 1,5×
+
+E isso reordena tudo, porque **o prefill é ~75% do turno no aparelho** e prefill
+é exatamente a operação que vive de matmul em lote. Um kernel wasm SIMD para o
+tinyBLAS atacaria a maior fatia do custo — e de quebra tornaria a especulativa
+possível, já que a verificação usa a mesma operação.
+
+### A especulativa no teste limpo que faltava
+
+Duas medições minhas estavam furadas e o dono do jogo desconfiou com razão:
+o teste de "só geração" usava prompt de história ABERTA (aceite 12–15%), e o
+teste com o prompt do Nilo (aceite 33–51%) media turnos curtos onde o prefill
+dobrado dominava. **Nunca juntei aceite alto com medição limpa**, e ainda rodei
+tudo com `-t 4 -td 4` numa máquina de 4 núcleos — dois pools brigando.
+
+Refeito: prompt do Nilo, 192 tokens de saída, `-td 2`.
+
+    base (ngram-mod, rascunha 0) ..... 21 432 ms
+    200M p_min 0,4 ................... 31 375 ms   25,5% de aceite
+    200M p_min 0,6 ................... 27 802 ms   52,4% de aceite
+    200M n_max 2 ..................... 28 576 ms   40,2% de aceite
+
+**Perde de novo, e no melhor caso (52% de aceite) ainda é 30% mais lenta.**
+A conclusão sobrevive ao teste mais limpo — mas agora sabendo que ela é medida
+EM CIMA DO CAMINHO LENTO. Uma review de 2026 diz que CPU deveria ser o caso
+FAVORÁVEL ("a CPU is extremely starved for memory bandwidth, so the slow
+per-step generation gives speculation plenty of headroom"). As duas coisas só
+se conciliam se o gargalo for o matmul — que é o que o tinyBLAS ausente explica.
+
+**Condição de reabertura:** se um kernel wasm do tinyBLAS existir, remedir a
+especulativa ANTES de descartá-la de novo.
+
+### WEBGPU: NÃO É ALAVANCA, É ARMADILHA — E JÁ ESTAVA ESCRITO
+
+Eu propus WebGPU como "a maior alavanca não testada". Foi testada pelo menos
+cinco vezes, e o registro está em `src/npc/floor10Gpu.ts`:
+
+> *"O Felipe tentou WebGPU antes do WASM e travava o celular dele. A causa não
+> era o que eu supunha (memória): é que o jogo é Three.js e desenha na MESMA
+> GPU. O trabalho da LLM entope a fila de submissão e o render não fecha o
+> quadro no prazo."*
+
+Falhou com 3 de 36 camadas — `(ABORT)` na fala, depois `loadModel() is not yet
+called`. Não é lentidão: é a geração morrendo. Por isso
+`FLOOR10_GPU_START_LAYERS = 0`.
+
+**Antes de propor uma frente, procurar no branch se ela já foi andada.**
+
+### O CACHE DE PREFILL AGUENTA A CAUDA MUDANDO (medido)
+
+Eu tinha dito "2,8×" medindo a MESMA pergunta quatro vezes, o que não é o jogo.
+Refeito com persona fixa e pergunta nova a cada turno:
+
+    IGUAL (mesma pergunta) ...... 10,2 s
+    MUDANDO (o jogo) ............ 12,6 s
+    SEM CACHE (piso) ............ 41,9 s
+
+**3,31× no padrão real, aproveitando 92% do ideal.** O `cache_prompt` reaproveita
+a persona inteira e só reprocessa a cauda. Este é o maior ganho JÁ DISPONÍVEL, e
+o pipeline já o usa: `revisorCabeJuntoDoRascunhador()` evita a troca quando
+granite (822 MB) + revisor v2 (541 MB) = 1,36 GB cabem no teto de 1,92 GB.
+
 ### O 1,5× DO WASM NÃO É LEI DA FÍSICA — É O BUILD
 
 Eu tratei a razão lote/token do wasm (1,5×, contra 6,3× no nativo) como
