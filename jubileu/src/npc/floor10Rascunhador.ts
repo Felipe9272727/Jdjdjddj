@@ -69,6 +69,9 @@ const WASM = `${CDN}/wasm/wllama.wasm`;
 /** O lugar dele na fila. */
 export const FILA_RASCUNHO = 'rascunho';
 
+/** O lugar do draft da especulativa na fila, quando `?espec=1` está ligado. */
+export const FILA_DRAFT = 'draft-espec';
+
 /**
  * ── POR QUE Q4, SE ESTE PROJETO MEDIU QUE Q4 DESPENCA ────────────────────
  *
@@ -483,6 +486,64 @@ export function especulativaPodeSubir(busca = globalThis.location?.search ?? '')
 }
 
 /** Sobe o modelo. Devolve `null` em qualquer falha — o pipeline então desiste. */
+/** Onde o draft fica depois de baixado pela fila da sala. */
+let draftBaixado: Blob | null = null;
+let ultimoErroDoDraft = '';
+
+/** O que a sala mostra quando a peça do draft falha. */
+export function erroDoDraft(): string {
+    return ultimoErroDoDraft;
+}
+
+export function draftJaBaixado(): boolean {
+    return draftBaixado !== null;
+}
+
+/**
+ * Baixa o draft da especulativa REPORTANDO BYTES, para a fila do `?pipeline`.
+ *
+ * Existe separado de `pecasDaEspeculativa` por causa de uma lição desta sessão:
+ * eu já entreguei uma peça (a da memória) que baixava dentro da carga, sem
+ * aparecer na fila, e o dono do jogo viu a barra parada sem saber o que estava
+ * acontecendo. Aqui o download é da FILA, com progresso, como todas as outras.
+ *
+ * O blob fica em memória e NÃO sobrevive a um recarregamento — diferente dos
+ * outros modelos, que o wllama guarda em OPFS. É aceitável porque isto é uma
+ * chave de experimento, e está escrito aqui para ninguém descobrir na marra.
+ */
+export async function baixarDraftDaEspeculativa(): Promise<boolean> {
+    if (draftBaixado) return true;
+    ultimoErroDoDraft = '';
+    try {
+        const r = await fetch(DRAFT_DA_ESPECULATIVA.url);
+        if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+        const total = Number(r.headers.get('content-length')) || DRAFT_DA_ESPECULATIVA.bytes;
+        const leitor = r.body.getReader();
+        const partes: Uint8Array[] = [];
+        let lidos = 0;
+        const medida = new DownloadMeter();
+        for (;;) {
+            const { done, value } = await leitor.read();
+            if (done) break;
+            partes.push(value);
+            lidos += value.length;
+            const amostra = medida.push(lidos, total);
+            floor10Fila.progresso(FILA_DRAFT, amostra);
+            npcSet({
+                loadDownload: amostra,
+                loadText: `baixando o draft da especulativa · ${downloadLine(amostra)}`,
+            });
+        }
+        draftBaixado = new Blob(partes as BlobPart[]);
+        anotar('espec:draft-baixado', { bytes: draftBaixado.size });
+        return true;
+    } catch (erro) {
+        ultimoErroDoDraft = erro instanceof Error ? erro.message : String(erro);
+        anotar('espec:draft-falhou', { motivo: ultimoErroDoDraft.slice(0, 80) });
+        return false;
+    }
+}
+
 /**
  * Baixa o draft e devolve os parâmetros da especulativa, ou `{}`.
  *
@@ -497,10 +558,9 @@ async function pecasDaEspeculativa(): Promise<Record<string, unknown>> {
         return {};
     }
     try {
-        const r = await fetch(DRAFT_DA_ESPECULATIVA.url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const blob = await r.blob();
-        anotar('espec:draft-baixado', { bytes: blob.size });
+        // A fila da sala já pode ter baixado; se não, baixa aqui.
+        if (!draftBaixado && !(await baixarDraftDaEspeculativa())) return {};
+        const blob = draftBaixado!;
         return {
             spec_draft_blob: blob,
             spec_draft_n_max: 4,
@@ -510,7 +570,7 @@ async function pecasDaEspeculativa(): Promise<Record<string, unknown>> {
             spec_draft_threads: Math.max(1, Math.floor(rascunhadorThreads() / 2)),
         };
     } catch (erro) {
-        anotar('espec:draft-falhou', {
+        anotar('espec:draft-montar-falhou', {
             motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
         });
         return {};
