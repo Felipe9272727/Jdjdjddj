@@ -2974,6 +2974,25 @@ var Wllama = class {
         logLevel = 9999;
       }
       const modelFiles = yield prepareBlobs(blobs);
+      // ── O DRAFT DA ESPECULATIVA PRECISA ESTAR NO FS, NÃO NUMA URL ──────
+      //
+      // `spec_draft_model` era repassado como string crua até o C++, e o
+      // llama.cpp tentava abrir uma URL como arquivo:
+      //
+      //   srv load_model: failed to load draft model,
+      //                   'http://127.0.0.1:3406/nanoimp.gguf'
+      //
+      // Ele não pode entrar em `blobs` junto do alvo: `prepareBlobs` renomeia
+      // todo blob para `model-0000N-of-0000M.gguf` e o llama.cpp os junta como
+      // FRAGMENTOS de um gguf dividido. Dois modelos viram um Frankenstein.
+      //
+      // `all` é o que MONTA no FS; `llm` é o que vira modelo. Pondo o draft só
+      // em `all`, ele fica no disco virtual com nome próprio e fora da lista de
+      // fragmentos — que é exatamente o que a especulativa precisa.
+      if (params.spec_draft_blob) {
+        modelFiles.all = [...modelFiles.all,
+          { blob: params.spec_draft_blob, name: 'draft.gguf' }];
+      }
       yield this.proxy.moduleInit(modelFiles.all);
       this.logger().debug("Calling wllamaStart...");
       const startResult = yield this.proxy.wllamaStart();
@@ -3035,7 +3054,7 @@ var Wllama = class {
           return (_a2 = a.scale) != null ? _a2 : 1;
         }),
         lora_init_without_apply: params.lora_init_without_apply,
-        spec_draft_model: params.spec_draft_model,
+        spec_draft_model: params.spec_draft_blob ? 'models/draft.gguf' : params.spec_draft_model,
         spec_draft_ngl: params.spec_draft_ngl,
         spec_draft_n_max: params.spec_draft_n_max,
         spec_draft_n_min: params.spec_draft_n_min,

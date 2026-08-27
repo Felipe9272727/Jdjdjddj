@@ -62,7 +62,12 @@ const r = await page.evaluate(async ({ base, pacote, alvo, draft, nmax, persona,
     if (draft) {
         // Os nomes saem do próprio binário: `strings wllama.wasm` lista
         // spec_draft_model, spec_draft_n_max, n_min, ngl, p_min, threads.
-        params.spec_draft_model = `${base}/${draft}`;
+        //
+        // Mas o draft vai como BLOB, e não como URL: o llama.cpp abre
+        // `spec_draft_model` como caminho de arquivo, e uma URL não é caminho.
+        // O remendo em `wllama-espec/index.js` monta o blob em
+        // `models/draft.gguf` e reescreve o parâmetro.
+        params.spec_draft_blob = await (await fetch(`${base}/${draft}`)).blob();
         params.spec_draft_n_max = nmax;
         params.spec_draft_n_min = 1;
         params.spec_draft_p_min = 0.75;
