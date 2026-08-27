@@ -780,12 +780,39 @@ describe('a chave ?wllama= no index.html', () => {
     });
 
     it('e sem a chave o padrão do código continua valendo', () => {
-        // Nada de `window.__wllamaCdn = ` fora do `if`: o valor só é escrito
+        // Nada de `window.__wllamaCdn = ` fora de um `if`: o valor só é escrito
         // quando alguém pede.
+        //
+        // Antes isto contava UMA atribuição no bloco inteiro. Hoje são duas — a
+        // `?wllama=` e a `?motor=relaxed` —, e contar deixou de medir a regra:
+        // duas atribuições guardadas são tão seguras quanto uma. Então a
+        // asserção passou a ser a regra em si, e ela vale para quantas
+        // chaves vierem: TODA atribuição tem um `if` antes dela, na mesma linha
+        // ou na anterior.
         const bloco = html.slice(html.indexOf("get('wllama')"), html.indexOf('</script>', html.indexOf("get('wllama')")));
-        const atribuicoes = bloco.match(/window\.__wllamaCdn\s*=/g) ?? [];
-        expect(atribuicoes).toHaveLength(1);
+        const linhas = bloco.split('\n');
+        const atribuicoes = linhas
+            .map((linha, i) => ({ linha, i }))
+            .filter(({ linha }) => /window\.__wllamaCdn\s*=/.test(linha));
+        expect(atribuicoes.length).toBeGreaterThan(0);
+        for (const { i } of atribuicoes) {
+            const perto = `${linhas[i - 1] ?? ''}\n${linhas[i]}`;
+            expect(perto, `atribuição sem guarda na linha ${i}: ${linhas[i].trim()}`)
+                .toMatch(/\bif\s*\(/);
+        }
         expect(bloco).toContain('if (__v &&');
+    });
+
+    it('a chave ?motor= aponta para caminho FIXO da mesma origem', () => {
+        // A `?wllama=` só aceita número de versão porque monta uma URL de CDN e
+        // manda o navegador executar o que vier de lá. A `?motor=` tem a mesma
+        // consequência, então não pode aceitar caminho livre: o valor é
+        // literal no HTML e o usuário só escolhe ligar ou não.
+        expect(html).toContain("get('motor') === 'relaxed'");
+        expect(html).toContain("window.__wllamaCdn = '/wllama-relaxed'");
+        // Nada de concatenar o que veio da URL neste caminho.
+        const bloco = html.slice(html.indexOf("get('motor')"), html.indexOf('</script>', html.indexOf("get('motor')")));
+        expect(bloco).not.toMatch(/__wllamaCdn\s*=\s*[^;]*\+/);
     });
 });
 

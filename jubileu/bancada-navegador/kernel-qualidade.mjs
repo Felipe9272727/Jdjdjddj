@@ -15,6 +15,7 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3406';
 const PACOTES = (process.env.PACOTES ?? 'wllama-velho,wllama-novo').split(',');
+const MODELO = process.env.MODELO ?? 'smollm3.gguf';
 
 const PERSONA = 'You are Nilo Azevedo, 29, human and a former elevator technician; now you are a guest '
     + 'trapped on the 10th floor of the hotel "The Normal Elevator", not inside the elevator.\n'
@@ -50,10 +51,10 @@ const browser = await chromium.launch({
 for (const pacote of PACOTES) {
     const page = await browser.newPage();
     await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    const falas = await page.evaluate(async ({ base, pacote, persona, perguntas }) => {
+    const falas = await page.evaluate(async ({ base, pacote, persona, perguntas, modelo }) => {
         const mod = await import(`${base}/${pacote}/index.js`);
         const w = new mod.Wllama({ default: `${base}/${pacote}/wllama.wasm` });
-        await w.loadModelFromUrl(`${base}/smollm3.gguf`, {
+        await w.loadModelFromUrl(`${base}/${modelo}`, {
             n_ctx: 2048, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
             jinja: true, reasoning: false, warmup: false,
         });
@@ -66,11 +67,11 @@ for (const pacote of PACOTES) {
             saidas.push((res?.choices?.[0]?.message?.content ?? '').trim());
         }
         return saidas;
-    }, { base: BASE, pacote, persona: PERSONA, perguntas: PERGUNTAS });
+    }, { base: BASE, pacote, persona: PERSONA, perguntas: PERGUNTAS, modelo: MODELO });
     await page.close();
 
     let faltas = 0;
-    console.log(`\n  ── ${pacote} ──`);
+    console.log(`\n  ── ${pacote} · ${MODELO} ──`);
     falas.forEach((f, i) => {
         const quebrou = PROIBIDO.filter(([re]) => re.test(f)).map(([, nome]) => nome);
         faltas += quebrou.length;

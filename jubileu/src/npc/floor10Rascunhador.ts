@@ -445,7 +445,78 @@ export async function baixarRascunhador(): Promise<boolean> {
     }
 }
 
+/**
+ * ── A DECODIFICAÇÃO ESPECULATIVA, LIGÁVEL E MEDIDA COMO PERDA ────────────
+ *
+ * Pedido explícito do dono do jogo, e fica ligável por `?espec=1`. O que a
+ * bancada mediu, para ele decidir com o número na mão e não com a promessa:
+ *
+ *     sem draft (kernel novo) .... 6,05 tok/s
+ *     com draft de 198 MB ........ 3,84–4,14 tok/s      35% MAIS LENTA
+ *
+ * E não foi por falta de rascunho bom: nativamente o aceite chegou a 100% e
+ * ainda ficou 43% mais lento. O custo é a PRESENÇA do draft — toda posição paga
+ * uma passada dele, inclusive as que não rendem palpite. Ver a seção da TESOURA
+ * em `bancada-navegador/JA-TENTADO.md`.
+ *
+ * Fica ligável mesmo assim por dois motivos honestos: a bancada é x86 e o
+ * aparelho é ARM, e um dia um kernel de matmul em lote no wasm pode mudar a
+ * conta inteira. Quem tem o aparelho mede nele.
+ *
+ * EXIGE `?motor=relaxed`: o wllama do CDN não tem o remendo que monta o draft
+ * como blob em `models/draft.gguf`, então sem o motor local o parâmetro é
+ * ignorado em silêncio — e silêncio é a pior resposta possível aqui.
+ */
+export const DRAFT_DA_ESPECULATIVA = {
+    url: 'https://huggingface.co/Felipe0282829273/nilo-draft-200m/resolve/main/draft-200m-q4.gguf',
+    bytes: 198_083_936,
+    label: 'Llama-3.2-200M alinhado ao vocabulário do SmolLM3',
+};
+
+export function especulativaLigada(busca = globalThis.location?.search ?? ''): boolean {
+    return /[?&]espec=1\b/.test(busca);
+}
+
+/** `true` só quando o motor local está de pé — sem ele o draft não monta. */
+export function especulativaPodeSubir(busca = globalThis.location?.search ?? ''): boolean {
+    return especulativaLigada(busca) && /[?&]motor=relaxed\b/.test(busca);
+}
+
 /** Sobe o modelo. Devolve `null` em qualquer falha — o pipeline então desiste. */
+/**
+ * Baixa o draft e devolve os parâmetros da especulativa, ou `{}`.
+ *
+ * Nunca lança: se o draft não vier, o rascunhador sobe SEM especulativa em vez
+ * de não subir. Um turno mais lento é melhor que um turno mudo — a mesma regra
+ * que vale para o revisor.
+ */
+async function pecasDaEspeculativa(): Promise<Record<string, unknown>> {
+    if (!especulativaLigada()) return {};
+    if (!especulativaPodeSubir()) {
+        anotar('espec:sem-motor-local', { motivo: 'exige ?motor=relaxed' });
+        return {};
+    }
+    try {
+        const r = await fetch(DRAFT_DA_ESPECULATIVA.url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const blob = await r.blob();
+        anotar('espec:draft-baixado', { bytes: blob.size });
+        return {
+            spec_draft_blob: blob,
+            spec_draft_n_max: 4,
+            spec_draft_n_min: 1,
+            spec_draft_p_min: 0.6,
+            spec_draft_ngl: 0,
+            spec_draft_threads: Math.max(1, Math.floor(rascunhadorThreads() / 2)),
+        };
+    } catch (erro) {
+        anotar('espec:draft-falhou', {
+            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
+        });
+        return {};
+    }
+}
+
 export async function subirRascunhador(): Promise<Instancia | null> {
     if (residente) return residente;
     enginePromise ??= (async () => {
@@ -461,6 +532,7 @@ export async function subirRascunhador(): Promise<Instancia | null> {
                 e.loadModelFromUrl(modeloDoRascunhador().url, {
                     ...FLOOR10_RASCUNHADOR_LOAD_CONFIG,
                     n_threads: rascunhadorThreads(),
+                    ...(await pecasDaEspeculativa()),
                 }),
                 PRAZO_CARGA_MS,
                 'a abertura do modelo',
