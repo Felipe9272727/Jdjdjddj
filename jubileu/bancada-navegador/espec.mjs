@@ -33,6 +33,7 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:3406';
 const PACOTE = process.env.PACOTE ?? 'wllama-espec';
 const ALVO = process.env.ALVO ?? 'smollm3.gguf';
 const DRAFT = process.env.DRAFT ?? '';
+const TIPOS = process.env.TIPOS ?? '';
 const NMAX = Number(process.env.NMAX ?? 5);
 
 const PERGUNTA = 'Hi what is your name? do you know why we are here?';
@@ -52,13 +53,14 @@ page.on('console', (m) => {
 page.on('pageerror', (e) => console.log('  ‹página› ' + String(e.message).slice(0, 200)));
 await page.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
-const r = await page.evaluate(async ({ base, pacote, alvo, draft, nmax, persona, pergunta }) => {
+const r = await page.evaluate(async ({ base, pacote, alvo, draft, nmax, tipos, persona, pergunta }) => {
     const mod = await import(`${base}/${pacote}/index.js`);
     const w = new mod.Wllama({ default: `${base}/${pacote}/wllama.wasm` });
     const params = {
         n_ctx: 1024, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
         jinja: true, reasoning: false, warmup: false,
     };
+    if (tipos) params.spec_types = tipos.split(',');
     if (draft) {
         // Os nomes saem do próprio binário: `strings wllama.wasm` lista
         // spec_draft_model, spec_draft_n_max, n_min, ngl, p_min, threads.
@@ -102,9 +104,9 @@ const r = await page.evaluate(async ({ base, pacote, alvo, draft, nmax, persona,
     }
     try { await w.exit(); } catch { /* já foi */ }
     return { ok: true, carga, medidas };
-}, { base: BASE, pacote: PACOTE, alvo: ALVO, draft: DRAFT, nmax: NMAX, persona: PERSONA, pergunta: PERGUNTA });
+}, { base: BASE, pacote: PACOTE, alvo: ALVO, draft: DRAFT, nmax: NMAX, tipos: TIPOS, persona: PERSONA, pergunta: PERGUNTA });
 
-console.log(`\n  ${PACOTE} · alvo ${ALVO}${DRAFT ? ` · draft ${DRAFT} (n_max ${NMAX})` : ' · SEM draft'}`);
+console.log(`\n  ${PACOTE} · alvo ${ALVO}${DRAFT ? ` · draft ${DRAFT}` : ''}${TIPOS ? ` · tipos ${TIPOS}` : ''} (n_max ${NMAX})`);
 if (!r.ok) { console.log(`  FALHOU em ${r.onde}: ${r.erro}`); }
 else {
     console.log(`  carga ${(r.carga / 1000).toFixed(1)}s`);

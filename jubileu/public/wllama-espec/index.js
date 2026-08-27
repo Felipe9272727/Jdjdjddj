@@ -3055,6 +3055,13 @@ var Wllama = class {
         }),
         lora_init_without_apply: params.lora_init_without_apply,
         spec_draft_model: params.spec_draft_blob ? 'models/draft.gguf' : params.spec_draft_model,
+        // ── O SELETOR DE TIPOS, QUE O wllama NUNCA EXPÔS ────────────────
+        // `common_speculative_init()` decide tudo por `types`, e o binário
+        // traz os nomes compilados (`draft-mtp`, `ngram-simple`, …). O que
+        // faltava era a ponte. Sem isto, o registro do JA-TENTADO de que o
+        // n-grama rascunhou ZERO em 6 rodadas mede um recurso desligado, e
+        // não um recurso ruim.
+        speculative: params.spec_types,
         spec_draft_ngl: params.spec_draft_ngl,
         spec_draft_n_max: params.spec_draft_n_max,
         spec_draft_n_min: params.spec_draft_n_min,
