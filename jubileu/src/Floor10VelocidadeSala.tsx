@@ -94,6 +94,21 @@ const TETO_DIRETO = 80;
 const TETO_PENSANDO = 640;
 
 /**
+ * ── O ORÇAMENTO DO PENSAMENTO ────────────────────────────────────────────
+ *
+ * Só subir o teto não resolve: o dono do jogo ligou o pensamento e às vezes
+ * NÃO SAÍA RESPOSTA NENHUMA — o raciocínio consumia tudo e a fala nunca vinha.
+ * Aumentar o teto de novo só empurra o problema e faz esperar mais.
+ *
+ * O llama.cpp tem a ferramenta certa: `reasoning_budget_tokens` fecha o bloco
+ * de pensamento à força quando ele estoura o orçamento, e o modelo passa a
+ * falar. Assim o pensamento ajuda a qualidade sem poder engolir o turno.
+ *
+ * 256 de 640 deixa mais da metade para a fala — que é o que o jogador lê.
+ */
+const ORCAMENTO_PENSAMENTO = 256;
+
+/**
  * Separa o raciocínio da fala.
  *
  * O `<think>` sai da resposta por dois motivos: quem lê quer a fala do Nilo, e
@@ -191,6 +206,8 @@ async function rodada(w: InstanciaWllama, texto: string, n: number,
         messages: [{ role: 'system', content: PERSONA },
             { role: 'user', content: turnoComDirecao(texto, direcao) }],
         chat_template_kwargs: { enable_thinking: pensa },
+        // Sem orçamento, o raciocínio come o teto inteiro e a fala não sai.
+        ...(pensa ? { reasoning_budget_tokens: ORCAMENTO_PENSAMENTO } : {}),
         n_predict: n, temp, cache_prompt: cache, ignore_eos: temp === 0,
     }) as { choices?: { message?: { content?: string } }[] };
     return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
@@ -384,7 +401,8 @@ export default function Floor10VelocidadeSala() {
             const cortou = pensa && !fala;
             setResposta(
                 (cortou
-                    ? `⚠ o pensamento não coube em ${TETO_PENSANDO} tokens e a fala não saiu.`
+                    ? `⚠ mesmo com orçamento de ${ORCAMENTO_PENSAMENTO} tokens de raciocínio, `
+                      + 'a fala não saiu. Me avise — o orçamento é ajustável.'
                     : (emPt || fala || r.txt.trim()))
                 + `\n\n— ${(r.ms / 1000).toFixed(1)} s`
                 + (emPt && fala ? `\n— em inglês: ${fala}` : '')
@@ -445,8 +463,11 @@ export default function Floor10VelocidadeSala() {
                                 onChange={(e) => setPensa(e.target.checked)} />
                             {' '}deixar ele PENSAR antes de responder{' '}
                             <span style={{ color: '#666' }}>
-                                · o template do SmolLM3 liga isto por padrão, e é a suspeita
-                                para ele ter sido “extremamente lento” antes do pipeline
+                                · o template do SmolLM3 liga isto por padrão, e era por isso
+                                que ele parecia “extremamente lento” antes do pipeline. Aqui o
+                                raciocínio tem orçamento de {ORCAMENTO_PENSAMENTO} tokens: passou
+                                disso, o llama.cpp fecha o bloco e ele fala — senão o pensamento
+                                engole o turno e não sobra resposta
                             </span>
                         </label>
                         <label style={{ display: 'block', marginTop: 10, cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed' }}>
