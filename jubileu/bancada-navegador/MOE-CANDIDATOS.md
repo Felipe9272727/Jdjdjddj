@@ -190,3 +190,46 @@ geração barata e cobra a união dos especialistas no lote.
 Não é falta de rascunhador — o rascunhador existe, é minúsculo, e acerta 100%.
 É a arquitetura do alvo. Para a especulativa valer seria preciso um alvo denso
 e sem estado recorrente, que é exatamente o tipo de modelo que o granite venceu.
+
+
+---
+
+## O mesmo draft num alvo DENSO — a melhor chance que a especulativa teve
+
+Se o Mamba e o MoE eram os culpados, então bastava um alvo sem os dois. Ele
+existe, e na mesma família: **`granite-4.0-micro`**, 3B, com
+
+    layer_types ......... 40 × "attention"   (zero camadas mamba)
+    num_local_experts ... 0                  (denso, sem união de especialistas)
+    vocab_size .......... 100352             (o mesmo do docling)
+
+Sem estado recorrente para checkpointar, sem especialistas para unir, razão de
+18× entre alvo e rascunho — a faixa que a literatura pede. **Se ela não ganhasse
+aqui, não ganha em lugar nenhum.**
+
+    192 tokens, prompt de 17, `--ignore-eos`:
+
+    base ......................... 19 525 ms
+    n_max=3 p=0.5 · aceite 60% ... 20 695 ms    ← o melhor de todos, e perde por 6%
+    n_max=2 p=0.6 · aceite 72% ... 21 925 ms
+    n_max=4 p=0.4 · aceite 44% ... 21 812 ms
+    n_max=8 p=0.2 · aceite 15% ... 35 729 ms
+
+**6% é o mais perto que a especulativa chegou neste projeto inteiro** — contra
+75% de perda no MoE e 44% no SmolLM3. Melhorou muito ao tirar o Mamba do
+caminho, e ainda assim não paga o próprio custo.
+
+### E o alvo denso perde do MoE mesmo antes de a especulativa entrar
+
+    granite 7B MoE (h-tiny) ................ 9 952 ms
+    granite 3B denso (micro) .............. 19 525 ms
+    granite 3B denso + melhor especulativa  20 695 ms
+
+**O MoE de 7B é DUAS VEZES mais rápido que o denso de 3B.** Então mesmo que a
+especulativa desse os 20% que a literatura promete, o par denso+rascunho ficaria
+em ~16 s contra os 10 s do MoE sozinho.
+
+**Fecha o assunto:** não existe caminho em que a especulativa ganhe aqui. Ou o
+alvo é MoE/Mamba, e ela paga checkpoint e união de especialistas; ou o alvo é
+denso, e ele já é duas vezes mais lento que a alternativa. O rascunhador de
+138 MB é bom — o problema nunca mais foi ele.
