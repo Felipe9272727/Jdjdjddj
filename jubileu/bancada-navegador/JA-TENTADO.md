@@ -990,3 +990,36 @@ mas neste caso, optamos por não incluir uma janela para manter um ambiente de
 trabalho focado e livre de distrações."* — ignorando a instrução e virando
 consultoria. Isso é problema de prompt do granite, não de modelo, e é onde vale
 mexer.
+
+### O MTP liga no wasm implantado — provado antes de custar dados de celular
+
+`bancada-navegador/mtp-navegador.mjs` sobe o wllama-relaxed no Chromium com um
+GGUF que tem cabeça MTP e compara o controle contra `types:draft-mtp`. O que ele
+confere não é velocidade, é **se a implementação registra**. A prova está nos
+logs nativos:
+
+    controle .... common_speculative_init: no implementations specified
+                  prompt_save: total state size = 20.252 MiB (draft: 0.000 MiB)
+
+    MTP ......... (sem o erro acima)
+                  [spec] failed to measure MTP context memory:
+                         common_get_device_memory_data is not implemented in wllama
+                  prompt_save: total state size = 20.418 MiB (draft: 0.166 MiB)
+
+Os 0,166 MiB de `draft` no estado salvo e o aviso específico de MTP só aparecem
+quando a cabeça está montada. O remendo `WLLAMA_PATCH_TNE` — o prefixo `types:`
+sobrecarregando `spec_draft_model` — é a única porta, porque o schema tipado do
+wllama não tem campo para o tipo e sem `--spec-type` a inicialização morre.
+
+Medido no wasm desta bancada (Qwen3.5-0.8B-MTP Q4_K_M, 64 tokens, 3 repetições):
+
+| | tok/s |
+| --- | --- |
+| controle | 13,82 |
+| MTP n-max 1 | 9,22 |
+| MTP n-max 2 | 7,18 |
+
+**No wasm a perda é MAIOR que no nativo** (−33% e −48%, contra −2% e −9% do
+nativo). Isso não decide o aparelho do dono do jogo — a curva de lote é por
+hardware, e a desta bancada dá 1,10× onde a dele deu 3,17× — mas é a expectativa
+honesta a levar para o teste.

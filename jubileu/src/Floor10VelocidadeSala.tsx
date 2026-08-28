@@ -37,12 +37,14 @@ const MODELOS = {
         url: 'https://huggingface.co/ggml-org/SmolLM3-3B-GGUF/resolve/main/SmolLM3-Q4_K_M.gguf',
         bytes: 1_915_305_312,
         nota: 'a quantização que o kernel de q4_K acelera',
+        mtp: false,
     },
     q40: {
         rotulo: 'SmolLM3-3B Q4_0',
         url: 'https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_0.gguf',
         bytes: 1_811_455_808,
         nota: 'aritmética mais simples; o kernel de q4_K NÃO age aqui',
+        mtp: false,
     },
     /**
      * ── O 7B QUE SÓ CABE PARTIDO ────────────────────────────────────────
@@ -72,6 +74,42 @@ const MODELOS = {
         url: 'https://huggingface.co/Felipe0282829273/granite4-h-tiny-q2k-shards/resolve/main/granite4-00001-of-00002.gguf',
         bytes: 1_497_111_136 + 1_088_211_904,
         nota: 'MoE híbrido de Mamba, em DOIS shards · ~2,6 GB de RAM, acima do teto provado',
+        mtp: false,
+    },
+    /**
+     * ── O ÚNICO AQUI COM ESPECULATIVA DE FÁBRICA ────────────────────────
+     *
+     * MTP (multi-token prediction) é especulativa embutida no pré-treino: a
+     * cabeça de rascunho viaja DENTRO deste mesmo arquivo. Não há segundo
+     * download, não há RAM de um segundo modelo, e não há o problema de
+     * vocabulário que travou o draft de 200M — é o mesmo tokenizador por
+     * construção. Não dá para acrescentar depois num modelo que não nasceu
+     * com isso, e é por isso que o granite não tem.
+     *
+     * 2.121.677.120 bytes: passa 25 MB ABAIXO da parede de 2 GiB do `Blob`,
+     * então é arquivo único, sem shard.
+     *
+     * Medido na bancada x86 (JA-TENTADO), 3 repetições de 256 tokens:
+     *
+     *     controle .......... 6,670 tok/s
+     *     MTP n-max 1 ....... 6,524 tok/s · aceite 74,8% · −2%
+     *     MTP n-max 2 ....... 6,052 tok/s · aceite 61,7% · −9%
+     *
+     * A aceitação é ÓTIMA e mesmo assim ele perde, porque em Q2_K a curva de
+     * lote é quase reta — 1,50× / 2,02× / 2,51× para lotes 2/3/4, contra
+     * 1,10× do lote 4 no granite em Q4_0. Sem degrau não há o que a
+     * especulativa explore.
+     *
+     * Ele está aqui porque a curva de lote é POR HARDWARE: a desta bancada
+     * dá 1,10× onde a do aparelho do dono do jogo deu 3,17×. O x86 não pode
+     * responder por ele.
+     */
+    qwen4b: {
+        rotulo: 'Qwen3.5-4B-MTP UD-Q2_K_XL',
+        url: 'https://huggingface.co/unsloth/Qwen3.5-4B-MTP-GGUF/resolve/main/Qwen3.5-4B-UD-Q2_K_XL.gguf',
+        bytes: 2_121_677_120,
+        nota: 'MTP de fábrica, sem segundo modelo · arquivo único, 25 MB abaixo da parede de 2 GiB',
+        mtp: true,
     },
 } as const;
 type ChaveModelo = keyof typeof MODELOS;
@@ -315,6 +353,20 @@ export default function Floor10VelocidadeSala() {
         return pedido && pedido in MODELOS ? pedido as ChaveModelo : 'q4km';
     });
     const [espec, setEspec] = useState(false);
+    /**
+     * MTP e o draft de 200M são a MESMA vaga: a documentação do llama.cpp diz
+     * que, com os dois pedidos, o sem-rascunhador tem precedência. Deixar os
+     * dois marcados mediria um deles enquanto a tela dizia outro — que é o
+     * tipo de engano que já custou uma conclusão errada nesta sala.
+     */
+    const [mtp, setMtp] = useState(false);
+    /**
+     * Profundidade do rascunho do MTP. É selecionável porque o valor certo
+     * MUDA COM O APARELHO: no x86 o n-max 1 foi o melhor e o 3 despencou (o
+     * aceite caiu de 74,8% para 36,5% e ficou 21% mais lento), mas quem decide
+     * é a curva de lote local, e a do celular é outra.
+     */
+    const [mtpN, setMtpN] = useState(1);
     const [pensa, setPensa] = useState(false);
     const [orcamento, setOrcamento] = useState<number>(ORCAMENTO_PADRAO);
     const [fase, setFase] = useState('parado');
@@ -329,7 +381,7 @@ export default function Floor10VelocidadeSala() {
      * configuração que o produziu.
      */
     const [historico, setHistorico] = useState<(Medida & {
-        rotulo: string; espec: boolean; pensa: boolean;
+        rotulo: string; espec: boolean; mtp: boolean; mtpN: number; pensa: boolean;
     })[]>([]);
     const [erro, setErro] = useState('');
     const [pergunta, setPergunta] = useState('');
@@ -349,7 +401,7 @@ export default function Floor10VelocidadeSala() {
     const [rodadas, setRodadas] = useState<{ ok: number; de: number }[]>([]);
     const [taxa, setTaxa] = useState<{ pct: number; ok: number; de: number } | null>(null);
     const [conversa, setConversa] = useState<{
-        q: string; a: string; ms: number; espec: boolean; pensa: boolean; orc: number;
+        q: string; a: string; ms: number; espec: boolean; mtp: boolean; pensa: boolean; orc: number;
     }[]>([]);
     const rodando = useRef(false);
     /**
@@ -401,6 +453,7 @@ export default function Floor10VelocidadeSala() {
             });
 
             let blobDraft: Blob | null = null;
+            if (mtp && !MOTOR_LOCAL) throw new Error('o MTP exige ?motor=relaxed');
             if (espec) {
                 if (!MOTOR_LOCAL) throw new Error('a especulativa exige ?motor=relaxed');
                 setFase(`preparando ${DRAFT.rotulo}`);
@@ -444,6 +497,18 @@ export default function Floor10VelocidadeSala() {
                     spec_draft_n_min: 3, spec_draft_p_min: 0.1,
                     spec_draft_ngl: 0, spec_draft_threads: 4,
                 } : {}),
+                // MTP não carrega arquivo nenhum: a cabeça já está dentro do
+                // GGUF do alvo. O que falta é DIZER ao llama.cpp que a use —
+                // `--spec-type` tem default `none`, e sem ele a inicialização
+                // morre com "no implementations specified". O prefixo `types:`
+                // é o remendo WLLAMA_PATCH_TNE deste wasm, que sobrecarrega
+                // `spec_draft_model` porque o schema tipado do wllama não tem
+                // campo para o tipo.
+                ...(mtp ? {
+                    spec_draft_model: 'types:draft-mtp',
+                    spec_draft_n_max: mtpN, spec_draft_n_min: 1,
+                    spec_draft_p_min: 0, spec_draft_threads: 4,
+                } : {}),
             });
             const carga = performance.now() - t0;
             motorRef.current = w;
@@ -465,7 +530,7 @@ export default function Floor10VelocidadeSala() {
                 fala: separarPensamento(longo.txt).fala || longo.txt.trim(),
             };
             setMedida(m);
-            setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec, pensa }]);
+            setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec, mtp, mtpN, pensa }]);
             setFase('pronto');
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
@@ -473,7 +538,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [modelo, espec, pensa, orcamento]);
+    }, [modelo, espec, mtp, mtpN, pensa, orcamento]);
 
     /**
      * Pergunta livre, no MESMO motor que acabou de ser medido.
@@ -515,7 +580,7 @@ export default function Floor10VelocidadeSala() {
             setConversa((c) => [...c, {
                 q: pergunta.trim(),
                 a: cortou ? '(a fala não saiu)' : (emPt || fala || r.txt.trim()),
-                ms: r.ms, espec, pensa, orc: orcamento,
+                ms: r.ms, espec, mtp, pensa, orc: orcamento,
             }]);
             setResposta(
                 (cortou
@@ -532,7 +597,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [pergunta, direcao, pensa, orcamento, espec]);
+    }, [pergunta, direcao, pensa, orcamento, espec, mtp]);
 
     const bytesPrecisos = MODELOS[modelo].bytes + FLOOR10_TRADUTOR_BYTES
         + (espec ? DRAFT.bytes : 0);
@@ -568,7 +633,14 @@ export default function Floor10VelocidadeSala() {
                     <div style={{ marginTop: 8 }}>
                         {(Object.keys(MODELOS) as ChaveModelo[]).map((k) => (
                             <label key={k} style={{ display: 'block', marginBottom: 6, cursor: 'pointer' }}>
-                                <input type="radio" checked={modelo === k} onChange={() => setModelo(k)}
+                                <input type="radio" checked={modelo === k}
+                                    onChange={() => {
+                                        setModelo(k);
+                                        // Trocar para um modelo sem MTP tinha de
+                                        // desmarcar o MTP: senão a caixa ficava
+                                        // marcada medindo um modelo que não o tem.
+                                        if (!MODELOS[k].mtp) setMtp(false);
+                                    }}
                                     disabled={ocupado} />
                                 {' '}{MODELOS[k].rotulo}{' '}
                                 <span style={{ color: '#666' }}>
@@ -603,11 +675,43 @@ export default function Floor10VelocidadeSala() {
                         )}
                         <label style={{ display: 'block', marginTop: 10, cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed' }}>
                             <input type="checkbox" checked={espec} disabled={!MOTOR_LOCAL || ocupado}
-                                onChange={(e) => setEspec(e.target.checked)} />
+                                onChange={(e) => { setEspec(e.target.checked); if (e.target.checked) setMtp(false); }} />
                             {' '}especulativa com o draft de 200M{' '}
                             <span style={{ color: '#666' }}>· +{formatBytes(DRAFT.bytes)}</span>
                             {!MOTOR_LOCAL && <span style={{ color: '#c88' }}> · exige ?motor=relaxed</span>}
                         </label>
+                        {MODELOS[modelo].mtp && (
+                            <label style={{
+                                display: 'block', marginTop: 10,
+                                cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed',
+                            }}>
+                                <input type="checkbox" checked={mtp} disabled={!MOTOR_LOCAL || ocupado}
+                                    onChange={(e) => { setMtp(e.target.checked); if (e.target.checked) setEspec(false); }} />
+                                {' '}MTP — a especulativa que já vem dentro deste modelo{' '}
+                                <span style={{ color: '#666' }}>· +0 bytes, sem segundo modelo</span>
+                                {!MOTOR_LOCAL && <span style={{ color: '#c88' }}> · exige ?motor=relaxed</span>}
+                            </label>
+                        )}
+                        {MODELOS[modelo].mtp && mtp && (
+                            <div style={{ margin: '6px 0 0 24px', color: '#888' }}>
+                                quantos tokens rascunhar:{' '}
+                                {[1, 2, 3].map((n) => (
+                                    <label key={n} style={{ marginRight: 12, cursor: 'pointer' }}>
+                                        <input type="radio" checked={mtpN === n} disabled={ocupado}
+                                            onChange={() => setMtpN(n)} />
+                                        {' '}{n}
+                                    </label>
+                                ))}
+                                <div style={{ fontSize: 13, marginTop: 4 }}>
+                                    No x86 o <strong>1</strong> foi o melhor e o <strong>3</strong>{' '}
+                                    despencou — o aceite caiu de 74,8% para 36,5% e ficou 21% mais
+                                    lento, porque a cabeça só é treinada até uma profundidade e
+                                    além dela chuta. Mas quem decide é a curva de lote do aparelho,
+                                    e a sua é outra: aqui o lote 4 custa 1,10× um token solto e no
+                                    seu celular o ganho medido foi 3,17×. Por isso este botão existe.
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div style={{ color: '#888', marginTop: 10 }}>
                         vai baixar {formatBytes(bytesPrecisos)}
@@ -759,7 +863,7 @@ export default function Floor10VelocidadeSala() {
                                 paddingTop: i ? 8 : 0, marginTop: i ? 8 : 0,
                             }}>
                                 <div style={{ color: '#888', fontSize: 12 }}>
-                                    {c.espec ? 'espec ✓' : 'espec —'}{' · '}
+                                    {c.mtp ? 'MTP ✓' : c.espec ? 'espec ✓' : 'espec —'}{' · '}
                                     {c.pensa ? `pensa ✓ (${c.orc})` : 'pensa —'}{' · '}
                                     {(c.ms / 1000).toFixed(1)} s
                                 </div>
@@ -791,8 +895,8 @@ export default function Floor10VelocidadeSala() {
                                         <tr key={i}>
                                             <td style={{ color: '#666' }}>{i + 1}</td>
                                             <td>{h.rotulo.replace('SmolLM3-3B ', '')}</td>
-                                            <td style={{ color: h.espec ? '#7fe0b0' : '#666' }}>
-                                                {h.espec ? 'LIGADA' : '—'}
+                                            <td style={{ color: h.espec || h.mtp ? '#7fe0b0' : '#666' }}>
+                                                {h.mtp ? `MTP n=${h.mtpN}` : h.espec ? 'draft 200M' : '—'}
                                             </td>
                                             <td style={{ color: h.pensa ? '#e8c88a' : '#666' }}>
                                                 {h.pensa ? 'SIM' : '—'}
@@ -810,8 +914,8 @@ export default function Floor10VelocidadeSala() {
                             // A comparação só vale entre rodadas do MESMO modelo que
                             // diferem SÓ na especulativa. Qualquer outro par mistura
                             // duas variáveis, e foi isso que me pegou.
-                            const com = [...historico].reverse().find((h) => h.espec);
-                            const sem = [...historico].reverse().find((h) => !h.espec);
+                            const com = [...historico].reverse().find((h) => h.espec || h.mtp);
+                            const sem = [...historico].reverse().find((h) => !h.espec && !h.mtp);
                             if (!com || !sem || com.rotulo !== sem.rotulo) {
                                 return (
                                     <div style={{ color: '#888', marginTop: 8, fontSize: 13 }}>
