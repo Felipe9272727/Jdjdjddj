@@ -47,9 +47,36 @@ LFM por 256 tokens — e o `SPEC_VOCAB_MAX_SIZE_DIFFERENCE` do llama.cpp é **12
 Perde por 128 tokens. E nem alinhando resolveria: o LFM usa outro tokenizador
 (bos 124894 contra 128000), então os textos dos tokens não batem.
 
-**Conclusão:** a especulativa não está bloqueada pelo mecanismo nem pela
+### O 128000 do LFM não é o do Llama — conferido token a token
+
+O `vocab_size: 128000` do LFM2.5-8B-A1B é *exatamente* a base do Llama 3 (que
+tem 128000 + 256 especiais = 128256), e o `bos` dele em 124894 fica DENTRO da
+faixa, como se fossem slots regravados. Parecia o caso do SmolLM3, que o
+`alinhar-draft.py` resolveu mexendo em dez tokens.
+
+Não é. Baixei os dois `tokenizer.json` e comparei:
+
+    LFM tamanho: 124893 · Llama tamanho: 128000
+    tokens diferentes nos primeiros 128000: 127985
+
+    id 5:  LFM='ĊĊĊĊĊ'   Llama='&'
+    id 9:  LFM='!'       Llama='*'
+
+É um BPE treinado pela Liquid do zero. Alinhar dez tokens é remendo; alinhar
+128 mil é trocar o modelo. **Não existe draft para o LFM2.5-8B-A1B.**
+
+### O mapa completo da especulativa, fechado
+
+| alvo | vocab | draft pequeno | veredito |
+|---|---|---|---|
+| SmolLM3-3B | 128256 (Llama-3) | Llama-3.2-200M | **existe** — e perde na velocidade |
+| granite-4.0-h-tiny | 100352 | só o h-micro de 3B | grande demais |
+| LFM2.5-8B-A1B | 128000 (Liquid) | nenhum | tokenizador próprio |
+
+O único alvo com draft funcional é o SmolLM3, e nele a especulativa foi medida
+como perda. **Conclusão:** ela não está bloqueada pelo mecanismo nem pela
 arquitetura — está bloqueada pela inexistência de um draft pequeno com o
-vocabulário certo. Para destravar seria preciso *treinar* um, e isso exige GPU.
+vocabulário certo, e isso não se resolve procurando. Só treinando, com GPU.
 
 ## O tradutor sai do caminho, e isso resolve um defeito relatado
 
