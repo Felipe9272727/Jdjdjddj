@@ -86,6 +86,47 @@ O segundo fecha o caso: mesmo modelo, só a quantização muda, e falha igual.
 **O SmolLM3-Q4_K_M está a 89% do teto.** Enquanto ele existir, não há modelo
 maior de tipo nenhum — nem MoE, nem denso, nem o mesmo Smol em Q8.
 
+### ↑ ISSO ESTAVA CERTO NO SINTOMA E ERRADO NA CAUSA — E A PAREDE CAIU
+
+`not within file bounds` **não é falta de RAM nem limite de arquitetura**. As
+três builds em jogo (a do CDN e as duas locais) são wasm64 — conferido lendo a
+flag da memória importada no binário, `0x07`. E o número entrega a causa:
+
+    SmolLM3-Q4_K_M = 1,92 GB, registrado como "89% do teto"
+    1,92 ÷ 0,89 = 2,16 GB ≈ 2 GiB exatos
+
+**2 GiB é o limite de um `Blob`/`ArrayBuffer` no navegador**, por ARQUIVO. E
+isso tem contorno documentado no próprio wllama, que nunca foi tentado:
+
+    "If the input URL is a string in the `gguf-split` format, it returns an
+     array containing the URL of each shard in ascending order"
+
+**MEDIDO, e a parede caiu.** `granite-4.0-h-tiny` (7B-A1B, MoE híbrido de
+Mamba) em Q2_K, 2,59 GB, partido com `llama-gguf-split --split-max-size 1500M`
+em dois pedaços de 1,50 e 1,09 GB, carregou e gerou no navegador:
+
+    modelo                    prefill        geração       lote
+    granite 7B-A1B Q2_K ..... 11,05 tok/s    5,38 tok/s    2,05×
+    SmolLM3-3B Q4_K_M .......  7,26 tok/s    4,71 tok/s    1,54×
+
+**O MoE de 7B ganha do denso de 3B nas DUAS pontas** — +52% no prefill, que é
+~75% do turno no aparelho, e +14% na geração. Custa 74 s de carga e ~2,6 GB de
+RAM, que é 35% acima do que o aparelho já provou aguentar: esse é o único
+desconhecido que sobra, e só o aparelho responde.
+
+Qualidade em Q2_K, nas perguntas do dono do jogo (`nilo-perguntas.sh`): 4 de 5
+limpas, e **passou na armadilha do corredor que o SmolLM3 errou nas duas vezes
+que foi testado** — respondeu que não há corredor, só a sala cinza. A que falhou
+foi "pode me levar ao saguão?", onde ele vira ajudante ("Sure, just let me know
+when you're ready"), que é justamente o que o revisor existe para pegar.
+
+CUIDADO AO REPETIR: o granite 4.0 usa `<|start_of_role|>…<|end_of_role|>`, e não
+ChatML. Com o formato errado ele responde vazio, e eu quase condenei a qualidade
+dele por erro meu de prompt.
+
+E o par especulativo NÃO existe para ele: vocabulário 100352, e o menor granite
+4.0 é o `h-micro` de 3B. Não há draft minúsculo com esse vocabulário.
+
 ---
 
 ## O CEMITÉRIO, POR CATEGORIA
