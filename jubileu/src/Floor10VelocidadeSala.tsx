@@ -430,10 +430,19 @@ export default function Floor10VelocidadeSala() {
                 progressCallback: ({ loaded, total }: { loaded?: number; total?: number }) => {
                     setFeitos(loaded ?? 0); setTotal(total ?? M.bytes);
                 },
+                // n_max 3 (lote 4) e p_min baixo: a combinação antiga era
+                // n_max 4 com p_min 0,6, que é o pior dos dois mundos. O p_min
+                // alto corta o rascunho no primeiro token, então quase toda
+                // rodada virava lote 2 — que custa 1,39× um token solto — em vez
+                // do lote 4, que custa 1,10×. E quando o rascunho ia até o fim,
+                // n_max 4 dava lote 5, a 1,62×. A curva foi medida no x86
+                // (bancada-navegador/JA-TENTADO.md); no aparelho ela pode ter o
+                // degrau em outro lugar, e é isso que o A/B desta sala serve
+                // para achar.
                 ...(blobDraft ? {
-                    spec_draft_blob: blobDraft, spec_draft_n_max: 4,
-                    spec_draft_n_min: 1, spec_draft_p_min: 0.6,
-                    spec_draft_ngl: 0, spec_draft_threads: 2,
+                    spec_draft_blob: blobDraft, spec_draft_n_max: 3,
+                    spec_draft_n_min: 3, spec_draft_p_min: 0.1,
+                    spec_draft_ngl: 0, spec_draft_threads: 4,
                 } : {}),
             });
             const carga = performance.now() - t0;
@@ -656,8 +665,17 @@ export default function Floor10VelocidadeSala() {
                                     e a razão deixa de medir lote. Eu cheguei a
                                     anunciar uma reabertura da especulativa em
                                     cima dele. Número que só vale às vezes tem de
-                                    dizer quando não vale. */}
-                                <tr><td style={{ color: '#888' }}>ganho do lote</td>
+                                    dizer quando não vale.
+
+                                    E mesmo desligada ele mede o lote de 512 (o
+                                    n_batch do prefill), NÃO o lote 4 que a
+                                    especulativa usa. São coisas diferentes: no
+                                    x86 a curva medida é 1,39× / 1,60× / 1,10× /
+                                    1,62× para os lotes 2/3/4/5 — o lote 4 é uma
+                                    descontinuidade, não um ponto de uma reta.
+                                    Extrapolar o lote 4 a partir do 512 foi como
+                                    eu condenei a especulativa por engano. */}
+                                <tr><td style={{ color: '#888' }}>ganho do lote (512)</td>
                                     <td colSpan={2}>
                                         {espec
                                             ? <span style={{ color: '#c88' }}>
@@ -668,13 +686,15 @@ export default function Floor10VelocidadeSala() {
                             </tbody>
                         </table>
                         <div style={{ color: '#888', marginTop: 10, fontSize: 13 }}>
-                            O <em>ganho do lote</em> é o que decide a especulativa: ela confere vários
-                            tokens numa passada, então só paga se processar em lote for MUITO mais
-                            barato que um token de cada vez. Medido: 1,50× na bancada x86 e 1,88×
-                            no aparelho do dono do jogo. Com 1,88×, conferir 5 tokens custa 3,06,
-                            e seria preciso aceitar 52% dos rascunhos só para empatar — o aceite
-                            medido vai de 33% a 52%. Por isso a especulativa perde nos dois: 44%
-                            mais lenta no aparelho, medido no A/B desta mesma sala.
+                            Este número é o ganho no lote de <strong>512</strong>, o do prefill.
+                            A especulativa confere <strong>4</strong> tokens por vez, e o custo do
+                            lote 4 não sai daqui por regra de três: medido no x86, os lotes 2/3/4/5
+                            custam 1,39× / 1,60× / <strong>1,10×</strong> / 1,62× um token solto — o
+                            lote 4 é uma descontinuidade. Quem decide a especulativa é a
+                            <em> aceitação</em>, não este número. Com n-max 3 e o custo do
+                            rascunhador medido: 27% de aceite dá 1,08× (empate), 50% dá 1,48×, 70%
+                            dá 2,00×. O aceite do docling-258M contra o granite é 27%, e é por isso
+                            que empata — não por causa do lote.
                         </div>
                         <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
                             “{medida.fala.slice(0, 260)}”
