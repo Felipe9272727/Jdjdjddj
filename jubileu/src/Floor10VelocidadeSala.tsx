@@ -44,6 +44,35 @@ const MODELOS = {
         bytes: 1_811_455_808,
         nota: 'aritmética mais simples; o kernel de q4_K NÃO age aqui',
     },
+    /**
+     * ── O 7B QUE SÓ CABE PARTIDO ────────────────────────────────────────
+     *
+     * `granite-4.0-h-tiny`: 7B no total, ~1B ativo por token, e híbrido de
+     * Mamba — 40 camadas, quase todas `mamba`, com atenção a cada dez. É por
+     * isso que ele lê o prompt mais rápido que um denso de 3B apesar de ser
+     * maior.
+     *
+     * A URL aponta para o PRIMEIRO SHARD, e não é detalhe: 2,59 GB estouram o
+     * limite de 2 GiB de um `Blob` no navegador, que é a parede que o
+     * `JA-TENTADO` registrava como "não há modelo maior de tipo nenhum". Ela
+     * não era de RAM nem de arquitetura — era de arquivo, e o wllama já sabia
+     * carregar `gguf-split`: dando o primeiro pedaço, ele busca o resto.
+     *
+     * Medido nesta bancada, no navegador:
+     *
+     *     granite 7B-A1B Q2_K ... prefill 11,05 tok/s · geração 5,38 tok/s
+     *     SmolLM3-3B Q4_K_M ..... prefill  7,26 tok/s · geração 4,71 tok/s
+     *
+     * O que NINGUÉM sabe ainda são os ~2,6 GB residentes no aparelho, 35%
+     * acima do que ele já provou aguentar. Por isso ele está aqui: para o
+     * aparelho responder.
+     */
+    granite7b: {
+        rotulo: 'granite-4.0-h-tiny 7B-A1B Q2_K',
+        url: 'https://huggingface.co/Felipe0282829273/granite4-h-tiny-q2k-shards/resolve/main/granite4-00001-of-00002.gguf',
+        bytes: 1_497_111_136 + 1_088_211_904,
+        nota: 'MoE híbrido de Mamba, em DOIS shards · ~2,6 GB de RAM, acima do teto provado',
+    },
 } as const;
 type ChaveModelo = keyof typeof MODELOS;
 
@@ -276,7 +305,15 @@ type Gerente = {
 };
 
 export default function Floor10VelocidadeSala() {
-    const [modelo, setModelo] = useState<ChaveModelo>('q4km');
+    /**
+     * `?velocidade=granite7b` já abre no modelo escolhido — pedido do dono do
+     * jogo, e útil porque a sala é aberta pelo celular, onde mexer em rádio é
+     * pior que colar uma URL.
+     */
+    const [modelo, setModelo] = useState<ChaveModelo>(() => {
+        const pedido = new URLSearchParams(globalThis.location?.search ?? '').get('velocidade');
+        return pedido && pedido in MODELOS ? pedido as ChaveModelo : 'q4km';
+    });
     const [espec, setEspec] = useState(false);
     const [pensa, setPensa] = useState(false);
     const [orcamento, setOrcamento] = useState<number>(ORCAMENTO_PADRAO);
