@@ -109,11 +109,35 @@ function comPrazoCurto<T>(p: Promise<T>, ms: number): Promise<T | null> {
 
 const PRAZO_TRADUTOR_MS = 20_000;
 
+/**
+ * ── A DIREÇÃO, E POR QUE ELA VAI NA MENSAGEM DO USUÁRIO ─────────────────
+ *
+ * No jogo, o embedding recupera UM fato do cânone que a pergunta pediu, e o
+ * `turnoDoRascunho` o entrega junto da pergunta. A sala não baixa o embedding
+ * (334 MB para medir um motor não faz sentido), então quem escreve a direção
+ * é quem está testando.
+ *
+ * Existe porque o dono do jogo notou perda de qualidade aqui e apontou a causa
+ * certa: sem direção o modelo preenche o vazio inventando — nesta sala ele já
+ * disse "you broke the elevator" e "a peculiar room", nenhum dos dois no
+ * cânone.
+ *
+ * Vai na mensagem do USUÁRIO e nunca no sistema, igualzinho ao jogo: a persona
+ * é o prefixo estável que o `cache_prompt` reaproveita, e mexer nela a cada
+ * pergunta jogaria o cache fora — que é justamente o que faz esta sala ser
+ * rápida.
+ */
+function turnoComDirecao(texto: string, direcao: string): string {
+    const d = direcao.trim();
+    return d ? `What you know that matters here: ${d}\n\n${texto}` : texto;
+}
+
 async function rodada(w: InstanciaWllama, texto: string, n: number,
-    cache: boolean, temp = 0): Promise<{ ms: number; txt: string }> {
+    cache: boolean, temp = 0, direcao = ''): Promise<{ ms: number; txt: string }> {
     const t = performance.now();
     const res = await w.createChatCompletion({
-        messages: [{ role: 'system', content: PERSONA }, { role: 'user', content: texto }],
+        messages: [{ role: 'system', content: PERSONA },
+            { role: 'user', content: turnoComDirecao(texto, direcao) }],
         n_predict: n, temp, cache_prompt: cache, ignore_eos: temp === 0,
     }) as { choices?: { message?: { content?: string } }[] };
     return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
@@ -160,6 +184,7 @@ export default function Floor10VelocidadeSala() {
     })[]>([]);
     const [erro, setErro] = useState('');
     const [pergunta, setPergunta] = useState('');
+    const [direcao, setDirecao] = useState('');
     /** `useRef` não redesenha, e a caixa de perguntar depende disto aparecer. */
     const [motorPronto, setMotorPronto] = useState(false);
     const [resposta, setResposta] = useState('');
@@ -293,7 +318,7 @@ export default function Floor10VelocidadeSala() {
             // não auditar o Bergamot. O rótulo diz o que aconteceu.
             const emIngles = await comPrazoCurto(traduzirPerguntaParaIngles(cru), PRAZO_TRADUTOR_MS);
             setFase('o Nilo está pensando');
-            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7);
+            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7, direcao);
             const fala = r.txt.trim();
             setFase('traduzindo a fala');
             const emPt = emIngles
@@ -307,7 +332,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [pergunta]);
+    }, [pergunta, direcao]);
 
     const bytesPrecisos = MODELOS[modelo].bytes + FLOOR10_TRADUTOR_BYTES
         + (espec ? DRAFT.bytes : 0);
@@ -510,7 +535,20 @@ export default function Floor10VelocidadeSala() {
                             Bergamot, o Nilo responde, e volta traduzido. Aqui a temperatura é 0,7
                             e não 0: a medição usa 0 para comparar aritmética, mas conversa boa é
                             a que varia sem inventar fato.
+                            <br /><br />
+                            A <strong>direção</strong> é o fato do cânone que o embedding entregaria
+                            no jogo. Sem ela o modelo preenche o vazio inventando — aqui ele já
+                            disse “you broke the elevator”. Escreva em inglês, que é a língua em
+                            que ele pensa. Exemplo: <em>the grate floor is cold and you can see
+                            nothing through it</em>.
                         </div>
+                        <input value={direcao} onChange={(e) => setDirecao(e.target.value)}
+                            placeholder="direção: o fato do cânone que o embedding acharia (opcional)"
+                            style={{
+                                width: '100%', background: '#0e0e0e', color: '#ddd',
+                                border: '1px solid #333', borderRadius: 6, padding: 8,
+                                font: 'inherit', marginBottom: 8,
+                            }} />
                         <textarea value={pergunta} onChange={(e) => setPergunta(e.target.value)}
                             placeholder="oi, qual é o seu nome? sabe pq a gente tá aqui?"
                             rows={2}
