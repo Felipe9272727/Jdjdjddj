@@ -33,8 +33,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     modeloDoRascunhador, baixarRascunhador, subirRascunhador,
     descarregarRascunhador, ultimoErroDoRascunhador,
-    especulativaLigada, especulativaPodeSubir, DRAFT_DA_ESPECULATIVA,
-    baixarDraftDaEspeculativa, draftJaBaixado, erroDoDraft,
 } from './npc/floor10Rascunhador';
 import { FLOOR10_TOM_MODEL, prepararJuizDeTom, ultimoErroDoJuiz } from './npc/floor10VetorDeTom';
 import {
@@ -248,8 +246,6 @@ export default function Floor10PipelineSala() {
         setLinha(npc.deliberationLoadText || npc.loadText || '');
     }), []);
 
-    const motorLocal = /[?&]motor=relaxed\b/.test(globalThis.location?.search ?? '');
-
     const PECAS: Peca[] = [
         {
             id: 'rascunho',
@@ -274,19 +270,6 @@ export default function Floor10PipelineSala() {
         // aparecer aqui — a peça da memória já foi entregue baixando por fora
         // da fila, e o que o dono do jogo viu foi uma barra parada sem
         // explicação. Não repetir.
-        // `PodeSubir` e não `Ligada`: com `?espec=1` sozinho o draft seria
-        // inerte, e ainda assim custaria 198 MB da franquia de quem baixasse.
-        // Avisar não justifica gastar — o aviso vive no bloco do Motor.
-        ...(especulativaPodeSubir() ? [{
-            id: 'draft-espec',
-            nome: 'draft da especulativa · Llama-3.2-200M',
-            bytes: DRAFT_DA_ESPECULATIVA.bytes,
-            detalhe: 'chuta 4 tokens à frente para o SmolLM3 conferir · medido 35% MAIS LENTO aqui',
-            carregado: draftJaBaixado,
-            carregar: baixarDraftDaEspeculativa,
-            motivo: erroDoDraft,
-            reportaProgresso: true,
-        } as Peca] : []),
         {
             id: 'tradutor',
             nome: 'tradutor · Bergamot en↔pt',
@@ -710,34 +693,13 @@ export default function Floor10PipelineSala() {
                 <code style={{ color: '#7fe0b0' }}>?pipeline=jogo</code> liga no jogo de verdade.
             </p>
 
-            {/* ── QUAL MOTOR ESTÁ RODANDO ──────────────────────────────────
-                Sem esta linha as duas chaves novas são invisíveis: dá para
-                abrir com `?motor=relaxed` e não ter como saber se pegou. E o
-                que muda embaixo delas é a ARITMÉTICA do modelo, então adivinhar
-                é a pior opção. Mostra o que está de pé e o que aquilo custou na
-                bancada — inclusive quando o custo é negativo. */}
-            <div style={{ ...CAIXA, marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                    <strong>Motor</strong>
-                    <span style={{ color: motorLocal ? '#7fe0b0' : '#888' }}>
-                        {motorLocal
-                            ? 'local · kernel relaxed de q4_K (1,17× na bancada x86)'
-                            : 'wllama 3.5.1 do CDN (padrão)'}
-                    </span>
-                </div>
-                <div style={{ color: '#888', marginTop: 6, fontSize: 13 }}>
-                    {especulativaLigada()
-                        ? (especulativaPodeSubir()
-                            ? '⚠ especulativa LIGADA · medida 35% mais LENTA nesta bancada (x86); '
-                              + 'o aparelho é ARM e pode diferir'
-                            : '⚠ ?espec=1 está inerte: falta ?motor=relaxed, e sem ele o draft não monta')
-                        : 'especulativa desligada'}
-                    <br />
-                    <code style={{ color: '#7fe0b0' }}>?motor=relaxed</code> troca o runtime ·{' '}
-                    <code style={{ color: '#7fe0b0' }}>?espec=1</code> liga a especulativa
-                    {' '}(exige o motor local).
-                </div>
-            </div>
+            {/* Um ponteiro, e não um painel: as chaves do motor moram na sala
+                delas. Eu já as pendurei aqui e o dono do jogo mostrou o estrago
+                — para medir o runtime ele teria de baixar as seis peças. */}
+            <p style={{ color: '#888', margin: '0 0 16px' }}>
+                Para medir o RUNTIME (kernel de q4_K, especulativa) sem baixar o pipeline
+                inteiro: <code style={{ color: '#7fe0b0' }}>?velocidade</code>.
+            </p>
 
             {/* ── A FILA, COM UMA BARRA SÓ ─────────────────────────────── */}
             <div style={CAIXA}>

@@ -11,8 +11,7 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3407';
-const CHAVES = ['?pipeline', '?pipeline&motor=relaxed',
-    '?pipeline&motor=relaxed&espec=1', '?pipeline&espec=1'];
+const CHAVES = ['?pipeline', '?velocidade', '?velocidade&motor=relaxed'];
 
 const b = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -25,12 +24,18 @@ for (const q of CHAVES) {
     await p.goto(`${BASE}/${q}`, { waitUntil: 'networkidle', timeout: 120000 });
     await p.waitForTimeout(1500);
     const t = await p.evaluate(() => document.body.innerText);
-    const motor = (t.match(/Motor\n([^\n]+)/) || [])[1] ?? '(não achei o bloco)';
-    const aviso = (t.match(/(⚠[^\n]+|especulativa desligada)/) || [])[1] ?? '—';
+    const linhas = t.split('\n').map((x) => x.trim()).filter(Boolean);
+    const motor = (t.match(/Motor\s*\n?\s*(local[^\n]*|wllama[^\n]*)/) || [])[1] ?? '—';
+    const baixa = (t.match(/vai baixar ([^\n]+)/) || [])[1] ?? '—';
     console.log(`\n  ${q}`);
-    console.log(`    motor ....... ${motor.slice(0, 100)}`);
-    console.log(`    especulativa  ${aviso.slice(0, 110)}`);
-    console.log(`    draft na fila ${/draft da especulativa/.test(t) ? 'SIM' : 'não'}`);
+    console.log(`    titulo ...... ${(linhas[0] || '').slice(0, 60)}`);
+    console.log(`    motor ....... ${motor.slice(0, 80)}`);
+    console.log(`    vai baixar .. ${baixa.slice(0, 50)}`);
+    // A PEÇA da fila, e não a palavra: o texto da sala da velocidade explica
+    // por que o draft não casa com o granite, e procurar "draft da especulativa"
+    // solto casava com a explicação. Sonda que dá falso positivo é pior que
+    // sonda nenhuma, porque a gente confia nela.
+    console.log(`    peça do draft na fila: ${/draft da especulativa · Llama/.test(t) ? 'SIM' : 'nao'}`);
     if (erros.length) console.log(`    ERROS ....... ${erros.join(' · ')}`);
     await p.close();
 }

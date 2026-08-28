@@ -85,6 +85,12 @@ const Floor10Rascunho = lazy(() => import('./Floor10Rascunho.tsx'));
 // e ele estava certo: sem ver as etapas, "o pipeline rodou e ganhou", "o juiz
 // marcou tudo e ele perdeu" e "ele nem ligou" são indistinguíveis na tela.
 const Floor10PipelineSala = lazy(() => import('./Floor10PipelineSala.tsx'));
+// `?velocidade` abre a sala do MOTOR, e ela é separada da do `?pipeline` por um
+// motivo medido: para responder "o kernel novo é mais rápido?" a sala do
+// pipeline exigia baixar tradutor, embedding, juiz e revisor — ~2,8 GB que não
+// entram na conta. E o rascunhador de lá é o granite, cujo vocabulário não casa
+// com o draft da especulativa. Perguntas diferentes, salas diferentes.
+const Floor10VelocidadeSala = lazy(() => import('./Floor10VelocidadeSala.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
@@ -107,13 +113,16 @@ const isRascunho = search.includes('rascunho');
 // código mede outro programa.
 const isPipelineNoJogo = /[?&]pipeline=jogo\b/i.test(search);
 const isPipelineSala = /[?&]pipeline\b/i.test(search) && !isPipelineNoJogo;
+const isVelocidade = /[?&]velocidade\b/i.test(search);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isPipelineSala ? (
+    {isVelocidade ? (
+      <Suspense fallback={null}><Floor10VelocidadeSala /></Suspense>
+    ) : isPipelineSala ? (
       <Suspense fallback={null}><Floor10PipelineSala /></Suspense>
     ) : isRascunho ? (
       <Suspense fallback={null}><Floor10Rascunho /></Suspense>
