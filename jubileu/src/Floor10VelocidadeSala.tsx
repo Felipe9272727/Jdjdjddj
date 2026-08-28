@@ -157,6 +157,26 @@ type InstanciaWllama = {
 type CtorWllama = new (p: Record<string, string>, o?: Record<string, unknown>) => InstanciaWllama;
 
 /**
+ * ── OS RASCUNHOS DA ESPECULATIVA, AO VIVO ───────────────────────────────
+ *
+ * O dono do jogo quis VER os rascunhos antes de o alvo entregar a fala. O que
+ * o llama.cpp emite não é o texto dos rascunhos — ele não loga os tokens
+ * rascunhados — e sim quantos de cada rodada sobreviveram à conferência:
+ *
+ *     slot | accepted 3/4 draft tokens
+ *     slot | draft acceptance = 0.60000 (12 accepted / 20 generated)
+ *
+ * Que é o sinal que decide a especulativa. Uma sequência como `4/4 · 0/4 · 3/4`
+ * conta a história inteira: onde o rascunhador acertou a frase e onde o alvo
+ * jogou tudo fora.
+ *
+ * Vem por `suppressNativeLog: false` mais um logger que filtra — a sala não vai
+ * despejar o log inteiro do llama.cpp na tela.
+ */
+const RE_RODADA = /accepted\s+(\d+)\s*\/\s*(\d+)\s+draft tokens/;
+const RE_TAXA = /draft acceptance = ([0-9.]+).*?\((\d+) accepted \/\s*(\d+) generated\)/;
+
+/**
  * Prazo para o tradutor, porque `.catch` não pega TRAVAMENTO — só rejeição.
  *
  * Descoberto rodando: numa rede sem acesso ao CDN do Bergamot, a caixa de
@@ -287,6 +307,10 @@ export default function Floor10VelocidadeSala() {
      * que apaga a resposta anterior da tela. Sem registro, comparar viraria
      * memória, que foi exatamente como eu já tirei uma conclusão errada aqui.
      */
+    /** O `<think>` da última pergunta, mostrado à parte da fala. */
+    const [pensamento, setPensamento] = useState('');
+    const [rodadas, setRodadas] = useState<{ ok: number; de: number }[]>([]);
+    const [taxa, setTaxa] = useState<{ pct: number; ok: number; de: number } | null>(null);
     const [conversa, setConversa] = useState<{
         q: string; a: string; ms: number; espec: boolean; pensa: boolean; orc: number;
     }[]>([]);
@@ -325,7 +349,19 @@ export default function Floor10VelocidadeSala() {
                 setMotorPronto(false);
             }
             const mod = await import(/* @vite-ignore */ WLLAMA_ESM) as { Wllama: CtorWllama };
-            const w = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
+            // `suppressNativeLog: false` para as linhas da especulativa chegarem;
+            // o logger filtra, senão a sala vira despejo do log do llama.cpp.
+            const pesca = (...a: unknown[]) => {
+                const linha = a.map(String).join(' ');
+                const m = linha.match(RE_RODADA);
+                if (m) setRodadas((r) => [...r, { ok: +m[1], de: +m[2] }]);
+                const t = linha.match(RE_TAXA);
+                if (t) setTaxa({ pct: +t[1] * 100, ok: +t[2], de: +t[3] });
+            };
+            const w = new mod.Wllama({ default: WASM }, {
+                suppressNativeLog: false,
+                logger: { debug: pesca, log: pesca, warn: pesca, error: pesca },
+            });
 
             let blobDraft: Blob | null = null;
             if (espec) {
@@ -407,7 +443,7 @@ export default function Floor10VelocidadeSala() {
         const w = motorRef.current;
         if (!w || !pergunta.trim() || rodando.current) return;
         rodando.current = true; setOcupado(true);
-        setResposta('…');
+        setResposta('…'); setRodadas([]); setTaxa(null); setPensamento('');
         try {
             // pt-BR → inglês → modelo → inglês → pt-BR, o mesmo caminho do jogo.
             // O `desabreviar` vem antes porque o Bergamot tropeça em "vc" e
@@ -443,8 +479,8 @@ export default function Floor10VelocidadeSala() {
                 + `\n\n— ${(r.ms / 1000).toFixed(1)} s`
                 + (emPt && fala ? `\n— em inglês: ${fala}` : '')
                 + (emIngles ? '' : '\n— sem tradutor: a pergunta foi como você escreveu')
-                + (pensou ? `\n\n— pensou ${pensou.length} caracteres antes de falar:\n${pensou}` : ''),
             );
+            setPensamento(pensou);
         } catch (e) {
             setResposta(`falhou: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
@@ -609,6 +645,49 @@ export default function Floor10VelocidadeSala() {
                     </div>
                 )}
 
+                {(rodadas.length > 0 || taxa) && (
+                    <div style={CAIXA}>
+                        <strong>Os rascunhos da especulativa</strong>
+                        <div style={{ color: '#888', fontSize: 13, margin: '4px 0 8px' }}>
+                            Cada quadrinho é uma rodada: o rascunhador chutou alguns tokens à
+                            frente e o SmolLM3 conferiu. <span style={{ color: '#7fe0b0' }}>Verde
+                            </span> é chute aproveitado, <span style={{ color: '#e88' }}>vermelho
+                            </span> é chute jogado fora. O llama.cpp não emite o TEXTO dos
+                            rascunhos, só quantos sobreviveram — mas é esse número que decide se
+                            ela paga.
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 8 }}>
+                            {rodadas.map((r, i) => (
+                                <span key={i} title={`rodada ${i + 1}: ${r.ok} de ${r.de}`}
+                                    style={{
+                                        fontSize: 11, padding: '1px 5px', borderRadius: 3,
+                                        background: r.ok === 0 ? '#3a1d1d'
+                                            : r.ok === r.de ? '#1d3a2a' : '#3a341d',
+                                        color: r.ok === 0 ? '#e88'
+                                            : r.ok === r.de ? '#7fe0b0' : '#e8c88a',
+                                    }}>
+                                    {r.ok}/{r.de}
+                                </span>
+                            ))}
+                        </div>
+                        {taxa && (
+                            <div>
+                                aceite: <strong style={{ color: '#7fe0b0' }}>
+                                    {taxa.pct.toFixed(1)}%
+                                </strong>{' '}
+                                <span style={{ color: '#888' }}>
+                                    ({taxa.ok} aproveitados de {taxa.de} rascunhados)
+                                </span>
+                            </div>
+                        )}
+                        {!taxa && rodadas.length === 0 && (
+                            <div style={{ color: '#888' }}>
+                                nenhum rascunho ainda — a especulativa está desligada?
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {conversa.length > 1 && (
                     <div style={CAIXA}>
                         <strong>As respostas desta sessão</strong>
@@ -740,6 +819,21 @@ export default function Floor10VelocidadeSala() {
                             <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
                                 {resposta}
                             </div>
+                        )}
+                        {pensamento && (
+                            <details open style={{ marginTop: 10 }}>
+                                <summary style={{ cursor: 'pointer', color: '#e8c88a' }}>
+                                    o que ele pensou antes de falar
+                                    {' '}({pensamento.length} caracteres)
+                                </summary>
+                                <div style={{
+                                    marginTop: 6, padding: 8, background: '#0e0e0e',
+                                    border: '1px solid #2a2a2a', borderRadius: 6,
+                                    color: '#999', whiteSpace: 'pre-wrap', fontSize: 13,
+                                }}>
+                                    {pensamento}
+                                </div>
+                            </details>
                         )}
                     </div>
                 )}
