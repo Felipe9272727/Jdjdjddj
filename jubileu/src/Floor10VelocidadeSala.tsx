@@ -47,6 +47,16 @@ const MODELOS = {
 } as const;
 type ChaveModelo = keyof typeof MODELOS;
 
+/**
+ * Override de bancada, como o `__rascunhadorModelUrl` que o rascunhador já
+ * tinha. Existe para a sonda conferir a TELA — barra de progresso, caixa de
+ * pergunta, tabela — sem baixar 1,9 GB a cada verificação. A barra sumiu uma
+ * vez sem ninguém notar justamente porque conferir era caro demais.
+ */
+function urlDoModelo(k: ChaveModelo): string {
+    return (globalThis as { __velocidadeModelUrl?: string }).__velocidadeModelUrl ?? MODELOS[k].url;
+}
+
 const DRAFT = {
     rotulo: 'draft Llama-3.2-200M',
     url: 'https://huggingface.co/Felipe0282829273/nilo-draft-200m/resolve/main/draft-200m-q4.gguf',
@@ -82,6 +92,22 @@ type InstanciaWllama = {
     exit?(): Promise<void>;
 };
 type CtorWllama = new (p: Record<string, string>, o?: Record<string, unknown>) => InstanciaWllama;
+
+/**
+ * Prazo para o tradutor, porque `.catch` não pega TRAVAMENTO — só rejeição.
+ *
+ * Descoberto rodando: numa rede sem acesso ao CDN do Bergamot, a caixa de
+ * pergunta ficava em "…" para sempre, sem erro e sem resposta. Uma caixa que
+ * não responde nunca é pior que uma que responde em inglês.
+ */
+function comPrazoCurto<T>(p: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([
+        p.catch(() => null),
+        new Promise<null>((r) => setTimeout(() => r(null), ms)),
+    ]);
+}
+
+const PRAZO_TRADUTOR_MS = 20_000;
 
 async function rodada(w: InstanciaWllama, texto: string, n: number,
     cache: boolean, temp = 0): Promise<{ ms: number; txt: string }> {
@@ -124,8 +150,19 @@ export default function Floor10VelocidadeSala() {
     const [medida, setMedida] = useState<Medida | null>(null);
     const [erro, setErro] = useState('');
     const [pergunta, setPergunta] = useState('');
+    /** `useRef` não redesenha, e a caixa de perguntar depende disto aparecer. */
+    const [motorPronto, setMotorPronto] = useState(false);
     const [resposta, setResposta] = useState('');
     const rodando = useRef(false);
+    /**
+     * O MESMO estado do `rodando`, mas visível ao render.
+     *
+     * `useRef` não redesenha, então o botão de perguntar ficava habilitado
+     * durante a medição, e clicar nele batia no guarda `rodando.current` e
+     * voltava EM SILÊNCIO. Clique que não faz nada e não explica é o pior
+     * defeito possível numa bancada — é indistinguível de estar quebrada.
+     */
+    const [ocupado, setOcupado] = useState(false);
     /** O motor fica de pé depois de medir, para as perguntas livres. */
     const motorRef = useRef<InstanciaWllama | null>(null);
 
@@ -133,7 +170,7 @@ export default function Floor10VelocidadeSala() {
 
     const medir = useCallback(async () => {
         if (rodando.current) return;
-        rodando.current = true;
+        rodando.current = true; setOcupado(true);
         setErro(''); setMedida(null); setResposta('');
         try {
             const M = MODELOS[modelo];
@@ -158,11 +195,13 @@ export default function Floor10VelocidadeSala() {
             // testa. Falhar aqui não derruba a medição: o número de tok/s não
             // depende dele.
             setFase('preparando o tradutor Bergamot');
-            await prepararTradutor((b, t) => { setFeitos(b); setTotal(t); }).catch(() => null);
+            await comPrazoCurto(
+                prepararTradutor((b, t) => { setFeitos(b); setTotal(t); }), 90_000,
+            );
 
             setFase(`preparando ${M.rotulo}`);
             const t0 = performance.now();
-            await w.loadModelFromUrl(M.url, {
+            await w.loadModelFromUrl(urlDoModelo(modelo), {
                 n_ctx: 2048, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
                 jinja: true, reasoning: false, warmup: false,
                 progressCallback: ({ loaded, total }: { loaded?: number; total?: number }) => {
@@ -178,6 +217,8 @@ export default function Floor10VelocidadeSala() {
             motorRef.current = w;
 
             setFase('medindo');
+            setFeitos(0); setTotal(0);
+            setMotorPronto(true);
             await rodada(w, PERGUNTA, 4, true);            // aquece e enche o cache
             const curto = await rodada(w, PERGUNTA, CURTO, true);
             const longo = await rodada(w, PERGUNTA, LONGO, true);
@@ -196,7 +237,7 @@ export default function Floor10VelocidadeSala() {
             setErro(e instanceof Error ? e.message : String(e));
             setFase('falhou');
         } finally {
-            rodando.current = false;
+            rodando.current = false; setOcupado(false);
         }
     }, [modelo, espec]);
 
@@ -213,26 +254,33 @@ export default function Floor10VelocidadeSala() {
     const perguntar = useCallback(async () => {
         const w = motorRef.current;
         if (!w || !pergunta.trim() || rodando.current) return;
-        rodando.current = true;
+        rodando.current = true; setOcupado(true);
         setResposta('…');
         try {
             // pt-BR → inglês → modelo → inglês → pt-BR, o mesmo caminho do jogo.
             // O `desabreviar` vem antes porque o Bergamot tropeça em "vc" e
             // "pq", e quem escreve as perguntas escreve assim.
             setFase('traduzindo a pergunta');
-            const emIngles = await traduzirPerguntaParaIngles(desabreviar(pergunta.trim()));
-            if (!emIngles) throw new Error('o tradutor não subiu');
+            const cru = desabreviar(pergunta.trim());
+            // Sem `throw` se o tradutor não subir: manda a pergunta como está.
+            // O SmolLM3 entende português, e uma resposta em inglês é MUITO
+            // melhor que um erro — quem está aqui quer conversar com o Nilo,
+            // não auditar o Bergamot. O rótulo diz o que aconteceu.
+            const emIngles = await comPrazoCurto(traduzirPerguntaParaIngles(cru), PRAZO_TRADUTOR_MS);
             setFase('o Nilo está pensando');
-            const r = await rodada(w, emIngles, 80, true, 0.7);
+            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7);
+            const fala = r.txt.trim();
             setFase('traduzindo a fala');
-            const emPt = await traduzirParaPtBr(r.txt.trim());
+            const emPt = emIngles
+                ? await comPrazoCurto(traduzirParaPtBr(fala), PRAZO_TRADUTOR_MS) : null;
             setFase('pronto');
-            setResposta(`${emPt || r.txt.trim()}\n\n— ${(r.ms / 1000).toFixed(1)} s`
-                + `${emPt ? `\n— em inglês: ${r.txt.trim()}` : ''}`);
+            setResposta(`${emPt || fala}\n\n— ${(r.ms / 1000).toFixed(1)} s`
+                + (emPt ? `\n— em inglês: ${fala}` : '')
+                + (emIngles ? '' : '\n— sem tradutor: a pergunta foi como você escreveu'));
         } catch (e) {
             setResposta(`falhou: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
-            rodando.current = false;
+            rodando.current = false; setOcupado(false);
         }
     }, [pergunta]);
 
@@ -271,7 +319,7 @@ export default function Floor10VelocidadeSala() {
                         {(Object.keys(MODELOS) as ChaveModelo[]).map((k) => (
                             <label key={k} style={{ display: 'block', marginBottom: 6, cursor: 'pointer' }}>
                                 <input type="radio" checked={modelo === k} onChange={() => setModelo(k)}
-                                    disabled={fase !== 'parado' && fase !== 'pronto' && fase !== 'falhou'} />
+                                    disabled={ocupado} />
                                 {' '}{MODELOS[k].rotulo}{' '}
                                 <span style={{ color: '#666' }}>
                                     · {formatBytes(MODELOS[k].bytes)} · {MODELOS[k].nota}
@@ -279,7 +327,7 @@ export default function Floor10VelocidadeSala() {
                             </label>
                         ))}
                         <label style={{ display: 'block', marginTop: 10, cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed' }}>
-                            <input type="checkbox" checked={espec} disabled={!MOTOR_LOCAL}
+                            <input type="checkbox" checked={espec} disabled={!MOTOR_LOCAL || ocupado}
                                 onChange={(e) => setEspec(e.target.checked)} />
                             {' '}especulativa com o draft de 200M{' '}
                             <span style={{ color: '#666' }}>· +{formatBytes(DRAFT.bytes)}</span>
@@ -289,8 +337,7 @@ export default function Floor10VelocidadeSala() {
                     <div style={{ color: '#888', marginTop: 10 }}>
                         vai baixar {formatBytes(bytesPrecisos)}
                     </div>
-                    <button onClick={medir}
-                        disabled={fase !== 'parado' && fase !== 'pronto' && fase !== 'falhou'}
+                    <button onClick={medir} disabled={ocupado}
                         style={{
                             marginTop: 10, padding: '8px 14px', background: '#1d3a2a',
                             color: '#7fe0b0', border: '1px solid #2f6b4a', borderRadius: 6,
@@ -303,7 +350,12 @@ export default function Floor10VelocidadeSala() {
                 {fase !== 'parado' && (
                     <div style={CAIXA}>
                         <strong>{fase}</strong>
-                        {total > 0 && fase.startsWith('baixando') && (
+                        {/* A condição é o PROGRESSO existir, e não o texto da fase
+                            começar com "baixando". Eu renomeei as fases para
+                            "preparando…" e a barra sumiu sem nenhum erro — o
+                            estado casado com uma string é uma armadilha, e caí
+                            nela. Enquanto houver bytes andando, a barra aparece. */}
+                        {total > 0 && (
                             <>
                                 <div style={{ color: '#888', marginTop: 4 }}>
                                     {formatBytes(feitos)} de {formatBytes(total)}
@@ -349,7 +401,7 @@ export default function Floor10VelocidadeSala() {
                     </div>
                 )}
 
-                {medida && (
+                {motorPronto && (
                     <div style={CAIXA}>
                         <strong>Pergunte você</strong>
                         <div style={{ color: '#888', fontSize: 13, margin: '4px 0 8px' }}>
@@ -366,13 +418,13 @@ export default function Floor10VelocidadeSala() {
                                 border: '1px solid #333', borderRadius: 6, padding: 8,
                                 font: 'inherit', resize: 'vertical',
                             }} />
-                        <button onClick={perguntar} disabled={!pergunta.trim()}
+                        <button onClick={perguntar} disabled={ocupado || !pergunta.trim()}
                             style={{
                                 marginTop: 8, padding: '8px 14px', background: '#1d3a2a',
                                 color: '#7fe0b0', border: '1px solid #2f6b4a', borderRadius: 6,
                                 cursor: 'pointer', font: 'inherit',
                             }}>
-                            perguntar
+                            {ocupado ? 'espere a medição terminar…' : 'perguntar'}
                         </button>
                         {resposta && (
                             <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
