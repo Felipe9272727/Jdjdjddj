@@ -816,3 +816,120 @@ Caçar aceitação, não velocidade de rascunhador:
 2. auto-especulativa: o próprio alvo em quantização mais baixa como rascunho —
    aceitação alta por construção, mas o tamanho precisa caber no teto;
 3. n-grama continua sendo o único que não custa RAM.
+
+---
+
+## O estado da arte da especulativa (pesquisa + medição, ago/2026)
+
+A conta da seção anterior pede **aceitação ≥ 50%**. Isso define a busca: não é
+achar rascunhador mais rápido, é achar rascunho que o alvo *concorde*. Existem
+quatro famílias, e só duas têm caminho até o navegador.
+
+### 1. Rascunhador separado (`draft-simple`) — o que eu vinha tentando
+
+Um segundo modelo pequeno, vocabulário compatível. É o que dá 27% com o
+docling-258M contra o granite. O problema é estrutural: dois modelos treinados
+separadamente não concordam, por melhor que o pequeno seja. Custa ainda um
+download extra e RAM extra.
+
+### 2. EAGLE-3 — a melhor aceitação que existe, e inalcançável daqui
+
+Uma cabeça de uma camada só que lê as ativações **internas** do alvo (baixo,
+médio e alto nível fundidos) em vez de só o token anterior. Aceitação de 60–88%,
+3–4× de throughput. Treina em 2–4 h em 4×H100 com a saída do próprio alvo como
+supervisão.
+
+Mas: **não existe caminho GGUF**. Busquei no Hub por `eagle3 GGUF` e o resultado
+é vazio. EAGLE-3 vive em vLLM e SGLang. O `--spec-type draft-eagle3` está
+compilado no wasm, mas não há peso para carregar nele. Fechado por enquanto.
+
+### 3. MTP — especulativa embutida no modelo. **É o caminho.**
+
+O modelo é pré-treinado com um objetivo auxiliar de prever N tokens à frente, e
+a cabeça extra viaja **dentro do mesmo GGUF**. Consequências, todas boas para o
+teto do aparelho:
+
+- **zero download extra** — não há segundo arquivo;
+- **zero RAM extra** de um segundo modelo;
+- **zero problema de vocabulário** — é o mesmo tokenizador, por construção;
+- aceitação alta porque a cabeça foi treinada contra este alvo exato.
+
+Não dá para adicionar depois: é objetivo de pré-treino, não de fine-tune. Ou o
+modelo nasceu com MTP, ou não tem.
+
+Nativos: Qwen3.5 e 3.6 (inclusive as MoE A3B), DeepSeek V3/V4, Gemma 4. **Não**
+têm: Llama 3 e 4, Mistral, Gemma 2/3 — e o granite também não.
+
+Em tamanho de celular (unsloth, GGUF, Q4_K_M):
+
+| modelo | tamanho | nota |
+| --- | --- | --- |
+| Qwen3.5-0.8B-MTP | 550 MB | |
+| **Qwen3.5-2B-MTP** | **1,33 GB** | menor que o granite 7B de hoje |
+| Qwen3.5-4B-MTP (UD-Q2_K_XL) | 2,12 GB | abaixo da parede de 2 GiB, arquivo único |
+
+O wasm implantado tem `draft-mtp` **e** a arquitetura `qwen35` compilados
+(conferido com grep no binário), então o caminho existe no navegador.
+
+### O que eu medi do MTP (x86, 4 núcleos, Qwen3.5-2B Q4_K_M, 3 repetições)
+
+| configuração | t/s | aceite | vs controle |
+| --- | --- | --- | --- |
+| controle (`--spec-draft-n-max 0`) | 14,261 | — | — |
+| MTP n-max 1 | 14,604 | 77,2% | +2,4% |
+| **MTP n-max 2** | **14,915** | **70,4%** | **+4,6%** |
+| MTP n-max 3 | 11,197 | 36,5% | **−21%** |
+
+A aceitação é a prometida: **70–77%**, contra 27% do rascunhador separado. É a
+única coisa que já entregou o número que a conta pedia.
+
+**n-max 3 despenca.** A cabeça é treinada para uma profundidade limitada; além
+dela ela chuta, a aceitação cai pela metade e o lote maior vira prejuízo.
+`n-max 2` e ponto — é o que a documentação do llama.cpp também usa no exemplo.
+
+### Por que 2× na GPU e só 5% aqui
+
+Os números de 1,7–2× que circulam são todos de GPU (Qwen3.6-27B numa RTX 3090:
+38 → 65 t/s). Na CPU a cabeça MTP **não é de graça**: fazendo a conta reversa a
+partir da aceitação e do ganho medidos, ela custa ~0,31× de um forward completo
+por token rascunhado. O motivo é a projeção de saída sobre um vocabulário de
+150k — numa GPU isso é troco, numa CPU limitada por banda é uma fatia grande.
+
+A curva de lote do Qwen 2B também é pior que a do granite:
+
+| lote | 2 | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- | --- |
+| custo | 1,59× | 1,47× | 1,45× | 1,74× | 2,53× |
+
+Aqui o lote **2 é o pior negócio** (1,59×), ao contrário do granite, onde o
+degrau estava no 4. A curva é por modelo *e* por hardware — não dá para herdar.
+
+### 4. n-grama — grátis em RAM, e não serve para português
+
+Testei numa tarefa de reescrita, que é o trabalho real do revisor e onde quase
+todo token da saída já existe na entrada:
+
+| | t/s |
+| --- | --- |
+| controle | 9,968 |
+| ngram-simple n-max 8 | 9,891 |
+| ngram-simple n-max 16 | 10,076 |
+| ngram-mod (config da doc) | 10,137 |
+
+Tudo dentro do ruído. E o motivo é específico do português: corrigir `nao` para
+`não` **troca o token**. Numa correção de acentuação quase toda palavra muda, e
+o n-grama, que só sabe copiar trechos idênticos, não tem o que copiar. Ele
+ganharia em código e em JSON, não em prosa acentuada.
+
+### Conclusão
+
+Das quatro famílias, só o **MTP** entregou aceitação suficiente, e ele exige
+trocar de modelo — o granite não tem MTP e não dá para acrescentar. O ganho da
+especulativa em si, na CPU, é modesto (+4,6%); o ganho grande estaria em trocar
+o alvo, não em rascunhar melhor.
+
+Antes de trocar qualquer coisa, o Qwen3.5-2B Q4_K_M **perde em qualidade** para
+o granite em português — pedi uma resposta do Nilo e ele escreveu "o vidro aqui
+é feito de vidro de vidro" e contradisse a premissa. O candidato honesto para
+medir é o **Qwen3.5-4B-MTP em UD-Q2_K_XL (2,12 GB)**, que fica no tamanho do
+granite 7B de hoje. Isso ainda não foi medido.
