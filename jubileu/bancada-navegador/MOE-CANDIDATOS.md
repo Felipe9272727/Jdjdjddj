@@ -92,3 +92,39 @@ Medido (`nilo-pt.sh`), mesmo perfil de qualidade do inglês:
 
 Custa ~17% mais tokens (medido em `tok-pt-en.sh`), e economiza DUAS traduções
 por turno mais os 51 MB do Bergamot.
+
+
+---
+
+## O LFM2.5-8B-A1B foi testado, e REPROVA
+
+Baixado o `UD-Q2_K_XL` da unsloth (2,93 GB) e medido contra o granite na mesma
+bancada. Perde nas duas pontas, sendo 13% maior:
+
+    modelo                       tamanho    prefill        geração
+    granite-4.0-h-tiny Q2_K ...  2,40 GiB   51,4 tok/s     16,5 tok/s
+    LFM2.5-8B-A1B Q2_K ........  2,72 GiB   37,4 tok/s     15,9 tok/s
+
+**E ele SEMPRE PENSA.** O template não tem `enable_thinking` nem `/no_think` —
+só um `preserve_thinking`, que é para o histórico. Com 70 tokens de teto, todas
+as cinco respostas foram bloco de `<think>` e a fala nunca saiu. É o mesmo
+defeito que reprovou o LFM2.5-1.2B-Thinking neste projeto.
+
+Dá para forçar entregando o bloco já fechado no prompt (`<think>\n\n</think>`),
+e aí a fala sai — mas o que sai reprova:
+
+    ✗ "I'm not a person, I'm a character, a man who's been stuck here."
+    ✗ (vazio)
+    ~ "I cannot take you down; the 10th floor is a grey room with a grate
+       floor, no corridor, no window, and the elevator does not obey."
+    ✗ "I've been here since the last update, and the clock has never stopped."
+
+**Duas quebras duras** — nega ser humano ("I'm a character") e fala como máquina
+("since the last update") —, uma vazia, e a que acerta é papagaio do system
+prompt, defeito que já reprovou o Nano_Imp e o MiniCPM5 aqui.
+
+O granite, na mesma régua, deu 4 de 5 limpas e passou na armadilha do corredor.
+
+**Veredito: o granite-4.0-h-tiny fica.** Não vale gastar 2,93 GB de franquia
+para instalar um modelo mais lento, maior, que precisa de remendo no prompt para
+não pensar, e que se apresenta como personagem.
