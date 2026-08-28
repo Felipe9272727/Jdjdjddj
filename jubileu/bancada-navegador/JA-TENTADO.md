@@ -717,3 +717,102 @@ modelo — zero RAM extra, que é a única coisa que cabe no teto.
 
 E mesmo que 1 funcione, a RAM continua de pé: SmolLM3 1,92 GB + draft é mais que
 o teto de 1,92 GB. Fechar exigiria o SmolLM3 em Q3.
+
+---
+
+## Os 75% de lentidão da especulativa nunca existiram (medição errada, minha)
+
+O dono do jogo desconfiou: *"vc deve estar fazendo algo de errado, especulativa
+não diminuí a velocidade"*. Ele estava certo. Eram **quatro** erros empilhados,
+todos meus. Registrados aqui para ninguém repetir.
+
+### 1. `total time` não é o tempo de geração
+
+`llama_context::perf_reset()` zera `t_start_us` no fim de
+`common_init_from_params` — ou seja, depois do warmup do **alvo**. Em
+`speculative-simple` o **rascunhador é carregado depois disso**. Então o
+`total time` da run especulativa engole a carga do rascunhador, e a run base
+não tem rascunhador para carregar. Viciado por construção.
+
+A métrica honesta é a linha `decoded N tokens in T seconds`: o `t_dec_start`
+fica depois dos dois modelos carregados e do prompt processado.
+
+### 2. `prompt eval time` também mente na especulativa
+
+Um dump meu mostrava `prompt eval time = 5319 ms / 101 tokens` para um prompt
+de **17 tokens**. Não é bug: o llama.cpp contabiliza como `n_p_eval` **todo**
+lote com mais de um token. Os lotes de verificação da especulativa entram ali.
+Pelo mesmo motivo `eval time / N runs` conta *chamadas* de decode, não tokens.
+Nenhum dos dois serve para comparar especulativa contra base.
+
+### 3. O controle era outro binário
+
+Eu comparava contra `llama-bench` (10,64 t/s) o que media com
+`speculative-simple` (9,85 t/s) e creditava a diferença à especulativa. Mas o
+`llama-bench` roda um caminho sem cadeia de samplers e sem detokenização: o
+controle honesto é o **mesmo binário** com `--spec-draft-n-max 0`, que dá
+**9,25 t/s**. Os 15% que eu vinha chamando de "custo da especulativa" eram
+diferença de binário.
+
+### 4. `--spec-type` é obrigatório neste llama.cpp
+
+`-md draft.gguf` sozinho **não liga nada**: `--spec-type` tem default `none` e
+a inicialização morre com `no implementations specified for speculative
+decoding`. Metade das minhas runs antigas pode ter medido isso.
+
+### O resultado honesto (x86, 4 núcleos, granite-4.0-micro Q4_0)
+
+| configuração | t/s | vs controle |
+| --- | --- | --- |
+| controle (`--spec-draft-n-max 0`) | 9,247 | — |
+| draft-simple 258M, n-max 3, p-min 0,75 | 8,982 | −3% |
+| ngram-map-k, n-max 3 | 9,155 | −1% |
+
+Três repetições cada, `-n 256`. **Empate**, não 75% de lentidão. Com uma
+repetição só eu tinha "medido" +9,3% — ruído; a variância entre runs é ±5%.
+
+### A curva de lote, que é quem decide
+
+`llama-bench -p 1,2,3,4,5,6,8` no alvo, custo em unidades de 1 token solto:
+
+| lote | 1 | 2 | 3 | **4** | 5 | 6 | 8 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| custo | 1,00× | 1,39× | 1,60× | **1,10×** | 1,62× | 1,85× | 1,89× |
+
+O lote 4 é uma descontinuidade real: confere 4 tokens pelo preço de 1,1. É o
+único ponto doce — 3, 5 e 6 são caros. Logo **n-max 3 e nada mais**.
+
+Com o custo do rascunhador de 258M medido em 0,054× por token:
+
+    aceleração = E[tokens da rodada] / (custo(n+1) + n × 0,054)
+
+| aceitação | 27% | 40% | 50% | 60% | 70% | 80% |
+| --- | --- | --- | --- | --- | --- | --- |
+| n-max 3 | 1,08× | 1,29× | 1,48× | 1,72× | 2,00× | 2,34× |
+
+O modelo prevê 1,08× a 27% de aceitação; medi empate. Bate.
+
+### A conclusão que muda a caça
+
+**A especulativa não está quebrada. O rascunhador está.** O docling-258M só
+concorda com o granite 27% das vezes quando forçado a rascunhar 3 tokens (os
+"52%" de antes eram com `p-min` cortando o rascunho no primeiro token, o que
+joga fora o desconto do lote 4 e paga o lote 2 a 1,39×).
+
+A aritmética diz exatamente do que precisamos: **aceitação ≥ 50%** com n-max 3.
+Aí são 1,48×. A 70%, 2×. Abaixo de 40% não vale.
+
+E o `ganho do lote` que a `?velocidade` mostra **não responde essa pergunta**:
+ele é `geracaoMs / prefillMs`, o ganho no lote de **512**. A especulativa roda
+lote 4. Neste x86 o ganho a 512 é enorme e o ganho a 4 é 3,63× — e mesmo assim
+a especulativa empatou, porque quem travou foi a aceitação.
+
+### Onde continuar
+
+Caçar aceitação, não velocidade de rascunhador:
+
+1. rascunhador **da própria família** do alvo (destilado da saída do granite),
+   que é o que faz a aceitação subir de 27% para 70%+;
+2. auto-especulativa: o próprio alvo em quantização mais baixa como rascunho —
+   aceitação alta por construção, mas o tamanho precisa caber no teto;
+3. n-grama continua sendo o único que não custa RAM.
