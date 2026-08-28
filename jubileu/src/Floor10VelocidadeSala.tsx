@@ -132,12 +132,33 @@ function turnoComDirecao(texto: string, direcao: string): string {
     return d ? `What you know that matters here: ${d}\n\n${texto}` : texto;
 }
 
+/**
+ * ── O SmolLM3 PENSA POR PADRÃO, E ISSO CUSTA O TURNO INTEIRO ────────────
+ *
+ * O template de conversa dele traz, literalmente:
+ *
+ *     {%- if enable_thinking is not defined -%}
+ *       {%- set enable_thinking = true -%}
+ *
+ * Ou seja: quem não disser nada recebe `/think`, e o modelo escreve um bloco
+ * de raciocínio inteiro antes da fala. São centenas de tokens que ninguém lê,
+ * e token é a unidade de tempo aqui.
+ *
+ * É a explicação para o SmolLM3 ser "extremamente lento" nas primeiras versões
+ * do jogo, antes do pipeline: ninguém passava o parâmetro. O jogo de hoje já
+ * passa (`floor10Rascunhador.ts`), e esta sala passou a poder medir os dois
+ * lados — porque a diferença é grande demais para ficar escondida.
+ *
+ * O português custa ~17% mais tokens que o inglês neste tokenizador (medido).
+ * Real, mas 17% não explica um turno de 140 s. O pensamento explica.
+ */
 async function rodada(w: InstanciaWllama, texto: string, n: number,
-    cache: boolean, temp = 0, direcao = ''): Promise<{ ms: number; txt: string }> {
+    cache: boolean, temp = 0, direcao = '', pensa = false): Promise<{ ms: number; txt: string }> {
     const t = performance.now();
     const res = await w.createChatCompletion({
         messages: [{ role: 'system', content: PERSONA },
             { role: 'user', content: turnoComDirecao(texto, direcao) }],
+        chat_template_kwargs: { enable_thinking: pensa },
         n_predict: n, temp, cache_prompt: cache, ignore_eos: temp === 0,
     }) as { choices?: { message?: { content?: string } }[] };
     return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
@@ -168,6 +189,7 @@ type Gerente = {
 export default function Floor10VelocidadeSala() {
     const [modelo, setModelo] = useState<ChaveModelo>('q4km');
     const [espec, setEspec] = useState(false);
+    const [pensa, setPensa] = useState(false);
     const [fase, setFase] = useState('parado');
     const [feitos, setFeitos] = useState(0);
     const [total, setTotal] = useState(0);
@@ -180,7 +202,7 @@ export default function Floor10VelocidadeSala() {
      * configuração que o produziu.
      */
     const [historico, setHistorico] = useState<(Medida & {
-        rotulo: string; espec: boolean;
+        rotulo: string; espec: boolean; pensa: boolean;
     })[]>([]);
     const [erro, setErro] = useState('');
     const [pergunta, setPergunta] = useState('');
@@ -267,12 +289,12 @@ export default function Floor10VelocidadeSala() {
             setFase('medindo');
             setFeitos(0); setTotal(0);
             setMotorPronto(true);
-            await rodada(w, PERGUNTA, 4, true);            // aquece e enche o cache
-            const curto = await rodada(w, PERGUNTA, CURTO, true);
-            const longo = await rodada(w, PERGUNTA, LONGO, true);
+            await rodada(w, PERGUNTA, 4, true, 0, '', pensa);            // aquece e enche o cache
+            const curto = await rodada(w, PERGUNTA, CURTO, true, 0, '', pensa);
+            const longo = await rodada(w, PERGUNTA, LONGO, true, 0, '', pensa);
             // Cache do prompt desligado: paga o prompt inteiro de novo, e a
             // diferença contra o quente é o custo do prefill.
-            const frio = await rodada(w, PERGUNTA, CURTO, false);
+            const frio = await rodada(w, PERGUNTA, CURTO, false, 0, '', pensa);
 
             const m: Medida = {
                 carga,
@@ -281,7 +303,7 @@ export default function Floor10VelocidadeSala() {
                 fala: longo.txt.trim(),
             };
             setMedida(m);
-            setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec }]);
+            setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec, pensa }]);
             setFase('pronto');
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
@@ -289,7 +311,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [modelo, espec]);
+    }, [modelo, espec, pensa]);
 
     /**
      * Pergunta livre, no MESMO motor que acabou de ser medido.
@@ -318,7 +340,7 @@ export default function Floor10VelocidadeSala() {
             // não auditar o Bergamot. O rótulo diz o que aconteceu.
             const emIngles = await comPrazoCurto(traduzirPerguntaParaIngles(cru), PRAZO_TRADUTOR_MS);
             setFase('o Nilo está pensando');
-            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7, direcao);
+            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7, direcao, pensa);
             const fala = r.txt.trim();
             setFase('traduzindo a fala');
             const emPt = emIngles
@@ -332,7 +354,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [pergunta, direcao]);
+    }, [pergunta, direcao, pensa]);
 
     const bytesPrecisos = MODELOS[modelo].bytes + FLOOR10_TRADUTOR_BYTES
         + (espec ? DRAFT.bytes : 0);
@@ -376,6 +398,15 @@ export default function Floor10VelocidadeSala() {
                                 </span>
                             </label>
                         ))}
+                        <label style={{ display: 'block', marginTop: 10, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={pensa} disabled={ocupado}
+                                onChange={(e) => setPensa(e.target.checked)} />
+                            {' '}deixar ele PENSAR antes de responder{' '}
+                            <span style={{ color: '#666' }}>
+                                · o template do SmolLM3 liga isto por padrão, e é a suspeita
+                                para ele ter sido “extremamente lento” antes do pipeline
+                            </span>
+                        </label>
                         <label style={{ display: 'block', marginTop: 10, cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed' }}>
                             <input type="checkbox" checked={espec} disabled={!MOTOR_LOCAL || ocupado}
                                 onChange={(e) => setEspec(e.target.checked)} />
@@ -478,7 +509,7 @@ export default function Floor10VelocidadeSala() {
                             <table style={{ borderSpacing: '10px 4px', fontSize: 13 }}>
                                 <thead>
                                     <tr style={{ color: '#888' }}>
-                                        <td>#</td><td>modelo</td><td>espec.</td>
+                                        <td>#</td><td>modelo</td><td>espec.</td><td>pensa</td>
                                         <td>geração</td><td>prefill</td>
                                     </tr>
                                 </thead>
@@ -489,6 +520,9 @@ export default function Floor10VelocidadeSala() {
                                             <td>{h.rotulo.replace('SmolLM3-3B ', '')}</td>
                                             <td style={{ color: h.espec ? '#7fe0b0' : '#666' }}>
                                                 {h.espec ? 'LIGADA' : '—'}
+                                            </td>
+                                            <td style={{ color: h.pensa ? '#e8c88a' : '#666' }}>
+                                                {h.pensa ? 'SIM' : '—'}
                                             </td>
                                             <td style={{ color: '#7fe0b0' }}>
                                                 {(1000 / h.geracaoMs).toFixed(2)} tok/s
