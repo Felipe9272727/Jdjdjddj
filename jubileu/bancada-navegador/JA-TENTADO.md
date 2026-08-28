@@ -541,40 +541,40 @@ no aparelho. Com a conta de custo do dono do jogo:
 
 O SmolLM3 não vence por ser rápido: vence por não dar trabalho ao revisor.
 
-### A TESOURA ABRE NO ARM: 3,17× CONTRA 1,5× DO x86
+### O A/B DA ESPECULATIVA NO ARM — E POR QUE ELE AINDA NÃO VALE
 
-**Reabre a especulativa, e a condição de reabertura que eu mesmo escrevi foi
-cumprida.** Medido pelo dono do jogo, no aparelho dele, com `?velocidade`:
+Duas rodadas no aparelho do dono do jogo, pela sala `?velocidade`:
 
-    ganho do lote, bancada x86 ...... 1,50×
-    ganho do lote, aparelho ARM ..... 3,17×     mais que o DOBRO
+    COM especulativa ... carga 118,6 s · 474 ms/tok · 2,11 tok/s · lote 3,17×
+    SEM especulativa ... carga  22,0 s · 264 ms/tok · 3,79 tok/s · lote 1,88×
 
-    (aparelho: carga 118,6 s · geração 474 ms/tok, 2,11 tok/s
-     · prefill 150 ms/tok, 6,69 tok/s)
+Parece fechado — 44% mais lenta com a especulativa. **NÃO ESTÁ**, e por dois
+motivos que são defeitos meus, não do aparelho.
 
-E é esse número que decide tudo. O ponto de equilíbrio, com `n_max 4` e um draft
-de 198 MB contra um alvo de 1,92 GB (custo do draft ≈ 0,10× o do alvo por token):
+**1. A sala nunca descarregava o motor anterior.** Ela guarda a instância viva
+para a caixa de perguntas, e ao clicar "medir" de novo criava uma SEGUNDA
+instância com o modelo inteiro enquanto a primeira continuava de pé. Num
+celular são ~4 GB disputando RAM. A segunda medição de qualquer sessão estava
+contaminada, e as duas linhas acima são da mesma sessão. Corrigido: agora o
+motor anterior sai antes.
 
-    custo da rodada = 0,10·k + (k+1)/LOTE          tokens = 1 + aceite·k
+**2. O "ganho do lote" não mede lote quando a especulativa está ligada.** O
+termo de geração carrega o custo do draft, e a razão vira lixo. Foi em cima do
+3,17× — que é esse lixo — que eu anunciei, por uma mensagem, que a especulativa
+tinha reaberto no ARM. Não tinha: eu estava comparando a rodada COM especulativa
+do aparelho contra a rodada SEM da minha bancada. A sala agora se recusa a
+mostrar esse número quando ele não vale.
 
-    LOTE 1,50 → rodada 3,73 → precisa de 68% de aceite    inalcançável
-    LOTE 3,17 → rodada 1,98 → precisa de 25% de aceite    JÁ MEDIDO: 33–52%
+**O que dá para dizer com honestidade hoje:** o ganho de lote do ARM medido
+limpo é **1,88×**, contra 1,50× do x86 — melhor, mas na mesma ordem. Com 1,88×
+o ponto de equilíbrio pede 52% de aceite, e o medido vai de 33% a 52%: em cima
+da linha. A especulativa continua sem margem, mas o A/B que decidiria isso
+**ainda precisa ser refeito**, agora que a sala não empilha mais dois motores.
 
-**Eu condenei a especulativa medindo na máquina errada.** Toda a seção acima —
-a tesoura, os "100% de aceite e ainda perde", o veredito de morte — vale para
-x86 com AVX2, onde a geração já é rápida e o lote rende pouco a mais. No ARM do
-aparelho a razão é outra, e a conta vira.
-
-O dono do jogo insistiu três vezes que a especulativa podia funcionar. Ele
-estava certo, e eu fui trazendo número de x86 para dizer que não.
-
-**O QUE AINDA NÃO ESTÁ MEDIDO, e não pode ser confundido com o que está:** os
-33–52% de aceite são do llama.cpp NATIVO em x86, e o 3,17× é do aparelho.
-Cruzar os dois é PROJEÇÃO. A medição de verdade é o A/B na sala `?velocidade`
-— medir com a caixa da especulativa desmarcada e depois marcada, no mesmo
-aparelho e com o modelo já em cache. Sem isso, os 8–27 s por resposta que
-apareceram lá podem ser do `cache_prompt` (a persona fica quente entre
-perguntas) e não da especulativa.
+O que MUDOU de verdade no aparelho, e é grande, não tem nada a ver com
+especulativa: o turno caiu de ~140 s (o piso dele, "nunca menos") para 8–27 s na
+sala. Isso é prompt curto mais `cache_prompt` quente entre perguntas — a
+alavanca do prefill, que continua sendo a maior de todas.
 
 ### A TESOURA: por que o aceite de 100% ainda perde
 

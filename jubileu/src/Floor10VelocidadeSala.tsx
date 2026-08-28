@@ -148,6 +148,16 @@ export default function Floor10VelocidadeSala() {
     const [feitos, setFeitos] = useState(0);
     const [total, setTotal] = useState(0);
     const [medida, setMedida] = useState<Medida | null>(null);
+    /**
+     * As medições desta sessão, na ordem. Existe porque o A/B da especulativa
+     * é comparar dois números — e comparar de memória, rolando a tela entre um
+     * e outro, foi como eu troquei uma rodada COM pela rodada SEM e tirei a
+     * conclusão errada. Aqui os dois ficam lado a lado, cada um com a
+     * configuração que o produziu.
+     */
+    const [historico, setHistorico] = useState<(Medida & {
+        rotulo: string; espec: boolean;
+    })[]>([]);
     const [erro, setErro] = useState('');
     const [pergunta, setPergunta] = useState('');
     /** `useRef` não redesenha, e a caixa de perguntar depende disto aparecer. */
@@ -174,6 +184,19 @@ export default function Floor10VelocidadeSala() {
         setErro(''); setMedida(null); setResposta('');
         try {
             const M = MODELOS[modelo];
+            // ── O MOTOR ANTERIOR SAI PRIMEIRO ────────────────────────────
+            //
+            // A sala guarda a instância viva para a caixa de perguntas. Sem
+            // descarregar, o segundo "medir" subia um SEGUNDO modelo inteiro
+            // com o primeiro ainda de pé — ~4 GB disputando a RAM de um
+            // celular. Toda segunda medição de uma sessão saía contaminada, e
+            // foi assim que um A/B da especulativa virou conclusão errada.
+            if (motorRef.current) {
+                setFase('descarregando o motor anterior');
+                try { await motorRef.current.exit?.(); } catch { /* já foi */ }
+                motorRef.current = null;
+                setMotorPronto(false);
+            }
             const mod = await import(/* @vite-ignore */ WLLAMA_ESM) as { Wllama: CtorWllama };
             const w = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
 
@@ -226,12 +249,14 @@ export default function Floor10VelocidadeSala() {
             // diferença contra o quente é o custo do prefill.
             const frio = await rodada(w, PERGUNTA, CURTO, false);
 
-            setMedida({
+            const m: Medida = {
                 carga,
                 geracaoMs: (longo.ms - curto.ms) / (LONGO - CURTO),
                 prefillMs: (frio.ms - curto.ms) / 230,
                 fala: longo.txt.trim(),
-            });
+            };
+            setMedida(m);
+            setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec }]);
             setFase('pronto');
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
@@ -385,19 +410,95 @@ export default function Floor10VelocidadeSala() {
                                 <tr><td style={{ color: '#888' }}>prefill</td>
                                     <td>{medida.prefillMs.toFixed(0)} ms/token</td>
                                     <td style={{ color: '#7fe0b0' }}>{(1000 / medida.prefillMs).toFixed(2)} tok/s</td></tr>
+                                {/* Com a especulativa LIGADA este número não vale:
+                                    o termo de "geração" carrega o custo do draft,
+                                    e a razão deixa de medir lote. Eu cheguei a
+                                    anunciar uma reabertura da especulativa em
+                                    cima dele. Número que só vale às vezes tem de
+                                    dizer quando não vale. */}
                                 <tr><td style={{ color: '#888' }}>ganho do lote</td>
-                                    <td colSpan={2}>{(medida.geracaoMs / medida.prefillMs).toFixed(2)}×</td></tr>
+                                    <td colSpan={2}>
+                                        {espec
+                                            ? <span style={{ color: '#c88' }}>
+                                                não vale com a especulativa ligada
+                                              </span>
+                                            : `${(medida.geracaoMs / medida.prefillMs).toFixed(2)}×`}
+                                    </td></tr>
                             </tbody>
                         </table>
                         <div style={{ color: '#888', marginTop: 10, fontSize: 13 }}>
                             O <em>ganho do lote</em> é o que decide a especulativa: ela confere vários
                             tokens numa passada, então só paga se processar em lote for MUITO mais
-                            barato que um token de cada vez. Na bancada x86 deu 1,5× — e com 1,5×
-                            conferir 6 tokens custa 4, o que nenhuma taxa de aceite cobre.
+                            barato que um token de cada vez. Medido: 1,50× na bancada x86 e 1,88×
+                            no aparelho do dono do jogo. Com 1,88×, conferir 5 tokens custa 3,06,
+                            e seria preciso aceitar 52% dos rascunhos só para empatar — o aceite
+                            medido vai de 33% a 52%. Por isso a especulativa perde nos dois: 44%
+                            mais lenta no aparelho, medido no A/B desta mesma sala.
                         </div>
                         <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
                             “{medida.fala.slice(0, 260)}”
                         </div>
+                    </div>
+                )}
+
+                {historico.length > 1 && (
+                    <div style={CAIXA}>
+                        <strong>As medições desta sessão</strong>
+                        <div style={{ color: '#888', fontSize: 13, margin: '4px 0 8px' }}>
+                            Lado a lado de propósito: o A/B da especulativa é comparar dois
+                            números, e comparar de memória foi como eu troquei uma rodada COM
+                            pela rodada SEM e anunciei uma conclusão errada.
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ borderSpacing: '10px 4px', fontSize: 13 }}>
+                                <thead>
+                                    <tr style={{ color: '#888' }}>
+                                        <td>#</td><td>modelo</td><td>espec.</td>
+                                        <td>geração</td><td>prefill</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {historico.map((h, i) => (
+                                        <tr key={i}>
+                                            <td style={{ color: '#666' }}>{i + 1}</td>
+                                            <td>{h.rotulo.replace('SmolLM3-3B ', '')}</td>
+                                            <td style={{ color: h.espec ? '#7fe0b0' : '#666' }}>
+                                                {h.espec ? 'LIGADA' : '—'}
+                                            </td>
+                                            <td style={{ color: '#7fe0b0' }}>
+                                                {(1000 / h.geracaoMs).toFixed(2)} tok/s
+                                            </td>
+                                            <td>{(1000 / h.prefillMs).toFixed(2)} tok/s</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {(() => {
+                            // A comparação só vale entre rodadas do MESMO modelo que
+                            // diferem SÓ na especulativa. Qualquer outro par mistura
+                            // duas variáveis, e foi isso que me pegou.
+                            const com = [...historico].reverse().find((h) => h.espec);
+                            const sem = [...historico].reverse().find((h) => !h.espec);
+                            if (!com || !sem || com.rotulo !== sem.rotulo) {
+                                return (
+                                    <div style={{ color: '#888', marginTop: 8, fontSize: 13 }}>
+                                        Para o veredito, meça o MESMO modelo com e sem a
+                                        especulativa.
+                                    </div>
+                                );
+                            }
+                            const r = sem.geracaoMs / com.geracaoMs;
+                            return (
+                                <div style={{ marginTop: 8 }}>
+                                    especulativa em {sem.rotulo}:{' '}
+                                    <strong style={{ color: r > 1 ? '#7fe0b0' : '#e88' }}>
+                                        {r > 1 ? `${r.toFixed(2)}× mais rápida`
+                                            : `${(1 / r).toFixed(2)}× mais LENTA`}
+                                    </strong>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
