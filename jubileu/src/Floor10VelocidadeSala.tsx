@@ -106,7 +106,23 @@ const TETO_PENSANDO = 640;
  *
  * 256 de 640 deixa mais da metade para a fala — que é o que o jogador lê.
  */
-const ORCAMENTO_PENSAMENTO = 256;
+const ORCAMENTOS = [
+    { n: 64, rotulo: 'curto · 64 tokens', nota: '~35 s por turno a 3,5 tok/s' },
+    { n: 160, rotulo: 'médio · 160 tokens', nota: '~63 s' },
+    { n: 320, rotulo: 'longo · 320 tokens', nota: '~110 s' },
+] as const;
+/**
+ * O padrão é o CURTO, e não o generoso.
+ *
+ * A primeira versão usava 256 fixos e o dono do jogo desistiu de esperar. A
+ * conta explica: o aparelho dele faz ~3,5 tok/s, então 256 de raciocínio mais
+ * ~60 de fala são ~90 s de turno. Com 64 o turno cai para ~35 s, que é a faixa
+ * em que dá para conversar.
+ *
+ * Fica escolhível porque o ponto certo depende do aparelho, e quem tem o
+ * aparelho é quem sabe.
+ */
+const ORCAMENTO_PADRAO = 64;
 
 /**
  * Separa o raciocínio da fala.
@@ -199,15 +215,19 @@ function turnoComDirecao(texto: string, direcao: string): string {
  * O português custa ~17% mais tokens que o inglês neste tokenizador (medido).
  * Real, mas 17% não explica um turno de 140 s. O pensamento explica.
  */
-async function rodada(w: InstanciaWllama, texto: string, n: number,
-    cache: boolean, temp = 0, direcao = '', pensa = false): Promise<{ ms: number; txt: string }> {
+async function rodada(w: InstanciaWllama, texto: string, n: number, cache: boolean,
+    temp = 0, direcao = '', pensa = false, orc = ORCAMENTO_PADRAO,
+): Promise<{ ms: number; txt: string }> {
     const t = performance.now();
     const res = await w.createChatCompletion({
         messages: [{ role: 'system', content: PERSONA },
             { role: 'user', content: turnoComDirecao(texto, direcao) }],
         chat_template_kwargs: { enable_thinking: pensa },
         // Sem orçamento, o raciocínio come o teto inteiro e a fala não sai.
-        ...(pensa ? { reasoning_budget_tokens: ORCAMENTO_PENSAMENTO } : {}),
+        // E `reasoning_format: 'none'` é o que faz o `<think>` CHEGAR aqui em
+        // vez de o servidor engolir o bloco: sem isso dá para medir o custo do
+        // pensamento, mas não dá para LER o pensamento.
+        ...(pensa ? { reasoning_budget_tokens: orc, reasoning_format: 'none' } : {}),
         n_predict: n, temp, cache_prompt: cache, ignore_eos: temp === 0,
     }) as { choices?: { message?: { content?: string } }[] };
     return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
@@ -239,6 +259,7 @@ export default function Floor10VelocidadeSala() {
     const [modelo, setModelo] = useState<ChaveModelo>('q4km');
     const [espec, setEspec] = useState(false);
     const [pensa, setPensa] = useState(false);
+    const [orcamento, setOrcamento] = useState<number>(ORCAMENTO_PADRAO);
     const [fase, setFase] = useState('parado');
     const [feitos, setFeitos] = useState(0);
     const [total, setTotal] = useState(0);
@@ -259,6 +280,16 @@ export default function Floor10VelocidadeSala() {
     /** `useRef` não redesenha, e a caixa de perguntar depende disto aparecer. */
     const [motorPronto, setMotorPronto] = useState(false);
     const [resposta, setResposta] = useState('');
+    /**
+     * As respostas desta sessão, cada uma carimbada com a configuração que a
+     * produziu. Existe porque o dono do jogo quer VER a especulativa contra a
+     * não-especulativa — e trocar entre as duas exige recarregar o modelo, o
+     * que apaga a resposta anterior da tela. Sem registro, comparar viraria
+     * memória, que foi exatamente como eu já tirei uma conclusão errada aqui.
+     */
+    const [conversa, setConversa] = useState<{
+        q: string; a: string; ms: number; espec: boolean; pensa: boolean; orc: number;
+    }[]>([]);
     const rodando = useRef(false);
     /**
      * O MESMO estado do `rodando`, mas visível ao render.
@@ -338,12 +369,12 @@ export default function Floor10VelocidadeSala() {
             setFase('medindo');
             setFeitos(0); setTotal(0);
             setMotorPronto(true);
-            await rodada(w, PERGUNTA, 4, true, 0, '', pensa);            // aquece e enche o cache
-            const curto = await rodada(w, PERGUNTA, CURTO, true, 0, '', pensa);
-            const longo = await rodada(w, PERGUNTA, LONGO, true, 0, '', pensa);
+            await rodada(w, PERGUNTA, 4, true, 0, '', pensa, orcamento);            // aquece e enche o cache
+            const curto = await rodada(w, PERGUNTA, CURTO, true, 0, '', pensa, orcamento);
+            const longo = await rodada(w, PERGUNTA, LONGO, true, 0, '', pensa, orcamento);
             // Cache do prompt desligado: paga o prompt inteiro de novo, e a
             // diferença contra o quente é o custo do prefill.
-            const frio = await rodada(w, PERGUNTA, CURTO, false, 0, '', pensa);
+            const frio = await rodada(w, PERGUNTA, CURTO, false, 0, '', pensa, orcamento);
 
             const m: Medida = {
                 carga,
@@ -360,7 +391,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [modelo, espec, pensa]);
+    }, [modelo, espec, pensa, orcamento]);
 
     /**
      * Pergunta livre, no MESMO motor que acabou de ser medido.
@@ -390,7 +421,7 @@ export default function Floor10VelocidadeSala() {
             const emIngles = await comPrazoCurto(traduzirPerguntaParaIngles(cru), PRAZO_TRADUTOR_MS);
             setFase('o Nilo está pensando');
             const r = await rodada(w, emIngles ?? cru, pensa ? TETO_PENSANDO : TETO_DIRETO,
-                true, 0.7, direcao, pensa);
+                true, 0.7, direcao, pensa, orcamento);
             const { pensou, fala } = separarPensamento(r.txt);
             setFase('traduzindo a fala');
             // Só a FALA vai para o tradutor. Mandar um bloco de raciocínio
@@ -399,9 +430,14 @@ export default function Floor10VelocidadeSala() {
                 ? await comPrazoCurto(traduzirParaPtBr(fala), PRAZO_TRADUTOR_MS) : null;
             setFase('pronto');
             const cortou = pensa && !fala;
+            setConversa((c) => [...c, {
+                q: pergunta.trim(),
+                a: cortou ? '(a fala não saiu)' : (emPt || fala || r.txt.trim()),
+                ms: r.ms, espec, pensa, orc: orcamento,
+            }]);
             setResposta(
                 (cortou
-                    ? `⚠ mesmo com orçamento de ${ORCAMENTO_PENSAMENTO} tokens de raciocínio, `
+                    ? `⚠ mesmo com orçamento de ${orcamento} tokens de raciocínio, `
                       + 'a fala não saiu. Me avise — o orçamento é ajustável.'
                     : (emPt || fala || r.txt.trim()))
                 + `\n\n— ${(r.ms / 1000).toFixed(1)} s`
@@ -414,7 +450,7 @@ export default function Floor10VelocidadeSala() {
         } finally {
             rodando.current = false; setOcupado(false);
         }
-    }, [pergunta, direcao, pensa]);
+    }, [pergunta, direcao, pensa, orcamento, espec]);
 
     const bytesPrecisos = MODELOS[modelo].bytes + FLOOR10_TRADUTOR_BYTES
         + (espec ? DRAFT.bytes : 0);
@@ -465,11 +501,24 @@ export default function Floor10VelocidadeSala() {
                             <span style={{ color: '#666' }}>
                                 · o template do SmolLM3 liga isto por padrão, e era por isso
                                 que ele parecia “extremamente lento” antes do pipeline. Aqui o
-                                raciocínio tem orçamento de {ORCAMENTO_PENSAMENTO} tokens: passou
-                                disso, o llama.cpp fecha o bloco e ele fala — senão o pensamento
-                                engole o turno e não sobra resposta
+                                raciocínio tem ORÇAMENTO: passou dele, o llama.cpp fecha o bloco
+                                e ele fala — senão o pensamento engole o turno e não sobra resposta
                             </span>
                         </label>
+                        {pensa && (
+                            <div style={{ margin: '6px 0 0 24px', color: '#888' }}>
+                                orçamento do raciocínio:{' '}
+                                {ORCAMENTOS.map((o) => (
+                                    <label key={o.n} style={{ marginRight: 12, cursor: 'pointer' }}>
+                                        <input type="radio" checked={orcamento === o.n}
+                                            disabled={ocupado}
+                                            onChange={() => setOrcamento(o.n)} />
+                                        {' '}{o.rotulo}{' '}
+                                        <span style={{ color: '#666' }}>{o.nota}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                         <label style={{ display: 'block', marginTop: 10, cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed' }}>
                             <input type="checkbox" checked={espec} disabled={!MOTOR_LOCAL || ocupado}
                                 onChange={(e) => setEspec(e.target.checked)} />
@@ -557,6 +606,31 @@ export default function Floor10VelocidadeSala() {
                         <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
                             “{medida.fala.slice(0, 260)}”
                         </div>
+                    </div>
+                )}
+
+                {conversa.length > 1 && (
+                    <div style={CAIXA}>
+                        <strong>As respostas desta sessão</strong>
+                        <div style={{ color: '#888', fontSize: 13, margin: '4px 0 8px' }}>
+                            Cada uma com a configuração que a produziu. Trocar a especulativa
+                            exige recarregar o modelo, e isso apaga a resposta anterior da tela —
+                            aqui elas ficam, para a comparação ser com os olhos e não de memória.
+                        </div>
+                        {conversa.map((c, i) => (
+                            <div key={i} style={{
+                                borderTop: i ? '1px solid #262626' : 'none',
+                                paddingTop: i ? 8 : 0, marginTop: i ? 8 : 0,
+                            }}>
+                                <div style={{ color: '#888', fontSize: 12 }}>
+                                    {c.espec ? 'espec ✓' : 'espec —'}{' · '}
+                                    {c.pensa ? `pensa ✓ (${c.orc})` : 'pensa —'}{' · '}
+                                    {(c.ms / 1000).toFixed(1)} s
+                                </div>
+                                <div style={{ color: '#777' }}>{c.q}</div>
+                                <div style={{ color: '#ccc', whiteSpace: 'pre-wrap' }}>{c.a}</div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
