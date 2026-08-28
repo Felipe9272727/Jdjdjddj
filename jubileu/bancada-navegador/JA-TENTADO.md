@@ -933,3 +933,60 @@ o granite em português — pedi uma resposta do Nilo e ele escreveu "o vidro aq
 é feito de vidro de vidro" e contradisse a premissa. O candidato honesto para
 medir é o **Qwen3.5-4B-MTP em UD-Q2_K_XL (2,12 GB)**, que fica no tamanho do
 granite 7B de hoje. Isso ainda não foi medido.
+
+### O Qwen3.5-4B-MTP medido: reprovado, e por um motivo que fecha o assunto
+
+Baixei o `UD-Q2_K_XL` (2,12 GB, abaixo da parede de 2 GiB) e medi contra o
+controle honesto, 3 repetições de 256 tokens:
+
+| configuração | t/s | aceite | vs controle |
+| --- | --- | --- | --- |
+| controle | 6,670 | — | — |
+| MTP n-max 1 | 6,524 | 74,8% | −2% |
+| MTP n-max 2 | 6,052 | 61,7% | −9% |
+
+**MTP perde no 4B mesmo com 74,8% de aceitação.** A causa é a quantização, não
+a cabeça. Curva de lote deste arquivo em Q2_K:
+
+| lote | 2 | 3 | 4 |
+| --- | --- | --- | --- |
+| custo | 1,50× | 2,02× | 2,51× |
+
+Quase linear — o lote 4 custa 2,51× um token solto, contra **1,10×** do granite
+em Q4_0. Em Q2_K o llama.cpp não entra no caminho de GEMM para lotes pequenos:
+faz matriz-vetor por token e o custo cresce reto. Sem degrau, não há o que a
+especulativa explore.
+
+A conta fecha na casa decimal: 74,8% de aceite dá E = 1,75 tokens, dividido por
+(1,50 do lote + 0,29 da cabeça MTP) = 0,98×. Medido: 0,978.
+
+**Regra que sai daí: especulativa e Q2_K não se misturam.** Se for usar
+especulativa, o alvo tem de estar em Q4_0 ou Q4_K, que é onde o degrau existe.
+
+### E a comparação que encerra a caça
+
+| modelo | tamanho | t/s |
+| --- | --- | --- |
+| **granite 4.0 h-tiny 7B-A1B Q2_K (o de hoje)** | 2,59 GB | **19,7 a 29,6** |
+| Qwen3.5-2B-MTP Q4_K_M | 1,33 GB | 14,9 |
+| Qwen3.5-4B-MTP Q2_K_XL | 2,12 GB | 6,7 |
+
+(`llama-bench` dá 19,7 para o granite e o `speculative-simple` dá 29,6; os dois
+discordam na magnitude, mas não na ordem.)
+
+O granite ganha de 1,3× a 4,4×, e o motivo é a arquitetura: **7B totais, ~1B
+ativos**. Por token ele calcula um quinto do que o Qwen 4B denso calcula. Nenhum
+ganho de MTP — o melhor medido foi +4,6% — chega perto de fechar 3× ou 4×.
+
+**A MoE já ganhou da especulativa, e por uma ordem de grandeza.** E não existe
+MoE pequena com MTP: as únicas Qwen A3B com MTP são de 35B totais, que em Q2
+passam de 13 GB.
+
+Uma coisa que o Qwen fez melhor e que **não** exige trocar de modelo: seguir o
+personagem. Perguntado "por que não tem janela aqui?" com a instrução "curto e
+seco", o Qwen 4B respondeu *"Porque é um elevador. A janela não serve para
+nada."* e o granite respondeu *"A janela é um recurso de design para o elevador,
+mas neste caso, optamos por não incluir uma janela para manter um ambiente de
+trabalho focado e livre de distrações."* — ignorando a instrução e virando
+consultoria. Isso é problema de prompt do granite, não de modelo, e é onde vale
+mexer.
