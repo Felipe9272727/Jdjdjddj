@@ -20,6 +20,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatBytes } from './npc/floor10Download';
 import { liberarRolagem } from './npc/floor10PaginaRolavel';
+import {
+    prepararTradutor, desabreviar, traduzirPerguntaParaIngles, traduzirParaPtBr,
+    FLOOR10_TRADUTOR_BYTES,
+} from './npc/floor10Tradutor';
 
 const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
     ?? 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm';
@@ -72,23 +76,44 @@ type Medida = {
     carga: number; geracaoMs: number; prefillMs: number; fala: string;
 };
 
-async function baixarComBarra(url: string, bytes: number,
-    aoAndar: (feitos: number, total: number) => void): Promise<Blob> {
-    const r = await fetch(url);
-    if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
-    const total = Number(r.headers.get('content-length')) || bytes;
-    const leitor = r.body.getReader();
-    const partes: BlobPart[] = [];
-    let feitos = 0;
-    for (;;) {
-        const { done, value } = await leitor.read();
-        if (done) break;
-        partes.push(value as BlobPart);
-        feitos += value.length;
-        aoAndar(feitos, total);
-    }
-    return new Blob(partes);
+type InstanciaWllama = {
+    loadModelFromUrl(u: string, p: Record<string, unknown>): Promise<void>;
+    createChatCompletion(p: Record<string, unknown>): Promise<unknown>;
+    exit?(): Promise<void>;
+};
+type CtorWllama = new (p: Record<string, string>, o?: Record<string, unknown>) => InstanciaWllama;
+
+async function rodada(w: InstanciaWllama, texto: string, n: number,
+    cache: boolean, temp = 0): Promise<{ ms: number; txt: string }> {
+    const t = performance.now();
+    const res = await w.createChatCompletion({
+        messages: [{ role: 'system', content: PERSONA }, { role: 'user', content: texto }],
+        n_predict: n, temp, cache_prompt: cache, ignore_eos: temp === 0,
+    }) as { choices?: { message?: { content?: string } }[] };
+    return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
 }
+
+/**
+ * ── POR QUE NÃO TEM MAIS `fetch` AQUI ────────────────────────────────────
+ *
+ * A primeira versão desta sala baixava com `fetch` para um Blob em memória. O
+ * dono do jogo trocou de opção uma vez e viu 1,92 GB descendo DE NOVO — em
+ * dados móveis. Blob em memória não é cache: morre com a aba e não sobrevive
+ * a um recarregamento.
+ *
+ * `loadModelFromUrl` passa pelo `modelManager`, que guarda em OPFS e devolve o
+ * arquivo pronto na segunda vez. É o mesmo caminho que o resto do jogo usa —
+ * eu é que tinha inventado um atalho pior, e o atalho custava a franquia dele.
+ *
+ * O draft segue o mesmo caminho pelo `modelManager`, e só depois vira Blob:
+ * o remendo da especulativa precisa dos bytes, mas não precisa baixá-los de
+ * novo toda vez.
+ */
+type Gerente = {
+    getModelOrDownload(fonte: { url: string }, p: Record<string, unknown>): Promise<{
+        open(): Promise<Blob[]>;
+    }>;
+};
 
 export default function Floor10VelocidadeSala() {
     const [modelo, setModelo] = useState<ChaveModelo>('q4km');
@@ -98,39 +123,51 @@ export default function Floor10VelocidadeSala() {
     const [total, setTotal] = useState(0);
     const [medida, setMedida] = useState<Medida | null>(null);
     const [erro, setErro] = useState('');
+    const [pergunta, setPergunta] = useState('');
+    const [resposta, setResposta] = useState('');
     const rodando = useRef(false);
+    /** O motor fica de pé depois de medir, para as perguntas livres. */
+    const motorRef = useRef<InstanciaWllama | null>(null);
 
     useEffect(() => liberarRolagem(), []);
 
     const medir = useCallback(async () => {
         if (rodando.current) return;
         rodando.current = true;
-        setErro(''); setMedida(null);
+        setErro(''); setMedida(null); setResposta('');
         try {
             const M = MODELOS[modelo];
-            setFase(`baixando ${M.rotulo}`);
-            const blobModelo = await baixarComBarra(M.url, M.bytes, (f, t) => { setFeitos(f); setTotal(t); });
+            const mod = await import(/* @vite-ignore */ WLLAMA_ESM) as { Wllama: CtorWllama };
+            const w = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
 
             let blobDraft: Blob | null = null;
             if (espec) {
                 if (!MOTOR_LOCAL) throw new Error('a especulativa exige ?motor=relaxed');
-                setFase(`baixando ${DRAFT.rotulo}`);
-                blobDraft = await baixarComBarra(DRAFT.url, DRAFT.bytes, (f, t) => { setFeitos(f); setTotal(t); });
+                setFase(`preparando ${DRAFT.rotulo}`);
+                const gerente = (w as unknown as { modelManager: Gerente }).modelManager;
+                const m = await gerente.getModelOrDownload({ url: DRAFT.url }, {
+                    progressCallback: ({ loaded, total }: { loaded?: number; total?: number }) => {
+                        setFeitos(loaded ?? 0); setTotal(total ?? DRAFT.bytes);
+                    },
+                });
+                blobDraft = (await m.open())[0] ?? null;
             }
 
-            setFase('subindo o modelo');
-            const mod = await import(/* @vite-ignore */ WLLAMA_ESM) as {
-                Wllama: new (p: Record<string, string>, o?: Record<string, unknown>) => {
-                    loadModel(b: Blob[], p: Record<string, unknown>): Promise<void>;
-                    createChatCompletion(p: Record<string, unknown>): Promise<unknown>;
-                    exit?(): Promise<void>;
-                };
-            };
-            const w = new mod.Wllama({ default: WASM }, { suppressNativeLog: true });
+            // O tradutor entra na mesma passada: 51 MB, e sem ele a caixa de
+            // perguntas só aceitaria inglês — que não é como o dono do jogo
+            // testa. Falhar aqui não derruba a medição: o número de tok/s não
+            // depende dele.
+            setFase('preparando o tradutor Bergamot');
+            await prepararTradutor((b, t) => { setFeitos(b); setTotal(t); }).catch(() => null);
+
+            setFase(`preparando ${M.rotulo}`);
             const t0 = performance.now();
-            await w.loadModel([blobModelo], {
+            await w.loadModelFromUrl(M.url, {
                 n_ctx: 2048, n_batch: 512, n_threads: 4, n_gpu_layers: 0,
                 jinja: true, reasoning: false, warmup: false,
+                progressCallback: ({ loaded, total }: { loaded?: number; total?: number }) => {
+                    setFeitos(loaded ?? 0); setTotal(total ?? M.bytes);
+                },
                 ...(blobDraft ? {
                     spec_draft_blob: blobDraft, spec_draft_n_max: 4,
                     spec_draft_n_min: 1, spec_draft_p_min: 0.6,
@@ -138,23 +175,15 @@ export default function Floor10VelocidadeSala() {
                 } : {}),
             });
             const carga = performance.now() - t0;
-
-            const msgs = [{ role: 'system', content: PERSONA }, { role: 'user', content: PERGUNTA }];
-            const rodada = async (n: number, cache: boolean) => {
-                const t = performance.now();
-                const res = await w.createChatCompletion({
-                    messages: msgs, n_predict: n, temp: 0, cache_prompt: cache, ignore_eos: true,
-                }) as { choices?: { message?: { content?: string } }[] };
-                return { ms: performance.now() - t, txt: res?.choices?.[0]?.message?.content ?? '' };
-            };
+            motorRef.current = w;
 
             setFase('medindo');
-            await rodada(4, true);                       // aquece e enche o cache
-            const curto = await rodada(CURTO, true);
-            const longo = await rodada(LONGO, true);
-            // Cache desligado: paga o prompt inteiro de novo, e a diferença
-            // contra o quente é o custo do prefill.
-            const frio = await rodada(CURTO, false);
+            await rodada(w, PERGUNTA, 4, true);            // aquece e enche o cache
+            const curto = await rodada(w, PERGUNTA, CURTO, true);
+            const longo = await rodada(w, PERGUNTA, LONGO, true);
+            // Cache do prompt desligado: paga o prompt inteiro de novo, e a
+            // diferença contra o quente é o custo do prefill.
+            const frio = await rodada(w, PERGUNTA, CURTO, false);
 
             setMedida({
                 carga,
@@ -163,7 +192,6 @@ export default function Floor10VelocidadeSala() {
                 fala: longo.txt.trim(),
             });
             setFase('pronto');
-            try { await w.exit?.(); } catch { /* já foi */ }
         } catch (e) {
             setErro(e instanceof Error ? e.message : String(e));
             setFase('falhou');
@@ -172,7 +200,44 @@ export default function Floor10VelocidadeSala() {
         }
     }, [modelo, espec]);
 
-    const bytesPrecisos = MODELOS[modelo].bytes + (espec ? DRAFT.bytes : 0);
+    /**
+     * Pergunta livre, no MESMO motor que acabou de ser medido.
+     *
+     * Pedido do dono do jogo, e ele tem razão: número de tok/s não diz se o
+     * Nilo continua o Nilo. Ele testa conversando, e uma sala de velocidade que
+     * não deixa perguntar mede metade do que importa.
+     *
+     * Aqui a temperatura é 0,7 e não 0 — a bancada usa 0 para comparar
+     * aritmética, mas conversa boa é a que varia sem inventar fato.
+     */
+    const perguntar = useCallback(async () => {
+        const w = motorRef.current;
+        if (!w || !pergunta.trim() || rodando.current) return;
+        rodando.current = true;
+        setResposta('…');
+        try {
+            // pt-BR → inglês → modelo → inglês → pt-BR, o mesmo caminho do jogo.
+            // O `desabreviar` vem antes porque o Bergamot tropeça em "vc" e
+            // "pq", e quem escreve as perguntas escreve assim.
+            setFase('traduzindo a pergunta');
+            const emIngles = await traduzirPerguntaParaIngles(desabreviar(pergunta.trim()));
+            if (!emIngles) throw new Error('o tradutor não subiu');
+            setFase('o Nilo está pensando');
+            const r = await rodada(w, emIngles, 80, true, 0.7);
+            setFase('traduzindo a fala');
+            const emPt = await traduzirParaPtBr(r.txt.trim());
+            setFase('pronto');
+            setResposta(`${emPt || r.txt.trim()}\n\n— ${(r.ms / 1000).toFixed(1)} s`
+                + `${emPt ? `\n— em inglês: ${r.txt.trim()}` : ''}`);
+        } catch (e) {
+            setResposta(`falhou: ${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+            rodando.current = false;
+        }
+    }, [pergunta]);
+
+    const bytesPrecisos = MODELOS[modelo].bytes + FLOOR10_TRADUTOR_BYTES
+        + (espec ? DRAFT.bytes : 0);
 
     return (
         <div style={{
@@ -281,6 +346,39 @@ export default function Floor10VelocidadeSala() {
                         <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
                             “{medida.fala.slice(0, 260)}”
                         </div>
+                    </div>
+                )}
+
+                {medida && (
+                    <div style={CAIXA}>
+                        <strong>Pergunte você</strong>
+                        <div style={{ color: '#888', fontSize: 13, margin: '4px 0 8px' }}>
+                            Em português, no mesmo motor que acabou de ser medido — pt→en pelo
+                            Bergamot, o Nilo responde, e volta traduzido. Aqui a temperatura é 0,7
+                            e não 0: a medição usa 0 para comparar aritmética, mas conversa boa é
+                            a que varia sem inventar fato.
+                        </div>
+                        <textarea value={pergunta} onChange={(e) => setPergunta(e.target.value)}
+                            placeholder="oi, qual é o seu nome? sabe pq a gente tá aqui?"
+                            rows={2}
+                            style={{
+                                width: '100%', background: '#0e0e0e', color: '#ddd',
+                                border: '1px solid #333', borderRadius: 6, padding: 8,
+                                font: 'inherit', resize: 'vertical',
+                            }} />
+                        <button onClick={perguntar} disabled={!pergunta.trim()}
+                            style={{
+                                marginTop: 8, padding: '8px 14px', background: '#1d3a2a',
+                                color: '#7fe0b0', border: '1px solid #2f6b4a', borderRadius: 6,
+                                cursor: 'pointer', font: 'inherit',
+                            }}>
+                            perguntar
+                        </button>
+                        {resposta && (
+                            <div style={{ marginTop: 10, color: '#bbb', whiteSpace: 'pre-wrap' }}>
+                                {resposta}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
