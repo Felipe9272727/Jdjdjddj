@@ -78,6 +78,38 @@ const PERGUNTA = 'Hi what is your name? do you know why we are here?';
 const CURTO = 16;
 const LONGO = 48;
 
+/**
+ * ── O TETO DA PERGUNTA MUDA QUANDO ELE PENSA ────────────────────────────
+ *
+ * Com 80 tokens um modelo que raciocina nem termina o bloco de pensamento, e a
+ * fala de verdade nunca chega — o teste mede um pensamento cortado no meio e
+ * não conclui nada. Pensando, o teto sobe para caber raciocínio E resposta.
+ *
+ * Na MEDIÇÃO os 16 e 48 continuam: lá o que interessa é o custo marginal por
+ * token, e um token de pensamento custa o mesmo que um token de fala. O que
+ * mudaria seria só a amostra de texto, e essa a caixa de perguntar mostra
+ * melhor.
+ */
+const TETO_DIRETO = 80;
+const TETO_PENSANDO = 640;
+
+/**
+ * Separa o raciocínio da fala.
+ *
+ * O `<think>` sai da resposta por dois motivos: quem lê quer a fala do Nilo, e
+ * mandar um bloco de raciocínio inteiro para o Bergamot traduzir é lento e não
+ * serve para nada. Mas ele não é jogado fora — aparece à parte, porque o
+ * TAMANHO dele é a resposta para "quanto o pensamento custa".
+ */
+function separarPensamento(txt: string): { pensou: string; fala: string } {
+    const m = txt.match(/<think>([\s\S]*?)<\/think>/);
+    if (m) return { pensou: m[1].trim(), fala: txt.replace(m[0], '').trim() };
+    // Pensamento cortado pelo teto: abriu o bloco e não fechou.
+    const abriu = txt.indexOf('<think>');
+    if (abriu >= 0) return { pensou: txt.slice(abriu + 7).trim(), fala: '' };
+    return { pensou: '', fala: txt.trim() };
+}
+
 const CAIXA: React.CSSProperties = {
     border: '1px solid #333', borderRadius: 8, padding: 12, marginBottom: 12, background: '#141414',
 };
@@ -300,7 +332,7 @@ export default function Floor10VelocidadeSala() {
                 carga,
                 geracaoMs: (longo.ms - curto.ms) / (LONGO - CURTO),
                 prefillMs: (frio.ms - curto.ms) / 230,
-                fala: longo.txt.trim(),
+                fala: separarPensamento(longo.txt).fala || longo.txt.trim(),
             };
             setMedida(m);
             setHistorico((h) => [...h, { ...m, rotulo: M.rotulo, espec, pensa }]);
@@ -340,15 +372,25 @@ export default function Floor10VelocidadeSala() {
             // não auditar o Bergamot. O rótulo diz o que aconteceu.
             const emIngles = await comPrazoCurto(traduzirPerguntaParaIngles(cru), PRAZO_TRADUTOR_MS);
             setFase('o Nilo está pensando');
-            const r = await rodada(w, emIngles ?? cru, 80, true, 0.7, direcao, pensa);
-            const fala = r.txt.trim();
+            const r = await rodada(w, emIngles ?? cru, pensa ? TETO_PENSANDO : TETO_DIRETO,
+                true, 0.7, direcao, pensa);
+            const { pensou, fala } = separarPensamento(r.txt);
             setFase('traduzindo a fala');
-            const emPt = emIngles
+            // Só a FALA vai para o tradutor. Mandar um bloco de raciocínio
+            // inteiro para o Bergamot é lento e não serve para nada.
+            const emPt = emIngles && fala
                 ? await comPrazoCurto(traduzirParaPtBr(fala), PRAZO_TRADUTOR_MS) : null;
             setFase('pronto');
-            setResposta(`${emPt || fala}\n\n— ${(r.ms / 1000).toFixed(1)} s`
-                + (emPt ? `\n— em inglês: ${fala}` : '')
-                + (emIngles ? '' : '\n— sem tradutor: a pergunta foi como você escreveu'));
+            const cortou = pensa && !fala;
+            setResposta(
+                (cortou
+                    ? `⚠ o pensamento não coube em ${TETO_PENSANDO} tokens e a fala não saiu.`
+                    : (emPt || fala || r.txt.trim()))
+                + `\n\n— ${(r.ms / 1000).toFixed(1)} s`
+                + (emPt && fala ? `\n— em inglês: ${fala}` : '')
+                + (emIngles ? '' : '\n— sem tradutor: a pergunta foi como você escreveu')
+                + (pensou ? `\n\n— pensou ${pensou.length} caracteres antes de falar:\n${pensou}` : ''),
+            );
         } catch (e) {
             setResposta(`falhou: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
