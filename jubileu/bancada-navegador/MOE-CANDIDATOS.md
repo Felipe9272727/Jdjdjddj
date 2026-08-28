@@ -128,3 +128,65 @@ O granite, na mesma régua, deu 4 de 5 limpas e passou na armadilha do corredor.
 **Veredito: o granite-4.0-h-tiny fica.** Não vale gastar 2,93 GB de franquia
 para instalar um modelo mais lento, maior, que precisa de remendo no prompt para
 não pensar, e que se apresenta como personagem.
+
+
+---
+
+## O DRAFT DO GRANITE EXISTE — e o Mamba o inutiliza
+
+O dono do jogo pediu para procurar um rascunhador compatível com o granite 7B.
+**Achei**, e ele é bom: `granite-docling-258M`.
+
+    vocab_size ......... 100352, igual ao h-tiny
+    eos ................ 100257, igual
+    decodificador ...... LlamaForCausalLM, hidden 576, 30 camadas
+    depois de convertido, quantizado e alinhado ... 138 MB
+
+Só **92 tokens** diferem, todos na faixa dos especiais (100258+) — o docling usa
+aqueles slots para marcação de tabela, o h-tiny para FIM. Os primeiros 100.258
+são idênticos, e os tamanhos batem exatamente. O `alinhar-draft.py` resolveu.
+
+**138 MB contra 2,59 GB é a razão que a especulativa sempre quis.** E o aceite
+foi de **100%** — 107 de 107, 122 de 122, com texto coerente e em personagem.
+
+### E mesmo assim perde, feio
+
+    prompt de 17 tokens, 192 gerados, `--ignore-eos`:
+
+    base ................ 9 952 ms
+    draft n_max=4 ...... 17 369 ms    75% MAIS LENTO
+    draft n_max=6 ...... 21 866 ms
+
+**Com aceite perfeito.** O custo não está em errar — está em CHECKPOINT.
+
+O granite-4.0-h-tiny é híbrido de Mamba: 36 das 40 camadas são recorrentes
+(`llama_memory_recurrent`, `ssm_d_state = 128`). Especulativa com estado
+recorrente precisa salvar o estado antes de rascunhar e restaurá-lo a cada
+rejeição — e esse estado é enorme:
+
+    48 cabeças × 64 por cabeça × 128 de estado = 393.216 valores por camada
+    × 36 camadas mamba ≈ 57 MB copiados A CADA RODADA
+
+Isso é da ordem de grandeza de ler o modelo ativo inteiro. Nenhuma taxa de
+aceite cobre.
+
+E há um segundo agravante, medido: o ganho de lote do granite no tamanho que a
+especulativa usa é **pior** que o de um modelo denso, apesar de ele ser mais
+rápido no geral —
+
+    granite pp1 19,1 · pp4 38,5 (2,0×) · pp8 49,3 (2,6×) · pp64 74,6 (3,9×)
+    SmolLM3 pp1 11,6 · pp4 38,6 (3,3×) · pp8 46,9 (4,0×) · pp64 73,0 (6,3×)
+
+Num MoE, um lote de k tokens ativa a UNIÃO dos especialistas de cada um — cinco
+tokens podem acordar 30 dos 64 especialistas em vez de 6. O lote deixa de ser
+barato, que era a premissa inteira.
+
+### A ironia, e é ela que fecha o assunto
+
+**As duas coisas que fazem o granite ser rápido são as mesmas que matam a
+especulativa nele.** O Mamba dá prefill barato e cobra checkpoint; o MoE dá
+geração barata e cobra a união dos especialistas no lote.
+
+Não é falta de rascunhador — o rascunhador existe, é minúsculo, e acerta 100%.
+É a arquitetura do alvo. Para a especulativa valer seria preciso um alvo denso
+e sem estado recorrente, que é exatamente o tipo de modelo que o granite venceu.
