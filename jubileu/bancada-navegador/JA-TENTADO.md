@@ -1214,3 +1214,23 @@ A pergunta do ARM continua aberta e agora é mais cara: para respondê-la sem
 regressão, o kernel de q2_K tem de ser portado para o llama.cpp de AGOSTO — o
 que o `wllama-relaxed` usa — e não o contrário. Aí sim os dois braços diferem
 só no kernel E nenhum deles é mais lento que o que está no ar.
+
+### Confirmado no aparelho: a retirada resolveu
+
+Medido pelo dono do jogo depois do revert, granite 7B-A1B Q2_K:
+
+|  | antes da regressão | com os motores novos | depois do revert |
+| --- | --- | --- | --- |
+| geração | 4,32 tok/s | 2,20 | **3,96** |
+| prefill | 7,18 tok/s | 3,51 | **7,76** |
+| ganho do lote (512) | 1,66× | 1,60× | **1,96×** |
+
+O prefill voltou ACIMA do de antes. A geração ficou 8% abaixo, e isso é
+variação do aparelho, não resíduo: se fosse resíduo da regressão, o prefill
+teria caído junto — foi assim que ela se apresentou, os dois pela metade e a
+razão intacta.
+
+Fica registrado o **1,96×** como leitura nova do ganho de lote 512 no aparelho,
+ao lado do 1,88× de antes. Duas leituras do mesmo aparelho com 4% de distância
+é a régua de quanto vale confiar numa medição única lá — e é o motivo de a
+conta da especulativa nunca ter sido decidida por uma corrida só.
