@@ -1234,3 +1234,74 @@ Fica registrado o **1,96×** como leitura nova do ganho de lote 512 no aparelho,
 ao lado do 1,88× de antes. Duas leituras do mesmo aparelho com 4% de distância
 é a régua de quanto vale confiar numa medição única lá — e é o motivo de a
 conta da especulativa nunca ter sido decidida por uma corrida só.
+
+---
+
+## O motor implantado é 3× mais rápido que QUALQUER build — inclusive o oficial
+
+Fui portar o kernel de q2_K para o llama.cpp de agosto e esbarrei em algo bem
+maior. Registrando na ordem em que apareceu, porque cada passo matou uma
+hipótese.
+
+### Achar a base de agosto
+
+O wasm implantado tem `Gated Delta Net` nas strings mas não `Lightning Indexer`
+nem `DeepSeek V4`. Cruzando com os pinos de submódulo do wllama:
+
+| wllama | data | llama.cpp |
+| --- | --- | --- |
+| 91f2491 | 23/ago | 8144f319 |
+| f16050d · d302659 · 95db60f · a3d9da2 | 16–17/ago | 4df29be4 |
+| 0d62244 | 16/ago | 10bf611e |
+| **766d28e** | **15/jun** | **dd4623a7** |
+
+Só `dd4623a7` tem `draft-mtp` e `types:` **sem** as strings novas. Base achada,
+e os dois patches de kernel aplicam limpo nela.
+
+### As hipóteses, e como cada uma morreu
+
+**1. "É a versão do llama.cpp."** Construí `wllama 766d28e + dd4623a7`, a base
+de agosto, sem patch nenhum: **1,59 tok/s** no granite contra 4,75 do
+implantado. Mesma fonte, mesma lentidão. Morta.
+
+**2. "É o `-mrelaxed-simd`."** A flag deixa o compilador emitir relaxed em
+código de ponto flutuante, que é onde o Mamba vive. Build limpo, sem a flag e
+sem os kernels: **1,59 tok/s**. Morta.
+
+**3. "É fio único."** Os dois escalam igual — o implantado vai de 2,80 a 8,81
+tok/s de 1 para 4 fios, os meus de ~1,97 a ~6,7. Morta.
+
+**4. "Monta um grafo diferente."** `carga-comparada.mjs` põe os logs de carga
+lado a lado: **idênticos**. Mesmos buffers, 3454 nós nos dois, mesmos fused ops,
+mesma flash attention. Morta.
+
+**5. "É o meu jeito de compilar."** Esta é a que virou o resultado. Medi o
+**build OFICIAL do CDN** que já estava na bancada:
+
+| motor | Qwen 0,8B denso | **granite 7B-A1B** |
+| --- | --- | --- |
+| **implantado (agosto)** | **8,81–9,00 tok/s** | **4,64–4,85 tok/s** |
+| CDN oficial do wllama | 6,82 | 1,59 |
+| meu build de junho (a base de agosto) | 6,65 | 1,59 |
+| meu build do pino de 23/ago | 6,78 | 1,58 |
+
+**Não são os meus builds que estão lentos — é o implantado que está rápido.**
+Todo o resto, inclusive o binário oficial, cai no mesmo patamar. E a vantagem é
+de 1,3× no denso e **3× no híbrido de Mamba**.
+
+Isso casa com o aparelho: o dono do jogo mede 3,96 tok/s no implantado e mediu
+2,20 quando estava com um dos meus. A bancada e o celular concordam nos dois
+motores, então o efeito é do binário, não do x86.
+
+### O que isso significa, e é desconfortável
+
+O jogo roda hoje num motor que **eu não sei reproduzir**. Enquanto isso não se
+resolver, a caça ao kernel está travada: qualquer build meu já entra 3× atrás,
+e nenhum ganho de kernel cobre isso.
+
+A única variável que sobrou sem teste é a **versão do emcc**. Tentei compilar
+com a 6.0.8 e o `emsdk_env.sh` reativou a 4.0.20 por baixo — o build saiu com a
+4.0.20 de novo e não testou nada. É por onde começar.
+
+O que NÃO fazer: trocar o motor implantado antes de reproduzir a velocidade
+dele. Ele é o ativo mais valioso desta pasta e não tem receita escrita.

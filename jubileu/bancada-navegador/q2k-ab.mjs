@@ -88,10 +88,10 @@ const rodar = async (motor, fios) => {
     return r;
 };
 
-console.log('\n  VELOCIDADE (4 fios, 48 tokens, 3 repetições)');
+console.log(`\n  VELOCIDADE (${process.env.FIOS ?? 4} fios, 48 tokens, 3 repetições)`);
 const vel = {};
 for (const m of MOTORES) {
-    const r = await rodar(m, 4);
+    const r = await rodar(m, Number(process.env.FIOS ?? 4));
     const media = r.ms.reduce((a, x) => a + x, 0) / r.ms.length;
     vel[m] = media;
     console.log(`    ${m.padEnd(9)} ${(48000 / media).toFixed(2)} tok/s   (${r.ms.map(Math.round).join(' ')} ms)`);
