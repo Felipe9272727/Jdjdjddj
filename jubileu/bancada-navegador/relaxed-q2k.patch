@@ -1,0 +1,46 @@
+--- a/ggml/src/ggml-cpu/arch/wasm/quants.c
++++ b/ggml/src/ggml-cpu/arch/wasm/quants.c
+@@ -751,6 +751,35 @@
+                 v128_t q2_bits_1 = wasm_v128_and(q2_shift_1, wasm_i8x16_splat(0x03));
+ 
+                 // Calculate dot products
++#if defined(__wasm_relaxed_simd__)
++                // Um dot relaxed no lugar de dois dot_i16x8 mais quatro
++                // extends, por metade de 32 elementos.
++                //
++                // A ORDEM DOS OPERANDOS É A PARTE QUE QUEBRA:
++                // `relaxed_dot_i8x16_i7x16_add(a, b, c)` exige `b` em [0,127],
++                // porque no x86 ela baixa para PMADDUBSW (sem sinal x com
++                // sinal) e no ARM para SDOT. Aqui:
++                //
++                //   q8_*      ativação, int8, -128..127  -> slot i8  (a)
++                //   q2_bits_* peso, 0..3 depois do &0x03 -> slot i7  (b)
++                //
++                // Invertido, o peso vira lixo para valores altos de ativação —
++                // foi assim que a versão anterior deste kernel gerou texto
++                // aleatório, e é o mesmo erro do PR #19590 lá em cima.
++                //
++                // Sem saturação: PMADDUBSW soma dois produtos num i16, e o pior
++                // caso aqui é 3*127 + 3*127 = 762, longe de 32767.
++                v128_t r0 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(q8_0, q2_bits_0, wasm_i32x4_splat(0));
++                v128_t r1 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(q8_1, q2_bits_1, wasm_i32x4_splat(0));
++
++                // As pistas não precisam casar com as do caminho de baixo: o
++                // `isum_vec` é somado horizontalmente no fim do bloco, então só
++                // o total por grupo de escala importa.
++                v128_t scaled = wasm_i32x4_add(
++                    wasm_i32x4_mul(r0, wasm_i32x4_splat(d0)),
++                    wasm_i32x4_mul(r1, wasm_i32x4_splat(d1))
++                );
++#else
+                 v128_t p0 = wasm_i32x4_dot_i16x8(
+                     wasm_i16x8_extend_low_i8x16(q8_0),
+                     wasm_i16x8_extend_low_i8x16(q2_bits_0)
+@@ -773,6 +802,7 @@
+                     wasm_i32x4_mul(wasm_i32x4_add(p0, p1), wasm_i32x4_splat(d0)),
+                     wasm_i32x4_mul(wasm_i32x4_add(p2, p3), wasm_i32x4_splat(d1))
+                 );
++#endif
+ 
+                 isum_vec = wasm_i32x4_add(isum_vec, scaled);
+                 q8 += 32;

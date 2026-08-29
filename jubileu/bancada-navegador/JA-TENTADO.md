@@ -1023,3 +1023,61 @@ Medido no wasm desta bancada (Qwen3.5-0.8B-MTP Q4_K_M, 64 tokens, 3 repetições
 nativo). Isso não decide o aparelho do dono do jogo — a curva de lote é por
 hardware, e a desta bancada dá 1,10× onde a dele deu 3,17× — mas é a expectativa
 honesta a levar para o teste.
+
+---
+
+## Por que o SmolLM3 parece mais rápido que o granite no aparelho
+
+O dono do jogo disse que, no celular dele, o SmolLM3 continua mais rápido que o
+granite — e desconfiou que fosse "questão de configurar". Era, e a configuração
+errada é minha.
+
+**Primeiro descartei o palpite óbvio:** threads. A sala fixa `n_threads: 4` e o
+jogo resolve por `cpuThreadCount()`, que no Snapdragon 7s Gen 2 (4×A78 + 4×A55)
+também dá 4 — metade dos núcleos, o cluster rápido. Batem. Não é isso.
+
+**A causa é o kernel relaxed.** Ele acelera **uma** função:
+`ggml_vec_dot_q4_K_q8_K`. Mais nada. E os dois modelos não compartilham nem um
+tensor de tipo:
+
+| granite 7B-A1B (Q2_K) | | SmolLM3-3B (Q4_K_M) | |
+| --- | --- | --- | --- |
+| q2_K | 176 | **q4_K** | a maioria |
+| q5_K | 64 | q6_K | |
+| q8_0 | 64 | q5_K | |
+| q3_K | 24 | q8_0 | 1 |
+| q6_K | 1 | | |
+
+**O granite Q2_K não tem UM tensor q4_K.** Com `?motor=relaxed` ligado — que é
+como o aparelho é testado — o SmolLM3 pega o kernel inteiro e o granite pega
+zero. Eu escrevi o kernel para a quantização do modelo antigo e nunca o estendi
+para a do novo, então o granite roda no caminho lento enquanto o SmolLM3 roda no
+rápido. A comparação que o aparelho mostra não é entre dois modelos, é entre um
+modelo com kernel e outro sem.
+
+Conferido que não há conserto de graça: `ggml/src/ggml-cpu/arch/wasm/quants.c`
+do llama.cpp upstream não tem **nenhuma** ocorrência de `relaxed` — o meu de
+q4_K é o único caminho relaxed que existe no wasm. Recompilar mais novo não
+resolve.
+
+### O kernel de q2_K está escrito: `relaxed-q2k.patch`
+
+`ggml_vec_dot_q2_K_q8_K` é um alvo melhor que o de q4_K: ela faz **quatro**
+`dot_i16x8` mais **oito** extends por 32 elementos, e o dot relaxed colapsa isso
+em **dois**. Os pesos, depois do `& 0x03`, valem 0..3 — cabem no slot i7 com
+folga enorme, e o pior caso do i16 intermediário do PMADDUBSW é
+3×127 + 3×127 = 762, longe dos 32767 que saturariam.
+
+A ordem dos operandos é a parte que quebra, e é a mesma armadilha de antes:
+a ativação (`q8_*`, −128..127) vai no slot **i8** e o peso (`q2_bits_*`, 0..3)
+no slot **i7**. Invertido, sai texto aleatório — foi o que aconteceu na primeira
+versão do kernel de q4_K, e é o erro do PR #19590 do upstream.
+
+O patch aplica limpo em `11cd988` (`git apply --check` passa).
+
+**Ele NÃO foi compilado nem medido.** Falta emsdk e disco nesta sessão, e um
+kernel de quantização errado não falha: ele responde bobagem, como o
+`jumbotron pymysql` da primeira tentativa. Antes de ir para o wasm implantado
+tem de passar pela `kernel-qualidade.mjs`, que compara a saída contra o build
+antigo com `n_threads: 1`, `top_k: 1` e semente fixa — com mais de um fio o
+build diverge de si mesmo e a prova não vale nada.
