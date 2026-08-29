@@ -65,33 +65,10 @@
       // navegador executar o que vier de lá; aceitar caminho livre aqui abriria
       // a mesma porta. Aqui não há nada para o usuário escolher: ou é este
       // caminho, ou é o padrão.
-      //
-      // ── OS TRÊS MOTORES LOCAIS, E POR QUE SÃO TRÊS ────────────────────
-      //
-      // `relaxed`  o de agosto: kernel de q4_K, e o ÚNICO onde o MTP monta.
-      // `q2k`      árvore nova, kernels de q4_K E de q2_K.
-      // `base`     a MESMA árvore nova, SEM kernel relaxed nenhum.
-      //
-      // `q2k` e `base` existem em par de propósito: mesmo llama.cpp, mesmo
-      // emcc, mesmas flags, cola do emscripten byte a byte idêntica — só o
-      // kernel difere. Comparar `q2k` contra `relaxed` não responderia nada,
-      // porque carregaria versão de llama.cpp e de compilador junto. Foi
-      // exatamente assim que eu registrei um "1,17×" do kernel de q4_K que,
-      // medido em par honesto, virou zero.
-      //
-      // O MTP só funciona no `relaxed`: no llama.cpp que a árvore nova fixa,
-      // montar o segundo contexto do MTP mata a página no wasm, inclusive com
-      // `n_ctx` 512. Por isso a sala só oferece a caixa do MTP nele.
       try {
-        var __motores = { relaxed: '/wllama-relaxed', q2k: '/wllama-q2k', base: '/wllama-base' };
-        var __m = new URLSearchParams(location.search).get('motor');
-        // Busca em tabela de literais, nunca concatenação: a chave `?wllama=`
-        // acima monta URL de CDN e por isso só aceita número de versão. Aqui
-        // não há nada para o usuário escolher além de uma destas três chaves.
-        if (__m && Object.prototype.hasOwnProperty.call(__motores, __m)) {
-          window.__wllamaCdn = __motores[__m];
-          window.__wllamaMotor = __m;
-          console.info('[floor10] motor local: ' + __m);
+        if (new URLSearchParams(location.search).get('motor') === 'relaxed') {
+          window.__wllamaCdn = '/wllama-relaxed';
+          console.info('[floor10] motor local com kernel relaxed de q4_K');
         }
       } catch (e) { /* sem URL não há troca, e o padrão segue */ }
 

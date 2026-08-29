@@ -31,15 +31,15 @@ const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM = `${CDN}/wasm/wllama.wasm`;
 const MOTOR_LOCAL = !!(globalThis as { __wllamaCdn?: string }).__wllamaCdn;
 /**
- * Qual motor local está montado: `relaxed`, `q2k` ou `base`.
+ * O MTP só monta no motor local, e hoje só existe um: o de agosto.
  *
- * Importa porque o MTP só monta no `relaxed`. No llama.cpp que a árvore nova
- * fixa, montar o segundo contexto do MTP mata a página no wasm — testado até
- * com `n_ctx` 512. Oferecer a caixa nos outros dois seria oferecer um jeito de
- * derrubar a aba.
+ * Cheguei a publicar dois motores recompilados para medir o kernel de q2_K no
+ * ARM, e eles foram RETIRADOS: no granite eles rodam 3,07× mais devagar que o
+ * de agosto (4,85 contra 1,58 tok/s, medido em bancada ociosa com três
+ * repetições apertadas nos dois). A perda atinge tudo — 1,33× num denso — mas
+ * o híbrido de Mamba do granite apanha o triplo. Ver `JA-TENTADO.md`.
  */
-const MOTOR = (globalThis as { __wllamaMotor?: string }).__wllamaMotor ?? '';
-const MTP_POSSIVEL = MOTOR === 'relaxed';
+const MTP_POSSIVEL = MOTOR_LOCAL;
 
 const MODELOS = {
     q4km: {

@@ -1150,3 +1150,67 @@ ganha 0,8% no x86 e perde um recurso que funciona seria péssimo negócio.
 
 O remendo dos tipos está salvo em `wllama-tipos-espec.patch` — ele estava só na
 árvore de trabalho e teria se perdido.
+
+---
+
+## REGRESSÃO: os motores recompilados são 3× mais lentos, e foram retirados
+
+O dono do jogo mediu no aparelho e trouxe os prints. Ele estava certo, e o
+estrago é meu:
+
+|  | antes (`164895a2`) | com os motores novos |
+| --- | --- | --- |
+| geração | 231 ms/token · **4,32 tok/s** | 455 ms/token · **2,20 tok/s** |
+| prefill | 139 ms/token · **7,18 tok/s** | 285 ms/token · **3,51 tok/s** |
+| uma pergunta | 35,7 s | 77,5 s |
+
+Os DOIS números caíram quase exatamente pela metade, e a razão entre eles ficou
+igual (1,66× contra 1,60×) — assinatura de máquina inteira mais lenta, não de
+caminho de código diferente.
+
+### O que era, e o que não era
+
+Não era a sala: o diff de `164895a2` até aqui não toca `n_threads`, `n_ctx` nem
+`n_batch`, e o wasm de `wllama-relaxed` **não mudou** (`git diff --name-only`
+volta vazio para ele). Não era o `index.html`: a tabela de motores é
+equivalente ao `if` que substituiu.
+
+Era o motor que eu mandei ele usar. Eu escrevi "mede `?motor=q2k` contra
+`?motor=base`" sem nunca ter comparado nenhum dos dois contra o de agosto —
+comparei os dois novos ENTRE SI, que é o A/B certo para isolar o kernel e o
+errado para decidir o que implantar.
+
+Medido em bancada ociosa (load 0,06), três repetições, os dois na mesma corrida:
+
+| modelo | motor de agosto | motor novo | |
+| --- | --- | --- | --- |
+| Qwen 0,8B denso Q4_K_M | 9,01 tok/s | 6,78 tok/s | 1,33× mais lento |
+| **granite 7B-A1B Q2_K** | **4,85 tok/s** | **1,58 tok/s** | **3,07× mais lento** |
+
+A perda atinge tudo, mas o **híbrido de Mamba do granite apanha o triplo**. O
+wasm de agosto não tem `resolve_fused_ops`, `Lightning Indexer` nem
+`DeepSeek V4` nas strings; o novo tem, e o log de carga dele resolve
+`fused Gated Delta Net` duas vezes. É nessa faixa de mudança do llama.cpp que a
+regressão do recorrente mora.
+
+`wllama-q2k` e `wllama-base` foram **removidos** e o `?motor=` voltou a aceitar
+só `relaxed`. Subir três vezes o custo do turno para medir um kernel que vale
+0,8% seria trocar o certo pelo duvidoso.
+
+### A lição, e ela é a mesma de novo
+
+O A/B entre os dois motores novos estava metodologicamente certo — mesma
+árvore, mesmo compilador, cola idêntica — e mesmo assim eu errei, porque um A/B
+correto só responde a pergunta que ele faz. Ele respondia "o kernel de q2_K
+paga?" e eu usei a resposta para decidir "posso implantar isto?", que é outra
+pergunta e exigia um terceiro braço: o que já está no ar.
+
+**Toda troca de motor precisa de um braço contra o que está implantado**, por
+mais que o resto do experimento esteja limpo.
+
+### O que sobra da caça ao kernel
+
+A pergunta do ARM continua aberta e agora é mais cara: para respondê-la sem
+regressão, o kernel de q2_K tem de ser portado para o llama.cpp de AGOSTO — o
+que o `wllama-relaxed` usa — e não o contrário. Aí sim os dois braços diferem
+só no kernel E nenhum deles é mais lento que o que está no ar.
