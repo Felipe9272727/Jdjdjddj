@@ -30,6 +30,16 @@ const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM = `${CDN}/wasm/wllama.wasm`;
 const MOTOR_LOCAL = !!(globalThis as { __wllamaCdn?: string }).__wllamaCdn;
+/**
+ * Qual motor local está montado: `relaxed`, `q2k` ou `base`.
+ *
+ * Importa porque o MTP só monta no `relaxed`. No llama.cpp que a árvore nova
+ * fixa, montar o segundo contexto do MTP mata a página no wasm — testado até
+ * com `n_ctx` 512. Oferecer a caixa nos outros dois seria oferecer um jeito de
+ * derrubar a aba.
+ */
+const MOTOR = (globalThis as { __wllamaMotor?: string }).__wllamaMotor ?? '';
+const MTP_POSSIVEL = MOTOR === 'relaxed';
 
 const MODELOS = {
     q4km: {
@@ -453,7 +463,7 @@ export default function Floor10VelocidadeSala() {
             });
 
             let blobDraft: Blob | null = null;
-            if (mtp && !MOTOR_LOCAL) throw new Error('o MTP exige ?motor=relaxed');
+            if (mtp && !MTP_POSSIVEL) throw new Error('o MTP só monta no ?motor=relaxed');
             if (espec) {
                 if (!MOTOR_LOCAL) throw new Error('a especulativa exige ?motor=relaxed');
                 setFase(`preparando ${DRAFT.rotulo}`);
@@ -680,7 +690,7 @@ export default function Floor10VelocidadeSala() {
                             <span style={{ color: '#666' }}>· +{formatBytes(DRAFT.bytes)}</span>
                             {!MOTOR_LOCAL && <span style={{ color: '#c88' }}> · exige ?motor=relaxed</span>}
                         </label>
-                        {MODELOS[modelo].mtp && (
+                        {MODELOS[modelo].mtp && MTP_POSSIVEL && (
                             <label style={{
                                 display: 'block', marginTop: 10,
                                 cursor: MOTOR_LOCAL ? 'pointer' : 'not-allowed',
@@ -692,7 +702,7 @@ export default function Floor10VelocidadeSala() {
                                 {!MOTOR_LOCAL && <span style={{ color: '#c88' }}> · exige ?motor=relaxed</span>}
                             </label>
                         )}
-                        {MODELOS[modelo].mtp && mtp && (
+                        {MODELOS[modelo].mtp && MTP_POSSIVEL && mtp && (
                             <div style={{ margin: '6px 0 0 24px', color: '#888' }}>
                                 quantos tokens rascunhar:{' '}
                                 {[1, 2, 3].map((n) => (

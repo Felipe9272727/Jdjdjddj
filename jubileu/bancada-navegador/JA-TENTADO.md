@@ -1081,3 +1081,72 @@ kernel de quantização errado não falha: ele responde bobagem, como o
 tem de passar pela `kernel-qualidade.mjs`, que compara a saída contra o build
 antigo com `n_threads: 1`, `top_k: 1` e semente fixa — com mais de um fio o
 build diverge de si mesmo e a prova não vale nada.
+
+---
+
+## O kernel de q2_K foi compilado e medido — e o "1,17×" do de q4_K era falso
+
+Recompilei o wasm de verdade: emsdk 4.0.20 (o que o projeto fixa; a 6.0.8 falha
+com `wasm32 object file can't be linked in wasm64 mode`), o llama.cpp que o
+wllama fixa, os dois patches de kernel e o `-mrelaxed-simd`.
+
+### O A/B honesto: dois wasms da MESMA árvore
+
+`bancada-navegador/q2k-ab.mjs` compara `sem-q2k` contra `com-q2k`. Mesmo
+llama.cpp, mesmo emcc, mesmas flags — e a cola do emscripten saiu **byte a byte
+idêntica** entre os dois (mesmo md5), então a ÚNICA diferença é o kernel.
+
+| modelo | sem q2_K | com q2_K | |
+| --- | --- | --- | --- |
+| requantizado Q2_K, 0,4 GB | 7,65 tok/s | 7,74 tok/s | 1,012× |
+| **granite 7B-A1B Q2_K, 2,59 GB** | **3,10 tok/s** | **3,12 tok/s** | **1,008×** |
+
+Aritmética: saída **idêntica caractere a caractere** com `temp 0`, `top_k 1`,
+semente fixa e UM fio, em português de verdade. O kernel está **correto** — só
+não paga.
+
+### O controle positivo reprovou, e é a descoberta importante
+
+Compilei um terceiro wasm sem kernel relaxed NENHUM e medi num modelo Q4_K_M,
+onde o kernel de q4_K deveria brilhar:
+
+    sem-nada .... 11,72 tok/s
+    com-q2k ..... 11,61 tok/s      1,009× mais LENTO
+
+**O ganho de 1,17× que este arquivo registrava para o kernel de q4_K não
+existe.** Aquela medição comparou o wasm implantado (llama.cpp antigo, emcc
+antigo) contra um build novo — carregou versão de biblioteca e de compilador
+junto com o kernel. É o mesmo erro do `total time` da especulativa: comparar
+duas coisas que diferem em três.
+
+Descartadas as explicações fáceis, uma a uma: a flag chega
+(`C_FLAGS` do ggml-cpu tem `-msimd128 -mrelaxed-simd`), a macro
+`__wasm_relaxed_simd__` é definida, e o `repack` NÃO está ativo no wasm (o
+carregamento mostra só `CPU model buffer`, sem `CPU_REPACK`), então o
+`vec_dot` É o caminho quente.
+
+### Por que zero, e onde ainda pode não ser zero
+
+No x86 a `relaxed_dot_i8x16_i7x16_add` baixa para PMADDUBSW+PMADDWD — quase as
+mesmas instruções do caminho explícito de extend+dot. **Esta bancada não
+consegue medir o benefício da instrução**, e eu devia ter previsto isso antes
+de compilar. É no ARM que ela vira `SDOT`, uma instrução no lugar da cadeia
+inteira. Só o aparelho responde.
+
+Por isso os dois wasms foram publicados EM PAR: `?motor=q2k` e `?motor=base`,
+mesma árvore, só o kernel diferindo. É a única forma de perguntar isso ao ARM
+sem repetir o erro de cima.
+
+### O que a árvore nova custa: o MTP morre
+
+Subir para o llama.cpp que o wllama fixa **quebra o MTP no wasm**. A página
+morre depois de montar o segundo contexto — sem exceção, sem erro, morte por
+memória — inclusive com `n_ctx` 512. No wasm de agosto o mesmo teste passa e
+imprime `draft: 0.166 MiB`.
+
+Então `?motor=relaxed` continua sendo o de agosto e continua sendo o ÚNICO com
+MTP; a sala só mostra a caixa do MTP nele. Trocar o motor implantado por um que
+ganha 0,8% no x86 e perde um recurso que funciona seria péssimo negócio.
+
+O remendo dos tipos está salvo em `wllama-tipos-espec.patch` — ele estava só na
+árvore de trabalho e teria se perdido.

@@ -1,0 +1,59 @@
+--- a/cpp/wllama-context.h
++++ b/cpp/wllama-context.h
+@@ -12,6 +12,7 @@
+ #include "llama.h"
+ #include "common.h"
+ #include "sampling.h"
++#include "speculative.h"
+ #include "chat.h"
+ #include "fit.h"
+ #include "log.h"
+@@ -539,8 +540,46 @@
+       params.lora_init_without_apply = req.lora_init_without_apply.value;
+ 
+     // speculative decoding
+-    if (req.spec_draft_model.not_null())
+-      params.speculative.draft.mparams.path = req.spec_draft_model.value;
++    // ── WLLAMA_PATCH_TNE ────────────────────────────────────────────────
++    //
++    // O schema tipado do wllama não tem campo para `--spec-type`, e sem ele
++    // `params.speculative.types` fica em `{NONE}` e a inicialização morre com
++    // "no implementations specified for speculative decoding". Isso tranca as
++    // implementações que NÃO carregam arquivo — MTP, n-grama, EAGLE-3 — porque
++    // para elas não existe caminho de modelo a informar.
++    //
++    // Então `spec_draft_model` aceita dois formatos:
++    //
++    //     "types:draft-mtp"              escolhe a implementação
++    //     "types:ngram-mod,ngram-map-k"  várias, separadas por vírgula
++    //     "models/draft.gguf"            caminho do modelo, como antes
++    //
++    // O caminho de modelo continua não precisando de tipo: quando os tipos
++    // estão no padrão e há um draft carregado, o llama.cpp lê os tipos do
++    // próprio GGUF do rascunhador.
++    if (req.spec_draft_model.not_null()) {
++      const std::string valor = req.spec_draft_model.value;
++      const std::string prefixo = "types:";
++      if (valor.rfind(prefixo, 0) == 0) {
++        std::vector<std::string> nomes;
++        std::stringstream fluxo(valor.substr(prefixo.size()));
++        std::string nome;
++        while (std::getline(fluxo, nome, ',')) {
++          if (!nome.empty()) {
++            nomes.push_back(nome);
++          }
++        }
++        // `..._from_names` lança em nome desconhecido, e é o que se quer: um
++        // tipo escrito errado tem de estourar aqui, não virar silenciosamente
++        // um turno sem especulativa que ninguém nota na medição.
++        params.speculative.types = common_speculative_types_from_names(nomes);
++        LOG_INF("WLLAMA_PATCH_TNE: speculative types = %s\n",
++                valor.substr(prefixo.size()).c_str());
++      } else {
++        params.speculative.draft.mparams.path = valor;
++        LOG_INF("WLLAMA_PATCH_TNE: draft model = %s\n", valor.c_str());
++      }
++    }
+     if (req.spec_draft_ngl.not_null())
+       params.speculative.draft.n_gpu_layers = req.spec_draft_ngl.value;
+     if (req.spec_draft_n_max.not_null())

@@ -20,7 +20,7 @@ if (existsSync(RAIZ)) rmSync(RAIZ, { recursive: true, force: true });
 mkdirSync(RAIZ, { recursive: true });
 copyFileSync('bancada-navegador/vazio.html', `${RAIZ}/vazio.html`);
 symlinkSync(MODELO, `${RAIZ}/m.gguf`);
-symlinkSync(`${process.cwd()}/public/wllama-relaxed`, `${RAIZ}/wllama-relaxed`);
+symlinkSync(process.env.MOTOR ?? `${process.cwd()}/public/wllama-relaxed`, `${RAIZ}/wllama-relaxed`);
 
 const PORTA = 3411;
 const BASE = `http://127.0.0.1:${PORTA}`;
@@ -47,7 +47,7 @@ const medir = async (nMax) => p.evaluate(async ({ base, nMax }) => {
     const linhas = [];
     globalThis.__linhas = linhas;
     const pega = (...a) => linhas.push(a.map(String).join(' '));
-    const w = new mod.Wllama({ default: `${base}/wllama-relaxed/wasm/wllama.wasm` },
+    const w = new mod.Wllama({ default: `${base}/wllama-relaxed/wllama.wasm` },
         { suppressNativeLog: false, logger: { debug: pega, log: pega, warn: pega, error: pega } });
     await w.loadModelFromUrl(`${base}/m.gguf`, {
         n_ctx: 2048, n_batch: 512, n_threads: 4, n_gpu_layers: 0,

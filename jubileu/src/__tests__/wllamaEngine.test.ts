@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { FLOOR10_GPU_START_LAYERS } from '../npc/floor10Gpu';
 import { describe, expect, it } from 'vitest';
 import {
@@ -808,11 +808,23 @@ describe('a chave ?wllama= no index.html', () => {
         // manda o navegador executar o que vier de lá. A `?motor=` tem a mesma
         // consequência, então não pode aceitar caminho livre: o valor é
         // literal no HTML e o usuário só escolhe ligar ou não.
-        expect(html).toContain("get('motor') === 'relaxed'");
-        expect(html).toContain("window.__wllamaCdn = '/wllama-relaxed'");
+        //
+        // Agora são TRÊS motores, então a comparação virou busca em tabela de
+        // literais. A garantia é a mesma e o teste continua cobrando ela: o
+        // valor da URL só serve de CHAVE, nunca entra na URL montada.
+        expect(html).toContain("__motores = { relaxed: '/wllama-relaxed', q2k: '/wllama-q2k', base: '/wllama-base' }");
+        expect(html).toContain('window.__wllamaCdn = __motores[__m]');
+        // `hasOwnProperty` e não `in`: sem ele, `?motor=constructor` acharia
+        // algo na cadeia de protótipos.
+        expect(html).toContain('Object.prototype.hasOwnProperty.call(__motores, __m)');
         // Nada de concatenar o que veio da URL neste caminho.
-        const bloco = html.slice(html.indexOf("get('motor')"), html.indexOf('</script>', html.indexOf("get('motor')")));
+        const ini = html.indexOf('__motores = {');
+        const bloco = html.slice(ini, html.indexOf('</script>', ini));
         expect(bloco).not.toMatch(/__wllamaCdn\s*=\s*[^;]*\+/);
+        // E os três caminhos existem no disco servido.
+        for (const dir of ['wllama-relaxed', 'wllama-q2k', 'wllama-base']) {
+            expect(existsSync(new URL(`../../public/${dir}/wasm/wllama.wasm`, import.meta.url))).toBe(true);
+        }
     });
 });
 
