@@ -1449,3 +1449,29 @@ depende de um commit que ninguém anotou, ele é irreproduzível — e o dia em 
 alguém precisar recompilar (para o kernel de q2_K, para o MTP, para qualquer
 coisa) o jogo perde 2× de velocidade sem aviso. Já aconteceu uma vez esta
 semana.
+
+### O `n_parallel` parecia a resposta e não era
+
+Comparando os logs de carga achei uma diferença grande que tinha me escapado:
+
+    implantado ... llama_memory_recurrent: 55,37 MiB (1 cells, 40 layers, 1 seqs)
+    meu build .... llama_memory_recurrent: 221,48 MiB (4 cells, 40 layers, 4 seqs)
+
+A causa é o commit `a3d9da2` do wllama, "properly support n_parallel" (16/ago),
+que trocou o padrão de `n_parallel: 1` fixo por `params.n_parallel ?? 4`. Num
+híbrido de Mamba isso QUADRUPLICA o estado recorrente, que é lido e escrito a
+cada token — 55 MiB cabem em cache, 221 MiB não. E explicava a assimetria que eu
+não sabia explicar: denso perdia 1,3×, Mamba perdia 3×.
+
+Passando `n_parallel: 1` o buffer volta aos 55,37 MiB, idêntico ao implantado.
+**E a velocidade não muda**: 3,06 tok/s contra 3,10 com o padrão de 4. O
+atraso continua em 2,18×.
+
+Então a diferença de memória é real, tem causa conhecida, e **não custa nada**.
+Uma hipótese bonita a menos.
+
+Fica o aviso de método: eu quase anunciei isso como a resposta ao ver os buffers.
+Duas vezes nesta mesma investigação o patch de teste falhou em silêncio (um `cd`
+que não existia derrubou o `python3` da cadeia e o script rodou sem a opção), e
+a medição "sem diferença" parecia confirmar. Conferir que a opção CHEGOU — aqui,
+olhando o buffer no log — é parte do teste, não zelo extra.

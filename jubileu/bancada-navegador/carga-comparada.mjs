@@ -32,14 +32,14 @@ const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/ch
 for(const motor of process.env.MOTORES.split(',')){
   const p=await b.newPage();
   await p.goto(`${BASE}/vazio.html`,{waitUntil:'domcontentloaded',timeout:120000});
-  const L=await p.evaluate(async({base,motor,alvo})=>{
+  const L=await p.evaluate(async({base,motor,alvo,par})=>{
     const linhas=[]; const pega=(...a)=>linhas.push(a.map(String).join(' '));
     const mod=await import(`${base}/${motor}/index.js`);
     const w=new mod.Wllama({default:`${base}/${motor}/wllama.wasm`},{suppressNativeLog:false,logger:{debug:pega,log:pega,warn:pega,error:pega}});
-    await w.loadModelFromUrl(`${base}/${alvo}`,{n_ctx:1024,n_batch:256,n_threads:4,n_gpu_layers:0,warmup:false});
+    await w.loadModelFromUrl(`${base}/${alvo}`,{n_ctx:1024,n_batch:256,n_threads:4,n_gpu_layers:0,warmup:false,...(par?{n_parallel:par}:{})});
     await w.exit?.();
     return linhas.filter(l=>/buffer size|n_threads|backend|SIMD|repack|flash|graph|sched_reserve|memory_recurrent|kv_cache|offload/i.test(l));
-  },{base:BASE,motor,alvo:ALVO});
+  },{base:BASE,motor,alvo:ALVO,par:Number(process.env.PAR??0)});
   console.log(`\n===== ${motor} =====`);
   for(const l of L) console.log('  '+l.slice(0,130));
   await p.close();

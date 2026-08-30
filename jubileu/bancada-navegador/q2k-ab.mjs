@@ -63,12 +63,16 @@ const b = await chromium.launch({
 const rodar = async (motor, fios) => {
     const p = await b.newPage();
     await p.goto(`${BASE}/vazio.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    const r = await p.evaluate(async ({ base, motor, fios, alvo }) => {
+    const r = await p.evaluate(async ({ base, motor, fios, alvo, par }) => {
         const mod = await import(`${base}/${motor}/index.js`);
         const w = new mod.Wllama({ default: `${base}/${motor}/wllama.wasm` });
         await w.loadModelFromUrl(`${base}/${alvo}`, {
             n_ctx: 1024, n_batch: 256, n_threads: fios, n_gpu_layers: 0,
             jinja: true, reasoning: false, warmup: false,
+            // `n_parallel` entrou aqui porque o wllama de 16/ago mudou o padrão
+            // de 1 para 4, e num híbrido de Mamba isso QUADRUPLICA o estado
+            // recorrente — 55 MiB viram 221 MiB, lidos e escritos a cada token.
+            ...(par ? { n_parallel: par } : {}),
         });
         const msgs = [{ role: 'user', content: 'Explique como funciona um elevador antigo.' }];
         const uma = async () => {
@@ -83,7 +87,7 @@ const rodar = async (motor, fios) => {
         const a = await uma(); const c = await uma(); const d = await uma();
         await w.exit?.();
         return { ms: [a.ms, c.ms, d.ms], txt: a.txt };
-    }, { base: BASE, motor, fios, alvo: ALVO });
+    }, { base: BASE, motor, fios, alvo: ALVO, par: Number(process.env.PAR ?? 0) });
     await p.close();
     return r;
 };
