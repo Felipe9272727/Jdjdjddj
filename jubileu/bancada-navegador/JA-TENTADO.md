@@ -1412,3 +1412,40 @@ O que sobra sem teste: `-DGGML_WEBGPU=ON` (o implantado tem 29 strings de
 webgpu, todos os meus zero, porque compilei com OFF) e as versões de emcc entre
 a 4.0.20 e a 6.0.8 — o mangling do `std::function::__func` prova que o
 implantado usa uma libc++ mais nova que a 4.0.20.
+
+### Mais duas hipóteses mortas, e onde a caça fica
+
+`-DGGML_WEBGPU=ON` **não é**: construí o melhor pino com WebGPU ligado (baixando
+o `emdawnwebgpu_pkg` que o build oficial usa) e deu **3,10 tok/s** contra 3,09
+do mesmo pino com WebGPU desligado. Diferença zero.
+
+**Memória de 32 bits também não é.** Li o cabeçalho de importação de memória dos
+quatro binários: todos trazem `flags=0x07`, ou seja **64 bits e compartilhada**.
+O MEMORY64 é sabidamente mais caro no V8 e seria uma explicação bonita — mas o
+implantado tem exatamente o mesmo.
+
+O que sobrou de pista concreta: a cola do emscripten embutida no `index.js`
+implantado tem **127.726 bytes** descomprimida, contra 144.377 e 144.504 das
+minhas. Toolchain diferente, confirmando o que o mangling do `std::function`
+já dizia. E o wasm implantado (7,65 MB) fica ENTRE o meu sem WebGPU (6,6 MB) e
+o meu com WebGPU (8,5 MB), o que nenhuma das minhas configurações reproduz.
+
+### Onde continuar, e é bissecção
+
+A varredura dos pinos mostrou que existe uma **janela rápida** no llama.cpp por
+volta de 16/ago: os pinos de lá rodam o granite ao dobro dos de 15/jun e de
+23/ago. Mas mesmo eles ficam 2,2× atrás do implantado — o que sugere que o
+motor de agosto foi construído sobre um commit do llama.cpp que **nenhum
+release do wllama fixa**, provavelmente escolhido à mão quando eu apliquei o
+patch do kernel.
+
+Então a caça vira bissecção do llama.cpp dentro da janela, usando
+`q2k-ab.mjs` com o braço `agosto` como referência fixa. É caro (cada ponto é um
+build de ~12 min mais uma medição de ~10), mas é mecânico e o alvo é claro:
+achar o commit que roda o granite a ~6,8 tok/s nesta bancada.
+
+E vale lembrar por que isso importa além da curiosidade: se o motor implantado
+depende de um commit que ninguém anotou, ele é irreproduzível — e o dia em que
+alguém precisar recompilar (para o kernel de q2_K, para o MTP, para qualquer
+coisa) o jogo perde 2× de velocidade sem aviso. Já aconteceu uma vez esta
+semana.
