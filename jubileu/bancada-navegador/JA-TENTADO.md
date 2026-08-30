@@ -1361,3 +1361,54 @@ CI e não no aparelho do dono do jogo, dias depois.
 
 Se ele falhar, a pergunta certa não é "atualizo a soma?" — é "o substituto
 ganhou do `agosto` no granite, medido pelo `q2k-ab.mjs`?".
+
+### Varrendo os pinos: a regressão do Mamba está entre 16 e 23 de agosto
+
+Continuei a caça construindo cada combinação que o wllama já fixou. Todas com
+emcc 4.0.20, `-DGGML_WEBGPU=OFF`, sem patch de kernel, medidas contra o
+implantado **na mesma corrida** (o x86 desta bancada oscila entre dias, então só
+a razão vale):
+
+| wllama | llama.cpp | data | granite | atraso contra o implantado |
+| --- | --- | --- | --- | --- |
+| 766d28e | dd4623a7 | 15/jun | 1,59 tok/s | 2,99× |
+| 0d62244 | 10bf611e | 16/ago | 3,02 tok/s | **2,23×** |
+| d302659 (v3.6.0) | 4df29be4 | 16/ago | 3,09 tok/s | **2,20×** |
+| 91f2491 | 8144f319 | 23/ago | 1,58 tok/s | 3,07× |
+
+Duas coisas saem daí.
+
+**1. Achei a janela da regressão do recorrente.** Os pinos de 16/ago rodam o
+granite quase o DOBRO dos de 15/jun e de 23/ago. Ou seja, entre `4df29be4`
+(16/ago) e `8144f319` (23/ago) o llama.cpp perdeu ~50% de velocidade em modelo
+híbrido de Mamba no wasm. Essa janela é bissectável e o resultado interessa ao
+projeto inteiro, não só a este jogo.
+
+**2. E mesmo o melhor pino fica 2,2× atrás do implantado.** O ganho de trocar
+de junho para agosto é real (2,99× → 2,20× de atraso), mas não fecha nem
+metade. Sobra um segundo fator, maior que a versão do llama.cpp, que eu ainda
+não achei.
+
+Uma hipótese morreu de vez no caminho: **wllama de agosto + llama.cpp de junho
+não compila** (`CMake Error at CMakeLists.txt:132 (add_executable)`, arquivos de
+servidor que ainda não existiam). Então o implantado usa o pino do próprio
+wllama, e a combinação híbrida que os tamanhos de `index.js` sugeriam é
+impossível.
+
+### O que já foi descartado, para não se repetir
+
+| hipótese | como morreu |
+| --- | --- |
+| versão do llama.cpp | quatro pinos construídos; o melhor ainda fica 2,2× atrás |
+| `-mrelaxed-simd` | build sem a flag dá o mesmo número |
+| fio único | os dois escalam igual de 1 para 4 fios |
+| grafo diferente | logs de carga idênticos, 3454 nós (`carga-comparada.mjs`) |
+| meu jeito de compilar | o binário OFICIAL do CDN também fica 2,9× atrás |
+| kernel escondido | a única string a mais no implantado é o `WLLAMA_PATCH_TNE` |
+| emcc 6.0.8 | build sai e é AINDA mais lento (48 tokens não terminam em 25 min) |
+| wllama ago + llama.cpp jun | não compila |
+
+O que sobra sem teste: `-DGGML_WEBGPU=ON` (o implantado tem 29 strings de
+webgpu, todos os meus zero, porque compilei com OFF) e as versões de emcc entre
+a 4.0.20 e a 6.0.8 — o mangling do `std::function::__func` prova que o
+implantado usa uma libc++ mais nova que a 4.0.20.
