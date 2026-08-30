@@ -1475,3 +1475,59 @@ Duas vezes nesta mesma investigação o patch de teste falhou em silêncio (um `
 que não existia derrubou o `python3` da cadeia e o script rodou sem a opção), e
 a medição "sem diferença" parecia confirmar. Conferir que a opção CHEGOU — aqui,
 olhando o buffer no log — é parte do teste, não zelo extra.
+
+### A versão do emscripten também não é — e a invariância virou o dado principal
+
+O motor implantado tem a assinatura de mangling de **duas** posições
+(`NSt3__210__function6__funcIPFbcES2_EE`); os builds com emcc 4.0.20 têm três
+(com `NS_9allocatorI...EE` no meio). Compilei com a 6.0.8 e a assinatura bate
+com a do implantado — ou seja, **ele é da família 6.0.x**, não de uma versão
+antiga.
+
+Então testei a combinação que faltava, emcc 6.0.8 com o llama.cpp de agosto (o
+pino rápido): **3,05 tok/s**, 2,24× atrás. A versão do compilador não é a
+explicação.
+
+O que sobra dos números é a **invariância**, e ela virou o dado mais importante
+desta caça. Tudo que eu construo cai em 3,05–3,10 tok/s no granite:
+
+| combinação | granite |
+| --- | --- |
+| emcc 4.0.20 + llama.cpp 16/ago | 3,02–3,09 |
+| emcc 6.0.8 + llama.cpp 16/ago | 3,05 |
+| com WebGPU / sem WebGPU | 3,10 / 3,09 |
+| `n_parallel` 1 / 4 | 3,06 / 3,10 |
+| depois de `wasm-opt -O3` | tamanho não muda: já estava otimizado |
+| **implantado** | **6,6–6,9** |
+
+Nada que eu mexa move o número. Isso não parece diferença de flag nem de
+versão — parece que o implantado passou por uma etapa que o meu pipeline não
+tem, ou saiu de uma fonte que não é a que eu reconstruo.
+
+Uma pista sem explicação, guardada para quem retomar: comparando as seções dos
+dois wasm, o **código do implantado é MENOR** (5.642.066 B contra 5.913.913 B)
+apesar de ele carregar WebGPU compilado dentro e o meu não. Código menor com
+mais funcionalidade é sinal de otimização mais agressiva.
+
+### A janela da regressão do Mamba, com commits verificados
+
+Um agente varreu os 137 commits entre `4df29be4` (16/ago) e `8144f319`
+(23/ago). Conferi que os quatro candidatos existem e que os títulos batem:
+
+| commit | data | título |
+| --- | --- | --- |
+| `849798132` | 20/ago | ggml: fix backend split scheduler race condition (#26040) |
+| `929d47a39` | 20/ago | graph : create V as a view of K in the k_iswa build_attn (#27392) |
+| `369e1cd61` | 22/ago | ggml: optimize concat op by replacing per-element memcpy with row-level memcpy (#24575) |
+| `b062ba735` | 19/ago | opencl: port fused ssm_scan kernel (Mamba-2) to GPU (#26439) |
+
+O primeiro é o mais plausível para o caso: ele acrescenta sincronização entre
+splits do escalonador, e modelo recorrente gera muitos splits pequenos. A PR
+mediu "sem regressão" em CUDA de duas GPUs — ninguém mediu em wasm de backend
+único. **Nada disso está confirmado por medição**; é lista de suspeitos para
+bissectar, não conclusão.
+
+Aviso sobre a outra frente: um segundo agente concluiu que o implantado seria
+Emscripten 3.1.6x. **Está errado** — a assinatura de mangling que eu li direto
+do binário coloca ele na família 6.0.x. Registro aqui para ninguém reaproveitar
+a conclusão.
