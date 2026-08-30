@@ -1531,3 +1531,81 @@ Aviso sobre a outra frente: um segundo agente concluiu que o implantado seria
 Emscripten 3.1.6x. **Está errado** — a assinatura de mangling que eu li direto
 do binário coloca ele na família 6.0.x. Registro aqui para ninguém reaproveitar
 a conclusão.
+
+---
+
+## A "regressão do Mamba no llama.cpp" não se sustenta — e o erro é meu de novo
+
+Fui atacar a bissecção para reportar upstream e o primeiro teste derrubou a
+própria hipótese.
+
+### 1. Não reproduz no nativo
+
+`llama-bench`, granite 7B-A1B Q2_K, 64 tokens, 4 fios, x86:
+
+    llama.cpp 4df29be4 (16/ago) ..... 21,90 tok/s
+    llama.cpp 11cd988  (26/ago) ..... 19,98 tok/s      1,10x
+
+No wasm a mesma janela dava **1,96×**. Ou seja: o llama.cpp sozinho responde por
+~10%, não por 2×.
+
+### 2. Minhas medições de wasm estavam confundidas
+
+Olhando a tabela dos pinos com atenção, em TODA comparação eu troquei o wllama
+JUNTO com o llama.cpp:
+
+| wllama | llama.cpp | granite |
+| --- | --- | --- |
+| 766d28e (jun) | dd4623a7 | 1,59 |
+| 0d62244 (16/ago) | 10bf611e | 3,02 |
+| d302659 (17/ago) | 4df29be4 | 3,09 |
+| 91f2491 (23/ago) | 8144f319 | 1,58 |
+
+Os dois rápidos são wllama de meados de agosto; os dois lentos são wllama de
+junho e de 23/ago. **Eu atribuí ao llama.cpp uma diferença que podia ser do
+wllama**, e escrevi isso aqui como se fosse achado. Era a mesma armadilha do
+`total time` e do "1,17× do kernel": dois eixos mudando juntos, conclusão num só.
+
+### 3. E o eixo não dá para isolar
+
+Tentei as duas combinações cruzadas e nenhuma compila:
+
+    wllama 91f2491 + llama.cpp 4df29be4 → unknown type name 'common_fit_extra_model'
+    wllama d302659 + llama.cpp 8144f319 → assigning to 'int' from incompatible type 'common_json'
+
+O `wllama-context.h` acompanha a API do `common/` do llama.cpp de perto demais.
+Sem um terceiro ponto que compile dos dois lados, a atribuição fica indecidível
+com estas árvores.
+
+### 4. Então NÃO abri relato upstream
+
+Seria reportar como regressão do llama.cpp uma diferença que eu não consigo
+demonstrar ser do llama.cpp — e o projeto pede bissecção fechada e, de
+preferência, repro em backend nativo. Eu tenho o oposto: nativo quase não mexe.
+
+O que sobra de verdadeiro e reportável, se alguém quiser retomar: **existe uma
+diferença de ~2× no wasm entre pares (wllama, llama.cpp) de meados de agosto e
+os de junho/23-ago**, e ela não aparece no nativo. Fechar a atribuição exige
+achar um commit do wllama que compile com dois llama.cpp diferentes, ou fazer o
+caminho inverso — portar as poucas chamadas de `common/` que quebram.
+
+### O que a análise dos commits rendeu, mesmo sem o relato
+
+Um agente leu os diffs dos quatro candidatos e eliminou três por mecanismo, o
+que continua útil se a caça for retomada:
+
+- `849798132` (scheduler sync) — **não pode ser**: a sincronização é guardada por
+  `prev_backend_id != split_backend_id`, e com backend CPU único isso é sempre
+  falso.
+- `929d47a39` (V como view de K) — **não pode ser**: só toca a atenção do
+  Deepseek4; o modelo em teste é recorrente.
+- `b062ba735` (ssm_scan em OpenCL) — **não pode ser**: kernel de GPU, nunca
+  compilado no wasm de CPU.
+- `369e1cd61` (concat com memcpy por linha) — **único que sobra**: troca um laço
+  único distribuído sobre a dimensão de saída por DOIS laços, cada um
+  distribuído sobre sua própria dimensão. Se `ne02 != ne12`, as threads
+  desbalanceiam. É hipótese de leitura de diff, **não medida**.
+
+E a busca por relato existente voltou vazia: ninguém reportou regressão de
+SSM/Mamba em CPU ou wasm nessa janela. O mais próximo é a issue #16454, de
+out/2025, sobre o granite-4.0-h-tiny estar lento — aberta, nunca confirmada.
