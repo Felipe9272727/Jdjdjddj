@@ -1609,3 +1609,82 @@ que continua útil se a caça for retomada:
 E a busca por relato existente voltou vazia: ninguém reportou regressão de
 SSM/Mamba em CPU ou wasm nessa janela. O mais próximo é a issue #16454, de
 out/2025, sobre o granite-4.0-h-tiny estar lento — aberta, nunca confirmada.
+
+---
+
+## O motor implantado é um artefato REMENDADO, e os remendos não existem em fonte
+
+O dono do jogo insistiu: *"será uma modificação que a gente fez e nós dois
+esquecemos?"* Quatro agentes varreram os dois binários e a resposta é **sim** —
+mas não do jeito que eu procurava.
+
+### O que os inventários acharam
+
+Diferenças de símbolo entre o binário rápido e o meu, verificadas por mim
+direto nos arquivos:
+
+| | rápido (implantado) | meu build |
+| --- | --- | --- |
+| `draft-dflash` | **ausente** | presente |
+| `draft-dspark` | **ausente** | presente |
+| `deepseek4` | **ausente** | presente (3×) |
+| `resolve_fused_ops` | **ausente** | presente |
+| `Lightning Indexer` | **ausente** | presente (22×) |
+| `Gated Delta Net` | presente (8×) | presente (14×) |
+| `draft-mtp`, `draft-eagle3` | presentes | presentes |
+| `ggml::cpu::repack` | 1 ocorrência | 18 ocorrências |
+
+**Isso data o motor com precisão nova.** O DFlash entrou no llama.cpp em
+`d1b34251b`, **28/jun/2026**, e o motor não o tem; mas ele tem MTP e EAGLE3, que
+são anteriores. Logo o llama.cpp dele é **de antes de 28/jun** — mais velho que
+QUALQUER coisa que eu reconstruí nesta caça, que começou no pino de 15/jun e foi
+para a frente.
+
+E o wllama dele não é nenhum commit upstream: entre `766d28e` (16/jun) e
+`0d62244` (16/ago) existe **um único** commit, e o `index.js` implantado tem
+370.965 bytes, contra 357.890 de um build limpo do 766d28e. Sobram ~13 KB.
+
+### Os 13 KB são remendos nossos, escritos direto no artefato
+
+Tirando a cola comprimida e comparando só o TypeScript, aparecem identificadores
+que build nenhum do upstream produz: `ESPECULATIVA`, `Frankenstein`, `PONTE`,
+`TIPADO`, `CHEGA`, `Medido`, `MODEL_LOAD_ACTIVITY_EVENT`. São **35 linhas de
+comentário em português**, em sete regiões, marcadas como `PATCH TNE`:
+
+1. **Ponte de pthread** — o emscripten desta build ignora `mainScriptUrlOrBlob` e
+   cria cada pthread a partir de `_scriptName`, que dentro do Worker de Blob
+   aponta para o próprio arquivo, sem bootstrap. O handshake nunca fechava e a
+   carga travava para sempre. O remendo publica o Blob do módulo em
+   `__emPthreadUrl`.
+2. **Erro não-clonável no `postMessage`** — um `DOMException` inteiro não é
+   clonável; o `postMessage` falhava, o main thread não sabia, e a promessa da
+   carga não resolvia NEM rejeitava: o "carregando" eterno. Passa nome e
+   mensagem em vez do objeto.
+3. **O draft da especulativa precisa estar no FS, não numa URL.**
+4. **Fragmentos de gguf dividido** — "dois modelos viram um Frankenstein".
+5. Mais três regiões menores de registro e de esquema tipado.
+
+**Nenhum é de performance.** São consertos funcionais — mas nenhum deles existe
+em código-fonte, nem aqui nem no wllama upstream. Eles sobrevivem só porque o
+`index.js` construído está versionado. Se esse arquivo se perder, some tudo, e
+o "carregando" eterno volta.
+
+Estão resgatados em `bancada-navegador/REMENDOS-DO-MOTOR.md`, com contexto, para
+poderem ser reaplicados numa recompilação futura.
+
+### A velocidade continua sem explicação
+
+Testei mais duas coisas nesta rodada e nenhuma é a causa:
+
+    n_parallel 1 (buffer recorrente idêntico ao dele) ... 3,06 tok/s
+    GGML_CPU_REPACK=OFF (some o repack do binário) ...... 3,20 tok/s
+    implantado ......................................... 6,6–6,9 tok/s
+
+O repack rendeu 4%, o melhor ganho de flag até agora, e ainda assim sobra 2,08×.
+
+O que a datação acrescenta é uma direção nova: **eu nunca testei um llama.cpp
+anterior a 15/jun**. O motor é de antes de 28/jun e o pino mais velho que o
+wllama oferece é o de 15/jun, que eu medi em 1,59 — mas com o wllama de junho
+junto, e já sei que essa amarração confunde os dois eixos. Fechar isso exigiria
+compilar llama.cpp de maio/junho contra o wllama de junho, que é a única
+combinação que ainda não foi tentada.
