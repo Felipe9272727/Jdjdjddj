@@ -1305,3 +1305,59 @@ com a 6.0.8 e o `emsdk_env.sh` reativou a 4.0.20 por baixo — o build saiu com 
 
 O que NÃO fazer: trocar o motor implantado antes de reproduzir a velocidade
 dele. Ele é o ativo mais valioso desta pasta e não tem receita escrita.
+
+### A assinatura do motor implantado: outro toolchain, e nenhuma mágica no código
+
+O dono do jogo levantou a hipótese certa — "será uma modificação que a gente fez
+e esqueceu?" — e ela se responde comparando as tabelas de strings do binário
+implantado contra o oficial do CDN. Diferença semântica: **uma só**.
+
+    WLLAMA_PATCH_TNE: draft model = %s
+    WLLAMA_PATCH_TNE: speculative types = %s
+
+É o meu remendo do MTP, e ele não toca aritmética nenhuma. Não há kernel
+escondido, não há flag mágica no código.
+
+Mas os nomes mangleados denunciam o resto:
+
+    implantado ... NSt3__210__function6__funcIN14wllama_context11should_stopMUlvE_ E FbvEEE
+    oficial ...... NSt3__210__function6__funcIN14wllama_context11should_stopMUlvE_ NS_9allocatorIS4_EE FbvEEE
+
+O parâmetro `allocator` do `std::function::__func` sumiu — isso é **libc++ de
+outra versão**. O oficial ainda tem `__cxa_guard_acquire/release/abort`; o
+implantado não. São toolchains diferentes, e o implantado é o mais novo.
+
+Some-se a isso o `index.js`: o implantado tem **370.965 bytes**, e nenhum build
+meu produz esse tamanho — a árvore de junho gera 357.890 e a de 23/ago gera
+374.595. Ele está ENTRE as duas, o que aponta para um wllama de 16–17/ago
+(`0d62244`…`f16050d`) combinado com o llama.cpp de junho, que é a única
+combinação capaz de dar log com prefixo `sched_reserve:` e JS desse tamanho.
+Essa combinação eu ainda não construí.
+
+### O emcc 6.0.8 NÃO é a explicação
+
+Testei a hipótese até o fim. Instalar e ativar exigiu três correções — a
+`activate` por versão falha se o SDK veio pelo nome `latest`, o cache do
+emscripten fica MISTURADO entre versões (`wasm32-emscripten` sobrevivendo num
+link de 64 bits) e o CMake resolve as bibliotecas na sondagem inicial, que roda
+sem `-sMEMORY64`. O que destrava é:
+
+    emcc --clear-cache
+    embuilder build ALL --wasm64
+    emcmake cmake .. -DCMAKE_C_FLAGS=-sMEMORY64=1 -DCMAKE_CXX_FLAGS=-sMEMORY64=1 \
+                     -DCMAKE_EXE_LINKER_FLAGS=-sMEMORY64=1
+
+O build sai. E é **ainda mais lento** que o de 4.0.20 — tão lento que a corrida
+de 48 tokens não terminou em 25 minutos, com o Chromium a 180% de CPU (ou seja,
+calculando, não travado, e usando menos fios do que pediu). Hipótese descartada.
+
+### O que ficou de proteção
+
+`src/__tests__/motorImplantado.test.ts` fixa o md5 do wasm E do `index.js`
+implantados, e cobra que `?motor=` não aponte para nenhum outro caminho da
+mesma origem. Eu já sobrescrevi esse arquivo uma vez publicando rebuilds sem
+medir contra o que estava no ar; o teste existe para que a próxima vez pare no
+CI e não no aparelho do dono do jogo, dias depois.
+
+Se ele falhar, a pergunta certa não é "atualizo a soma?" — é "o substituto
+ganhou do `agosto` no granite, medido pelo `q2k-ab.mjs`?".
