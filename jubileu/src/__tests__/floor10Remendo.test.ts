@@ -9,6 +9,7 @@ import {
     lerVeredito,
     listaParaRevisao,
     remendoInutil,
+    remendoTruncado,
     remendosQueValem,
     GRAMATICA_DO_VEREDITO,
     VEREDITO_MAX_TOKENS,
@@ -519,5 +520,40 @@ describe('o descarte de remendo inútil, consertado pela medição', () => {
             'Sou Nilo Azevedo, ex-técnico de elevadores.',
             'Sou o Nilo Azevedo, um ex-técnico de elevadores.',
         )).toBe(true);
+    });
+});
+
+// ── O REMENDO PELA METADE ────────────────────────────────────────────────
+//
+// Achado JOGANDO, com os modelos de produção. O revisor de 360M devolveu
+// "I have stopped trying to" e "If you can call it that, I" como correções, e
+// as duas foram para a tela coladas: "Eu parei de tentar se você pode chamá-lo
+// assim, eu". O teto de tokens é 40 e elas tinham 6 e 8 — não foi corte, o
+// modelo parou no meio. Faltava a guarda.
+describe('remendo que veio pela metade', () => {
+    const frases = enumerarFrases('I called the elevator. Nothing came.');
+
+    it('reconhece fragmento sem pontuação terminal', () => {
+        expect(remendoTruncado('I have stopped trying to')).toBe(true);
+        expect(remendoTruncado('If you can call it that, I')).toBe(true);
+    });
+
+    it('aceita frase inteira, inclusive fechada por aspa ou parêntese', () => {
+        expect(remendoTruncado('I have stopped trying.')).toBe(false);
+        expect(remendoTruncado('Does it ever come?')).toBe(false);
+        expect(remendoTruncado('"It never came."')).toBe(false);
+        expect(remendoTruncado('I waited a long time…')).toBe(false);
+    });
+
+    it('descarta o fragmento e mantém a frase original na fala', () => {
+        const truncado = [{ n: 1, texto: 'I have stopped trying to' }];
+        expect(remendosQueValem(frases, truncado)).toEqual([]);
+        expect(aplicarRemendos(frases, remendosQueValem(frases, truncado)))
+            .toBe('I called the elevator. Nothing came.');
+    });
+
+    it('deixa passar o remendo inteiro que muda a frase', () => {
+        const bom = [{ n: 1, texto: 'I stopped calling it.' }];
+        expect(remendosQueValem(frases, bom)).toEqual(bom);
     });
 });

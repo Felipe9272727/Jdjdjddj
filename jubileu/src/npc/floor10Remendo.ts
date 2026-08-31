@@ -337,7 +337,33 @@ export function remendoInutil(original: string, novo: string): boolean {
     return MemoriaDeBolhas.parecidas(original, novo);
 }
 
-/** Tira os remendos que não mudam nada; devolve os que valem a pena aplicar. */
+/**
+ * ── O REMENDO VEIO PELA METADE ───────────────────────────────────────────
+ *
+ * Achado JOGANDO, no `jogo-de-verdade.mjs`, com os modelos de produção. A
+ * pergunta "O elevador vem se eu chamar?" recebeu DOIS remendos, e os dois
+ * eram fragmento:
+ *
+ *     [trocou] "I have stopped trying to"
+ *     [trocou] "If you can call it that, I"
+ *
+ * Colados, viraram a fala que foi para a tela:
+ *
+ *     "Eu parei de tentar se você pode chamá-lo assim, eu"
+ *
+ * O teto não é o culpado: `REMENDO_TREINADO_TOKENS` é 40 e esses tinham 6 e 8.
+ * O revisor de 360M simplesmente para no meio às vezes. O que faltava era
+ * guarda: `remendosQueValem` conferia se o remendo MUDA alguma coisa, nunca se
+ * ele TERMINA.
+ *
+ * Frase inteira acaba em pontuação terminal — e a aspa ou o parêntese podem vir
+ * depois dela. Sem isso, fica o original, que ao menos é uma frase.
+ */
+export function remendoTruncado(novo: string): boolean {
+    return !/[.!?…][")'\]]*$/.test(novo.trim());
+}
+
+/** Tira os remendos que não mudam nada ou que vieram pela metade. */
 export function remendosQueValem(
     frases: readonly FraseNumerada[],
     remendos: readonly Remendo[],
@@ -345,7 +371,9 @@ export function remendosQueValem(
     const porNumero = new Map(frases.map((f) => [f.n, f.texto]));
     return remendos.filter((r) => {
         const original = porNumero.get(r.n);
-        return original !== undefined && !remendoInutil(original, r.texto);
+        if (original === undefined) return false;
+        if (remendoTruncado(r.texto)) return false;
+        return !remendoInutil(original, r.texto);
     });
 }
 
