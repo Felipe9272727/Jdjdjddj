@@ -116,18 +116,29 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(speechRuntimeLabel(0, 6)).toBe('CPU×6');
     });
 
-    it('usa o SmolLM3-3B oficial como cérebro de fala', () => {
-        expect(FLOOR10_MODEL.label).toBe('SmolLM3-3B');
-        expect(FLOOR10_MODEL.url).toMatch(/ggml-org\/SmolLM3-3B-GGUF/i);
-        expect(FLOOR10_MODEL.url).toMatch(/SmolLM3-Q4_K_M\.gguf$/i);
-        expect(FLOOR10_MODEL.disableThinking).toBe(true);
+    // ── A TRAVA CONTINUA, SÓ MUDOU DE MODELO ─────────────────────────────
+    //
+    // Este teste existe para ninguém trocar o cérebro da fala sozinho: os
+    // modelos deste jogo foram escolhidos a dedo, com medição. A troca do
+    // SmolLM3-3B pelo granite-4.0-h-tiny 7B-A1B foi decisão do dono do jogo,
+    // com os números da `?velocidade=granite7b` no aparelho dele.
+    it('usa o granite 7B-A1B como cérebro de fala, em shards', () => {
+        expect(FLOOR10_MODEL.label).toBe('granite-4.0-h-tiny 7B-A1B');
+        expect(FLOOR10_MODEL.url).toMatch(/granite4-h-tiny-q2k-shards/i);
+        // O primeiro shard, e o padrão do nome INTEIRO: é por ele que o wllama
+        // descobre o segundo pedaço. `granite4.gguf` quebraria o carregamento.
+        expect(FLOOR10_MODEL.url).toMatch(/granite4-00001-of-00002\.gguf$/);
     });
 
-    it('preserva a persona e desliga o thinking no template do Smol', () => {
-        const prompt = prepareFloor10SystemPrompt('Você é Nilo Azevedo.');
-        expect(prompt).toContain('/system_override');
-        expect(prompt).toContain('/no_think');
-        expect(prompt).toContain('Você é Nilo Azevedo.');
+    it('a persona vai INTACTA quando o modelo não tem flag de template', () => {
+        // `/system_override` e `/no_think` eram controles do template do
+        // SmolLM3, que os removia antes da inferência. O granite não os
+        // conhece: ali eles virariam texto literal na primeira linha da
+        // persona. Sem flag, nem sequer a quebra de linha pode sobrar.
+        const persona = 'Você é Nilo Azevedo.';
+        expect(FLOOR10_MODEL.systemTemplateFlags).toBe('');
+        expect(prepareFloor10SystemPrompt(persona)).toBe(persona);
+        expect(prepareFloor10SystemPrompt(persona)).not.toMatch(/^\s/);
     });
 
     it('pede autocorreção ao próprio cérebro sem fornecer resposta pronta', () => {
