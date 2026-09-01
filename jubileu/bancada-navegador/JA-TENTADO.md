@@ -1838,3 +1838,78 @@ quadro nenhum.
     completo. O sintoma foi o jogo reclamando, com razão, em duas voltas
     seguidas: `a vontade tem 32 MB e deveria ter 1246 MB`. Hoje o `curl`
     escreve em `.parcial` e o `rename` é o commit.
+
+---
+
+## O granite perdeu o cache de prefixo — e isso custa 6x o turno
+
+### O que apareceu
+
+No Andar 10 real, os contadores do próprio motor (`fala:fim` na caixa-preta):
+
+    turno 1 ... 337 lidos · leitura 67,8 s
+    turno 2 ... 459 lidos · leitura 89,1 s
+    turno 3 ... 565 lidos · leitura 110,3 s
+
+`reusados` (o `cache_n`) não apareceu em turno nenhum. O prompt inteiro é
+relido toda vez, e a leitura come 110 s dos 124 s do turno.
+
+Isso contradiz o que está escrito no `formatTimings`, medido no aparelho do dono
+do jogo: **"321 lidos · 273 reaproveitados"**. Só que aquilo foi com o
+SmolLM3-3B, e a fala hoje é o granite.
+
+### Antes de acusar o modelo: os fios
+
+O dono do jogo olhou "leitura 69 s" e disse que no aparelho dele rodava na
+metade. Ele estava certo, e a causa não era o motor — as URLs pedidas foram
+`/wllama-relaxed/index.js` e `/wllama-relaxed/wasm/wllama.wasm`, o binário
+implantado. Era o número de fios. `cpuThreadCount()` pega METADE dos núcleos;
+esta caixa tem 4 → 2 fios, o celular dele tem 8 → 4. Medido no granite, config
+do jogo, só variando os fios (`bancada-navegador/fios-e-config.mjs`):
+
+    1 fio ..... leitura 138,7 s ·  2,89 tok/s
+    2 fios .... leitura  69,8 s ·  5,74 tok/s   ← esta caixa
+    4 fios .... leitura  39,2 s · 10,23 tok/s   ← o celular dele
+
+Toda a tabela abaixo usa a config DO JOGO (`n_ctx` 1536, `n_batch` 512, KV
+`q8_0`) e 4 fios.
+
+### A tabela que decide (`bancada-navegador/cache-de-prefixo.mjs`)
+
+Mesmo motor, mesmo prefixo de ~400 tokens, cauda mudando a cada turno — a forma
+do jogo:
+
+    modelo                      arquitetura   turno 1   turnos 2+   reaproveitados
+    granite-4.0-h-tiny 7B-A1B   híbrido        40,9 s    42,3 s        0 de 401
+    SmolLM3-3B                  denso          71,6 s     6,8 s      423 de 439
+    LFM2.5-1.2B                 híbrido        18,0 s    19,0 s        0 de 402
+    Qwen3-0.6B                  denso           9,3 s     2,1 s      398 de 414
+
+**Na conversa em andamento, o granite é 6,2x mais lento por turno que o modelo
+que ele substituiu.** Ele ganha só o PRIMEIRO turno (40,9 contra 71,6), porque é
+MoE com ~1B ativo. Do segundo em diante perde feio, e o segundo em diante é a
+conversa.
+
+### Por que, e por que não é tamanho nem quantização
+
+O reaproveitamento de prefixo precisa de um cache que se possa TRUNCAR, e o
+estado recorrente de um SSM é sequencial — não dá para voltar a um ponto do
+meio. O `llama_memory_seq_rm` falha para modelo recorrente e o caminho cai em
+reprocessar tudo.
+
+A terceira coluna existe justamente para matar as outras explicações. O granite
+e o Qwen diferem em tudo (2,59 GB contra 0,64, Q2_K contra Q8_0, dois shards
+contra um, MoE contra denso), então com duas colunas qualquer diferença serviria
+de causa. O LFM2.5 desempata: arquivo único, Q8_0, pesos densos — igual ao Qwen
+nisso tudo — e híbrido como o granite. Ele também reaproveita ZERO. O que separa
+as colunas é a arquitetura, e nada mais.
+
+### O que isso NÃO decide
+
+A troca para o granite foi decisão do dono do jogo, e pelo português: o granite
+fala nativo, o SmolLM3 pensava em inglês. Esta medição não desfaz essa razão —
+ela põe o preço na mesa, que ninguém tinha medido: 42 s por turno contra 7 s.
+
+A saída que atende os dois lados é um modelo DENSO que fale português nativo
+(Qwen3-4B, Gemma 3 4B, Llama 3.2 3B são os candidatos óbvios). Denso mantém o
+cache; nativo mantém o português. Isso ainda não foi medido.
