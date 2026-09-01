@@ -77,7 +77,39 @@ const WLLAMA_V = '3.5.1';
 // internet (sonda headless): sem override, o motor nem carrega e a única coisa
 // observável é "Failed to fetch".
 const cdnOverride = (globalThis as { __wllamaCdn?: string }).__wllamaCdn;
-const CDN = cdnOverride ?? `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
+
+/**
+ * ── O MOTOR DA CASA PASSOU A SER O PADRÃO ────────────────────────────────
+ *
+ * O jogo baixava o wllama do jsDelivr. Medido nesta bancada, no granite que
+ * agora é a fala, contra a cópia de `public/wllama-relaxed/`:
+ *
+ *     motor da casa .... 4,75–6,9 tok/s
+ *     motor do CDN ..... 1,59 tok/s        ~3x mais lento
+ *
+ * O modelo denso perde 1,3x; o granite é HÍBRIDO DE MAMBA e perde 3x. Ou seja:
+ * o dia em que a fala virou granite foi o dia em que o motor do CDN passou a
+ * custar caro. Por que a cópia local é mais rápida eu não descobri — está tudo
+ * em `bancada-navegador/JA-TENTADO.md`, com nove hipóteses eliminadas por
+ * medição.
+ *
+ * E não é só velocidade. A cópia local carrega quatro remendos nossos que o
+ * pacote do CDN não tem (`bancada-navegador/REMENDOS-DO-MOTOR.md`), e dois
+ * deles evitam TRAVAMENTO PERMANENTE na carga:
+ *
+ *   · a ponte de pthread — sem ela o handshake não fecha e a carga trava;
+ *   · o erro não-clonável no `postMessage` — sem ele a promessa da carga não
+ *     resolve NEM rejeita, e fica o "carregando" eterno;
+ *   · o draft da especulativa no FS, e o gguf em shards — que é COMO o granite
+ *     de 2,59 GB entra no navegador.
+ *
+ * O último item torna isto obrigatório, não uma otimização: sem o tratamento de
+ * shards, a fala nova não carrega.
+ *
+ * `?wllama=<versão>` continua levando ao CDN, para comparar quando precisar.
+ */
+const MOTOR_DA_CASA = '/wllama-relaxed';
+const CDN = cdnOverride ?? MOTOR_DA_CASA;
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;

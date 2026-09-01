@@ -74,12 +74,21 @@ describe('bytesDaFila', () => {
     });
 
     it('e os totais batem com o que a tela vai prometer', () => {
-        expect(bytesDaFila('')).toBe(4_273_849_255);
+        // ── O JOGO COMUM ENGORDOU 670 MB, E DE PROPÓSITO ─────────────────
+        //
+        // A fala trocou de modelo: SmolLM3-3B Q4_K_M (1.915.305.312) pelo
+        // granite-4.0-h-tiny 7B-A1B Q2_K nos dois shards (2.585.323.040).
+        // São +670.017.728 bytes de download, pagos para o Nilo falar
+        // português nativo e para o pipeline de tradução deixar de ser
+        // necessário.
+        //
+        // O `?pipeline` NÃO muda: lá a fala essencial é o rascunhador, e o
+        // SmolLM3 já estava fora da fila.
+        expect(bytesDaFila('')).toBe(4_943_866_983);
         expect(bytesDaFila('?pipeline')).toBe(3_341_954_558);
-        // A economia, por extenso, para não virar "quase um giga" sem número.
-        // Ela encolheu 25.596.942 quando o par `pt → en` entrou — o preço de
-        // descobrir que o jogador pergunta em português.
-        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(931_894_697);
+        // A distância entre os dois, por extenso, para não virar "um giga e
+        // meio" sem número.
+        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(1_601_912_425);
     });
 });
 

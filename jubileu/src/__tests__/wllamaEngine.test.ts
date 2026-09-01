@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { FLOOR10_GPU_START_LAYERS } from '../npc/floor10Gpu';
 import { describe, expect, it } from 'vitest';
 import {
@@ -43,9 +43,26 @@ import { perceiveFloor10 } from '../npc/floor10Perception';
 import { INITIAL_FLOOR10_WILL } from '../npc/floor10Will';
 
 describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
-    it('usa a chave WASM obrigatória "default"', () => {
+    it('usa a chave WASM obrigatória "default", e aponta para o motor da casa', () => {
         expect(Object.keys(WLLAMA_PATHS)).toEqual(['default']);
-        expect(WLLAMA_PATHS.default).toMatch(/@wllama\/wllama@3\.5\.1\/esm\/wasm\/wllama\.wasm$/);
+        // ── O PADRÃO DEIXOU DE SER O CDN ─────────────────────────────────
+        //
+        // Era `@wllama/wllama@3.5.1/esm/wasm/wllama.wasm`, do jsDelivr. Hoje é
+        // a cópia de `public/wllama-relaxed/`, pela mesma origem. Medido: o
+        // granite que virou a fala roda ~3x mais rápido nela (4,75 contra 1,59
+        // tok/s), e ela carrega os quatro remendos que o pacote do CDN não tem
+        // — inclusive o tratamento de gguf em shards, sem o qual o granite de
+        // 2,59 GB simplesmente não entra no navegador.
+        expect(WLLAMA_PATHS.default).toBe('/wllama-relaxed/wasm/wllama.wasm');
+    });
+
+    it('o motor da casa existe no disco que vai ser publicado', () => {
+        // Se `public/wllama-relaxed/` sumir, o jogo inteiro para de carregar —
+        // e o erro seria um 404 no meio da barra de download, longe daqui.
+        for (const f of ['index.js', 'wasm/wllama.wasm']) {
+            expect(existsSync(new URL(`../../public/wllama-relaxed/${f}`, import.meta.url)))
+                .toBe(true);
+        }
     });
 
     it('mantém configuração-base CPU e contexto curto', () => {

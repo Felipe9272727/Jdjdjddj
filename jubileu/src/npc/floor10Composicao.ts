@@ -57,9 +57,19 @@ export type PecaDaFila = {
     essencial: boolean;
 };
 
-/** O SmolLM3 — fora da fila, e por que ele continua existindo no código. */
+/**
+ * A fala. Era o SmolLM3-3B; hoje é o granite-4.0-h-tiny 7B-A1B.
+ *
+ * O `bytes` é a soma dos DOIS shards, e não é detalhe de vitrine: a fila usa
+ * este número para planejar cota e para desenhar a barra. Com o valor do
+ * SmolLM3 aqui, a barra terminaria em 75% e o planejador autorizaria uma carga
+ * 670 MB maior do que ele achava.
+ */
 export const PECA_FALA: PecaDaFila = Object.freeze({
-    papel: 'fala', label: 'SmolLM3-3B', bytes: 1_915_305_312, essencial: true,
+    papel: 'fala',
+    label: 'granite-4.0-h-tiny 7B-A1B',
+    bytes: 1_497_111_136 + 1_088_211_904,
+    essencial: true,
 });
 
 export const PECA_RASCUNHO: PecaDaFila = Object.freeze({
