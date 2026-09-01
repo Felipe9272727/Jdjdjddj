@@ -374,13 +374,16 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
  * situação. Quem joga vê o que a planilha não mostra.
  */
 /**
- * Tamanho do cérebro da FALA (granite-4.0-h-tiny 7B-A1B Q2_K, os DOIS shards
- * somados), aqui e não no wllamaEngine
- * porque quem precisa do número é a VONTADE: é ela que tem de perguntar "cabem
- * os dois?" antes de gastar um byte. Importar o motor da fala de dentro do
- * cérebro pequeno fecharia um ciclo.
+ * Tamanho do cérebro da FALA (SmolLM3-3B Q4_K_M, arquivo único).
+ *
+ * Mora aqui e não no wllamaEngine porque quem precisa do número é a VONTADE: é
+ * ela que tem de perguntar "cabem os dois?" antes de gastar um byte. Importar o
+ * motor da fala de dentro do cérebro pequeno fecharia um ciclo.
+ *
+ * Já foi a soma de DOIS shards, na época do granite; hoje é um arquivo só, e
+ * `medirModelo` cobre os dois casos sem que ninguém aqui precise saber qual é.
  */
-export const SPEECH_BRAIN_BYTES = 1_497_111_136 + 1_088_211_904;
+export const SPEECH_BRAIN_BYTES = 1_915_305_312;
 
 /**
  * ── O PADRÃO PASSOU A SER O LFM2.5, E QUEM DECIDIU FOI O DONO DO JOGO ─────

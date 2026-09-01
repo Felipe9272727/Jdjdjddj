@@ -222,38 +222,48 @@ export type Floor10ModelDef = {
  * Os controles são removidos pelo próprio template antes da inferência.
  */
 /**
- * ── O REPRESENTANTE PASSOU A SER O 7B-A1B, E A TROCA TEM MEDIÇÃO ──────────
+ * ── O REPRESENTANTE VOLTOU A SER O SMOLLM3, E A VOLTA TEM MEDIÇÃO ────────
  *
- * O SmolLM3 saiu. O granite-4.0-h-tiny é MAIOR no disco (2,59 GB contra 1,92)
- * e mesmo assim mais RÁPIDO, porque é MoE: 7B no total, ~1B ativo por token.
- * Medido no aparelho do dono do jogo, na `?velocidade=granite7b`:
+ * O granite-4.0-h-tiny entrou por uma razão boa — fala português nativo, e o
+ * SmolLM3 pensava em inglês. Saiu por uma razão que ninguém tinha medido: ele é
+ * HÍBRIDO (Mamba2 + atenção), e modelo recorrente NÃO REAPROVEITA PREFIXO no
+ * llama.cpp. O estado de um SSM é sequencial; não há para onde voltar.
  *
- *     granite 7B-A1B Q2_K ... geração 3,96 tok/s · prefill 7,76 tok/s
- *     SmolLM3-3B Q4_K_M ..... geração 4,71 tok/s · prefill 7,26 tok/s (agosto)
+ * O que isso custa, medido com o prompt real, o motor da casa e 4 fios
+ * (`bancada-navegador/cache-de-prefixo.mjs` e `conversa-que-nao-salta.mjs`):
  *
- * Os dois andam parecido na bancada; o que decide é o resto. O granite fala
- * português NATIVO — o SmolLM3 pensava em inglês e era por isso que existia um
- * pipeline inteiro de tradução na frente dele.
+ *                              turno saltando   turno no mesmo   reaproveita
+ *                                de assunto        assunto
+ *     granite 7B-A1B Q2_K .......... 47,9 s        ~48 s sempre        10
+ *     SmolLM3-3B Q4_K_M ............ 36,1 s          19,8 s          1.960
  *
- * A URL aponta para o PRIMEIRO SHARD. 2,59 GB estouram o limite de 2 GiB de um
- * `Blob` no navegador; o wllama descobre os pedaços seguintes pelo padrão do
- * nome, então o link tem de preservar o `-00001-of-00002.gguf`.
+ * E dentro da conversa que fica num assunto, o SmolLM3 chega a 12,8 s e 6,5 s
+ * por turno — que é exatamente o "às vezes respondia em 13 segundos" que o dono
+ * do jogo relatou do aparelho dele, e que eu não conseguia reproduzir porque
+ * minhas perguntas de bancada saltavam de assunto a cada fala.
  *
- * ── AS FLAGS DE TEMPLATE MORRERAM COM O SMOL ─────────────────────────────
+ * O granite NÃO TEM esse modo rápido. Ele custa os ~48 s em todo turno, sempre.
+ *
+ * E a razão original da troca não apareceu na régua: nas 8 falas com o prompt
+ * de verdade, o SmolLM3 respondeu em português 8/8 (`qualidade-da-fala.mjs`).
+ * O vazamento de inglês existiu em jogo, e é por isso que as flags de template
+ * abaixo continuam valendo — mas ele não é o que decide entre os dois.
+ *
+ * ── AS FLAGS DE TEMPLATE VOLTAM COM ELE ──────────────────────────────────
  *
  * `/system_override /no_think` são controles DO TEMPLATE DO SMOLLM3, que os
- * remove antes da inferência. O granite não os conhece: no template dele
- * (`<|start_of_role|>system<|end_of_role|>`) as duas viram TEXTO LITERAL na
- * primeira linha da persona. Por isso ficam vazias aqui, e
- * `prepareFloor10SystemPrompt` passou a devolver a persona intacta quando não
- * há flag — sem isso ela ganharia uma quebra de linha solta na frente.
+ * remove antes da inferência: o primeiro impede o template de acrescentar a
+ * identidade genérica "SmolLM" por cima da persona, o segundo desliga o
+ * raciocínio longo. Num modelo que não os conhece elas virariam texto literal
+ * na primeira linha — foi por isso que saíram quando o granite entrou, e é por
+ * isso que voltam agora.
  */
 export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
-    label: 'granite-4.0-h-tiny 7B-A1B',
-    disableThinking: false,
-    systemTemplateFlags: '',
+    label: 'SmolLM3-3B',
+    disableThinking: true,
+    systemTemplateFlags: '/system_override /no_think',
     url: (globalThis as { __npcModelUrl?: string }).__npcModelUrl
-        ?? HF('Felipe0282829273/granite4-h-tiny-q2k-shards', 'granite4-00001-of-00002.gguf'),
+        ?? HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf'),
 });
 
 /**

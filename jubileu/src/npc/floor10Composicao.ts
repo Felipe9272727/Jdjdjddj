@@ -58,17 +58,23 @@ export type PecaDaFila = {
 };
 
 /**
- * A fala. Era o SmolLM3-3B; hoje é o granite-4.0-h-tiny 7B-A1B.
+ * A fala. Foi SmolLM3-3B, virou granite-4.0-h-tiny 7B-A1B, e voltou.
  *
- * O `bytes` é a soma dos DOIS shards, e não é detalhe de vitrine: a fila usa
- * este número para planejar cota e para desenhar a barra. Com o valor do
- * SmolLM3 aqui, a barra terminaria em 75% e o planejador autorizaria uma carga
- * 670 MB maior do que ele achava.
+ * O `bytes` NÃO é detalhe de vitrine: a fila usa este número para planejar cota
+ * e para desenhar a barra. Na ida, deixá-lo no valor do SmolLM3 faria a barra
+ * terminar em 75% e o planejador autorizar 670 MB a mais do que ele achava; na
+ * volta, deixá-lo no valor do granite faz a barra terminar cedo demais e o
+ * planejador recusar aparelho onde o modelo cabia. O erro troca de sinal, mas
+ * não some — por isso ele anda junto com a URL, sempre.
+ *
+ * Por que voltou: o granite é híbrido e não reaproveita prefixo, o que fixa o
+ * turno em ~48 s. O SmolLM3 reaproveita, e numa conversa que fica no mesmo
+ * assunto cai para 12,8 s e 6,5 s. Ver `bancada-navegador/JA-TENTADO.md`.
  */
 export const PECA_FALA: PecaDaFila = Object.freeze({
     papel: 'fala',
-    label: 'granite-4.0-h-tiny 7B-A1B',
-    bytes: 1_497_111_136 + 1_088_211_904,
+    label: 'SmolLM3-3B',
+    bytes: 1_915_305_312,
     essencial: true,
 });
 

@@ -74,24 +74,28 @@ describe('bytesDaFila', () => {
     });
 
     it('e os totais batem com o que a tela vai prometer', () => {
-        // ── O JOGO COMUM ENGORDOU 670 MB, E DE PROPÓSITO ─────────────────
+        // ── A FALA VOLTOU AO SMOLLM3, E A FILA EMAGRECEU 670 MB ──────────
         //
-        // A fala trocou de modelo: SmolLM3-3B Q4_K_M (1.915.305.312) pelo
-        // granite-4.0-h-tiny 7B-A1B Q2_K nos dois shards (2.585.323.040).
-        // São +670.017.728 bytes de download, pagos para o Nilo falar
-        // português nativo e para o pipeline de tradução deixar de ser
-        // necessário.
+        // Ida e volta: SmolLM3-3B Q4_K_M (1.915.305.312) → granite-4.0-h-tiny
+        // 7B-A1B Q2_K em dois shards (2.585.323.040) → SmolLM3 de novo.
+        //
+        // O granite foi comprado pelo português nativo e devolvido pelo tempo
+        // de turno: ele é híbrido, não reaproveita prefixo, e paga o prefill
+        // inteiro em toda fala (~48 s). O SmolLM3 reaproveita e cai para 12,8 s
+        // e 6,5 s quando a conversa fica no mesmo assunto — que é como se
+        // joga. Ver `bancada-navegador/JA-TENTADO.md`.
+        //
+        // Este número é o que a BARRA promete ao jogador, então ele anda junto
+        // com a URL, sempre: errado para mais, o planejador autoriza download
+        // que não cabe; errado para menos, recusa aparelho onde cabia.
         //
         // O `?pipeline` NÃO muda: lá a fala essencial é o rascunhador, e o
-        // SmolLM3 já estava fora da fila.
-        // +110.100.000 do juiz de tom, que passou a descer no jogo comum: a
-        // régua por regex não vê a frase que não quebra regra escrita e mesmo
-        // assim não é o Nilo.
-        expect(bytesDaFila('')).toBe(5_053_966_983);
+        // SmolLM3 já estava fora daquela fila.
+        expect(bytesDaFila('')).toBe(4_383_949_255);
         expect(bytesDaFila('?pipeline')).toBe(3_341_954_558);
-        // A distância entre os dois, por extenso, para não virar "um giga e
-        // meio" sem número.
-        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(1_712_012_425);
+        // A distância entre os dois, por extenso, para não virar "um giga"
+        // sem número.
+        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(1_041_994_697);
     });
 });
 
