@@ -429,7 +429,11 @@ export type Floor10ReplyIssue =
     | 'resposta vazia'
     | 'contradição com o cânone'
     | 'contradição com os olhos'
-    | 'identidade ausente';
+    | 'identidade ausente'
+    // Vem do JUIZ DE TOM, não desta régua: ele mede a frase por vetor contra
+    // âncoras boas e ruins, e pega o que nenhum regex pega — a frase que não
+    // quebra regra escrita nenhuma e mesmo assim não é o Nilo.
+    | 'fora do tom';
 
 /**
  * Valida a fala sem fabricar uma resposta substituta. Se houver problema, o

@@ -87,10 +87,22 @@ describe('a fila com `?pipeline`', () => {
         expect(floor10Fila.estado().atual?.label).toBe('conversa');
     });
 
-    it('sem pipeline, as três não aparecem mesmo com tamanho informado', () => {
+    it('sem pipeline, o rascunhador e o tradutor não aparecem — mas o juiz sim', () => {
         // Os tamanhos vão sempre — quem decide quem entra é a composição.
+        //
+        // O JUIZ MUDOU DE LADO. Ele era exclusivo do pipeline; hoje desce no
+        // jogo comum também, porque a régua por regex do `floor10Canon` é cega
+        // para a frase que não quebra regra escrita e mesmo assim não é o Nilo.
+        // Medido jogando: sete frases marcadas em seis perguntas.
+        //
+        // Os outros dois continuam do pipeline: o rascunhador porque lá ele
+        // OCUPA o lugar da fala, e o tradutor porque o granite fala português
+        // nativo e no jogo comum não há o que traduzir.
         definirFilaDoAndar10(BYTES, '');
-        expect(floor10Fila.ordem()).toEqual(['fala', 'memoria', 'reflexo', 'vontade', 'motor']);
+        expect(floor10Fila.ordem())
+            .toEqual(['fala', 'memoria', 'juiz', 'reflexo', 'vontade', 'motor']);
+        expect(floor10Fila.ordem()).not.toContain('rascunho');
+        expect(floor10Fila.ordem()).not.toContain('tradutor');
     });
 
     it('quem não trouxe tamanho não entra, e isso vale para o reflexo como sempre valeu', () => {

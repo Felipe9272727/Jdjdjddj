@@ -126,7 +126,21 @@ export const PECA_TRADUTOR: PecaDaFila = Object.freeze({
  */
 export function composicaoDaFila(busca?: string): PecaDaFila[] {
     if (!pipelineLigado(busca ?? globalThis.location?.search ?? '')) {
-        return [PECA_FALA, PECA_MEMORIA, PECA_REFLEXO, pecaDaVontade(), PECA_MOTOR];
+        // ── O JUIZ DE TOM PASSOU A DESCER NO JOGO COMUM ──────────────────
+        //
+        // Ele era peça só do pipeline. Fora dele, quem confere a fala é a régua
+        // do `floor10Canon` — regex sobre o texto — e ela é cega para o defeito
+        // mais comum: a frase que não quebra nenhuma regra escrita e mesmo
+        // assim não é o Nilo.
+        //
+        // MEDIDO jogando (`bancada-navegador/jogo-de-verdade.mjs`), seis
+        // perguntas: o juiz marcou SETE frases, e os motivos eram concretos —
+        // "chama o jogador de Nilo", "põe o Nilo dentro do elevador", "fala como
+        // uma máquina se descrevendo". Nenhuma dessas a régua vê.
+        //
+        // São 110 MB e ele NÃO é essencial: desce depois da fala, e se falhar a
+        // conversa continua com a régua sozinha, como era antes.
+        return [PECA_FALA, PECA_MEMORIA, PECA_JUIZ, PECA_REFLEXO, pecaDaVontade(), PECA_MOTOR];
     }
     return [
         PECA_RASCUNHO,

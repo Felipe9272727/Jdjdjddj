@@ -84,11 +84,14 @@ describe('bytesDaFila', () => {
         //
         // O `?pipeline` NÃO muda: lá a fala essencial é o rascunhador, e o
         // SmolLM3 já estava fora da fila.
-        expect(bytesDaFila('')).toBe(4_943_866_983);
+        // +110.100.000 do juiz de tom, que passou a descer no jogo comum: a
+        // régua por regex não vê a frase que não quebra regra escrita e mesmo
+        // assim não é o Nilo.
+        expect(bytesDaFila('')).toBe(5_053_966_983);
         expect(bytesDaFila('?pipeline')).toBe(3_341_954_558);
         // A distância entre os dois, por extenso, para não virar "um giga e
         // meio" sem número.
-        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(1_601_912_425);
+        expect(bytesDaFila('') - bytesDaFila('?pipeline')).toBe(1_712_012_425);
     });
 });
 

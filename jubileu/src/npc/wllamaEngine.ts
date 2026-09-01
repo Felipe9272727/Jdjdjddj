@@ -30,6 +30,7 @@ import { completar, rascunharComReflexo, reagir, reflexoJaCarregado } from './fl
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
+import { frasesForaDoTom } from './floor10VetorDeTom';
 import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
 import { conferirModeloCarregado, entradaIntacta, type EntradaDoCache } from './floor10Carga';
 import { rascunharFala, vontadeJaCarregada } from './floor10SmallBrain';
@@ -2427,6 +2428,25 @@ export async function sendToNpc(
         );
         let finalText = languageDecision.visibleReply;
         let replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
+        // ── E SE A RÉGUA NÃO VIU NADA, O JUIZ OLHA ───────────────────────
+        //
+        // `floor10ReplyIssue` é regex sobre o texto: ela pega contradição com o
+        // cânone escrito e identidade ausente. O defeito mais comum não é
+        // nenhum dos dois — é a frase que não quebra regra nenhuma e mesmo
+        // assim não é o Nilo. Medido jogando, em seis perguntas o juiz marcou
+        // SETE frases, com motivos que a régua não tem como formular: "chama o
+        // jogador de Nilo", "põe o Nilo dentro do elevador", "fala como uma
+        // máquina se descrevendo".
+        //
+        // NUNCA BLOQUEIA: sem as âncoras carregadas `frasesForaDoTom` devolve
+        // lista vazia na hora, e o turno segue exatamente como seguia antes de
+        // o juiz existir. Ele é o segundo olhar, não um portão.
+        if (!replyIssue) {
+            const marcadas = await frasesForaDoTom(
+                enumerarFrases(finalText).map((f) => f.texto),
+            );
+            if (marcadas.length > 0) replyIssue = 'fora do tom';
+        }
         if (replyIssue) {
             npcSet({ etapa: `O ${FLOOR10_MODEL.label} está revisando a consistência…` });
             const correctionPrompt = buildFloor10CorrectionPrompt(systemPrompt, replyIssue);

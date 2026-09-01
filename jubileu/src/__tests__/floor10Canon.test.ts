@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { NpcMsg } from '../npc/npcStore';
-import { FLOOR10_HISTORY_VERBATIM } from '../npc/wllamaEngine';
+import { FLOOR10_HISTORY_VERBATIM, buildFloor10CorrectionPrompt } from '../npc/wllamaEngine';
+import type { Floor10ReplyIssue } from '../npc/floor10Canon';
 import { describe, expect, it } from 'vitest';
 import {
     FLOOR10_HISTORY_CHAR_BUDGET,
@@ -522,5 +523,23 @@ describe('ele para de repetir o que já disse', () => {
         // ciclo fecharia). É a mesma solução usada entre o córtex motor e a
         // deliberação, e ela só vale com o teste que compara as duas.
         expect(FLOOR10_HISTORY_VERBATIM_NO_PROMPT).toBe(FLOOR10_HISTORY_VERBATIM);
+    });
+});
+
+// ── O JUIZ DE TOM ENTROU COMO SEGUNDO DETECTOR ───────────────────────────
+//
+// A régua deste arquivo é regex: ela pega contradição com o cânone escrito e
+// identidade ausente. O defeito que mais aparece jogando não é nenhum dos dois
+// — é a frase que não quebra regra nenhuma e mesmo assim não é o Nilo. O juiz
+// mede isso por vetor, e o veredito dele precisa de um nome no tipo.
+describe('o veredito do juiz de tom cabe no tipo da régua', () => {
+    it('"fora do tom" é um Floor10ReplyIssue válido', () => {
+        const issue: Floor10ReplyIssue = 'fora do tom';
+        expect(issue).toBe('fora do tom');
+    });
+
+    it('e chega inteiro ao prompt de correção, para o modelo saber o que consertar', () => {
+        const prompt = buildFloor10CorrectionPrompt('PERSONA', 'fora do tom');
+        expect(prompt).toContain('fora do tom');
     });
 });
