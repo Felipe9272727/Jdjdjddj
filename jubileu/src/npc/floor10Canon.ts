@@ -639,6 +639,26 @@ export function semFraseRepetida(reply: string): string {
  * A ordem importa. A cópia repetida se reconhece com as frases inteiras, então
  * ela sai primeiro; o rabo pela metade é o que sobra por último.
  */
+/**
+ * ── O PONTO SOLTO NO COMEÇO DA FALA ──────────────────────────────────────
+ *
+ * Medido na bancada de qualidade, em três modelos diferentes:
+ *
+ *     ".Não. Não tenho motivos para sair."
+ *     ".Sim, quero sair daqui, mas não sei como."
+ *     ".Não quero. Não há como."
+ *
+ * `visibleText` corta o bloco de raciocínio e apara ESPAÇO no começo, mas não
+ * pontuação; um ponto logo depois do `</think>` sobrevive e chega à tela. Nem
+ * `trimToCompleteSentence` nem `semFraseRepetida` mexem no início, então até
+ * aqui ninguém tirava.
+ *
+ * Só a pontuação que NUNCA abre uma fala. O travessão e as aspas ficam: "— Não
+ * sei." e «"Não sei", ele diz» são aberturas legítimas, e apará-las estragaria
+ * o que hoje está certo.
+ */
+const ABERTURA_SOLTA = /^[.,;:!?…\s]+/;
+
 export function arrumarFala(reply: string): string {
-    return trimToCompleteSentence(semFraseRepetida(reply));
+    return trimToCompleteSentence(semFraseRepetida(reply.replace(ABERTURA_SOLTA, '')));
 }
