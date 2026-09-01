@@ -1913,3 +1913,95 @@ ela põe o preço na mesa, que ninguém tinha medido: 42 s por turno contra 7 s.
 A saída que atende os dois lados é um modelo DENSO que fale português nativo
 (Qwen3-4B, Gemma 3 4B, Llama 3.2 3B são os candidatos óbvios). Denso mantém o
 cache; nativo mantém o português. Isso ainda não foi medido.
+
+---
+
+## Qual modelo responde melhor — medido, e com o texto na mesa
+
+Pergunta do dono do jogo depois da tabela de velocidade. A bancada é
+`qualidade-da-fala.mjs`: prompt real (`buildFloor10SystemPrompt`), amostragem
+real (`CHAT_COMPLETION_CONFIG`), motor da casa, 4 fios, e a régua é a DO JOGO —
+`floor10ReplyIssue` e `frasesForaDoTom`, os mesmos detectores que decidem em
+partida se a fala vai para a tela.
+
+### A tabela
+
+Quatro perguntas, duas voltas, motor novo por volta:
+
+    modelo                    defeito  tom  inglês  PT-PT  variedade  turno*  reaprov.
+    Llama 3.2 3B  Q4_K_M         0/8   0/8    0/8    0/8      8/8     32,4s     1876
+    SmolLM3-3B    Q4_K_M         0/8   1/8    0/8    0/8      7/8     36,2s     1960
+    Qwen3-4B      Q4_K_M         0/8   1/8    0/8    0/8      7/8     42,4s     1756
+    granite-4.0-h-tiny Q2_K      0/8   0/8    0/8    0/8      8/8     47,9s       10
+    Gemma 3 4B it Q4_K_M         0/8   0/8    0/8    0/8      8/8     60,6s        0
+
+    * turno em CONVERSA — sem o primeiro de cada volta, que é frio para todos.
+      A primeira versão desta tabela usava a média de todos e penalizava
+      justamente quem reaproveita cache.
+
+### A régua automática empata. O texto não.
+
+Todos tiram 0/8 em defeito. É no texto que se separam, e por isso a bancada
+imprime as falas inteiras — **o Gemma 3 4B é o melhor, com folga**:
+
+    "Nilo Azevedo, sou hóspede preso no 10º andar deste lugar. E você, que
+     figura é a sua, que insiste em me perguntar?"
+    "Não faço a mínima ideia de quem manda. Só sei que não me interessa."
+    "Querer é o primeiro passo, suponho. Mas sair daqui é uma questão que me
+     cabe, e não de ninguém mais."
+
+Ele devolve pergunta, tem humor seco, recusa o papel de ajudante e não inventa
+fato nenhum — que é a persona escrita, palavra por palavra. Os outros:
+
+  · **Llama 3.2 3B** — inventa ("pode ser um corredor, uma sala, um armário";
+    o cânone diz que não há corredor) e soa animado demais ("Claro, quem não
+    quer?"), não o Nilo seco.
+  · **granite (o de hoje)** — fluente, mas inventa ("atrás da parede é apenas um
+    elevador inoperante, esperando ser reparado") e se põe DENTRO do elevador
+    ("quero sair deste elevador"), contra o cânone.
+  · **SmolLM3** — fiel ao cânone e sem personalidade; repete abertura idêntica e
+    afirmou saber quem manda no hotel ("o proprietário e o Arquivista"), que ele
+    não sabe.
+  · **Qwen3-4B** — ecoa a pergunta de volta nas duas voltas ("Oi, quem é você?
+    Eu sou Nilo…") e inventa "aparelho de som".
+
+Nenhum dos cinco respondeu em inglês com o prompt real. Isso enfraquece a razão
+declarada da troca para o granite — mas não a anula: o teste é de 8 falas por
+modelo, e o vazamento de inglês do SmolLM3 foi observado em jogo, não aqui.
+
+### O impasse, e a tentativa de resolvê-lo
+
+O melhor em qualidade é o mais lento por turno, e pela mesma causa da seção
+anterior: o Gemma 3 alterna camadas com JANELA DESLIZANTE e reaproveitou **zero**
+tokens de prefixo.
+
+`swa_full` — a opção do llama.cpp que guarda o KV inteiro em vez de só a janela —
+existe no binário implantado e FUNCIONA para isso:
+
+    swa_full OFF · n_ctx 1536 ... turno 60,7s ·   0 reaproveitados
+    swa_full ON  · n_ctx 1536 ... turno 29,2s · 788 reaproveitados
+    swa_full ON  · n_ctx 3072 ... turno 28,6s · 788 reaproveitados
+
+2,1x mais rápido. **E não serve**, porque quebra a geração — contados os tokens
+que ele chegou a escrever, por turno:
+
+    swa_full OFF ... 32, 23, 15, 15 tokens   → falas completas
+    swa_full ON  ... 31, 21, 16,  7 tokens   → "Quero." / "…de quem manda…"
+    swa_full ON (n_ctx 3072) ... 27, 25, 11, 3 → "Claro que…"
+
+Dobrar o `n_ctx` não conserta e chega a piorar, então **não é falta de
+contexto**: com o prefixo restaurado o modelo simplesmente para de gerar cedo. É
+troca de qualidade por velocidade, não ganho de graça, e nesta build não dá para
+usar.
+
+### O que fica decidido e o que não
+
+Decidido: **Gemma 3 4B responde melhor**, e o preço é 60,6s por turno contra
+47,9s do granite de hoje (+27%) nesta caixa, com 4 fios.
+
+Não decidido, e é escolha do dono do jogo: se esses 27% valem. O meio-termo
+medido é o **Llama 3.2 3B** — 32,4s por turno, 1,5x MAIS RÁPIDO que o granite de
+hoje, com a régua limpa e uma voz razoável, ainda que inventiva.
+
+Ressalva de tamanho de amostra: são 8 falas por modelo. Serve para separar
+"ecoa a pergunta" de "não ecoa"; não serve para ranquear dois modelos parecidos.
