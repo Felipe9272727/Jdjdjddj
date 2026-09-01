@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import {execSync} from 'child_process';
 import {createHash} from 'crypto';
@@ -77,9 +78,67 @@ const crossOriginIsolationHeaders = {
   'Cross-Origin-Embedder-Policy': 'credentialless',
 };
 
+// ── O MOTOR DA CASA PRECISA SER SERVIDO À MÃO NO `npm run dev` ────────────
+//
+// `public/wllama-relaxed/index.js` é o motor que roda o granite 3x mais rápido
+// que o do CDN, e `wllamaEngine.ts` o carrega com `import(/* @vite-ignore */
+// '/wllama-relaxed/index.js')`. Em produção isso funciona: o arquivo é copiado
+// para `dist/` e o navegador o importa como qualquer script estático.
+//
+// No servidor de desenvolvimento, NÃO. O Vite vê um `import()` de um caminho
+// que mora em `public/`, acrescenta `?import` ao pedido e recusa com 500:
+//
+//     Failed to load url /wllama-relaxed/index.js (resolved id: …).
+//     This file is in /public and will be copied as-is during build without
+//     going through the plugin transforms, and therefore should not be
+//     imported from source code. It can only be referenced via HTML tags.
+//
+// O que o jogador vê disso, no Andar 10 inteiro:
+//
+//     Falha ao carregar granite-4.0-h-tiny 7B-A1B localmente:
+//     Failed to fetch dynamically imported module: …/wllama-relaxed/index.js?import
+//     Nenhum outro modelo foi ativado.
+//
+// Ou seja: o Nilo não fala UMA palavra em desenvolvimento. Só a bancada que
+// abre o jogo de verdade (`bancada-navegador/andar-10-real.mjs`) encontrou
+// isso — os 1.617 testes de unidade e o `tsc` passavam, porque nenhum deles
+// pede um módulo ao servidor.
+//
+// A saída é entregar o arquivo antes de o Vite analisar o pedido. Middlewares
+// registrados aqui correm ANTES dos internos, então o 500 nunca chega a
+// existir; o `?import` é ignorado e os bytes saem crus, com o tipo certo e com
+// os cabeçalhos de isolamento que o wasm com threads exige.
+function motorDaCasa(): Plugin {
+  const RAIZ = '/wllama-relaxed/';
+  return {
+    name: 'tne-motor-da-casa',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = (req.url ?? '').split('?')[0];
+        if (!url.startsWith(RAIZ)) return next();
+        const arquivo = path.join(__dirname, 'public', decodeURIComponent(url));
+        // `path.join` já normaliza `..`; a checagem abaixo é o que impede um
+        // pedido a `/wllama-relaxed/../../etc/passwd` de sair da pasta.
+        if (!arquivo.startsWith(path.join(__dirname, 'public', RAIZ))) return next();
+        if (!fs.existsSync(arquivo) || !fs.statSync(arquivo).isFile()) return next();
+        res.setHeader('Content-Type', url.endsWith('.js') ? 'text/javascript'
+          : url.endsWith('.wasm') ? 'application/wasm'
+          : 'application/octet-stream');
+        // O `server.headers` do Vite é aplicado por um middleware interno, que
+        // não roda mais depois que este responde. Sem estes dois o navegador
+        // perde o isolamento cross-origin e o wasm com threads não sobe.
+        for (const [k, v] of Object.entries(crossOriginIsolationHeaders)) res.setHeader(k, v);
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        fs.createReadStream(arquivo).pipe(res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({mode: _mode}) => {
   return {
-    plugins: [react(), tailwindcss(), carimbar()],
+    plugins: [react(), tailwindcss(), carimbar(), motorDaCasa()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
