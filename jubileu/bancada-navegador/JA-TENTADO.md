@@ -1688,3 +1688,153 @@ wllama oferece é o de 15/jun, que eu medi em 1,59 — mas com o wllama de junho
 junto, e já sei que essa amarração confunde os dois eixos. Fechar isso exigiria
 compilar llama.cpp de maio/junho contra o wllama de junho, que é a única
 combinação que ainda não foi tentada.
+
+---
+
+## O motor da casa não subia em `npm run dev` — e nenhum teste podia ver
+
+Isto não é sobre velocidade; é sobre o andar não funcionar. Fica aqui porque a
+causa é a mesma decisão (trocar o CDN pelo motor da casa) e porque o modo como
+escapou é o que interessa.
+
+Quando `MOTOR_DA_CASA = '/wllama-relaxed'` virou o padrão de `wllamaEngine.ts`,
+o Andar 10 parou de falar em desenvolvimento:
+
+    Falha ao carregar granite-4.0-h-tiny 7B-A1B localmente:
+    Failed to fetch dynamically imported module:
+    http://127.0.0.1:3000/wllama-relaxed/index.js?import
+    Nenhum outro modelo foi ativado.
+
+O Vite recusa com 500 qualquer `import()` de arquivo que more em `public/`:
+
+    This file is in /public and will be copied as-is during build without going
+    through the plugin transforms, and therefore should not be imported from
+    source code. It can only be referenced via HTML tags.
+
+**Produção nunca esteve quebrada** — conferido, não suposto: `npm run build`
+copia `dist/wllama-relaxed/index.js` e o `wasm`, e o `import()` sobrevive ao
+bundle como import de URL em tempo de execução (`/* @vite-ignore */` mantém o
+especificador dinâmico). É defeito só de `dev`.
+
+### O que escapou, e por quê
+
+Os 1.617 testes de unidade passavam. O `tsc` estava limpo. As duas coisas
+continuam verdadeiras e continuam sem valer nada aqui: **nenhum teste de unidade
+encosta no servidor de desenvolvimento**, e o defeito é uma resposta HTTP.
+
+Quem viu foi abrir o jogo de verdade — `bancada-navegador/andar-10-real.mjs`,
+que sobe o `index.html`, chama `window.__startFloor(10)`, põe o jogador perto do
+Nilo e aperta `E`. A primeira execução dela morreu na primeira linha da fila.
+
+### O conserto e a trava
+
+`vite.config.ts` ganhou o plugin `motorDaCasa()`: um middleware que entrega
+`/wllama-relaxed/*` cru, antes de o Vite analisar o pedido, com o tipo certo e
+com os cabeçalhos de isolamento (sem eles não há `SharedArrayBuffer`, e o wasm
+com threads não sobe).
+
+A trava é `src/__tests__/motorServidoEmDev.test.ts`, que **sobe um servidor Vite
+de verdade** e pede o arquivo com o `?import` incluído — que é exatamente a
+parte que quebrava.
+
+### Uma correção do próprio teste
+
+A quarta asserção começou como "o atalho não serve nada fora da pasta do motor",
+pedindo `/wllama-relaxed/../../package.json`. Ela falhou, e a leitura fácil era
+"abri um buraco". Errado, nos dois sentidos:
+
+  · `fetch` normaliza `../` antes de sair, então esse pedido chega ao servidor
+    já como `/package.json` e nunca passa pelo nosso prefixo;
+  · na forma percent-encoded (`%2e%2e`), o `package.json` volta — **e volta
+    também com o plugin desligado**, medido num Vite sem `configFile`. É o
+    servidor de desenvolvimento do Vite servindo a raiz do projeto, coisa dele,
+    só em `dev`.
+
+O teste hoje afirma só o que pode afirmar: que quem respondeu não foi o nosso
+middleware (a assinatura é o `Cross-Origin-Resource-Policy`, que só ele põe).
+
+---
+
+## O Andar 10 real, aberto e medido de ponta a ponta
+
+`bancada-navegador/andar-10-real.mjs` abre `index.html`, chama
+`window.__startFloor(10)`, aproxima o jogador do Nilo, aperta `E` (o `open()` de
+verdade, que dispara `iniciarPrecarga`) e manda as falas por `sendToNpc` — o
+mesmo caminho do botão de enviar. Nada de `?pipeline`, nada de `floor10.html`
+(que renderiza a bancada, não o jogo).
+
+### O que a fila do jogo comum faz, medido
+
+    1. fala      granite-4.0-h-tiny 7B-A1B          2,59 GB  ← essencial
+    2. memoria   embeddinggemma-300M                0,33 GB
+    3. juiz      juiz de tom (all-mpnet-base-v2)    0,11 GB
+    4. reflexo   SmolLM2-135M (ONNX)                0,14 GB
+    5. vontade   LFM2.5 1.2B                        1,25 GB
+    6. motor     Qwen3-0.6B                         0,64 GB
+                                                    5,05 GB
+
+A conversa libera assim que a fala desce (a única essencial). Com tudo em cache
+a fila inteira fecha em 44,7 s nesta caixa.
+
+### As falas, no Andar 10 real
+
+    ▸ Oi, quem é você?
+      82,1 s · leitura 68 s · fala 10 s · 337 lidos
+      "Eu sou Nilo Azevedo, um ex-técnico de elevadores que agora estou preso
+       no 10º andar do hotel «The Normal Elevator»."
+
+    ▸ Você lembra do que eu te perguntei antes?
+      107,6 s · leitura 89 s · fala 16 s · 459 lidos
+      "Eu lembro que você perguntou se eu lembrava do que aconteceu antes de
+       estar aqui."
+
+    ▸ Onde a gente tá?
+      0,0 s — respondido pelos OLHOS, sem acordar o modelo
+
+O gargalo aqui é a LEITURA do prompt, não a escrita: 110 s para 565 tokens
+contra 11 s de fala. É o alvo da tarefa 10 (cache de prefill via
+`llama_state_seq_*`), e não do modelo.
+
+### Os outros três cérebros ainda estavam no CDN
+
+A fala subia por `/wllama-relaxed`, mas o navegador continuava buscando
+`cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js` — memória, vontade e
+motor nunca tinham sido trocados. Passaram a apontar para o motor da casa, e
+`bancada-navegador/cerebros-no-motor-da-casa.mjs` usa cada um DE VERDADE
+(subir o runtime, não só baixar os pesos):
+
+    ✓ memória — subir o runtime          9,6 s
+    ✓ memória — lembrar por significado  0,3 s
+    ✓ motor   — subir o runtime          5,5 s
+    ✓ vontade — subir o runtime          9,8 s
+    ✓ nenhum motor veio de CDN
+
+### O que esta caixa NÃO consegue medir: a vontade
+
+Ela mora no `useFrame` do Floor10Npc, e aqui nenhum `useFrame` roda. Medido:
+
+    __startFloor(10) → menu fora da tela: sim
+    requestAnimationFrame ... roda, ~3 fps (SwiftShader)
+    contexto WebGL .......... vivo, não perdido
+    __playerPos() ........... [0, 0, 8] antes e depois de __f10teleport
+    npc.perception.player ... null
+
+Uma exceção dentro de um `useFrame` derruba o laço inteiro do
+react-three-fiber, e esta caixa não alcança a internet — as texturas do jogo
+vêm de `raw.githubusercontent.com`. Então a vontade fica em `decisões: 0`, e
+dizer qualquer coisa sobre o comportamento autônomo a partir daqui seria
+invenção. O que a bancada mede é o caminho da CONVERSA, que não depende de
+quadro nenhum.
+
+### Dois defeitos da própria bancada, para não se repetirem
+
+  · **HMR mata a volta.** Editar QUALQUER arquivo da raiz enquanto a bancada
+    corre faz o Vite mandar um recarregamento, e a volta morre com
+    `Execution context was destroyed`. Suba com `DISABLE_HMR=true npm run dev`.
+
+  · **Download interrompido virava cache bom.** O `curl` escrevia direto no
+    nome definitivo e o teste de cache é `existsSync`; matar a bancada no meio
+    deixava um arquivo parcial que todas as voltas seguintes serviam como
+    completo. O sintoma foi o jogo reclamando, com razão, em duas voltas
+    seguidas: `a vontade tem 32 MB e deveria ter 1246 MB`. Hoje o `curl`
+    escreve em `.parcial` e o `rename` é o commit.
