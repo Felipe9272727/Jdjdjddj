@@ -93,13 +93,29 @@ import {
     cerebroEscolhido, definirCerebroEscolhido, SMALL_BRAIN_STORAGE_KEY,
 } from './floor10Brains';
 
-const WLLAMA_V = '3.5.1';
 // Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
 // impossível de testar fora da internet aberta: runtime e modelo estavam
 // fixos, e a deliberação simplesmente nunca rodava numa caixa fechada — o que
 // escondia justamente os defeitos de loop e de travamento que ele pode ter.
+// ── O MOTOR DA CASA TAMBÉM AQUI ──────────────────────────────────────────
+//
+// Medido abrindo o jogo de verdade (`bancada-navegador/andar-10-real.mjs`): a
+// fala já subia por `/wllama-relaxed`, mas o navegador AINDA buscava
+// `cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js` — porque só o
+// cérebro de fala tinha sido trocado. Os outros continuavam no CDN.
+//
+// São dois ganhos, e nenhum é hipótese:
+//
+//   · velocidade — o binário implantado mede 8,81–9,00 tok/s contra 6,82 do
+//     CDN em modelo denso (é o caso destes três), fora os 3x do granite;
+//   · o jogo deixa de depender do jsdelivr em tempo de execução.
+//
+// E não é caminho novo: `?motor=relaxed` já escrevia `__wllamaCdn` com este
+// mesmo valor, então esta linha só torna PADRÃO o que já era testável por
+// bandeira. `?wllama=<versão>` continua levando ao CDN para comparar.
+const MOTOR_DA_CASA = '/wllama-relaxed';
 const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
-    ?? `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
+    ?? MOTOR_DA_CASA;
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 
