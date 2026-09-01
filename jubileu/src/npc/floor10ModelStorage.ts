@@ -242,3 +242,70 @@ export async function probeModelBytes(url: string): Promise<number | null> {
         return null;
     }
 }
+
+/**
+ * ── UM MODELO EM SHARDS TEM DOIS TAMANHOS, E ELES SERVEM A COISAS OPOSTAS ──
+ *
+ * O granite-4.0-h-tiny vem em `granite4-00001-of-00002.gguf` +
+ * `granite4-00002-of-00002.gguf`. `probeModelBytes` faz UM `HEAD`, no primeiro
+ * arquivo, e devolve 1,50 GB — o que estava sendo usado como se fosse o modelo
+ * inteiro, que tem 2,59 GB.
+ *
+ * O erro foi medido abrindo o jogo de verdade:
+ *
+ *     Sem espaço para o granite-4.0-h-tiny 7B-A1B: o navegador só libera
+ *     0.44 GB para este site e o modelo precisa de 1.62 GB.
+ *
+ * 1,62 GB é 1,50 × 1,08 de folga. Fosse um aparelho com 2 GB livres, a conta
+ * teria dito "cabe" e o download morreria a 60% — que é a pior forma de não
+ * caber, porque gasta a rede do jogador antes de falhar.
+ *
+ * E os dois números NÃO podem ser o mesmo. O teto de 2 GB do runtime é do
+ * `ftell()` do HeapFS, ou seja, **por arquivo** — é exatamente por isso que
+ * este modelo é fatiado. Passar a soma para `excedeTetoDoGguf` reprovaria o
+ * granite por um limite que ele não encosta.
+ *
+ *   · `total`        → tem de caber no armazenamento do site
+ *   · `maiorArquivo` → tem de caber no `ftell()` do runtime
+ */
+export type MedidaDoModelo = {
+    total: number | null;
+    maiorArquivo: number | null;
+    shards: number;
+};
+
+const PADRAO_DE_SHARD = /-(\d{5})-of-(\d{5})\.gguf$/;
+
+/**
+ * Todas as URLs do modelo, a partir da URL do primeiro shard.
+ *
+ * Modelo de arquivo único devolve a própria URL, e é por isso que quem chama
+ * não precisa saber se o modelo é fatiado.
+ */
+export function urlsDosShards(url: string): string[] {
+    const m = PADRAO_DE_SHARD.exec(url);
+    if (!m) return [url];
+    const total = Number(m[2]);
+    if (!Number.isFinite(total) || total < 1 || total > 999) return [url];
+    return Array.from({ length: total }, (_, i) => url.replace(
+        PADRAO_DE_SHARD,
+        `-${String(i + 1).padStart(5, '0')}-of-${m[2]}.gguf`,
+    ));
+}
+
+export async function medirModelo(url: string): Promise<MedidaDoModelo> {
+    const urls = urlsDosShards(url);
+    const medidas = await Promise.all(urls.map((u) => probeModelBytes(u)));
+    // ── FALTOU UM? ENTÃO NÃO SEI O TAMANHO ───────────────────────────────
+    //
+    // Somar só os que responderam devolveria um número menor que a verdade
+    // com cara de verdade — o mesmo defeito de antes, com mais passos. `null`
+    // já significa "não sei" em todo este arquivo, e o plano deixa tentar.
+    if (medidas.some((b) => b === null)) return { total: null, maiorArquivo: null, shards: urls.length };
+    const bytes = medidas as number[];
+    return {
+        total: bytes.reduce((a, b) => a + b, 0),
+        maiorArquivo: Math.max(...bytes),
+        shards: urls.length,
+    };
+}

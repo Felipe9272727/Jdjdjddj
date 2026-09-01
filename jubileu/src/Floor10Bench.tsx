@@ -24,7 +24,7 @@ import {
     readSavedThreads, saveThreads,
 } from './npc/wllamaEngine';
 import {
-    formatGB, planModelCache, probeModelBytes, readStorageEstimate,
+    formatGB, medirModelo, planModelCache, readStorageEstimate,
 } from './npc/floor10ModelStorage';
 
 type Marco = { nome: string; t: number };
@@ -46,15 +46,22 @@ const AMBIENTE = () => ({
  * sem mensagem — então este quadro é a primeira coisa a olhar num aparelho novo.
  */
 async function medirCota() {
-    const [estimativa, bytes] = await Promise.all([
+    // `medirModelo` e não `probeModelBytes`: a fala vem em DOIS shards e um
+    // `HEAD` só vê o primeiro. Este quadro chegou a dizer "o modelo pesa
+    // 1,50 GB · cabe: SIM" para um granite de 2,59 GB — a resposta errada
+    // justamente na tela que existe para responder isso.
+    const [estimativa, medida] = await Promise.all([
         readStorageEstimate(),
-        probeModelBytes(FLOOR10_MODEL.url),
+        medirModelo(FLOOR10_MODEL.url),
     ]);
+    const bytes = medida.total;
     const plano = planModelCache(estimativa, bytes);
     return {
         cota: estimativa.quota === null ? 'desconhecida' : formatGB(estimativa.quota),
         emUso: formatGB(estimativa.usage),
-        modeloPesa: bytes === null ? 'desconhecido' : formatGB(bytes),
+        modeloPesa: bytes === null
+            ? 'desconhecido'
+            : `${formatGB(bytes)}${medida.shards > 1 ? ` (${medida.shards} partes)` : ''}`,
         cabe: plano.ok ? 'SIM' : 'NÃO',
         recado: plano.message || '—',
     };

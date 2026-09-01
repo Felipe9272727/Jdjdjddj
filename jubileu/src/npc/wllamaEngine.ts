@@ -53,8 +53,8 @@ import {
     CACHE_HEADROOM,
     deleteCachedModel,
     isBrokenModelCacheError,
+    medirModelo,
     planModelCache,
-    probeModelBytes,
     probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
@@ -1559,8 +1559,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
             });
         }
         if (!jaEmCache) {
-            const modelBytes = await probeModelBytes(model.url);
-            const excedeTeto = excedeTetoDoGguf(modelBytes);
+            // A soma dos shards para o armazenamento; o MAIOR arquivo para
+            // o teto do runtime. Ver `medirModelo`: com `probeModelBytes` aqui
+            // o granite pedia 1,62 GB de espaço e precisava de 2,79 GB.
+            const medida = await medirModelo(model.url);
+            const modelBytes = medida.total;
+            const excedeTeto = excedeTetoDoGguf(medida.maiorArquivo);
             if (excedeTeto) throw new ModelStorageError(excedeTeto);
             let estimativa = await readStorageEstimate();
             // Publica o espaço ANTES de tentar: se não couber, o jogador vê o
