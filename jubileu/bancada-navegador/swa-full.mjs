@@ -55,8 +55,19 @@ const PERGUNTAS = [
 ];
 
 console.log('');
-for (const swaFull of [false, true]) {
-    console.log(`\n  swa_full: ${swaFull}`);
+const CENARIOS = [
+    { swaFull: false, nCtx: 1536, rotulo: 'swa_full OFF · n_ctx 1536 (o do jogo)' },
+    { swaFull: true, nCtx: 1536, rotulo: 'swa_full ON  · n_ctx 1536 (o do jogo)' },
+    // ── E SE O CORTE FOR FALTA DE CONTEXTO? ──────────────────────────────
+    //
+    // `swa_full` guarda o KV INTEIRO em vez de so a janela. Se o que corta a
+    // fala for o contexto acabando, dar mais folga conserta — e o preco vira
+    // RAM, que e a moeda que importa no celular. Se nao consertar, a causa e
+    // outra e `swa_full` nao serve como esta.
+    { swaFull: true, nCtx: 3072, rotulo: 'swa_full ON  · n_ctx 3072 (o dobro de folga)' },
+];
+for (const { swaFull, nCtx, rotulo } of CENARIOS) {
+    console.log(`\n  ${rotulo}`);
     let r;
     try {
         r = await page.evaluate(async ({ url, base, perguntas, swaFull }) => {
@@ -85,11 +96,19 @@ for (const swaFull of [false, true]) {
                     pergunta, fala,
                     lidos: t?.prompt_n ?? 0, reusados: t?.cache_n ?? 0,
                     leitura: (t?.prompt_ms ?? 0) / 1000, falaS: (t?.predicted_ms ?? 0) / 1000,
+                    // ── QUANTOS TOKENS ELE CHEGOU A ESCREVER ─────────────
+                    //
+                    // Sem isto, "fala 1,7s" nao distingue as duas causas
+                    // possiveis de uma frase cortada: gerou POUCO (parou cedo)
+                    // ou gerou DEVAGAR. Com `swa_full` ligado as falas sairam
+                    // como "Querer nao muda o fato de estar…" e o teto e 56
+                    // tokens — entao a pergunta e exatamente essa.
+                    gerados: t?.predicted_n ?? null,
                 });
             }
             await w.exit?.();
             return { saida };
-        }, { url: MODELO, base: CONFIG, perguntas: PERGUNTAS, swaFull });
+        }, { url: MODELO, base: { ...CONFIG, n_ctx: nCtx }, perguntas: PERGUNTAS, swaFull });
     } catch (e) {
         console.log(`    ✗ não rodou: ${String(e?.message ?? e).slice(0, 200)}`);
         continue;
@@ -97,7 +116,8 @@ for (const swaFull of [false, true]) {
     for (const l of r.saida) {
         console.log(`    ${l.pergunta.padEnd(30)} lidos ${String(l.lidos).padStart(5)}`
             + ` · reaproveitados ${String(l.reusados).padStart(5)}`
-            + ` · leitura ${l.leitura.toFixed(1).padStart(5)}s · fala ${l.falaS.toFixed(1).padStart(4)}s`);
+            + ` · leitura ${l.leitura.toFixed(1).padStart(5)}s`
+            + ` · fala ${l.falaS.toFixed(1).padStart(4)}s (${String(l.gerados ?? '?').padStart(3)} tokens)`);
     }
     const seguintes = r.saida.slice(1);
     const m = seguintes.reduce((a, l) => a + l.leitura + l.falaS, 0) / seguintes.length;

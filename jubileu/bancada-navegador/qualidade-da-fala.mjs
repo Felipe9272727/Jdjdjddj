@@ -215,7 +215,13 @@ for (const id of MODELOS) {
     // ── AS COLUNAS QUE A RÉGUA DO JOGO NÃO TEM ───────────────────────────
     const PT = /\b(que|não|nao|você|voce|eu|está|esta|aqui|com|para|isso|uma|mas|meu|minha|sei|tem|the)\b/gi;
     const EN = /\b(the|and|you|are|there|here|what|this|that|with|have|from|about|would|know)\b/gi;
-    const LUSITANO = /\b(estás|estas a|a fazer|a dizer|ecrã|telemóvel|comboio|casa de banho|percebes|tu és|autocarro)\b/i;
+    // ── A MARCA LUSITANA QUE ESCAPOU ─────────────────────────────────────
+    //
+    // A primeira versão listava só `a fazer|a dizer` e mais um punhado de
+    // palavras. O Gemma escreveu "Acha que estou A PERDER a cabeça?" na
+    // bancada do `swa_full` e passou batido: a marca não é o verbo, é a
+    // CONSTRUÇÃO `estar a + infinitivo`, onde o Brasil usa gerúndio.
+    const LUSITANO = /\b(est(?:ou|á|ás|amos|ão|ava|ávamos)\s+a\s+\w+(?:ar|er|ir)|ecrã|telemóvel|comboio|casa de banho|autocarro|percebes|tu és|a gente cá)\b/i;
     const contar = (t, re) => (t.match(re) ?? []).length;
     for (const l of saida) {
         const en = contar(l.fala, EN);
