@@ -2005,3 +2005,57 @@ hoje, com a régua limpa e uma voz razoável, ainda que inventiva.
 
 Ressalva de tamanho de amostra: são 8 falas por modelo. Serve para separar
 "ecoa a pergunta" de "não ecoa"; não serve para ranquear dois modelos parecidos.
+
+---
+
+## Os 13 segundos do celular, reproduzidos — e o que decide o turno
+
+O dono do jogo: *"no meu celular rodava o SmolLM3, e ele às vezes respondia em
+13 segundos"*, contra os 36,2 s de média que a bancada de qualidade mediu. Ele
+suspeitou do motor de novo. O motor estava certo (a bancada carrega
+`/wllama-relaxed` cravado, e só existem dois diretórios em `public/`), e os dois
+números também estavam.
+
+`conversa-que-nao-salta.mjs`, SmolLM3, motor da casa, config do jogo, 4 fios:
+
+    SALTANDO de assunto (identidade → parede → hotel → sair)
+      Oi, quem é você?                  lidos 375 · reaprov   0 · TURNO 45,7s
+      O que tem atrás daquela parede?   lidos 212 · reaprov 310 · TURNO 28,9s
+      Quem manda nesse hotel?           lidos 233 · reaprov 335 · TURNO 33,7s
+      Você quer sair daqui?             lidos 395 · reaprov 335 · TURNO 45,8s
+      → 36,1 s por turno · 280 tokens relidos em média
+
+    NO MESMO ASSUNTO (o passado dele, quatro perguntas encadeadas)
+      Oi, quem é você?                  lidos 375 · reaprov   0 · TURNO 43,6s
+      Você era técnico de quê?          lidos  69 · reaprov 310 · TURNO 12,8s  ←
+      E como foi o último dia?          lidos  24 · reaprov 409 · TURNO  6,5s  ←
+      Você se lembra da hora?           lidos 338 · reaprov 310 · TURNO 40,2s
+      → 19,8 s por turno · 144 tokens relidos em média
+
+### O que decide o turno não é o modelo — é se o FATO trocou
+
+`buildFloor10SystemPrompt` monta `persona · resumo · FATO · percepção · vontade ·
+guardas · já dito`, e o curador escolhe o fato POR PERGUNTA. Os números medem o
+tamanho de cada peça sem precisar do tokenizador:
+
+    fato IGUAL ao do turno anterior ... reaproveita 409, relê  24 → 6,5 s
+    fato DIFERENTE ................... reaproveita 310, relê 338 →  40 s
+
+Persona + resumo = ~310 tokens; o bloco do fato = ~99. Quando o fato muda, ele
+invalida os ~340 tokens que vêm depois dele, e são esses que custam 30 s.
+
+E a ordem ATUAL está certa, ao contrário do que parece: mover o fato para o fim
+pioraria o caso bom (reaproveitaria 310 em vez de 409) sem melhorar o ruim,
+porque tudo que vem depois dele — percepção, vontade, guardas, já dito — muda
+mais que ele, não menos.
+
+### A alavanca que sobra, e ainda não foi medida
+
+Trocar o fato menos vezes. Hoje o curador reescolhe do zero a cada fala; uma
+HISTERESE — manter o fato do turno anterior a menos que o novo case bem melhor —
+transformaria boa parte dos turnos de 40 s em turnos de 13 s, sem trocar de
+modelo e sem tocar no motor.
+
+Isso muda O QUE o modelo lê em cada fala, então não é ajuste de bancada: é
+mudança de comportamento, e precisa da régua de qualidade em cima antes de
+entrar.
