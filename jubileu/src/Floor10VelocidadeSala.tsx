@@ -121,6 +121,45 @@ const MODELOS = {
         nota: 'MTP de fábrica, sem segundo modelo · arquivo único, 25 MB abaixo da parede de 2 GiB',
         mtp: true,
     },
+    /**
+     * ── O MELHOR PERSONAGEM QUE EU MEDI, E O MAIS LENTO ──────────────────
+     *
+     * Ele está aqui por pedido do dono do jogo, e a pergunta é só uma: quanto
+     * ele anda NO APARELHO DELE. O que já está medido, e o que não está:
+     *
+     * QUALIDADE — o melhor dos cinco candidatos, com folga, na régua do próprio
+     * jogo (`bancada-navegador/qualidade-da-fala.mjs`): 0/8 defeito, 0/8 fora do
+     * tom, 8/8 respostas distintas. E é no texto que ele se separa — devolve
+     * pergunta, tem humor seco e não inventa fato:
+     *
+     *     "Nilo Azevedo, sou hóspede preso no 10º andar deste lugar. E você,
+     *      que figura é a sua, que insiste em me perguntar?"
+     *     "Não faço a mínima ideia de quem manda. Só sei que não me interessa."
+     *
+     * VELOCIDADE — o pior dos cinco, e por uma causa de arquitetura. O Gemma 3
+     * alterna camadas com JANELA DESLIZANTE, e fora da janela o llama.cpp não
+     * tem KV para reconstruir o prefixo: ele invalida o checkpoint e relê tudo.
+     * Reaproveitou ZERO tokens nas duas rodadas. Nesta caixa, 4 fios, turno em
+     * conversa: 60,6 s contra 36,2 s do SmolLM3.
+     *
+     * `swa_full` (guardar o KV inteiro em vez de só a janela) conserta a
+     * velocidade — 60,7 s → 29,2 s, 0 → 788 reaproveitados — e QUEBRA a
+     * geração: contados os tokens escritos por turno, 32/23/15/15 sem ele
+     * contra 31/21/16/7 com ele; dobrar o `n_ctx` piora (27/25/11/3), então não
+     * é falta de contexto. Não serve como está, e por isso não está ligado.
+     *
+     * 2,49 GB em ARQUIVO ÚNICO — acima dos 2 GiB que este projeto registra como
+     * parede do `Blob`. Ele carregou e gerou aqui mesmo assim, várias vezes, no
+     * motor da casa. Ou a parede é de outro lugar, ou ela não vale para este
+     * caminho; o aparelho é quem responde.
+     */
+    gemma4b: {
+        rotulo: 'Gemma 3 4B it Q4_K_M',
+        url: 'https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf',
+        bytes: 2_489_757_856,
+        nota: 'melhor personagem medido · janela deslizante: reaproveita ZERO prefixo · 2,49 GB em arquivo único',
+        mtp: false,
+    },
 } as const;
 type ChaveModelo = keyof typeof MODELOS;
 
