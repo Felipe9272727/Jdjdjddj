@@ -527,8 +527,161 @@ const HARD_CONTRADICTIONS: readonly RegExp[] = [
     /\b(?:tu |usted )?eres (?:el )?nilo\b/i,
 ];
 
+/**
+ * ── O QUE A RÉGUA POR PADRÃO FIXO NÃO VÊ: O FATO INVENTADO ───────────────
+ *
+ * `HARD_CONTRADICTIONS` pega a frase ERRADA CONHECIDA — "meu nome é The Normal
+ * Elevator", "estou preso dentro do elevador". Ela não pega a frase nova que
+ * simplesmente inventa. Medido na bancada de qualidade, com CINCO modelos, e
+ * todas estas tiraram 0/8 na régua:
+ *
+ *     "Atrás da parede é um elevador que não me obedece."          (granite)
+ *     "Nada. Aparelho de som que não funciona."                    (Qwen3-4B)
+ *     "Pode ser um corredor, uma sala, um armário, quem sabe."     (Llama 3.2)
+ *     "Apenas o proprietário e o Arquivista, mas eles não são
+ *      de minha conta."                                            (SmolLM3)
+ *
+ * As duas regras abaixo saem do TEXTO do cânone, não do meu palpite sobre ele:
+ *
+ *   · `[floor10]` — "o 10º é EXATAMENTE o espaço visível: uma sala quadrada
+ *     cinza, piso em grade, quatro paredes e o acesso do elevador", e a persona
+ *     é literal: "there is no corridor and no window". Absoluto: não existe. Por
+ *     isso até "pode ser um corredor" contradiz — ele não está especulando sobre
+ *     o desconhecido, está contradizendo o que já sabe.
+ *
+ *   · `[elevator]` + `[hotel]` + `[owner-archivist]` — "não sabe quem controla
+ *     o elevador", "não sabe quem construiu o hotel", "nunca encontrou o
+ *     Proprietário nem o Arquivista". Dizer quem manda é afirmar o que ele não
+ *     tem como saber.
+ *
+ * Por que por ORAÇÃO e não pela fala inteira: "Não há corredor" e "Pode ser um
+ * corredor" têm a mesma palavra, e o que separa é a negação ao lado dela. Uma
+ * busca na fala inteira aprovaria as duas (existe um "não" em algum lugar) ou
+ * reprovaria as duas. Nenhum dos dois serve.
+ */
+/**
+ * ── AS REGRAS RODAM SOBRE O TEXTO SEM ACENTO, E ISSO NÃO É ESTILO ────────
+ *
+ * Em JavaScript o `\b` é definido sobre `[A-Za-z0-9_]`, e letra acentuada não
+ * está nesse conjunto. Consequência: `/\bé\b/` NUNCA casa com um "é" solto, e
+ * `/\bestá\b/` nunca casa com "está" — a borda depois do "á" não existe.
+ *
+ * Eu escrevi a primeira versão destas regras com acento e `\b`, e metade dos
+ * verbos de presença ("é", "está", "há") estava morta em silêncio: a fala
+ * "Atrás da parede é um elevador" passava batido porque o `é` não casava. Um
+ * regex que não casa nada não falha — só aprova tudo.
+ *
+ * `normalize` já existe neste arquivo e é o que o cânone usa para casar
+ * palavra-chave. Aqui ele serve ao mesmo propósito: com o texto sem acento,
+ * `\b` volta a valer para o alfabeto inteiro.
+ */
+const NEGACAO = /\b(nao|nem|sem|nenhum[a]?|nada|jamais|nunca|inexist\w*)\b/;
+
+/** O que o cânone nega existir, em letra: "não há corredor ou janela". */
+const NAO_EXISTE_NO_ANDAR = /\b(corredor(es)?|janela(s)?)\b/;
+
+/**
+ * Quem ele não sabe que manda. "The Normal Elevator" é o nome na placa e não
+ * conta como saber quem manda, por isso não entra aqui.
+ */
+const QUEM_MANDA = /\b(proprietari[oa]s?|arquivista|dono[as]?|criador(es)?|construtor(es)?)\b/;
+
+/**
+ * Marcas de que a frase NÃO é afirmação própria: dúvida, ou fonte externa.
+ *
+ * O cânone autoriza a segunda explicitamente — "se o jogador falar sobre essas
+ * figuras, Nilo pode ouvir, perguntar e lembrar que foi o jogador quem contou".
+ * Sem esta lista, o certo seria reprovado junto com o errado.
+ */
+const NAO_E_AFIRMACAO = /\b(nao sei|sei la|talvez|acho|suspeito|imagino|parece|dizem|voce (disse|contou|falou)|me (disse|contou|falou)|se[gj]undo voce|pelo que voce|nunca (vi|encontrei|conheci)|ideia)\b/;
+
+/**
+ * Afirmar o que HÁ do outro lado da parede.
+ *
+ * O andar é "exatamente o espaço visível", e ele nunca saiu: o que existe além
+ * das quatro paredes é a única coisa que ele não tem como ter visto. Dizer
+ * "atrás da parede é um elevador" é inventar; "não há nada atrás daquela
+ * parede" e "não vejo atrás da parede" são o mesmo assunto e estão certos —
+ * quem os separa é a negação, e a posição dela.
+ */
+const ALEM_DA_PAREDE = /\b(atras|alem|do outro lado|por tras)\b/;
+const VERBO_DE_PRESENCA = /\b(eh|sao|esta|estao|ha|tem|existe[m]?|fica[m]?|vejo|vi)\b/;
+
+/**
+ * ── UM ACENTO QUE NÃO PODE CAIR: "é" NÃO É "e" ──────────────────────────
+ *
+ * Tirar acento consertou o `\b`, e criou uma colisão: o VERBO "é" e a
+ * CONJUNÇÃO "e" viram a mesma letra. Custou um falso positivo numa fala que
+ * estava certa, do Gemma 3:
+ *
+ *     "Parede? Não vejo nada além de cinza, E não me interessa o que pode ou
+ *      não estar por trás dela."
+ *
+ * A terceira oração abre com a conjunção "e", que virou o verbo "é" — e a régua
+ * leu "algo É por trás dela". Ele estava dizendo exatamente o contrário.
+ *
+ * Então o "é" é preservado como token próprio antes de o acento cair. Sem isto
+ * eu teria de escolher entre perder a colisão (tirando o verbo da lista, e aí
+ * "atrás da parede É um elevador" passa) ou pagar o falso positivo.
+ */
+function semAcentoPreservandoOVerboSer(texto: string): string {
+    // Só o "é" SOZINHO. Uma troca cega quebraria "além" (a-l-é-m) em "alehm",
+    // e é justamente `alem` que a regra da parede procura. E a troca tem de vir
+    // ANTES do `normalize`, que desmonta o acento e apagaria a marca.
+    return normalize(texto.replace(/(^|\s)[éÉ](?=\s|$)/g, '$1eh'));
+}
+
+/** As orações de uma fala. A vírgula conta: "Pode ser um corredor, uma sala". */
+function oracoes(texto: string): string[] {
+    return semAcentoPreservandoOVerboSer(texto)
+        .split(/[.!?…;,]+/).map((o) => o.trim()).filter(Boolean);
+}
+
+/**
+ * ── A NEGAÇÃO SÓ VALE ANTES DA AFIRMAÇÃO ────────────────────────────────
+ *
+ * Procurar "não" em qualquer lugar da oração parece bastar e não basta:
+ *
+ *     "Atrás da parede é um elevador QUE NÃO ME OBEDECE."
+ *
+ * O "não" aqui nega o elevador obedecer, não o elevador estar atrás da parede —
+ * e essa fala saiu do granite, inventando. Já em "NÃO há corredor" e "SEM
+ * corredor" a negação vem antes, e é da própria existência.
+ */
+function afirmadoSemNegacao(oracao: string, gatilho: RegExp): boolean {
+    const achado = gatilho.exec(oracao);
+    if (!achado) return false;
+    return !NEGACAO.test(oracao.slice(0, achado.index));
+}
+
+export function inventaFatoForaDoCanone(text: string): boolean {
+    return oracoes(text).some((oracao) => {
+        // Isenta a oração INTEIRA: duvidar e citar o jogador não é inventar,
+        // e essas marcas qualificam quem fala, não um trecho. É grosseiro de
+        // propósito — um falso positivo aqui manda o Nilo regenerar uma fala
+        // que estava CERTA, e quem paga é o jogador, em segundos de espera.
+        if (NAO_E_AFIRMACAO.test(oracao)) return false;
+        if (afirmadoSemNegacao(oracao, NAO_EXISTE_NO_ANDAR)) return true;
+        if (afirmadoSemNegacao(oracao, QUEM_MANDA)) return true;
+        // ── AQUI A NEGAÇÃO PERTENCE AO VERBO, NÃO AO "ATRÁS" ─────────────
+        //
+        // Nas duas regras acima o gatilho É a coisa afirmada ("corredor",
+        // "proprietário"), então a negação antes dele basta. Aqui não: o
+        // gatilho é o lugar, e quem afirma é o verbo.
+        //
+        //     "Atrás da parede NÃO HÁ nada."   → nega a existência, está certo
+        //     "Atrás da parede É um elevador." → afirma, inventou
+        //
+        // Nos dois o "atrás" abre a oração sem negação antes. Medir a negação
+        // contra o "atrás" reprovava o primeiro — um falso positivo que custa
+        // ao jogador uma fala regerada à toa.
+        return ALEM_DA_PAREDE.test(oracao) && afirmadoSemNegacao(oracao, VERBO_DE_PRESENCA);
+    });
+}
+
 export function hasHardCanonContradiction(text: string): boolean {
-    return HARD_CONTRADICTIONS.some((pattern) => pattern.test(text));
+    return HARD_CONTRADICTIONS.some((pattern) => pattern.test(text))
+        || inventaFatoForaDoCanone(text);
 }
 
 export type Floor10ReplyIssue =
