@@ -12,6 +12,31 @@ proponha. `VELOCIDADE.md` continua sendo o dossiê com as tabelas completas; est
 
 ---
 
+## REGRA ZERO — WEBGPU ESTÁ FECHADA. NÃO PROPONHA.
+
+Reprovada **seis vezes** no aparelho do dono do jogo. A sexta fui eu, nesta
+sessão, listando-a como "a frente de maior valor da fila" — dentro do arquivo
+cujo primeiro parágrafo diz que ele existe porque eu já tinha feito isso.
+
+A causa não é lentidão, não é memória, e não se conserta com menos camadas:
+
+> O jogo é Three.js e desenha na **MESMA GPU**. O trabalho da LLM entope a fila
+> de submissão e o render não fecha o quadro no prazo. (`d9fc9af4`)
+
+E ela nunca ganhou nem quando funcionou: **CPU×8 em 242,5 s contra WebGPU×2 em
+257,1 s**. Com 3 de 36 camadas dava `(ABORT)` na fala e depois `loadModel() is
+not yet called` — a geração morrendo, não demorando. `GGML_WEBGPU=ON` no binário
+também foi medido: **diferença zero**.
+
+Palavras do dono do jogo, depois da sexta vez: *"pqp eu já testei mais de 5x, já
+está registrado, e tu insiste nisso"*.
+
+**O que reabre isto:** nada que eu meça nesta caixa. Só ele, no aparelho dele,
+dizendo que quer olhar de novo. Número de paper, cobertura de mercado e
+`build-gpu` parado na árvore JÁ FORAM os argumentos das seis vezes.
+
+---
+
 ## AS TRÊS LEIS DESTE PROJETO
 
 Não são opinião: cada uma foi medida entre cinco e oito vezes, com o número
@@ -510,10 +535,17 @@ quanto sobra depois da decomposição.
 relógio (1,12× mais rápido!) sem comparar as SAÍDAS, teria implantado um wasm
 que faz o Nilo falar `pymysql`. Medir velocidade sem medir correção não é medir.
 
-**A outra frente que eu ignorava: WebGPU.** A literatura põe 25–40 tok/s no
-WebGPU contra 2–6 tok/s no WASM, e já existe um `build-gpu` nesta árvore, de 4
-de agosto, que NUNCA foi implantado no jogo. Cobertura ~70–75% em celular. É a
-tarefa 11, e ela vale mais do que tudo que esta caça da especulativa rendeu.
+**~~A outra frente que eu ignorava: WebGPU.~~ ERRADO — ver a REGRA ZERO no topo.**
+Este parágrafo dizia que a WebGPU "NUNCA foi implantada" e valia 5–10×. As duas
+coisas são falsas, e a refutação estava neste mesmo arquivo, 380 linhas acima,
+escrita antes. Ele ficou aqui tempo suficiente para me enganar de novo numa
+sessão posterior — eu li ESTA linha, não a seção "WEBGPU: NÃO É ALAVANCA, É
+ARMADILHA", e apresentei a WebGPU ao dono do jogo como o item mais valioso da
+fila. Sexta vez.
+
+Fica riscado em vez de apagado porque o defeito não era o conteúdo, era o
+arquivo poder se contradizer: um índice do que está fechado não serve para nada
+se a entrada nova não olha a antiga.
 
 Ordenando as frentes pelo que valem:
 
@@ -522,10 +554,10 @@ Ordenando as frentes pelo que valem:
 | especulativa | **0** | morta, medida por todos os caminhos |
 | relaxed SIMD | **0 como está** | certo só em ARM; conserto = reescrever o kernel |
 | cache de prefill (#10) | ~2,8× | medido no A/B frio/quente |
-| WebGPU (#11) | 5–10× (?) | build existe, nunca testado |
+| ~~WebGPU (#11)~~ | **0, e trava o aparelho** | FECHADA — regra zero |
 
-Sobram o cache de prefill (~2,8×, medido) e o WebGPU (não medido). O relaxed
-SIMD saiu da conta ao ser testado — ver acima.
+Sobra o cache de prefill. O relaxed SIMD saiu da conta ao ser testado, e a
+WebGPU nunca esteve nela — ver a regra zero.
 
 **A lição, e ela é a mais cara deste arquivo:** eu passei o dia medindo com
 precisão dentro de uma caixa que eu nunca questionei. Medir bem não substitui
