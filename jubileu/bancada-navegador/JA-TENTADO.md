@@ -2059,3 +2059,72 @@ modelo e sem tocar no motor.
 Isso muda O QUE o modelo lê em cada fala, então não é ajuste de bancada: é
 mudança de comportamento, e precisa da régua de qualidade em cima antes de
 entrar.
+
+---
+
+## A histerese do fato do cânone: −34% no turno, e o cânone mais respeitado
+
+Implementada depois da seção anterior, que mostrou que o preço de um turno é
+decidido por uma coisa só — se o curador trocou o fato do cânone.
+
+`fatoComHisterese` só troca quando vale, e a primeira regra é a que protege a
+resposta: se o fato que está no prompt tem nota ZERO para a nova pergunta, ele
+não fala do que foi perguntado e a troca acontece de qualquer jeito. Economizar
+prefill entregando o assunto errado seria uma resposta pior, mais rápido. Fora
+isso, só troca quando o candidato novo é 1,5× melhor.
+
+`fatoDaConversa` não guarda o fato anterior em variável de módulo: recalcula o
+encadeamento a partir do histórico. Determinístico, sem estado, e dois painéis
+abertos não contaminam um ao outro.
+
+### O resultado (SmolLM3, prompt real, motor da casa, 4 fios)
+
+    conjunto                     sem histerese      com histerese
+    saltando de assunto        36,1 s · 280 relê   23,9 s · 165 relê   −34%
+    no mesmo assunto           19,8 s · 144 relê   18,7 s · 143 relê    −6%
+
+O formato do ganho é o esperado, e é isso que dá confiança nele: no assunto
+único quase nada muda, porque ali já não havia troca de fato para evitar. Todo o
+ganho está onde estava o desperdício. Turno a turno, saltando de assunto:
+
+    Quem manda nesse hotel?   antes: relê 233, reaprov 335 → 33,7 s
+                              hoje:  relê  22, reaprov 516 →  6,7 s
+
+E `Você se lembra da hora?` continua custando 36,7 s — de propósito: ali o fato
+anterior tem nota 0, então a regra troca. É a proteção funcionando.
+
+### A resposta não piorou; melhorou
+
+Comparando as mesmas perguntas antes e depois, a mudança visível foi para
+melhor. Sobre quem manda no hotel, o cânone diz que ele NÃO SABE:
+
+    antes: "O proprietário e o Arquivista são as únicas entidades que têm
+            controle, mas eles não são de minha conta."   ← afirma saber
+    hoje:  "Não sei. Não tenho controle sobre o hotel, nem sobre o elevador."
+
+Faz sentido: com a histerese ele fica com o fato que a conversa já estabeleceu
+em vez de puxar um fato novo a cada pergunta, e menos fato novo é menos convite
+a completar o que não está escrito.
+
+### Um defeito meu no caminho, que a própria bancada pegou
+
+A primeira versão de `fatoDaConversa` pontuava a pergunta PELADA, e o montador
+do prompt sempre pontuou com as DUAS últimas falas do jogador mais a atual. O
+sintoma foi o PRIMEIRO turno passar de 375 para 341 tokens lidos — e ele não
+podia mudar, porque sem histórico a histerese não tem o que segurar.
+
+Não era detalhe: "e o que mais?" não casa palavra-chave nenhuma sozinho, e o
+curador perderia o assunto no primeiro seguimento curto — exatamente o caso que
+a histerese existe para proteger. `consultaDoCurador` passou a ser a única forma
+de montar essa consulta, com quatro testes travando.
+
+Com o defeito, o ganho medido era 12%. Sem ele, 34%. A comparação estava suja
+porque as duas rodadas diferiam em DUAS coisas.
+
+### Ressalva de método, que ainda vale
+
+A linha de base (36,1 s) foi medida antes de a fala voltar ao SmolLM3, quando
+`systemTemplateFlags` estava vazio; hoje as flags `/system_override /no_think`
+entram na frente da persona. São ~8 tokens em ~340, ou seja, 2,4%, e eles
+tornam a rodada NOVA mais pesada, não mais leve. O ganho de 34% é real e, se
+alguma coisa, está subestimado.
