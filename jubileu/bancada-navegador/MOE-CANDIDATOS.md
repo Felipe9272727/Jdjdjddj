@@ -1,5 +1,41 @@
 # Os MoE que cabem, e por que nenhum deles aceita rascunhador
 
+> ## ⚠ CORREÇÃO DE 2 DE SETEMBRO — ESTE ARQUIVO RECOMENDA O CONTRÁRIO DO MEDIDO
+>
+> Tudo o que está abaixo mede **UM TURNO FRIO**. Nesse recorte os números estão
+> certos e o MoE híbrido ganha mesmo. Mas o jogo não é um turno frio: é uma
+> conversa, e do segundo turno em diante quem decide é outra coisa.
+>
+> **Modelo híbrido (Mamba, conv) não reaproveita prefixo de prompt.** O estado
+> de um SSM é sequencial e não dá para truncar, então o `cache_prompt` do
+> llama.cpp não tem para onde voltar e o prompt INTEIRO é relido toda fala.
+> Medido no mesmo motor, mesmo prompt de ~400 tokens, config do jogo, 4 fios:
+>
+>     modelo                      arquitetura   turno 1   turnos 2+   reaproveita
+>     granite-4.0-h-tiny 7B-A1B   híbrido        40,9 s    42,3 s      0 de 401
+>     LFM2.5-1.2B                 híbrido        18,0 s    19,0 s      0 de 402
+>     SmolLM3-3B                  denso          71,6 s     6,8 s    423 de 439
+>     Qwen3-0.6B                  denso           9,3 s     2,1 s    398 de 414
+>
+> O granite ganha o primeiro turno e perde todos os outros — **6,2× mais lento
+> por turno** que o denso que ele havia substituído. A frase "o MoE de 7B é DUAS
+> VEZES mais rápido que o denso de 3B", lá embaixo, vale só para a primeira
+> fala da partida.
+>
+> A terceira coluna da tabela mata as outras explicações: o LFM2.5-1.2B é
+> arquivo único, Q8_0 e denso nos pesos — igual ao Qwen em tudo isso — e híbrido
+> como o granite. Reaproveita zero também. O que separa é a arquitetura, não o
+> tamanho, a quantização, os shards nem o MoE.
+>
+> **Consequência para esta lista:** os dois candidatos que ela recomenda
+> (granite-4.0-h-tiny e LFM2.5-8B-A1B) são **os dois híbridos**, escolhidos
+> exatamente pela propriedade que hoje sabemos ser o defeito. Antes de gastar
+> quantização em qualquer um deles, medir o TURNO EM CONVERSA, não o turno frio.
+> `bancada-navegador/cache-de-prefixo.mjs` faz isso em quatro colunas.
+>
+> A fala do Andar 10 voltou ao SmolLM3-3B por causa disto. Ver a seção "O granite
+> perdeu o cache de prefixo" em `JA-TENTADO.md`.
+
 Pesquisa pedida pelo dono do jogo depois que o `granite-4.0-h-tiny` funcionou no
 aparelho dele: procurar mais MoE de 7B/14B para quantizar, e ligar a
 decodificação especulativa.
@@ -27,6 +63,10 @@ WASM"*. Entre `IQ2` e `Q2_K` de tamanho parecido, o K-quant ganha aqui.
 Foi por isso que o granite leu o prompt 52% mais rápido que o SmolLM3-3B DENSO,
 apesar de ter o dobro de parâmetros. Sem atenção quadrática em toda camada, o
 prefill — que é ~75% do turno no aparelho — fica barato.
+
+⚠ *E é aqui que este arquivo se engana. O prefill do híbrido é mais barato POR
+TOKEN, e ele tem de ler TODOS os tokens, toda fala. O denso lê mais caro por
+token e relê quase nada. Ver a correção no topo.*
 
 ## A especulativa esbarra em VOCABULÁRIO, e agora é sistemático
 
@@ -225,7 +265,9 @@ caminho, e ainda assim não paga o próprio custo.
     granite 3B denso (micro) .............. 19 525 ms
     granite 3B denso + melhor especulativa  20 695 ms
 
-**O MoE de 7B é DUAS VEZES mais rápido que o denso de 3B.** Então mesmo que a
+**O MoE de 7B é DUAS VEZES mais rápido que o denso de 3B** — ⚠ *no primeiro
+turno, e só nele. Ver a correção no topo: da segunda fala em diante o denso
+reaproveita o prefixo e o híbrido não, e a ordem se inverte.* Então mesmo que a
 especulativa desse os 20% que a literatura promete, o par denso+rascunho ficaria
 em ~16 s contra os 10 s do MoE sozinho.
 
