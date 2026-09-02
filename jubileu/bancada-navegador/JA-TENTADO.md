@@ -2160,3 +2160,49 @@ A linha de base (36,1 s) foi medida antes de a fala voltar ao SmolLM3, quando
 entram na frente da persona. São ~8 tokens em ~340, ou seja, 2,4%, e eles
 tornam a rodada NOVA mais pesada, não mais leve. O ganho de 34% é real e, se
 alguma coisa, está subestimado.
+
+---
+
+## A tarefa 10 não vale o preço, e agora tem número
+
+`llama_state_seq_*` salvaria o KV para que reabrir o chat não pagasse prefill
+frio. Implementar exige expor API nova do llama.cpp, ou seja **recompilar o
+wasm** — e é exatamente isso que `motorImplantado.test.ts` proíbe, porque o
+binário implantado não foi reproduzido (tarefa 19).
+
+A saída seria o 3× do motor implantado não valer para o modelo de hoje: aquele
+número foi medido no granite, que é híbrido, Q2_K e MoE. O SmolLM3 é denso e
+Q4_K_M — outra arquitetura, outros kernels.
+
+`bancada-navegador/motor-no-smol.mjs`, mesmo modelo, config do jogo, 4 fios:
+
+    motor                          carga*   turno frio   em conversa
+    motor da casa (implantado)     221,7s      60,4s        32,7s
+    CDN oficial @wllama 3.5.1       17,3s     108,8s        61,0s
+
+    * a carga NÃO é propriedade do motor: o braço da casa baixou 1,9 GB do
+      zero, o do CDN achou o arquivo no OPFS. Ignorar esta coluna.
+
+**O motor da casa é 1,86× mais rápido também no SmolLM3.** A vantagem não era do
+granite.
+
+### A conta que fecha o assunto
+
+O que a tarefa 10 pouparia: o prefill frio de uma reabertura de chat. Aqui isso
+é a diferença entre o turno frio e o turno em conversa — **27,7 s**, uma vez por
+reabertura. (E só o prefill: os pesos do modelo recarregam de qualquer jeito, e
+`state_seq` não muda isso.)
+
+O que recompilar custaria: **28,3 s por turno**, em TODO turno.
+
+Ou seja, a economia é de uma vez por sessão de chat e o preço é por fala. Se o
+jogador disser mais de uma coisa antes de fechar o painel, já saiu no prejuízo.
+
+**Veredito:** a tarefa 10 está fechada enquanto a 19 não for resolvida — e
+mesmo depois dela, o ganho é pequeno perto do que o próprio cache de prefixo
+dentro da conversa já entrega (12,8 s e 6,5 s por turno, medidos). Não é a
+próxima coisa a fazer.
+
+A alternativa barata — não descarregar a fala ao fechar o chat — está fechada
+por outro motivo, e mais duro: dois llama.cpp de 1 GB residentes **desligaram o
+aparelho do dono do jogo**.
