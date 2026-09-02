@@ -178,6 +178,90 @@ function normalize(text: string): string {
         .toLocaleLowerCase();
 }
 
+/**
+ * O mesmo ranqueamento de `retrieveFloor10Canon`, mas devolvendo a NOTA.
+ *
+ * A histerese abaixo precisa comparar o candidato novo com o fato que já estava
+ * no prompt, e "qual é o melhor" não responde isso: a pergunta é "o novo é
+ * melhor O BASTANTE para valer o preço da troca".
+ */
+export function pontuarFloor10Canon(query: string): { entry: CanonEntry; score: number }[] {
+    const normalized = normalize(query);
+    return FLOOR10_CANON
+        .map((entry, order) => ({
+            entry,
+            order,
+            score: entry.keywords.reduce(
+                (total, keyword) => total + (normalized.includes(normalize(keyword)) ? Math.max(2, keyword.length) : 0),
+                0,
+            ),
+        }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score || a.order - b.order)
+        .map(({ entry, score }) => ({ entry, score }));
+}
+
+/**
+ * ── TROCAR DE FATO CUSTA 30 SEGUNDOS ─────────────────────────────────────
+ *
+ * O fato do cânone mora perto do começo do prompt, e o que vem depois dele —
+ * guardas, já-dito e o histórico inteiro da conversa — é relido quando ele
+ * muda. Medido com o SmolLM3, prompt real, motor da casa, 4 fios:
+ *
+ *     fato IGUAL ao do turno anterior ... reaproveita 409, relê  24 →  6,5 s
+ *     fato DIFERENTE ................... reaproveita 310, relê 338 → 40,2 s
+ *
+ * E o preço da troca CRESCE com a conversa, porque o histórico relido cresce.
+ *
+ * Então o curador não reescolhe do zero: ele só troca quando vale.
+ *
+ *   · o fato anterior não tem NADA a ver com a pergunta (nota 0) → troca. Sem
+ *     isto o Nilo responderia com o fato errado, e velocidade que custa a
+ *     resposta certa não é ganho;
+ *   · o candidato novo é claramente melhor (`LIMIAR_DE_TROCA`) → troca;
+ *   · nos outros casos, fica no que já está — que é o caso barato.
+ */
+export const LIMIAR_DE_TROCA = 1.5;
+
+export function fatoComHisterese(
+    query: string,
+    anterior: CanonEntry | null,
+): CanonEntry | null {
+    const ranking = pontuarFloor10Canon(query);
+    const novo = ranking[0]?.entry ?? null;
+    if (!anterior || !novo || novo.id === anterior.id) return novo ?? anterior;
+    const notaAnterior = ranking.find((r) => r.entry.id === anterior.id)?.score ?? 0;
+    // Nota 0: o fato que está no prompt não fala do que foi perguntado. Manter
+    // seria economizar prefill entregando o assunto errado.
+    if (notaAnterior === 0) return novo;
+    const notaNova = ranking[0].score;
+    return notaNova >= notaAnterior * LIMIAR_DE_TROCA ? novo : anterior;
+}
+
+/**
+ * O fato desta fala, contando a conversa inteira desde o começo.
+ *
+ * A histerese olha para o fato do turno ANTERIOR, e guardá-lo numa variável de
+ * módulo seria estado escondido: dois painéis abertos, ou um teste rodando
+ * depois do outro, veriam o fato de outra conversa. Em vez disso o encadeamento
+ * é RECALCULADO a partir do histórico, que já está ali — determinístico, sem
+ * estado, e o mesmo resultado para o mesmo histórico.
+ *
+ * O custo é um `reduce` sobre as falas do jogador, com o histórico já limitado
+ * por `MAX_HISTORICO`; ao lado de um prefill de centenas de tokens, é nada.
+ */
+export function fatoDaConversa(
+    userText: string,
+    history: readonly NpcMsg[],
+): CanonEntry | null {
+    const perguntas = history.filter((m) => m.role === 'user').map((m) => m.content);
+    let atual: CanonEntry | null = null;
+    for (const pergunta of [...perguntas, userText]) {
+        atual = fatoComHisterese(pergunta, atual);
+    }
+    return atual;
+}
+
 export function retrieveFloor10Canon(query: string, limit = 2): CanonEntry[] {
     const normalized = normalize(query);
     return FLOOR10_CANON
@@ -342,7 +426,11 @@ export function buildFloor10SystemPrompt(
     // Medido nas 12 perguntas naturais: 11/12 contra 2/12. Quando ela não
     // respondeu — modelo ainda baixando, não coube no aparelho, ou nenhum fato
     // passou do piso de semelhança — a busca lexical continua valendo.
-    const [lexical] = retrieveFloor10Canon(query, 1);
+    // `fatoDaConversa` e não `retrieveFloor10Canon(query, 1)`: o segundo
+    // reescolhe do zero a cada fala e, ao trocar de fato, joga fora o prefixo em
+    // cache de tudo o que vem depois — 6,5 s viram 40,2 s, medido. A histerese
+    // mantém o fato enquanto ele ainda responder à pergunta.
+    const lexical = fatoDaConversa(userText, history);
     const topFact = lembrado ?? lexical;
     // O cânone é escrito em 3ª pessoa ("Nilo fazia…", "sua última lembrança").
     // Sem este enquadramento o modelo tropeçava na conversão e chegava a negar o
