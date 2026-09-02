@@ -113,7 +113,15 @@ const MOTOR_DA_CASA = '/wllama-relaxed';
 const CDN = cdnOverride ?? MOTOR_DA_CASA;
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
-const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;
+/**
+ * Link de um GGUF no Hugging Face, ancorado numa REVISÃO.
+ *
+ * `main` é ponteiro móvel: o repositório muda e o jogo quebra sem ninguém ter
+ * tocado no código. O `sha` é obrigatório por isso — esquecer de passá-lo teria
+ * de ser difícil, e aqui é impossível.
+ */
+const HF = (repo: string, file: string, sha: string) =>
+    `https://huggingface.co/${repo}/resolve/${sha}/${file}`;
 
 // wllama v3 usa uma única build e exige literalmente a chave "default".
 export const WLLAMA_PATHS = Object.freeze({ default: WASM_SINGLE });
@@ -263,7 +271,23 @@ export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
     disableThinking: true,
     systemTemplateFlags: '/system_override /no_think',
     url: (globalThis as { __npcModelUrl?: string }).__npcModelUrl
-        ?? HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf'),
+        // ── A REVISÃO É FIXA, E ISSO QUEBROU DE VERDADE ──────────────────
+        //
+        // Do aparelho do dono do jogo, com o modelo já de volta ao posto:
+        //
+        //     falhou · 51 MB de 51 MB
+        //     Model file not found:
+        //     .../SmolLM3-3B-GGUF/resolve/main/SmolLM3-Q4_K_M.gguf
+        //
+        // A URL respondia 200 daqui no mesmo minuto. `main` é um ponteiro
+        // MÓVEL: quem publica o repositório pode mexer a qualquer hora, e o
+        // jogo baixa o tradutor inteiro antes de descobrir que a fala sumiu.
+        //
+        // Já tinha acontecido — `floor10MotorBrain` até escreveu "revisão
+        // fixa" num comentário, e deixou `main` na linha de baixo. Comentário
+        // não pina nada.
+        ?? HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf',
+            '4965cb60b150737b68a0408c36aeefb65078f894'),
 });
 
 /**

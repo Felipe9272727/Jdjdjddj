@@ -94,7 +94,7 @@ export const FLOOR10_MEMORIA_MODEL = Object.freeze({
     id: 'embeddinggemma-300m',
     label: 'Memória EmbeddingGemma 300M',
     url: (globalThis as { __memoryModelUrl?: string }).__memoryModelUrl
-        ?? 'https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf',
+        ?? 'https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/0f741b5a6585bd53aeb15cd1372c56f2a0f65e12/embeddinggemma-300M-Q8_0.gguf',
     bytes: 333_590_944,
 });
 

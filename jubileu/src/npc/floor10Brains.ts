@@ -134,7 +134,7 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
         // os 320 tokens do orçamento e a linha CHOICE nunca chega.
         id: 'lfm2-1b',
         label: 'LFM2.5 1.2B (o mais rápido a assinar)',
-        url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q8_0.gguf',
+        url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/6767265158422fb8a19c62ceb45f16f05363615b/LFM2.5-1.2B-Instruct-Q8_0.gguf',
         bytes: 1_246_253_888,
         nota: 'assina a escolha de primeira em 5/5 (o Llama faz 2/5) e a rodada inteira cai de 64,8s para 44,8s',
     },

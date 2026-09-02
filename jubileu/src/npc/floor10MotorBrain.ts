@@ -93,9 +93,11 @@ export const FLOOR10_MOTOR_MODEL = Object.freeze({
     id: 'qwen3-06b',
     label: 'Motor Qwen3 0.6B',
     url: (globalThis as { __motorBrainModelUrl?: string }).__motorBrainModelUrl
-        // Revisão fixa: uma mudança futura em `main` não repete o erro de
-        // "Model file not found" que já derrubou o SmolLM3 no celular.
-        ?? 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+        // Revisão fixa — e agora ela É fixa. Este comentário existia desde
+        // antes, com `main` na linha de baixo: dizia que estava pinado e não
+        // estava. O erro que ele prometia evitar aconteceu de novo, com o
+        // SmolLM3, no aparelho do dono do jogo.
+        ?? 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf',
     bytes: 639_446_688,
 });
 
