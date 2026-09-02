@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-    FLOOR10_CANON, LIMIAR_DE_TROCA, fatoComHisterese, fatoDaConversa,
-    pontuarFloor10Canon, retrieveFloor10Canon,
+    FLOOR10_CANON, LIMIAR_DE_TROCA, consultaDoCurador, fatoComHisterese,
+    fatoDaConversa, pontuarFloor10Canon, retrieveFloor10Canon,
 } from '../npc/floor10Canon';
 import type { NpcMsg } from '../npc/npcStore';
 
@@ -91,5 +91,42 @@ describe('o fato da conversa não guarda estado escondido', () => {
         const pergunta = 'quem manda nesse hotel?';
         expect(fatoDaConversa(pergunta, [])?.id)
             .toBe(retrieveFloor10Canon(pergunta, 1)[0]?.id);
+    });
+});
+
+describe('a consulta do curador não pode encolher sem querer', () => {
+    it('leva as DUAS últimas falas do jogador junto com a atual', () => {
+        expect(consultaDoCurador('e depois?', ['qual era sua profissão?', 'gostava disso?']))
+            .toBe('qual era sua profissão? gostava disso? e depois?');
+    });
+
+    it('só as duas últimas, não a conversa inteira', () => {
+        expect(consultaDoCurador('e depois?', ['a', 'b', 'c'])).toBe('b c e depois?');
+    });
+
+    it('um seguimento curto herda o assunto das falas anteriores', () => {
+        // ── A REGRESSÃO QUE ESTE TESTE EXISTE PARA IMPEDIR ────────────────
+        //
+        // "e o que mais?" não casa palavra-chave nenhuma sozinho. A primeira
+        // versão de `fatoDaConversa` pontuava a pergunta pelada, e com isso o
+        // curador perderia o assunto no primeiro seguimento curto — além de
+        // mudar o PRIMEIRO turno, onde a histerese nem age (375 → 341 tokens
+        // lidos foi como o defeito apareceu na bancada).
+        const sozinha = retrieveFloor10Canon('e o que mais?', 1)[0];
+        const comContexto = retrieveFloor10Canon(
+            consultaDoCurador('e o que mais?', ['qual era sua profissão antes?']), 1,
+        )[0];
+        expect(sozinha).toBeUndefined();
+        expect(comContexto).toBeDefined();
+    });
+
+    it('o encadeamento usa a mesma consulta que o montador do prompt usa', () => {
+        // Sem histórico os dois caminhos têm de dar no mesmo fato: a histerese
+        // não tem o que segurar, então qualquer diferença aqui é mudança de
+        // comportamento disfarçada.
+        for (const pergunta of ['quem manda nesse hotel?', 'qual era sua profissão?', 'oi']) {
+            expect(fatoDaConversa(pergunta, [])?.id)
+                .toBe(retrieveFloor10Canon(consultaDoCurador(pergunta, []), 1)[0]?.id);
+        }
     });
 });

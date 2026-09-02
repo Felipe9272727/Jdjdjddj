@@ -239,6 +239,24 @@ export function fatoComHisterese(
 }
 
 /**
+ * A consulta do curador: as DUAS últimas falas do jogador mais a atual.
+ *
+ * Não é detalhe. Um seguimento curto — "e o que mais?", "e depois?" — não casa
+ * palavra-chave nenhuma sozinho; é o contexto das falas anteriores que diz de
+ * que assunto ele ainda está falando. Esta função existe para que a busca de
+ * dentro do encadeamento use exatamente a mesma consulta que o montador do
+ * prompt sempre usou, e não a pergunta pelada.
+ *
+ * (Eu já errei isto: a primeira versão de `fatoDaConversa` pontuava a pergunta
+ * isolada, e o PRIMEIRO turno — onde a histerese não faz nada — passou de 375
+ * para 341 tokens lidos. Uma mudança de comportamento que eu não tinha
+ * pretendido, escondida atrás de um ganho de velocidade.)
+ */
+export function consultaDoCurador(userText: string, anteriores: readonly string[]): string {
+    return `${anteriores.slice(-2).join(' ')} ${userText}`;
+}
+
+/**
  * O fato desta fala, contando a conversa inteira desde o começo.
  *
  * A histerese olha para o fato do turno ANTERIOR, e guardá-lo numa variável de
@@ -256,10 +274,10 @@ export function fatoDaConversa(
 ): CanonEntry | null {
     const perguntas = history.filter((m) => m.role === 'user').map((m) => m.content);
     let atual: CanonEntry | null = null;
-    for (const pergunta of [...perguntas, userText]) {
-        atual = fatoComHisterese(pergunta, atual);
+    for (let i = 0; i < perguntas.length; i += 1) {
+        atual = fatoComHisterese(consultaDoCurador(perguntas[i], perguntas.slice(0, i)), atual);
     }
-    return atual;
+    return fatoComHisterese(consultaDoCurador(userText, perguntas), atual);
 }
 
 export function retrieveFloor10Canon(query: string, limit = 2): CanonEntry[] {
