@@ -269,7 +269,19 @@ export type Floor10ModelDef = {
 export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
     label: 'SmolLM3-3B',
     disableThinking: true,
-    systemTemplateFlags: '/system_override /no_think',
+    // ── AS FLAGS ACOMPANHAM O MODELO, E O OVERRIDE PRECISA DELAS ─────────
+    //
+    // `/system_override /no_think` são controles DO TEMPLATE DO SMOLLM3, que os
+    // remove antes da inferência. Num modelo que não os conhece eles viram
+    // TEXTO LITERAL na primeira linha da persona.
+    //
+    // `__npcModelUrl` já existia para a bancada trocar o cérebro de fala, e
+    // trocava só a URL: o Gemma media com "/system_override /no_think" escrito
+    // na cara dele, o que é medir outro prompt e chamar de outro modelo. Quem
+    // troca o modelo tem de poder trocar as flags junto — vazio é o padrão
+    // certo para qualquer modelo que não seja o Smol.
+    systemTemplateFlags: (globalThis as { __npcSystemFlags?: string })
+        .__npcSystemFlags ?? '/system_override /no_think',
     url: (globalThis as { __npcModelUrl?: string }).__npcModelUrl
         // ── A REVISÃO É FIXA, E ISSO QUEBROU DE VERDADE ──────────────────
         //

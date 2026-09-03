@@ -123,9 +123,20 @@ const page = contexto.pages()[0] ?? await contexto.newPage();
 // se assuste ao ver "SmolLM3-3B" medindo outro modelo; o que manda é esta
 // variável, e ela é impressa abaixo.
 const MODELO_DA_FALA = process.env.MODELO_DA_FALA ?? '';
+//
+// E AS FLAGS VÃO JUNTO. `/system_override /no_think` são do template do SmolLM3,
+// que as consome antes da inferência; num modelo que não as conhece elas viram
+// texto literal na primeira linha da persona. Medir o Gemma com elas escritas
+// na cara dele é medir outro prompt e chamar de outro modelo — foi o que a
+// primeira volta desta bancada fez, e o `prompt` impresso acusou.
+const FLAGS_DA_FALA = process.env.FLAGS_DA_FALA ?? '';
 if (MODELO_DA_FALA) {
-    await page.addInitScript((url) => { globalThis.__npcModelUrl = url; }, MODELO_DA_FALA);
+    await page.addInitScript(([url, flags]) => {
+        globalThis.__npcModelUrl = url;
+        globalThis.__npcSystemFlags = flags;
+    }, [MODELO_DA_FALA, FLAGS_DA_FALA]);
     console.log(`\n  ‹override› cérebro de fala trocado por ${MODELO_DA_FALA.split('/').pop()}`);
+    console.log(`  ‹override› flags de template: ${JSON.stringify(FLAGS_DA_FALA)}`);
 }
 await ponte.instalarEm(page);
 
