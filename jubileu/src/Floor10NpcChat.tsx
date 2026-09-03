@@ -26,6 +26,7 @@ import {
     FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
+import { lerConversa } from './npc/floor10Convivencia';
 import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
 import { vigiarEngasgos } from './npc/floor10Engasgo';
 import { vigiarMemoria } from './npc/floor10Memoriametro';
@@ -177,6 +178,20 @@ const Floor10NpcChat: React.FC = () => {
     const open = useCallback(() => {
         if (npc.open) return;
         npcSet({ open: true });
+        // ── A CONVERSA VOLTA DO DISCO, UMA VEZ ───────────────────────────
+        //
+        // `npcSaiuDoAndar` já preservava a conversa DENTRO da sessão, de
+        // propósito — o comentário lá diz que lembrar do que vocês falaram é o
+        // ponto do personagem. Só que um F5 zerava tudo: a rede de reforço da
+        // vontade persistia no localStorage e a memória de VOCÊ não.
+        //
+        // A guarda do histórico vazio é o que faz isto acontecer uma vez só. Sem
+        // ela, fechar e reabrir o painel no meio da partida sobrescreveria a
+        // conversa viva pela versão em disco, que está sempre um turno atrás.
+        if (npc.history.length === 0) {
+            const guardada = lerConversa();
+            if (guardada.length > 0) npcSet({ history: guardada });
+        }
         // DISPARA A FILA INTEIRA, não só a fala.
         //
         // Antes aqui só havia `initLLM()`. Os outros dois cérebros esperavam

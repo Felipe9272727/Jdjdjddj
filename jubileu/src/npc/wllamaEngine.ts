@@ -31,6 +31,7 @@ import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { frasesForaDoTom } from './floor10VetorDeTom';
+import { registrarFalaDoJogador } from './floor10Convivencia';
 import { cachesDescartaveis, urlDoCerebroEscolhido } from './floor10Brains';
 import { conferirModeloCarregado, entradaIntacta, type EntradaDoCache } from './floor10Carga';
 import { rascunharFala, vontadeJaCarregada } from './floor10SmallBrain';
@@ -2125,6 +2126,19 @@ export async function sendToNpc(
 ): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
+
+    // ── O ENCONTRO É CONTADO AQUI, E SÓ AQUI ─────────────────────────────
+    //
+    // Este é o ponto único por onde uma fala do JOGADOR entra — depois dele a
+    // função se ramifica em cinco caminhos (vontade, olhos, pipeline, reflexo,
+    // 3B), e contar em cada um seria cinco chances de contar errado ou duas
+    // vezes.
+    //
+    // Conta a FALA, não a abertura do painel: abrir e fechar sem dizer nada não
+    // é um encontro. E duas falas separadas por menos de uma hora são a mesma
+    // conversa — sem isso, sair do andar e voltar faria o Nilo dizer "já
+    // conversamos 40 vezes" no mesmo dia.
+    registrarFalaDoJogador();
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai

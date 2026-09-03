@@ -14,6 +14,7 @@ import {
     type Floor10WillSnapshot,
 } from './floor10Will';
 import { DOWNLOAD_ZERO, type DownloadSample } from './floor10Download';
+import { salvarConversa } from './floor10Convivencia';
 
 export type NpcRole = 'system' | 'user' | 'assistant';
 export type NpcMsg = { role: NpcRole; content: string };
@@ -184,7 +185,17 @@ export function npcSet(patch: Partial<NpcState>) {
     // escreve a conversa por `npcSet({ history: [...] })` em cinco lugares
     // diferentes, e podar em cada um deles seria cinco chances de esquecer.
     Object.assign(s, patch);
-    if (patch.history) s.history = podar(s.history);
+    if (patch.history) {
+        s.history = podar(s.history);
+        // ── E AQUI ELA VAI PARA O DISCO, PELO MESMO MOTIVO DA PODA ───────
+        //
+        // Este é o funil: a conversa é escrita por `npcSet({ history })` em
+        // cinco lugares. Salvar em cada um seria cinco chances de esquecer.
+        //
+        // Custa um `setItem` por VIRADA DE TURNO, não por token: o streaming
+        // publica `streaming`, não `history`.
+        salvarConversa(s.history);
+    }
     npcBump();
 }
 // Percepção muda várias vezes por segundo. O LLM lê o snapshot vivo direto,

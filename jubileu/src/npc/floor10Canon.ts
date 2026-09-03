@@ -1,6 +1,7 @@
 import type { NpcMsg } from './npcStore';
 import { MemoriaDeBolhas } from './floor10Bolha';
 import { blocoDoResumo } from './floor10Compressor';
+import { blocoDaConvivencia, convivenciaAtual } from './floor10Convivencia';
 import {
     formatFloor10PerceptionForPrompt,
     hasFloor10PerceptionContradiction,
@@ -480,7 +481,12 @@ export function buildFloor10SystemPrompt(
     // vez a cada várias falas, então o prefixo em cache do llama.cpp sobrevive
     // entre uma pergunta e outra. Fosse no fim, invalidaria menos ainda — mas
     // aí o modelo leria os fatos antes de saber do que já falaram.
-    return `${ESSENTIAL_PERSONA}${blocoDoResumo()}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}${blocoJaDito}`;
+    // A CONVIVÊNCIA VAI JUNTO DO RESUMO, e pelo mesmo motivo: os dois mudam
+    // devagar — ela só muda quando vocês conversam de novo, ou quando passa uma
+    // hora — então o prefixo em cache sobrevive entre uma pergunta e outra. No
+    // primeiro encontro ela é string vazia e não custa token nenhum.
+    const convivencia = blocoDaConvivencia(convivenciaAtual(), Date.now());
+    return `${ESSENTIAL_PERSONA}${blocoDoResumo()}${convivencia}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}${blocoJaDito}`;
 }
 
 const HARD_CONTRADICTIONS: readonly RegExp[] = [
