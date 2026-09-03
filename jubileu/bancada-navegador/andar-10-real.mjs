@@ -104,6 +104,29 @@ const contexto = await chromium.launchPersistentContext(PERFIL, {
     ],
 });
 const page = contexto.pages()[0] ?? await contexto.newPage();
+
+// ── TROCAR O CÉREBRO DE FALA SEM RECOMPILAR ──────────────────────────────
+//
+// `FLOOR10_MODEL` é congelado quando o módulo carrega, e lê `__npcModelUrl`
+// nesse instante. Então o override tem de existir ANTES de qualquer script da
+// página — que é justamente o que `addInitScript` garante; um `evaluate` depois
+// do `goto` chegaria tarde e não trocaria nada.
+//
+// Serve para medir um candidato NO ANDAR INTEIRO — com cânone injetado, memória
+// por embedding, juiz de tom e a histerese do fato — em vez de na bancada seca.
+// A observação que originou isto é do dono do jogo: a sala do `?velocidade` não
+// injeta cânone nenhum, então erro de fato lá não vale como sinal de qualidade.
+//
+//   MODELO_DA_FALA=https://…/gemma-3-4b-it-Q4_K_M.gguf node andar-10-real.mjs
+//
+// O RÓTULO NA TELA CONTINUA O DO PADRÃO — ele é constante, não vem da URL. Não
+// se assuste ao ver "SmolLM3-3B" medindo outro modelo; o que manda é esta
+// variável, e ela é impressa abaixo.
+const MODELO_DA_FALA = process.env.MODELO_DA_FALA ?? '';
+if (MODELO_DA_FALA) {
+    await page.addInitScript((url) => { globalThis.__npcModelUrl = url; }, MODELO_DA_FALA);
+    console.log(`\n  ‹override› cérebro de fala trocado por ${MODELO_DA_FALA.split('/').pop()}`);
+}
 await ponte.instalarEm(page);
 
 // ── QUEM SERVIU O MOTOR ──────────────────────────────────────────────────
