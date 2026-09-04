@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { definirFilaDoAndar10, floor10Fila } from '../npc/floor10Fila';
+import { definirFilaDoAndar10, filaLinha, floor10Fila } from '../npc/floor10Fila';
 import {
     passosDoAndar10, conversaLiberada, definirEtapaParaTestes, resetPrecargaForTests,
 } from '../npc/floor10Precarga';
@@ -74,17 +74,29 @@ describe('a fila com `?pipeline`', () => {
         expect(ordem).not.toContain('fala');
     });
 
-    it('o rascunhador aparece como "conversa" — o jogador não sabe o que é a400m', () => {
+    it('o rascunhador aparece como "a voz dele" — o jogador não sabe o que é a400m', () => {
         // Do lado de fora é a mesma coisa chegando: aquilo sem o que ele não
         // conversa. Trocar o rótulo por "granite MoE" seria informar o
         // desenvolvedor às custas de quem joga.
+        //
+        // O NOME MUDOU DE CAMPO, e por isso este teste mudou junto: o `label`
+        // passou a ser o do ARQUIVO (é ele que vai para as bancadas e para a
+        // caixa-preta) e quem carrega o nome de tela é `nome`. A regra que o
+        // teste prende continua a mesma, e agora ela prende as duas metades:
+        // o jogador lê o mesmo nome da fala, e NÃO lê "a400m".
         definirFilaDoAndar10(BYTES, '?pipeline');
         const rascunho = composicaoDaFila('?pipeline').find((p) => p.papel === 'rascunho');
         expect(rascunho).toBeDefined();
         floor10Fila.progresso('rascunho', {
             ...DOWNLOAD_ZERO, bytes: 1, totalBytes: BYTES.rascunho,
         });
-        expect(floor10Fila.estado().atual?.label).toBe('conversa');
+        const atual = floor10Fila.estado().atual;
+        expect(atual?.nome).toBe('a voz dele');
+        expect(atual?.nome).toBe(
+            composicaoDaFila('').find((p) => p.papel === 'fala')?.nome,
+        );
+        expect(atual?.label).toContain('a400m');
+        expect(filaLinha(floor10Fila.estado())).not.toContain('a400m');
     });
 
     it('sem pipeline, o rascunhador e o tradutor não aparecem — mas o juiz sim', () => {

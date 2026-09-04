@@ -3,9 +3,19 @@ import {
     FILA_VAZIA, Floor10Fila, filaLinha, type FilaItem,
 } from '../npc/floor10Fila';
 
-const FALA: FilaItem = { id: 'fala', label: 'conversa', bytes: 1_915_305_312 };
-const VONTADE: FilaItem = { id: 'vontade', label: 'vontade', bytes: 1_321_083_008 };
-const MOTOR: FilaItem = { id: 'motor', label: 'motor', bytes: 639_446_688 };
+// Os DOIS nomes, como a fila os recebe: `label` é o arquivo (bancada e
+// caixa-preta) e `nome` é o que o jogador lê. Fixá-los diferentes aqui é de
+// propósito — um fixture onde os dois fossem iguais deixaria passar a troca de
+// um pelo outro na tela.
+const FALA: FilaItem = {
+    id: 'fala', label: 'SmolLM3-3B', nome: 'a voz dele', bytes: 1_915_305_312,
+};
+const VONTADE: FilaItem = {
+    id: 'vontade', label: 'LFM2.5-1.2B', nome: 'a vontade própria', bytes: 1_321_083_008,
+};
+const MOTOR: FilaItem = {
+    id: 'motor', label: 'Qwen3-0.6B', nome: 'o corpo, de reserva', bytes: 639_446_688,
+};
 const TODOS = [FALA, VONTADE, MOTOR];
 const TOTAL = TODOS.reduce((s, i) => s + i.bytes, 0);
 
@@ -54,7 +64,16 @@ describe('npc/floor10Fila — uma barra só, um cérebro depois do outro', () =>
 
     it('diz onde está a fila em uma linha, sem abrir nada', () => {
         expect(filaLinha(fila.progresso('vontade', amostra(1e8, VONTADE.bytes))))
-            .toBe('2 de 3 · vontade');
+            .toBe('2 de 3 · a vontade própria');
+    });
+
+    it('e essa linha é a de JOGO: nunca o nome do arquivo', () => {
+        // A reclamação que criou os dois nomes: "parece algo dev-only". O
+        // `label` continua existindo e continua indo para as bancadas — mas a
+        // linha que quem joga lê enquanto espera é a outra.
+        const linha = filaLinha(fila.progresso('fala', amostra(1e8, FALA.bytes)));
+        expect(linha).toContain(FALA.nome);
+        expect(linha).not.toContain(FALA.label);
     });
 
     it('a velocidade e o "parado" vêm do arquivo em curso, que é o que trava', () => {
@@ -66,7 +85,12 @@ describe('npc/floor10Fila — uma barra só, um cérebro depois do outro', () =>
 
     it('acrescentar um QUARTO cérebro não exige tocar na lógica', () => {
         // A memória semântica entra assim: uma linha na lista.
-        const memoria: FilaItem = { id: 'memoria', label: 'memória', bytes: 113_000_000 };
+        const memoria: FilaItem = {
+            id: 'memoria',
+            label: 'embeddinggemma-300M',
+            nome: 'as lembranças dele',
+            bytes: 113_000_000,
+        };
         fila.definir([...TODOS, memoria]);
         const e = fila.progresso('memoria', amostra(0, memoria.bytes));
         expect(e.total).toBe(4);

@@ -1,7 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { visibleText } from '../npc/llmEngine';
+import { visibleText } from '../npc/wllamaEngine';
 
-describe('npc/llmEngine.visibleText — o filtro ao vivo dos blocos <think>', () => {
+/**
+ * ── ESTE TESTE MUDOU DE ALVO, E ELE É A RAZÃO DE O ÓRFÃO NÃO TER SIDO
+ *    SIMPLESMENTE APAGADO ────────────────────────────────────────────────
+ *
+ * Ele apontava para `npc/llmEngine.ts` — o motor WebGPU/WebLLM aposentado, que
+ * nenhum caminho do jogo alcançava: o ÚNICO importador dele em todo o
+ * repositório era este arquivo. Código morto sustentado pelo próprio teste.
+ *
+ * Só que `visibleText` não morreu junto: ela existe DUPLICADA em
+ * `wllamaEngine.ts`, viva, no caminho da fala de hoje — e lá havia UMA
+ * asserção contra os seis casos daqui. Apagar o órfão junto com o motor teria
+ * levado cinco casos de cobertura de uma função em uso.
+ *
+ * Então o motor foi embora e os casos ficaram, apontando para a cópia viva.
+ */
+describe('npc/wllamaEngine.visibleText — o filtro ao vivo dos blocos <think>', () => {
     it('texto comum passa intacto (só apara o início)', () => {
         expect(visibleText('  e aí, beleza?')).toBe('e aí, beleza?');
         expect(visibleText('oi')).toBe('oi');

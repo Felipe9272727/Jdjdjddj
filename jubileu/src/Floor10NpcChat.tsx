@@ -25,6 +25,8 @@ import {
     definirFilaDoAndar10, filaLinha, floor10Fila,
     FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
+import { bancadaLigada, linhaDaCarga } from './npc/floor10TelaDeCarga';
+import { falhaEmJogo } from './npc/floor10Composicao';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { lerConversa } from './npc/floor10Convivencia';
 import { desligarQuemNaoEDaVez } from './npc/floor10Roteamento';
@@ -84,21 +86,38 @@ const TOM_FILA = { barra: 'linear-gradient(90deg,#3a6df0,#7fe0b0)', texto: '#cfd
 const TOM_FALA = { barra: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', texto: '#a8bcf0' };
 
 /**
- * UMA linha de download: rótulo, porcentagem, barra, os BYTES e o estado.
+ * UMA linha de download: rótulo, porcentagem, barra, o estado — e, só na
+ * bancada, os bytes e o nome do arquivo.
  *
  * Existe porque cada cérebro tinha o seu próprio código de tela, e foi assim
  * que o tradutor motor de 386 MB acabou sem barra nenhuma — pior, escrevendo
  * nos campos da vontade, então a tela mostrava o nome do Llama 1B enquanto
  * baixava outro arquivo. Agora os três passam pela mesma régua.
+ *
+ * ── AS DUAS LINHAS DE BAIXO SÃO DUAS PLATEIAS ────────────────────────────
+ *
+ * `linhaDeJogo` é para quem está esperando o Nilo falar; `downloadLine` e
+ * `detalhe` são para quem está medindo. As duas últimas carregam bytes, taxa,
+ * "parado há 31s" e o nome do gguf — que é o que fazia esta tela "parecer algo
+ * dev-only", na frase do dono do jogo — e por isso só aparecem com uma bancada
+ * aberta (ver `bancadaLigada`).
+ *
+ * A informação NÃO some com elas: `linhaDaCarga` responde as mesmas perguntas
+ * ("parou?", "já baixou e está abrindo?", "quanto falta?") em português. Ver o
+ * cabeçalho de `floor10TelaDeCarga`, que é onde está o motivo por escrito.
  */
 const LinhaDownload: React.FC<{
     rotulo: string;
     pct: number;
     amostra: DownloadSample;
+    /** O estado em língua de jogador. Vazio = não há nada a dizer agora. */
+    linhaDeJogo: string;
     detalhe: string;
+    /** Bytes, taxa e nome do arquivo. Só com bancada aberta. */
+    numeros: boolean;
     tom: { barra: string; texto: string };
     flutuante?: boolean;
-}> = ({ rotulo, pct, amostra, detalhe, tom, flutuante = false }) => {
+}> = ({ rotulo, pct, amostra, linhaDeJogo, detalhe, numeros, tom, flutuante = false }) => {
     // Travou? A barra muda de cor junto com o texto: dá para perceber sem ler.
     const travado = amostra.stalledSec >= DOWNLOAD_STALL_SEC;
     return (
@@ -120,12 +139,19 @@ const LinhaDownload: React.FC<{
                 }}
                 />
             </div>
-            {/* Os BYTES. Porcentagem sozinha não distingue "acabou de começar"
-                de "parado faz três minutos". */}
-            <div style={downloadBytesStyle}>{downloadLine(amostra)}</div>
-            <div style={flutuante ? miniDownloadTextStyle : modelLoadingDetailStyle}>
-                {detalhe}
-            </div>
+            {/* A linha que responde "está andando ou travou?" — a mesma pergunta
+                que os bytes respondiam, sem os bytes. Porcentagem sozinha não
+                distingue "acabou de começar" de "parado faz três minutos", e é
+                por isso que ela nunca pode ficar sozinha aqui. */}
+            {linhaDeJogo !== '' && (
+                <div style={downloadBytesStyle}>{linhaDeJogo}</div>
+            )}
+            {numeros && (
+                <div style={flutuante ? miniDownloadTextStyle : modelLoadingDetailStyle}>
+                    {downloadLine(amostra)}
+                    {detalhe ? ` · ${detalhe}` : ''}
+                </div>
+            )}
         </div>
     );
 };
@@ -414,6 +440,14 @@ const Floor10NpcChat: React.FC = () => {
         void sendToNpc(t);
     };
 
+    // ── OS NÚMEROS SÓ SAEM COM BANCADA ABERTA ─────────────────────────────
+    //
+    // Bytes, MB/s, "parado há 31s" e o nome do gguf viram uma linha só, e ela
+    // some no jogo. Lido a cada render de propósito: é uma regex sobre a URL,
+    // e guardá-lo em estado só criaria um jeito de a bancada abrir sem os
+    // números na primeira pintura.
+    const mostrarNumeros = bancadaLigada();
+
     // dica flutuante quando perto e fechado
     if (!st.open) {
         const miniLoading = st.deliberationPhase === 'loading';
@@ -462,6 +496,8 @@ const Floor10NpcChat: React.FC = () => {
                                 bytes: filaFlut.bytesBaixados,
                                 totalBytes: filaFlut.bytesTotais,
                             }}
+                            linhaDeJogo={linhaDaCarga(filaFlut)}
+                            numeros={mostrarNumeros}
                             detalhe={filaFlut.atual?.id === FILA_MOTOR
                                 ? st.motorLoadText
                                 : filaFlut.atual?.id === FILA_MEMORIA
@@ -511,11 +547,24 @@ const Floor10NpcChat: React.FC = () => {
         : Math.max(0, st.storage.quota - st.storage.usage);
     const espacoFalta = livre !== null && st.storage.needBytes > 0
         && livre < st.storage.needBytes;
+    // ── E ELE MUDA DE IDIOMA CONFORME CABE OU NÃO ────────────────────────
+    //
+    // Enquanto cabe, "espaço do site: 8,3 GB livre · precisa de 4,4 GB" é
+    // ficha de bancada: o jogador não tem nada a fazer com esse número e ele
+    // ocupa a linha que deveria estar dizendo quanto falta. Quando NÃO cabe, a
+    // conta vira a resposta inteira — é ela que explica por que o Nilo nunca
+    // vai falar neste aparelho, e é acionável (dá para liberar espaço). Por
+    // isso os gigabytes ficam nesse caso, e só nesse.
     const espacoLinha = livre === null
         ? ''
         : `espaço do site: ${formatGB(livre)} livre`
           + (st.storage.needBytes > 0 ? ` · precisa de ${formatGB(st.storage.needBytes)}` : '')
           + (espacoFalta ? ' — não cabe' : '');
+    const espacoEmJogo = espacoFalta && livre !== null
+        ? `⚠ não cabe neste aparelho: o Nilo inteiro ocupa `
+          + `${formatGB(st.storage.needBytes)} e o navegador só libera `
+          + `${formatGB(livre)} para o jogo`
+        : '';
     // ── CADA BARRA OBEDECE AO SEU PRÓPRIO MODELO ──────────────────────────
     //
     // Estas três condições eram `loading && ...`, ou seja: as barras da vontade
@@ -562,7 +611,15 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭</span>
+                {/* "Nilo Azevedo · Hóspede do 10º · SmolLM3-3B · CPU×4" era a
+                    primeira linha do painel, e metade dela era ficha técnica:
+                    o nome do gguf e o número de threads em cima do nome do
+                    personagem. Ela continua inteira nas bancadas, onde saber
+                    qual binário está em pé é o assunto. */}
+                <span>
+                    {NPC_NAME} · Hóspede do 10º
+                    {mostrarNumeros && st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭
+                </span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
 
@@ -585,6 +642,8 @@ const Floor10NpcChat: React.FC = () => {
                                 bytes: fila.bytesBaixados,
                                 totalBytes: fila.bytesTotais,
                             }}
+                            linhaDeJogo={linhaDaCarga(fila)}
+                            numeros={mostrarNumeros}
                             detalhe={detalheDaFila}
                             tom={fila.falhados.length > 0 ? TOM_FALHOU : TOM_FILA}
                         />
@@ -592,14 +651,38 @@ const Floor10NpcChat: React.FC = () => {
                     {/* A FALHA APARECE. Antes ela era engolida por um `catch`
                         vazio e o modelo era marcado como baixado — a barra
                         pulava adiante como se estivesse tudo bem, e quem joga
-                        teve de deduzir olhando. */}
+                        teve de deduzir olhando.
+
+                        O QUE MUDOU É SÓ O IDIOMA. `f.motivo` é o texto de quem
+                        tentou baixar — "o navegador só libera 1.87 GB", a
+                        mensagem do `Error` — e ele diz por que o download
+                        morreu, não o que o jogador vai perder por causa disso.
+                        `falhaEmJogo` responde a segunda pergunta, que é a dele;
+                        o motivo continua na tela, ao lado, quando há bancada
+                        aberta, e continua inteiro no estado da fila. */}
                     {fila.falhados.map((f) => (
                         <div key={f.id} style={filaFalhaStyle}>
                             <span>⚠</span>
-                            <span>{f.motivo}</span>
+                            <span>
+                                {falhaEmJogo(f.id)}
+                                {mostrarNumeros && f.motivo
+                                    ? ` · ${f.motivo}`
+                                    : ''}
+                            </span>
                         </div>
                     ))}
-                    {espacoLinha && (
+                    {espacoEmJogo && (
+                        <div style={{
+                            ...modelLoadingDetailStyle,
+                            padding: '0 2px',
+                            fontSize: 11.5,
+                            color: '#ff9c9c',
+                        }}
+                        >
+                            {espacoEmJogo}
+                        </div>
+                    )}
+                    {mostrarNumeros && espacoLinha && (
                         <div style={{
                             ...modelLoadingDetailStyle,
                             padding: '0 2px',
@@ -648,7 +731,20 @@ const Floor10NpcChat: React.FC = () => {
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Vontade atual: {st.autonomy.label}. Conversa usa o {FLOOR10_MODEL.label}; olhos, vontade e deliberação seguem por conta própria.
+                                {/* ── O PRIMEIRO TEXTO QUE O JOGADOR LÊ ────────────
+                                    Dizia "Conversa usa o SmolLM3-3B; olhos, vontade e
+                                    deliberação seguem por conta própria" — o nome do
+                                    modelo e três subsistemas internos, na tela de quem
+                                    veio jogar. A barra de download foi limpa e este
+                                    texto tinha ficado para trás.
+
+                                    `Vontade atual:` fica porque os rótulos de meta são
+                                    escritos na VOZ DELE, no infinitivo ("me aproximar
+                                    de você"): qualquer outro prefixo quebraria a
+                                    concordância. */}
+                                {bancadaLigada()
+                                    ? `Vontade atual: ${st.autonomy.label}. Conversa usa o ${FLOOR10_MODEL.label}; olhos, vontade e deliberação seguem por conta própria.`
+                                    : `Vontade atual: ${st.autonomy.label}. Ele decide por conta própria — diga alguma coisa.`}
                             </div>
                         )}
                         {st.history.map((m, i) => (

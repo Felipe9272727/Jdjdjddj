@@ -24,6 +24,16 @@ import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
 import { FLOOR10_MEMORIA_MODEL } from './npc/floor10Memoria';
 
+// ── ESTA PÁGINA É BANCADA, E PRECISA DIZER ISSO ANTES DE PINTAR ───────────
+//
+// A tela do jogo esconde bytes, taxa, "parado há Ns" e o nome do gguf desde
+// que o dono do jogo disse que ela "parece algo dev-only" — e quem decide isso
+// é `bancadaLigada`, que olha a query string. `/barras.html` não tem query
+// string nenhuma, e sem esta linha a bancada das barras passaria a ver
+// exatamente a tela do jogador: perderia o "parado há 31s" que ela existe para
+// conferir (ver o botão "travar o download" lá embaixo).
+(globalThis as { __f10Bancada?: boolean }).__f10Bancada = true;
+
 const amostra = (
     bytes: number, total: number, rate: number, parado = 0,
 ) => ({

@@ -21,8 +21,14 @@ import { composicaoDaFila, type PapelNaFila } from './floor10Composicao';
 /** Um cérebro na fila, na ordem em que o jogo precisa dele. */
 export type FilaItem = {
     id: string;
-    /** Nome curto, do jeito que aparece na tela. */
+    /**
+     * O NOME DO ARQUIVO. Vai para as bancadas e para a caixa-preta, nunca para
+     * a tela do jogo — ver `nome`, e `PecaDaFila` em `floor10Composicao`, que é
+     * de onde os dois vêm.
+     */
     label: string;
+    /** O nome que o jogador lê: "a voz dele", "as lembranças dele". */
+    nome: string;
     bytes: number;
 };
 
@@ -211,23 +217,20 @@ export const FILA_JUIZ = 'juiz';
 export const FILA_TRADUTOR = 'tradutor';
 
 /**
- * O NOME QUE O JOGADOR LÊ — que não é o nome do modelo.
+ * ── A TABELA `ROTULO` MUDOU DE CASA, E O MOTIVO É O DE SEMPRE ─────────────
  *
- * Ele não sabe o que é mpnet nem Bergamot, e não deveria precisar saber. O que
- * ele quer da barra é "o que ainda falta para eu conversar". Por isso o
- * rascunhador aparece como "conversa", igual ao SmolLM3 a que ele substitui: do
- * lado de fora, é a mesma coisa chegando.
+ * Ela morava aqui e dizia o que continua valendo: o jogador não sabe o que é
+ * mpnet nem Bergamot, e não deveria precisar saber — o que ele quer da barra é
+ * "o que ainda falta para eu conversar", e por isso o rascunhador aparece com o
+ * mesmo nome da fala.
+ *
+ * O que estava errado era o ENDEREÇO. A peça é definida em `composicaoDaFila`,
+ * e manter o nome de tela numa segunda lista, aqui, é exatamente a forma de
+ * defeito que o comentário grande logo abaixo diz ter consertado: duas listas
+ * com a mesma verdade e nenhuma obrigação de concordarem. Hoje os dois nomes
+ * (`label` técnico e `nome` de jogador) nascem junto com a peça, em
+ * `floor10Composicao`, e esta fila só os carrega.
  */
-const ROTULO: Record<PapelNaFila, string> = {
-    fala: 'conversa',
-    rascunho: 'conversa',
-    tradutor: 'tradução',
-    juiz: 'revisão',
-    memoria: 'memória e movimento',
-    reflexo: 'reflexo',
-    vontade: 'vontade',
-    motor: 'movimento (reserva)',
-};
 
 /**
  * ── O QUE ESTA LISTA ERA, E O DEFEITO QUE ELA ESCONDIA ────────────────────
@@ -291,7 +294,12 @@ export function definirFilaDoAndar10(bytes: {
     floor10Fila.definir(
         composicaoDaFila(busca)
             .filter((p) => (tamanho[p.papel] ?? 0) > 0)
-            .map((p) => ({ id: p.papel, label: ROTULO[p.papel], bytes: tamanho[p.papel] as number })),
+            .map((p) => ({
+                id: p.papel,
+                label: p.label,
+                nome: p.nome,
+                bytes: tamanho[p.papel] as number,
+            })),
     );
 }
 
@@ -310,5 +318,7 @@ export function filaLinha(estado: FilaEstado): string {
             ? 'tudo pronto'
             : 'preparando…';
     }
-    return `${estado.posicao} de ${estado.total} · ${estado.atual.label}`;
+    // `nome`, e não `label`: esta linha é do JOGO. Quem quer saber qual gguf
+    // está descendo tem as bancadas, e lá o `label` continua inteiro.
+    return `${estado.posicao} de ${estado.total} · ${estado.atual.nome}`;
 }

@@ -51,11 +51,125 @@ export type PapelNaFila =
 
 export type PecaDaFila = {
     papel: PapelNaFila;
+    /**
+     * O NOME DO ARQUIVO, para quem mede. Continua obrigatório e continua indo
+     * para as bancadas (`?velocidade`, `?mente`, `?bancada`) e para a
+     * caixa-preta: "granite-4.0-h-tiny 7B-A1B" é a única coisa que responde
+     * "qual binário produziu este número". Ele só não vai mais para a tela do
+     * JOGO — ver `nome`.
+     */
     label: string;
+    /**
+     * O MESMO PEDAÇO, NO IDIOMA DE QUEM JOGA.
+     *
+     * Reclamação do dono do jogo sobre a tela de carga do Andar 10: "parece
+     * algo dev-only". Ela estava certa e o motivo é este campo não existir —
+     * a tela mostrava `label`, e "embeddinggemma-300M" não quer dizer nada
+     * para quem está esperando o Nilo falar. O que ele quer saber é O QUE
+     * ainda falta chegar, e a resposta disso é "as lembranças dele", não o
+     * nome do arquivo.
+     *
+     * NÃO é lore novo: o Nilo continua sendo um hóspede preso no 10º andar, e
+     * estes nomes só dizem, em português seco, qual pedaço dele está descendo.
+     */
+    nome: string;
+    /**
+     * A LINHA INTEIRA QUE O JOGADOR LÊ QUANDO ESTA PEÇA NÃO DESCE.
+     *
+     * Frase pronta, e não um pedaço para a tela montar: "a voz dele" e "os
+     * reflexos" concordam com verbos diferentes ("não desceu" / "não
+     * desceram"), e uma tela que colava nome + verbo escreveria "os reflexos
+     * não desceu" no primeiro celular com rede ruim.
+     *
+     * A FALHA CONTINUA VISÍVEL — isto não é negociável. Engolir falha já
+     * custou um bug caro (ver `Floor10Fila.falhar`): a barra pulava os bytes
+     * de um modelo que nunca chegou e seguia como se estivesse tudo bem. O que
+     * muda aqui é o IDIOMA, não a visibilidade; o motivo técnico continua
+     * inteiro na fila, e a bancada continua mostrando ele.
+     */
+    falha: string;
     bytes: number;
     /** Sem esta peça o jogador não recebe uma fala em português. */
     essencial: boolean;
 };
+
+/**
+ * ── O NOME QUE O JOGADOR LÊ — QUE NÃO É O NOME DO MODELO ──────────────────
+ *
+ * Esta tabela morava em `floor10Fila` (a constante `ROTULO`) e veio para cá
+ * pelo motivo que o próprio `floor10Fila` documenta um pouco acima da lista da
+ * barra: duas listas com a mesma verdade e nenhuma obrigação de concordarem já
+ * fizeram o jogador ler "2 de 5 · vontade" enquanto a memória baixava. A
+ * composição é onde a peça é DEFINIDA; é aqui que ela ganha os dois nomes, e
+ * assim não existe caminho para uma peça nova entrar sem o nome de jogador.
+ *
+ * A lição que a `ROTULO` já carregava, e que continua valendo: o rascunhador
+ * aparece com o MESMO nome da fala. Do lado de fora é a mesma coisa chegando —
+ * aquilo sem o que ele não conversa — e trocar por "granite MoE" seria
+ * informar o desenvolvedor às custas de quem joga.
+ *
+ * ── POR QUE A MEMÓRIA CARREGA DUAS COISAS NO NOME ────────────────────────
+ *
+ * Porque ela é duas: desde que o embeddinggemma passou a SER o córtex motor
+ * (ver `floor10MotorVetor`), o arquivo das lembranças é também o que faz o
+ * Nilo andar. O rótulo antigo já dizia isso ("memória e movimento"); apagar
+ * essa metade aqui faria "o corpo" aparecer por último como se o corpo só
+ * chegasse no fim — e o Qwen3 do fim é a RESERVA do corpo, não o corpo.
+ */
+export const NOME_EM_JOGO: Readonly<Record<PapelNaFila, string>> = Object.freeze({
+    fala: 'a voz dele',
+    rascunho: 'a voz dele',
+    tradutor: 'as palavras em português',
+    juiz: 'o senso do que dizer',
+    memoria: 'as lembranças dele — e o corpo',
+    reflexo: 'os reflexos',
+    vontade: 'a vontade própria',
+    motor: 'o corpo, de reserva',
+});
+
+/**
+ * O QUE O JOGADOR PERDE QUANDO A PEÇA NÃO DESCE, em uma frase e sem jargão.
+ *
+ * O texto técnico não some: ele continua guardado em `FilaEstado.falhados[].motivo`
+ * — "o navegador só libera 1.87 GB", a mensagem do `Error`, o que for — e é
+ * ele que a bancada mostra. Esta frase é a tradução, e ela diz a consequência
+ * porque é a consequência que muda o que o jogador vai ver acontecer depois:
+ * um Nilo que esquece não é um Nilo quebrado, e ele precisa saber a diferença.
+ */
+export const FALHA_EM_JOGO: Readonly<Record<PapelNaFila, string>> = Object.freeze({
+    fala: 'a voz dele não desceu — sem ela, ele não responde',
+    rascunho: 'a voz dele não desceu — sem ela, ele não responde',
+    tradutor: 'as palavras em português não desceram — a conversa volta pelo caminho de sempre',
+    juiz: 'o senso do que dizer não desceu — ele fala sem ninguém conferir antes',
+    memoria: 'as lembranças dele não desceram — ele conversa, mas esquece o que já passou',
+    reflexo: 'os reflexos não desceram — ele demora mais para reagir',
+    vontade: 'a vontade própria não desceu — ele responde, mas para de decidir sozinho',
+    motor: 'o corpo de reserva não desceu — ele se move pelas lembranças, como já fazia',
+});
+
+/**
+ * Toda peça nasce por aqui, e é por isso que nenhuma consegue nascer sem nome
+ * de jogador: o papel entra, os dois nomes saem da tabela. Foi assim que o
+ * `label` técnico e o `nome` deixaram de ser duas listas para manter.
+ */
+function pecaComNome(p: Omit<PecaDaFila, 'nome' | 'falha'>): PecaDaFila {
+    return Object.freeze({
+        ...p,
+        nome: NOME_EM_JOGO[p.papel],
+        falha: FALHA_EM_JOGO[p.papel],
+    });
+}
+
+/** O nome de jogador de um papel, para quem só tem o id da fila na mão. */
+export function nomeEmJogo(papel: string): string {
+    return NOME_EM_JOGO[papel as PapelNaFila] ?? 'uma parte dele';
+}
+
+/** A linha de falha, em português de jogador, a partir do id da fila. */
+export function falhaEmJogo(papel: string): string {
+    return FALHA_EM_JOGO[papel as PapelNaFila]
+        ?? 'uma parte dele não desceu — ele continua, com menos';
+}
 
 /**
  * A fala. Foi SmolLM3-3B, virou granite-4.0-h-tiny 7B-A1B, e voltou.
@@ -71,14 +185,14 @@ export type PecaDaFila = {
  * turno em ~48 s. O SmolLM3 reaproveita, e numa conversa que fica no mesmo
  * assunto cai para 12,8 s e 6,5 s. Ver `bancada-navegador/JA-TENTADO.md`.
  */
-export const PECA_FALA: PecaDaFila = Object.freeze({
+export const PECA_FALA: PecaDaFila = pecaComNome({
     papel: 'fala',
     label: 'SmolLM3-3B',
     bytes: 1_915_305_312,
     essencial: true,
 });
 
-export const PECA_RASCUNHO: PecaDaFila = Object.freeze({
+export const PECA_RASCUNHO: PecaDaFila = pecaComNome({
     papel: 'rascunho', label: 'granite-3.1-1b-a400m (MoE, 400M ativos)', bytes: 821_847_360, essencial: true,
 });
 /**
@@ -94,20 +208,24 @@ export function pecaDaVontade(): PecaDaFila {
     // 760 MB. O PAPEL continua sendo 'vontade' — é a mesma peça, outro arquivo,
     // exatamente como `?revisor=llama` já fazia.
     const m = pesoDoRevisor();
-    return Object.freeze({
+    // O `label` acompanha o arquivo (`?revisor=llama` baixa outro), mas o NOME
+    // DE JOGADOR não: para quem joga é a mesma vontade própria chegando, e o
+    // arquivo por trás dela nunca foi assunto dele. É o mesmo motivo pelo qual
+    // o papel continua sendo 'vontade'.
+    return pecaComNome({
         papel: 'vontade' as const, label: m.label, bytes: m.bytes, essencial: false,
     });
 }
-export const PECA_MOTOR: PecaDaFila = Object.freeze({
+export const PECA_MOTOR: PecaDaFila = pecaComNome({
     papel: 'motor', label: 'Qwen3-0.6B', bytes: 639_446_688, essencial: false,
 });
-export const PECA_MEMORIA: PecaDaFila = Object.freeze({
+export const PECA_MEMORIA: PecaDaFila = pecaComNome({
     papel: 'memoria', label: 'embeddinggemma-300M', bytes: 333_590_944, essencial: false,
 });
-export const PECA_REFLEXO: PecaDaFila = Object.freeze({
+export const PECA_REFLEXO: PecaDaFila = pecaComNome({
     papel: 'reflexo', label: 'SmolLM2-135M (ONNX)', bytes: 139_252_423, essencial: false,
 });
-export const PECA_JUIZ: PecaDaFila = Object.freeze({
+export const PECA_JUIZ: PecaDaFila = pecaComNome({
     papel: 'juiz', label: 'juiz de tom (all-mpnet-base-v2)', bytes: 110_100_000, essencial: false,
 });
 /**
@@ -118,7 +236,7 @@ export const PECA_JUIZ: PecaDaFila = Object.freeze({
  * cópia aqui teria continuado prometendo 26 MB na barra enquanto a rede baixava
  * 51, e a barra é a única coisa que o jogador tem para saber quanto falta.
  */
-export const PECA_TRADUTOR: PecaDaFila = Object.freeze({
+export const PECA_TRADUTOR: PecaDaFila = pecaComNome({
     papel: 'tradutor', label: 'Bergamot en↔pt', bytes: FLOOR10_TRADUTOR_BYTES, essencial: true,
 });
 
