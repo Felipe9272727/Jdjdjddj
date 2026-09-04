@@ -1,5 +1,21 @@
 # Onde a velocidade do Andar 10 pode vir — e onde não pode
 
+> ## ⚠ WEBGPU ESTÁ FECHADA — VER A REGRA ZERO EM `JA-TENTADO.md`
+>
+> Este arquivo aponta a WebGPU como caminho a seguir. **Ela foi reprovada seis
+> vezes no aparelho do dono do jogo**, e a sexta foi um agente lendo exatamente
+> uma linha como as que estão abaixo.
+>
+> A causa não é lentidão nem memória, e não se conserta com menos camadas: o
+> jogo é Three.js e desenha na MESMA GPU; o trabalho da LLM entope a fila de
+> submissão e o render não fecha o quadro. E ela nunca ganhou nem quando
+> funcionou — CPU×8 em 242,5 s contra WebGPU×2 em 257,1 s.
+>
+> **O que reabre o assunto:** só ele, no aparelho dele. Número de paper,
+> cobertura de mercado e binário parado na árvore JÁ FORAM os argumentos das
+> seis vezes.
+
+
 Tudo aqui foi medido, não deduzido. As medidas de carga saíram de
 `carga.html`, com o SmolLM3-3B Q4_K_M de verdade (1,92 GB) e a mesma
 `CPU_LOAD_CONFIG` do jogo. As de fala saíram de `ngram.html`. A máquina não é um
@@ -194,7 +210,7 @@ fala. O empate fica em 10% de aceitação.
 num celular. `custo-cpu.mjs` existe por isso — ele soma o tempo de CPU de todos
 os processos do navegador entre o início e o fim de cada fala.
 
-## A maior alavanca que sobrou: WebGPU (e eu tinha desligado ela)
+## ~~A maior alavanca que sobrou: WebGPU~~ — FECHADA, ver a nota no topo
 
 O llama.cpp ganhou um backend WebGPU oficial em 2026 (`ggml-webgpu`, trabalho do
 Reese Levine e equipe na UCSC), e a wllama passou a expor. Os números do paper

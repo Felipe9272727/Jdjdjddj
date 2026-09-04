@@ -134,7 +134,11 @@ em dois pedaços de 1,50 e 1,09 GB, carregou e gerou no navegador:
     granite 7B-A1B Q2_K ..... 11,05 tok/s    5,38 tok/s    2,05×
     SmolLM3-3B Q4_K_M .......  7,26 tok/s    4,71 tok/s    1,54×
 
-**O MoE de 7B ganha do denso de 3B nas DUAS pontas** — +52% no prefill, que é
+⚠ **CORRIGIDO — vale só o PRIMEIRO turno.** Do segundo em diante o denso
+reaproveita o prefixo do prompt e o híbrido não (o estado de um SSM é
+sequencial), e o granite fica **6,2× mais lento por turno**. Ver "O granite
+perdeu o cache de prefixo" mais abaixo. O texto original: ~~**O MoE de 7B ganha
+do denso de 3B nas DUAS pontas**~~ — +52% no prefill, que é
 ~75% do turno no aparelho, e +14% na geração. Custa 74 s de carga e ~2,6 GB de
 RAM, que é 35% acima do que o aparelho já provou aguentar: esse é o único
 desconhecido que sobra, e só o aparelho responde.
@@ -176,7 +180,7 @@ Padrão hoje: **0 camadas**, atrás do botão do `?bancada`.
 | IQ4_XS / Q4_0-ARM | i-quants custam mais no WASM; o repack `Q4_0_4_4` é código ARM que não existe lá |
 | reordenar o prompt (voláteis no fim) | **B leu 43% A MAIS** que A (`967de42e`) |
 | Colibri / AirLLM | dependem de NVMe; WASM não tem `mmap`; 0,05–2 tok/s |
-| sparse upcycling / MoEfication | roteador nasce aleatório; SwiGLU não é esparso; e passaria dos 2 GiB |
+| sparse upcycling / MoEfication | roteador nasce aleatório; SwiGLU não é esparso; e passaria dos 2 GiB (⚠ motivo VENCIDO: a parede caiu com `gguf-split` — ver acima) |
 | hipótese "disco é mais lento que RAM" | morta — reabrir custa ~18 s nos dois (`b622ec14`) |
 | hipótese do binário compat (wasm32 sem JSPI) | inocente — 3,58 vs 3,67 tok/s |
 
@@ -232,7 +236,17 @@ pensou estar barrando.
 
 ## O QUE CONTINUA ABERTO, EM ORDEM
 
-### 1. Descarregar um cérebro devolve 0% da RAM — nunca foi confirmado
+### 1. ~~Descarregar um cérebro devolve 0% da RAM~~ — **JÁ FOI RESPONDIDO**
+
+**Fechado, e a resposta estava no arquivo que esta seção manda ler.**
+`VELOCIDADE.md` tem: *"FECHADO: descarregar DEVOLVE ~98% da RAM — o '0%' era
+instrumento sujo … a hipótese 1 está MORTA"*, medido em quatro execuções. Este
+índice copiou o lado ERRADO da mesma página e o promoveu a item nº 1 da fila —
+966 linhas depois da correção, no mesmo arquivo.
+
+Quem lesse este índice remediria algo já medido. Fica riscado com o texto
+original abaixo, para a lição não sumir junto.
+
 `90e504ae` mediu: `com a fala 4,48 GB → descarregada 4,48 GB → devolveu 0%`.
 Se o número estiver certo, as **~18 s de releitura por visita ao chat** estão
 sendo pagas em troca de nada, e o roteamento inteiro está sobre uma premissa
@@ -258,7 +272,15 @@ GPU externa: 2–4 h numa L4 com ~10k diálogos **no estilo do jogo**. Não dá 
 treinar no contêiner (sem GPU; só gerar os estados ocultos de 1M tokens levaria
 ~11 h).
 
-### 4. O botão de 1 camada de GPU, nunca apertado
+### 4. ~~O botão de 1 camada de GPU, nunca apertado~~ — NÃO É ITEM ABERTO
+
+**Isto não pode estar numa lista chamada "o que continua aberto".** A REGRA
+ZERO, no topo deste mesmo arquivo, diz que a WebGPU está fechada e que só o dono
+do jogo reabre. Listar aqui um "custa um toque" é o convite que produziu a sexta
+proposta — dentro do arquivo que existe para impedi-la. Fica riscado, com o
+conteúdo original abaixo, porque a medição em si continua verdadeira; o que era
+falso é ela ser NOSSA pergunta em aberto.
+
 `dde144b0` montou o botão para separar "estourou o buffer" de "o backend não
 roda aqui". O teste **nunca foi executado no celular do Felipe**. Com a causa
 sendo fila de submissão, a expectativa é que engasgue igual — mas é a única
@@ -875,7 +897,7 @@ Mas: **não existe caminho GGUF**. Busquei no Hub por `eagle3 GGUF` e o resultad
 é vazio. EAGLE-3 vive em vLLM e SGLang. O `--spec-type draft-eagle3` está
 compilado no wasm, mas não há peso para carregar nele. Fechado por enquanto.
 
-### 3. MTP — especulativa embutida no modelo. **É o caminho.**
+### 3. ~~MTP — especulativa embutida no modelo. **É o caminho.**~~ — REPROVADO abaixo
 
 O modelo é pré-treinado com um objetivo auxiliar de prever N tokens à frente, e
 a cabeça extra viaja **dentro do mesmo GGUF**. Consequências, todas boas para o
@@ -999,7 +1021,7 @@ especulativa, o alvo tem de estar em Q4_0 ou Q4_K, que é onde o degrau existe.
 
 | modelo | tamanho | t/s |
 | --- | --- | --- |
-| **granite 4.0 h-tiny 7B-A1B Q2_K (o de hoje)** | 2,59 GB | **19,7 a 29,6** |
+| **granite 4.0 h-tiny 7B-A1B Q2_K** (foi o titular; hoje é o SmolLM3) | 2,59 GB | **19,7 a 29,6** |
 | Qwen3.5-2B-MTP Q4_K_M | 1,33 GB | 14,9 |
 | Qwen3.5-4B-MTP Q2_K_XL | 2,12 GB | 6,7 |
 
@@ -1165,7 +1187,7 @@ consegue medir o benefício da instrução**, e eu devia ter previsto isso antes
 de compilar. É no ARM que ela vira `SDOT`, uma instrução no lugar da cadeia
 inteira. Só o aparelho responde.
 
-Por isso os dois wasms foram publicados EM PAR: `?motor=q2k` e `?motor=base`,
+Por isso ⚠ INSTRUÇÃO MORTA (eles foram removidos logo depois; o `?motor=` só aceita `relaxed`) — os dois wasms foram publicados EM PAR: `?motor=q2k` e `?motor=base`,
 mesma árvore, só o kernel diferindo. É a única forma de perguntar isso ao ARM
 sem repetir o erro de cima.
 
@@ -1988,7 +2010,7 @@ fato nenhum — que é a persona escrita, palavra por palavra. Os outros:
   · **Llama 3.2 3B** — inventa ("pode ser um corredor, uma sala, um armário";
     o cânone diz que não há corredor) e soa animado demais ("Claro, quem não
     quer?"), não o Nilo seco.
-  · **granite (o de hoje)** — fluente, mas inventa ("atrás da parede é apenas um
+  · **granite** (era o titular quando isto foi medido; hoje é o SmolLM3) — fluente, mas inventa ("atrás da parede é apenas um
     elevador inoperante, esperando ser reparado") e se põe DENTRO do elevador
     ("quero sair deste elevador"), contra o cânone.
   · **SmolLM3** — fiel ao cânone e sem personalidade; repete abertura idêntica e

@@ -1,5 +1,15 @@
 # O kernel relaxed SIMD do q4_K, e por que ele é opcional
 
+> ## ⚠ O `1,17×` DESTE ARQUIVO FOI REFUTADO
+>
+> Um A/B limpo, na mesma árvore, mostrou ~0%. A medição de 5,19 → 6,05 tok/s
+> carregou versão de biblioteca e de compilador junto com o kernel, então o que
+> ela mediu não foi o kernel. Ver "o '1,17×' do de q4_K era falso" em
+> `JA-TENTADO.md`.
+>
+> O motor da casa continua valendo — ele é 1,86× o do CDN por turno, em conversa
+> — mas não por este número.
+
 ## O que é
 
 Um caminho novo no `ggml_vec_dot_q4_K_q8_K` do wasm, usando

@@ -53,7 +53,7 @@
       // e com um caminho novo no `ggml_vec_dot_q4_K_q8_K`, que é a conta mais
       // quente do SmolLM3 Q4_K_M e do revisor v2.
       //
-      // Medido na bancada (x86, 4 fios): 5,19 → 6,05 tok/s, 1,17×. Qualidade
+      // Medido na bancada: o motor da casa é 1,86× o do CDN por turno, em conversa (SmolLM3 e granite). O "1,17× do kernel de q4_K" que ficava aqui foi REFUTADO — aquela medição trocou biblioteca e compilador junto com o kernel. Qualidade
       // empatada em 6 perguntas. Ver `bancada-navegador/RELAXED-SIMD.md`.
       //
       // NÃO É PADRÃO, e o motivo é honesto: a bancada é x86 e o aparelho do

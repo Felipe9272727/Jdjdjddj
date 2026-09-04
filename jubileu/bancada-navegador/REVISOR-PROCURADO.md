@@ -1,5 +1,21 @@
 # Procurando um revisor — o que foi medido, e o que eu descobri estando errado
 
+> ## ⚠ WEBGPU ESTÁ FECHADA — VER A REGRA ZERO EM `JA-TENTADO.md`
+>
+> Este arquivo aponta a WebGPU como caminho a seguir. **Ela foi reprovada seis
+> vezes no aparelho do dono do jogo**, e a sexta foi um agente lendo exatamente
+> uma linha como as que estão abaixo.
+>
+> A causa não é lentidão nem memória, e não se conserta com menos camadas: o
+> jogo é Three.js e desenha na MESMA GPU; o trabalho da LLM entope a fila de
+> submissão e o render não fecha o quadro. E ela nunca ganhou nem quando
+> funcionou — CPU×8 em 242,5 s contra WebGPU×2 em 257,1 s.
+>
+> **O que reabre o assunto:** só ele, no aparelho dele. Número de paper,
+> cobertura de mercado e binário parado na árvore JÁ FORAM os argumentos das
+> seis vezes.
+
+
 Este arquivo é o registro da caçada por um revisor "bom e rápido". Ele guarda
 tanto as medições quanto os becos sem saída, porque nesta caçada eu já
 recomendei duas vezes por número que não se sustentou, e o registro do beco vale
@@ -89,6 +105,8 @@ ligado no aparelho do dono do jogo e **quebrou duas vezes** no wllama 3.5.1:
 O que mudou desde então, e só isso: o pipeline roda **3.6.0**, e o WebGPU do
 **ONNX** funcionou no aparelho dele. Não é prova de nada sobre o wllama — é
 motivo para re-testar pelo botão que já existe, e não por uma flag nova.
+**Corrigido:** esse re-teste é decisão DELE, não sugestão nossa — ver a nota no
+topo deste arquivo.
 
 ### 3.2 O caminho que destravaria os 89% está bloqueado no BINDING, não no llama.cpp
 

@@ -4,7 +4,14 @@ Esta pasta existe porque durante três rodadas o diagnóstico do Andar 10 foi
 feito por leitura de código e por print de celular, e as duas primeiras
 conclusões estavam erradas. O que resolveu foi abrir um Chromium de verdade.
 
-Ela **não** faz parte do jogo: nada aqui é importado por `src/`, nada vai para o
+Ela **não** faz parte do jogo — mas ⚠ **três testes DEPENDEM desta pasta**, e
+quem mover `corpus/` acreditando na frase antiga quebra a suíte:
+
+    src/__tests__/floor10CanoneCorpus.test.ts     → bancada-navegador/corpus/canone.mjs
+    src/__tests__/floor10RevisorTreinado.test.ts  → bancada-navegador/corpus/enunciado.mjs
+    src/__tests__/floor10Tradutor.test.ts         → bancada-navegador/bergamot-buscar.sh
+
+Fora esses três, nada aqui é importado por `src/`, nada vai para o
 `dist/`. É ferramenta de investigação, e roda na máquina de quem desenvolve.
 
 ## O que ela mede

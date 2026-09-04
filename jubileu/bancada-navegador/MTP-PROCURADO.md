@@ -1,5 +1,21 @@
 # MTP no navegador: procurado em cinco frentes, não existe
 
+> ## ⚠ WEBGPU ESTÁ FECHADA — VER A REGRA ZERO EM `JA-TENTADO.md`
+>
+> Este arquivo aponta a WebGPU como caminho a seguir. **Ela foi reprovada seis
+> vezes no aparelho do dono do jogo**, e a sexta foi um agente lendo exatamente
+> uma linha como as que estão abaixo.
+>
+> A causa não é lentidão nem memória, e não se conserta com menos camadas: o
+> jogo é Three.js e desenha na MESMA GPU; o trabalho da LLM entope a fila de
+> submissão e o render não fecha o quadro. E ela nunca ganhou nem quando
+> funcionou — CPU×8 em 242,5 s contra WebGPU×2 em 257,1 s.
+>
+> **O que reabre o assunto:** só ele, no aparelho dele. Número de paper,
+> cobertura de mercado e binário parado na árvore JÁ FORAM os argumentos das
+> seis vezes.
+
+
 Pergunta que voltou várias vezes: *"será que não tem nenhuma outra arquitetura
 que rode MTP?"*. Cinco buscas paralelas, em ângulos que não se sobrepõem, mais
 verificação minha nos arquivos. O resumo é que a parede não está onde eu
@@ -58,7 +74,9 @@ enunciado dizia qual era o defeito.
 
 O ganho de velocidade não vem de MTP. Vem de:
 
-1. **WebGPU** — o único caminho medido que muda a ordem de grandeza. Já
-   confirmado que o backend do ONNX sobe no aparelho (o do wllama abortava);
+1. ~~**WebGPU** — o único caminho medido que muda a ordem de grandeza.~~
+   **FECHADA** (ver a nota no topo). Que o backend do ONNX suba no aparelho não
+   é prova sobre o do wllama, que abortava — e a causa medida é a fila de
+   submissão disputada com o Three.js, que nenhum backend resolve;
 2. **menos tokens lidos** — 89% do custo do revisor é ler o enunciado;
 3. **chamar o revisor menos vezes** — hoje ~30% das falas marcam alguma frase.
