@@ -2,6 +2,7 @@ import { PR, wallsForState } from '../constants';
 import { resolveCollision } from '../physics';
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
+import { salvarAusencia } from './floor10Ausencia';
 import {
     // `PRISON_DEVICES` e `PRISON_REACH` estavam aqui sem NENHUM uso: quem lê os
     // aparelhos é `deviceToTry`, e ele lê o estado vivo (`prison.devices`), não
@@ -289,7 +290,26 @@ export class Floor10WillBrain {
     /** Impede a mesma deliberação de comandar o corpo em um loop de 45s. */
     private lastMotorDeliberationAt: number | null = null;
 
-    constructor(seed?: number) {
+    /**
+     * ── O HUMOR INICIAL ENTRA POR PARÂMETRO, E QUEM LÊ O RELÓGIO É O JOGO ─
+     *
+     * Ele nascia sempre nas mesmas quatro constantes, a qualquer hora e depois
+     * de qualquer ausência — o que anulava o `floor10Drives.ts` inteiro, que
+     * existe para dar homeostase e linha de base circadiana ao Nilo.
+     *
+     * A correção óbvia era ler `drivesAoChegar()` aqui dentro. Errada: isso põe
+     * o RELÓGIO DE PAREDE num construtor, e treze testes desta classe passariam
+     * às 15h e falhariam às 3h — pior do que não ter teste.
+     *
+     * Então o padrão é a constante determinística, e quem injeta o humor de
+     * verdade é o `Floor10Npc`, que é onde o jogo acontece e onde o relógio
+     * legitimamente existe.
+     */
+    constructor(seed?: number, drivesIniciais?: Floor10WillDrives) {
+        if (drivesIniciais) {
+            this.drives = drivesCopy(drivesIniciais);
+            this.snapshot = { ...this.snapshot, drives: drivesCopy(drivesIniciais) };
+        }
         if (seed === undefined) {
             const entropy = new Uint32Array(1);
             if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(entropy);
@@ -616,6 +636,18 @@ export class Floor10WillBrain {
      * a sala. Isto entra somado à rodada de aprendizado em curso, e é por aqui
      * que a cooperação vira aprendizado de verdade.
      */
+    /**
+     * Guarda o humor dele para a próxima visita.
+     *
+     * Chamado quando o Floor10Npc desmonta — o jogador saiu do andar. Sem isto,
+     * `drivesAoChegar` não tem de onde continuar e ele volta sempre à linha da
+     * hora, o que é melhor que as constantes de antes mas ainda apaga o que
+     * acabou de acontecer entre vocês.
+     */
+    guardarParaAProximaVisita(agora = Date.now()): void {
+        salvarAusencia(this.drives, agora);
+    }
+
     addExternalReward(amount: number): void {
         if (!Number.isFinite(amount)) return;
         this.externalReward = clamp(this.externalReward + amount, -3, 3);

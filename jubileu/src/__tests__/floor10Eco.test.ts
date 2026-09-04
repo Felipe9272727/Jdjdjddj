@@ -115,7 +115,20 @@ describe('e a limpeza está LIGADA — não só escrita', () => {
         );
         expect(fonte).toContain('npcSaiuDoAndar');
         // Dentro de um `return () => { ... }` de efeito, que é o desmonte.
-        const limpeza = /return \(\) => \{[\s\S]{0,400}?npcSaiuDoAndar\(\)/.test(fonte);
+        //
+        // ── A JANELA CRESCEU, E ISSO NÃO É AFROUXAR O TESTE ──────────────
+        //
+        // Eram 400 caracteres. A limpeza ganhou uma chamada nova
+        // (`guardarParaAProximaVisita`, que salva o humor do Nilo para a
+        // próxima visita) com o comentário que a explica, e o
+        // `npcSaiuDoAndar()` saiu da janela — o teste reprovou um código que
+        // faz EXATAMENTE o que ele exige.
+        //
+        // A regex mede distância em caracteres, e comentário é caractere. Num
+        // projeto onde cada comentário longo é uma lição paga em medição,
+        // apertar a janela seria pressionar contra documentar. O que o teste
+        // afirma continua o mesmo: a chamada está dentro do desmonte.
+        const limpeza = /return \(\) => \{[\s\S]{0,1200}?npcSaiuDoAndar\(\)/.test(fonte);
         expect(limpeza, 'npcSaiuDoAndar existe mas não está na limpeza do efeito')
             .toBe(true);
     });

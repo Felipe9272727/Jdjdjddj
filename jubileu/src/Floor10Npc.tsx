@@ -13,6 +13,7 @@ import {
     npcSet,
 } from './npc/npcStore';
 import { perceiveFloor10 } from './npc/floor10Perception';
+import { drivesAoChegar } from './npc/floor10Ausencia';
 import {
     Floor10WillBrain,
     speedForWillGoal,
@@ -73,7 +74,17 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const npcWorld = useMemo(() => new THREE.Vector3(), []);
     const forward = useMemo(() => new THREE.Vector3(), []);
     const worldQuaternion = useMemo(() => new THREE.Quaternion(), []);
-    const willBrain = useMemo(() => new Floor10WillBrain(), []);
+    // ── O HUMOR COM QUE ELE TE RECEBE ────────────────────────────────────
+    //
+    // `drivesAoChegar()` lê o relógio: sem nada salvo ele nasce na LINHA DA
+    // HORA (de madrugada exausto, de tarde inquieto); com algo salvo, nos
+    // desejos de quando você saiu, relaxados pelo tempo que passou de verdade.
+    //
+    // Isto vive AQUI e não no construtor da vontade de propósito: o relógio de
+    // parede num construtor faria os treze testes daquela classe passarem às
+    // 15h e falharem às 3h. Aqui é onde o jogo acontece, e onde o relógio
+    // legitimamente existe.
+    const willBrain = useMemo(() => new Floor10WillBrain(undefined, drivesAoChegar()), []);
     const consumedWillCommandId = useRef(0);
     const autonomousTalkUntil = useRef(0);
     // Os dois relógios do NPC. Ver floor10Cadencia.ts: a vontade deixou de ser
@@ -162,6 +173,13 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         return () => {
             for (const bilhete of pendentes) globalThis.clearTimeout(bilhete);
             pendentes.clear();
+            // ── O HUMOR DELE SOBREVIVE À SAÍDA ───────────────────────────
+            //
+            // O jogador saiu do andar; a vontade vai parar de existir junto com
+            // este componente. Guardar os desejos aqui é o que permite ao Nilo
+            // CONTINUAR de onde parou na próxima visita, em vez de renascer.
+            // Quem relaxa isso pelo tempo que passou é o `drivesAoChegar`.
+            willBrain.guardarParaAProximaVisita();
             npcSaiuDoAndar();
         };
     }, []);
