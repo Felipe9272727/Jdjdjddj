@@ -90,7 +90,7 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
             h.reveal = 1;
             const kb = hazardKnockback(insideX, lowY, insideZ);
             expect(kb).not.toBeNull();
-            expect(kb!.z).toBeCloseTo(box.z0 - 1.3, 5);
+            expect(kb!.z).toBeLessThan(box.z0);          // atrás da tira
             expect(kb!.vy).toBeGreaterThan(0);
 
             // One-shot: a second hit on the same pass (still overlapping) is null.
@@ -152,6 +152,40 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
             const segundo = hazardKnockback(box.x, box.topY, dentroZ);
             expect(segundo).not.toBeNull();
         });
+    });
+
+    // ── O CASTIGO NÃO PODE SER O VAZIO ──────────────────────────────────
+    // O tranco era `box.z0 - 1.3`, contado só a partir da tira. Numa plataforma
+    // de meia-profundidade 1,0 esse ponto fica ATRÁS da borda de trás: raspar
+    // num espinho jogava o jogador para fora do convés, e cair não é o castigo
+    // por não pular — é o castigo por não chegar.
+    it('o empurrão sempre larga o jogador EM CIMA da plataforma', () => {
+        let total = 0, cairiamNoVazio = 0;
+        for (const seed of [0x9e3779b9, 1, 7, 42, 1337]) {
+            resetParkour(seed);
+            resetHazards();
+            for (let n = 0; n < 4; n++) {
+                spawnNObstacles(1);
+                for (const h of hazards) {
+                    h.reveal = 1;
+                    const box = hazardBox(h)!;
+                    const plat = platforms.find((p) => p.id === h.platId)!;
+                    total += 1;
+                    if (box.z0 - 1.3 < plat.cz - plat.hd) cairiamNoVazio += 1;
+                    expect(box.zSeguro, `semente ${seed}, hd=${plat.hd}`)
+                        .toBeGreaterThanOrEqual(plat.cz - plat.hd);
+                    expect(box.zSeguro).toBeLessThanOrEqual(plat.cz + plat.hd);
+                    expect(box.zSeguro).toBeLessThan(box.z0);   // e atrás da tira
+                }
+            }
+        }
+        // A regra não é vazia: a esmagadora maioria dos trancos cairia fora do
+        // convés sem a trava. (Medido: 40 de 50. Com a fórmula ANTIGA da caixa
+        // — `cz − 0,15·hd` — a conta dá 0,85·hd < 1,3, ou seja TODOS os hd do
+        // gerador {1,0 1,2 1,4} caíam. O ímã do pouso é que escondia isso,
+        // puxando o jogador de volta para alguma plataforma.)
+        expect(total).toBeGreaterThan(20);
+        expect(cairiamNoVazio / total).toBeGreaterThan(0.5);
     });
 
     describe('devilStageBase fallback', () => {

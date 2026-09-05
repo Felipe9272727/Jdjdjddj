@@ -2001,7 +2001,17 @@ export default function App() {
                     audioCtx={audioCtx}
                     busRef={cartoonBusRef}
                     onStage={setCartoonStage}
-                    onDone={() => { setCartoonIntro(false); setCutsceneLine(0); setCartoonCutscene(true); }}
+                    onDone={() => {
+                        // O cartão de título não trava o andador: quem segura
+                        // para a frente durante a íris sai da cabine e vai
+                        // parar lá na escadaria, e aí a câmera de diálogo
+                        // enquadra o Diabrete DE COSTAS, por trás dele. Em vez
+                        // de mexer no input (que mexeria no pointer lock), a
+                        // cutscene começa sempre do lugar de onde ela foi
+                        // encenada — o mesmo teleporte da chegada.
+                        playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+                        setCartoonIntro(false); setCutsceneLine(0); setCartoonCutscene(true);
+                    }}
                 />
             )}
             {/* Meet-the-Diabrete dialogue — the rival performs in 3D while the

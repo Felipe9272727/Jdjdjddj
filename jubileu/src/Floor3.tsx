@@ -193,14 +193,13 @@ export const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ p
 });
 PlatformView.displayName = 'PlatformView';
 
-// ─── Sky + clouds + void that FOLLOW the player up the endless climb ─────────
-// The course never ends, so the backdrop can't be anchored at the origin or
-// the player would climb out of it. This group tracks the player's Z each
-// frame, keeping the sky sphere, the void floor and the cloud field always
-// wrapped around them.
-// Clouds spread all around the player — above, beside AND below — so the climb
-// is always wrapped in open sky (the reference has no floor/void, just sky).
-// Local positions; the group tracks the player's Y/Z so the field never empties.
+// ─── O céu de nuvens que SEGUE o jogador na subida infinita ──────────────────
+// O curso não acaba, então o fundo não pode ficar preso na origem: o jogador
+// sairia dele. As nuvens se espalham em volta — acima, ao lado E abaixo — para
+// que a subida esteja sempre embrulhada em céu aberto (a referência não tem
+// chão nem vazio, só céu). Posições LOCAIS; o grupo é que persegue o Y/Z do
+// jogador, e por isso o campo nunca esvazia. (Não há mais esfera de céu nem
+// piso do vazio aqui: o fundo é a cor de limpeza da cena e a névoa.)
 const CLOUDS: Array<{ p: [number,number,number]; s: number }> = [
     { p: [-34, 10, -18], s: 3.4 }, { p: [36, 16, -6], s: 4.0 },  { p: [-40, 20, 12], s: 3.0 },
     { p: [30, 6, 22], s: 2.6 },    { p: [-26, 22, 2], s: 3.6 },  { p: [42, 14, 16], s: 3.2 },

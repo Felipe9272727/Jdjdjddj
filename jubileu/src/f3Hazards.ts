@@ -196,17 +196,29 @@ export function tickHazards(dt: number): void {
 const CENTRO_DA_TIRA = 0.425;   // fração de `hd` à frente do centro da plataforma
 const METADE_DA_TIRA = 0.28;    // meia-fundura em Z (a tira desenhada tem 0,34)
 
+// ── O EMPURRÃO TEM DE CAIR NO CONVÉS ─────────────────────────────────────────
+// O tranco era `box.z0 - 1.3`, medido só a partir da tira e sem olhar onde a
+// plataforma acaba. Numa plataforma de meia-profundidade 1,0 isso cai ATRÁS da
+// borda de trás — o castigo por raspar num espinho era ser jogado no vazio. O
+// alvo agora é o mesmo 1,3 atrás da tira, mas preso ao convés com uma margem.
+const RECUO_DO_TRANCO = 1.3;
+const MARGEM_DA_BORDA = 0.25;
+
 /** Live world transform of a hazard's spike-strip (the drawn band, in world Z). */
-export function hazardBox(h: Hazard): { x: number; z0: number; z1: number; hw: number; topY: number } | null {
+export function hazardBox(h: Hazard): {
+    x: number; z0: number; z1: number; hw: number; topY: number; zSeguro: number;
+} | null {
     const p = f3Platforms.find(pp => pp.id === h.platId);
     if (!p) return null;
     const centro = p.cz + p.hd * CENTRO_DA_TIRA;
+    const z0 = centro - METADE_DA_TIRA;
     return {
         x: p.x,
-        z0: centro - METADE_DA_TIRA,
+        z0,
         z1: centro + METADE_DA_TIRA,
         hw: p.hw * 0.92,
         topY: p.topY,
+        zSeguro: Math.max(p.cz - p.hd + MARGEM_DA_BORDA, z0 - RECUO_DO_TRANCO),
     };
 }
 
@@ -236,7 +248,7 @@ export function hazardKnockback(px: number, py: number, pz: number):
         if (inX && inZ && low) {
             if (h.hit) return null;              // already bounced on this pass
             h.hit = true; h.hitAt = tNow;
-            return { z: box.z0 - 1.3, vy: 4.2 }; // shove clear of the strip's near edge + bounce
+            return { z: box.zSeguro, vy: 4.2 };  // atrás da tira, mas ainda em cima da plataforma
         }
         // ── O TRANCO QUE SÓ ACONTECIA UMA VEZ ────────────────────────────
         // O rearme exigia `pz < box.z0 − 1.3`, ESTRITAMENTE menor — e o empurrão
