@@ -1,0 +1,161 @@
+<!doctype html><html><body><pre id="r">rodando…</pre>
+<script type="module">
+import { buildFloor10SystemPrompt, FLOOR10_STABLE_PREFIX } from '/src/npc/floor10Canon.ts';
+import { prepareFloor10SystemPrompt, CPU_LOAD_CONFIG, CHAT_COMPLETION_CONFIG } from '/src/npc/wllamaEngine.ts';
+
+const MODELO = 'http://127.0.0.1:3422/SmolLM3-Q4_K_M.gguf';
+const MOTOR_ESM = ['', 'wllama-relaxed', 'index.js'].join('/');
+const FIOS = Number(new URLSearchParams(location.search).get('fios') ?? 4);
+const linhas = [];
+const diz = (s) => { linhas.push(s); document.getElementById('r').textContent = linhas.join('\n'); };
+
+// Copiados VERBATIM de Floor10VelocidadeSala.tsx (nao sao exportados de la).
+const PERSONA_EN = 'You are Nilo Azevedo, 29, human and a former elevator technician; now you are a '
+    + 'guest trapped on the 10th floor of the hotel "The Normal Elevator", not inside the elevator.\n'
+    + 'You are observant, cautious, dry-humoured, and you have your own wants. You decide for '
+    + "yourself, as the player's equal, never as a helper.\n"
+    + 'Fixed canon: the 10th floor is only a grey room with a grate floor, four walls and the '
+    + 'elevator door; there is no corridor and no window, and you have never left. The elevator does '
+    + 'not obey you. Never speak of AI, code, systems or prompts.\n'
+    + "Answer in 1 or 2 short complete sentences. Reply with Nilo's line only, no label.";
+const PERGUNTA_EN = 'Hi what is your name? do you know why we are here?';
+
+const PERGUNTA_PT = 'Quem é você, e porque estamos aqui?';
+const PREFIXO_PT  = prepareFloor10SystemPrompt(FLOOR10_STABLE_PREFIX);
+const SISTEMA_PT  = prepareFloor10SystemPrompt(
+    buildFloor10SystemPrompt(PERGUNTA_PT, [{ role: 'user', content: PERGUNTA_PT }]));
+const PERGUNTA2_PT = 'O que tem atrás daquela parede?';
+const SISTEMA2_PT  = prepareFloor10SystemPrompt(
+    buildFloor10SystemPrompt(PERGUNTA2_PT, [{ role: 'user', content: PERGUNTA2_PT }]));
+
+// Amostragem e teto IGUAIS nos dois bracos: o que muda e so o prompt e a
+// configuracao de CARGA. Sem isso a comparacao mediria tres coisas de uma vez.
+const GERACAO = {
+    stream: true, max_tokens: 56, temperature: 0.45, top_p: 0.85, top_k: 40,
+    penalty_repeat: 1.15, penalty_last_n: 256, cache_prompt: true,
+};
+
+async function medir(w, rotulo, messages, extra = {}) {
+    const t0 = performance.now();
+    let txt = '', n = 0;
+    const fluxo = await w.createChatCompletion({
+        messages, ...GERACAO, ...extra,
+        chat_template_kwargs: { enable_thinking: false },
+    });
+    for await (const p of fluxo) { txt = typeof p === 'string' ? p : (p?.currentText ?? txt); n++; }
+    const ms = performance.now() - t0;
+    diz(`  ${rotulo.padEnd(26)} ${(ms / 1000).toFixed(1)}s  pedacos=${n}`);
+    return { ms, txt };
+}
+
+async function braco(rotulo, carga, ordem) {
+    diz(`\n=== ${rotulo} ===`);
+    // `public/` nao passa pelo transform do Vite. O @vite-ignore sozinho NAO
+    // basta com string literal — o import-analysis ainda resolve e devolve 500.
+    // O jogo escapa disso passando uma VARIAVEL (wllamaEngine.ts:1371); aqui e
+    // a mesma saida, pelo mesmo motivo.
+    const mod = await import(/* @vite-ignore */ MOTOR_ESM);
+    const w = new mod.Wllama({ 'single-thread/wllama.wasm': '/wllama-relaxed/wasm/wllama.wasm',
+                               default: '/wllama-relaxed/wasm/wllama.wasm' },
+                             { suppressNativeLog: true, logger: { debug(){}, log(){}, warn(){}, error(){} } });
+    const tc = performance.now();
+    await w.loadModelFromUrl(MODELO, { ...carga, n_threads: FIOS, n_gpu_layers: 0 });
+    diz(`  carga ${( (performance.now()-tc)/1000 ).toFixed(1)}s  fios=${w.getNumThreads?.() ?? '?'}`);
+    const r = {};
+    for (const passo of ordem) r[passo.nome] = await passo.rodar(w);
+    await w.exit?.().catch?.(() => {});
+    return r;
+}
+
+try {
+    diz(`isolado=${crossOriginIsolated} nucleos=${navigator.hardwareConcurrency} fios pedidos=${FIOS}`);
+    diz(`prompt EN = ${(PERSONA_EN + PERGUNTA_EN).length} chars`);
+    diz(`prompt PT = ${SISTEMA_PT.length} chars (prefixo aquecido ${PREFIXO_PT.length}, cauda ${SISTEMA_PT.length - PREFIXO_PT.length})`);
+
+    const FASE = new URLSearchParams(location.search).get('fase') ?? '3';
+
+    if (FASE === '1') {
+    // ── BRACO 1: carga do ?velocidade, os DOIS prompts dentro dele ────────
+        await braco('carga do ?velocidade (n_ctx 2048, KV f16, warmup off)',
+            { n_ctx: 2048, n_batch: 512, jinja: true, reasoning: false, warmup: false },
+            [
+                { nome: 'en_aquece', rodar: (w) => medir(w, 'EN aquecendo (descarta)', [{role:'system',content:PERSONA_EN},{role:'user',content:PERGUNTA_EN}]) },
+                { nome: 'en', rodar: (w) => medir(w, 'EN quente  <- o ?velocidade', [{role:'system',content:PERSONA_EN},{role:'user',content:PERGUNTA_EN}]) },
+                { nome: 'pt_aquece', rodar: (w) => medir(w, 'PT pre-aquecimento', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 'pt', rodar: (w) => medir(w, 'PT real    <- o Andar 10', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+            ]);
+
+        // ── BRACO 2: carga do Andar 10 de verdade ─────────────────────────────
+        await braco('carga do Andar 10 (n_ctx 1536, KV q8_0, warmup on)',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'pt_aquece', rodar: (w) => medir(w, 'PT pre-aquecimento', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 'pt', rodar: (w) => medir(w, 'PT real    <- o Andar 10', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+                { nome: 'en_aquece', rodar: (w) => medir(w, 'EN aquecendo (descarta)', [{role:'system',content:PERSONA_EN},{role:'user',content:PERGUNTA_EN}]) },
+                { nome: 'en', rodar: (w) => medir(w, 'EN quente', [{role:'system',content:PERSONA_EN},{role:'user',content:PERGUNTA_EN}]) },
+            ]);
+
+
+    }
+
+    // ── FASE 3: DE ONDE VEM O TEMPO DO ANDAR 10 ──────────────────────────
+    // A fase 1 provou que a configuracao de carga nao muda nada (29,2s contra
+    // 29,3s) e que a diferenca contra o ?velocidade e o CACHE do prompt. Falta
+    // separar, dentro dos ~29s, o que e cauda do prompt e o que e a fala.
+    // ── FASE 4: QUANTO VALE ENXUGAR A CAUDA ──────────────────────────────
+    // A fase 3 mostrou que a cauda custa 17,7s dos 29,4s do turno 1. Duas
+    // gorduras dentro dela sao visiveis a olho: o bloco de percepcao gasta
+    // ~95 chars para dizer que NAO TEM dado, e a memoria injetada repete quase
+    // palavra por palavra a sala que o "Canone fixo" do prefixo ja descreve.
+    // Aqui a cauda enxuta e escrita a mao, so para MEDIR o teto do ganho antes
+    // de mexer no curador.
+    if (FASE === '4') {
+        const cauda = SISTEMA_PT.slice(PREFIXO_PT.length);
+        // Corta o bloco de percepcao vazio inteiro e a parte da memoria que
+        // repete o canone; guarda so o que e informacao NOVA.
+        const enxuta = '\n\nSUA MEMÓRIA (verdadeira, é você mesmo; conte na primeira pessoa): '
+            + 'Nilo contou 43 vezes em que dormiu, mas não chama isso de 43 dias porque aqui não há sol nem relógio confiável.'
+            + '\n\nNESTA FALA: responda à pergunta inteira e diga na primeira frase que seu nome é "Nilo Azevedo" e que é hóspede preso no 10º andar.';
+        diz(`cauda atual = ${cauda.length} chars | cauda enxuta = ${enxuta.length} chars`);
+        await braco('cauda atual x cauda enxuta',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'aq1', rodar: (w) => medir(w, 'pre-aquecimento', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 'atual', rodar: (w) => medir(w, 'turno 1 cauda ATUAL', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+                { nome: 'aq2', rodar: (w) => medir(w, 'pre-aquecimento de novo', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 'enxuta', rodar: (w) => medir(w, 'turno 1 cauda ENXUTA', [{role:'system',content:PREFIXO_PT + enxuta},{role:'user',content:PERGUNTA_PT}]) },
+            ]);
+    }
+
+    if (FASE === '3') {
+        await braco('Andar 10: de onde vem o tempo',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'frio', rodar: (w) => medir(w, 'PT SEM pre-aquecimento', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+            ]);
+        await braco('Andar 10: com o pre-aquecimento, turno a turno',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'aquece', rodar: (w) => medir(w, 'pre-aquecimento (897ch)', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 't1', rodar: (w) => medir(w, 'turno 1 (cauda 572ch)', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+                { nome: 't2', rodar: (w) => medir(w, 'turno 2 (cauda 440ch)', [{role:'system',content:SISTEMA2_PT},{role:'user',content:PERGUNTA2_PT}]) },
+                { nome: 'sem_cauda', rodar: (w) => medir(w, 'SEM cauda (so o prefixo)', [{role:'system',content:PREFIXO_PT},{role:'user',content:PERGUNTA_PT}]) },
+                { nome: 't1_repete', rodar: (w) => medir(w, 'turno 1 de novo (tudo quente)', [{role:'system',content:SISTEMA_PT},{role:'user',content:PERGUNTA_PT}]) },
+            ]);
+    }
+
+    diz('\nVEREDITO=OK');
+} catch (e) {
+    diz('EXCECAO: ' + (e?.stack ?? e));
+    diz('VEREDITO=FALHOU');
+}
+window.__pronto = linhas.join('\n');
+</script></body></html>
