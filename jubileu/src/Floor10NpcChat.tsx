@@ -752,11 +752,16 @@ const Floor10NpcChat: React.FC = () => {
                                 <div style={m.role === 'user' ? userBubble : npcBubble}>{m.content}</div>
                             </div>
                         ))}
-                        {/* O REFLEXO. Aparece só enquanto o 3B ainda não
-                            escreveu nada, e sai de cena quando ele começa. É
-                            marcado como reação — não pode ser confundido com a
-                            resposta, senão viraria o modelo pequeno falando pelo
-                            Nilo, que é o oposto do que este andar defende. */}
+                        {/* O REFLEXO — HOJE SEM NINGUÉM ALIMENTANDO.
+                            A reação saiu do turno depois de medida: o 135M
+                            precisa de 4,4 s a 14,8 s para meia dúzia de
+                            palavras, contra um teto de 2,5 s (o porquê inteiro
+                            está em wllamaEngine.ts, em `sendToNpc`). Nada mais
+                            escreve `st.reflexo`, então esta bolha não renderiza.
+                            Fica de pé porque a peça que falta é só um modelo que
+                            caiba no orçamento — quando existir, é uma linha para
+                            voltar. Se você veio caçar um bug de UI aqui, não há:
+                            é o estado que está vazio, de propósito. */}
                         {st.reflexo !== '' && st.streaming === '' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
                                 <div style={reflexoBubble} aria-live="polite">

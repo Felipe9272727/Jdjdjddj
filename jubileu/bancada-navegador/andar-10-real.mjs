@@ -138,6 +138,34 @@ if (MODELO_DA_FALA) {
     console.log(`\n  ‹override› cérebro de fala trocado por ${MODELO_DA_FALA.split('/').pop()}`);
     console.log(`  ‹override› flags de template: ${JSON.stringify(FLAGS_DA_FALA)}`);
 }
+// ── GLOBAIS DE MEDIÇÃO ───────────────────────────────────────────────────
+// Alguns tetos do andar só se medem afrouxando-os: o do reflexo estoura SEMPRE
+// (2516 ms e 2504 ms medidos), então com o teto de produção nunca se descobre
+// quanto ele precisaria. `GLOBAIS` injeta overrides antes de qualquer script,
+// como o `__npcModelUrl` acima e pelo mesmo motivo.
+//
+//   GLOBAIS='{"__f10ReflexoTetoMs":30000}' node bancada-navegador/andar-10-real.mjs
+// E a CONVERSA SALVA precisa poder ser zerada: o Nilo lembra entre sessões
+// (floor10Convivencia), então uma segunda volta no mesmo perfil começa com
+// histórico restaurado e o "turno 1" deixa de ser turno 1 — medido: 99 tokens
+// lidos com a conversa limpa contra 440 com ela restaurada. Comparar antes e
+// depois exige partir do mesmo lugar.
+if (process.env.LIMPAR_CONVERSA) {
+    await page.addInitScript(() => {
+        try {
+            for (const k of Object.keys(localStorage)) {
+                if (/^floor10-(conversa|convivencia|ausencia)/.test(k)) localStorage.removeItem(k);
+            }
+        } catch { /* sem localStorage: nada a limpar */ }
+    });
+    console.log('  ‹override› conversa salva limpa antes de abrir');
+}
+const GLOBAIS = process.env.GLOBAIS ?? '';
+if (GLOBAIS) {
+    const mapa = JSON.parse(GLOBAIS);
+    await page.addInitScript((m) => { Object.assign(globalThis, m); }, mapa);
+    console.log(`  ‹override› globais: ${GLOBAIS}`);
+}
 await ponte.instalarEm(page);
 
 // ── QUEM SERVIU O MOTOR ──────────────────────────────────────────────────

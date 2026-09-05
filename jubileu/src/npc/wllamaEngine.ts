@@ -26,7 +26,7 @@ import {
     cargaRapidaLigada, configuracaoCargaRapida, definirRuntimeFloor10, especulativaLigada,
     parametrosEspeculativos, prepararEspeculativa, runtimeEspecLigado, type Floor10Runtime,
 } from './floor10Especulativa';
-import { completar, rascunharComReflexo, reagir, reflexoJaCarregado } from './floor10Reflexo';
+import { completar, rascunharComReflexo, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
 import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
@@ -2186,45 +2186,41 @@ export async function sendToNpc(
     // de 688 MB permanecem residentes, então a autonomia retoma sem recarga.
     abortDeliberation();
 
-    // ── O REFLEXO COBRE O PRIMEIRO SEGUNDO ────────────────────────────────
+    // ── A REAÇÃO SAIU DO TURNO, E O NÚMERO É ESTE ─────────────────────────
     //
-    // Daqui até a primeira palavra do 3B passam dezenas de segundos: ele ainda
-    // vai carregar (se estiver frio), ler o prompt inteiro e só então escrever.
-    // A tela mostrava "…" o tempo todo, e para quem não sabe o que está
-    // acontecendo isso é indistinguível de travamento.
+    // O reflexo existia para cobrir o primeiro segundo: um SmolLM2-135M em ONNX
+    // soltando "Hm." enquanto o 3B ainda lia o prompt. A ideia é boa e a
+    // execução nunca aconteceu — medido no jogo de verdade
+    // (`bancada-navegador/andar-10-real.mjs`, x86, CPU×2):
     //
-    // A ORDEM AQUI NÃO É DETALHE: o reflexo roda AGORA, com a deliberação já
-    // encerrada e o 3B ainda sem gerar — a janela em que o aparelho está livre.
-    // Ele tem 2,5s de teto e some sozinho. Nunca, em hipótese alguma, gera ao
-    // mesmo tempo que a fala: foi assim que o celular desligou sozinho.
-    // ── E ESTA LINHA PRECISOU DE `await` ──────────────────────────────────
+    //     com o teto de produção (2,5 s):
+    //         reflexo:estourou-o-tempo  {ms: 2516}
+    //         reflexo:estourou-o-tempo  {ms: 2504}
+    //         nenhum  reflexo:reagiu
     //
-    // O parágrafo acima jura que o reflexo "nunca, em hipótese alguma, gera ao
-    // mesmo tempo que a fala". O código fazia o oposto: `void reagir(text)`
-    // dispara e SEGUE na mesma hora: a execução caía direto na carga e na
-    // geração do 3B enquanto o ONNX ainda estava gerando.
+    //     afrouxando o teto (__f10ReflexoTetoMs = 40 s), para saber quanto ele
+    //     PRECISARIA:
+    //         reflexo:reagiu  {ms:  4413, letras: 32}
+    //         reflexo:reagiu  {ms: 14842, letras: 37}
     //
-    // Os 2,5s de teto do `reagir` não salvavam nada, porque teto de tempo ali é
-    // `Promise.race` — ele faz o JavaScript parar de esperar, não o ONNX parar
-    // de trabalhar. Exatamente o mesmo engano do `abortSignal` do wllama, no
-    // outro motor.
+    // Ele precisa de 4,4 s a 14,8 s para escrever meia dúzia de palavras, com o
+    // teto em 2,5 s. Nunca coube, e não é questão de afinar: o teto que caberia
+    // custa mais do que o silêncio que ele vem tapar.
     //
-    // Então o aparelho rodava 135M em ONNX e 3B em llama.cpp ao mesmo tempo,
-    // com os dois pools de threads abertos. É a receita que este arquivo já
-    // descreve como "foi assim que o celular desligou sozinho" — e desligou de
-    // novo.
+    // E o custo não era só "não aparece". Como isto era `await reagir(text)`, o
+    // jogador pagava os 2,5 s INTEIROS em todo turno para não ver nada. Pior: o
+    // teto é `Promise.race` (floor10Teto.ts), que faz o JavaScript parar de
+    // esperar e NÃO faz o ONNX parar de trabalhar — então o 135M seguia
+    // gerando por dentro da geração do 3B, que é exatamente o cenário que este
+    // arquivo descreve como "foi assim que o celular desligou sozinho".
     //
-    // Esperar custa no MÁXIMO os 2,5s do teto, e esse tempo não é perdido: é
-    // justamente o buraco que o reflexo existe para preencher, antes de o 3B
-    // começar. Serializado, ele cumpre a promessa do comentário.
-    if (reflexoJaCarregado()) {
-        const reacao = await reagir(text);
-        // Se a fala de verdade já começou, a reação perdeu a vez — publicar
-        // agora seria empurrar texto velho por cima do novo.
-        if (reacao && npc.streaming === '' && npc.phase !== 'ready') {
-            npcSet({ reflexo: reacao });
-        }
-    }
+    // O MODELO CONTINUA NA FILA, e não por inércia: o mesmo 135M é quem dobra o
+    // histórico (`dobrarConversa`, no fim deste turno) e quem escreve a bolha de
+    // espera (`floor10Bolha`). Os dois rodam FORA do caminho crítico. O que saiu
+    // foi só a reação — e com ela os 2,5 s por turno.
+    //
+    // `reagir` segue exportado: é por ela que a bancada mede, e é ela que volta
+    // ao turno no dia em que existir um modelo que responda dentro do orçamento.
 
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({

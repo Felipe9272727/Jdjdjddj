@@ -104,6 +104,39 @@ try {
     // A fase 1 provou que a configuracao de carga nao muda nada (29,2s contra
     // 29,3s) e que a diferenca contra o ?velocidade e o CACHE do prompt. Falta
     // separar, dentro dos ~29s, o que e cauda do prompt e o que e a fala.
+    // ── FASE 6: O LOTE DO PREFILL CHEGA AO MOTOR? ────────────────────────
+    //
+    // O jogo real mediu leitura 4,84 tok/s contra fala 2,98 tok/s. Leitura e em
+    // LOTE (n_batch 512) e fala e token a token, entao leitura devia ser 5-20x
+    // mais rapida, nao 1,6x. Se o lote estivesse chegando, mudar `n_batch` de
+    // 32 para 512 tinha de mudar o tempo. Se NAO mudar nada, o parametro nao
+    // esta chegando ao llama.cpp — e ai o ganho e grande e nao custa qualidade.
+    //
+    // `cache_prompt: false` de proposito: cada medicao precisa ser um prefill
+    // frio de verdade, senao mede-se o cache e nao o lote.
+    if (FASE === '6') {
+        const cauda = SISTEMA_PT.slice(PREFIXO_PT.length);
+        const GRANDE = PREFIXO_PT + cauda + cauda + cauda;   // ~800 tokens
+        diz(`prompt do teste = ${GRANDE.length} chars`);
+        for (const cfg of [
+            { rot: 'n_batch 32',              n_batch: 32 },
+            { rot: 'n_batch 128',             n_batch: 128 },
+            { rot: 'n_batch 512 (o do jogo)', n_batch: 512 },
+            { rot: 'n_batch 512 + n_ubatch 512', n_batch: 512, n_ubatch: 512 },
+        ]) {
+            await braco(cfg.rot,
+                { n_ctx: 2048, n_batch: cfg.n_batch,
+                  ...(cfg.n_ubatch ? { n_ubatch: cfg.n_ubatch } : {}),
+                  cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+                  jinja: true, reasoning: false, warmup: false },
+                [
+                    { nome: 'prefill', rodar: (w) => medir(w, 'prefill frio (1 token de saida)',
+                        [{role:'system',content:GRANDE},{role:'user',content:PERGUNTA_PT}],
+                        { max_tokens: 1, cache_prompt: false }) },
+                ]);
+        }
+    }
+
     // ── FASE 5: O BLOCO VOLATIL NO SISTEMA x NA ULTIMA FALA ──────────────
     //
     // O jogo real (andar-10-real.mjs) mostrou o numero que faltava:

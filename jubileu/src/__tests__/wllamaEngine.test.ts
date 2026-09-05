@@ -734,41 +734,69 @@ describe('divisaoDaEspera — a conta que decide onde vale otimizar', () => {
     });
 });
 
-describe('o reflexo não pode gerar junto com a fala', () => {
-    // O arquivo já jurava, em comentário: "Nunca, em hipótese alguma, gera ao
-    // mesmo tempo que a fala: foi assim que o celular desligou sozinho." O
-    // código fazia `void reagir(text)` e SEGUIA na mesma hora — 135M em ONNX e
-    // 3B em llama.cpp gerando juntos, com os dois pools de threads abertos.
+describe('a reação do reflexo não roda dentro do turno', () => {
+    // ── A HISTÓRIA DESTE TESTE, QUE MUDOU DUAS VEZES ─────────────────────
     //
-    // O teto de 2,5s do reagir não salvava: `Promise.race` faz o JavaScript
-    // parar de esperar, não o ONNX parar de trabalhar. Mesmo engano do
-    // abortSignal do wllama, no outro motor.
-    it('o reflexo é esperado antes de a fala começar', () => {
+    // Versão 1: o código fazia `void reagir(text)` e SEGUIA na mesma hora —
+    // 135M em ONNX e 3B em llama.cpp gerando juntos, com os dois pools de
+    // threads abertos. "Foi assim que o celular desligou sozinho."
+    //
+    // Versão 2: virou `await reagir(text)`, e este teste exigia o `await`. O
+    // `await` serializava, mas cobrava do jogador os 2,5 s do teto.
+    //
+    // Versão 3 (esta): a reação saiu do turno. O que decidiu foi medição, no
+    // jogo de verdade (bancada `andar-10-real.mjs`, x86, CPU×2):
+    //
+    //     teto de produção (2,5 s) ... estourou nos DOIS turnos (2516, 2504 ms)
+    //                                  e nenhum `reflexo:reagiu`
+    //     teto afrouxado em 40 s ..... reagiu em 4413 ms e 14842 ms
+    //
+    // Ele precisa de 4,4 s a 14,8 s para meia dúzia de palavras. Com 2,5 s
+    // nunca coube; com um teto que coubesse, custaria mais que o silêncio que
+    // ele vinha tapar. E o `Promise.race` do teto nunca parou o ONNX: o 135M
+    // seguia gerando dentro da geração do 3B, que é a versão 1 de volta.
+    //
+    // O que este teste protege agora: a reação não volta ao caminho da fala
+    // por descuido. O MODELO continua na fila — ele dobra o histórico e
+    // escreve a bolha de espera, ambos fora do caminho crítico.
+    it('`reagir` não é chamada de dentro do sendToNpc', () => {
         const fonte = readFileSync(
             new URL('../npc/wllamaEngine.ts', import.meta.url),
             'utf8',
         );
-        const trecho = fonte.slice(fonte.indexOf('if (reflexoJaCarregado()) {'));
-        const chamada = trecho.slice(0, trecho.indexOf('npcSet({ reflexo'));
-        expect(chamada).toContain('await reagir(text)');
-        expect(chamada).not.toContain('void reagir(');
+        const turno = fonte.slice(fonte.indexOf('export async function sendToNpc'));
+        // Só o código: as menções em comentário contam a história e podem ficar.
+        const semComentarios = turno
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+        expect(semComentarios).not.toContain('reagir(');
+        expect(semComentarios).not.toContain('void reagir');
     });
 
-    it('o reflexo roda com UMA thread, não com o aparelho inteiro', async () => {
-        // `env.backends` estava declarado no tipo e nunca configurado: sem
-        // isso o onnxruntime-web abre `navigator.hardwareConcurrency` threads.
-        const { REFLEXO_THREADS } = await import('../npc/floor10Reflexo');
-        expect(REFLEXO_THREADS).toBe(1);
+    it('o 135M continua ganhando o lugar dele na fila, fora do turno', async () => {
+        // Tirar a reação não pode virar "tirar o modelo": ele é quem dobra o
+        // histórico e escreve a bolha de espera.
         const fonte = readFileSync(
-            new URL('../npc/floor10Reflexo.ts', import.meta.url),
+            new URL('../npc/wllamaEngine.ts', import.meta.url),
             'utf8',
         );
-        expect(fonte).toContain('numThreads = REFLEXO_THREADS');
-        // UMA thread não basta: com numThreads 1 o onnxruntime-web usa a build
-        // single-thread, que roda na thread principal. Medido no emulador, um
-        // buraco de 6.016ms entre dois quadros. `proxy` move para um Worker sem
-        // mexer no orçamento de CPU.
-        expect(fonte).toContain('.proxy = true');
+        expect(fonte).toContain('dobrarConversa');
+        expect(fonte).toContain("from './floor10Reflexo'");
+        const { REFLEXO_THREADS } = await import('../npc/floor10Reflexo');
+        expect(REFLEXO_THREADS).toBe(1);
+    });
+
+    it('o teto da reação é medível, senão o número acima não existiria', async () => {
+        // O `__f10ReflexoTetoMs` é o que permitiu descobrir os 4,4 s e os
+        // 14,8 s: com o teto de produção o reflexo corta antes e a medida é
+        // sempre "estourou".
+        const reflexo = await import('../npc/floor10Reflexo');
+        const g = globalThis as { __f10ReflexoTetoMs?: number };
+        expect(reflexo.tetoDaReacao()).toBe(reflexo.REFLEXO_TIMEOUT_MS);
+        g.__f10ReflexoTetoMs = 40_000;
+        expect(reflexo.tetoDaReacao()).toBe(40_000);
+        delete g.__f10ReflexoTetoMs;
+        expect(reflexo.tetoDaReacao()).toBe(reflexo.REFLEXO_TIMEOUT_MS);
     });
 });
 

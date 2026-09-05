@@ -70,6 +70,24 @@ export const FLOOR10_REFLEXO_MODEL = Object.freeze({
 /** Teto da reação. Passou disto, a fala do 3B já está a caminho e ele perdeu a vez. */
 export const REFLEXO_TIMEOUT_MS = 2_500;
 
+/**
+ * ── O TETO PRECISA SER MEDÍVEL, PORQUE ELE ESTOURA SEMPRE ────────────────
+ *
+ * Medido no jogo de verdade (bancada `andar-10-real.mjs`, x86, CPU×2): nos dois
+ * turnos de fala a caixa-preta registrou `reflexo:estourou-o-tempo` com 2516 ms
+ * e 2504 ms, e NENHUM `reflexo:reagiu`. Ou seja: o jogador paga os 2,5 s — o
+ * `sendToNpc` faz `await reagir(...)` — e não vê reação nenhuma, nunca.
+ *
+ * O número que falta para decidir o que fazer é "quanto ele PRECISARIA", e esse
+ * número não dá para tirar de um teto que corta antes. Este atalho existe para
+ * medi-lo, no aparelho de quem estiver medindo — mesmo padrão do
+ * `limiteDoReflexo` logo abaixo, e pelo mesmo motivo.
+ */
+export function tetoDaReacao(): number {
+    const forcado = (globalThis as { __f10ReflexoTetoMs?: number }).__f10ReflexoTetoMs;
+    return typeof forcado === 'number' && forcado > 0 ? forcado : REFLEXO_TIMEOUT_MS;
+}
+
 /** Uma frase curta. Mais que isso deixa de ser reflexo e vira resposta. */
 export const REFLEXO_MAX_TOKENS = 24;
 
@@ -438,7 +456,7 @@ export async function reagir(fala: string): Promise<string> {
                     return_full_text: false,
                 },
             ),
-            REFLEXO_TIMEOUT_MS,
+            tetoDaReacao(),
         );
         if (corrida === TETO_ESTOUROU) {
             anotar('reflexo:estourou-o-tempo', { ms: Date.now() - comecou });
