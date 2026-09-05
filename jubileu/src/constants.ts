@@ -219,8 +219,9 @@ const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
 
 // Floor 3 — Endless Cartoon Parkour. Side walls at X: ±14 keep the player in
 // the corridor; they run far into +Z because the climb is now infinite (see
-// f3Parkour.ts). No far wall — falling into the void (y < -8) is the only way
-// off the course, handled by the respawn logic in Player.tsx.
+// f3Parkour.ts). No far wall — falling into the void is the only way off the
+// course; a linha do vazio acompanha a altura da escadaria
+// (`alturaDoVazio`, em f3Parkour.ts) e o renascimento está em Player.tsx.
 const F3_CORRIDOR_FAR_Z = 100000;   // effectively infinite — the climb never ends
 const FLOOR3_BND: number[][] = [
     [-14, -10, -1.3, -10],            // left of elevator doorway
@@ -229,8 +230,6 @@ const FLOOR3_BND: number[][] = [
     [ 14,  -10,  14,  F3_CORRIDOR_FAR_Z],   // right boundary (endless)
 ];
 
-// Platform definitions for the Floor 3 obby.
-// cx/cz = center, hw/hd = half-extents in XZ, topY = player foot level, h = visual height.
 // ── A FÍSICA DO PULO ──────────────────────────────────────────────────────
 //
 // Estavam soltos dentro do `useFrame` do Player.tsx. Saíram para cá porque o
@@ -241,34 +240,10 @@ const FLOOR3_BND: number[][] = [
 export const F3_GRAVITY = 22;
 export const F3_JUMP = 9.5;
 
-export interface F3Platform {
-    cx: number; cz: number;
-    hw: number; hd: number;
-    topY: number;
-    h: number;
-    moving?: boolean;   // oscillates ±F3_MOVE_AMP in X
-}
-
-export const F3_MOVE_AMP = 2.8;   // moving platform X amplitude
-
-export const F3_PLATFORMS: readonly F3Platform[] = [
-    // Start floor (matches elevator area)
-    { cx: 0,    cz: -5.0, hw: 6.5, hd: 4.5, topY: 0,   h: 0.5 },
-    // Step 1 — tutorial hop (same height)
-    { cx: 0,    cz:  2.0, hw: 1.8, hd: 1.8, topY: 0.1, h: 0.5 },
-    // Step 2 — up, straight
-    { cx: 0,    cz:  6.0, hw: 1.3, hd: 1.3, topY: 1.5, h: 0.5 },
-    // Step 3 — up, offset left
-    { cx: -1.5, cz: 10.0, hw: 1.3, hd: 1.3, topY: 3.0, h: 0.5 },
-    // Step 4 — moving platform
-    { cx: 0,    cz: 13.5, hw: 1.1, hd: 1.1, topY: 4.5, h: 0.5, moving: true },
-    // GOAL
-    { cx: 0,    cz: 17.5, hw: 2.5, hd: 2.5, topY: 6.0, h: 1.0 },
-];
-
-// Shared mutable: Floor3Environment writes the current X offset of the
-// moving platform every frame; Player.tsx physics reads it for collision.
-export const f3MovingX = { current: 0 };
+// (O obby fixo de 6 plataformas que morava aqui — `F3Platform`,
+// `F3_PLATFORMS`, `F3_MOVE_AMP`, `f3MovingX` — saiu com o parkour infinito. A
+// piscina viva de plataformas é gerada em f3Parkour.ts e ninguém mais lia estas
+// constantes: eram 25 linhas descrevendo uma fase que não existe.)
 const _WALLS_FLOOR3              = [...ELEV_W, ...FLOOR3_BND];
 const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
 const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;

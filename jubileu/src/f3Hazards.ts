@@ -173,19 +173,41 @@ export function tickHazards(dt: number): void {
         b.bob += dt;
         if (b.collected && b.fade > 0) b.fade = Math.max(0, b.fade - dt / 0.4);
     }
-    // Cull collected+faded brushes and hazards whose platform recycled away.
-    for (let i = brushes.length - 1; i >= 0; i--)
-        if (brushes[i].collected && brushes[i].fade <= 0) brushes.splice(i, 1);
+    // Cull collected+faded brushes and — hazards E PINCÉIS — cujo apoio já
+    // reciclou. O pincel órfão não sumia: `brushPos` passava a devolver null, o
+    // renderer fazia `continue` e o grupo ficava congelado no ar, na última
+    // posição válida, sem plataforma embaixo e impossível de pegar.
     const live = new Set(f3Platforms.map(p => p.id));
+    for (let i = brushes.length - 1; i >= 0; i--) {
+        const b = brushes[i];
+        if ((b.collected && b.fade <= 0) || !live.has(b.platId)) brushes.splice(i, 1);
+    }
     for (let i = hazards.length - 1; i >= 0; i--)
         if (!live.has(hazards[i].platId)) hazards.splice(i, 1);
 }
 
-/** Live world transform of a hazard's spike-strip (front half of its platform). */
+// ── O QUE MACHUCA TEM DE SER O QUE SE VÊ ─────────────────────────────────────
+// A caixa ia de `cz − 0,15·hd` até `cz + hd`: 1,15·hd de fundura, entre 1,15 e
+// 1,61 m. A tira desenhada tem 0,34 m (o traço de tinta e os espinhos são finos
+// em Z), então quase 80% do que empurrava o jogador era invisível — ele levava o
+// tranco parado a um metro dos espinhos. A caixa agora é a tira: mesmo centro,
+// meia-fundura METADE_DA_TIRA, com uma folga pequena para os cones não ficarem
+// atravessáveis pela quina.
+const CENTRO_DA_TIRA = 0.425;   // fração de `hd` à frente do centro da plataforma
+const METADE_DA_TIRA = 0.28;    // meia-fundura em Z (a tira desenhada tem 0,34)
+
+/** Live world transform of a hazard's spike-strip (the drawn band, in world Z). */
 export function hazardBox(h: Hazard): { x: number; z0: number; z1: number; hw: number; topY: number } | null {
     const p = f3Platforms.find(pp => pp.id === h.platId);
     if (!p) return null;
-    return { x: p.x, z0: p.cz - p.hd * 0.15, z1: p.cz + p.hd, hw: p.hw * 0.92, topY: p.topY };
+    const centro = p.cz + p.hd * CENTRO_DA_TIRA;
+    return {
+        x: p.x,
+        z0: centro - METADE_DA_TIRA,
+        z1: centro + METADE_DA_TIRA,
+        hw: p.hw * 0.92,
+        topY: p.topY,
+    };
 }
 
 /** Live world position of a brush pickup (hovering over its platform). */
@@ -216,10 +238,14 @@ export function hazardKnockback(px: number, py: number, pz: number):
             h.hit = true; h.hitAt = tNow;
             return { z: box.z0 - 1.3, vy: 4.2 }; // shove clear of the strip's near edge + bounce
         }
-        // Re-arm the one-shot once the player has retreated clear of the strip
-        // AND a short cooldown has elapsed — the time guard stops it oscillating
-        // when the shove leaves the player hovering near the near edge.
-        if (h.hit && pz < box.z0 - 1.3 && tNow - h.hitAt > 600) h.hit = false;
+        // ── O TRANCO QUE SÓ ACONTECIA UMA VEZ ────────────────────────────
+        // O rearme exigia `pz < box.z0 − 1.3`, ESTRITAMENTE menor — e o empurrão
+        // deixa o jogador exatamente em `box.z0 − 1.3`. A condição nunca era
+        // verdadeira: quem levasse um tranco atravessava aquela tira de graça
+        // para sempre. Agora rearma quando ele está FORA da faixa (por qualquer
+        // um dos dois lados) e o tempo de espera passou — o guard de tempo é o
+        // que impede a oscilação, não a distância.
+        if (h.hit && (pz < box.z0 - 0.35 || pz > box.z1 + 0.35) && tNow - h.hitAt > 500) h.hit = false;
     }
     return null;
 }

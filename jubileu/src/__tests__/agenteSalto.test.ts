@@ -67,24 +67,36 @@ describe('o vão é de borda a borda, não de centro a centro', () => {
     });
 });
 
-describe('a promessa do gerador do parkour, finalmente medida', () => {
+describe('a promessa do gerador do parkour, medida e depois CUMPRIDA', () => {
     // ── O COMENTÁRIO QUE NUNCA TINHA SIDO CONFERIDO ───────────────────────
     //
-    // `f3Parkour.ts` afirma, ao lado das faixas de geração:
+    // `f3Parkour.ts` afirmava, ao lado das faixas de geração:
     //
     //     "Generation ranges (kept conservative so every gap is jumpable)"
     //
-    // É uma afirmação verificável sobre a física do jogo, e ninguém a tinha
-    // verificado. Medida em 406 cursos (6090 degraus), ela é QUASE verdadeira:
+    // Era uma afirmação verificável sobre a física do jogo, e ninguém a tinha
+    // verificado. Medida em 406 cursos (6090 degraus), era QUASE verdadeira:
     //
-    //     12 degraus em 6090 (0,2%) ficam além do pulo, em 12 cursos de 406 (3%)
-    //     o pior deles fica 6,4 cm curto — desnível 1,37 m, vão 2,78 m
+    //     12 degraus em 6090 (0,2%) ficavam além do pulo, em 12 cursos de 406
+    //     o pior deles 6,4 cm curto — desnível 1,37 m, vão 2,78 m
     //
-    // Não é o `cz += 0,6` do laço anti-sobreposição, como eu suspeitei: é o
+    // Não era o `cz += 0,6` do laço anti-sobreposição, como eu suspeitei: era o
     // canto ruim das próprias faixas. `GAP_MAX = 3,8` junto com `RISE_MAX =
-    // 1,4` cai exatamente em cima do limite físico, e alguns sorteios passam
-    // por centímetros. "Conservador" está errado por pouco — mas num parkour
-    // um degrau impossível não é um degrau difícil: é o curso interrompido.
+    // 1,4` caía exatamente em cima do limite físico, e alguns sorteios passavam
+    // por centímetros.
+    //
+    // ── POR QUE ISSO DEIXOU DE SER "QUASE" E VIROU TRAVA ──────────────────
+    //
+    // Enquanto o pouso do Player puxava o jogador para cima de qualquer
+    // plataforma cuja pegada ele cruzasse (o ímã, ver f3Escadaria.test.ts),
+    // nenhum vão era realmente atravessado — nem os impossíveis. Com o ímã
+    // consertado, um degrau impossível deixa de ser difícil: o jogador cai,
+    // renasce na MESMA plataforma, encara o MESMO vão, para sempre.
+    //
+    // Então o gerador passou a LIMITAR o vão pelo `alcanceDoPulo` (a conta
+    // deste arquivo), com 20 cm de folga. Medido de novo em 400 cursos:
+    // ZERO degraus impossíveis, pior folga exatamente 0,200 m, vãos de 1,50 a
+    // 2,80 m. A promessa virou conta.
     const SEEDS = [0x9e3779b9, 1, 42, 1337, 2024, 77777];
 
     it('todo degrau do curso PADRÃO é fisicamente pulável', () => {
@@ -100,27 +112,28 @@ describe('a promessa do gerador do parkour, finalmente medida', () => {
         }
     });
 
-    it('o degrau mais apertado do curso padrão sobra 13 cm — e isso é POUCO', () => {
-        // É este número que a margem de 25 cm que eu tinha inventado reprovava.
-        // O jogador atravessa; um agente que recusasse seria pior que o jogo.
+    it('o degrau mais apertado sobra a margem do gerador — e nada mais', () => {
+        // Antes do teto físico o pior degrau do curso padrão sobrava 13 cm.
+        // Agora sobra 20 cm, que é MARGEM_DO_VAO: o gerador encosta na margem e
+        // para ali. Continua abaixo de FOLGA_CONFORTAVEL, ou seja, o degrau
+        // apertado continua apertado — só deixou de ser impossível.
         let pior = Infinity;
         const c = curso();
         for (let i = 0; i < c.length - 1; i += 1) {
             pior = Math.min(pior, daParaPular(c[i], c[i + 1]).folga);
         }
-        expect(pior).toBeGreaterThan(0);
+        expect(pior).toBeCloseTo(0.20, 2);
         expect(pior).toBeLessThan(FOLGA_CONFORTAVEL);
     });
 
-    it('a taxa de degraus impossíveis está onde foi medida', () => {
+    it('NÃO existe mais degrau impossível — nem um, em 400 cursos', () => {
         // Guarda de regressão sobre a GERAÇÃO, não sobre o agente: se alguém
-        // afrouxar GAP_MAX/RISE_MAX ou apertar F3_JUMP, esta conta piora e o
-        // teste conta a história. Se alguém CONSERTAR o canto ruim, ela vai a
-        // zero e o teste também avisa.
+        // afrouxar GAP_MAX/RISE_MAX, apertar F3_JUMP ou tirar o teto físico do
+        // `makeNext`, isto volta a ser diferente de zero na hora.
         let impossiveis = 0;
         let degraus = 0;
         let pior = Infinity;
-        for (const seed of SEEDS) {
+        for (let seed = 1; seed <= 400; seed += 1) {
             const c = curso(seed);
             for (let i = 0; i < c.length - 1; i += 1) {
                 const s = daParaPular(c[i], c[i + 1]);
@@ -129,11 +142,19 @@ describe('a promessa do gerador do parkour, finalmente medida', () => {
                 pior = Math.min(pior, s.folga);
             }
         }
-        expect(degraus).toBeGreaterThan(80);
-        expect(impossiveis / degraus).toBeLessThan(0.01);
-        // Nenhum degrau falha por MUITO: o problema é o limite, não um vão
-        // absurdo. Se um dia isto virar metros, a causa é outra.
-        expect(pior).toBeGreaterThan(-0.5);
+        expect(degraus).toBeGreaterThan(5000);
+        expect(impossiveis).toBe(0);
+        expect(pior).toBeCloseTo(0.20, 2);
+    });
+
+    it('as sementes antigas também estão limpas', () => {
+        for (const seed of SEEDS) {
+            const c = curso(seed);
+            for (let i = 0; i < c.length - 1; i += 1) {
+                const s = daParaPular(c[i], c[i + 1]);
+                expect(s.da, `semente ${seed}, degrau ${i}: ${s.porque}`).toBe(true);
+            }
+        }
     });
 });
 

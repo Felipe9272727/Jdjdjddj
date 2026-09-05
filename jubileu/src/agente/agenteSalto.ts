@@ -25,8 +25,14 @@
 // Isso é uma afirmação verificável, e nunca tinha sido verificada. Com os
 // números do jogo, o pulo sobe 2,05 m e fica 0,86 s no ar; subindo o degrau
 // máximo (1,4 m) ainda sobram 0,67 s de voo, que a 4 m/s valem 2,70 m de
-// avanço — contra 2,25 m de vão de borda no pior caso do gerador. O comentário
-// estava certo, com 45 cm de folga. Agora tem teste.
+// avanço. O pior vão que o gerador sorteava era 2,80 m — 10 cm ALÉM do pulo.
+// O comentário estava errado por pouco, e a medida (agenteSalto.test.ts) achou
+// 12 degraus impossíveis em 6090.
+//
+// Hoje o gerador não sorteia mais o vão sozinho: ele chama `alcanceDoPulo`
+// daqui e corta o vão no que o pulo alcança, com 20 cm de folga. A mesma conta
+// que o agente usa para decidir agora decide o mapa — e o teste mede zero
+// degraus impossíveis em 400 cursos.
 import { F3_GRAVITY, F3_JUMP, SPEED } from '../constants';
 
 /** Altura máxima que um pulo alcança: v²/2g. */

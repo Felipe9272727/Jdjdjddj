@@ -1633,7 +1633,10 @@ export default function App() {
       resetHazards();
       setBrushCount(0);
       f3PlayerZ.current = -8; f3PlayerY.current = 0;
-      playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: 0 };
+      // theta = π olha para +Z, que é o sentido da escadaria — o mesmo da
+      // chegada. Estava 0, que é olhar para DENTRO do elevador: quem levava o
+      // empurrão do Diabrete renascia de costas para a subida.
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: Math.PI };
       setCartoonFall(false);
       setFallBegging(false);
       setFallChoice('none');

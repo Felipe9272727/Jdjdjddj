@@ -4,7 +4,8 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, F3_GRAVITY, F3_JUMP, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, hasWalkInElevator } from './constants';
-import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
+import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint, alturaDoVazio as f3AlturaDoVazio } from './f3Parkour';
+import { chaoSobOsPes as f3Chao, resolverQueda as f3ResolverQueda, arrastoDaPonte as f3Arrasto } from './f3Fisica';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
@@ -796,6 +797,13 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         } else if (currentLevel === 3) {
             // ── Floor 3 platform physics ──────────────────────────────────
+            // A resolução vertical mora em f3Fisica.ts (testável fora do laço
+            // de quadro); aqui ficam só a integração, o input e os efeitos.
+            //
+            // `yAntes` é o pé ANTES da gravidade deste quadro, e é o que separa
+            // um pouso de um teletransporte: só pousa quem já vinha de cima.
+            const yAntes = pos.current.y;
+
             // 1. Apply gravity and integrate Y every frame.
             jumpVelYRef.current -= F3_GRAVITY * safeDt;
             pos.current.y += jumpVelYRef.current * safeDt;
@@ -806,40 +814,26 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             f3PlayerZ.current = pos.current.z;
             f3PlayerY.current = pos.current.y;
 
-            // 2. Find the highest platform directly underfoot (XZ bounds).
-            //    Reads the LIVE recycling pool — p.x already includes the
-            //    moving-bridge oscillation written by f3Parkour.tick().
-            let groundY = -Infinity;
-            for (const p of f3Platforms) {
-                if (pos.current.x >= p.x - p.hw && pos.current.x <= p.x + p.hw &&
-                    pos.current.z >= p.cz - p.hd && pos.current.z <= p.cz + p.hd) {
-                    if (p.topY > groundY) groundY = p.topY;
-                }
-            }
-            // Elevator interior floor (global ElevatorInterior at z=-13, EW=6.5,
-            // ED=6 → footprint x∈[-3.25,3.25], z∈[-16,-10]). The parkour pool
-            // doesn't cover it, so add it explicitly — otherwise the player
-            // falls through the cabin on arrival. Extended to z=-9.0 to bridge
-            // the small gap to the START platform (back edge z=-9.5).
-            if (pos.current.x >= -3.25 && pos.current.x <= 3.25 &&
-                pos.current.z >= -16.5 && pos.current.z <= -9.0) {
-                if (0 > groundY) groundY = 0;
-            }
+            // 2. O chão sob os pés — a piscina viva (p.x já traz a oscilação da
+            //    ponte escrita por f3Parkour.tick) mais o piso da cabine.
+            const chao = f3Chao(f3Platforms, pos.current.x, pos.current.z, yAntes);
+
+            // 2b. A ponte móvel CARREGA quem está em cima. Antes ela escorregava
+            //     por baixo dos pés e derrubava o jogador parado.
+            pos.current.x += f3Arrasto(chao, pos.current.y);
 
             // 3. Land: snap to ground when falling through it from above.
             const wasFalling = jumpVelYRef.current < -1.5;
-            if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {
-                pos.current.y = groundY;
-                jumpVelYRef.current = 0;
-                // Landing SFX — only on a real fall (edge: was airborne+falling).
-                if (wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
-            }
+            const passo = f3ResolverQueda(yAntes, pos.current.y, jumpVelYRef.current, chao);
+            pos.current.y = passo.y;
+            jumpVelYRef.current = passo.vy;
+            // Landing SFX — only on a real fall (edge: was airborne+falling).
+            if (passo.pousou && wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
 
             // 4. Jump trigger — only fires when grounded. Each jump feeds the
             //    sabotage loop (every 10 → the Diabrete inks a new obstacle).
             if (jumpRef?.current) {
-                const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
-                if (grounded) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); f3RegisterJump(pos.current.z); }
+                if (passo.noChao) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); f3RegisterJump(pos.current.z); }
                 jumpRef.current = false;
             }
 
@@ -853,7 +847,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             if (f3TryCollectBrush(pos.current.x, pos.current.y, pos.current.z)) playFloor3Brush();
 
             // ── 1930s footstep "tok" cadence — only while walking on ground.
-            const groundedNow = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            const groundedNow = passo.noChao;
             if (moving && groundedNow) {
                 f3StepAccumRef.current += safeDt;
                 // ~3 steps/sec; play one immediately on the first stride too.
@@ -869,10 +863,13 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             //    where we were instead of restarting.
             // Publish motion state for the first-person hands' procedural anim.
             f3HandState.vy = jumpVelYRef.current;
-            f3HandState.grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            f3HandState.grounded = groundedNow;
             f3HandState.moving = moving;
 
-            if (pos.current.y < -8) {
+            // O vazio acompanha a escadaria: a linha é relativa à plataforma de
+            // renascimento, então a queda dura o mesmo tempo a 0 m ou a 40 m de
+            // altura (com o -8 fixo, subir o curso ia esticando a queda).
+            if (pos.current.y < f3AlturaDoVazio(pos.current.z)) {
                 const rp = f3RespawnPoint(pos.current.z);
                 pos.current.set(rp.x, rp.y, rp.z);
                 jumpVelYRef.current = 0;

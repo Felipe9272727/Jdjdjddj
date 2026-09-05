@@ -16,7 +16,7 @@ import { Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import {
     hazards, brushes, tickHazards, hazardBox, brushPos,
-    type Hazard, type Brush,
+    type Hazard,
 } from './f3Hazards';
 
 const INK = '#0a0712';
@@ -32,19 +32,21 @@ const tipMat    = new THREE.MeshToonMaterial({ color: '#c0271a' });   // red ink
 const easeOutBack = (t: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 
 // ── One spiked ink-strip ──────────────────────────────────────────────────────
+// A ordem dos filhos É o contrato com o laço de quadro lá embaixo: filho 0 é o
+// traço de tinta, filhos 1..N são os espinhos. (Havia um `spikeRefs` aqui
+// coletando cada cone — nunca lido por ninguém, porque quem posiciona é o pai,
+// pelo índice. Saiu.)
 const SpikeStrip = React.forwardRef<THREE.Group, { hazard: Hazard }>(({ hazard }, ref) => {
-    const spikeRefs = useRef<THREE.Mesh[]>([]);
-    const strokeRef = useRef<THREE.Mesh>(null);
     const N = hazard.spikes;
     return (
         <group ref={ref}>
             {/* the ink baseline stroke that "sweeps" as it's drawn */}
-            <mesh ref={strokeRef} position={[0, 0.03, 0]}>
+            <mesh position={[0, 0.03, 0]}>
                 <boxGeometry args={[1, 0.06, 0.34]} />
                 <primitive object={strokeMat} attach="material" />
             </mesh>
             {Array.from({ length: N }).map((_, i) => (
-                <mesh key={i} ref={(el) => { if (el) spikeRefs.current[i] = el; }} castShadow>
+                <mesh key={i} castShadow>
                     <coneGeometry args={[0.17, 0.6, 4]} />
                     <primitive object={spikeMat} attach="material" />
                     <Outlines thickness={0.035} color={INK} />
@@ -56,7 +58,7 @@ const SpikeStrip = React.forwardRef<THREE.Group, { hazard: Hazard }>(({ hazard }
 SpikeStrip.displayName = 'SpikeStrip';
 
 // ── One paintbrush pickup ─────────────────────────────────────────────────────
-const BrushPickup = React.forwardRef<THREE.Group, { brush: Brush }>((_props, ref) => (
+const BrushPickup = React.forwardRef<THREE.Group>((_props, ref) => (
     <group ref={ref}>
         {/* tilt so it reads as a held brush */}
         <group rotation={[0, 0, Math.PI * 0.18]}>
@@ -114,7 +116,8 @@ const Floor3Hazards: React.FC = () => {
             for (let i = 0; i < N; i++) {
                 const m = g.children[i + 1] as THREE.Mesh;
                 if (!m) continue;
-                const x = -span / 2 + (span / (N - 1)) * i;
+                // N === 1 dividiria por zero e mandaria o único espinho para NaN.
+                const x = N > 1 ? -span / 2 + (span / (N - 1)) * i : 0;
                 const local = Math.max(0, Math.min(1, (h.reveal - (i / N) * 0.7) / 0.3));
                 const s = local <= 0 ? 0 : easeOutBack(local);
                 m.position.set(x, 0.3 * s, 0);
@@ -149,7 +152,7 @@ const Floor3Hazards: React.FC = () => {
                     ref={(el) => { if (el) spikeGroups.current.set(h.id, el); else spikeGroups.current.delete(h.id); }} />
             ))}
             {brushes.map((b) => (
-                <BrushPickup key={b.id} brush={b}
+                <BrushPickup key={b.id}
                     ref={(el) => { if (el) brushGroups.current.set(b.id, el); else brushGroups.current.delete(b.id); }} />
             ))}
         </group>

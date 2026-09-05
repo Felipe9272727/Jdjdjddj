@@ -105,6 +105,53 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
             const highY = box.topY + 1.0;                // jumped above the spikes
             expect(hazardKnockback(box.x, highY, (box.z0 + box.z1) / 2)).toBeNull();
         });
+
+        // ── O QUE MACHUCA É O QUE SE VÊ ─────────────────────────────────
+        // A caixa ia de `cz − 0,15·hd` a `cz + hd`: 1,15·hd de fundura contra
+        // 0,34 m de tira desenhada. Quase 80% do que empurrava o jogador era
+        // invisível, e ele levava o tranco a um metro dos espinhos.
+        it('a faixa que empurra tem a fundura da tira desenhada, não da plataforma', () => {
+            spawnNObstacles(1);
+            const h = hazards[0];
+            h.reveal = 1;
+            const box = hazardBox(h)!;
+            const plat = platforms.find((p) => p.id === h.platId)!;
+            const fundura = box.z1 - box.z0;
+            expect(fundura).toBeCloseTo(0.56, 6);            // a tira tem 0,34 + folga
+            expect(fundura).toBeLessThan(plat.hd);           // era 1,15 × hd
+
+            // O ponto que a caixa ANTIGA pegava e o desenho nunca ocupou.
+            const zAntigo = plat.cz - plat.hd * 0.1;
+            expect(zAntigo).toBeLessThan(box.z0);
+            expect(hazardKnockback(box.x, box.topY, zAntigo)).toBeNull();
+        });
+
+        // ── UM TRANCO NÃO DÁ PASSE LIVRE ────────────────────────────────
+        // O rearme pedia `pz < box.z0 − 1.3`, ESTRITAMENTE menor, e o empurrão
+        // largava o jogador exatamente em `box.z0 − 1.3`. Nunca rearmava: quem
+        // tomasse um tranco atravessava aquela tira de graça para sempre.
+        it('rearma depois do empurrão — a mesma tira morde de novo', () => {
+            spawnNObstacles(1);
+            const h = hazards[0];
+            h.reveal = 1;
+            const box = hazardBox(h)!;
+            const dentroZ = (box.z0 + box.z1) / 2;
+
+            const primeiro = hazardKnockback(box.x, box.topY, dentroZ);
+            expect(primeiro).not.toBeNull();
+            expect(h.hit).toBe(true);
+
+            // O jogador fica exatamente onde o empurrão o largou.
+            // (Bem no passado, e não 0: `now()` é `performance.now()`, que num
+            // worker recém-criado pode valer menos que o próprio tempo de
+            // espera — com 0 este teste passava sozinho e falhava na suíte.)
+            h.hitAt = -1e6;                                // a espera já passou
+            expect(hazardKnockback(box.x, box.topY, primeiro!.z)).toBeNull();
+            expect(h.hit).toBe(false);                     // ← rearmou
+
+            const segundo = hazardKnockback(box.x, box.topY, dentroZ);
+            expect(segundo).not.toBeNull();
+        });
     });
 
     describe('devilStageBase fallback', () => {
@@ -120,6 +167,28 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
 // Keep tickHazards referenced (renderer-owned per-frame tick) so a future
 // refactor that drops it trips this import rather than silently dead-coding it.
 describe('tickHazards', () => {
+    // ── O PINCEL ÓRFÃO ──────────────────────────────────────────────────────
+    // Só os espinhos eram varridos quando a plataforma reciclava. O pincel
+    // ficava na lista para sempre: `brushPos` passava a devolver null, o
+    // renderer fazia `continue`, e o grupo congelava no ar na última posição
+    // válida — um pincel pendurado no nada, impossível de pegar.
+    it('varre o pincel cuja plataforma reciclou, não só o espinho', () => {
+        resetParkour();
+        resetHazards();
+        spawnNObstacles(1);
+        expect(brushes.length).toBe(1);
+        expect(hazards.length).toBe(1);
+
+        // Recicla para fora TODAS as plataformas que carregam alguma coisa.
+        const ocupadas = new Set([...brushes.map((b) => b.platId), ...hazards.map((h) => h.platId)]);
+        for (let i = platforms.length - 1; i >= 0; i--) {
+            if (ocupadas.has(platforms[i].id)) platforms.splice(i, 1);
+        }
+        tickHazards(1 / 60);
+        expect(brushes.length).toBe(0);
+        expect(hazards.length).toBe(0);
+    });
+
     it('advances ink reveal toward 1', () => {
         resetParkour();
         resetHazards();

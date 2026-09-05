@@ -15,10 +15,20 @@
  * platforms + recycles); Player just reads positions for collision and asks
  * `respawnPoint()` when it falls into the void.
  *
- * Reachability is baked into the generator so the climb is always jumpable:
- * with F3_JUMP=9.5 / F3_GRAVITY=22 the apex is ~2.05u, so rises stay ≤1.4u and
- * horizontal offsets stay small.
+ * ── ALCANCE: A PROMESSA QUE VIROU CONTA ─────────────────────────────────────
+ * Este arquivo dizia "kept conservative so every gap is jumpable" e ninguem
+ * tinha conferido. Medido em 406 cursos (agenteSalto.test.ts): 12 degraus em
+ * 6090 ficavam ALEM do pulo — o canto ruim de GAP_MAX=3.8 junto com
+ * RISE_MAX=1.4, que cai bem em cima do limite fisico. Num parkour infinito um
+ * degrau impossivel nao e um degrau dificil: o jogador cai, renasce na MESMA
+ * plataforma, encara o MESMO vao — e trava para sempre.
+ *
+ * Entao o vao nao e mais so sorteado: ele e limitado pelo que o pulo do jogo
+ * alcanca de verdade (`alcanceDoPulo`, a mesma conta que o agente usa), com
+ * uma folga de MARGEM_DO_VAO. A promessa agora e uma conta, nao um comentario.
  */
+
+import { alcanceDoPulo } from './agente/agenteSalto';
 
 // ── Live platform record ─────────────────────────────────────────────────────
 export interface F3Plat {
@@ -33,6 +43,7 @@ export interface F3Plat {
     amp: number;       // X oscillation amplitude (0 when static)
     phase: number;     // oscillation phase offset
     x: number;         // LIVE center X (= bx + sin(t·sp+phase)·amp), read by all
+    dx: number;        // quanto o X andou NESTE tick — a ponte carrega quem esta em cima
     palette: number;   // index into the cartoon palette (renderer picks color)
 }
 
@@ -43,8 +54,14 @@ const X_LIMIT       = 11;     // |center X| ceiling (inside the ±14 corridor wa
 const MOVE_SPEED    = 0.9;    // oscillation angular speed
 const CLASH_DY      = 1.3;    // platforms closer than this in Y can clash in XZ
 
-// Generation ranges (kept conservative so every gap is jumpable).
-const GAP_MIN = 3.0, GAP_MAX = 3.8;     // center-to-center Z gap
+// Faixas de geracao. O sorteio e so a INTENCAO — quem decide o vao final e o
+// teto fisico calculado em makeNext.
+const GAP_MIN = 3.0, GAP_MAX = 3.8;     // sorteio bruto do vao (antes do teto fisico)
+const VAO_MIN = 1.5;                    // vao minimo de borda a borda (mantem o ritmo atual)
+// Folga sobre o alcance do pulo. 20 cm: acima do passo de um quadro a 20 fps
+// (0,2 m a 4 m/s) e abaixo de FOLGA_CONFORTAVEL (0,25 m), entao o degrau mais
+// apertado continua apertado — so deixa de ser impossivel.
+const MARGEM_DO_VAO = 0.20;
 const RISE_MIN = 0.4, RISE_MAX = 1.4;   // climb per step
 const REST_CHANCE = 0.18;               // chance of a flat "breather" step
 const DROP_CHANCE = 0.10;               // chance of a small step DOWN
@@ -81,7 +98,7 @@ let _lastTickT = -1;
 // The fixed elevator landing the player spawns on (also the climb's first tile).
 const START: Omit<F3Plat, 'x'> = {
     id: 0, bx: 0, cz: -5.0, hw: 6.5, hd: 4.5, h: 0.5, topY: 0,
-    moving: false, amp: 0, phase: 0, palette: -1,   // palette -1 = neutral panel
+    moving: false, amp: 0, phase: 0, dx: 0, palette: -1,   // palette -1 = neutral panel
 };
 
 // ── Overlap detection (the anti-sobreposição script) ─────────────────────────
@@ -119,7 +136,11 @@ export function validateNoOverlaps(list: readonly F3Plat[]): Array<[number, numb
 // ── Generation ────────────────────────────────────────────────────────────────
 function makeNext(prev: F3Plat): F3Plat {
     const half = pick(HALF_SET);
-    let cz = prev.cz + rand(GAP_MIN, GAP_MAX) + half;   // ensure an edge gap
+    // Sorteio bruto, ja expresso de BORDA A BORDA (que e a medida que o pulo
+    // enxerga; centro a centro conta como vao metade de cada plataforma, que e
+    // chao). A ordem dos sorteios e a mesma de antes de propósito: o curso so
+    // muda nos degraus que o teto fisico realmente aperta.
+    const vaoSorteado = rand(GAP_MIN, GAP_MAX) - prev.hd;
     let topY: number;
     const r = rng();
     if (r < REST_CHANCE)        topY = prev.topY;                       // breather
@@ -132,10 +153,22 @@ function makeNext(prev: F3Plat): F3Plat {
     // Bound amplitude so the swept bridge stays inside the corridor.
     const amp = moving ? Math.min(2.4, X_LIMIT - half - Math.abs(bx)) : 0;
 
+    // ── TETO FISICO DO VAO ───────────────────────────────────────────────
+    // O pulo cobre `alcance` no chao; parte disso pode ser gasta indo de lado.
+    // O que sobra e o quanto ele avanca para a FRENTE, e o vao nao pode passar
+    // disso. A ponte movel nao entra na conta de proposito: contar o `amp`
+    // (como o agente conta, porque a ponte VEM ate ele) faria o gerador exigir
+    // que o jogador acertasse a fase — o vao tem de dar no pior instante dela.
+    const vaoLateral = Math.max(0, Math.abs(bx - prev.bx) - prev.hw - half);
+    const alcance = alcanceDoPulo(topY - prev.topY);
+    const teto = Math.sqrt(Math.max(0, (alcance - MARGEM_DO_VAO) ** 2 - vaoLateral ** 2));
+    const vao = Math.min(Math.max(vaoSorteado, VAO_MIN), Math.max(0.35, teto));
+    const cz = prev.cz + prev.hd + vao + half;
+
     const cand: F3Plat = {
         id: ++_nextId, bx, cz, hw: half, hd: half, h: 0.5, topY,
         moving, amp, phase: rng() * Math.PI * 2,
-        x: bx, palette: _nextId % CARTOON_PALETTE_COUNT,
+        x: bx, dx: 0, palette: _nextId % CARTOON_PALETTE_COUNT,
     };
 
     // ── Anti-overlap: nudge forward / shrink amp until the candidate clashes
@@ -190,9 +223,13 @@ export function tick(t: number, playerZ: number): void {
         platforms.push(makeNext(platforms[platforms.length - 1]));
     }
 
-    // Animate live X for moving bridges.
+    // Animate live X for moving bridges, guardando QUANTO cada uma andou neste
+    // tick — e esse delta que a fisica do jogador soma para a ponte carregar
+    // quem esta em cima dela em vez de escorregar por baixo dos pes.
     for (const p of platforms) {
-        p.x = p.moving ? p.bx + Math.sin(t * MOVE_SPEED + p.phase) * p.amp : p.bx;
+        const nx = p.moving ? p.bx + Math.sin(t * MOVE_SPEED + p.phase) * p.amp : p.bx;
+        p.dx = nx - p.x;
+        p.x = nx;
     }
 }
 
@@ -213,15 +250,31 @@ export function nearestPlatform(z: number): { x: number; topY: number } {
 }
 
 /**
- * Where to drop the player after a void fall: the top of the furthest-back live
- * platform that's still at/behind them, so they resume near where they were
- * rather than restarting the whole climb.
+ * Where to drop the player after a void fall: the LAST platform they had
+ * already reached — a mais avancada que ainda esta atras deles — para o climb
+ * recomecar de onde estavam, nao do zero. (O comentario antigo dizia
+ * "furthest-back", que e o oposto do que o codigo sempre fez.)
  */
 export function respawnPoint(playerZ: number): { x: number; y: number; z: number } {
-    let best = platforms[0];
+    let best: F3Plat | null = platforms.length ? platforms[0] : null;
     for (const p of platforms) {
         if (p.cz <= playerZ + 1 && (!best || p.cz > best.cz)) best = p;
     }
-    if (!best) best = platforms[0];
+    if (!best) return { x: 0, y: 0.05, z: 0 };
     return { x: best.x, y: best.topY + 0.05, z: best.cz };
+}
+
+// ── O VAZIO ANDA JUNTO COM A ESCADARIA ───────────────────────────────────────
+/**
+ * O andar 3 sobe para sempre, entao um "y < -8" fixo nao e o vazio: e uma linha
+ * que fica cada vez mais longe. Depois de umas cinquenta plataformas o piso ja
+ * esta a +35, e cair virava tres segundos de tela parada antes de renascer.
+ *
+ * A linha do vazio passa a ser RELATIVA a plataforma onde o jogador renasce, e
+ * a queda dura sempre o mesmo tempo (~0,9 s com F3_GRAVITY=22) em qualquer
+ * altura do curso.
+ */
+export const QUEDA_ATE_O_VAZIO = 9;
+export function alturaDoVazio(playerZ: number): number {
+    return respawnPoint(playerZ).y - QUEDA_ATE_O_VAZIO;
 }
