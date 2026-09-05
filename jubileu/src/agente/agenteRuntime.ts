@@ -1,4 +1,5 @@
 import { SPEED, PR } from '../constants';
+import { estaNoCab } from './agenteViagem';
 import { resolveCollision } from '../physics';
 import { construirGrade, limitesDaVista, caminho, alcancaveis, paraMundo, type Ponto, type GradeDoAndar } from './agenteMapa';
 import { daParaPular, tempoDeVoo, type Plataforma } from './agenteSalto';
@@ -68,6 +69,8 @@ export class AgenteJogador {
     private replanejarEm = 0;
     private paradoHa = 0;
     private velocidade = 0;
+    private pertoDoJogador = false;
+    private recuperou = false;
     private salto: Salto | null = null;
     private acumulado = 0;
     private apoio: { id: number; x: number; z: number } | null = null;
@@ -93,6 +96,7 @@ export class AgenteJogador {
     }
     comandar(modo: ModoAgente): void {
         this.modo = modo;
+        this.pertoDoJogador = false; this.recuperou = false;
         this.intencao = null;
         this.caminho = []; this.replanejarEm = 0;
         this.decisaoEm = this.tempo + 0.18 + this.random() * 0.22;
@@ -104,6 +108,7 @@ export class AgenteJogador {
         this.revisao = null; this.grade = null; this.caminho = [];
         this.intencao = null; this.salto = null; this.apoio = null;
         this.ultimaPosicaoVista = null; this.viuEm = -Infinity;
+        this.pertoDoJogador = false; this.recuperou = false;
         this.corpo.vy = 0; this.corpo.vx = 0; this.corpo.vz = 0;
         this.velocidade = 0; this.paradoHa = 0;
         this.decisaoEm = this.tempo + 0.5;
@@ -136,11 +141,27 @@ export class AgenteJogador {
         }
         const visto = this.ultimaPosicaoVista;
         if (this.modo === 'seguir' && visto && this.tempo - this.viuEm < 10) {
-            this.intencao = { id: 'jogador', p: { ...visto }, raio: this.tempo - this.viuEm < 1 ? 1.9 : 0.35 };
+            const recente = this.tempo - this.viuEm < 1;
+            // Follow through the doorway before applying social stopping distance.
+            const entrandoNoCab = !!mundo.saida && recente && estaNoCab(visto);
+            const d = distancia(this.corpo, visto);
+            if (!recente || entrandoNoCab || d > 2.6 || Math.abs(visto.y - this.corpo.y) > 0.2) this.pertoDoJogador = false;
+            else if (d < 1.9) this.pertoDoJogador = true;
+            this.intencao = { id: 'jogador', p: entrandoNoCab ? { ...mundo.saida! } : { ...visto },
+                raio: entrandoNoCab ? 0.3 : !recente ? 0.35 : this.pertoDoJogador ? 2.6 : 1.9 };
             return;
         }
         if (this.modo === 'seguir' && visto) {
             this.estado = 'procurando'; this.dizer('Cadê você? Vou olhar por aqui.');
+        }
+        if (this.intencao?.interacao) {
+            const atual = mundo.interacoes.find(a => a.id === this.intencao!.id && a.disponivel);
+            if (!atual) {
+                this.intencao = null; this.caminho = []; this.salto = null; this.replanejarEm = 0;
+            } else if (distancia(this.corpo, atual) < 22 && linhaLivre(this.corpo, atual, mundo.paredes)) {
+                if (distancia(atual, this.intencao.p) > 0.3) this.replanejarEm = 0;
+                this.intencao = { id: atual.id, p: { ...atual }, raio: atual.raio, interacao: atual };
+            }
         }
         if (this.intencao && this.intencao.id !== 'jogador') return;
         let melhor = -Infinity;
@@ -178,7 +199,7 @@ export class AgenteJogador {
             if (!sucesso) m.bloqueadoAte = this.tempo + 8 + Math.min(30, m.visitas * 3);
         }
         this.intencao = null; this.caminho = []; this.salto = null;
-        this.paradoHa = 0; this.velocidade = 0; this.replanejarEm = 0;
+        this.paradoHa = 0; this.velocidade = 0; this.replanejarEm = 0; this.recuperou = false;
         this.pausaAte = this.tempo + (sucesso ? 0.5 + this.random() * 1.1 : 0.8);
         this.decisaoEm = this.pausaAte;
         this.estado = sucesso ? 'observando' : 'procurando passagem';
@@ -321,6 +342,11 @@ export class AgenteJogador {
             const rumo = Math.atan2(p.x - this.corpo.x, p.z - this.corpo.z);
             this.yaw += Math.atan2(Math.sin(rumo - this.yaw), Math.cos(rumo - this.yaw)) * (1 - Math.exp(-3 * dt));
         }
+        // One fresh route before giving up: collision may have changed since planning.
+        if (this.paradoHa > 0.55 && !this.recuperou && this.corpo.grounded) {
+            this.grade = null; this.caminho = []; this.replanejarEm = 0; this.recuperou = true;
+        }
+        if (movido > dt * 0.15) this.recuperou = false;
         if (this.paradoHa > 1.4) this.terminar(false);
         const p = this.corpo.grounded ? this.apoioAtual(mundo) : null;
         this.apoio = p ? { id: p.id, x: p.x, z: p.z } : null;

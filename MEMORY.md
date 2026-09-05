@@ -4170,3 +4170,9 @@ Incluem todo o percurso do 11, parede fechando/reabrindo, alcance de interação
 30/60/120 FPS, pausa/delta inválido, salto, abismo, ponte móvel e embarque.
 Validação integrada e single-file são os gates do job temporário; o job só publica
 fonte + index.html + version.json juntos e remove o próprio workflow da árvore.
+
+### Andar 11 — acompanhamento e recuperação (2026-09-05)
+- Seguir usa distância com histerese (para a 1,9 m; retoma além de 2,6 m), reduzindo passos nervosos. Ao ver o player no cab, entra até o ponto de embarque.
+- Interações removidas/indisponíveis são descartadas; objetos móveis atualizam o destino.
+- Uma colisão persistente invalida a grade e tenta uma rota nova antes de desistir, sem teleporte. Portas do Andar 6 invalidam a navegação pela geometria, não só pela quantidade.
+- Cinco regressões novas cobrem esses comportamentos; permanecem as limitações de terrenos especiais documentadas acima.

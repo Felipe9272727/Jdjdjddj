@@ -134,3 +134,37 @@ it('é carregado pela plataforma móvel mesmo quando espera', () => {
     for(let i=0;i<100;i++){ponte.x+=.01;a.tick(1/60,m);}
     assert.ok(Math.abs(a.corpo.x-1)<.02);assert.equal(a.corpo.y,1);
 });
+
+it('acompanha pequenos movimentos sem ficar dando passos a cada oscilação', () => {
+    const a=new AgenteJogador({x:0,y:0,z:0}),m=sala();
+    m.jogador={x:7,y:0,z:0};a.comandar('seguir');rodar(a,m,5);
+    const x=a.corpo.x;
+    for(let i=0;i<10;i++){m.jogador.x=7+(i%2)*0.3;rodar(a,m,0.4);}
+    assert.ok(Math.abs(a.corpo.x-x)<0.03);
+    m.jogador.x=10;rodar(a,m,3);assert.ok(a.corpo.x>x+2);
+});
+it('entra fisicamente no elevador ao seguir o player junto à porta', () => {
+    const a=new AgenteJogador({x:0,y:0,z:-7}),m=sala();
+    m.paredes=[...F11_PAREDES,...ELEV_W];m.saida={x:0,y:0,z:-13};
+    m.jogador={x:0,y:0,z:-10.6};a.comandar('seguir');rodar(a,m,6);
+    assert.ok(a.corpo.z<=-10.5,JSON.stringify(a.corpo));
+});
+it('abandona um objeto que desapareceu e procura outro disponível', () => {
+    const a=new AgenteJogador({x:0,y:0,z:0}),m=sala();let usou=false;
+    m.interacoes=[{id:'sumiu',x:10,y:0,z:0,raio:.4,disponivel:true}];rodar(a,m,.5);
+    m.interacoes=[{id:'novo',x:-3,y:0,z:0,raio:.4,disponivel:true,usar:()=>{usou=true;return true;}}];
+    rodar(a,m,4);assert.ok(usou);assert.equal(a.memoria.has('sumiu'),false);
+});
+it('atualiza o destino quando um objeto visível muda de posição', () => {
+    const a=new AgenteJogador({x:0,y:0,z:0}),m=sala();let usou=false;
+    m.interacoes=[{id:'movel',x:8,y:0,z:0,raio:.4,disponivel:true}];rodar(a,m,.5);
+    m.interacoes=[{id:'movel',x:0,y:0,z:6,raio:.4,disponivel:true,usar:()=>{
+        assert.ok(Math.hypot(a.corpo.x,a.corpo.z-6)<.4);usou=true;return true;
+    }}];rodar(a,m,5);assert.ok(usou);
+});
+it('recalcula ao esbarrar numa barreira que não anunciou revisão', () => {
+    const a=new AgenteJogador({x:-4,y:0,z:0}),m=sala();
+    m.saida={x:4,y:0,z:0};a.comandar('embarcar');rodar(a,m,.5);
+    m.paredes.push([0,-3,0,3]);rodar(a,m,12);
+    assert.ok(Math.hypot(a.corpo.x-4,a.corpo.z)<.35,JSON.stringify(a.corpo));
+});

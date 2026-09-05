@@ -54,7 +54,7 @@ export function AgenteCompanheiro({ level, doorsClosed, houseDoorOpen, paused, p
         const terrenoConhecido = [0, 1, 3, 6, 7, 10, 11].includes(level);
         const m = mundo.current;
         m.paredes = portas.length ? [...paredes, ...portas] : paredes;
-        m.revisao = `${level}:${doorsClosed}:${houseDoorOpen}:${portas.length}:${Math.round(agente.corpo.y * 2)}`;
+        m.revisao = `${level}:${doorsClosed}:${houseDoorOpen}:${JSON.stringify(portas)}:${Math.round(agente.corpo.y * 2)}`;
         m.chao = level === 3 ? null : 0;
         if (level === 3) {
             superficies.length = platforms.length + 1;
