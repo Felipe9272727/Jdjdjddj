@@ -51,6 +51,35 @@
 //   A cauda enxuta tira duas gorduras: o bloco de percepcao que gasta ~95
 //   chars para dizer que NAO TEM dado, e a memoria injetada que repete quase
 //   palavra por palavra a sala que o "Canone fixo" do prefixo ja descreveu.
+// ── O JOGO REAL, MEDIDO DEPOIS (andar-10-real.mjs, x86, CPU×2) ──────────────
+//
+// A bancada sintetica acima isola variaveis; o `andar-10-real.mjs` roda o
+// caminho inteiro. Ele achou o numero que faltava:
+//
+//   turno 1  "Oi, quem e voce?"              36,3s   leitura 20s  fala 11s
+//                                            99 lidos · 273 reaproveitados
+//   turno 2  "Onde a gente ta?"               0,0s   <- os Olhos responderam
+//   turno 3  "O que tem atras daquela parede?" 77,5s  leitura 61s  fala 12s
+//                                           297 lidos · 305 reaproveitados
+//
+// O REAPROVEITADO FICOU PARADO E O LIDO TRIPLICOU. O prompt total foi de 372
+// para 602 tokens; dos 230 a mais, so 32 vieram do cache. A causa e de
+// arquitetura: o fato do canone e a diretiva "NESTA FALA" moram DENTRO da
+// mensagem de sistema, que vem ANTES do historico — quando o curador troca o
+// fato, o prefixo comum morre ali e todo o historico e relido junto. O custo
+// do turno CRESCE com a conversa.
+//
+// ── UM EXPERIMENTO QUE SAIU ERRADO, E FICA REGISTRADO COMO ERRADO ───────────
+//
+// A FASE 5 tenta comparar "volatil no sistema" com "volatil na ultima fala" e
+// deu 17,7s contra 31,0s — como se a proposta fosse PIOR. Ela nao prova isso:
+// os dois bracos nao partem do mesmo estado de cache. No braco 2 a primeira
+// fala guardada e "cauda1 + pergunta1", e o historico do turno 3 traz a
+// pergunta1 sozinha; os dois divergem na PRIMEIRA mensagem, entao o turno 3
+// releu tudo por um motivo que so existe dentro do teste. Para valer, a fase 5
+// precisa simular a sequencia real de turnos (cada resposta entrando no
+// historico como o jogo a guarda) e mandar o bloco volatil como mensagem
+// SEPARADA no fim, que e o que o caminho do revisor ja faz. Nao refiz ainda.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';

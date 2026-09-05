@@ -1,0 +1,638 @@
+{
+  "promessa": {
+    "modelo": "SmolLM3-3B",
+    "url": "http://127.0.0.1:3422/SmolLM3-Q4_K_M.gguf",
+    "motorPadrao": "/wllama-relaxed/wasm/wllama.wasm",
+    "prompt": "/system_override /no_think\nPERSONA",
+    "fila": [
+      {
+        "papel": "fala",
+        "label": "SmolLM3-3B",
+        "bytes": 1915305312,
+        "essencial": true
+      },
+      {
+        "papel": "memoria",
+        "label": "embeddinggemma-300M",
+        "bytes": 333590944,
+        "essencial": false
+      },
+      {
+        "papel": "juiz",
+        "label": "juiz de tom (all-mpnet-base-v2)",
+        "bytes": 110100000,
+        "essencial": false
+      },
+      {
+        "papel": "reflexo",
+        "label": "SmolLM2-135M (ONNX)",
+        "bytes": 139252423,
+        "essencial": false
+      },
+      {
+        "papel": "vontade",
+        "label": "LFM2.5 1.2B (o mais rápido a assinar)",
+        "bytes": 1246253888,
+        "essencial": false
+      },
+      {
+        "papel": "motor",
+        "label": "Qwen3-0.6B",
+        "bytes": 639446688,
+        "essencial": false
+      }
+    ],
+    "bytes": 4383949255
+  },
+  "marcos": [
+    {
+      "ms": 100,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 0,
+      "total": 6,
+      "fracao": 0,
+      "prontos": [],
+      "falhados": [],
+      "etapa": "fala",
+      "completa": false,
+      "liberada": false,
+      "fase": "loading",
+      "erro": ""
+    },
+    {
+      "ms": 2109,
+      "aberto": true,
+      "atual": "SmolLM3-3B",
+      "papel": "fala",
+      "posicao": 1,
+      "total": 6,
+      "fracao": 0.43689039279265107,
+      "prontos": [
+        "fala"
+      ],
+      "falhados": [],
+      "etapa": "fala",
+      "completa": false,
+      "liberada": false,
+      "fase": "loading",
+      "erro": ""
+    },
+    {
+      "ms": 24222,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 1,
+      "total": 6,
+      "fracao": 0.43689039279265107,
+      "prontos": [
+        "fala"
+      ],
+      "falhados": [],
+      "etapa": "fala",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 28235,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 2,
+      "total": 6,
+      "fracao": 0.5129840983982831,
+      "prontos": [
+        "fala",
+        "memoria"
+      ],
+      "falhados": [],
+      "etapa": "memoria",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 30247,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 2,
+      "total": 6,
+      "fracao": 0.5129840983982831,
+      "prontos": [
+        "fala",
+        "memoria"
+      ],
+      "falhados": [],
+      "etapa": "juiz",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 38333,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 3,
+      "total": 6,
+      "fracao": 0.5380984401928256,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz"
+      ],
+      "falhados": [],
+      "etapa": "juiz",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 42392,
+      "aberto": true,
+      "atual": "SmolLM2-135M (ONNX)",
+      "papel": "reflexo",
+      "posicao": 4,
+      "total": 6,
+      "fracao": 0.5698625904829274,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "reflexo",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 44398,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 4,
+      "total": 6,
+      "fracao": 0.5698625904829274,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "reflexo",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 46429,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.5716775179688981,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 48460,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.6009566730260887,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 50540,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.6459235000885064,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 52545,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.6912192068701306,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 54591,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.7342576028517465,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 56609,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.7693430892598231,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 58626,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.8362551630402026,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 60633,
+      "aberto": true,
+      "atual": "LFM2.5 1.2B (o mais rápido a assinar)",
+      "papel": "vontade",
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.8541391218726595,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 62637,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.8541391218726595,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "vontade",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 75785,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 5,
+      "total": 6,
+      "fracao": 0.8541391218726595,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "motor",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 77790,
+      "aberto": true,
+      "atual": "Qwen3-0.6B",
+      "papel": "motor",
+      "posicao": 6,
+      "total": 6,
+      "fracao": 0.8771906003734069,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "motor",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 79895,
+      "aberto": true,
+      "atual": "Qwen3-0.6B",
+      "papel": "motor",
+      "posicao": 6,
+      "total": 6,
+      "fracao": 0.91967588046363,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "motor",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 82157,
+      "aberto": true,
+      "atual": "Qwen3-0.6B",
+      "papel": "motor",
+      "posicao": 6,
+      "total": 6,
+      "fracao": 0.9761235995419842,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade"
+      ],
+      "falhados": [],
+      "etapa": "motor",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 84162,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 6,
+      "total": 6,
+      "fracao": 1,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade",
+        "motor"
+      ],
+      "falhados": [],
+      "etapa": "motor",
+      "completa": false,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    },
+    {
+      "ms": 88174,
+      "aberto": true,
+      "atual": null,
+      "papel": null,
+      "posicao": 6,
+      "total": 6,
+      "fracao": 1,
+      "prontos": [
+        "fala",
+        "memoria",
+        "juiz",
+        "reflexo",
+        "vontade",
+        "motor"
+      ],
+      "falhados": [],
+      "etapa": "pronto",
+      "completa": true,
+      "liberada": true,
+      "fase": "ready",
+      "erro": ""
+    }
+  ],
+  "fimDaFila": {
+    "prontos": [
+      "fala",
+      "memoria",
+      "juiz",
+      "reflexo",
+      "vontade",
+      "motor"
+    ],
+    "falhados": [],
+    "memoria": false,
+    "fase": "ready",
+    "rotulo": "SmolLM3-3B · CPU×2"
+  },
+  "fechamentos": [],
+  "motores": [
+    "/src/npc/wllamaEngine.ts",
+    "/wllama-relaxed/index.js?import",
+    "/wllama-relaxed/wasm/wllama.wasm",
+    "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/ort-wasm-simd-threaded.jsep.wasm"
+  ],
+  "turnos": [
+    {
+      "pergunta": "Oi, quem é você?",
+      "ms": 36293,
+      "fala": "Meu nome é Nilo Azevedo, e sou hóspede preso no 10º andar do hotel \"The Normal Elevator\".",
+      "rotulo": "SmolLM3-3B · CPU×2 · leitura 20s · fala 11s · 273 reaproveitados · 99 lidos",
+      "erro": "",
+      "caixa": [
+        "memoria:pico               {\"mb\":221,\"fase\":\"cold\"}",
+        "reflexo:carregando         {}",
+        "reflexo:pronto             {\"ms\":2268,\"reabertura\":false}",
+        "vontade:no-aparelho        {}",
+        "motor:no-aparelho          {}",
+        "reflexo:estourou-o-tempo   {\"ms\":2516}",
+        "fala:gerando               {\"gpu\":0,\"threads\":2}",
+        "memoria:pico               {\"mb\":981,\"fase\":\"ready\"}",
+        "fala:fim                   {\"tps\":2.98,\"fps\":20,\"letras\":89,\"lidos\":99,\"reusados\":273,\"leitura_s\":20.46,\"leitura_tps\":4.84,\"fala_s\":11.06,\"fala_tps\":2.98}"
+      ]
+    },
+    {
+      "pergunta": "Onde a gente tá?",
+      "ms": 9,
+      "fala": "Estou no 10º andar, na região central da sala. A entrada do elevador está a 12.2 m de mim.",
+      "rotulo": "Olhos · resposta direta",
+      "erro": "",
+      "caixa": [
+        "memoria:pico               {\"mb\":221,\"fase\":\"cold\"}",
+        "reflexo:carregando         {}",
+        "reflexo:pronto             {\"ms\":2268,\"reabertura\":false}",
+        "vontade:no-aparelho        {}",
+        "motor:no-aparelho          {}",
+        "reflexo:estourou-o-tempo   {\"ms\":2516}",
+        "fala:gerando               {\"gpu\":0,\"threads\":2}",
+        "memoria:pico               {\"mb\":981,\"fase\":\"ready\"}",
+        "fala:fim                   {\"tps\":2.98,\"fps\":20,\"letras\":89,\"lidos\":99,\"reusados\":273,\"leitura_s\":20.46,\"leitura_tps\":4.84,\"fala_s\":11.06,\"fala_tps\":2.98}"
+      ]
+    },
+    {
+      "pergunta": "O que tem atrás daquela parede?",
+      "ms": 77457,
+      "fala": "Não há nada atrás da parede. A sala é fechada, sem janelas ou corredores.",
+      "rotulo": "SmolLM3-3B · CPU×2 · leitura 61s · fala 12s · 305 reaproveitados · 297 lidos",
+      "erro": "",
+      "caixa": [
+        "memoria:pico               {\"mb\":221,\"fase\":\"cold\"}",
+        "reflexo:carregando         {}",
+        "reflexo:pronto             {\"ms\":2268,\"reabertura\":false}",
+        "vontade:no-aparelho        {}",
+        "motor:no-aparelho          {}",
+        "reflexo:estourou-o-tempo   {\"ms\":2516}",
+        "fala:gerando               {\"gpu\":0,\"threads\":2}",
+        "memoria:pico               {\"mb\":981,\"fase\":\"ready\"}",
+        "fala:fim                   {\"tps\":2.98,\"fps\":20,\"letras\":89,\"lidos\":99,\"reusados\":273,\"leitura_s\":20.46,\"leitura_tps\":4.84,\"fala_s\":11.06,\"fala_tps\":2.98}",
+        "reflexo:estourou-o-tempo   {\"ms\":2504}",
+        "fala:gerando               {\"gpu\":0,\"threads\":2}",
+        "memoria:pico               {\"mb\":981,\"fase\":\"thinking\"}",
+        "fala:fim                   {\"tps\":2.97,\"fps\":20,\"letras\":73,\"lidos\":297,\"reusados\":305,\"leitura_s\":61.33,\"leitura_tps\":4.84,\"fala_s\":12.45,\"fala_tps\":2.97}"
+      ]
+    }
+  ],
+  "vontade": {
+    "goal": "idle",
+    "label": "ficar em silêncio por um instante",
+    "reason": "estou entendendo o que existe ao meu redor",
+    "andando": false,
+    "compromisso": null,
+    "gesto": null,
+    "decisoes": 0,
+    "drives": {
+      "social": 0.62,
+      "curiosity": 0.68,
+      "restlessness": 0.42,
+      "fatigue": 0.08
+    },
+    "aprendizado": {
+      "source": "floor10-dueling-double-dqn",
+      "parameterCount": 15180,
+      "experiences": 0,
+      "replaySize": 0,
+      "trainingSteps": 0,
+      "confidence": 0,
+      "lastReward": 0
+    },
+    "falaSozinho": "",
+    "comando": null,
+    "fase": "off",
+    "eventos": [
+      "vontade:no-aparelho        {}",
+      "motor:no-aparelho          {}"
+    ]
+  }
+}

@@ -104,6 +104,51 @@ try {
     // A fase 1 provou que a configuracao de carga nao muda nada (29,2s contra
     // 29,3s) e que a diferenca contra o ?velocidade e o CACHE do prompt. Falta
     // separar, dentro dos ~29s, o que e cauda do prompt e o que e a fala.
+    // ── FASE 5: O BLOCO VOLATIL NO SISTEMA x NA ULTIMA FALA ──────────────
+    //
+    // O jogo real (andar-10-real.mjs) mostrou o numero que faltava:
+    //     turno 1 ... 273 reaproveitados ·  99 lidos · leitura 20s
+    //     turno 3 ... 305 reaproveitados · 297 lidos · leitura 61s
+    // O reaproveitado quase nao mudou e o lido TRIPLICOU. A causa e de
+    // arquitetura: o fato do canone e a diretiva "NESTA FALA" moram DENTRO da
+    // mensagem de sistema, que vem ANTES do historico. Quando o curador troca o
+    // fato, o prefixo comum morre ali e TODO o historico e relido junto.
+    //
+    // O proprio codigo ja conhece a regra — o caminho do revisor manda o
+    // rascunho como ULTIMA mensagem exatamente para nao mexer no sistema
+    // (wllamaEngine.ts:2356). O caminho principal faz o contrario.
+    //
+    // Aqui os dois arranjos sao medidos com o MESMO conteudo e o mesmo
+    // historico. Se a hipotese estiver certa, o segundo le muito menos.
+    if (FASE === '5') {
+        const cauda1 = SISTEMA_PT.slice(PREFIXO_PT.length);
+        const cauda2 = SISTEMA2_PT.slice(PREFIXO_PT.length);
+        const hist = [
+            { role: 'user', content: PERGUNTA_PT },
+            { role: 'assistant', content: 'Meu nome é Nilo Azevedo, e sou hóspede preso no 10º andar do hotel "The Normal Elevator".' },
+            { role: 'user', content: 'Você já tentou sair daqui?' },
+            { role: 'assistant', content: 'Tentei. As portas abrem sempre no mesmo lugar, e eu volto para esta sala.' },
+        ];
+        await braco('volatil no SISTEMA (como e hoje)',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'aq', rodar: (w) => medir(w, 'pre-aquecimento', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 't1', rodar: (w) => medir(w, 'turno 1 (sem historico)', [{role:'system',content:PREFIXO_PT + cauda1},{role:'user',content:PERGUNTA_PT}]) },
+                { nome: 't3', rodar: (w) => medir(w, 'turno 3 (historico + fato NOVO)', [{role:'system',content:PREFIXO_PT + cauda2}, ...hist, {role:'user',content:PERGUNTA2_PT}]) },
+            ]);
+        await braco('volatil na ULTIMA FALA (a proposta)',
+            { n_ctx: CPU_LOAD_CONFIG.n_ctx, n_batch: CPU_LOAD_CONFIG.n_batch,
+              cache_type_k: CPU_LOAD_CONFIG.cache_type_k, cache_type_v: CPU_LOAD_CONFIG.cache_type_v,
+              jinja: true, reasoning: false, warmup: true },
+            [
+                { nome: 'aq', rodar: (w) => medir(w, 'pre-aquecimento', [{role:'system',content:PREFIXO_PT},{role:'user',content:'oi'}], { max_tokens: 1 }) },
+                { nome: 't1', rodar: (w) => medir(w, 'turno 1 (sem historico)', [{role:'system',content:PREFIXO_PT},{role:'user',content:cauda1 + '\n\n' + PERGUNTA_PT}]) },
+                { nome: 't3', rodar: (w) => medir(w, 'turno 3 (historico + fato NOVO)', [{role:'system',content:PREFIXO_PT}, ...hist, {role:'user',content:cauda2 + '\n\n' + PERGUNTA2_PT}]) },
+            ]);
+    }
+
     // ── FASE 4: QUANTO VALE ENXUGAR A CAUDA ──────────────────────────────
     // A fase 3 mostrou que a cauda custa 17,7s dos 29,4s do turno 1. Duas
     // gorduras dentro dela sao visiveis a olho: o bloco de percepcao gasta
