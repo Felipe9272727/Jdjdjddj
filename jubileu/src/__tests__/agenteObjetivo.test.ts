@@ -175,10 +175,10 @@ describe('ZERO conhecimento de andar específico, também aqui', () => {
     });
 
     it('um andar futuro sem elevador vira "explorar", não um agente travado', () => {
-        // Andar 11 não existe: `wallsForState` cai no ramo do Andar 5 e
+        // Andar 99 não existe: `wallsForState` cai no ramo do Andar 5 e
         // `hasWalkInElevator` diz não. O agente precisa continuar respondendo
         // alguma coisa útil — e responde.
-        const andar = olharOAndar(11, FORA_DO_CAB);
+        const andar = olharOAndar(99, FORA_DO_CAB);
         const obj = oQueFazerAqui(andar, FORA_DO_CAB);
         expect(obj.tipo).toBe('explorar');
         expect(alcanca(andar, FORA_DO_CAB, obj.alvo)).toBe(true);

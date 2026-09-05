@@ -1,5 +1,6 @@
 import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
+import { F11_PAREDES } from './f11Mundo';
 import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 import { F8_STATIC_WALLS, F8_FURNITURE } from './f8Arquivo';
 import { F9_STATIC_WALLS, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_RAIZ_CHAMBER } from './f9Floresta';
@@ -160,12 +161,12 @@ export const BED_POS = { x: -2.5, z: 12.5 } as const;
 export const ELEVATOR_ZONE_X = 3.1;         // Half-width of elevator entrance
 export const ELEVATOR_ZONE_Z = -10;         // Z threshold for elevator interior
 /**
- * Only the original hotel floors expose the global walk-in elevator trigger.
+ * The original hotel floors and the companion room expose the walk-in trigger.
  * Later floors own their exits (overlays, cutscenes or explicit interactions),
  * and several maps legitimately extend through z <= -10. Treating that strip
  * as a cab silently starts the five-second lobby ride.
  */
-export const hasWalkInElevator = (level: number): boolean => level >= 0 && level <= 3;
+export const hasWalkInElevator = (level: number): boolean => (level >= 0 && level <= 3) || level === 11;
 export const MP_GHOST_TTL_MS = 15000;       // Ghost player timeout
 export const MP_WRITE_INTERVAL = 200;       // Firestore write interval (ms)
 export const MP_WRITE_THRESHOLD = 0.1;      // Min position change to trigger write
@@ -382,7 +383,11 @@ const FLOOR10_BND: number[][] = [
 const _WALLS_FLOOR10 = [...ELEV_W, ...ELEV_BLD, ...FLOOR10_BND];
 
 /** Pick the right pre-built wall list. No allocation per frame. */
+const _WALLS_FLOOR11 = [...ELEV_W, ...F11_PAREDES];
+const _WALLS_FLOOR11_SEALED = [..._WALLS_FLOOR11, DOOR_SEAL];
+
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
+    if (level === 11) return doorsClosed ? _WALLS_FLOOR11_SEALED : _WALLS_FLOOR11;
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;

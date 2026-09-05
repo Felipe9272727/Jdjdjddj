@@ -58,6 +58,9 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor10Base from './Floor10Base';
+import { Floor11, Floor11Controls } from './Floor11';
+import { AgenteCompanheiro } from './AgenteCompanheiro';
+import { reiniciarAgente } from './agente/agenteSessao';
 import Floor10Npc from './Floor10Npc';
 import Floor10NpcChat from './Floor10NpcChat';
 import { useNpcOpen } from './npc/npcStore';
@@ -212,6 +215,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
       {/* Andar 10 — PLACEHOLDER: base plana, esperando virar um andar */}
       {level === 10 && <Floor10Base />}
+      {level === 11 && <Floor11 />}
       {/* NPC com LLM real (SmolLM3 quantizado no browser) — corpo procedural v1 */}
       {level === 10 && <Floor10Npc playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
@@ -1457,7 +1461,8 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: Math.PI };
-      } else if (startLevel === 10) {
+      } else if (startLevel === 10 || startLevel === 11) {
+        if (startLevel === 11) reiniciarAgente();
         // Andar 10 — PLACEHOLDER (base plana). 1ª pessoa, spawn na frente das
         // portas do elevador, olhando pro salão vazio. Vira andar de verdade depois.
         setGameState('outdoor');
@@ -1788,7 +1793,7 @@ export default function App() {
         case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
         case ' ':
-          if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); }
+          if (currentLevel === 3 || currentLevel === 11) { jumpRef.current = true; e.preventDefault(); }
           else if (currentLevel === 9 && f9.phase === 'explorar') { f9RequestPounce(); e.preventDefault(); } // M20: o BOTE
           break;
         case 'e':
@@ -1807,7 +1812,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, diverDialogueOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, currentLevel, dialogueOpen, barneyDialogueOpen, shopOpen, diverDialogueOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -1906,6 +1911,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
+            {hasStarted && <AgenteCompanheiro level={currentLevel} doorsClosed={doorsClosed} houseDoorOpen={houseDoorOpen} paused={settingsOpen || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen} playerPositionRef={sharedPlayerPositionRef} />}
             <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {/* Andar 8: direção de câmera do interrogatório/despertar/arremesso —
                 montada DEPOIS do <Player> pra sobrescrever a câmera por frame. */}
@@ -2595,6 +2601,7 @@ export default function App() {
       {hasStarted && currentLevel === 8 && <Floor8Image />}
       {/* Andar 8 — DENTRO da porta 21: o platformer 2.5D de tricô (self-gate por fase) */}
       {hasStarted && currentLevel === 8 && <Floor8Platformer />}
+      {hasStarted && currentLevel === 11 && <Floor11Controls />}
       {/* Andar 10 — UI de conversa com o NPC (LLM). Overlay DOM fora do Canvas. */}
       {hasStarted && currentLevel === 10 && <Floor10NpcChat />}
 
@@ -2718,7 +2725,7 @@ export default function App() {
       )}
 
       {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}
-      {hasStarted && currentLevel === 3 && !isDesktop && (
+      {hasStarted && (currentLevel === 3 || currentLevel === 11) && !isDesktop && (
         <button
           aria-label="Pular"
           className="font-toon fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"

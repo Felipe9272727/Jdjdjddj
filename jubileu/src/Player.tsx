@@ -1,3 +1,5 @@
+import { criarCorpo, passoDoCorpo } from './agente/agenteCorpo';
+import { F11_PLATAFORMAS } from './f11Mundo';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
@@ -381,6 +383,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
   const timeRef = useRef(0);
   const jumpVelYRef = useRef(0);
+  const f11Corpo = useRef(criarCorpo({ x: 0, y: 0, z: 0 }));
+  const f11Input = useRef({ x: 0, z: 0 });
   const f3StepAccumRef = useRef(0);       // footstep cadence timer (Floor 3)
   const f3PrevGroundedRef = useRef(true); // for landing edge-detection (Floor 3)
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
@@ -553,6 +557,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        f11Input.current.x = 0; f11Input.current.z = 0;
         // ── Swim sprint + stamina ──────────────────────────────────────────
         // Holding the swim-fast button burns stamina for a big speed boost;
         // releasing (or running dry) regenerates it. Stamina is written to a
@@ -699,6 +704,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camAng.current.phi = Math.max(fp ? -1.5 : -0.5, Math.min(fp ? 1.5 : 1.2, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        f11Input.current.x = 0; f11Input.current.z = 0;
         if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
             moving = true;
             const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
@@ -709,7 +715,10 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
-            pos.current.x = rx; pos.current.z = rz;
+            if (currentLevel === 11) {
+                f11Input.current.x = safeDt > 0 ? mv.x / (SPEED * safeDt) : 0;
+                f11Input.current.z = safeDt > 0 ? mv.z / (SPEED * safeDt) : 0;
+            } else { pos.current.x = rx; pos.current.z = rz; }
 
             // Floor 6 (Suíte 612): the LOCKED doors are live state, not part of
             // the memoized wall list — resolve against them separately so
@@ -734,7 +743,19 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.
-        if (currentLevel === 2) {
+        if (currentLevel === 11) {
+            const body = f11Corpo.current;
+            body.x = pos.current.x; body.y = pos.current.y; body.z = pos.current.z;
+            body.vy = jumpVelYRef.current;
+            if (body.y === 0 && body.vy === 0) body.grounded = true;
+            passoDoCorpo(body, { paredes: walls, plataformas: F11_PLATAFORMAS, chao: 0 },
+                f11Input.current.x, f11Input.current.z, !!jumpRef?.current, safeDt);
+            pos.current.set(body.x, body.y, body.z);
+            jumpVelYRef.current = body.vy;
+            if (jumpRef) jumpRef.current = false;
+            if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
+            else if (!elevTriggered.current && !dialogueOpen) { elevTriggered.current = true; onEnterElevator(); }
+        } else if (currentLevel === 2) {
             // ─── Cave rock collision (XZ circle check for walking mode) ──
             for (const rock of CAVE_ROCK_COLLIDERS) {
                 const dx = pos.current.x - rock.x;

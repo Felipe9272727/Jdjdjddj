@@ -191,6 +191,15 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-11-agent',
+    level: 11,
+    name: 'Andar 11 — companheiro',
+    label: 'Andar 11',
+    description: 'Um visitante que explora, pula e acompanha você. Chame-o para o elevador.',
+    color: 'from-emerald-600 via-teal-500 to-slate-300',
+    icon: <span aria-hidden="true">11</span>,
+  },
+  {
     id: 'floor-10-base',
     level: 10,
     name: 'Andar 10 (base)',

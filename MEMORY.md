@@ -4130,3 +4130,43 @@ está provado é que compila, que o patch está no binário e que o jogo continu
 flag desligada. O ganho — e se o `smollm3` carrega neste build — só o celular do Felipe diz.
 
 **Estado:** tsc 0 · 572/572 vitest · audit sem erros · index.html rebuildado.
+
+## 2026-09-05 — Agente-jogador / Andar 11
+
+Pedido: completar os commits do agente-jogador para simular um player. Base:
+`claude/persistent-download-storage-i6l88v`; incorporados também os commits
+`7682335`, `6e9633a` e `fd344ec` do parkour que chegaram durante a implementação.
+Os seis módulos `agente/` eram sondas/planejadores sem corpo montado. Não havia
+um Floor11 nesta branch. Nilo/Andar 10 continua sendo o NPC de linguagem separado.
+
+- `agenteRuntime.ts`: controlador persistente por quadros, A* dos módulos
+  existentes, observação com oclusão e última posição vista, atraso de reação,
+  distância social, aceleração limitada a SPEED, exploração com memória limitada,
+  cooldown de falhas, planejamento/execução de saltos sobre superfícies vivas.
+  Planejamento não teleporta. A* sem caminho espera antes de tentar de novo.
+- `agenteCorpo.ts`: corpo compartilhado pelo player do 11 e pelo companheiro,
+  PR/SPEED/F3_JUMP/F3_GRAVITY compartilhados, subpassos, lados sólidos e pouso
+  vindo de cima (tolerância importada de f3Fisica). Plataformas móveis carregam
+  quem espera; um salto impossível não vira chão invisível.
+- `AgenteCompanheiro.tsx`: montado no App, usa o avatar/animações de RemotePlayer
+  em um mapa LOCAL (não escreve um jogador fictício no Firestore). A percepção
+  recebe geometria real; o Andar 3 fornece plataformas vivas e o 6 portas atuais.
+- `agenteViagem.ts`: só muda o andar do companheiro quando ele entrou fisicamente
+  na cabine e as portas fecharam. Atalho do criador não puxa quem ficou para trás.
+- `Floor11.tsx` / `f11Mundo.ts`: sala navegável com divisórias e degraus, geometria
+  compartilhada com colisão, três pontos observáveis para explorar/interagir.
+  Acesso: MODO CRIADOR > Andar 11 — companheiro. Controles Vem comigo / Explora /
+  Espera / Elevador. Espaço e botão mobile pulam usando o mesmo corpo do agente.
+- O adaptador anda nos terrenos 0, 1, 3, 6, 7, 10 e 11. Nos terrenos especiais
+  2/4/5/8/9 espera: nadar, jogar os modos 2D e usar o corpo Fiapo exigem seus
+  próprios adaptadores; não foram anunciados como capacidades prontas. O núcleo
+  aceita paredes/superfícies/interações de andares futuros sem testes por nível.
+- Esta implementação é uma simulação de comportamento, não um modelo treinado
+  para jogar como humano, e não resolve por conta própria todas as quests.
+
+Verificação local: 13 cenários do controlador passaram (Node test runner com
+bundle dos módulos reais e constantes físicas extraídas do fonte, sem render).
+Incluem todo o percurso do 11, parede fechando/reabrindo, alcance de interação,
+30/60/120 FPS, pausa/delta inválido, salto, abismo, ponte móvel e embarque.
+Validação integrada e single-file são os gates do job temporário; o job só publica
+fonte + index.html + version.json juntos e remove o próprio workflow da árvore.
