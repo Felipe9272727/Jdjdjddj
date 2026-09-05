@@ -29,6 +29,7 @@ import {
     validateNoOverlaps, type F3Plat,
 } from './f3Parkour';
 import { createToonMaterial, type ToonOpts } from './cartoonToon';
+import { faixaDaNevoa } from './f3Nevoa';
 
 // ─── Palette (rubber-hose black & white) ─────────────────────────────────────
 const OUTLINE      = '#0a0712';
@@ -104,6 +105,12 @@ const PlatformArrow: React.FC<{ topY: number; size: number }> = ({ topY, size })
 // spheres, leaving one clean silhouette around the whole cloud (no internal
 // seams). depthWrite off so the hulls never occlude each other.
 const CLOUD_PUFFS: number[][] = [[0,0,0,1.0],[1.1,-0.1,0,0.8],[-1.1,-0.05,0,0.85],[0.5,0.45,0,0.7],[-0.6,0.4,0,0.65]];
+// Uma geometria por raio, compartilhada pelas 15 nuvens. Antes cada `<mesh>`
+// declarava a sua: 15 nuvens × 5 bolhas × 2 (miolo + casco) = 150 esferas
+// idênticas subindo para a GPU em vez de 5.
+const CLOUD_GEOS: THREE.SphereGeometry[] = CLOUD_PUFFS.map(
+    (d) => new THREE.SphereGeometry(d[3], 16, 12),
+);
 const CLOUD_OUTLINE = 1.07; // hull scale → ink-line weight
 const CLOUD_OUTLINE_MAT = (() => {
     const m = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.BackSide });
@@ -118,12 +125,10 @@ const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> 
             {CLOUD_PUFFS.map((d,i)=>(
                 <group key={i} position={[d[0],d[1],d[2]]}>
                     {/* black ink-line hull (slightly larger back-face sphere) */}
-                    <mesh scale={CLOUD_OUTLINE} renderOrder={0} material={CLOUD_OUTLINE_MAT}>
-                        <sphereGeometry args={[d[3], 16, 12]} />
-                    </mesh>
+                    <mesh scale={CLOUD_OUTLINE} renderOrder={0}
+                        geometry={CLOUD_GEOS[i]} material={CLOUD_OUTLINE_MAT} />
                     {/* white toon fill */}
-                    <mesh renderOrder={1} castShadow={false}>
-                        <sphereGeometry args={[d[3], 16, 12]} />
+                    <mesh renderOrder={1} castShadow={false} geometry={CLOUD_GEOS[i]}>
                         <primitive object={fill} attach="material" />
                     </mesh>
                 </group>
@@ -204,14 +209,26 @@ const CLOUDS: Array<{ p: [number,number,number]; s: number }> = [
     { p: [40, -18, 6], s: 3.4 },   { p: [4, -28, 24], s: 4.6 },  { p: [-10, -12, -24], s: 3.2 },
 ];
 
+// ── O CAMPO DE NUVENS NÃO DÁ MAIS SALTOS ─────────────────────────────────────
+// Ele seguia o jogador travado numa grade de 8 unidades, "para o paralaxe ler
+// como movimento e não como skybox". A intenção estava certa e o efeito era o
+// contrário: uma nuvem a 20–45 unidades que anda 8 de uma vez não faz paralaxe,
+// ela TELETRANSPORTA — um pulo de 10 a 20 graus de arco, a cada poucos segundos.
+//
+// Um seguimento amortecido dá as duas coisas de graça: em movimento o campo
+// fica para trás por uma distância constante (v/k ≈ 6,7 m a 4 m/s), que é
+// exatamente o paralaxe que se queria, e quando o jogador para ele alcança
+// suavemente. E, ao contrário de um fator de paralaxe fixo, converge — nunca
+// fica para trás para sempre num curso que não acaba.
+const SEGUE_NUVENS = 0.6;   // 1/s — quanto menor, mais o céu fica para trás
+
 const FollowEnv: React.FC = () => {
     const ref = useRef<THREE.Group>(null);
-    // Track the player so the sky/cloud field follows the endless climb. Snap to
-    // a coarse grid so the parallax reads as motion, not a locked skybox.
-    useFrame(() => {
+    useFrame((_, dt) => {
         if (!ref.current) return;
-        ref.current.position.z = Math.round(f3PlayerZ.current / 8) * 8;
-        ref.current.position.y = Math.round(f3PlayerY.current / 8) * 8;
+        const k = 1 - Math.exp(-SEGUE_NUVENS * Math.min(dt, 0.05));
+        ref.current.position.z += (f3PlayerZ.current - ref.current.position.z) * k;
+        ref.current.position.y += (f3PlayerY.current - ref.current.position.y) * k;
     });
     return (
         <group ref={ref}>
@@ -219,17 +236,43 @@ const FollowEnv: React.FC = () => {
         </group>
     );
 };
+// O céu não depende de nada do React: memoizado, ele para de reconciliar 150
+// malhas de nuvem toda vez que a piscina de plataformas recicla (~1×/s).
+const FollowEnvMemo = React.memo(FollowEnv);
 
-/** Paints the scene background a flat cartoon sky-blue (reliable clear color —
+// ── O HORIZONTE QUE NÃO EXISTIA ──────────────────────────────────────────────
+// A névoa era fixa em 60 → 240. O `far` da câmera do jogo é 40, 80 ou 120
+// conforme a qualidade: na baixa a névoa NEM COMEÇAVA antes do plano de corte
+// (60 > 40), então a escadaria sumia de uma vez, com uma borda dura; na alta
+// chegava a 33% de opacidade no corte. Em nenhuma qualidade a névoa fazia o
+// trabalho dela.
+//
+// E a cor estava fora do céu (#e7ebef contra #dde2e7): o que se dissolvia não
+// virava céu, virava um fantasma pálido um tom acima do fundo. A névoa agora é
+// da cor exata do céu e termina onde a câmera corta, em qualquer qualidade —
+// então a plataforma mais distante se apaga em vez de piscar para fora.
+const CEU = '#dde2e7';          // pale grey-white (B&W)
+
+/** Paints the scene background a flat cartoon sky (reliable clear color —
  *  `<color attach="background">` nested in a group never reaches the scene). */
 const SkyBackground: React.FC = () => {
-    const { scene } = useThree();
+    const { scene, camera } = useThree();
     useEffect(() => {
-        const prev = scene.background;
-        scene.background = new THREE.Color('#dde2e7');   // pale grey-white (B&W)
-        scene.fog = new THREE.Fog('#e7ebef', 60, 240);   // soft haze in the distance
-        return () => { scene.background = prev; scene.fog = null; };
-    }, [scene]);
+        const prevBg = scene.background;
+        const prevFog = scene.fog;                       // restaurar, não zerar
+        const faixa = faixaDaNevoa((camera as THREE.PerspectiveCamera).far);
+        scene.background = new THREE.Color(CEU);
+        scene.fog = new THREE.Fog(CEU, faixa.near, faixa.far);
+        return () => { scene.background = prevBg; scene.fog = prevFog; };
+    }, [scene, camera]);
+    // O `far` muda quando o jogador troca a qualidade no menu, e a câmera é o
+    // mesmo objeto — sem isto a névoa ficaria presa na qualidade da entrada.
+    useFrame(({ camera: cam, scene: sc }) => {
+        const f = sc.fog as THREE.Fog | null;
+        if (!f || !(f as THREE.Fog).isFog) return;
+        const faixa = faixaDaNevoa((cam as THREE.PerspectiveCamera).far);
+        if (f.far !== faixa.far) { f.near = faixa.near; f.far = faixa.far; }
+    });
     return null;
 };
 
@@ -268,7 +311,7 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
         <group>
             {/* Flat cartoon sky-blue + cloud field that follows the endless climb */}
             <SkyBackground />
-            <FollowEnv />
+            <FollowEnvMemo />
 
             {/* Lighting — bright & flat for the rubber-hose cel look */}
             <ambientLight intensity={0.85} color="#eef4ff" />

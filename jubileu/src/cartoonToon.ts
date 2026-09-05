@@ -14,10 +14,17 @@
  *      the background (the single biggest "AAA stylised" tell).
  *   5. EMISSIVE — for portal rings, energy edges, the goal.
  *
- * The outline shader is the classic inverted-hull (back-face) normal extrusion,
- * but with DISTANCE-SCALED width so the line stays a near-constant thickness on
- * screen at any depth — exactly how Xrd keeps its outlines readable. No
- * post-processing pass, no SobeI depth edge: pure geometry, robust and cheap.
+ * (Havia aqui um `createOutlineMaterial` — casco invertido com largura escalada
+ * pela distância. Ninguém nunca o importou: as plataformas do Andar 3 usam uma
+ * borda de GEOMETRIA de verdade, e as nuvens têm o casco próprio delas. Saiu.)
+ *
+ * ── NÉVOA ────────────────────────────────────────────────────────────────────
+ * Como é ShaderMaterial cru, a névoa da cena NÃO chega aqui de graça: sem os
+ * chunks `fog_*` o `scene.fog` do Andar 3 pintava os espinhos (MeshToonMaterial)
+ * e o casco das nuvens (MeshBasicMaterial) e deixava as plataformas e o miolo
+ * branco das nuvens intactos — a mesma cena com dois horizontes diferentes.
+ * Agora o material declara `fog: true` e inclui os chunks, então tudo se
+ * dissolve junto no céu.
  *
  * Refs: Arc System Works GGXrd GDC talk; lettier "3D Game Shaders for
  * Beginners" (rim lighting); danielilett cel-shading series.
@@ -29,6 +36,7 @@ import * as THREE from 'three';
 export const KEY_LIGHT_DIR = new THREE.Vector3(-6, 14, 8).normalize();
 
 const TOON_VERT = /* glsl */`
+  #include <fog_pars_vertex>
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
   varying vec2 vUv;
@@ -37,12 +45,15 @@ const TOON_VERT = /* glsl */`
     vec4 wp = modelMatrix * vec4(position, 1.0);
     vWorldPos = wp.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    gl_Position = projectionMatrix * viewMatrix * wp;
+    vec4 mvPosition = viewMatrix * wp;
+    gl_Position = projectionMatrix * mvPosition;
+    #include <fog_vertex>
   }
 `;
 
 const TOON_FRAG = /* glsl */`
   precision highp float;
+  #include <fog_pars_fragment>
   uniform vec3  uColor;
   uniform vec3  uShadow;       // colored shadow tint (multiplies base)
   uniform vec3  uLightDir;     // world, normalized
@@ -100,25 +111,8 @@ const TOON_FRAG = /* glsl */`
     }
 
     gl_FragColor = vec4(col, 1.0);
+    #include <fog_fragment>
   }
-`;
-
-const OUTLINE_VERT = /* glsl */`
-  uniform float uOutlineWidth;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vec3 wn = normalize(mat3(modelMatrix) * normal);
-    float dist = distance(cameraPosition, wp.xyz);
-    // distance-scaled so the silhouette keeps a near-constant screen thickness
-    float w = uOutlineWidth * (dist * 0.16 + 0.45);
-    vec3 extruded = wp.xyz + wn * w;
-    gl_Position = projectionMatrix * viewMatrix * vec4(extruded, 1.0);
-  }
-`;
-
-const OUTLINE_FRAG = /* glsl */`
-  uniform vec3 uOutlineColor;
-  void main() { gl_FragColor = vec4(uOutlineColor, 1.0); }
 `;
 
 export interface ToonOpts {
@@ -143,7 +137,12 @@ export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
         vertexShader: TOON_VERT,
         fragmentShader: TOON_FRAG,
+        // `fog: true` é o que faz o three definir USE_FOG e injetar fogColor/
+        // fogNear/fogFar; sem os uniforms de `UniformsLib.fog` o programa não
+        // compila com o define ligado.
+        fog: true,
         uniforms: {
+            ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
             uColor:            { value: new THREE.Color(o.color ?? '#ffffff') },
             uShadow:           { value: new THREE.Color(o.shadow ?? '#8492a6') },
             uLightDir:         { value: KEY_LIGHT_DIR.clone() },
@@ -164,14 +163,3 @@ export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
     });
 }
 
-export function createOutlineMaterial(width = 0.09, color: THREE.ColorRepresentation = '#0a0712'): THREE.ShaderMaterial {
-    return new THREE.ShaderMaterial({
-        vertexShader: OUTLINE_VERT,
-        fragmentShader: OUTLINE_FRAG,
-        side: THREE.BackSide,
-        uniforms: {
-            uOutlineWidth: { value: width },
-            uOutlineColor: { value: new THREE.Color(color) },
-        },
-    });
-}

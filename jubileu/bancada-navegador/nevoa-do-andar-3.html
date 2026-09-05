@@ -1,0 +1,86 @@
+<!doctype html><html><body><div id="r">rodando…</div>
+<script type="module">
+import * as THREE from 'three';
+import { createToonMaterial } from '/src/cartoonToon.ts';
+import { faixaDaNevoa } from '/src/f3Nevoa.ts';
+
+const saida = [];
+const erros = [];
+const origErr = console.error;
+console.error = (...a) => { erros.push(a.map(String).join(' ')); origErr(...a); };
+
+const CEU = new THREE.Color('#dde2e7');
+const OPTS = [
+  { color: '#ffffff', shadow: '#c8cdd4', bands: 2, rimStrength: 0.35, specThreshold: 0.95 },
+  { color: '#0a0712', shadow: '#0a0712', bands: 1, rimStrength: 0 },
+  { color: '#ffffff', shadow: '#c8cdd4', seams: 4, seamColor: '#d7dde4', rimStrength: 0.3, bands: 2 },
+  { color: '#ffffff', shadow: '#c4ccd6', bands: 2, rimStrength: 0.4 },
+];
+const FAR = 40;   // a qualidade BAIXA, que era a que a nevoa antiga nem alcancava
+
+function cena(comNevoa, distancia) {
+  const s = new THREE.Scene();
+  s.background = CEU.clone();
+  if (comNevoa) { const f = faixaDaNevoa(FAR); s.fog = new THREE.Fog(CEU.clone(), f.near, f.far); }
+  s.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const dl = new THREE.DirectionalLight(0xfffaf0, 1.6); dl.position.set(-6, 14, 8); s.add(dl);
+  // Um bloco largo cobrindo o centro da tela, na distancia pedida.
+  const m = new THREE.Mesh(new THREE.BoxGeometry(distancia * 0.9, distancia * 0.9, 1),
+                           createToonMaterial(OPTS[0]));
+  m.position.set(0, 0, -distancia);
+  s.add(m);
+  return s;
+}
+function corCentral(renderer, s, cam) {
+  renderer.render(s, cam);
+  const gl = renderer.getContext();
+  const px = new Uint8Array(4);
+  gl.readPixels(32, 32, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  return [px[0], px[1], px[2]];
+}
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+try {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  const gl = renderer.getContext();
+  const cam = new THREE.PerspectiveCamera(75, 1, 0.1, FAR);
+  cam.position.set(0, 0, 0); cam.lookAt(0, 0, -1);
+
+  // 1) Compila TODOS os option-sets reais, com e sem nevoa.
+  for (const comNevoa of [false, true]) {
+    const s = cena(comNevoa, 5);
+    for (const o of OPTS) s.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), createToonMaterial(o)));
+    renderer.compile(s, cam); renderer.render(s, cam);
+    saida.push((comNevoa ? 'COM-NEVOA' : 'SEM-NEVOA') + ' programas=' + renderer.info.programs.length
+      + ' glError=' + gl.getError());
+  }
+
+  // 2) O TESTE QUE IMPORTA: a mesma geometria, longe, com e sem nevoa.
+  // CEU esta no espaco de trabalho (linear); o pixel lido esta em sRGB. Comparar
+  // sem converter foi o meu erro na primeira rodada.
+  const ceuSRGB = CEU.clone().convertLinearToSRGB();
+  const ceu = [Math.round(ceuSRGB.r*255), Math.round(ceuSRGB.g*255), Math.round(ceuSRGB.b*255)];
+  const perto     = corCentral(renderer, cena(true,  4), cam);
+  const longeSem  = corCentral(renderer, cena(false, FAR * 0.95), cam);
+  const longeCom  = corCentral(renderer, cena(true,  FAR * 0.95), cam);
+  saida.push('ceu(sRGB aprox)=' + ceu.join(','));
+  saida.push('perto  COM nevoa = ' + perto.join(',')    + '  dist ao ceu = ' + dist(perto, ceu).toFixed(1));
+  saida.push('longe  SEM nevoa = ' + longeSem.join(',') + '  dist ao ceu = ' + dist(longeSem, ceu).toFixed(1));
+  saida.push('longe  COM nevoa = ' + longeCom.join(',') + '  dist ao ceu = ' + dist(longeCom, ceu).toFixed(1));
+
+  const ok = dist(longeCom, ceu) < 4                            // longe VIRA o ceu
+          && dist(longeSem, ceu) > 30                           // sem nevoa, nao virava
+          && dist(perto, ceu) > 30                              // perto NAO some
+          && erros.length === 0;
+  saida.push('ERROS-CONSOLE=' + erros.length);
+  for (const e of erros.slice(0, 6)) saida.push('  ! ' + e.slice(0, 400));
+  saida.push('VEREDITO=' + (ok ? 'OK' : 'FALHOU'));
+} catch (e) {
+  saida.push('EXCECAO: ' + (e && e.stack || e));
+  saida.push('VEREDITO=FALHOU');
+}
+document.getElementById('r').textContent = saida.join('\n');
+window.__pronto = saida.join('\n');
+</script></body></html>
