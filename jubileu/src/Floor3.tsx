@@ -277,9 +277,20 @@ const SEGUE_FUNDO  = 4.0;   // quase travado: o horizonte
 const SEGUE_MEIO   = 0.7;   // as nuvens de sempre
 const SEGUE_PERTO  = 0.22;  // varre por perto, bem para trás
 
-const CEU_ALTO   = '#c3cedd';   // zênite, um tom mais fundo
-const CEU_BAIXO  = '#eef1f4';   // horizonte, quase branco
-const SOL_COR    = '#fbf7ea';
+// ── TRÊS VALORES, E SÓ TRÊS ──────────────────────────────────────────────────
+//
+// O grade de película empurra o contraste para a tinta voltar a ser preta. Isso
+// tem um preço que só aparece OLHANDO: se a cena inteira já é quase branca —
+// céu #eef1f4, tabuado #faf8f3, nuvem #ffffff —, o contraste cola os três no
+// mesmo 255 e o andar vira uma folha em branco com contornos. Foi exatamente o
+// que a foto mostrou depois de eu consertar o contraste.
+//
+// A referência de 1930 vive de TRÊS valores: fundo médio, forma clara, tinta
+// preta. Então o céu desce para o cinza médio — é ele que dá o fundo contra o
+// qual a plataforma branca e a nuvem branca existem.
+const CEU_ALTO   = '#8f9dad';   // zênite: cinza médio, o fundo do desenho
+const CEU_BAIXO  = '#c8d0da';   // horizonte, mais claro (o ar some na distância)
+const SOL_COR    = '#eae4d4';
 
 // ── A ABÓBADA ────────────────────────────────────────────────────────────────
 // Uma esfera pelo lado de dentro, com gradiente e um sol difuso baixo. É UM

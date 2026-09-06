@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -88,6 +88,7 @@ import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from '.
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
+import { GRADE_F3 } from './floor3Grade';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
@@ -2093,26 +2094,39 @@ export default function App() {
                 />
                 )}
                 {/* Vignette — deep cave on Floor 2, subtle sci-fi on Floor 3. */}
-                {settings.quality === 'high' && (
+                {/* O Andar 3 tem vinheta própria logo abaixo, em TODA
+                    qualidade — ela é parte do grade de película, não polimento
+                    opcional. Aqui ele fica de fora para não somarem duas. */}
+                {settings.quality === 'high' && currentLevel !== 3 && (
                 <Vignette
                     eskil={false}
-                    offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.32 : 0.2}
-                    darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.28 : 0.3}
+                    offset={currentLevel === 2 ? 0.32 : 0.2}
+                    darkness={currentLevel === 2 ? 0.78 : 0.3}
                 />
                 )}
-                {/* Floor 3 — warm sepia "old cartoon film" grade for the
-                    rubber-hose look (Cuphead reference). Desaturate most of the
-                    way, then tint warm via Sepia and push contrast for the inky
-                    print feel. Runs at EVERY quality level (the grade is core
-                    art direction, not an optional polish pass). */}
+                {/* ── ANDAR 3: A CÓPIA DE 1930 ──────────────────────────────
+                    Dessatura quase tudo, tinge de sépia e ENTINTA: o andar
+                    inteiro é desenhado com contorno preto, e num grade lavado
+                    o preto vira cinza e a direção de arte inteira se perde.
+                    Medido olhando (bancada `olhar-o-andar-3.mjs`): com
+                    contraste 0,18 e brilho +0,02 a cena saía estourada e as
+                    linhas de tinta sumiam no creme.
+
+                    E o que faltava para virar PELÍCULA e não só "foto velha"
+                    era o grão. Ele é o efeito mais barato da pilha e o que mais
+                    entrega — por isso roda em toda qualidade, junto com o
+                    grade, e não só no `high`. `GRADE_F3` fica aqui em cima
+                    justamente para o dono do jogo poder mexer num número. */}
+                {currentLevel === 3 && <HueSaturation saturation={GRADE_F3.saturacao} />}
+                {currentLevel === 3 && <Sepia intensity={GRADE_F3.sepia} />}
                 {currentLevel === 3 && (
-                    <HueSaturation saturation={-0.6} />
+                    <BrightnessContrast brightness={GRADE_F3.brilho} contrast={GRADE_F3.contraste} />
                 )}
                 {currentLevel === 3 && (
-                    <Sepia intensity={0.62} />
+                    <Noise opacity={GRADE_F3.grao} premultiply />
                 )}
                 {currentLevel === 3 && (
-                    <BrightnessContrast brightness={0.02} contrast={0.18} />
+                    <Vignette eskil={false} offset={GRADE_F3.vinhetaInicio} darkness={GRADE_F3.vinheta} />
                 )}
             </EffectComposer>
         )}

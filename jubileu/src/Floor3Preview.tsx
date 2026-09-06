@@ -13,7 +13,7 @@
  */
 
 import { Canvas } from '@react-three/fiber';
-import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { KernelSize } from 'postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
@@ -29,6 +29,7 @@ function Expor() {
 import Floor3Environment from './Floor3';
 import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
+import { GRADE_F3 } from './floor3Grade';
 
 function HandsDebug() {
     const { scene } = useGLTF(glovesModel);
@@ -95,10 +96,15 @@ export default function Floor3Preview() {
                         color="#0a0e1a"
                     />
                     <Bloom intensity={0.22} luminanceThreshold={0.95} luminanceSmoothing={0.20} mipmapBlur kernelSize={KernelSize.MEDIUM} />
-                    <Vignette eskil={false} offset={0.32} darkness={0.28} />
-                    <HueSaturation saturation={-0.6} />
-                    <Sepia intensity={0.62} />
-                    <BrightnessContrast brightness={0.02} contrast={0.18} />
+                    {/* MESMOS números do jogo (floor3Grade.ts). Esta tela existe
+                        para eu decidir visual olhando — com uma cópia própria
+                        dos valores ela me mostrava um andar que não era o do
+                        jogo, e bancada que mente é pior que bancada nenhuma. */}
+                    <HueSaturation saturation={GRADE_F3.saturacao} />
+                    <Sepia intensity={GRADE_F3.sepia} />
+                    <BrightnessContrast brightness={GRADE_F3.brilho} contrast={GRADE_F3.contraste} />
+                    <Noise opacity={GRADE_F3.grao} premultiply />
+                    <Vignette eskil={false} offset={GRADE_F3.vinhetaInicio} darkness={GRADE_F3.vinheta} />
                 </EffectComposer>
                 )}
             </Canvas>
