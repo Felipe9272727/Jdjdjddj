@@ -7,7 +7,12 @@ import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, F3_GRAVITY, F3_JUMP, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, hasWalkInElevator } from './constants';
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint, alturaDoVazio as f3AlturaDoVazio } from './f3Parkour';
-import { chaoSobOsPes as f3Chao, resolverQueda as f3ResolverQueda, arrastoDaPonte as f3Arrasto } from './f3Fisica';
+import {
+    chaoSobOsPes as f3Chao, resolverQueda as f3ResolverQueda, arrastoDaPonte as f3Arrasto,
+    empurrarDasLaterais as f3Empurrar, baterACabeca as f3Cabeca,
+    girarRelogios as f3Relogios, podePular as f3PodePular, gastarOPulo as f3GastarPulo,
+    RELOGIOS_ZERADOS as F3_RELOGIOS_ZERADOS,
+} from './f3Fisica';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
@@ -387,6 +392,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const f11Input = useRef({ x: 0, z: 0 });
   const f3StepAccumRef = useRef(0);       // footstep cadence timer (Floor 3)
   const f3PrevGroundedRef = useRef(true); // for landing edge-detection (Floor 3)
+  // Coyote time + buffer de pulo: a fronteira entre "ainda no chão" e "já no ar"
+  // é onde a mão do jogador erra, e é a única coisa que estes dois cobrem.
+  const f3RelogiosRef = useRef(F3_RELOGIOS_ZERADOS);
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
@@ -825,9 +833,25 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             // um pouso de um teletransporte: só pousa quem já vinha de cima.
             const yAntes = pos.current.y;
 
-            // 1. Apply gravity and integrate Y every frame.
+            // 1. AS LATERAIS, ANTES DE QUALQUER OUTRA COISA. O passo de andar já
+            //    mexeu em XZ lá em cima; aqui o corpo é expulso de dentro das
+            //    lajes que ele porventura tenha invadido. Sem isto o jogador
+            //    ATRAVESSA a cara de uma plataforma e cai por dentro dela — era
+            //    o que o ímã escondia.
+            const lado = f3Empurrar(f3Platforms, pos.current.x, pos.current.y, pos.current.z);
+            pos.current.x = lado.x;
+            pos.current.z = lado.z;
+
+            // 2. Gravidade e integração do Y.
             jumpVelYRef.current -= F3_GRAVITY * safeDt;
             pos.current.y += jumpVelYRef.current * safeDt;
+
+            // 3. A cabeça bate na laje de cima em vez de subir por dentro dela.
+            const cabeca = f3Cabeca(
+                f3Platforms, pos.current.x, pos.current.y, pos.current.z, jumpVelYRef.current,
+            );
+            pos.current.y = cabeca.y;
+            jumpVelYRef.current = cabeca.vy;
 
             // Publish player Z/Y so the endless-parkour engine (owned by
             // Floor3's useFrame) recycles the pool ahead of us and the sky
@@ -835,27 +859,37 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             f3PlayerZ.current = pos.current.z;
             f3PlayerY.current = pos.current.y;
 
-            // 2. O chão sob os pés — a piscina viva (p.x já traz a oscilação da
-            //    ponte escrita por f3Parkour.tick) mais o piso da cabine.
+            // 4. O chão sob os pés — a piscina viva (p.x já traz a oscilação da
+            //    ponte escrita por f3Parkour.tick) mais o piso da cabine. Quem
+            //    tem meio pé na quina continua de pé: o apoio tem raio.
             const chao = f3Chao(f3Platforms, pos.current.x, pos.current.z, yAntes);
 
-            // 2b. A ponte móvel CARREGA quem está em cima. Antes ela escorregava
+            // 4b. A ponte móvel CARREGA quem está em cima. Antes ela escorregava
             //     por baixo dos pés e derrubava o jogador parado.
             pos.current.x += f3Arrasto(chao, pos.current.y);
 
-            // 3. Land: snap to ground when falling through it from above.
+            // 5. Land: snap to ground when falling through it from above.
             const wasFalling = jumpVelYRef.current < -1.5;
             const passo = f3ResolverQueda(yAntes, pos.current.y, jumpVelYRef.current, chao);
             pos.current.y = passo.y;
             jumpVelYRef.current = passo.vy;
             // Landing SFX — only on a real fall (edge: was airborne+falling).
             if (passo.pousou && wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
+            // O impacto vai para as mãos e para a câmera: pouso de queda longa
+            // tem de PARECER queda longa.
+            f3HandState.impacto = passo.pousou ? passo.impacto : 0;
 
-            // 4. Jump trigger — only fires when grounded. Each jump feeds the
-            //    sabotage loop (every 10 → the Diabrete inks a new obstacle).
-            if (jumpRef?.current) {
-                if (passo.noChao) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); f3RegisterJump(pos.current.z); }
-                jumpRef.current = false;
+            // 6. O pulo, com as duas folgas da fronteira. `jumpRef` é o botão
+            //    NESTE quadro; os relógios é que decidem se ele vale.
+            f3RelogiosRef.current = f3Relogios(
+                f3RelogiosRef.current, safeDt, passo.noChao, jumpRef?.current === true,
+            );
+            if (jumpRef) jumpRef.current = false;
+            if (f3PodePular(f3RelogiosRef.current)) {
+                jumpVelYRef.current = F3_JUMP;
+                f3RelogiosRef.current = f3GastarPulo();
+                playFloor3Jump();
+                f3RegisterJump(pos.current.z);
             }
 
             // 4b. Spike knockback — crossing a fully-drawn ink-strip too low

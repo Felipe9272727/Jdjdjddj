@@ -14,7 +14,9 @@
 import { describe, it, expect } from 'vitest';
 import { F3_GRAVITY, F3_JUMP, SPEED } from '../constants';
 import { platforms, reset, tick, type F3Plat } from '../f3Parkour';
-import { chaoSobOsPes, resolverQueda, arrastoDaPonte } from '../f3Fisica';
+import {
+    chaoSobOsPes, resolverQueda, arrastoDaPonte, empurrarDasLaterais, baterACabeca,
+} from '../f3Fisica';
 
 const DT = 1 / 60;
 
@@ -40,12 +42,19 @@ function atravessar(de: F3Plat, para: F3Plat, pular: boolean): Fim {
     const norma = Math.hypot(dirX, dirZ) || 1;
     const ux = dirX / norma, uz = dirZ / norma;
 
+    // A MESMA ORDEM DO JOGO: laterais, gravidade, cabeça, chão. Simular só o
+    // eixo Y provaria uma física que o jogador não joga — e foi justamente a
+    // falta das laterais que virou o bug que o dono do jogo viu.
     for (let i = 0; i < 600; i++) {
         x += ux * SPEED * DT;
         z += uz * SPEED * DT;
+        const lado = empurrarDasLaterais(lista, x, y, z);
+        x = lado.x; z = lado.z;
         const yAntes = y;
         vy -= F3_GRAVITY * DT;
         y += vy * DT;
+        const teto = baterACabeca(lista, x, y, z, vy);
+        y = teto.y; vy = teto.vy;
         const chao = chaoSobOsPes(lista, x, z, yAntes);
         x += arrastoDaPonte(chao, y);
         const passo = resolverQueda(yAntes, y, vy, chao);

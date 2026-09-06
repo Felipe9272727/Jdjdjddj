@@ -91,7 +91,10 @@ export const f3PlayerY = { current: 0 };
 // Player motion state for the first-person hands' PROCEDURAL animation.
 // Player.tsx writes it each frame; the FpHands component reads it to drive the
 // idle breathing bob, the walk sway and the jump/fall swing (no GLB clips).
-export const f3HandState = { vy: 0, moving: false, grounded: true };
+// `impacto` é a velocidade de queda no instante do toque (0 fora do quadro do
+// pouso). É por ele que a câmera mergulha e as mãos se esparramam na proporção
+// do tombo, em vez de todo pouso parecer igual.
+export const f3HandState = { vy: 0, moving: false, grounded: true, impacto: 0 };
 let _nextId = 0;
 let _lastTickT = -1;
 
