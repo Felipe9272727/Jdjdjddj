@@ -22,7 +22,7 @@ import type { F3Plat } from '../f3Parkour';
 
 const plat = (over: Partial<F3Plat> = {}): F3Plat => ({
     id: 1, bx: 0, cz: 0, hw: 1.2, hd: 1.2, h: 0.5, topY: 0,
-    moving: false, amp: 0, phase: 0, x: 0, dx: 0, palette: 0, ...over,
+    moving: false, amp: 0, phase: 0, tipo: 'passo', x: 0, dx: 0, palette: 0, ...over,
 });
 
 describe('o jogador é um corpo, não um ponto', () => {

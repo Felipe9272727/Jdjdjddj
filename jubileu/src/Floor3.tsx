@@ -26,9 +26,10 @@ import Floor3Rival from './Floor3Rival';
 import Floor3Hazards from './Floor3Hazards';
 import {
     platforms as f3Platforms, f3PlayerZ, f3PlayerY, tick as f3Tick, reset as f3Reset,
-    validateNoOverlaps, type F3Plat,
+    validateNoOverlaps, f3HandState, type F3Plat,
 } from './f3Parkour';
 import { createToonMaterial, type ToonOpts } from './cartoonToon';
+import { molaDoTranco, TRANCO_DA_PLATAFORMA, TRANCO_PARADO } from './f3Fisica';
 import { faixaDaNevoa } from './f3Nevoa';
 
 // ─── Palette (rubber-hose black & white) ─────────────────────────────────────
@@ -90,9 +91,15 @@ const ARROW_SHAPE = (() => {
 const ARROW_GEO = new THREE.ShapeGeometry(ARROW_SHAPE);
 const ARROW_MAT = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.DoubleSide });
 
-const PlatformArrow: React.FC<{ topY: number; size: number }> = ({ topY, size }) => (
+const PlatformArrow: React.FC<{ topY: number; size: number; alonga?: number }> = ({
+    topY, size, alonga = 1,
+}) => (
+    // `alonga` estica a seta no eixo do avanço (+Z do mundo, que depois da
+    // rotação é o Y da forma). Numa viga isso a transforma numa faixa que
+    // aponta o caminho inteiro em vez de um selo no meio.
     <mesh geometry={ARROW_GEO} material={ARROW_MAT}
-        position={[0, topY + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[size, size, 1]} />
+        position={[0, topY + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}
+        scale={[size, size * alonga, 1]} />
 );
 
 // ─── Cartoon cloud puff (cluster of outlined white spheres) ──────────────────
@@ -155,10 +162,24 @@ const CARTOON_PALETTE: ToonOpts[] = [
 ];
 const LANDING_TOON: ToonOpts = { color: '#ffffff', shadow: WHITE_S, seams: 4, seamColor: '#d7dde4', rimStrength: 0.3, bands: 2 };
 
+// ── CADA PAPEL TEM DE PARECER O TRABALHO DELE ────────────────────────────────
+// O jogador lê a escadaria à frente antes de pular nela, e ler é reconhecer.
+// Se o descanso, a viga e a ponte tiverem a cor do passo comum, o compasso
+// existe no gerador e não existe na tela — que é o mesmo que não existir.
+const PONTE_TOON: ToonOpts = { color: '#dfd9cb', shadow: '#a89c80', bands: 2, rimStrength: 0.35, specThreshold: 0.95 };
+const VIGA_TOON:  ToonOpts = { color: '#f7f2e4', shadow: '#b9ae93', bands: 2, rimStrength: 0.55, specThreshold: 0.9 };
+const DESCANSO_TOON: ToonOpts = { color: '#ffffff', shadow: WHITE_S, seams: 2, seamColor: '#dfe4ea', bands: 2, rimStrength: 0.3 };
+
 function platToon(p: F3Plat): ToonOpts {
-    if (p.palette < 0) return LANDING_TOON;
-    // moving bridge: a touch greyer so it reads as "this one slides"
-    if (p.moving) return { color: '#dfd9cb', shadow: '#a89c80', bands: 2, rimStrength: 0.35, specThreshold: 0.95 };
+    if (p.tipo === 'partida') return LANDING_TOON;
+    // A ponte é mais cinza: "esta aqui desliza".
+    if (p.tipo === 'ponte') return PONTE_TOON;
+    // A viga é a mais clara e a de borda mais viva — ela precisa saltar de
+    // longe, porque errá-la é cair e o jogador tem de vê-la a tempo.
+    if (p.tipo === 'viga') return VIGA_TOON;
+    // O descanso ganha as costuras do patamar: é parente da partida, e o
+    // parentesco é a dica de que ali dá para parar.
+    if (p.tipo === 'descanso') return DESCANSO_TOON;
     return CARTOON_PALETTE[p.palette % CARTOON_PALETTE.length];
 }
 
@@ -187,7 +208,16 @@ export const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ p
             <RBox args={[w, plat.h, d]} position={[0, cy, 0]} radius={big ? 0.14 : 0.12}
                 toon={platToon(plat)} outline={0} />
             {/* black "go this way" arrow painted on the surface */}
-            {!big && <PlatformArrow topY={plat.topY} size={Math.min(w, d) * 0.78} />}
+            {/* A seta acompanha a FORMA: numa viga ela estica no comprimento
+                dela e vira uma pista para correr; num descanso ela some,
+                porque ali o recado é parar, não seguir. */}
+            {plat.tipo !== 'partida' && plat.tipo !== 'descanso' && (
+                <PlatformArrow
+                    topY={plat.topY}
+                    size={Math.min(w, d) * 0.78}
+                    alonga={plat.tipo === 'viga' ? Math.min(2.4, d / Math.max(w, 0.001) * 0.5) : 1}
+                />
+            )}
         </group>
     );
 });
@@ -282,6 +312,12 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
     const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
     // Re-render only when the pool recycles (rare — a few times/sec at most).
     const [, bump] = useReducer((n: number) => n + 1, 0);
+    // ── O CHÃO SENTE QUEM CAI NELE ────────────────────────────────────────
+    // Uma peça por vez: o jogador só pisa numa. `pousouEm` chega com o id no
+    // quadro do pouso e -1 nos outros, então isto é um impulso e a mola faz o
+    // resto — a mesma `molaDoTranco` da câmera e das mãos, com a afinação mais
+    // seca das três (a peça é de tinta e madeira, não uma cama elástica).
+    const afundando = useRef({ id: -1, tranco: TRANCO_PARADO });
 
     // Build the endless course once on mount, then force a render so the freshly
     // populated pool actually paints (reset() mutates a module array, which
@@ -295,12 +331,37 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
         bump();
     }, []);
 
-    useFrame((s) => {
+    useFrame((s, dt) => {
         const before = f3Platforms.length ? f3Platforms[0].id : -1;
         f3Tick(s.clock.elapsedTime, f3PlayerZ.current);
         // Animate moving bridges' live X onto their group transforms.
         for (const p of f3Platforms) {
             if (p.moving) { const g = groupRefs.current.get(p.id); if (g) g.position.x = p.x; }
+        }
+
+        // ── O afundar da peça que levou o tombo ───────────────────────────
+        const af = afundando.current;
+        if (f3HandState.pousouEm >= 0 && f3HandState.pousouEm !== af.id) {
+            // Peça nova: devolve a anterior ao lugar antes de trocar.
+            const anterior = groupRefs.current.get(af.id);
+            if (anterior) anterior.position.y = 0;
+            af.id = f3HandState.pousouEm;
+            af.tranco = TRANCO_PARADO;
+        }
+        if (af.id >= 0) {
+            af.tranco = molaDoTranco(
+                af.tranco,
+                f3HandState.pousouEm === af.id ? f3HandState.impacto : 0,
+                dt,
+                TRANCO_DA_PLATAFORMA,
+            );
+            const g = groupRefs.current.get(af.id);
+            if (g) g.position.y = af.tranco.valor;
+            // Parou de tremer e ninguém mais caiu nela: solta a peça.
+            if (Math.abs(af.tranco.valor) < 0.0008 && Math.abs(af.tranco.vel) < 0.01) {
+                if (g) g.position.y = 0;
+                af.id = -1;
+            }
         }
         // Detect a recycle (front id changed) and re-render the slot list.
         if ((f3Platforms.length ? f3Platforms[0].id : -1) !== before) bump();

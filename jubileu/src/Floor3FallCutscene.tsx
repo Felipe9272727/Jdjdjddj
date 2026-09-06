@@ -73,7 +73,8 @@ function buildCutsceneTiles(): F3Plat[] {
     const rand = (a: number, b: number) => a + (b - a) * rng();
     const HALF = [1.0, 1.2, 1.4], X_LIMIT = 11;
     const mk = (id: number, bx: number, cz: number, topY: number, half: number, palette: number): F3Plat =>
-        ({ id, bx, cz, hw: half, hd: half, h: 0.6, topY, moving: false, amp: 0, phase: 0, x: bx, dx: 0, palette });
+        ({ id, bx, cz, hw: half, hd: half, h: 0.6, topY, moving: false, amp: 0, phase: 0,
+          tipo: id === 0 ? 'descanso' : 'passo', x: bx, dx: 0, palette });
 
     const tiles: F3Plat[] = [mk(0, 0, -2.4, 0, 2.4, 0)];   // the tile he clings to (front edge ≈ grip)
     let bx = 0, cz = -2.4, topY = 0;

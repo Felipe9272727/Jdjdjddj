@@ -10,7 +10,7 @@ import {
 
 const plat = (over: Partial<F3Plat> = {}): F3Plat => ({
     id: 1, bx: 0, cz: 0, hw: 1.2, hd: 1.2, h: 0.5, topY: 0,
-    moving: false, amp: 0, phase: 0, x: 0, dx: 0, palette: 0, ...over,
+    moving: false, amp: 0, phase: 0, tipo: 'passo', x: 0, dx: 0, palette: 0, ...over,
 });
 
 describe('o ímã do Andar 3 — pousar não é ser puxado', () => {
@@ -144,12 +144,19 @@ describe('o vazio acompanha a escadaria', () => {
 
     it('sobe junto com o curso — não é mais um -8 fixo', () => {
         // Rola a piscina bem para a frente e confere que a linha subiu com ela.
+        // O QUE SE AFIRMA É A RELAÇÃO, não uma altura mágica: desde que o curso
+        // ganhou descansos e vigas — que são PLANOS de propósito — a escadaria
+        // sobe mais devagar, e um limiar cravado em metros vira um teste que
+        // reprova o desenho em vez do defeito.
+        const alturaInicial = platforms[platforms.length - 1].topY;
         for (let i = 0; i < 400; i++) tick(i * 0.05 + 0.01, i * 0.6);
         const alto = platforms[platforms.length - 1];
-        expect(alto.topY).toBeGreaterThan(20);          // já estamos bem alto
+        expect(alto.topY).toBeGreaterThan(alturaInicial + 10);   // subiu de verdade
         const linha = alturaDoVazio(alto.cz);
-        expect(linha).toBeGreaterThan(alto.topY - 20);  // perto do piso, não em -8
-        expect(linha).toBeGreaterThan(0);
+        // A linha acompanha o piso de perto — é isso que faz a queda durar o
+        // mesmo tanto a 0 m e a 40 m de altura.
+        expect(alto.topY - linha).toBeLessThan(QUEDA_ATE_O_VAZIO + 12);
+        expect(linha).toBeGreaterThan(alturaInicial);            // não ficou lá embaixo
     });
 
     it('a queda dura o mesmo tempo em qualquer altura', () => {

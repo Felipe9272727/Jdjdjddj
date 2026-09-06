@@ -884,6 +884,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             // O impacto vai para as mãos e para a câmera: pouso de queda longa
             // tem de PARECER queda longa.
             f3HandState.impacto = passo.pousou ? passo.impacto : 0;
+            // ...e QUAL peça levou o tombo, para ela poder afundar sob o pé.
+            f3HandState.pousouEm = passo.pousou ? (chao?.plat?.id ?? -1) : -1;
 
             // 6. O pulo, com as duas folgas da fronteira. `jumpRef` é o botão
             //    NESTE quadro; os relógios é que decidem se ele vale.

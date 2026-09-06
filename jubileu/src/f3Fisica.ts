@@ -331,3 +331,11 @@ export const TRANCO_DA_CAMERA: AfinacaoDoTranco = Object.freeze({
 export const TRANCO_DAS_MAOS: AfinacaoDoTranco = Object.freeze({
     ganho: 0.075, k: 110, d: 16, limite: 0.30,
 });
+/**
+ * A própria PLATAFORMA afunda sob o pé de quem cai nela. É o menor dos três de
+ * propósito: a peça é feita de tinta e madeira, não de borracha — o que se quer
+ * é o reconhecimento do peso, não uma cama elástica.
+ */
+export const TRANCO_DA_PLATAFORMA: AfinacaoDoTranco = Object.freeze({
+    ganho: 0.020, k: 190, d: 20, limite: 0.11,
+});

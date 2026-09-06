@@ -17,6 +17,31 @@ const curso = (seed = 0x9e3779b9): Plataforma[] => {
     return platforms.map(comoPlataforma);
 };
 
+/**
+ * ── A ESCADARIA INTEIRA, E NÃO A ABERTURA DELA ───────────────────────────
+ *
+ * A piscina viva tem 16 peças e o curso não tem fim. Medir só o `reset` é
+ * medir os dezesseis primeiros passos — e desde que o gerador ganhou escalada,
+ * esses dezesseis são justamente os FÁCEIS, por desenho: é ali que o jogador
+ * descobre o pulo. A garantia tem de valer na subida toda, então a subida toda
+ * é o que se percorre aqui.
+ */
+const subida = (seed: number, passos = 130): Plataforma[] => {
+    reset(seed);
+    tick(0, 0);
+    const vistos = new Map<number, Plataforma>();
+    const ordem: number[] = [];
+    for (let i = 0; i < passos; i++) {
+        tick(i * 0.05 + 0.01, i * 1.6);
+        for (const p of platforms) {
+            if (vistos.has(p.id)) continue;
+            vistos.set(p.id, comoPlataforma(p));
+            ordem.push(p.id);
+        }
+    }
+    return ordem.map((id) => vistos.get(id)!);
+};
+
 describe('a física do pulo é a DO JOGO', () => {
     it('altura e tempo saem de F3_JUMP e F3_GRAVITY', () => {
         // Se alguém afinar o pulo no Player, estes números mudam junto — que é
@@ -112,29 +137,37 @@ describe('a promessa do gerador do parkour, medida e depois CUMPRIDA', () => {
         }
     });
 
-    it('o degrau mais apertado sobra a margem do gerador — e nada mais', () => {
-        // Antes do teto físico o pior degrau do curso padrão sobrava 13 cm.
-        // Agora sobra 20 cm, que é MARGEM_DO_VAO: o gerador encosta na margem e
-        // para ali. Continua abaixo de FOLGA_CONFORTAVEL, ou seja, o degrau
-        // apertado continua apertado — só deixou de ser impossível.
-        let pior = Infinity;
-        const c = curso();
-        for (let i = 0; i < c.length - 1; i += 1) {
-            pior = Math.min(pior, daParaPular(c[i], c[i + 1]).folga);
-        }
-        expect(pior).toBeCloseTo(0.20, 2);
-        expect(pior).toBeLessThan(FOLGA_CONFORTAVEL);
+    it('a ABERTURA é generosa de propósito, e a subida aperta', () => {
+        // Desde a escalada, os dois números são diferentes e os dois importam:
+        // a abertura ensina, a subida cobra. Nesta semente a abertura sobra
+        // 0,95 e a subida inteira 0,30; o 0,20 exato (MARGEM_DO_VAO, o gerador
+        // encostando na margem) é o MÍNIMO entre as 120 sementes, e vive no
+        // teste abaixo — aqui o que se afirma é a FORMA da curva, que vale para
+        // qualquer semente.
+        const folgaMinima = (c: Plataforma[]): number => {
+            let pior = Infinity;
+            for (let i = 0; i < c.length - 1; i += 1) {
+                pior = Math.min(pior, daParaPular(c[i], c[i + 1]).folga);
+            }
+            return pior;
+        };
+        const abertura = folgaMinima(curso());
+        const inteira = folgaMinima(subida(0x9e3779b9));
+        expect(abertura).toBeGreaterThan(FOLGA_CONFORTAVEL);   // ninguém raspa no começo
+        expect(inteira).toBeLessThan(abertura * 0.6);           // e depois aperta de verdade
+        expect(inteira).toBeGreaterThanOrEqual(0.20 - 1e-9);    // mas nunca além da margem
     });
 
-    it('NÃO existe mais degrau impossível — nem um, em 400 cursos', () => {
+    it('NÃO existe degrau impossível na SUBIDA INTEIRA — nem um', () => {
         // Guarda de regressão sobre a GERAÇÃO, não sobre o agente: se alguém
-        // afrouxar GAP_MAX/RISE_MAX, apertar F3_JUMP ou tirar o teto físico do
-        // `makeNext`, isto volta a ser diferente de zero na hora.
+        // afrouxar as faixas, apertar F3_JUMP ou tirar o teto físico do
+        // `makeNext`, isto volta a ser diferente de zero na hora. E percorre a
+        // subida, não a abertura: é lá em cima que o teto encosta.
         let impossiveis = 0;
         let degraus = 0;
         let pior = Infinity;
-        for (let seed = 1; seed <= 400; seed += 1) {
-            const c = curso(seed);
+        for (let seed = 1; seed <= 120; seed += 1) {
+            const c = subida(seed);
             for (let i = 0; i < c.length - 1; i += 1) {
                 const s = daParaPular(c[i], c[i + 1]);
                 degraus += 1;
@@ -149,7 +182,7 @@ describe('a promessa do gerador do parkour, medida e depois CUMPRIDA', () => {
 
     it('as sementes antigas também estão limpas', () => {
         for (const seed of SEEDS) {
-            const c = curso(seed);
+            const c = subida(seed);
             for (let i = 0; i < c.length - 1; i += 1) {
                 const s = daParaPular(c[i], c[i + 1]);
                 expect(s.da, `semente ${seed}, degrau ${i}: ${s.porque}`).toBe(true);

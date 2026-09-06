@@ -30,6 +30,21 @@
 
 import { alcanceDoPulo } from './agente/agenteSalto';
 
+// ── OS PAPÉIS DAS PEÇAS ──────────────────────────────────────────────────────
+//
+// O curso era um sorteio: toda peça o mesmo quadrado, todo passo o mesmo
+// tamanho, tudo decidido por `rand`. Isso gera variedade estatística e nenhuma
+// INTENÇÃO — e um parkour sem intenção cansa mesmo sendo diferente a cada
+// passo, porque o jogador nunca reconhece nada.
+//
+// Papéis dão intenção:
+//   partida  — o patamar do elevador, largo, onde a escadaria começa
+//   passo    — a peça comum, o pulo de sempre
+//   descanso — larga e no mesmo nível: um compasso para respirar
+//   viga     — estreita e comprida, para correr em cima com precisão
+//   ponte    — a que desliza, e que ATRAVESSA vãos que uma fixa não atravessa
+export type TipoDePlataforma = 'partida' | 'passo' | 'descanso' | 'viga' | 'ponte';
+
 // ── Live platform record ─────────────────────────────────────────────────────
 export interface F3Plat {
     id: number;        // stable identity (monotonic) — used as React key
@@ -42,6 +57,7 @@ export interface F3Plat {
     moving: boolean;   // oscillates in X
     amp: number;       // X oscillation amplitude (0 when static)
     phase: number;     // oscillation phase offset
+    tipo: TipoDePlataforma;  // o PAPEL da peça no curso (o renderer estiliza por ele)
     x: number;         // LIVE center X (= bx + sin(t·sp+phase)·amp), read by all
     dx: number;        // quanto o X andou NESTE tick — a ponte carrega quem esta em cima
     palette: number;   // index into the cartoon palette (renderer picks color)
@@ -94,7 +110,12 @@ export const f3PlayerY = { current: 0 };
 // `impacto` é a velocidade de queda no instante do toque (0 fora do quadro do
 // pouso). É por ele que a câmera mergulha e as mãos se esparramam na proporção
 // do tombo, em vez de todo pouso parecer igual.
-export const f3HandState = { vy: 0, moving: false, grounded: true, impacto: 0 };
+// `pousouEm` é o id da peça que levou o tombo no quadro do pouso (-1 nos
+// outros). É por ele que a plataforma afunda sob o pé de quem cai nela — o
+// chão reagindo a você é metade do peso que um pulo tem.
+export const f3HandState = {
+    vy: 0, moving: false, grounded: true, impacto: 0, pousouEm: -1,
+};
 let _nextId = 0;
 let _lastTickT = -1;
 
@@ -102,6 +123,7 @@ let _lastTickT = -1;
 const START: Omit<F3Plat, 'x'> = {
     id: 0, bx: 0, cz: -5.0, hw: 6.5, hd: 4.5, h: 0.5, topY: 0,
     moving: false, amp: 0, phase: 0, dx: 0, palette: -1,   // palette -1 = neutral panel
+    tipo: 'partida',
 };
 
 // ── Overlap detection (the anti-sobreposição script) ─────────────────────────
@@ -136,25 +158,99 @@ export function validateNoOverlaps(list: readonly F3Plat[]): Array<[number, numb
     return conflicts;
 }
 
-// ── Generation ────────────────────────────────────────────────────────────────
+// ── GERAÇÃO: FRASE, PAPEL E ESCALADA ─────────────────────────────────────────
+//
+// ── O COMPASSO ───────────────────────────────────────────────────────────────
+// O curso é escrito em frases de quatro passos, e não em sorteios
+// independentes. É o que separa "diferente toda vez" de "desenhado": o jogador
+// aprende o compasso e passa a LER a escadaria à frente em vez de reagir a ela.
+//
+//   tempo 0  o apoio  — às vezes um descanso, para a frase ter chão
+//   tempo 1  o corpo  — passo comum
+//   tempo 2  o corpo  — passo comum
+//   tempo 3  o acento — a peça que muda: viga, ponte ou o pulo longo
+//
+// ── A ESCALADA ───────────────────────────────────────────────────────────────
+// A dificuldade sobe DEVAGAR com a distância percorrida, e não de uma vez: os
+// primeiros compassos são largos e baixos porque é ali que o jogador descobre
+// o pulo, e o teto físico continua mandando em todos eles.
+const COMPASSO = 4;
+/** Em quantas peças a dificuldade vai de 0 a 1. */
+const RAMPA = 56;
+
+function dificuldade(indice: number): number {
+    return Math.max(0, Math.min(1, (indice - 3) / RAMPA));
+}
+const entre = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** As medidas de cada papel. `hw` é a meia-largura (X) e `hd` a meia-profundidade (Z). */
+function medidasDoPapel(tipo: TipoDePlataforma): { hw: number; hd: number } {
+    switch (tipo) {
+        // Larga nos dois eixos: dá para parar em cima e respirar.
+        case 'descanso': return { hw: 2.2, hd: 2.2 };
+        // Estreita em X e comprida em Z: corre-se EM CIMA dela. 0,75 de
+        // meia-largura mais os 0,32 de perdão de borda dão 1,07 de tolerância
+        // real — apertado, e não injusto.
+        case 'viga':     return { hw: 0.75, hd: 2.1 };
+        case 'ponte':    return { hw: pick([1.1, 1.3]), hd: pick([1.1, 1.3]) };
+        default: {       const h = pick(HALF_SET); return { hw: h, hd: h }; }
+    }
+}
+
+/** Que papel a próxima peça exerce, dado onde estamos na frase e a dificuldade. */
+function papelDaVez(indice: number, dif: number, anterior: TipoDePlataforma): TipoDePlataforma {
+    const tempo = indice % COMPASSO;
+    const sorte = rng();
+    if (tempo === 0) {
+        // O apoio da frase. Descanso é comum no começo e rareia conforme sobe,
+        // mas nunca some: uma escadaria infinita sem respiro é uma escadaria
+        // que ninguém termina.
+        return sorte < entre(0.55, 0.22, dif) ? 'descanso' : 'passo';
+    }
+    if (tempo === COMPASSO - 1) {
+        // O ACENTO, E A ORDEM EM QUE ELE APRENDE A DOER.
+        //
+        // Cedo o acento é raro e é sempre PONTE — que ajuda, porque ela vem até
+        // o jogador e encurta o vão; é a peça que se apresenta sozinha. A VIGA
+        // é precisão pura e só entra quando o pulo já está na mão. No fim, os
+        // dois se alternam, e é a alternância que faz a frase ser lida.
+        if (sorte > entre(0.30, 0.85, dif)) return 'passo';
+        if (dif < 0.3) return 'ponte';
+        const qual = rng();
+        if (qual < 0.5) return anterior === 'ponte' ? 'viga' : 'ponte';
+        return anterior === 'viga' ? 'ponte' : 'viga';
+    }
+    return 'passo';
+}
+
 function makeNext(prev: F3Plat): F3Plat {
-    const half = pick(HALF_SET);
-    // Sorteio bruto, ja expresso de BORDA A BORDA (que e a medida que o pulo
-    // enxerga; centro a centro conta como vao metade de cada plataforma, que e
-    // chao). A ordem dos sorteios e a mesma de antes de propósito: o curso so
-    // muda nos degraus que o teto fisico realmente aperta.
-    const vaoSorteado = rand(GAP_MIN, GAP_MAX) - prev.hd;
+    const indice = _nextId + 1;
+    const dif = dificuldade(indice);
+    const tipo = papelDaVez(indice, dif, prev.tipo);
+    const { hw, hd } = medidasDoPapel(tipo);
+
+    // O vão e a subida abrem com a dificuldade. O sorteio continua existindo —
+    // o que mudou é a FAIXA dele, que já não é a mesma no passo 4 e no 80.
+    const vaoSorteado = tipo === 'descanso'
+        ? rand(1.2, 1.8)                                  // chegar ao respiro é fácil
+        : rand(entre(1.5, 2.0, dif), entre(2.0, 2.9, dif));
+    const subida = rand(entre(0.3, 0.6, dif), entre(0.9, 1.4, dif));
+
     let topY: number;
     const r = rng();
-    if (r < REST_CHANCE)        topY = prev.topY;                       // breather
-    else if (r < REST_CHANCE + DROP_CHANCE) topY = Math.max(0.2, prev.topY - rand(RISE_MIN, RISE_MAX));
-    else                        topY = prev.topY + rand(RISE_MIN, RISE_MAX);
+    if (tipo === 'descanso' || tipo === 'viga') topY = prev.topY;   // o respiro e a viga são planos
+    else if (r < REST_CHANCE)                   topY = prev.topY;
+    else if (r < REST_CHANCE + DROP_CHANCE)     topY = Math.max(0.2, prev.topY - subida);
+    else                                        topY = prev.topY + subida;
 
-    let bx = THREE_clamp(prev.bx + rand(-DX_MAX, DX_MAX), -X_LIMIT + half, X_LIMIT - half);
+    // O desvio lateral também abre com a dificuldade, e a viga quase não desvia:
+    // acertar uma peça estreita E deslocada de uma vez seria pedir duas coisas
+    // num pulo só.
+    const desvioMax = tipo === 'viga' ? 0.5 : entre(0.7, DX_MAX, dif);
+    const bx = THREE_clamp(prev.bx + rand(-desvioMax, desvioMax), -X_LIMIT + hw, X_LIMIT - hw);
 
-    const moving = rng() < MOVE_CHANCE && Math.abs(bx) < 6;
-    // Bound amplitude so the swept bridge stays inside the corridor.
-    const amp = moving ? Math.min(2.4, X_LIMIT - half - Math.abs(bx)) : 0;
+    const moving = tipo === 'ponte' && Math.abs(bx) < 6;
+    const amp = moving ? Math.min(2.4, X_LIMIT - hw - Math.abs(bx)) : 0;
 
     // ── TETO FISICO DO VAO ───────────────────────────────────────────────
     // O pulo cobre `alcance` no chao; parte disso pode ser gasta indo de lado.
@@ -162,14 +258,14 @@ function makeNext(prev: F3Plat): F3Plat {
     // disso. A ponte movel nao entra na conta de proposito: contar o `amp`
     // (como o agente conta, porque a ponte VEM ate ele) faria o gerador exigir
     // que o jogador acertasse a fase — o vao tem de dar no pior instante dela.
-    const vaoLateral = Math.max(0, Math.abs(bx - prev.bx) - prev.hw - half);
+    const vaoLateral = Math.max(0, Math.abs(bx - prev.bx) - prev.hw - hw);
     const alcance = alcanceDoPulo(topY - prev.topY);
     const teto = Math.sqrt(Math.max(0, (alcance - MARGEM_DO_VAO) ** 2 - vaoLateral ** 2));
     const vao = Math.min(Math.max(vaoSorteado, VAO_MIN), Math.max(0.35, teto));
-    const cz = prev.cz + prev.hd + vao + half;
+    const cz = prev.cz + prev.hd + vao + hd;
 
     const cand: F3Plat = {
-        id: ++_nextId, bx, cz, hw: half, hd: half, h: 0.5, topY,
+        id: ++_nextId, bx, cz, hw, hd, h: 0.5, topY, tipo,
         moving, amp, phase: rng() * Math.PI * 2,
         x: bx, dx: 0, palette: _nextId % CARTOON_PALETTE_COUNT,
     };
