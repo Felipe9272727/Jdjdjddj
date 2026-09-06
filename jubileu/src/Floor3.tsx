@@ -124,7 +124,15 @@ const CLOUD_OUTLINE_MAT = (() => {
     m.depthWrite = false;
     return m;
 })();
-const CLOUD_FILL_TOON: ToonOpts = { color: '#ffffff', shadow: '#c4ccd6', bands: 2, rimStrength: 0.4 };
+// ── NUVEM É MANCHA CHAPADA, NÃO ESFERA ILUMINADA ─────────────────────────────
+// Com duas bandas e rim em 0,4, as esferas sobrepostas cruzavam as faixas de
+// sombra umas das outras e desenhavam crescentes duros dentro da nuvem — de
+// longe parecia um relâmpago colado em cada bolota. Numa referência de tinta a
+// nuvem é uma MANCHA: branca, chapada, e quem faz a forma é o contorno preto.
+// Uma banda só, sombra quase igual à luz, rim desligado.
+const CLOUD_FILL_TOON: ToonOpts = {
+    color: '#ffffff', shadow: '#f0f3f7', bands: 1, rimStrength: 0, specThreshold: 1.1,
+};
 const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => {
     const fill = toonMat(CLOUD_FILL_TOON);
     return (
@@ -149,9 +157,13 @@ const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> 
 // read by the thick black outline + black arrow (Cuphead/Mickey look). Slots
 // alternate white ↔ cream for subtle variety. palette === -1 → the landing.
 const INK    = '#0a0712';   // black
-const CREAM  = '#f3ecdd';
-const CREAM_S= '#c9bd9f';
+const CREAM  = '#f2eee4';
+const CREAM_S= '#c6c0b2';
 const WHITE_S= '#c8cdd4';
+// ── CADA PAPEL COM A CARA DO TRABALHO DELE ───────────────────────────────────
+// O tabuado sai do shader (uTabuas, espacamento em metros), entao dar
+// personalidade a cada peca custa ZERO draw call — que e a unica moeda que este
+// andar nao pode gastar no celular do dono do jogo.
 const CARTOON_PALETTE: ToonOpts[] = [
     { color: '#ffffff', shadow: WHITE_S, bands: 2, rimStrength: 0.35, specThreshold: 0.95 },
     { color: CREAM,     shadow: CREAM_S, bands: 2, rimStrength: 0.35, specThreshold: 0.95 },
@@ -160,15 +172,34 @@ const CARTOON_PALETTE: ToonOpts[] = [
     { color: '#ffffff', shadow: WHITE_S, bands: 2, rimStrength: 0.35, specThreshold: 0.95 },
     { color: CREAM,     shadow: CREAM_S, bands: 2, rimStrength: 0.35, specThreshold: 0.95 },
 ];
-const LANDING_TOON: ToonOpts = { color: '#ffffff', shadow: WHITE_S, seams: 4, seamColor: '#d7dde4', rimStrength: 0.3, bands: 2 };
+const LANDING_TOON: ToonOpts = {
+    color: '#faf8f3', shadow: '#d3cec4', bands: 2, rimStrength: 0.28, specThreshold: 0.96,
+    tabuas: 0.62,
+};
 
 // ── CADA PAPEL TEM DE PARECER O TRABALHO DELE ────────────────────────────────
 // O jogador lê a escadaria à frente antes de pular nela, e ler é reconhecer.
 // Se o descanso, a viga e a ponte tiverem a cor do passo comum, o compasso
 // existe no gerador e não existe na tela — que é o mesmo que não existir.
-const PONTE_TOON: ToonOpts = { color: '#dfd9cb', shadow: '#a89c80', bands: 2, rimStrength: 0.35, specThreshold: 0.95 };
-const VIGA_TOON:  ToonOpts = { color: '#f7f2e4', shadow: '#b9ae93', bands: 2, rimStrength: 0.55, specThreshold: 0.9 };
-const DESCANSO_TOON: ToonOpts = { color: '#ffffff', shadow: WHITE_S, seams: 2, seamColor: '#dfe4ea', bands: 2, rimStrength: 0.3 };
+const PONTE_TOON: ToonOpts = {
+    // A ponte e de tabua solta: mais cinza, e as ripas atravessadas contam que
+    // ela e um passadico, nao um bloco.
+    color: '#dedad0', shadow: '#a5a094', bands: 2, rimStrength: 0.35, specThreshold: 0.95,
+    tabuas: 0.5,
+};
+const VIGA_TOON: ToonOpts = {
+    // A viga e a mais clara e a de borda mais grossa: ela precisa saltar de
+    // longe, porque erra-la e cair. As ripas dao a pista de que se corre POR
+    // CIMA dela, no comprimento.
+    color: '#ffffff', shadow: '#c3bdae', bands: 2, rimStrength: 0.55, specThreshold: 0.9,
+    tabuas: 0.75,
+};
+const DESCANSO_TOON: ToonOpts = {
+    // O descanso e parente do patamar — mesmo tabuado, mesma calma. O
+    // parentesco E a dica de que ali da para parar.
+    color: '#ffffff', shadow: WHITE_S, bands: 2, rimStrength: 0.3, specThreshold: 0.96,
+    tabuas: 0.7,
+};
 
 function platToon(p: F3Plat): ToonOpts {
     if (p.tipo === 'partida') return LANDING_TOON;
@@ -223,67 +254,146 @@ export const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ p
 });
 PlatformView.displayName = 'PlatformView';
 
-// ─── O céu de nuvens que SEGUE o jogador na subida infinita ──────────────────
-// O curso não acaba, então o fundo não pode ficar preso na origem: o jogador
-// sairia dele. As nuvens se espalham em volta — acima, ao lado E abaixo — para
-// que a subida esteja sempre embrulhada em céu aberto (a referência não tem
-// chão nem vazio, só céu). Posições LOCAIS; o grupo é que persegue o Y/Z do
-// jogador, e por isso o campo nunca esvazia. (Não há mais esfera de céu nem
-// piso do vazio aqui: o fundo é a cor de limpeza da cena e a névoa.)
-const CLOUDS: Array<{ p: [number,number,number]; s: number }> = [
+// ─── O CÉU: DAR UM LUGAR A ESTA ESCADARIA ────────────────────────────────────
+//
+// O andar não tinha lugar nenhum. Fundo de cor chapada, sem horizonte, sem
+// profundidade, e das quinze nuvens que o código anunciava aparecia UMA, no
+// canto, com cara de clip-art colada. As lajes flutuavam num vazio creme, e
+// "vazio creme" não é estilo: é cenário que não foi feito.
+//
+// ── POR QUE TRÊS CAMADAS, E NÃO UM CAMPO SÓ ──────────────────────────────────
+//
+// Profundidade num céu não vem de ter MAIS nuvem: vem de coisas distintas
+// andando em ritmos distintos. Cada camada persegue o jogador com uma constante
+// própria, e é a constante que diz a distância dela:
+//
+//   perseguir RÁPIDO  → a camada gruda no jogador → lê-se como MUITO longe
+//   perseguir DEVAGAR → ela fica para trás e passa → lê-se como PERTO
+//
+// E amortecido, nunca por fator fixo: um fator fixo fica para trás para sempre
+// numa escadaria que não acaba, enquanto o amortecimento converge para um
+// atraso CONSTANTE (v/k) — que é exatamente o paralaxe, e nunca esvazia.
+const SEGUE_FUNDO  = 4.0;   // quase travado: o horizonte
+const SEGUE_MEIO   = 0.7;   // as nuvens de sempre
+const SEGUE_PERTO  = 0.22;  // varre por perto, bem para trás
+
+const CEU_ALTO   = '#c3cedd';   // zênite, um tom mais fundo
+const CEU_BAIXO  = '#eef1f4';   // horizonte, quase branco
+const SOL_COR    = '#fbf7ea';
+
+// ── A ABÓBADA ────────────────────────────────────────────────────────────────
+// Uma esfera pelo lado de dentro, com gradiente e um sol difuso baixo. É UM
+// draw call e nenhuma luz: no celular do dono do jogo isso importa mais que a
+// beleza do truque. `fog: false` porque a névoa serve para as lajes sumirem NO
+// céu — enevoar o próprio céu seria apagar o alvo.
+const CEU_VERT = /* glsl */`
+  varying vec3 vDir;
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const CEU_FRAG = /* glsl */`
+  precision mediump float;
+  uniform vec3 uAlto;
+  uniform vec3 uBaixo;
+  uniform vec3 uSol;
+  varying vec3 vDir;
+  void main() {
+    float h = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 col = mix(uBaixo, uAlto, pow(h, 0.85));
+    // Sol difuso no rumo da luz-chave, baixo e largo — dá para onde olhar sem
+    // virar um disco recortado, que numa cena de tinta ficaria duro.
+    float sol = pow(max(0.0, dot(normalize(vDir), normalize(vec3(-0.35, 0.12, 0.62)))), 6.0);
+    col = mix(col, uSol, sol * 0.55);
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+const CEU_GEO = new THREE.SphereGeometry(1, 24, 16);
+const CEU_MAT = new THREE.ShaderMaterial({
+    vertexShader: CEU_VERT, fragmentShader: CEU_FRAG,
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: {
+        uAlto:  { value: new THREE.Color(CEU_ALTO) },
+        uBaixo: { value: new THREE.Color(CEU_BAIXO) },
+        uSol:   { value: new THREE.Color(SOL_COR) },
+    },
+});
+
+const Abobada: React.FC = () => {
+    const ref = useRef<THREE.Mesh>(null);
+    useFrame(({ camera }) => {
+        if (!ref.current) return;
+        // Centrada na câmera e dimensionada pelo `far` dela: a abóbada tem de
+        // caber DENTRO do plano de corte, senão some justamente no aparelho de
+        // qualidade baixa (far 40), que é onde ela mais faz falta.
+        ref.current.position.copy(camera.position);
+        const far = (camera as THREE.PerspectiveCamera).far || 120;
+        ref.current.scale.setScalar(far * 0.88);
+    });
+    return <mesh ref={ref} geometry={CEU_GEO} material={CEU_MAT} renderOrder={-1000} frustumCulled={false} />;
+};
+
+// ── AS TRÊS CAMADAS ──────────────────────────────────────────────────────────
+// Posições LOCAIS; cada grupo persegue o Y/Z do jogador no ritmo dela. As de
+// trás são grandes e poucas (custam pouco e leem de longe); a da frente são
+// três bolotas enormes que cruzam a tela e dão a velocidade da subida.
+const NUVENS_FUNDO: Array<{ p: [number,number,number]; s: number }> = [
+    { p: [-62,  16, -40], s: 9.0 }, { p: [ 58,  24,  10], s: 10.5 },
+    { p: [-40,  30,  55], s: 8.0 }, { p: [ 30, -12,  70], s: 11.0 },
+    { p: [ 74,  -6, -60], s: 9.5 }, { p: [-70, -20,  18], s: 8.5 },
+];
+const NUVENS_MEIO: Array<{ p: [number,number,number]; s: number }> = [
     { p: [-34, 10, -18], s: 3.4 }, { p: [36, 16, -6], s: 4.0 },  { p: [-40, 20, 12], s: 3.0 },
     { p: [30, 6, 22], s: 2.6 },    { p: [-26, 22, 2], s: 3.6 },  { p: [42, 14, 16], s: 3.2 },
     { p: [0, 26, -30], s: 4.4 },   { p: [-44, 4, -2], s: 2.8 },  { p: [22, 18, -22], s: 3.0 },
     { p: [-18, -16, 8], s: 3.8 },  { p: [20, -22, -10], s: 4.2 }, { p: [-38, -10, 20], s: 3.0 },
     { p: [40, -18, 6], s: 3.4 },   { p: [4, -28, 24], s: 4.6 },  { p: [-10, -12, -24], s: 3.2 },
 ];
+const NUVENS_PERTO: Array<{ p: [number,number,number]; s: number }> = [
+    { p: [-15, -7,  6], s: 2.3 }, { p: [16, 9, -9], s: 2.6 }, { p: [-13, 12, 20], s: 2.0 },
+];
 
-// ── O CAMPO DE NUVENS NÃO DÁ MAIS SALTOS ─────────────────────────────────────
-// Ele seguia o jogador travado numa grade de 8 unidades, "para o paralaxe ler
-// como movimento e não como skybox". A intenção estava certa e o efeito era o
-// contrário: uma nuvem a 20–45 unidades que anda 8 de uma vez não faz paralaxe,
-// ela TELETRANSPORTA — um pulo de 10 a 20 graus de arco, a cada poucos segundos.
-//
-// Um seguimento amortecido dá as duas coisas de graça: em movimento o campo
-// fica para trás por uma distância constante (v/k ≈ 6,7 m a 4 m/s), que é
-// exatamente o paralaxe que se queria, e quando o jogador para ele alcança
-// suavemente. E, ao contrário de um fator de paralaxe fixo, converge — nunca
-// fica para trás para sempre num curso que não acaba.
-const SEGUE_NUVENS = 0.6;   // 1/s — quanto menor, mais o céu fica para trás
-
-const FollowEnv: React.FC = () => {
+const CamadaDeNuvens: React.FC<{
+    nuvens: Array<{ p: [number,number,number]; s: number }>; segue: number;
+}> = ({ nuvens, segue }) => {
     const ref = useRef<THREE.Group>(null);
     useFrame((_, dt) => {
         if (!ref.current) return;
-        const k = 1 - Math.exp(-SEGUE_NUVENS * Math.min(dt, 0.05));
+        const k = 1 - Math.exp(-segue * Math.min(dt, 0.05));
         ref.current.position.z += (f3PlayerZ.current - ref.current.position.z) * k;
         ref.current.position.y += (f3PlayerY.current - ref.current.position.y) * k;
     });
     return (
         <group ref={ref}>
-            {CLOUDS.map((c,i)=>(<CloudPuff key={i} position={c.p} scale={c.s} />))}
+            {nuvens.map((c, i) => (<CloudPuff key={i} position={c.p} scale={c.s} />))}
         </group>
     );
 };
-// O céu não depende de nada do React: memoizado, ele para de reconciliar 150
-// malhas de nuvem toda vez que a piscina de plataformas recicla (~1×/s).
-const FollowEnvMemo = React.memo(FollowEnv);
+
+const CeuDoAndar3: React.FC = () => (
+    <>
+        <Abobada />
+        <CamadaDeNuvens nuvens={NUVENS_FUNDO} segue={SEGUE_FUNDO} />
+        <CamadaDeNuvens nuvens={NUVENS_MEIO}  segue={SEGUE_MEIO} />
+        <CamadaDeNuvens nuvens={NUVENS_PERTO} segue={SEGUE_PERTO} />
+    </>
+);
+// Nada aqui depende do React: memoizado, o céu para de reconciliar suas malhas
+// toda vez que a piscina de plataformas recicla (~1×/s).
+const CeuMemo = React.memo(CeuDoAndar3);
 
 // ── O HORIZONTE QUE NÃO EXISTIA ──────────────────────────────────────────────
 // A névoa era fixa em 60 → 240. O `far` da câmera do jogo é 40, 80 ou 120
 // conforme a qualidade: na baixa a névoa NEM COMEÇAVA antes do plano de corte
 // (60 > 40), então a escadaria sumia de uma vez, com uma borda dura; na alta
-// chegava a 33% de opacidade no corte. Em nenhuma qualidade a névoa fazia o
-// trabalho dela.
+// chegava a 33% de opacidade no corte. Em nenhuma qualidade ela trabalhava.
 //
-// E a cor estava fora do céu (#e7ebef contra #dde2e7): o que se dissolvia não
-// virava céu, virava um fantasma pálido um tom acima do fundo. A névoa agora é
-// da cor exata do céu e termina onde a câmera corta, em qualquer qualidade —
-// então a plataforma mais distante se apaga em vez de piscar para fora.
-const CEU = '#dde2e7';          // pale grey-white (B&W)
+// A cor tem de ser a do céu NO HORIZONTE — é lá que as lajes distantes se
+// dissolvem, e a abóbada é mais clara embaixo do que em cima.
+const CEU = CEU_BAIXO;
 
-/** Paints the scene background a flat cartoon sky (reliable clear color —
- *  `<color attach="background">` nested in a group never reaches the scene). */
+/** Pinta o fundo da cena, atrás da abóbada, e monta a névoa que a alcança. */
 const SkyBackground: React.FC = () => {
     const { scene, camera } = useThree();
     useEffect(() => {
@@ -371,7 +481,7 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
         <group>
             {/* Flat cartoon sky-blue + cloud field that follows the endless climb */}
             <SkyBackground />
-            <FollowEnvMemo />
+            <CeuMemo />
 
             {/* Lighting — bright & flat for the rubber-hose cel look */}
             <ambientLight intensity={0.85} color="#eef4ff" />

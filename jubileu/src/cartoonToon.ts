@@ -70,6 +70,14 @@ const TOON_FRAG = /* glsl */`
   uniform float uEmissiveStrength;
   uniform float uSeams;        // 0 = off, >0 = Aperture panel seam grid density
   uniform vec3  uSeamColor;
+  // ── A TINTA PINTADA NO TAMPO ──────────────────────────────────────────
+  // Uma plataforma de desenho animado nao e uma laje lisa: ela tem uma borda
+  // pintada e tabuas. Fazer isso com GEOMETRIA custaria tres ou quatro malhas
+  // por peca — com dezesseis pecas vivas, uma centena de draw calls a mais no
+  // celular do dono do jogo, que e a unica coisa que este projeto nao pode
+  // gastar. Aqui sai de graca: e UV e normal, dentro do fragment que ja roda.
+  uniform float uTabuas;       // 0 = sem tabuado; senao, o espacamento EM METROS
+  uniform vec3  uTinta;
 
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
@@ -102,6 +110,32 @@ const TOON_FRAG = /* glsl */`
 
     vec3 col = diffuse + specular + rim + uEmissive * uEmissiveStrength;
 
+    // ── Tabuado, so na face de CIMA ───────────────────────────────────
+    //
+    // A PRIMEIRA VERSAO USOU vUv E SAIU PRETA. As UV do RoundedBox do drei nao
+    // sao 0..1 por face — ele cria a caixa arredondada e recosta as normais, e
+    // o mapeamento nao e o do BoxGeometry. Com isso 'min(vUv, 1-vUv)' deu perto
+    // de zero na peca inteira e a borda pintou tudo. Da para ver a tentativa
+    // fracassada nas fotos da bancada: as plataformas viraram tijolos pretos.
+    //
+    // A conta certa e em ESPACO DE MUNDO: uma linha a cada 'uTabuas' metros.
+    // Alem de nao depender das UV, isso e melhor por si — a tabua fica do mesmo
+    // tamanho em toda peca, como tabua de verdade, em vez de esticar junto com
+    // a plataforma. E como o material e COMPARTILHADO entre pecas de tamanhos
+    // diferentes, nenhuma solucao que precise das medidas da peca serviria.
+    //
+    // A borda pintada saiu de cena junto: quem emoldura cada peca ja e a borda
+    // de tinta de GEOMETRIA que o PlatformView desenha por baixo do tampo.
+    if (uTabuas > 0.0) {
+      float topo = step(0.55, N.y);
+      float f = fract(vWorldPos.z / uTabuas);
+      float d = min(f, 1.0 - f);
+      // Largura em metros, nao em fracao do periodo: assim a ripa nao engorda
+      // quando o espacamento cresce.
+      float linha = 1.0 - smoothstep(0.0, 0.035 / uTabuas, d);
+      col = mix(col, uTinta, linha * topo * 0.85);
+    }
+
     // ── Optional Aperture panel seams ──
     if (uSeams > 0.0) {
       vec2 g = fract(vUv * uSeams);
@@ -131,6 +165,10 @@ export interface ToonOpts {
     emissiveStrength?: number;
     seams?: number;                          // panel seam grid density (0 = off)
     seamColor?: THREE.ColorRepresentation;
+    /** Espaçamento do tabuado no tampo, EM METROS (0 = sem tabuado). */
+    tabuas?: number;
+    /** A cor da tinta das ripas. */
+    tinta?: THREE.ColorRepresentation;
 }
 
 export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
@@ -159,6 +197,8 @@ export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
             uEmissiveStrength: { value: o.emissiveStrength ?? 0 },
             uSeams:            { value: o.seams ?? 0 },
             uSeamColor:        { value: new THREE.Color(o.seamColor ?? '#1a2230') },
+            uTabuas:           { value: o.tabuas ?? 0 },
+            uTinta:            { value: new THREE.Color(o.tinta ?? '#0a0712') },
         },
     });
 }

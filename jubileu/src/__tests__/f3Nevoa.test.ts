@@ -13,6 +13,7 @@
 // oferece, e o GLSL resolvido como o próprio three o resolve antes de compilar.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { faixaDaNevoa, NEVOA_INICIO, NEVOA_FIM } from '../f3Nevoa';
 import { createToonMaterial } from '../cartoonToon';
 import { QUALITY_PROFILES } from '../Settings';
@@ -113,5 +114,27 @@ describe('o shader toon enxerga a névoa da cena', () => {
         const v = mat.vertexShader;
         expect(v).toContain('#include <fog_pars_vertex>');
         expect(resolver(v)).toContain('#ifdef USE_FOG');
+    });
+});
+
+describe('o GLSL não pode ter crase — eu já quebrei isto duas vezes', () => {
+    // Os shaders moram em template literals. Uma crase dentro de um comentário
+    // GLSL (escrevendo `uTabuas` com aspas de código, que é o reflexo de quem
+    // escreve markdown o dia todo) FECHA a string, e o TypeScript passa a ler
+    // GLSL como código. Eu fiz isso duas vezes na mesma sessão. O `tsc` pega,
+    // mas o erro que ele dá — "',' expected" numa linha de GLSL — não diz o
+    // que houve, e a segunda vez eu levei o mesmo tempo da primeira para
+    // entender. Este teste diz.
+    it('nenhum shader do cartoonToon contém crase no corpo', async () => {
+        const fonte = readFileSync(
+            new URL('../cartoonToon.ts', import.meta.url), 'utf8',
+        );
+        // Cada shader é um template: as crases legítimas são as das pontas, e
+        // elas vêm sempre em par com o marcador /* glsl */.
+        const shaders = [...fonte.matchAll(/\/\* glsl \*\/`([\s\S]*?)`;/g)];
+        expect(shaders.length).toBeGreaterThanOrEqual(2);
+        for (const [, corpo] of shaders) {
+            expect(corpo.includes('`'), 'crase dentro do GLSL').toBe(false);
+        }
     });
 });

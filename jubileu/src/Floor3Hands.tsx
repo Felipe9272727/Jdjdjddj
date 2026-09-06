@@ -53,6 +53,38 @@ const FILL_WIDTH     = 1.05;
 const MAX_SCALE      = 1.42;
 const BOTTOM_ANCHOR  = 0.71;
 
+// ── AS LUVAS ERAM CINZAS PORQUE A TEXTURA E CINZA ────────────────────────────
+//
+// O modelo veio de geracao por IA (os nos se chamam `tripo_...`) e traz uma
+// textura de luva realista, com sombreado fotografico embutido. Iluminar aquilo
+// dava a bolha de borracha cinza que a bancada fotografou; DESLIGAR a luz e
+// mostrar a textura crua dava a mesma bolha, so que sem luz — porque o cinza
+// nunca foi da iluminacao, era do desenho.
+//
+// A saida nao e trocar o modelo: e POSTERIZAR. Duas cores, decididas pelo
+// brilho da textura — o que era claro vira branco de luva, o que era escuro
+// vira a tinta da manga. E exatamente o que a referencia de 1930 faz, e de
+// quebra some com o sombreado fotografico que estragava o estilo.
+//
+// `?lc=` afina o corte sem recompilar, do mesmo jeito que o resto do layout.
+const LUVA_CLARA = '#fbf9f4';
+const LUVA_ESCURA = '#141014';
+const LUVA_CORTE = 0.22;
+
+function materialDeLuva(mapa: THREE.Texture | null, corte: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            uMapa:   { value: mapa },
+            uClaro:  { value: new THREE.Color(LUVA_CLARA) },
+            uEscuro: { value: new THREE.Color(LUVA_ESCURA) },
+            uCorte:  { value: corte },
+            uTemMapa: { value: mapa ? 1 : 0 },
+        },
+        vertexShader: /* glsl */'\n            varying vec2 vUv;\n            void main() {\n                vUv = uv;\n                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n            }\n        ',
+        fragmentShader: /* glsl */'\n            precision mediump float;\n            uniform sampler2D uMapa;\n            uniform vec3 uClaro;\n            uniform vec3 uEscuro;\n            uniform float uCorte;\n            uniform float uTemMapa;\n            varying vec2 vUv;\n            void main() {\n                vec3 t = uTemMapa > 0.5 ? texture2D(uMapa, vUv).rgb : vec3(1.0);\n                float l = dot(t, vec3(0.299, 0.587, 0.114));\n                vec3 col = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, l));\n                gl_FragColor = vec4(col, 1.0);\n            }\n        ',
+    });
+}
+
 // Cuphead-style ink outline. An inverted-hull shell: the gloves are cloned
 // with a black material that pushes every vertex out along its normal and
 // renders only BACK faces, so a uniform black silhouette pokes out behind the
@@ -94,6 +126,7 @@ function layoutFromURL() {
         maxScale: n('ms', MAX_SCALE),
         anchor: n('ba', BOTTOM_ANCHOR),
         outline: n('ot', OUTLINE_THICKNESS),
+        corte: n('lc', LUVA_CORTE),
     };
 }
 
@@ -124,35 +157,15 @@ export default function FpHands() {
                 m.renderOrder = 11; // in front of the outline shell (10)
                 // Clone materials so our tweaks don't leak into the cached GLB.
                 const src = Array.isArray(m.material) ? m.material : [m.material];
-                const mats = src.map((mat) => (mat ? mat.clone() : mat));
-                for (const mat of mats) {
-                    if (!mat) continue;
-                    // HUD element — always render in front of scene geometry.
-                    mat.depthTest = false;
-                    mat.depthWrite = false;
-                    // Flat cartoon brightening — lift the gloves toward the bright
-                    // white of the reference WITHOUT discarding the texture: drive
-                    // emissive from the diffuse map (or colour) so white reads white
-                    // and the black sleeves stay black.
-                    const std = mat as THREE.MeshStandardMaterial;
-                    if ('emissive' in std) {
-                        if (std.map) {
-                            std.emissiveMap = std.map;
-                            std.emissive.setRGB(1, 1, 1);
-                            std.emissiveIntensity = 0.55;
-                        } else if (std.color) {
-                            std.emissive.copy(std.color);
-                            std.emissiveIntensity = 0.45;
-                        }
-                        if ('roughness' in std) std.roughness = Math.min(1, (std.roughness ?? 1));
-                        std.needsUpdate = true;
-                    }
-                }
+                const mats = src.map((mat) => {
+                    const std = mat as THREE.MeshStandardMaterial | undefined;
+                    return materialDeLuva(std?.map ?? null, layout.corte);
+                });
                 m.material = Array.isArray(m.material) ? mats as THREE.Material[] : mats[0] as THREE.Material;
             }
         });
         return c;
-    }, [scene]);
+    }, [scene, layout.corte]);
 
     // Black ink-outline shell drawn just behind the gloves.
     const outline = useMemo(() => {

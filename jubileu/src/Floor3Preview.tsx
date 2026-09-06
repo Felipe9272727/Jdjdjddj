@@ -18,6 +18,14 @@ import { KernelSize } from 'postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
 import { Suspense } from 'react';
+import { useThree } from '@react-three/fiber';
+
+/** DEV-ONLY: expõe a cena para a sonda da bancada poder inspecionar material. */
+function Expor() {
+    const { scene } = useThree();
+    (window as unknown as { __cena?: unknown }).__cena = scene;
+    return null;
+}
 import Floor3Environment from './Floor3';
 import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
@@ -70,6 +78,7 @@ export default function Floor3Preview() {
                 camera={{ position: camPos, fov: fphands ? 90 : 70, near: 0.1, far: 200 }}
                 gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace }}
             >
+                <Expor />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug /> : <Floor3Environment elevator={false} />}
                 </Suspense>
