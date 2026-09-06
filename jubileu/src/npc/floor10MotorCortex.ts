@@ -190,7 +190,7 @@ export type GroundedFloor10Motion = {
 };
 
 const MOTOR_PATTERN =
-    /MOTION:\s*(approach|withdraw|hold|orbit|explore|stay)\s*\|\s*(player|elevator|nearest-device|active-device|room-center|north-side|south-side|east-side|west-side|self)\s*\|\s*(slow|normal|fast)\s*\|\s*(3|6|9|12)\s*(?:s|seconds?)?/gi;
+    /MOTION:\s*(approach|withdraw|hold|orbit|explore|stay)\s*\|\s*(player|elevator|nearest-device|active-device|room-center|north-side|south-side|east-side|west-side|self|ahead|behind|to-my-left|to-my-right)\s*\|\s*(slow|normal|fast)\s*\|\s*(3|6|9|12)\s*(?:s|seconds?)?/gi;
 
 /**
  * Gramática da PASSADA DE TRADUÇÃO, não do pensamento. O texto livre já foi
@@ -475,6 +475,18 @@ function targetPoint(
         case 'south-side': return { x: 0, z: -6.5 };
         case 'east-side': return { x: 16, z: 4 };
         case 'west-side': return { x: -16, z: 4 };
+        case 'ahead':
+        case 'behind':
+        case 'to-my-left':
+        case 'to-my-right': {
+            const giro = plan.target === 'ahead' ? 0
+                : plan.target === 'behind' ? Math.PI
+                : plan.target === 'to-my-left' ? -Math.PI / 2 : Math.PI / 2;
+            const metros = Number.isFinite(plan.distancia) && plan.distancia! > 0 ? plan.distancia! : 5;
+            const angulo = perception.yaw + giro;
+            return { x: position.x + Math.sin(angulo) * metros,
+                z: position.z + Math.cos(angulo) * metros };
+        }
         case 'self': return { x: position.x, z: position.z };
         default: return null;
     }
@@ -553,7 +565,7 @@ export function groundMotorPlan(
             x: focus.x + (-dz * side) * 2.8,
             z: focus.z + (dx * side) * 2.8,
         });
-    } else if (plan.verb === 'explore') {
+    } else if (plan.verb === 'explore' && !['ahead', 'behind', 'to-my-left', 'to-my-right'].includes(plan.target)) {
         const drift = stableDirection(plan.raw);
         target = safeRoomTarget({
             x: focus.x + drift.x * 2.4,

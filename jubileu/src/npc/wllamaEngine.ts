@@ -1,3 +1,4 @@
+import { CustoDaFala } from './floor10CustoDaFala';
 // ── O CÉREBRO DO NPC — CPU + WEBGPU ───────────────────────────────────────
 // O wllama divide o SmolLM3 entre WebGPU e CPU quando o aparelho comporta; em
 // aparelhos menores recua sozinho para CPU/WASM. O modelo fica em cache no
@@ -2305,6 +2306,11 @@ export async function sendToNpc(
     // longo inchava o prefill e fazia o 3B "fixar" num tema. O essencial do
     // personagem vive na persona, não no histórico.
     const groundedHistory = groundedModelHistory(history, FLOOR10_HISTORY_VERBATIM);
+    anotar('fala:contexto', {
+        sistema_caracteres: systemPrompt.length,
+        historico_caracteres: groundedHistory.reduce((n, m) => n + m.content.length, 0),
+        mensagens: groundedHistory.length,
+    });
 
     // Toda tentativa usa o mesmo 3B. Se a validação detectar uma contradição,
     // o próprio 3B recebe uma única chance de revisar; não há frase pronta nem
@@ -2337,6 +2343,7 @@ export async function sendToNpc(
      * nenhum modelo auxiliar resolve. Sem este número, escolher entre os dois é
      * chute; já paguei caro por chute nesta sessão.
      */
+    const custoDaFala = new CustoDaFala();
     let medicaoFinal: ChatTimings | null = null;
     const generateWithMainModel = async (
         prompt: string,
@@ -2362,6 +2369,7 @@ export async function sendToNpc(
             maxTokens: number;
         }> = {},
     ): Promise<string> => {
+        const geracao = custoDaFala.iniciar(revisao.maxTokens ?? CHAT_COMPLETION_CONFIG.max_tokens);
         const abort = new AbortController();
         // ── O QUE O GERENTE DE GPU VAI JULGAR ─────────────────────────────
         // O FPS é medido DURANTE a geração, que é exatamente a janela em que a
@@ -2407,6 +2415,7 @@ export async function sendToNpc(
                 // Publica a velocidade MEDIDA pelo motor no aparelho do jogador.
                 onTimings: (timings) => {
                     medicaoFinal = timings;
+                    custoDaFala.medir(geracao, timings);
                     if (typeof timings.predicted_per_second === 'number'
                         && timings.predicted_per_second > 0) {
                         tpsDaVez = timings.predicted_per_second;
@@ -2447,6 +2456,7 @@ export async function sendToNpc(
             fps,
             letras: resposta.length,
             ...divisaoDaEspera(medicaoFinal),
+            ...custoDaFala.resumo(),
         });
         // ── SANIDADE ANTES DE VELOCIDADE ──────────────────────────────────
         // Com 2 camadas na GPU o Nilo respondeu lixo — tokens aleatórios,

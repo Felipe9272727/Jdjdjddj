@@ -1,3 +1,4 @@
+import { RodadaDoNilo } from './npc/floor10Rodada';
 import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import {
     MemoriaDeConsequencia, type MundoObservado,
@@ -69,6 +70,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // valor, o primeiro quadro SEMPRE publica a verdade medida.
     const nearRef = useRef<boolean | null>(null);
     /** Conferências de consequência agendadas e ainda não disparadas. */
+    const rodada = useMemo(() => new RodadaDoNilo(), []);
     const conferencias = useRef(new Set<ReturnType<typeof setTimeout>>());
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const npcWorld = useMemo(() => new THREE.Vector3(), []);
@@ -170,7 +172,9 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // efeito de um gesto num mundo que não existe mais.
     useEffect(() => {
         const pendentes = conferencias.current;
+        rodada.entrar();
         return () => {
+            rodada.sair();
             for (const bilhete of pendentes) globalThis.clearTimeout(bilhete);
             pendentes.clear();
             // ── O HUMOR DELE SOBREVIVE À SAÍDA ───────────────────────────
@@ -299,6 +303,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             if (npc.phase !== 'thinking' && npc.phase !== 'loading'
                 && t >= nextDeliberationAt.current) {
                 nextDeliberationAt.current = t + 60;
+                const bilheteDaRodada = rodada.iniciar(npc.willCommand?.id ?? 0);
                 void deliberateFloor10({
                     perception: livePerception,
                     drives: npc.autonomy.drives,
@@ -324,6 +329,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     prison: f10prison,
                     now: t,
                 }).then((decided) => {
+                    if (!rodada.aceitar(bilheteDaRodada, npc.willCommand?.id ?? 0) || npc.open || npc.speaking) return;
                     if (decided) {
                         deliberation.current = decided;
                         deliberationFailures.current = 0;

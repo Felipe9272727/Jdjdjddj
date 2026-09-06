@@ -4176,3 +4176,4 @@ fonte + index.html + version.json juntos e remove o próprio workflow da árvore
 - Interações removidas/indisponíveis são descartadas; objetos móveis atualizam o destino.
 - Uma colisão persistente invalida a grade e tenta uma rota nova antes de desistir, sem teleporte. Portas do Andar 6 invalidam a navegação pela geometria, não só pela quantidade.
 - Cinco regressões novas cobrem esses comportamentos; permanecem as limitações de terrenos especiais documentadas acima.
+- Auditoria de custo: histórico do 3B já limitado a 4 mensagens / 1.800 caracteres; rascunhador desligado por padrão. Correção de consistência pode gerar outra resposta de até 56 tokens. O diagnóstico agora mostra número de gerações, tempo somado de leitura/fala e contadores reportados de cada chamada; snapshots por token não são somados repetidamente. Teto de saída é limite, não consumo medido. Registra tamanhos de sistema/histórico em caracteres, sem registrar seu texto.
