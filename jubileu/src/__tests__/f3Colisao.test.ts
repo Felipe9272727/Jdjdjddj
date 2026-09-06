@@ -14,6 +14,9 @@ import {
     RAIO_DO_CORPO, RELOGIOS_ZERADOS,
     baterACabeca, chaoSobOsPes, empurrarDasLaterais, gastarOPulo, girarRelogios,
     podePular, resolverQueda,
+    molaDoTranco, PISO_DO_TRANCO, TETO_DO_TRANCO, TRANCO_PARADO,
+    TRANCO_DA_CAMERA, TRANCO_DAS_MAOS,
+    type AfinacaoDoTranco, type Tranco,
 } from '../f3Fisica';
 import type { F3Plat } from '../f3Parkour';
 
@@ -183,5 +186,68 @@ describe('o que o conserto anterior ganhou continua ganho', () => {
         const forte = resolverQueda(9.0, -0.1, -18, { topY: 0, plat: p });
         expect(leve.pousou).toBe(true);
         expect(forte.impacto).toBeGreaterThan(leve.impacto * 3);
+    });
+});
+
+describe('o tranco do pouso: a mesma mola para a câmera e para as mãos', () => {
+    // Escrever a mola duas vezes seria garantir que as duas divergissem na
+    // primeira afinação — e as duas juntas são o que faz uma queda parecer uma
+    // queda. Estes testes seguram a mola, não a amplitude de cada uma.
+    const correr = (impacto: number, af: AfinacaoDoTranco, quadros = 240): {
+        fundo: number; fim: Tranco; picoPositivo: number;
+    } => {
+        let t = TRANCO_PARADO;
+        let fundo = 0, picoPositivo = 0;
+        for (let i = 0; i < quadros; i++) {
+            t = molaDoTranco(t, i === 0 ? impacto : 0, 1 / 60, af);
+            fundo = Math.min(fundo, t.valor);
+            picoPositivo = Math.max(picoPositivo, t.valor);
+        }
+        return { fundo, fim: t, picoPositivo };
+    };
+
+    it('degrau não treme a tela: abaixo do piso, nada acontece', () => {
+        const r = correr(PISO_DO_TRANCO - 0.5, TRANCO_DA_CAMERA);
+        expect(r.fundo).toBe(0);
+        expect(r.fim.valor).toBe(0);
+    });
+
+    it('quanto maior o tombo, mais fundo — até o teto', () => {
+        const leve = correr(PISO_DO_TRANCO + 3, TRANCO_DA_CAMERA).fundo;
+        const forte = correr(PISO_DO_TRANCO + 12, TRANCO_DA_CAMERA).fundo;
+        expect(forte).toBeLessThan(leve);
+        // E o teto existe: cair de 200 m/s não pode dar um soco maior que 22.
+        const absurdo = correr(200, TRANCO_DA_CAMERA).fundo;
+        const noTeto = correr(TETO_DO_TRANCO, TRANCO_DA_CAMERA).fundo;
+        expect(absurdo).toBeCloseTo(noTeto, 9);
+    });
+
+    it('volta ao repouso e não fica repicando', () => {
+        for (const af of [TRANCO_DA_CAMERA, TRANCO_DAS_MAOS]) {
+            const r = correr(TETO_DO_TRANCO, af);
+            expect(Math.abs(r.fim.valor)).toBeLessThan(0.005);
+            // Quase crítica: pode passar um triz do zero na volta, não saltar.
+            expect(r.picoPositivo).toBeLessThan(af.limite * 0.25);
+        }
+    });
+
+    it('nunca passa do limite, nem com quadros longos', () => {
+        for (const af of [TRANCO_DA_CAMERA, TRANCO_DAS_MAOS]) {
+            let t = TRANCO_PARADO;
+            for (let i = 0; i < 400; i++) {
+                // Quadro gigante de propósito: Euler com mola dura e passo
+                // grande diverge, e o `Math.min(dt, 0.05)` é o que impede.
+                t = molaDoTranco(t, i % 40 === 0 ? TETO_DO_TRANCO : 0, 0.9, af);
+                expect(Number.isFinite(t.valor), `quadro ${i}`).toBe(true);
+                expect(Math.abs(t.valor)).toBeLessThanOrEqual(af.limite + 1e-9);
+            }
+        }
+    });
+
+    it('dt negativo ou zero não quebra', () => {
+        let t = molaDoTranco(TRANCO_PARADO, 20, 0, TRANCO_DA_CAMERA);
+        expect(Number.isFinite(t.valor)).toBe(true);
+        t = molaDoTranco(t, 0, -1, TRANCO_DA_CAMERA);
+        expect(Number.isFinite(t.valor)).toBe(true);
     });
 });

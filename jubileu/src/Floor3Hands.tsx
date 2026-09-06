@@ -29,6 +29,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { f3HandState } from './f3Parkour';
+import { molaDoTranco, TRANCO_DAS_MAOS, TRANCO_PARADO } from './f3Fisica';
 import { glovesModel } from './assets/textureImports';
 
 const GLOVES_URL = glovesModel; // bundled (inlined) — no runtime fetch
@@ -101,6 +102,13 @@ export default function FpHands() {
     const root  = useRef<THREE.Group>(null);
     const inner = useRef<THREE.Group>(null);
     const walk  = useRef(0);
+    // ── O TRANCO DO POUSO ────────────────────────────────────────────────
+    // `f3HandState.impacto` é a velocidade no instante do toque e vem zerada em
+    // todo quadro que não é o do pouso — ou seja, é um IMPULSO. A mola guarda o
+    // resto: as luvas afundam e se abrem na proporção do tombo e voltam
+    // sozinhas. Sem isso, cair de oito metros mexia menos nas mãos do que
+    // andar, porque só o bob de caminhada as movia.
+    const tranco = useRef(TRANCO_PARADO);
 
     const layout = useMemo(layoutFromURL, []);
 
@@ -198,17 +206,32 @@ export default function FpHands() {
         const jumpY  = THREE.MathUtils.clamp(vy * 0.016, -0.10, 0.12) * k;
         const jumpRX = THREE.MathUtils.clamp(-vy * 0.02, -0.18, 0.22);
 
+        // Impulso do pouso + mola de volta. O piso de 4 m/s é o mesmo da
+        // câmera: abaixo disso é degrau, não queda, e tremer aí só cansaria.
+        tranco.current = molaDoTranco(
+            tranco.current, f3HandState.impacto, dt, TRANCO_DAS_MAOS,
+        );
+        const impacto = tranco.current.valor;      // negativo: afunda
+
         inner.current.position.set(
             bobX,
-            restY + breath + bobY + jumpY,
-            restZ + Math.abs(bobX) * 0.4,
+            restY + breath + bobY + jumpY + impacto * k,
+            // Afundar também traz as mãos para PERTO da cara: é o que dá o
+            // baque, e não só o movimento vertical.
+            restZ + Math.abs(bobX) * 0.4 - impacto * 0.22,
         );
         inner.current.rotation.set(
-            layout.rot.x + jumpRX + Math.sin(t * 12) * 0.02 * w,
+            // Os punhos abrem para fora no baque (impacto é negativo, daí o −).
+            layout.rot.x + jumpRX - impacto * 0.9 + Math.sin(t * 12) * 0.02 * w,
             layout.rot.y + bobX * 0.5,
             layout.rot.z + Math.sin(t * 6) * 0.04 * w,
         );
-        inner.current.scale.setScalar(fitScale);
+        // E esparramam de leve — mão que bate no chão se abre.
+        inner.current.scale.set(
+            fitScale * (1 - impacto * 0.10),
+            fitScale * (1 + impacto * 0.06),
+            fitScale,
+        );
     });
 
     return (

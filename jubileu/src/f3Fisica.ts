@@ -274,3 +274,60 @@ export function podePular(r: RelogiosDoPulo): boolean {
 export function gastarOPulo(): RelogiosDoPulo {
     return { foraDoChao: Infinity, pedidoDePulo: Infinity };
 }
+
+// ── O TRANCO DO POUSO ────────────────────────────────────────────────────────
+//
+// A câmera e as mãos precisam da MESMA reação ao pouso, com amplitudes
+// diferentes. Escrever a mola duas vezes seria garantir que as duas
+// divergissem na primeira afinação — e as duas juntas são o que faz uma queda
+// parecer uma queda.
+//
+// A entrada é a velocidade no instante do toque, e ela chega zerada em todo
+// quadro que não é o do pouso: isto é um IMPULSO seguido de uma mola, não um
+// estado contínuo.
+
+/** Abaixo disto é degrau, não queda. Tremer a tela aqui só cansaria. */
+export const PISO_DO_TRANCO = 4;
+/** Acima disto o tombo já é "o máximo"; sem teto, a queda no vazio viraria soco. */
+export const TETO_DO_TRANCO = 22;
+
+export interface Tranco {
+    /** Deslocamento atual. Negativo = afundou. */
+    valor: number;
+    vel: number;
+}
+
+export const TRANCO_PARADO: Tranco = Object.freeze({ valor: 0, vel: 0 }) as Tranco;
+
+export interface AfinacaoDoTranco {
+    /** Quanto de velocidade vira impulso. */
+    ganho: number;
+    /** Rigidez e amortecimento da mola de volta. */
+    k: number;
+    d: number;
+    /** O quanto ele pode afundar, em unidades de mundo. */
+    limite: number;
+}
+
+export function molaDoTranco(
+    t: Tranco, impacto: number, dt: number, a: AfinacaoDoTranco,
+): Tranco {
+    // Quadro longo não pode virar explosão: a mola é integrada em Euler, e
+    // Euler com passo grande e mola dura diverge.
+    const passo = Math.min(Math.max(dt, 0), 0.05);
+    let vel = t.vel;
+    if (impacto > 0) {
+        vel -= Math.max(0, Math.min(impacto, TETO_DO_TRANCO) - PISO_DO_TRANCO) * a.ganho;
+    }
+    vel += (-a.k * t.valor - a.d * vel) * passo;
+    const valor = Math.max(-a.limite, Math.min(a.limite, t.valor + vel * passo));
+    return { valor, vel };
+}
+
+/** Afinações usadas no jogo. Ficam aqui para câmera e mãos não divergirem. */
+export const TRANCO_DA_CAMERA: AfinacaoDoTranco = Object.freeze({
+    ganho: 0.055, k: 120, d: 17, limite: 0.34,
+});
+export const TRANCO_DAS_MAOS: AfinacaoDoTranco = Object.freeze({
+    ganho: 0.075, k: 110, d: 16, limite: 0.30,
+});

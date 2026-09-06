@@ -12,6 +12,7 @@ import {
     empurrarDasLaterais as f3Empurrar, baterACabeca as f3Cabeca,
     girarRelogios as f3Relogios, podePular as f3PodePular, gastarOPulo as f3GastarPulo,
     RELOGIOS_ZERADOS as F3_RELOGIOS_ZERADOS,
+    molaDoTranco as f3Tranco, TRANCO_DA_CAMERA, TRANCO_PARADO,
 } from './f3Fisica';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
@@ -400,7 +401,12 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
+  // `agacho` é o mergulho da câmera no pouso e `agachoVel` a mola que a
+  // devolve. Só o Andar 3 os move: um pouso de 30 cm e um de 8 m pareciam
+  // exatamente iguais, e o corpo é a única coisa que conta ao jogador de que
+  // altura ele veio.
   const fpFeelRef = useRef({ phase: 0, motion: 0, roll: 0, fov: 78 });
+  const f3TrancoRef = useRef(TRANCO_PARADO);
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
 
   useEffect(() => {
@@ -960,13 +966,27 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const bobY = (Math.abs(Math.cos(step)) - 0.5) * 0.024 * feel.motion;
             const bobZ = Math.sin(step * 2) * 0.006 * feel.motion;
             const breath = Math.sin(timeRef.current * 1.35) * 0.0035 * (1 - feel.motion);
+            // ── O CORPO SENTE A QUEDA (só o Andar 3) ──────────────────
+            //
+            // `f3HandState.impacto` é a velocidade no instante do toque, e vem
+            // zerado em todo quadro que não é o do pouso — então isto é um
+            // IMPULSO, não um estado. A mola faz o resto: empurra a câmera para
+            // baixo na proporção do tombo e a traz de volta sem oscilar feio.
+            if (currentLevel === 3) {
+                f3TrancoRef.current = f3Tranco(
+                    f3TrancoRef.current, f3HandState.impacto, safeDt, TRANCO_DA_CAMERA,
+                );
+            } else if (f3TrancoRef.current !== TRANCO_PARADO) {
+                f3TrancoRef.current = TRANCO_PARADO;
+            }
+            const agacho = f3TrancoRef.current.valor;
             const rightX = Math.cos(camAng.current.theta);
             const rightZ = -Math.sin(camAng.current.theta);
             const forwardX = -Math.sin(camAng.current.theta);
             const forwardZ = -Math.cos(camAng.current.theta);
             camera.position.set(
                 pos.current.x + rightX * (bobX + shakeX) + forwardX * bobZ,
-                ly + bobY + breath + shakeY,
+                ly + bobY + breath + shakeY + agacho,
                 pos.current.z + rightZ * (bobX + shakeX) + forwardZ * bobZ,
             );
             const ld = 5;
@@ -980,8 +1000,16 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             camera.rotateZ(feel.roll + Math.sin(step) * 0.0025 * feel.motion);
 
             const baseFov = firstPersonBaseFov(size.width / size.height, currentLevel);
-            const targetFov = baseFov + (isCreatureView ? 0 : feel.motion * 1.4);
-            feel.fov = damp(feel.fov, targetFov, 6.5, safeDt);
+            // No Andar 3 a queda ABRE a lente. É o truque mais barato que existe
+            // para uma queda parecer uma queda: sem ele, despencar oito metros
+            // tem exatamente o mesmo enquadramento de estar parado.
+            const quedaFov = currentLevel === 3
+                ? Math.min(6.5, Math.max(0, -f3HandState.vy - 4) * 0.42)
+                : 0;
+            const targetFov = baseFov + (isCreatureView ? 0 : feel.motion * 1.4) + quedaFov;
+            // Abrir acompanha a queda depressa; fechar volta devagar, senão o
+            // pouso vira um solavanco de lente em cima do solavanco do corpo.
+            feel.fov = damp(feel.fov, targetFov, targetFov > feel.fov ? 9 : 4.5, safeDt);
             if (Math.abs((camera as THREE.PerspectiveCamera).fov - feel.fov) > 0.01) {
                 (camera as THREE.PerspectiveCamera).fov = feel.fov;
                 camera.updateProjectionMatrix();
