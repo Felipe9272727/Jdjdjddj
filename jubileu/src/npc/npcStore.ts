@@ -249,10 +249,14 @@ function podar(lista: NpcMsg[]): NpcMsg[] {
 export function npcAutonomousSay(content: string) {
     const speech = content.trim();
     if (!speech) return;
-    s.history = podar([...s.history, { role: 'assistant', content: speech }]);
-    s.autonomousSpeech = speech;
-    s.autonomousSpeechId++;
-    npcBump();
+    // A fala autônoma também entra na conversa persistida. Passar pelo mesmo
+    // funil de `npcSet` evita gravar em um segundo lugar e publica uma única
+    // notificação para a atualização inteira.
+    npcSet({
+        history: podar([...s.history, { role: 'assistant', content: speech }]),
+        autonomousSpeech: speech,
+        autonomousSpeechId: s.autonomousSpeechId + 1,
+    });
 }
 /**
  * ── O JOGADOR SAIU DO ANDAR 10 ────────────────────────────────────────────

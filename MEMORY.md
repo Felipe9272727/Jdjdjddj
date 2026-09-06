@@ -4177,3 +4177,12 @@ fonte + index.html + version.json juntos e remove o próprio workflow da árvore
 - Uma colisão persistente invalida a grade e tenta uma rota nova antes de desistir, sem teleporte. Portas do Andar 6 invalidam a navegação pela geometria, não só pela quantidade.
 - Cinco regressões novas cobrem esses comportamentos; permanecem as limitações de terrenos especiais documentadas acima.
 - Auditoria de custo: histórico do 3B já limitado a 4 mensagens / 1.800 caracteres; rascunhador desligado por padrão. Correção de consistência pode gerar outra resposta de até 56 tokens. O diagnóstico agora mostra número de gerações, tempo somado de leitura/fala e contadores reportados de cada chamada; snapshots por token não são somados repetidamente. Teto de saída é limite, não consumo medido. Registra tamanhos de sistema/histórico em caracteres, sem registrar seu texto.
+
+### Nilo — presença coerente (2026-09-06)
+- Pesquisa com Luna: memória, iniciativa e coerência entre percepção/objetivo/ação como critérios observáveis (Park et al., https://arxiv.org/abs/2304.03442). Sem acrescentar inferência por quadro.
+- O corpo só encara coordenadas observadas de um jogador visível; coordenadas ocultas do sensor não comandam o olhar.
+- Gestos que prendem os pés aguardam seleção do plano e chegada ao destino aterrado. Pendências expiram, são canceladas por conversa/ordem nova, e a conferência de consequência começa depois do gesto. Isso não acrescenta efeitos físicos novos de tocar/bater.
+- Fala espontânea usa o mesmo funil de persistência do chat, com uma gravação e uma notificação.
+
+### Regra de trabalho do Felipe — 2026-09-06
+Sempre delegar análise/leitura de repositório e pesquisa aos subagentes gpt-5.6-luna. O agente principal cuida da implementação, integração, execução de validações e publicação. Manter escopos e retornos dos Luna curtos para economizar tokens; não repetir suas leituras no principal.

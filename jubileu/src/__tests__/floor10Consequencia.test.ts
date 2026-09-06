@@ -207,10 +207,18 @@ describe('a memória está LIGADA nos dois lugares que decidem', () => {
 
     it('a conferência do jogo espera o corpo agir antes de julgar', () => {
         // Conferir no instante da decisão diria SEMPRE "ignorado": o gesto
-        // ainda não aconteceu. A janela sai da duração do plano.
-        const i = jogo.indexOf('const espera =');
+        // ainda não aconteceu. A janela é montada por `conferirDepois`, depois
+        // que o gesto começa, e recebe a duração já resolvida pelo chamador.
+        const i = jogo.indexOf('const conferirDepois =');
         expect(i).toBeGreaterThan(-1);
-        expect(jogo.slice(i, i + 90)).toContain('motion?.duration');
+        const agenda = jogo.slice(i, i + 520);
+        expect(agenda).toContain('const antes = observarMundo();');
+        expect(agenda).toContain('}, (segundos + 4) * 1000);');
+
+        // Gestos que prendem os pés só agendam depois de chegar ao destino;
+        // a duração passada é a do gesto, não a de uma decisão obsoleta.
+        expect(jogo).toContain('gestoChegouAoDestino(');
+        expect(jogo).toContain('conferirDepois(pendente.decidido, dura);');
     });
 
     it('o `?campo` faz o mesmo, para dar para julgar à mão', () => {

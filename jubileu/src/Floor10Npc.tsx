@@ -1,3 +1,4 @@
+import { jogadorVisivelParaOlhar, gestoChegouAoDestino } from './npc/floor10Presenca';
 import { RodadaDoNilo } from './npc/floor10Rodada';
 import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import {
@@ -129,6 +130,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // reconsultar a tabela é o que faz a postura acompanhar a ordem — sem isso,
     // o Nilo agachava para examinar um aparelho e se levantava sozinho no meio,
     // com o corpo ainda preso no lugar.
+    const gestoPendente = useRef<{ decidido: Floor10Deliberation; expira: number } | null>(null);
     const gesto = useRef<{ act: Floor10MotorAct; comecou: number; dura: number } | null>(null);
 
     /**
@@ -144,6 +146,15 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         // recebida, são o Nilo falando sozinho do ponto de vista desta conta.
         mensagensDoJogador: npc.history.filter((m) => m.role === 'user').length,
     }), []);
+
+    const conferirDepois = useCallback((decidido: Floor10Deliberation, segundos: number) => {
+        const antes = observarMundo();
+        const bilhete = globalThis.setTimeout(() => {
+            conferencias.current.delete(bilhete);
+            memoriaConsequencia.current.conferir(decidido.goal, antes, observarMundo(), Date.now() / 1000);
+        }, (segundos + 4) * 1000);
+        conferencias.current.add(bilhete);
+    }, [observarMundo]);
 
     // Sonda: colocar o Nilo num ponto para testar a prisão sem esperar a
     // vontade dele escolher ir. Não muda nada do jogo — só existe para o teste
@@ -175,6 +186,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         rodada.entrar();
         return () => {
             rodada.sair();
+            gestoPendente.current = null; gesto.current = null;
             for (const bilhete of pendentes) globalThis.clearTimeout(bilhete);
             pendentes.clear();
             // ── O HUMOR DELE SOBREVIVE À SAÍDA ───────────────────────────
@@ -261,6 +273,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         if (g) {
             const languageCommand = npc.willCommand;
             if (languageCommand && languageCommand.id !== consumedWillCommandId.current) {
+                gestoPendente.current = null; gesto.current = null;
                 willBrain.applyLanguageDecision(
                     languageCommand.action,
                     t,
@@ -333,38 +346,18 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     if (decided) {
                         deliberation.current = decided;
                         deliberationFailures.current = 0;
-                        // ── O GESTO COMEÇA AQUI ───────────────────────────
-                        // `tempoDoAndar.current` e não o `t` do fecho: este
-                        // `.then` resolve muitos quadros depois da chamada, e
-                        // usar o `t` velho faria o gesto nascer no passado —
-                        // ou seja, já terminado, invisível.
+                        // Foot-locking gestures wait for the selected movement to arrive.
                         const ato = decided.motion?.act;
+                        gestoPendente.current = null;
                         if (ato && ato !== 'none') {
-                            gesto.current = {
-                                act: ato,
-                                comecou: tempoDoAndar.current,
-                                dura: duracaoDoGesto(ato, decided.motion?.duration),
-                            };
-                        }
-                        // ── AGENDA A CONFERÊNCIA ──────────────────────────
-                        // Julgar agora diria sempre "ignorado": o gesto ainda
-                        // não aconteceu. A janela é a duração do plano mais uma
-                        // folga para o jogador reagir — reagir é coisa de
-                        // humano, e humano demora.
-                        const antes = observarMundo();
-                        const meta = decided.goal;
-                        const espera = ((decided.motion?.duration ?? 6) + 4) * 1000;
-                        // O temporizador é REGISTRADO: agendado de dentro de um
-                        // callback assíncrono do `useFrame`, ele sobrevivia ao
-                        // desmonte e disparava com o jogador já em outro andar,
-                        // medindo consequência de um mundo que não existe mais.
-                        const bilhete = globalThis.setTimeout(() => {
-                            conferencias.current.delete(bilhete);
-                            memoriaConsequencia.current.conferir(
-                                meta, antes, observarMundo(), Date.now() / 1000,
-                            );
-                        }, espera);
-                        conferencias.current.add(bilhete);
+                            const dura = duracaoDoGesto(ato, decided.motion?.duration);
+                            if (gestoPrendeOsPes(ato) && decided.motion?.verb !== 'stay') {
+                                gestoPendente.current = { decidido: decided, expira: tempoDoAndar.current + 30 };
+                            } else {
+                                gesto.current = { act: ato, comecou: tempoDoAndar.current, dura };
+                                conferirDepois(decided, dura);
+                            }
+                        } else conferirDepois(decided, decided.motion?.duration ?? 6);
                     } else if (
                         npc.deliberationPhase !== 'unavailable'
                         // CEDER A VEZ NÃO É FALHAR. Enquanto o modelo de fala
@@ -444,6 +437,19 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // Antes do primeiro passo não há veredito nenhum, e isso é normal
             // no primeiro quadro. O corpo segue respirando e piscando abaixo.
             const will = ultimaVontade.current;
+            const pendente = gestoPendente.current;
+            if (pendente) {
+                if (npc.open || npc.speaking || t > pendente.expira) gestoPendente.current = null;
+                else if (gestoChegouAoDestino(pendente.decidido.motion, will?.snapshot.motion,
+                    will?.snapshot.target, g.position)) {
+                    const plano = pendente.decidido.motion!;
+                    const dura = duracaoDoGesto(plano.act!, plano.duration);
+                    gesto.current = { act: plano.act!, comecou: t, dura };
+                    gestoPendente.current = null;
+                    conferirDepois(pendente.decidido, dura);
+                }
+            }
+
 
             // ── O GESTO PODE SEGURAR OS PÉS ───────────────────────────────
             // Bater, tocar e agachar acontecem CONTRA alguma coisa: continuar
@@ -473,7 +479,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             }
 
             const meta = will?.snapshot.goal;
-            const shouldFacePlayer = pp && (
+            const jogadorVisto = jogadorVisivelParaOlhar(livePerception);
+            const shouldFacePlayer = jogadorVisto && (
                 npc.open
                 || npc.speaking
                 || meta === 'talk-player'
@@ -483,7 +490,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             );
             if (!moving && shouldFacePlayer) {
                 rumoParado.current = null;
-                tmp.copy(pp).sub(g.position);
+                tmp.copy(jogadorVisto!).sub(g.position);
                 tmp.y = 0;
                 if (tmp.lengthSq() > 0.0001) desiredYaw = Math.atan2(tmp.x, tmp.z);
             } else if (!moving && !shouldFacePlayer) {
