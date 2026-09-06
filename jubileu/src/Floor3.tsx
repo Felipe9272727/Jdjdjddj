@@ -252,10 +252,16 @@ const CordasDaPonte: React.FC<{ topY: number; hw: number; hd: number }> = ({ top
     <group position={[0, topY, 0]}>
         {[-1, 1].map((lado) => (
             <group key={lado} position={[lado * (hw - 0.12), 0, 0]}>
-                <mesh geometry={GEO_POSTE} material={ADEREÇO_MAT} position={[0, -hd * 0 + 0.42, -hd + 0.14]} scale={[1, 0.85, 1]} />
+                <mesh geometry={GEO_POSTE} material={ADEREÇO_MAT} position={[0, 0.42, -hd + 0.14]} scale={[1, 0.85, 1]} />
                 <mesh geometry={GEO_POSTE} material={ADEREÇO_MAT} position={[0, 0.42, hd - 0.14]} scale={[1, 0.85, 1]} />
+                {/* A CORDA JÁ NASCEU QUEBRADA, e só a foto mostrou: a geometria
+                    tem 1 de comprimento em X, então quem estica é o X da
+                    escala. Eu tinha posto o comprimento no Z e 0,06 no X — o
+                    resultado foi um toco de 6 cm, invisível, e a ponte ficou
+                    com quatro postes e nada entre eles. */}
                 <mesh geometry={GEO_CORDA} material={ADEREÇO_MAT}
-                    position={[0, 0.7, 0]} scale={[0.06, 1, (hd - 0.14) * 2]} rotation={[0, Math.PI / 2, 0]} />
+                    position={[0, 0.72, 0]} rotation={[0, Math.PI / 2, 0]}
+                    scale={[(hd - 0.14) * 2, 1, 1]} />
             </group>
         ))}
     </group>

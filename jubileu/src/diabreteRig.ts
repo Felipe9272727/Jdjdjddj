@@ -26,6 +26,23 @@ import * as THREE from 'three';
 // devil stands a head TALLER than the player and actually reads as a threat.
 export const DIABRETE_SCALE = 2.2;
 
+/** As duas cores do Diabrete. Preto de tinta e o branco das luvas e dos olhos. */
+export const DIABRETE_ESCURO = '#141014';
+export const DIABRETE_CLARO = '#f7f3ea';
+/**
+ * Onde o brilho da textura vira branco. Sai de varrer valores e OLHAR — a
+ * textura e fotografica e nao ha como adivinhar o histograma dela. `?dc=`
+ * afina sem recompilar, do mesmo jeito que o `?lc=` das luvas do jogador.
+ */
+export const DIABRETE_CORTE = 0.30;
+export function corteDoDiabrete(): number {
+    try {
+        const q = new URLSearchParams(globalThis.location?.search ?? '');
+        const v = q.has('dc') ? parseFloat(q.get('dc')!) : NaN;
+        return Number.isFinite(v) ? v : DIABRETE_CORTE;
+    } catch { return DIABRETE_CORTE; }
+}
+
 // ── Bone indices ──────────────────────────────────────────────────────────────
 export const enum B { root, body, head, l_arm, r_arm, l_leg, r_leg }
 
@@ -131,31 +148,40 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         color: srcMat?.map ? 0xffffff : 0xf2e8d0,
         gradientMap: _grad,
     });
-    // Add a crisp fresnel RIM LIGHT on top of the toon banding so the Diabrete
-    // reads with the same stylised "edge pop" as the floor's createToonMaterial
-    // (cartoonToon.ts) — the single biggest cue that made him look like he was
-    // from another renderer. Done via onBeforeCompile so MeshToonMaterial keeps
-    // its built-in SKINNING (a raw ShaderMaterial would freeze the rig). Guarded:
-    // if the expected chunk isn't present (three.js internals changed) we skip
-    // the injection and fall back to plain toon rather than ship a broken shader.
+    // ── DUAS CORES, COMO TODO VILAO DE 1930 ───────────────────────────────
+    //
+    // Ele saia um BORRAO PRETO. A foto de perto (bancada, vista `diabo`) conta
+    // por que: a textura do GLB e fotografica — o modelo veio de geracao por IA,
+    // igual as luvas do jogador — e num grade de alto contraste o corpo inteiro
+    // desaba para o mesmo preto. Sobrava so um cinza nas maos e nos pes, que de
+    // longe lia como sujeira, nao como luva.
+    //
+    // A referencia resolve isso ha noventa anos: o vilao e uma SILHUETA preta
+    // com luva branca e olho branco. Entao o material posteriza em duas cores
+    // pelo brilho da textura — o que era claro (luvas, sapatos, olhos) vira
+    // branco, o resto vira tinta. De quebra, some com o sombreado fotografico
+    // que fazia ele parecer de outro renderizador.
+    //
+    // POR QUE onBeforeCompile E NAO ShaderMaterial: um material cru congelaria
+    // o rig, porque perderia o SKINNING que o MeshToonMaterial ja traz pronto.
+    // A injecao e guardada: se o chunk esperado nao existir (three mudou por
+    // dentro), ela nao acontece e o material continua um toon normal, em vez de
+    // embarcar um shader quebrado.
     fillMat.onBeforeCompile = (shader) => {
         if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
-        shader.uniforms.uRimColor = { value: new THREE.Color(0xfff3d4) };
-        shader.uniforms.uRimPow   = { value: 2.6 };
-        shader.uniforms.uRimStr   = { value: 0.5 };
-        // Use the view-space normal's Z as the fresnel term (normal.z→1 faces the
-        // camera, →0 at the silhouette). MeshToonMaterial doesn't expose
-        // vViewPosition, but `normal` is always defined by normal_fragment_begin,
-        // so this is robust. No new varyings, no vertex-shader changes.
+        shader.uniforms.uClaro  = { value: new THREE.Color(DIABRETE_CLARO) };
+        shader.uniforms.uEscuro = { value: new THREE.Color(DIABRETE_ESCURO) };
+        shader.uniforms.uCorte  = { value: corteDoDiabrete() };
         shader.fragmentShader = shader.fragmentShader
-            .replace('void main() {', 'uniform vec3 uRimColor;\nuniform float uRimPow;\nuniform float uRimStr;\nvoid main() {')
+            .replace('void main() {',
+                'uniform vec3 uClaro;\nuniform vec3 uEscuro;\nuniform float uCorte;\nvoid main() {')
             .replace('#include <opaque_fragment>',
-                'float _rimF = pow(1.0 - clamp(normal.z, 0.0, 1.0), uRimPow);\n'
-                + 'outgoingLight += uRimColor * (smoothstep(0.4, 0.75, _rimF) * uRimStr);\n'
+                'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
+                + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n'
                 + '#include <opaque_fragment>');
     };
     // Distinct cache key so the patched program isn't shared with a plain toon.
-    fillMat.customProgramCacheKey = () => 'diabrete-toon-rim';
+    fillMat.customProgramCacheKey = () => 'diabrete-duas-cores';
 
     // Bones (parented hierarchy, local offsets from parent rest position).
     const bones: THREE.Bone[] = BNAME.map((name) => { const b = new THREE.Bone(); b.name = name; return b; });

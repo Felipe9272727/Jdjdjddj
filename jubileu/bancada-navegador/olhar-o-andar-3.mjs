@@ -45,6 +45,10 @@ const ANGULOS = [
     // A vista que mostra o CURSO e nao uma peca: os marcos existem para serem
     // lidos de longe, entao julga-los de dentro da peca seria julgar errado.
     ['panorama', '?f3preview&panorama'],
+    // O RIVAL. Ele se planta em z≈14 e nenhuma das outras vistas aponta para
+    // la — da para atravessar um remake inteiro sem nunca olhar para o
+    // personagem que mais aparece no andar. Ja aconteceu.
+    ['diabo', '?f3preview&diabo'],
 ];
 for (const [nome, q] of ANGULOS) {
     await p.goto(`http://127.0.0.1:${PORTA}/index.html${q}`, { waitUntil: 'domcontentloaded', timeout: 120000 });

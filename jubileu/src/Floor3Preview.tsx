@@ -73,8 +73,14 @@ export default function Floor3Preview() {
     // justamente para serem lidos de longe — julgá-los de dentro da peça seria
     // julgar a coisa errada.
     const panorama = search.includes('panorama');
+    // `diabo` enquadra O RIVAL. Sem jogador, o Floor3Rival se planta em
+    // `f3PlayerZ + LEAD_Z` = z≈14, e sem uma câmera apontada para lá ele
+    // simplesmente nunca aparece em foto nenhuma — foi por isso que passei o
+    // remake inteiro sem olhar para o personagem que mais aparece no andar.
+    const diabo = search.includes('diabo');
     const camPos: [number, number, number] = fphands ? [0, 0, 0]
         : debug ? dbgCam
+        : diabo ? [1.5, 2.5, 11.4]
         : panorama ? [17, 11, 4]
         : search.includes('close') ? [0, 2.2, 8]
         : [0, 1.6, -8];
@@ -88,9 +94,9 @@ export default function Floor3Preview() {
                 <Expor />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
-                        : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama} />}
+                        : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
                 </Suspense>
-                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
+                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     <N8AO
