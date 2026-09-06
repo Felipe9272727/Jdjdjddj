@@ -214,6 +214,64 @@ function platToon(p: F3Plat): ToonOpts {
     return CARTOON_PALETTE[p.palette % CARTOON_PALETTE.length];
 }
 
+// ─── O QUE FAZ DISTO UM LUGAR, E NÃO LAJES NO VAZIO ──────────────────────────
+//
+// Depois do céu e do tabuado, o que ainda faltava era CONTEÚDO: o jogador
+// atravessava um corredor de peças e nada dizia onde ele estava nem para onde
+// ia. Um parkour precisa de marcos — coisas que se reconhecem de longe, que
+// contam o que aquela peça é antes de você pisar nela.
+//
+// ── POR QUE SILHUETA PRETA, E NÃO OBJETO PINTADO ─────────────────────────────
+//
+// Cada adereço pintado precisaria do próprio contorno de tinta, e contorno em
+// malha pequena é casco invertido: DOBRA o número de malhas. Numa referência de
+// 1930 o adereço de cenário já é, quase sempre, uma silhueta chapada — então a
+// escolha barata e a escolha certa são a mesma. Um mastro preto contra o céu
+// cinza lê-se instantaneamente, e custa uma malha.
+const ADEREÇO_MAT = createToonMaterial({
+    color: INK, shadow: INK, bands: 1, rimStrength: 0, specThreshold: 1.1,
+});
+const GEO_MASTRO   = new THREE.BoxGeometry(0.09, 1, 0.09);
+const GEO_GALHARDETE = new THREE.ConeGeometry(0.3, 0.62, 3);
+const GEO_POSTE    = new THREE.BoxGeometry(0.11, 1, 0.11);
+const GEO_CORDA    = new THREE.BoxGeometry(1, 0.05, 0.05);
+const GEO_RIPA     = new THREE.BoxGeometry(1, 0.07, 0.16);
+
+/** O marco do descanso: mastro com galhardete. Vê-se de longe, e é o que diz
+ *  "aqui dá para parar" antes de o jogador chegar. */
+const Bandeira: React.FC<{ topY: number; hw: number; hd: number }> = ({ topY, hw, hd }) => (
+    <group position={[hw * 0.62, topY, -hd * 0.62]}>
+        <mesh geometry={GEO_MASTRO} material={ADEREÇO_MAT} position={[0, 0.85, 0]} scale={[1, 1.7, 1]} />
+        <mesh geometry={GEO_GALHARDETE} material={ADEREÇO_MAT}
+            position={[0.26, 1.5, 0]} rotation={[0, 0, -Math.PI / 2]} />
+    </group>
+);
+
+/** A ponte ganha o que a faz ser ponte: dois postes e a corda entre eles. */
+const CordasDaPonte: React.FC<{ topY: number; hw: number; hd: number }> = ({ topY, hw, hd }) => (
+    <group position={[0, topY, 0]}>
+        {[-1, 1].map((lado) => (
+            <group key={lado} position={[lado * (hw - 0.12), 0, 0]}>
+                <mesh geometry={GEO_POSTE} material={ADEREÇO_MAT} position={[0, -hd * 0 + 0.42, -hd + 0.14]} scale={[1, 0.85, 1]} />
+                <mesh geometry={GEO_POSTE} material={ADEREÇO_MAT} position={[0, 0.42, hd - 0.14]} scale={[1, 0.85, 1]} />
+                <mesh geometry={GEO_CORDA} material={ADEREÇO_MAT}
+                    position={[0, 0.7, 0]} scale={[0.06, 1, (hd - 0.14) * 2]} rotation={[0, Math.PI / 2, 0]} />
+            </group>
+        ))}
+    </group>
+);
+
+/** A viga ganha ripas SALIENTES: o tabuado pintado conta a história de perto,
+ *  mas de longe é a geometria que faz a peça parecer um passadiço de tábua. */
+const RipasDaViga: React.FC<{ topY: number; hw: number; hd: number }> = ({ topY, hw, hd }) => (
+    <group position={[0, topY + 0.035, 0]}>
+        {[-0.55, 0, 0.55].map((f) => (
+            <mesh key={f} geometry={GEO_RIPA} material={ADEREÇO_MAT}
+                position={[0, 0, f * hd]} scale={[hw * 1.9, 1, 1]} />
+        ))}
+    </group>
+);
+
 // ─── One platform in the endless pool ────────────────────────────────────────
 // Sized from the platform record (NOT scaled — avoids outline/bevel distortion).
 // Re-mounts only when the pool recycles (keyed by stable id in the parent).
@@ -239,6 +297,10 @@ export const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ p
             <RBox args={[w, plat.h, d]} position={[0, cy, 0]} radius={big ? 0.14 : 0.12}
                 toon={platToon(plat)} outline={0} />
             {/* black "go this way" arrow painted on the surface */}
+            {/* Os marcos: o que diz de longe o que esta peça é. */}
+            {plat.tipo === 'descanso' && <Bandeira topY={plat.topY} hw={plat.hw} hd={plat.hd} />}
+            {plat.tipo === 'ponte' && <CordasDaPonte topY={plat.topY} hw={plat.hw} hd={plat.hd} />}
+            {plat.tipo === 'viga' && <RipasDaViga topY={plat.topY} hw={plat.hw} hd={plat.hd} />}
             {/* A seta acompanha a FORMA: numa viga ela estica no comprimento
                 dela e vira uma pista para correr; num descanso ela some,
                 porque ali o recado é parar, não seguir. */}

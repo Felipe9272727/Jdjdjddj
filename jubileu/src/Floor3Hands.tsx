@@ -50,8 +50,14 @@ const BASE_ROT = new THREE.Euler(Math.PI / 2, 0, 0);
 //                half-height below screen centre (≈ where the wrists sit).
 const HAND_DEPTH     = 0.45;
 const FILL_WIDTH     = 1.05;
-const MAX_SCALE      = 1.42;
-const BOTTOM_ANCHOR  = 0.71;
+// ── AS LUVAS EMOLDURAM, NAO BLOQUEIAM ────────────────────────────────────────
+// Com 1,42 e 0,71 elas comiam uns 60% da tela: nas fotos da bancada o jogador
+// via mais luva do que andar, e num parkour a coisa mais importante do quadro e
+// A PROXIMA PLATAFORMA. Os numeros abaixo sairam de varrer combinacoes e olhar
+// (`?ms=`/`?ba=` fazem isso sem recompilar) — nesta o curso aparece inteiro e a
+// mao continua presente no rodape, que e o enquadramento de viewmodel de sempre.
+const MAX_SCALE      = 0.92;
+const BOTTOM_ANCHOR  = 1.02;
 
 // ── AS LUVAS ERAM CINZAS PORQUE A TEXTURA E CINZA ────────────────────────────
 //

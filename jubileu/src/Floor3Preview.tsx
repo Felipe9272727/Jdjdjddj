@@ -68,8 +68,14 @@ export default function Floor3Preview() {
     const dbgCam: [number, number, number] = search.includes('top') ? [0, 3, 0.001]
         : search.includes('front') ? [0, 0.2, 3]
         : [1.6, 1.2, 1.6];
+    // `panorama` põe a câmera alta e de lado: é a única vista que mostra o
+    // CURSO, e não uma peça. Os marcos (bandeira, cordas, ripas) existem
+    // justamente para serem lidos de longe — julgá-los de dentro da peça seria
+    // julgar a coisa errada.
+    const panorama = search.includes('panorama');
     const camPos: [number, number, number] = fphands ? [0, 0, 0]
         : debug ? dbgCam
+        : panorama ? [17, 11, 4]
         : search.includes('close') ? [0, 2.2, 8]
         : [0, 1.6, -8];
     return (
@@ -81,9 +87,10 @@ export default function Floor3Preview() {
             >
                 <Expor />
                 <Suspense fallback={null}>
-                    {fphands ? <FpHandsPreview /> : debug ? <HandsDebug /> : <Floor3Environment elevator={false} />}
+                    {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
+                        : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama} />}
                 </Suspense>
-                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : [0, 1.5, 4]} />}
+                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     <N8AO

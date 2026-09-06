@@ -859,12 +859,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             pos.current.y = cabeca.y;
             jumpVelYRef.current = cabeca.vy;
 
-            // Publish player Z/Y so the endless-parkour engine (owned by
-            // Floor3's useFrame) recycles the pool ahead of us and the sky
-            // backdrop follows the climb.
-            f3PlayerZ.current = pos.current.z;
-            f3PlayerY.current = pos.current.y;
-
             // 4. O chão sob os pés — a piscina viva (p.x já traz a oscilação da
             //    ponte escrita por f3Parkour.tick) mais o piso da cabine. Quem
             //    tem meio pé na quina continua de pé: o apoio tem raio.
@@ -881,6 +875,18 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             jumpVelYRef.current = passo.vy;
             // Landing SFX — only on a real fall (edge: was airborne+falling).
             if (passo.pousou && wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
+            // Publish player Z/Y so the endless-parkour engine (owned by
+            // Floor3's useFrame) recycles the pool ahead of us and the sky
+            // backdrop follows the climb.
+            //
+            // DEPOIS da resolução, e não antes: publicado antes do encaixe do
+            // pouso, o Y era sempre o de meio-quadro (medido em jogo: −0,34
+            // enquanto o jogador estava firme no chão em 0). Quem lê isto são
+            // as camadas do céu, que ficavam tremendo por um erro que não
+            // existia no corpo, só no relato.
+            f3PlayerZ.current = pos.current.z;
+            f3PlayerY.current = pos.current.y;
+
             // O impacto vai para as mãos e para a câmera: pouso de queda longa
             // tem de PARECER queda longa.
             f3HandState.impacto = passo.pousou ? passo.impacto : 0;

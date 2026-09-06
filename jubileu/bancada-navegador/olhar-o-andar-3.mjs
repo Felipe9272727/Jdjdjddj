@@ -42,6 +42,9 @@ const ANGULOS = [
     ['longe', '?f3preview&nopost'],
     ['perto', '?f3preview&close&nopost'],
     ['compost', '?f3preview'],
+    // A vista que mostra o CURSO e nao uma peca: os marcos existem para serem
+    // lidos de longe, entao julga-los de dentro da peca seria julgar errado.
+    ['panorama', '?f3preview&panorama'],
 ];
 for (const [nome, q] of ANGULOS) {
     await p.goto(`http://127.0.0.1:${PORTA}/index.html${q}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
