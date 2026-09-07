@@ -64,7 +64,11 @@ const gloveWhite   = new THREE.MeshToonMaterial({ color: '#f7f3ea' });
 const gloveCuff    = new THREE.MeshToonMaterial({ color: '#c0271a' });
 const gloveCostura = new THREE.MeshToonMaterial({ color: '#140c08' });
 const puffMat    = new THREE.MeshToonMaterial({ color: '#ffffff' });
-const puffTinta  = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide, depthWrite: false });
+// O CASCO DE TINTA, compartilhado por quem precisa de linha a distância: uma
+// cópia maior da própria forma, desenhada de dentro para fora. É o truque das
+// nuvens do andar, e é o único contorno que não some nem pontilha aqui.
+const cascoTinta = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide, depthWrite: false });
+const puffTinta  = cascoTinta;
 const estrelaMat = new THREE.MeshToonMaterial({ color: INK });
 
 type Phase = 'intro' | 'beg' | 'stomp' | 'climb';
@@ -486,43 +490,49 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 escura vira mancha — foi o mesmo diagnóstico dos espinhos e da
                 cabeça do Diabrete, três vezes o mesmo erro neste andar. */}
             <group ref={shoeRef} visible={false} scale={[1.75, 1.75, 1.75]}>
-                {/* o cano da bota, subindo para fora do quadro */}
-                <mesh position={[0, 0.72, -0.04]}>
-                    <cylinderGeometry args={[0.19, 0.24, 0.78, 16]} />
-                    <primitive object={shoeCano} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
-                {/* a virola do cano — a faixa clara que separa perna de bota */}
-                <mesh position={[0, 0.36, -0.04]}>
-                    <cylinderGeometry args={[0.27, 0.27, 0.11, 16]} />
-                    <primitive object={shoeCano} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
-                {/* o peito do pé */}
-                <mesh position={[0, 0.19, 0.02]} scale={[1, 0.85, 1.15]}>
-                    <sphereGeometry args={[0.27, 16, 12]} />
-                    <primitive object={shoeCouro} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
-                {/* o BICO bulboso, que é a leitura da peça */}
-                <mesh position={[0, 0.13, 0.34]} scale={[1.12, 0.78, 1.35]}>
-                    <sphereGeometry args={[0.26, 16, 12]} />
-                    <primitive object={shoeCouro} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
-                {/* o salto, atrás e embaixo */}
-                <mesh position={[0, 0.03, -0.24]} scale={[0.85, 0.55, 0.7]}>
-                    <sphereGeometry args={[0.24, 12, 10]} />
-                    <primitive object={shoeSola} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
-                {/* a SOLA: a faixa escura que corre por baixo e dá o chão da
-                    silhueta. Sem ela o pé flutua. */}
-                <mesh position={[0, -0.06, 0.14]} scale={[1.12, 0.40, 1.58]}>
-                    <sphereGeometry args={[0.27, 16, 10]} />
-                    <primitive object={shoeSola} attach="material" />
-                    <Outlines thickness={0.13} color={INK} />
-                </mesh>
+                {/* O CONTORNO É CASCO À MÃO, e não `<Outlines>`. Com o `<Outlines>`
+                    do drei ele saía PONTILHADO: o casco do componente briga em
+                    profundidade com a peça quando o grupo está escalado, e o que
+                    se via era uma linha tracejada em volta de uma bota clara
+                    encostada num convés claro — ou seja, quase nenhuma linha.
+                    Este andar já tinha a resposta nas nuvens e o baque acabou de
+                    usá-la: uma cópia um pouco maior, desenhada de dentro para
+                    fora (`BackSide`), sem escrever profundidade. */}
+                {([
+                    // [posição, escala do grupo, geometria, material, engorda]
+                    // A ENGORDA É EM FRAÇÃO DA PEÇA, e peça pequena precisa de
+                    // fração grande: a 1,10 numa esfera de 27 cm o casco sobra
+                    // 2,7 cm, que a três metros são dois pixels — ou seja, linha
+                    // nenhuma. As nuvens usam 1,07 porque são esferas de metros.
+                    [[0, 0.72, -0.04], [1, 1, 1], 'cano', shoeCano, 1.16],
+                    [[0, 0.36, -0.04], [1, 1, 1], 'virola', shoeVirola, 1.14],
+                    [[0, 0.19, 0.02], [1, 0.85, 1.15], 'peito', shoeCouro, 1.24],
+                    [[0, 0.13, 0.34], [1.12, 0.78, 1.35], 'bico', shoeCouro, 1.24],
+                    [[0, 0.03, -0.24], [0.85, 0.55, 0.7], 'salto', shoeSola, 1.26],
+                    [[0, -0.06, 0.14], [1.12, 0.40, 1.58], 'sola', shoeSola, 1.22],
+                ] as const).map(([pos, esc, qual, mat, engorda]) => (
+                    <group key={qual} position={pos as unknown as [number, number, number]}
+                           scale={esc as unknown as [number, number, number]}>
+                        <mesh scale={engorda}>
+                            {qual === 'cano' ? <cylinderGeometry args={[0.19, 0.24, 0.78, 16]} />
+                             : qual === 'virola' ? <cylinderGeometry args={[0.27, 0.27, 0.11, 16]} />
+                             : qual === 'peito' ? <sphereGeometry args={[0.27, 16, 12]} />
+                             : qual === 'bico' ? <sphereGeometry args={[0.26, 16, 12]} />
+                             : qual === 'salto' ? <sphereGeometry args={[0.24, 12, 10]} />
+                             : <sphereGeometry args={[0.27, 16, 10]} />}
+                            <primitive object={cascoTinta} attach="material" />
+                        </mesh>
+                        <mesh>
+                            {qual === 'cano' ? <cylinderGeometry args={[0.19, 0.24, 0.78, 16]} />
+                             : qual === 'virola' ? <cylinderGeometry args={[0.27, 0.27, 0.11, 16]} />
+                             : qual === 'peito' ? <sphereGeometry args={[0.27, 16, 12]} />
+                             : qual === 'bico' ? <sphereGeometry args={[0.26, 16, 12]} />
+                             : qual === 'salto' ? <sphereGeometry args={[0.24, 12, 10]} />
+                             : <sphereGeometry args={[0.27, 16, 10]} />}
+                            <primitive object={mat} attach="material" />
+                        </mesh>
+                    </group>
+                ))}
                 {/* dois cadarços de tinta cruzando o peito do pé */}
                 {[0.10, 0.22].map((z) => (
                     <mesh key={z} position={[0, 0.34, z]} rotation={[0, 0, Math.PI / 2]}>
