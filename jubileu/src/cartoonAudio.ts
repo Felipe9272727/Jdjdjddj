@@ -66,6 +66,14 @@ export function playCartoonSfx(
 
 let musicSource: AudioBufferSourceNode | null = null;
 let musicGain: GainNode | null = null;
+// ── A VITROLA DO ANDAR 3 ─────────────────────────────────────────────────────
+// A trilha deixou de ser um tapete fixo: ela perde corda junto com o Diabrete
+// (ver `f3Trilha.ts`, que decide a curva, e `Floor3.tsx`, que dispara). Estes
+// três nós são o que torna isso possível num arquivo só — não dá para tirar
+// instrumentos de uma gravação pronta, mas dá para o disco ir morrendo.
+let musicFiltro: BiquadFilterNode | null = null;   // o brilho fechando
+let musicChoro: OscillatorNode | null = null;      // o "wow" de disco empenado
+let musicChoroG: GainNode | null = null;           // e a profundidade dele
 
 /**
  * Start the ragtime bed (looping). Fades in; returns a stop fn.
@@ -92,20 +100,86 @@ export function startCartoonMusic(
     const now = ctx.currentTime;
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), now + fadeIn);
-    src.connect(g);
+
+    // O passa-baixa entra ABERTO (20 kHz é acima do que se escuta, então não
+    // colore nada) e só fecha se `ajustarTrilha` mandar. Assim quem nunca rouba
+    // um pincel ouve exatamente o mesmo disco de antes desta volta.
+    const filtro = ctx.createBiquadFilter();
+    filtro.type = 'lowpass';
+    filtro.frequency.setValueAtTime(20000, now);
+    filtro.Q.value = 0.7;
+
+    // E o choro de rotação, com profundidade ZERO até alguém pedir. Um
+    // oscilador parado em silêncio custa nada e evita ter de reconstruir o
+    // grafo no meio da música quando o primeiro pincel some.
+    const choro = ctx.createOscillator();
+    choro.type = 'sine';
+    choro.frequency.value = 0.7;
+    const choroG = ctx.createGain();
+    choroG.gain.setValueAtTime(0, now);
+    choro.connect(choroG).connect(src.playbackRate);
+    choro.start(now);
+
+    src.connect(filtro).connect(g);
     g.connect(destination ?? ctx.destination);
     src.start(now);
     musicSource = src;
     musicGain = g;
+    musicFiltro = filtro;
+    musicChoro = choro;
+    musicChoroG = choroG;
     return () => stopCartoonMusic(0.5);
+}
+
+/**
+ * Como a trilha está agora. `f3Trilha` decide a curva; isto só a aplica, e
+ * sempre DESLIZANDO — um corte seco em rotação e brilho soaria como defeito de
+ * reprodução, e o que se quer é a vitrola perdendo corda, não travando.
+ *
+ * Silencioso e sem efeito quando não há música tocando: quem chama é o Andar 3
+ * por quadro, e não é trabalho dele saber se a trilha já começou.
+ */
+export function ajustarTrilha(
+    { rotacao, brilho, ganho, choro }: { rotacao: number; brilho: number; ganho: number; choro: number },
+    deslize = 1.2,
+): void {
+    const src = musicSource;
+    if (!src || !musicGain || !musicFiltro || !musicChoroG) return;
+    const ctx = musicGain.context as AudioContext;
+    const t = ctx.currentTime;
+    const ate = t + Math.max(0.01, deslize);
+    try {
+        src.playbackRate.cancelScheduledValues(t);
+        src.playbackRate.setValueAtTime(src.playbackRate.value, t);
+        src.playbackRate.linearRampToValueAtTime(rotacao, ate);
+
+        musicFiltro.frequency.cancelScheduledValues(t);
+        musicFiltro.frequency.setValueAtTime(musicFiltro.frequency.value, t);
+        musicFiltro.frequency.exponentialRampToValueAtTime(Math.max(80, brilho), ate);
+
+        musicGain.gain.cancelScheduledValues(t);
+        musicGain.gain.setValueAtTime(Math.max(0.0002, musicGain.gain.value), t);
+        musicGain.gain.exponentialRampToValueAtTime(Math.max(0.0002, ganho), ate);
+
+        // A profundidade do choro é fração da rotação: 0,016 num disco a 0,9
+        // oscila ±0,0144, que é wow de vitrola velha e não vibrato de sintetizador.
+        musicChoroG.gain.cancelScheduledValues(t);
+        musicChoroG.gain.setValueAtTime(musicChoroG.gain.value, t);
+        musicChoroG.gain.linearRampToValueAtTime(choro * rotacao, ate);
+    } catch { /* nó já solto — a música parou no meio do deslize */ }
 }
 
 /** Fade out + stop the ragtime bed. */
 export function stopCartoonMusic(fadeOut = 0.5): void {
     const src = musicSource;
     const g = musicGain;
+    const choro = musicChoro;
     musicSource = null;
     musicGain = null;
+    musicFiltro = null;
+    musicChoro = null;
+    musicChoroG = null;
+    if (choro) { try { choro.stop((choro.context as AudioContext).currentTime + fadeOut + 0.05); } catch { /* já parou */ } }
     if (!src || !g) return;
     try {
         const now = (g.context as AudioContext).currentTime;

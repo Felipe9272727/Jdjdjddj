@@ -379,3 +379,21 @@ export function tryCollectBrush(px: number, py: number, pz: number): boolean {
 }
 
 export function isDizzy(): boolean { return now() < f3Progress.dizzyUntil && !f3Progress.fell; }
+
+// DEV-ONLY: pôr pincéis na conta sem jogar o andar inteiro.
+//
+// A bancada roda a ~2 fps. Roubar três pincéis de verdade ali dentro significa
+// dirigir o parkour pelo teclado nessa velocidade, que é como não verificar. E
+// tem coisa no andar que SÓ existe depois do primeiro pincel — o chão se
+// apagando, o segundo repertório de falas, a voz subindo, e agora a vitrola
+// perdendo corda. Sem este gancho, tudo isso é código que eu entrego no escuro.
+//
+// Não é um atalho de jogo: `import.meta.env.DEV` deixa isto fora do que o
+// Felipe baixa no celular.
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
+    (window as unknown as { __f3Pincel?: (n: number) => number }).__f3Pincel = (n: number) => {
+        f3Progress.brushes = Math.max(0, Math.min(f3Progress.needed, Math.floor(n) || 0));
+        _onProgress?.();
+        return f3Progress.brushes;
+    };
+}

@@ -34,6 +34,8 @@ import { molaDoTranco, TRANCO_DA_PLATAFORMA, TRANCO_PARADO } from './f3Fisica';
 import { faixaDaNevoa } from './f3Nevoa';
 import { acabamentoDoAndar, mudouOAcabamento } from './f3Desenho';
 import { playFloor3Unmake } from './floor3Sfx';
+import { trilhaDoAndar, TEMPO_DA_VIRADA } from './f3Trilha';
+import { ajustarTrilha } from './cartoonAudio';
 import { f3Progress } from './f3Hazards';
 
 // ─── Palette (rubber-hose black & white) ─────────────────────────────────────
@@ -570,6 +572,17 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
             // com pincéis já no bolso encontra o acabamento certo, e não um
             // apagamento que não aconteceu agora.
             if (jaSincronizou.current) playFloor3Unmake();
+            // E A VITROLA PERDE CORDA. A trilha era a última coisa do andar que
+            // não sabia que o dono estava perdendo: o chão apagava, a voz dele
+            // subia e afinava, e o ragtime seguia igual, no mesmo andamento
+            // alegre. Agora o disco desacelera, fecha o brilho e começa a chorar
+            // na rotação. Num curta de 1930 é a música que dirige a cena.
+            //
+            // Sai DAQUI, do mesmo `if` que já move o chão, de propósito: um
+            // segundo lugar lendo `f3Progress.brushes` seria um segundo dono do
+            // mesmo número, e aí o andar poderia se desfazer num ritmo e a
+            // música noutro. `f3Coerencia` varre exatamente isso.
+            ajustarTrilha(trilhaDoAndar(f3Progress.brushes), TEMPO_DA_VIRADA);
             jaSincronizou.current = true;
         }
 
