@@ -24,7 +24,8 @@ const FOTOS = Number(process.env.FOTOS ?? 14);
 const INTERVALO = Number(process.env.INTERVALO ?? 2500);
 
 // Os nomes sao os do cartao no Modo Criador, literais.
-const NOME_DO_CARTAO = (CARTAO === 'intro' || CARTAO === 'falas') ? 'Transição 2 → 3' : 'Queda do Diabrete';
+const NOME_DO_CARTAO = (CARTAO === 'intro' || CARTAO === 'falas' || CARTAO === 'travado')
+    ? 'Transição 2 → 3' : 'Queda do Diabrete';
 const PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     'base64');
@@ -161,6 +162,36 @@ if (CARTAO === 'falas') {
         try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
         catch (e) { console.log('falhou', ev, String(e.message).slice(0, 70)); }
     }
+    ponte.fechar(); await ctx.close(); process.exit(0);
+}
+
+// ── A TRAVA DA CUTSCENE ──────────────────────────────────────────────────────
+//
+// O dono do jogo achou o bug: durante o cartão de título e a apresentação do
+// Diabrete dá para ANDAR, e andar demais quebra a cena (o `f3PlayerZ` avança, o
+// pool de plataformas recicla, e a cutscene é encenada em coordenadas que já não
+// existem). Este modo segura o W do começo ao fim da abertura e mede se o
+// jogador saiu do lugar. É a única forma de provar a trava — olhando, não dá.
+if (CARTAO === 'travado') {
+    const onde = () => p.evaluate(() => (window.__f3Onde ? window.__f3Onde() : null)).catch(() => null);
+    await p.waitForTimeout(3000);
+    const antes = await onde();
+    console.log('   antes de segurar W:', JSON.stringify(antes));
+    await p.keyboard.down('w');
+    for (let i = 0; i < 14; i += 1) {
+        await p.waitForTimeout(2500);
+        const u = await onde();
+        console.log(`   [${i}] segurando W →`, JSON.stringify(u));
+    }
+    await p.keyboard.up('w');
+    const depois = await onde();
+    console.log('   depois:', JSON.stringify(depois));
+    if (antes && depois) {
+        const andou = Math.abs(depois.z - antes.z);
+        console.log(andou < 0.05 ? `TRAVA OK — andou ${andou.toFixed(4)} m`
+                                 : `TRAVA FALHOU — andou ${andou.toFixed(2)} m`);
+    }
+    await p.screenshot({ path: `${SAIDA}/f3-travado-${SUFIXO}.png` });
     ponte.fechar(); await ctx.close(); process.exit(0);
 }
 

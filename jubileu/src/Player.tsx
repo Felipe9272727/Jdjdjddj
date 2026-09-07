@@ -355,6 +355,20 @@ interface PlayerProps {
    *  and aims higher so his face + full torso sit in frame. */
   dialogueTallNpc?: boolean;
   dialogueOpen: boolean;
+  /**
+   * TRAVA O ANDADOR — não a câmera, não o pointer lock, só o andar e o pular.
+   *
+   * O movimento aqui nunca foi cortado por nada: nem `dialogueOpen` mexe em
+   * `moveInput`, ele só toma a CÂMERA. Resultado, no Andar 3: durante o cartão
+   * de título e a apresentação do Diabrete o jogador continua andando às cegas.
+   * E andar ali quebra a cena, porque `f3PlayerZ` avança, o pool de plataformas
+   * RECICLA, e a cutscene é encenada em coordenadas que já não existem — o
+   * Diabrete fica plantado no ar, ou de costas.
+   *
+   * Havia um remendo: teleportar o jogador de volta ao fim da intro. Ele não
+   * bastava, porque o estrago já tinha acontecido no pool. Trava-se na origem.
+   */
+  travado?: boolean;
   sharedPositionRef: React.MutableRefObject<Vector3>;
   sharedRotationYRef: React.MutableRefObject<number>;
   cameraThetaRef: React.MutableRefObject<number>;
@@ -375,7 +389,7 @@ interface PlayerProps {
   jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, travado = false, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -570,7 +584,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         consumeFirstPersonLook(lookInput.current, camAng.current, isDesktop);
         camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
 
-        const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        const fwd = travado ? 0 : -moveInput.current.y; const strafe = travado ? 0 : moveInput.current.x; let moving = false;
         f11Input.current.x = 0; f11Input.current.z = 0;
         // ── Swim sprint + stamina ──────────────────────────────────────────
         // Holding the swim-fast button burns stamina for a big speed boost;
@@ -717,7 +731,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         consumeFirstPersonLook(lookInput.current, camAng.current, isDesktop);
         camAng.current.phi = Math.max(fp ? -1.5 : -0.5, Math.min(fp ? 1.5 : 1.2, camAng.current.phi));
 
-        const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        const fwd = travado ? 0 : -moveInput.current.y; const strafe = travado ? 0 : moveInput.current.x; let moving = false;
         f11Input.current.x = 0; f11Input.current.z = 0;
         if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
             moving = true;
@@ -895,8 +909,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             // 6. O pulo, com as duas folgas da fronteira. `jumpRef` é o botão
             //    NESTE quadro; os relógios é que decidem se ele vale.
+            // Travado também não PULA: senão o jogador atravessa a cutscene aos
+            // saltos, e cada pulo ainda chama `registerJump`, que é quem faz o
+            // Diabrete desenhar armadilha — no meio da própria apresentação dele.
             f3RelogiosRef.current = f3Relogios(
-                f3RelogiosRef.current, safeDt, passo.noChao, jumpRef?.current === true,
+                f3RelogiosRef.current, safeDt, passo.noChao, !travado && jumpRef?.current === true,
             );
             if (jumpRef) jumpRef.current = false;
             if (f3PodePular(f3RelogiosRef.current)) {

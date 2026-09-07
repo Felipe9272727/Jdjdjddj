@@ -19,8 +19,12 @@
  */
 
 // A estrela, calculada uma vez: vinte e dois pontos alternando entre a borda e
-// 80% dela. Fica fora do componente para não ser remontada a cada quadro.
-const FORMA = 'polygon(100.0% 50.0%, 88.4% 61.3%, 92.1% 77.0%, 76.2% 80.2%, 70.8% 95.5%, 55.7% 89.6%, 42.9% 99.5%, 33.4% 86.4%, 17.3% 87.8%, 16.3% 71.6%, 2.0% 64.1%, 10.0% 50.0%, 2.0% 35.9%, 16.3% 28.4%, 17.3% 12.2%, 33.4% 13.6%, 42.9% 0.5%, 55.7% 10.4%, 70.8% 4.5%, 76.2% 19.8%, 92.1% 23.0%, 88.4% 38.7%)';
+// 88,5% dela. Fica fora do componente para não ser remontada a cada quadro.
+//
+// AS PONTAS ERAM FUNDAS DEMAIS (80%), e ponta funda come área: o texto tinha de
+// se afastar tanto da borda que o balão precisava ser enorme para caber duas
+// linhas. Mais rasa, a estrela continua lendo como grito e devolve o miolo.
+const FORMA = 'polygon(100.0% 50.0%, 92.5% 62.5%, 92.1% 77.0%, 79.0% 83.4%, 70.8% 95.5%, 56.3% 93.8%, 42.9% 99.5%, 31.6% 90.3%, 17.3% 87.8%, 12.8% 73.9%, 2.0% 64.1%, 5.8% 50.0%, 2.0% 35.9%, 12.8% 26.1%, 17.3% 12.2%, 31.6% 9.7%, 42.9% 0.5%, 56.3% 6.2%, 70.8% 4.5%, 79.0% 16.6%, 92.1% 23.0%, 92.5% 37.5%)';
 
 const INK = '#140c08';
 const PAPEL = '#f6efe0';
@@ -34,8 +38,20 @@ interface Props {
 export default function Floor3Grito({ texto, serie }: Props) {
     if (!texto) return null;
     return (
-        <div style={{ position: 'fixed', top: 74, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 70, pointerEvents: 'none', width: 'min(74vw, 520px)',
+        // ── ELE FALA DO CANTO, NÃO DO MEIO DA TELA ──────────────────────
+        // No celular do dono do jogo este balão estava tomando METADE DA TELA:
+        // 74vw de largura, enchimento de 38 por 58, e as pontas da estrela
+        // comendo mais área ainda. Sentado no topo-centro, ele ainda brigava com
+        // o contador de PINCÉIS e ficava bem em cima da linha de visão de quem
+        // está pulando de plataforma em plataforma — que é a única coisa que o
+        // jogador precisa enxergar.
+        //
+        // Vai para o canto de cima à esquerda e encolhe: o meio da tela é de
+        // quem joga, o canto de baixo à direita é do botão de PULAR, o topo-
+        // centro é do contador. Sobra este canto, e ele basta — a fala é curta.
+        <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 10px)',
+            zIndex: 70, pointerEvents: 'none', width: 'min(42vw, 300px)',
             fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
             <style>{`
                 @keyframes f3-grito-entra { 0%{transform:scale(0.3) rotate(-8deg);opacity:0}
@@ -45,10 +61,10 @@ export default function Floor3Grito({ texto, serie }: Props) {
             `}</style>
             <div key={serie} style={{ animation: 'f3-grito-entra .32s cubic-bezier(.2,1.5,.4,1) both' }}>
                 <div style={{ position: 'relative', animation: 'f3-grito-treme .375s steps(1,end) infinite' }}>
-                    <div style={{ position: 'absolute', inset: 'min(-0.85vw,-7px)', background: INK, clipPath: FORMA }} />
+                    <div style={{ position: 'absolute', inset: 'min(-0.6vw,-5px)', background: INK, clipPath: FORMA }} />
                     <div style={{ position: 'relative', background: PAPEL, color: INK, clipPath: FORMA,
-                        padding: 'min(4.6vw,38px) min(6.4vw,58px)',
-                        fontSize: 'min(3.2vw,19px)', lineHeight: 1.15, textAlign: 'center', letterSpacing: '.02em' }}>
+                        padding: 'min(2.6vw,20px) min(3.4vw,26px)',
+                        fontSize: 'min(3.4vw,15px)', lineHeight: 1.12, textAlign: 'center', letterSpacing: '.01em' }}>
                         {texto}
                     </div>
                 </div>

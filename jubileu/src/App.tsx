@@ -1989,7 +1989,7 @@ export default function App() {
             ))}
             {hasStarted && <Floor10Desfecho level={currentLevel} />}
             <AgenteCompanheiro level={currentLevel} doorsClosed={doorsClosed} houseDoorOpen={houseDoorOpen} paused={settingsOpen || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen} playerPositionRef={sharedPlayerPositionRef} />
-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} travado={f3EmCena} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {/* Andar 8: direção de câmera do interrogatório/despertar/arremesso —
                 montada DEPOIS do <Player> pra sobrescrever a câmera por frame. */}
             {hasStarted && currentLevel === 8 && (
@@ -2801,10 +2801,31 @@ export default function App() {
             padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10,
             boxShadow: '0 5px 0 #140c08', transform: 'rotate(-1.5deg)' }}>
             <span style={{ fontSize: 22, color: '#140c08', letterSpacing: '.04em' }}>PINCÉIS</span>
-            {[0, 1, 2].map((i) => (
-              <span key={i} style={{ fontSize: 26, filter: i < brushCount ? 'none' : 'grayscale(1) opacity(0.35)',
-                transform: i < brushCount ? 'scale(1.15) rotate(-8deg)' : 'none', transition: 'all .2s' }}>🖌️</span>
-            ))}
+            {/* ── O PINCEL É DESENHADO, NÃO É EMOJI ─────────────────────
+                Era 🖌️, e o emoji vem AZUL: um andar inteiro de creme e tinta
+                com três pincéis azul-piscina no alto da tela. A grade de
+                película não alcança o DOM, então não havia como amansá-lo — o
+                jeito é desenhar o pincel na palheta do andar. Cheio quando é
+                seu, só o contorno quando ainda é dele. */}
+            {[0, 1, 2].map((i) => {
+              const meu = i < brushCount;
+              return (
+                <svg key={i} width="22" height="26" viewBox="0 0 22 26" aria-hidden
+                  style={{ transform: meu ? 'scale(1.1) rotate(-8deg)' : 'rotate(-8deg)',
+                           opacity: meu ? 1 : 0.32, transition: 'all .2s' }}>
+                  {/* cabo */}
+                  <rect x="8.5" y="1" width="5" height="12" rx="2.2"
+                    fill={meu ? '#140c08' : 'none'} stroke="#140c08" strokeWidth="2" />
+                  {/* virola */}
+                  <rect x="7" y="12.5" width="8" height="3.6" rx="1"
+                    fill={meu ? '#f6efe0' : 'none'} stroke="#140c08" strokeWidth="2" />
+                  {/* tufo */}
+                  <path d="M7.4 16.4 L11 25 L14.6 16.4 Z"
+                    fill={meu ? '#140c08' : 'none'} stroke="#140c08" strokeWidth="2"
+                    strokeLinejoin="round" />
+                </svg>
+              );
+            })}
           </div>
         </div>
       )}

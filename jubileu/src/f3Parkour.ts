@@ -377,3 +377,11 @@ export const QUEDA_ATE_O_VAZIO = 9;
 export function alturaDoVazio(playerZ: number): number {
     return respawnPoint(playerZ).y - QUEDA_ATE_O_VAZIO;
 }
+
+
+// DEV-ONLY: a bancada precisa poder medir se o jogador ANDOU. Sem isto não há
+// como provar que a trava da cutscene funciona — só olhar a cena e achar.
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
+    (window as unknown as { __f3Onde?: () => { z: number; y: number; pecas: number } }).__f3Onde =
+        () => ({ z: f3PlayerZ.current, y: f3PlayerY.current, pecas: platforms.length });
+}
