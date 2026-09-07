@@ -66,6 +66,7 @@ import Floor3Environment from './Floor3';
 import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
+import Floor3Grito from './Floor3Grito';
 import { hazards, hazardBox, registerJump, resetHazards } from './f3Hazards';
 import { platforms as f3Platforms } from './f3Parkour';
 
@@ -143,8 +144,13 @@ export default function Floor3Preview() {
         : panorama ? [17, 11, 4]
         : search.includes('close') ? [0, 2.2, 8]
         : [0, 1.6, -8];
+    // `?f3preview&grito=texto` desenha O MESMO componente de balão que o jogo
+    // usa. Para vê-lo dentro do jogo seria preciso atravessar a intro e a
+    // apresentação do Diabrete, o que nesta caixa passa de oito minutos.
+    const grito = new URLSearchParams(window.location.search).get('grito');
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
+            {grito && <Floor3Grito texto={grito} serie={1} />}
             <Canvas
                 // SEM `shadows` — DE PROPOSITO.
                 //

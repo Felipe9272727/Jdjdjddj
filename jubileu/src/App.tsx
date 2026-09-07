@@ -31,6 +31,9 @@ import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic, playCartoonSf
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3Sfx';
 import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
+import { aoFalar, f3Fala } from './f3Falas';
+import Floor3Grito from './Floor3Grito';
+
 import { reset as f3Reset, f3PlayerZ, f3PlayerY } from './f3Parkour';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
@@ -625,6 +628,20 @@ export default function App() {
   // botões redondos pousados na moldura. Um cartão de 1930 com widget de
   // interface por cima não é um cartão de 1930 — é um print de jogo.
   const f3EmCena = currentLevel === 3 && (cartoonIntro || cartoonCutscene || cartoonFall);
+  // ── O QUE ELE ESTÁ GRITANDO LÁ DE CIMA ────────────────────────────────
+  // `f3Falas` guarda a fala viva; aqui só se reage ao aviso e se agenda a
+  // saída dela. Nada varre por quadro: é um `setTimeout` por fala.
+  const [f3Grito, setF3Grito] = useState('');
+  useEffect(() => {
+    if (currentLevel !== 3) { setF3Grito(''); return; }
+    let saida: ReturnType<typeof setTimeout> | undefined;
+    aoFalar(() => {
+      setF3Grito(f3Fala.texto);
+      if (saida) clearTimeout(saida);
+      saida = setTimeout(() => setF3Grito(''), Math.max(0, f3Fala.ate - performance.now()));
+    });
+    return () => { aoFalar(null); if (saida) clearTimeout(saida); setF3Grito(''); };
+  }, [currentLevel]);
   useEffect(() => {
     if (!fallBegging) { setFallLine(0); return; }
     if (fallLine >= FALL_DIALOGUE.length - 1) return;     // reached the choice — hold
@@ -2760,6 +2777,12 @@ export default function App() {
             ))}
           </div>
         </div>
+      )}
+      {/* O grito dele durante a escalada — o componente mora em
+          `Floor3Grito.tsx` para a bancada conseguir fotografá-lo sem
+          atravessar as duas cutscenes, que nesta caixa levam oito minutos. */}
+      {currentLevel === 3 && hasStarted && !f3EmCena && (
+        <Floor3Grito texto={f3Grito} serie={f3Fala.serie} />
       )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">

@@ -24,7 +24,7 @@ const FOTOS = Number(process.env.FOTOS ?? 14);
 const INTERVALO = Number(process.env.INTERVALO ?? 2500);
 
 // Os nomes sao os do cartao no Modo Criador, literais.
-const NOME_DO_CARTAO = CARTAO === 'intro' ? 'Transição 2 → 3' : 'Queda do Diabrete';
+const NOME_DO_CARTAO = (CARTAO === 'intro' || CARTAO === 'falas') ? 'Transição 2 → 3' : 'Queda do Diabrete';
 const PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     'base64');
@@ -133,6 +133,35 @@ async function pulso() {
             beirada: w.__f3Beirada ?? null,
         };
     }).catch(() => null);
+}
+
+// Modo `falas`: entra pelo cartão da intro (que cai no andar jogável), espera a
+// intro sair de cena e manda o Diabrete gritar cada tipo de fala, fotografando
+// uma a uma. Dirigir o parkour pelo teclado num navegador a 2 fps seria o mesmo
+// que não fotografar.
+if (CARTAO === 'falas') {
+    // Esperar POR TEMPO não serve: esta caixa roda a ~10% da velocidade, então
+    // a intro de 4,6 s leva quase um minuto e a apresentação do Diabrete, uns
+    // cinco. Espera-se pelo CONTADOR DE PINCÉIS, que só existe quando as duas
+    // cutscenes saíram de cena — o mesmo `!f3EmCena` que esconde o balão.
+    await p.getByText('PINCÉIS', { exact: false }).first()
+        .waitFor({ state: 'visible', timeout: Number(process.env.ESPERA_INTRO ?? 480000) });
+    console.log('   andar jogável');
+    const EVENTOS = [['desenhou', {}], ['espetou', {}], ['roubou', { roubados: 1 }],
+                     ['roubou', { roubados: 3 }], ['provoca', {}], ['caiu', {}]];
+    for (let i = 0; i < EVENTOS.length; i += 1) {
+        const [ev, ctx] = EVENTOS[i];
+        const ok = await p.evaluate(([e, c]) => {
+            const f = window.__f3Dizer; if (!f) return null;
+            return f(e, c).texto;
+        }, [ev, ctx]);
+        console.log('   fala:', ev, '→', ok);
+        await p.waitForTimeout(1200);
+        const arq = `${SAIDA}/f3-fala-${String(i).padStart(2, '0')}-${ev}-${SUFIXO}.png`;
+        try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
+        catch (e) { console.log('falhou', ev, String(e.message).slice(0, 70)); }
+    }
+    ponte.fechar(); await ctx.close(); process.exit(0);
 }
 
 // Rajada: a cutscene é TEMPO, então uma foto só não diz nada.

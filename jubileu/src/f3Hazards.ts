@@ -19,6 +19,7 @@
  */
 
 import { platforms as f3Platforms, f3PlayerZ, type F3Plat } from './f3Parkour';
+import { dizer, limparFalas } from './f3Falas';
 import * as THREE from 'three';
 
 // Live world position of the Diabrete (feet), written every frame by
@@ -89,6 +90,7 @@ let _onProgress: (() => void) | null = null;   // nudges React HUD to re-render
 export function setOnProgress(cb: (() => void) | null): void { _onProgress = cb; }
 
 export function resetHazards(): void {
+    limparFalas();
     hazards.length = 0;
     brushes.length = 0;
     f3Progress.jumps = 0;
@@ -158,6 +160,9 @@ function spawnObstacle(playerZ: number): void {
     f3Progress.obstacles += 1;
     f3Progress.drawZ = plat.cz;                 // the rival runs here to paint it
     f3Progress.drawFlashAt = now();
+    // ELE COMENTA O QUE FAZ. Ver `f3Falas`: o cara que prometeu desenhar o
+    // fracasso do jogador ficava mudo do começo ao fim da escalada.
+    dizer('desenhou');
     // Drop a paintbrush further up: the FIRST one right away (teaches the steal
     // mechanic immediately), then on every other obstacle after that.
     if (f3Progress.obstacles % 2 === 1) spawnBrush(playerZ);
@@ -179,6 +184,10 @@ export function registerJump(playerZ: number): void {
     if (isDizzy()) return;
     f3Progress.jumps += 1;
     if (f3Progress.jumps % 10 === 0) spawnObstacle(playerZ);
+    // A provocação de ócio anda no RITMO DO JOGO, e não num temporizador novo:
+    // quem sobe devagar ouve menos, quem voa ouve mais. E cai no meio do
+    // compasso de dez para não pisar na fala do obstáculo.
+    else if (f3Progress.jumps % 10 === 5) dizer('provoca');
 }
 
 // ── Per-frame tick (renderer owns it) ─────────────────────────────────────────
@@ -306,6 +315,7 @@ export function hazardKnockback(px: number, py: number, pz: number):
         if (inX && inZ && low) {
             if (h.hit) return null;              // already bounced on this pass
             h.hit = true; h.hitAt = tNow;
+            dizer('espetou');
             return { z: box.zSeguro, vy: 4.2 };  // atrás da tira, mas ainda em cima da plataforma
         }
         // ── O TRANCO QUE SÓ ACONTECIA UMA VEZ ────────────────────────────
@@ -331,6 +341,11 @@ export function tryCollectBrush(px: number, py: number, pz: number): boolean {
             b.collected = true;
             f3Progress.brushes += 1;
             f3Progress.dizzyUntil = now() + 3000;     // devil dazed ~3s
+            // O ARCO DELE EM TRÊS FALAS: dono do lugar → nervoso → desesperado.
+            // O TERCEIRO pincel não fala aqui — a fala dele é a cutscene da
+            // queda, que é onde ele finalmente pede socorro para quem passou o
+            // andar inteiro humilhando.
+            if (f3Progress.brushes < f3Progress.needed) dizer('roubou', { roubados: f3Progress.brushes });
             if (f3Progress.brushes >= f3Progress.needed && !f3Progress.fell) {
                 f3Progress.fell = true;
                 f3Progress.fellAt = now();
