@@ -12,24 +12,78 @@
  * directly and the first-person pose dialed in.
  */
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { KernelSize } from 'postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 
 /** DEV-ONLY: expõe a cena para a sonda da bancada poder inspecionar material. */
 function Expor() {
-    const { scene } = useThree();
-    (window as unknown as { __cena?: unknown }).__cena = scene;
+    const { scene, gl } = useThree();
+    const w = window as unknown as { __cena?: unknown; __gl?: unknown };
+    w.__cena = scene;
+    w.__gl = gl;
+    return null;
+}
+
+/**
+ * DEV-ONLY: força as armadilhas a existirem.
+ *
+ * Elas nascem de `registerJump` — a cada dez pulos do jogador o Diabrete inca
+ * uma tira de espinhos. Sem jogador não há pulo, sem pulo não há armadilha, e o
+ * preview mostrava um andar sem nenhuma. Dá para atravessar um remake inteiro
+ * sem nunca ver a peça que MACHUCA; foi o que aconteceu até aqui.
+ */
+function ForcarArmadilhas() {
+    const pronto = useRef(false);
+    useFrame(() => {
+        if (pronto.current) return;
+        // AS PLATAFORMAS SO EXISTEM DEPOIS DO SUSPENSE. A primeira versao disto
+        // era um `useEffect` — que dispara ANTES do Floor3Environment resolver,
+        // com `f3Platforms` ainda vazio. `pickNear` devolvia null, nenhuma
+        // armadilha nascia, e a foto que eu tirei "das armadilhas" nao tinha
+        // uma sequer. Esperar um quadro em que ja haja chao e o conserto.
+        if (f3Platforms.length === 0) return;
+        pronto.current = true;
+        resetHazards();
+        for (let obstaculo = 0; obstaculo < 2; obstaculo += 1) {
+            for (let pulo = 0; pulo < 10; pulo += 1) registerJump(0);
+        }
+        // Ja desenhadas: o "inking" e bonito, mas quem precisa de foto e a
+        // armadilha PRONTA, que e o estado em que ela machuca.
+        for (const h of hazards) h.reveal = 1;
+        // Onde elas cairam, para a bancada poder APONTAR a camera. Sem isto eu
+        // fotografo o lugar onde eu ACHO que a armadilha esta.
+        (window as unknown as { __armadilhas?: unknown }).__armadilhas =
+            hazards.map((h) => hazardBox(h));
+    });
     return null;
 }
 import Floor3Environment from './Floor3';
 import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
+import { hazards, hazardBox, registerJump, resetHazards } from './f3Hazards';
+import { platforms as f3Platforms } from './f3Parkour';
+
+/**
+ * DEV-ONLY: cAmera livre pela URL — `?f3preview&cam=2,1.4,10&alvo=0,1,12`.
+ *
+ * As vistas fixas sao boas para comparar um antes/depois no mesmo enquadramento,
+ * mas pessimas para PROCURAR: a armadilha tem 60 cm e nao cabe em nenhuma delas.
+ * Com isto eu aponto a camera para onde a coisa esta, em vez de escolher entre
+ * seis enquadramentos que alguem (eu) escolheu antes de saber o que procurava.
+ */
+function vetorDaUrl(chave: string): [number, number, number] | null {
+    const bruto = new URLSearchParams(window.location.search).get(chave);
+    if (!bruto) return null;
+    const n = bruto.split(',').map(Number);
+    if (n.length !== 3 || n.some((v) => !Number.isFinite(v))) return null;
+    return [n[0], n[1], n[2]];
+}
 
 function HandsDebug() {
     const { scene } = useGLTF(glovesModel);
@@ -78,8 +132,13 @@ export default function Floor3Preview() {
     // simplesmente nunca aparece em foto nenhuma — foi por isso que passei o
     // remake inteiro sem olhar para o personagem que mais aparece no andar.
     const diabo = search.includes('diabo');
-    const camPos: [number, number, number] = fphands ? [0, 0, 0]
+    const armadilha = search.includes('armadilha');
+    const camLivre = vetorDaUrl('cam');
+    const alvoLivre = vetorDaUrl('alvo');
+    const camPos: [number, number, number] = camLivre ? camLivre
+        : fphands ? [0, 0, 0]
         : debug ? dbgCam
+        : armadilha ? [2.6, 2.2, 8.0]
         : diabo ? [1.5, 2.5, 11.4]
         : panorama ? [17, 11, 4]
         : search.includes('close') ? [0, 2.2, 8]
@@ -87,16 +146,26 @@ export default function Floor3Preview() {
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             <Canvas
-                shadows
+                // SEM `shadows` — DE PROPOSITO.
+                //
+                // O Canvas do jogo (App.tsx) nao passa `shadows`, entao
+                // `gl.shadowMap.enabled` e falso e o Andar 3 nao tem mapa de
+                // sombra nenhum. Esta tela passava, e desenhava sombras que o
+                // jogador nunca ve — com a camera de sombra padrao, que e uma
+                // ortografica de +-5 em volta da origem, mal cobrindo o comeco
+                // do andar. Mesma razao pela qual a grade aqui vem do
+                // `floor3Grade.ts` e nao de uma copia local: bancada que mente
+                // e pior que bancada nenhuma.
                 camera={{ position: camPos, fov: fphands ? 90 : 70, near: 0.1, far: 200 }}
                 gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace }}
             >
                 <Expor />
+                {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
                 </Suspense>
-                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
+                {!fphands && <OrbitControls target={alvoLivre ? alvoLivre : debug ? [0, 0, 0] : armadilha ? [0, 1.2, 12] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     <N8AO

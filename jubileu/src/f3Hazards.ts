@@ -121,23 +121,38 @@ function withNeighbors(ids: Set<number>): Set<number> {
 }
 
 /** Pick the platform NEAREST to targetZ (but at least minZ ahead) that's free. */
-function pickNear(targetZ: number, minZ: number, used: Set<number>): F3Plat | null {
+function pickNear(
+    targetZ: number, minZ: number, used: Set<number>,
+    serve?: (p: F3Plat) => boolean,
+): F3Plat | null {
     let best: F3Plat | null = null;
     for (const p of f3Platforms) {
         if (p.palette < 0) continue;             // skip the elevator landing
         if (p.cz < minZ) continue;
         if (used.has(p.id)) continue;
+        if (serve && !serve(p)) continue;
         if (!best || Math.abs(p.cz - targetZ) < Math.abs(best.cz - targetZ)) best = p;
     }
     return best;
 }
+
+// ── ONDE UMA ARMADILHA NAO CABE ──────────────────────────────────────────────
+//
+// A ponte tem postes e cordas de tinta chapada de pe em cima dela. Uma fileira
+// de espinhos ali cai POR DENTRO deles: na foto de altura de jogador os dentes
+// desapareciam dentro dos postes, e nao havia contorno que resolvesse porque o
+// problema era de composicao, nao de cor. O sorteio agora prefere qualquer
+// outra peca — e se so houver ponte, ainda assim desenha, porque uma armadilha
+// mal enquadrada e melhor que nenhuma.
+const cabeArmadilha = (p: F3Plat) => p.tipo !== 'ponte';
 
 /** Ink a spiked obstacle onto a platform up where the Diabrete is (so he can be
  *  seen painting it), still well ahead of the player. */
 function spawnObstacle(playerZ: number): void {
     // Block spike + brush platforms AND their neighbors so the two never touch.
     const used = withNeighbors(new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]));
-    const plat = pickNear(playerZ + 12, playerZ + 5, used);
+    const plat = pickNear(playerZ + 12, playerZ + 5, used, cabeArmadilha)
+        ?? pickNear(playerZ + 12, playerZ + 5, used);
     if (!plat) return;
     hazards.push({ id: _nextId++, platId: plat.id, reveal: 0, spikes: 5, hit: false, hitAt: 0 });
     f3Progress.obstacles += 1;
@@ -227,6 +242,49 @@ export function brushPos(b: Brush): { x: number; y: number; z: number } | null {
     const p = f3Platforms.find(pp => pp.id === b.platId);
     if (!p) return null;
     return { x: p.x, y: p.topY + 1.25 + Math.sin(b.bob * 2) * 0.12, z: p.cz };
+}
+
+// ── A SILHUETA DE CADA DENTE ─────────────────────────────────────────────────
+//
+// Mora aqui, e nao no renderer, por um motivo so: assim da para TESTAR. Cinco
+// cones identicos, igualmente espacados e perfeitamente em pe sao um obstaculo
+// de video-game; o que faz a peca parecer desenhada a pincel e cada dente ter o
+// seu tamanho e a sua tortura — e a linha nunca ficar parada.
+//
+// `ruidoDaTinta` e um hash, nao um sorteio: a mesma armadilha desenha a mesma
+// silhueta em toda maquina e em toda foto da bancada. Nao ha `Math.random` aqui.
+export function ruidoDaTinta(a: number): number {
+    const x = Math.sin(a * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+}
+
+// O FERVILHAR ("boil"): a linha de um desenho de 1930 e redesenhada a cada dois
+// ou tres quadros e ferve. O tempo entra QUANTIZADO, entao a silhueta se
+// re-sorteia ~8x por segundo em vez de deslizar suave — que e a diferenca entre
+// tinta e interpolacao.
+export const BOIL_HZ = 8;
+export const BOIL_AMP = 0.045;
+
+export interface SilhuetaDoEspinho {
+    alto: number;     // multiplicador de altura
+    largo: number;    // multiplicador de largura
+    torto: number;    // inclinacao em radianos
+    desvio: number;   // deslocamento em X, em metros
+    ferve: number;    // o tremor do quadro, em [-BOIL_AMP/2, +BOIL_AMP/2]
+}
+
+export function silhuetaDoEspinho(
+    idDaArmadilha: number, indice: number, tempo: number,
+): SilhuetaDoEspinho {
+    const semente = idDaArmadilha * 13 + indice * 7;
+    const quadro = Math.floor(tempo * BOIL_HZ);
+    return {
+        alto:   0.80 + ruidoDaTinta(semente) * 0.46,
+        largo:  0.84 + ruidoDaTinta(semente + 91) * 0.34,
+        torto:  (ruidoDaTinta(semente + 57) - 0.5) * 0.34,
+        desvio: (ruidoDaTinta(semente + 23) - 0.5) * 0.10,
+        ferve:  (ruidoDaTinta(semente + quadro * 3.7) - 0.5) * BOIL_AMP,
+    };
 }
 
 // ── Player interactions ───────────────────────────────────────────────────────

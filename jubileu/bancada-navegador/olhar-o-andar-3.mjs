@@ -49,6 +49,9 @@ const ANGULOS = [
     // la — da para atravessar um remake inteiro sem nunca olhar para o
     // personagem que mais aparece no andar. Ja aconteceu.
     ['diabo', '?f3preview&diabo'],
+    // As ARMADILHAS. Elas nascem de `registerJump`, e sem jogador nao ha pulo,
+    // sem pulo nao ha armadilha — o preview mostrava um andar sem nenhuma.
+    ['armadilha', '?f3preview&armadilha'],
 ];
 for (const [nome, q] of ANGULOS) {
     await p.goto(`http://127.0.0.1:${PORTA}/index.html${q}`, { waitUntil: 'domcontentloaded', timeout: 120000 });

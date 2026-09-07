@@ -4,6 +4,7 @@ import {
     resetHazards, registerJump, hazards, brushes, f3Progress,
     hazardBox, hazardKnockback, tickHazards, isDizzy,
     f3DevilPos, f3DevilPosValid, devilStageBase,
+    silhuetaDoEspinho, BOIL_HZ, BOIL_AMP,
 } from '../f3Hazards';
 
 // Drive the sabotage loop deterministically: each call advances the jump tally
@@ -161,6 +162,7 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
     // por não pular — é o castigo por não chegar.
     it('o empurrão sempre larga o jogador EM CIMA da plataforma', () => {
         let total = 0, cairiamNoVazio = 0;
+        const medidos: { hd: number; cai: boolean }[] = [];
         for (const seed of [0x9e3779b9, 1, 7, 42, 1337]) {
             resetParkour(seed);
             resetHazards();
@@ -171,7 +173,9 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
                     const box = hazardBox(h)!;
                     const plat = platforms.find((p) => p.id === h.platId)!;
                     total += 1;
-                    if (box.z0 - 1.3 < plat.cz - plat.hd) cairiamNoVazio += 1;
+                    const cai = box.z0 - 1.3 < plat.cz - plat.hd;
+                    if (cai) cairiamNoVazio += 1;
+                    medidos.push({ hd: plat.hd, cai });
                     expect(box.zSeguro, `semente ${seed}, hd=${plat.hd}`)
                         .toBeGreaterThanOrEqual(plat.cz - plat.hd);
                     expect(box.zSeguro).toBeLessThanOrEqual(plat.cz + plat.hd);
@@ -179,13 +183,23 @@ describe('f3Hazards — Floor 3 sabotage loop', () => {
                 }
             }
         }
-        // A regra não é vazia: a esmagadora maioria dos trancos cairia fora do
-        // convés sem a trava. (Medido: 40 de 50. Com a fórmula ANTIGA da caixa
-        // — `cz − 0,15·hd` — a conta dá 0,85·hd < 1,3, ou seja TODOS os hd do
-        // gerador {1,0 1,2 1,4} caíam. O ímã do pouso é que escondia isso,
-        // puxando o jogador de volta para alguma plataforma.)
+        // A REGRA NÃO É VAZIA — E DÁ PARA DIZER EXATAMENTE QUANDO ELA MORDE.
+        //
+        // `z0 − 1,3 < cz − hd` sai da própria geometria da tira: com
+        // `z0 = cz + 0,425·hd − 0,28`, a conta vira `1,425·hd < 1,58`, ou seja
+        // hd < 1,11. Só o deck mais raso do gerador (hd = 1,0) cai — e cai
+        // SEMPRE. Medido: 9 de 9 em hd=1,0; 0 de 41 em hd ≥ 1,2.
+        //
+        // (Este teste já afirmou `> 0,5` do total. Passou a falhar quando as
+        // armadilhas deixaram de cair em PONTE — que é rasa — e foram para
+        // decks mais fundos. O número era um retrato do sorteio, não da regra;
+        // a relação abaixo é a regra.)
         expect(total).toBeGreaterThan(20);
-        expect(cairiamNoVazio / total).toBeGreaterThan(0.5);
+        expect(cairiamNoVazio).toBeGreaterThan(0);
+        for (const { hd, cai } of medidos) {
+            if (cai) expect(hd, 'só deck raso precisa da trava').toBeLessThan(1.11);
+            else expect(hd, 'deck fundo nunca precisou dela').toBeGreaterThanOrEqual(1.11);
+        }
     });
 
     describe('devilStageBase fallback', () => {
@@ -231,5 +245,68 @@ describe('tickHazards', () => {
         h.reveal = 0;
         tickHazards(0.5);
         expect(h.reveal).toBeGreaterThan(0);
+    });
+});
+
+// ── A SILHUETA DESENHADA À MÃO ───────────────────────────────────────────────
+// Os espinhos eram cinco cones idênticos, igualmente espaçados, perfeitamente
+// em pé — um obstáculo de video-game num andar que quer parecer desenhado a
+// pincel. Estes testes prendem as duas propriedades que fazem a diferença: cada
+// dente é diferente dos outros, e a linha NUNCA fica parada.
+describe('silhuetaDoEspinho — a mão que treme', () => {
+    it('é determinística: a mesma armadilha desenha a mesma silhueta', () => {
+        const a = silhuetaDoEspinho(7, 2, 1.234);
+        const b = silhuetaDoEspinho(7, 2, 1.234);
+        expect(a).toEqual(b);
+    });
+
+    it('nenhum dente sai igual ao vizinho', () => {
+        const t = 0;
+        const vistos = new Set<string>();
+        for (let i = 0; i < 5; i++) {
+            const s = silhuetaDoEspinho(3, i, t);
+            vistos.add(`${s.alto.toFixed(4)}|${s.largo.toFixed(4)}|${s.torto.toFixed(4)}`);
+        }
+        expect(vistos.size).toBe(5);
+    });
+
+    it('duas armadilhas não desenham a mesma fileira', () => {
+        const uma = Array.from({ length: 5 }, (_, i) => silhuetaDoEspinho(1, i, 0).alto);
+        const outra = Array.from({ length: 5 }, (_, i) => silhuetaDoEspinho(2, i, 0).alto);
+        expect(uma).not.toEqual(outra);
+    });
+
+    it('fica dentro dos limites: nada de dente invertido nem deitado', () => {
+        for (let id = 1; id <= 12; id++) {
+            for (let i = 0; i < 5; i++) {
+                for (let q = 0; q < 40; q++) {
+                    const s = silhuetaDoEspinho(id, i, q / BOIL_HZ);
+                    expect(s.alto).toBeGreaterThan(0.5);       // sempre em pé
+                    expect(s.alto).toBeLessThan(1.4);
+                    expect(s.largo).toBeGreaterThan(0.5);
+                    expect(s.largo).toBeLessThan(1.3);
+                    expect(Math.abs(s.torto)).toBeLessThan(0.2);   // ~11°: torto, não caído
+                    expect(Math.abs(s.desvio)).toBeLessThan(0.06); // não sai da tira
+                    expect(Math.abs(s.ferve)).toBeLessThanOrEqual(BOIL_AMP / 2);
+                }
+            }
+        }
+    });
+
+    // O FERVILHAR É O PONTO. Se a silhueta deslizasse suave ela seria animação
+    // de computador; o que faz parecer tinta é ela SALTAR ~8× por segundo — e
+    // ficar parada entre um salto e outro.
+    it('ferve em degraus de ~8 Hz, e não desliza', () => {
+        const dentro = [0.02, 0.06, 0.10].map((d) => silhuetaDoEspinho(5, 1, 1 / BOIL_HZ + d).ferve);
+        expect(new Set(dentro.map((v) => v.toFixed(9))).size).toBe(1);   // parado no degrau
+
+        let saltos = 0;
+        let anterior = silhuetaDoEspinho(5, 1, 0).ferve;
+        for (let q = 1; q <= 16; q++) {
+            const agora = silhuetaDoEspinho(5, 1, q / BOIL_HZ).ferve;
+            if (agora !== anterior) saltos += 1;
+            anterior = agora;
+        }
+        expect(saltos).toBe(16);          // um salto por degrau, sem repetir
     });
 });
