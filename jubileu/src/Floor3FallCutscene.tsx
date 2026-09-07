@@ -40,12 +40,29 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const easeIn = (t: number) => t * t;
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
 
-// Toon materials for the stylized props (game's cartoon look + ink outline).
-const shoeBrown = new THREE.MeshToonMaterial({ color: '#7a4a24' });
-const shoeSole  = new THREE.MeshToonMaterial({ color: '#2a2030' });
-const shoeCuff  = new THREE.MeshToonMaterial({ color: '#15101a' });
-const gloveWhite = new THREE.MeshToonMaterial({ color: '#f4f0e6' });
-const gloveCuff  = new THREE.MeshToonMaterial({ color: '#c0271a' });
+// ── AS CORES DOS DOIS PROPS ──────────────────────────────────────────────────
+// O couro era `#7a4a24`, um marrom médio: sob a grade do andar (sat −0,62,
+// sépia 0,5) ele vira exatamente o tom do fundo creme sujo, e a bota sumia por
+// VALOR antes mesmo de sumir por forma. O andar inteiro é de dois tons — creme e
+// tinta — e estes dois objetos passam a obedecer a isso: couro escuro, virola e
+// cadarço claros, para a peça ter linha interna e não virar mancha.
+// E DEPOIS EU INVERTI OS DOIS. A bota escura sumia igual: neste plano o fundo
+// já é escuro — a borda de tinta da laje e a cabeça do Diabrete —, então massa
+// escura em cima de massa escura dá mancha, exatamente como os espinhos davam
+// em cima dos postes. Aqui a regra vira do avesso: a bota é CLARA, com contorno
+// de tinta grosso e sola de tinta. O cano continua escuro, então a peça tem
+// contraste dentro dela mesma e lê como perna preta calçando bota clara — que é
+// o pé de qualquer boneco de 1930.
+const shoeCouro   = new THREE.MeshToonMaterial({ color: '#f2e9d5' });
+const shoeSola    = new THREE.MeshToonMaterial({ color: '#17121d' });
+const shoeCano    = new THREE.MeshToonMaterial({ color: '#15101a' });
+// (a virola vermelha lia como uma caixinha marrom solta no meio do preto;
+//  virou tinta, e quem separa perna de bota passou a ser a própria linha)
+const shoeVirola  = new THREE.MeshToonMaterial({ color: '#15101a' });
+const shoeCadarco = new THREE.MeshToonMaterial({ color: '#140c08' });
+const gloveWhite   = new THREE.MeshToonMaterial({ color: '#f7f3ea' });
+const gloveCuff    = new THREE.MeshToonMaterial({ color: '#c0271a' });
+const gloveCostura = new THREE.MeshToonMaterial({ color: '#140c08' });
 
 type Phase = 'intro' | 'beg' | 'stomp' | 'climb';
 type Outcome = 'save' | 'stomp';
@@ -266,7 +283,12 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 }
                 if (T > 0.5 && !sfx.current.stomp) { sfx.current.stomp = true; playFloor3Stomp(); }
                 if (T > 0.5) rig.group.scale.set(1.06, 0.92, 1.06);
-                cam.x = gx + 2.0; cam.y = gripY + 3.0; cam.z = edgeZ + 2.6; cam.ly = gripY - 0.3; cam.lz = edgeZ; cam.fov = 46;
+                // MAIS PERTO, MAS NÃO TANTO. A 2,4 m com a bota a 2,1 ela ficou
+                // MAIOR QUE O QUADRO — um borrão creme sem contorno, que é o
+                // mesmo defeito de antes com o sinal trocado. Medido nas duas
+                // pontas na bancada; este é o meio: a bota ocupa cerca de um
+                // terço da largura, com sola, cadarço e cano todos dentro.
+                cam.x = gx + 1.7; cam.y = gripY + 2.5; cam.z = edgeZ + 2.05; cam.ly = gripY - 0.2; cam.lz = edgeZ; cam.fov = 45;
             } else {
                 // plummet — wide side shot following him down
                 const e = T - 0.7;
@@ -381,37 +403,114 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
 
             <group ref={groupRef} scale={[DIABRETE_SCALE, DIABRETE_SCALE, DIABRETE_SCALE]} />
 
-            {/* PISAR — a stylized rubber-hose cartoon shoe (toon + ink outline) */}
-            <group ref={shoeRef} visible={false} scale={[1.5, 1.5, 1.5]}>
-                <mesh position={[0, 0.55, 0]}>{/* ankle */}
-                    <cylinderGeometry args={[0.16, 0.2, 0.5, 14]} />
-                    <primitive object={shoeCuff} attach="material" />
-                    <Outlines thickness={0.04} color={INK} />
+            {/* ── PISAR: A BOTA ─────────────────────────────────────────
+                A primeira versão era um cilindro, uma esfera e outra esfera —
+                e na foto do desfecho saía como UMA BOLA MARROM descendo. É o
+                objeto que representa a escolha do jogador, e era a coisa menos
+                legível da cena inteira.
+
+                O que faz uma bota de 1930 ser lida não é volume, é SILHUETA
+                recortada: bico bulboso, salto, cano, e linhas de tinta POR
+                DENTRO separando as partes. Sem linha interna, qualquer massa
+                escura vira mancha — foi o mesmo diagnóstico dos espinhos e da
+                cabeça do Diabrete, três vezes o mesmo erro neste andar. */}
+            <group ref={shoeRef} visible={false} scale={[1.75, 1.75, 1.75]}>
+                {/* o cano da bota, subindo para fora do quadro */}
+                <mesh position={[0, 0.72, -0.04]}>
+                    <cylinderGeometry args={[0.19, 0.24, 0.78, 16]} />
+                    <primitive object={shoeCano} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
                 </mesh>
-                <mesh position={[0, 0.12, 0.12]} scale={[1.05, 0.8, 1.5]}>{/* bulbous toe */}
-                    <sphereGeometry args={[0.3, 16, 12]} />
-                    <primitive object={shoeBrown} attach="material" />
-                    <Outlines thickness={0.04} color={INK} />
+                {/* a virola do cano — a faixa clara que separa perna de bota */}
+                <mesh position={[0, 0.36, -0.04]}>
+                    <cylinderGeometry args={[0.27, 0.27, 0.11, 16]} />
+                    <primitive object={shoeCano} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
                 </mesh>
-                <mesh position={[0, -0.12, 0.14]} scale={[1.0, 0.5, 1.55]}>{/* sole */}
-                    <sphereGeometry args={[0.3, 16, 10]} />
-                    <primitive object={shoeSole} attach="material" />
+                {/* o peito do pé */}
+                <mesh position={[0, 0.19, 0.02]} scale={[1, 0.85, 1.15]}>
+                    <sphereGeometry args={[0.27, 16, 12]} />
+                    <primitive object={shoeCouro} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
                 </mesh>
+                {/* o BICO bulboso, que é a leitura da peça */}
+                <mesh position={[0, 0.13, 0.34]} scale={[1.12, 0.78, 1.35]}>
+                    <sphereGeometry args={[0.26, 16, 12]} />
+                    <primitive object={shoeCouro} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
+                </mesh>
+                {/* o salto, atrás e embaixo */}
+                <mesh position={[0, 0.03, -0.24]} scale={[0.85, 0.55, 0.7]}>
+                    <sphereGeometry args={[0.24, 12, 10]} />
+                    <primitive object={shoeSola} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
+                </mesh>
+                {/* a SOLA: a faixa escura que corre por baixo e dá o chão da
+                    silhueta. Sem ela o pé flutua. */}
+                <mesh position={[0, -0.06, 0.14]} scale={[1.12, 0.40, 1.58]}>
+                    <sphereGeometry args={[0.27, 16, 10]} />
+                    <primitive object={shoeSola} attach="material" />
+                    <Outlines thickness={0.13} color={INK} />
+                </mesh>
+                {/* dois cadarços de tinta cruzando o peito do pé */}
+                {[0.10, 0.22].map((z) => (
+                    <mesh key={z} position={[0, 0.34, z]} rotation={[0, 0, Math.PI / 2]}>
+                        <cylinderGeometry args={[0.028, 0.028, 0.42, 8]} />
+                        <primitive object={shoeCadarco} attach="material" />
+                    </mesh>
+                ))}
             </group>
 
-            {/* SALVAR — a stylized white cartoon glove (toon + ink outline) */}
-            <group ref={gloveRef} visible={false} scale={[1.35, 1.35, 1.35]} rotation={[Math.PI, 0, 0]}>
-                <mesh>{/* palm */}
-                    <sphereGeometry args={[0.3, 16, 12]} />
+            {/* ── SALVAR: A LUVA ────────────────────────────────────────
+                Mesma doença da bota: uma bola grande e duas bolinhas, que de
+                cima viravam um caroço. Uma luva de desenho é reconhecida por
+                DEDOS SEPARADOS e pelos três riscos de costura nas costas da mão
+                — tirando isso, sobra uma bola branca.
+
+                E ela mora no eixo Y, não no Z. A primeira remontagem pôs os
+                dedos apontando para +Z; com o `rotation={[π,0,0]}` do grupo (que
+                é o que faz a mão descer de cima), o resultado foi o PUNHO
+                VERMELHO de topo enchendo o quadro, com os dedos escondidos atrás
+                — um casquinho de sorvete marrom. Os dedos vão para +Y, que
+                depois do giro aponta para baixo, na direção do Diabrete. */}
+            <group ref={gloveRef} visible={false} scale={[1.4, 1.4, 1.4]} rotation={[Math.PI, 0, 0]}>
+                {/* a palma, achatada como uma mão e não redonda como uma bola */}
+                <mesh scale={[1.08, 1.0, 0.68]}>
+                    <sphereGeometry args={[0.30, 16, 12]} />
                     <primitive object={gloveWhite} attach="material" />
-                    <Outlines thickness={0.04} color={INK} />
+                    <Outlines thickness={0.12} color={INK} />
                 </mesh>
-                <mesh position={[0.18, 0.2, 0]}><sphereGeometry args={[0.12, 10, 8]} /><primitive object={gloveWhite} attach="material" /><Outlines thickness={0.05} color={INK} /></mesh>
-                <mesh position={[-0.05, 0.24, 0]}><sphereGeometry args={[0.12, 10, 8]} /><primitive object={gloveWhite} attach="material" /><Outlines thickness={0.05} color={INK} /></mesh>
-                <mesh position={[0, 0.4, 0]}>{/* cuff */}
-                    <cylinderGeometry args={[0.2, 0.26, 0.22, 16]} />
+                {/* QUATRO DEDOS em leque — é a separação entre eles que faz a
+                    mão ser uma mão, e não uma bola. */}
+                {[-0.19, -0.065, 0.065, 0.19].map((x, i) => {
+                    const comp = 0.28 - Math.abs(i - 1.5) * 0.05;
+                    return (
+                        <mesh key={x} position={[x, 0.28 + comp * 0.3, 0]}
+                              rotation={[0, 0, -x * 1.1]} scale={[1, 1, 0.8]}>
+                            <capsuleGeometry args={[0.077, comp, 4, 10]} />
+                            <primitive object={gloveWhite} attach="material" />
+                            <Outlines thickness={0.12} color={INK} />
+                        </mesh>
+                    );
+                })}
+                {/* o POLEGAR, curto e de lado: é ele que diz que aquilo é uma mão */}
+                <mesh position={[-0.31, 0.10, 0]} rotation={[0, 0, 1.15]} scale={[1, 1, 0.8]}>
+                    <capsuleGeometry args={[0.085, 0.19, 4, 10]} />
+                    <primitive object={gloveWhite} attach="material" />
+                    <Outlines thickness={0.12} color={INK} />
+                </mesh>
+                {/* os TRÊS RISCOS de costura nas costas da mão */}
+                {[-0.11, 0, 0.11].map((x) => (
+                    <mesh key={x} position={[x, 0.02, -0.20]} rotation={[0.2, 0, 0]}>
+                        <cylinderGeometry args={[0.018, 0.018, 0.28, 8]} />
+                        <primitive object={gloveCostura} attach="material" />
+                    </mesh>
+                ))}
+                {/* o punho vermelho, na base */}
+                <mesh position={[0, -0.30, 0]}>
+                    <cylinderGeometry args={[0.30, 0.24, 0.24, 16]} />
                     <primitive object={gloveCuff} attach="material" />
-                    <Outlines thickness={0.04} color={INK} />
+                    <Outlines thickness={0.12} color={INK} />
                 </mesh>
             </group>
         </group>
