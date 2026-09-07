@@ -164,6 +164,40 @@ if (CARTAO === 'falas') {
     ponte.fechar(); await ctx.close(); process.exit(0);
 }
 
+// ── OS DOIS DESFECHOS ────────────────────────────────────────────────────────
+//
+// `queda-pisar` e `queda-salvar` são o CLÍMAX do andar e não davam para
+// fotografar: a súplica segura para sempre esperando o clique, então a rajada
+// normal nunca passava dali. Aqui a bancada espera os botões nascerem, escolhe,
+// e continua fotografando o que vem depois.
+const ESCOLHA = CARTAO === 'queda-pisar' ? 'PISAR NA MÃOZINHA'
+              : CARTAO === 'queda-salvar' ? 'PUXAR PRA CIMA' : null;
+if (ESCOLHA) {
+    const botao = p.locator('button', { hasText: ESCOLHA }).first();
+    await botao.waitFor({ state: 'visible', timeout: Number(process.env.ESPERA_ESCOLHA ?? 300000) });
+    // Uma foto do momento da decisão, antes de decidir.
+    await p.screenshot({ path: `${SAIDA}/f3-desfecho-00-escolha-${SUFIXO}.png` });
+    console.log('📷 a escolha');
+    await botao.click();
+    console.log('   escolheu:', ESCOLHA);
+    for (let i = 1; i <= FOTOS; i += 1) {
+        await p.waitForTimeout(INTERVALO);
+        const u = await p.evaluate(() => ({
+            ph: window.__fallPh ?? null, t: window.__fallT ?? null,
+            cam: window.__fallCam ?? null,
+            // O TEXTO DA TELA. Um cartão que dura 2,6 s pode escapar entre duas
+            // fotos; ler o DOM não escapa.
+            cartao: /FIM DO TRAÇO|ENGANADO/.test(document.body.innerText || '')
+                ? (document.body.innerText.match(/FIM DO TRAÇO|ENGANADO!/) || [''])[0] : '',
+        })).catch(() => null);
+        if (u) console.log('   fase=', u.ph, 't=', u.t, 'cartão=', JSON.stringify(u.cartao));
+        const arq = `${SAIDA}/f3-desfecho-${String(i).padStart(2, '0')}-${SUFIXO}.png`;
+        try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
+        catch (e) { console.log('falhou', i, String(e.message).slice(0, 70)); }
+    }
+    ponte.fechar(); await ctx.close(); process.exit(0);
+}
+
 // Rajada: a cutscene é TEMPO, então uma foto só não diz nada.
 for (let i = 0; i < FOTOS; i += 1) {
     await p.waitForTimeout(INTERVALO);

@@ -33,6 +33,7 @@ import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3
 import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
 import { aoFalar, f3Fala } from './f3Falas';
 import Floor3Grito from './Floor3Grito';
+import Floor3Cartao from './Floor3Cartao';
 
 import { reset as f3Reset, f3PlayerZ, f3PlayerY } from './f3Parkour';
 import { ShopOverlay } from './ShopOverlay';
@@ -607,6 +608,7 @@ export default function App() {
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
   const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
   const [fallGameOver, setFallGameOver] = useState(false);         // SAVE branch → he betrays you → brief "back to start" card
+  const [fallVitoria, setFallVitoria] = useState(false);           // STOMP branch → o cartão que o caminho premiado não tinha
   // The devil's last-ditch conversation; the SALVAR/PISAR choice only appears
   // once it reaches the final line.
   const FALL_DIALOGUE: { s: 'diabrete' | 'player'; t: string }[] = [
@@ -627,7 +629,12 @@ export default function App() {
   // "FLOOR .03 / STATUS Ready" impresso EM CIMA do cartão de título, com os três
   // botões redondos pousados na moldura. Um cartão de 1930 com widget de
   // interface por cima não é um cartão de 1930 — é um print de jogo.
-  const f3EmCena = currentLevel === 3 && (cartoonIntro || cartoonCutscene || cartoonFall);
+  // Os CARTÕES DE DESFECHO entram aqui também: o painel do elevador e os botões
+  // do canto reapareciam em cima deles, exatamente como faziam no cartão de
+  // abertura antes de eu tapar aquele buraco. Um cartão de 1930 com widget de
+  // interface por cima não é um cartão de 1930.
+  const f3EmCena = currentLevel === 3
+      && (cartoonIntro || cartoonCutscene || cartoonFall || fallGameOver || fallVitoria);
   // ── O QUE ELE ESTÁ GRITANDO LÁ DE CIMA ────────────────────────────────
   // `f3Falas` guarda a fala viva; aqui só se reage ao aviso e se agenda a
   // saída dela. Nada varre por quadro: é um `setTimeout` por fala.
@@ -1597,6 +1604,12 @@ export default function App() {
   const advanceToFloor4AfterWin = useCallback(() => {
     setCartoonFall(false);                       // end the fall camera-lock; flash takes over
     setFallBegging(false); setFallChoice('none');
+    // O CAMINHO PREMIADO NÃO TINHA REMATE. Quem pisava ia direto para o elevador,
+    // sem uma linha sobre o que tinha acabado de fazer — enquanto quem era
+    // enganado ganhava um cartão. O cartão da vitória fecha a premissa do andar:
+    // ele era quem desenhava a escadaria, e agora não é mais.
+    setFallVitoria(true);
+    scheduleTimeout(() => setFallVitoria(false), 2600);
     setTeleportCutscene(true);
     // Cartoon victory fanfare — the long-orphaned tada clip finally gets played.
     if (audioCtx && !muted) {
@@ -1614,7 +1627,7 @@ export default function App() {
       setTravelPhase('closing');
       if (elevatorHumStopRef.current) elevatorHumStopRef.current();
       elevatorHumStopRef.current = createElevatorHum(audioCtx);
-    }, 1400);
+    }, 2600);
   }, [audioCtx, muted, scheduleTimeout]);
 
   // A prisão começa de novo ao chegar ao 10º andar. O handshake da saída é
@@ -2746,24 +2759,29 @@ export default function App() {
       {hasStarted && currentLevel === 10 && <Floor10NpcChat />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
+      {/* ── O DESFECHO DA TRAIÇÃO ────────────────────────────────────────
+          Era tela preta com "ENGANADO!" em vermelho de contorno branco: linguagem
+          de GAME OVER de arcade, que não é a deste andar. Agora é o mesmo cartão
+          de 1930 que abre o Andar 3 — e o desfecho da VITÓRIA ganhou o dele, que
+          não existia. Uma escolha só parece uma escolha quando os dois lados
+          respondem na mesma moeda. */}
       {fallGameOver && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 95, background: '#0a0712',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
-          fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none',
-          animation: 'f3go-in .5s ease-out both' }}>
-          <style>{`@keyframes f3go-in{from{opacity:0}to{opacity:1}}
-            @keyframes f3go-pop{0%{transform:scale(0) rotate(-8deg)}65%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(-2deg)}}`}</style>
-          <div style={{ fontSize: 'min(15vw,110px)', color: '#c0271a', WebkitTextStroke: 'min(1vw,7px) #f6efe0',
-            paintOrder: 'stroke', letterSpacing: '.04em', animation: 'f3go-pop .5s cubic-bezier(.2,1.5,.4,1) both' }}>
-            ENGANADO!
-          </div>
-          <div style={{ fontSize: 'min(4.6vw,26px)', color: '#f6efe0', letterSpacing: '.06em', textAlign: 'center', padding: '0 24px' }}>
-            Você caiu na conversa do Diabrete… e lá pro começo da escadaria.
-          </div>
-        </div>
+        <Floor3Cartao
+          acima="O DIABRETE AGRADECEU DO JEITO DELE"
+          titulo="ENGANADO!"
+          abaixo="✦ DE VOLTA AO PÉ DA ESCADA, GRACINHA ✦"
+        />
+      )}
+      {fallVitoria && (
+        <Floor3Cartao
+          acima="SEM PINCEL NÃO SE RABISCA NADA"
+          titulo="FIM DO TRAÇO"
+          abaixo="✦ A ESCADARIA AGORA É SUA ✦"
+          corDoTitulo="#1f7a4a"
+        />
       )}
       {/* Floor 3 paintbrush counter — steal 3 to send the Diabrete into the void */}
-      {currentLevel === 3 && hasStarted && !cartoonIntro && !cartoonCutscene && (
+      {currentLevel === 3 && hasStarted && !f3EmCena && !fallGameOver && !fallVitoria && (
         <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
           pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: 10,
           fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
