@@ -23,7 +23,8 @@ const SAIDA = process.env.SAIDA ?? '/tmp';
 const FOTOS = Number(process.env.FOTOS ?? 14);
 const INTERVALO = Number(process.env.INTERVALO ?? 2500);
 
-const NOME_DO_CARTAO = CARTAO === 'intro' ? 'Intro do Andar 3' : 'Queda do Diabrete';
+// Os nomes sao os do cartao no Modo Criador, literais.
+const NOME_DO_CARTAO = CARTAO === 'intro' ? 'Transição 2 → 3' : 'Queda do Diabrete';
 const PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     'base64');
@@ -128,6 +129,8 @@ async function pulso() {
             pos: d ? [+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)] : null,
             cam: w.__fallCam ?? null,
             linha: w.__fallLinha ?? null,
+            cabeca: w.__f3Cabeca ?? null,
+            beirada: w.__f3Beirada ?? null,
         };
     }).catch(() => null);
 }
@@ -136,7 +139,7 @@ async function pulso() {
 for (let i = 0; i < FOTOS; i += 1) {
     await p.waitForTimeout(INTERVALO);
     const u = await pulso();
-    if (u) console.log('   t=', u.t, 'fase=', u.ph, 'fala=', u.linha, 'cam=', JSON.stringify(u.cam));
+    if (u) console.log('   t=', u.t, 'fase=', u.ph, 'fala=', u.linha, 'cam=', JSON.stringify(u.cam), 'cabeca=', JSON.stringify(u.cabeca), 'beirada=', JSON.stringify(u.beirada));
     const arq = `${SAIDA}/f3-cut-${CARTAO}-${String(i).padStart(2, '0')}-${SUFIXO}.png`;
     try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
     catch (e) { console.log('falhou', i, String(e.message).slice(0, 70)); }

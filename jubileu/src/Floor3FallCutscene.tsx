@@ -354,6 +354,16 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 +camera.position.z.toFixed(2), +(camera as THREE.PerspectiveCamera).fov.toFixed(1),
             ];
             w.__fallLinha = lineRef.current;
+            // A ALTURA REAL DA CABECA. `f3Decupagem` precisa dela para saber o
+            // que enquadrar, e ate aqui esse numero era um CHUTE meu, lido de
+            // uma foto. O osso sabe.
+            const cab = rig.bones[B.head];
+            if (cab) {
+                cab.updateWorldMatrix(true, false);
+                const wp = new THREE.Vector3().setFromMatrixPosition(cab.matrixWorld);
+                w.__f3Cabeca = [+wp.x.toFixed(3), +wp.y.toFixed(3), +wp.z.toFixed(3)];
+            }
+            w.__f3Beirada = [+gx.toFixed(3), +gripY.toFixed(3), +edgeZ.toFixed(3)];
         }
     });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     LAJES_DA_CUTSCENE, caixaDaLaje, dentroDeAlgumaLaje,
-    plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, fundoLimpoAtrasDaCabeca,
+    plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves,
     DECUPAGEM_DA_SUPLICA, type Palco, type NomeDoPlano,
 } from '../f3Decupagem';
 
@@ -66,30 +66,35 @@ describe('f3Decupagem — a decupagem da súplica', () => {
         }
     });
 
-    // ── O FUNDO ATRÁS DA CABEÇA DELE ────────────────────────────────────
-    // "Filme de cima" não bastou: o close vinha de FORA da beirada e olhava
-    // para TRÁS — e atrás dele está a face de tinta da laje. Mais dois quadros
-    // pretos. A pergunta certa é o que a câmera vê DEPOIS dele.
-    it('nenhum plano põe a laje atrás da cabeça dele', () => {
+    // ── A BARRIGA DA LAJE ───────────────────────────────────────────────
+    // O primeiro teste daqui traçava um raio da câmera pela cabeça dele e
+    // cobrava que não batesse na laje. A premissa era falsa: eu tinha a cabeça
+    // 40 cm baixa demais, chutada de uma foto, e a sonda mediu `gripY + 0.04`.
+    //
+    // O que realmente escurece o quadro é a BARRIGA: 5 m de tampo com um bloco
+    // de tinta embaixo, virando céu para qualquer câmera abaixo do convés. É
+    // isso que se cobra agora — e é a mesma coisa que a cena quer dizer.
+    it('nenhum plano desce abaixo do convés — a barriga da laje não vira céu', () => {
         for (const p of palcos) {
             for (const nome of NOMES) {
                 for (let d = 0; d <= 1.0001; d += 0.25) {
-                    expect(fundoLimpoAtrasDaCabeca(p, plano(nome, p, d)),
-                        `${nome} d=${d.toFixed(2)} tem paredão atrás dele`).toBe(true);
+                    expect(acimaDoConves(p, plano(nome, p, d)),
+                        `${nome} d=${d.toFixed(2)}`).toBe(true);
                 }
             }
         }
     });
 
-    // A guarda não pode ser vazia: um plano colado na frente dele, olhando para
-    // a laje, TEM de ser reprovado.
-    it('fundoLimpoAtrasDaCabeca reprova quem filma contra o paredão', () => {
+    // Não é vazia: o contra-plongée que a cutscene REALMENTE tinha na pegada do
+    // intro (`cam.y = HANG_Y + 0.2`, olhando para cima) é justamente o que
+    // devolvia tela preta, e ele é reprovado.
+    it('acimaDoConves reprova o contra-plongée que saía preto', () => {
         const p = palcos[0];
-        const cabeca = alturaDaCabeca(p);
-        // exatamente o close antigo, o que produziu os quadros pretos
-        const ruim = { x: p.gx + 0.85, y: p.gripY + 0.95, z: p.edgeZ + 1.05,
-                       lx: p.gx, ly: cabeca - 0.08, lz: p.edgeZ, fov: 36 };
-        expect(fundoLimpoAtrasDaCabeca(p, ruim)).toBe(false);
+        const oContraPlongee = {
+            x: p.gx - 2.0, y: p.hangY + 0.2, z: p.edgeZ + 3.2,
+            lx: p.gx, ly: p.gripY + 0.3, lz: p.edgeZ, fov: 50,
+        };
+        expect(acimaDoConves(p, oContraPlongee)).toBe(false);
     });
 
     // ── ENQUADRAR QUEM ESTÁ ATUANDO ──────────────────────────────────────

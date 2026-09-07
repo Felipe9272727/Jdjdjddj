@@ -104,9 +104,20 @@ export interface Plano {
     fov: number;
 }
 
-/** A cabeça dele: é o que um primeiro plano precisa enquadrar, e ela fica logo
- *  abaixo da beirada (ele pendura pelos braços, com a cara na altura do tampo). */
-export const alturaDaCabeca = (p: Palco) => p.gripY - 0.35;
+/**
+ * A cabeça dele — MEDIDA, não estimada.
+ *
+ * Eu tinha escrito `gripY − 0.35`, lido de uma foto. A sonda da bancada leu o
+ * osso da cabeça no mundo e devolveu `gripY + 0.04` durante a súplica: ele
+ * pendura com a cara NO NÍVEL DO CONVÉS, não abaixo dele. Quarenta centímetros
+ * de erro, e o primeiro plano estava mirando no peito dele.
+ *
+ * O número sai de `PENDURADO_ATE_A_CABECA`, que é a distância do tampo até a
+ * cabeça no jeito em que ele fica pendurado — assim, se a encenação mudar (e ela
+ * vai: ele ainda precisa pendurar mais baixo), este arquivo acompanha.
+ */
+export const PENDURADO_ATE_A_CABECA = -0.04;
+export const alturaDaCabeca = (p: Palco) => p.gripY - PENDURADO_ATE_A_CABECA;
 
 export type NomeDoPlano = 'alto' | 'raso' | 'close' | 'perfil';
 
@@ -116,15 +127,19 @@ export type NomeDoPlano = 'alto' | 'raso' | 'close' | 'perfil';
 // para cima, com o abismo em volta. Ele saiu PRETO. E o close também, e o
 // perfil: três dos catorze quadros da bancada eram tela preta.
 //
-// O motivo não é de câmera, é de encenação. O Diabrete pendura com a cabeça na
-// altura da BORDA DE TINTA da laje — um bloco preto de 70 cm que emoldura a
-// peça por baixo. Personagem de tinta contra parede de tinta, de qualquer
-// ângulo horizontal. A única direção que separa os dois é DE CIMA PARA BAIXO:
-// aí o que fica atrás da cabeça dele é o vazio, e o vazio é creme.
+// O motivo não é de câmera, é de encenação — mas não é o que eu escrevi da
+// primeira vez. Eu disse que a cabeça dele batia na borda de tinta da laje;
+// depois MEDI o osso da cabeça e ele está em `gripY + 0.04`, ou seja no nível
+// do convés, acima da borda inteira. A explicação estava errada.
 //
-// Isso não é uma limitação chata — é a mesma coisa que a cena quer dizer. Ele
-// está ABAIXO de você, e quem decide é você. Todo plano olha para baixo, e o
-// teste cobra isso.
+// O que realmente escurece o quadro é a BARRIGA da laje. O tampo tem 5 m de
+// fundura e um bloco de tinta por baixo; qualquer câmera abaixo do convés
+// olhando para cima tem esse bloco como CÉU, e o Diabrete é um cocuruto no meio
+// dele. Não é a cabeça contra a parede: é a parede ocupando o quadro inteiro.
+//
+// A regra que resolve é a mesma, e agora pelo motivo certo: filmar DE CIMA. E é
+// também o que a cena quer dizer — ele está ABAIXO de você, e quem decide é
+// você. Todo plano olha para baixo, e o teste cobra isso.
 export const FUNDO_DA_BORDA = 0.74;   // o bloco de tinta desce isto abaixo do tampo
 
 /**
@@ -215,44 +230,18 @@ export function planoDaSuplica(linha: number, p: Palco, deriva = 0): Plano {
 }
 
 
-// ── O QUE ESTÁ ATRÁS DA CABEÇA DELE ──────────────────────────────────────────
+// ── A BARRIGA DA LAJE ────────────────────────────────────────────────────────
 //
-// A regra "filme de cima" não bastou: o close vinha de fora da beirada e olhava
-// para TRÁS, contra a face de tinta da laje — preto sobre preto de novo, e a
-// bancada devolveu mais dois quadros pretos.
+// Aqui morava `fundoLimpoAtrasDaCabeca`, que traçava o raio da câmera pela
+// cabeça do Diabrete e cobrava que ele não batesse na laje. A ideia era boa e a
+// PREMISSA era falsa: eu tinha a cabeça dele 40 cm baixa demais, chutada de uma
+// foto. Com a altura medida, o raio passa raspando o TAMPO — que é creme, e um
+// fundo ótimo. O teste continuaria reprovando planos bons e aprovando ruins.
 //
-// A pergunta certa não é de onde a câmera está, é o que ela vê DEPOIS dele.
-// Isto traça o raio que sai da câmera, passa pela cabeça do Diabrete e segue: se
-// ele bate na laje da beirada antes de `alcance` metros, o fundo do plano é um
-// paredão. Se não bate, o fundo é céu.
-export function fundoLimpoAtrasDaCabeca(p: Palco, c: Plano, alcance = 8): boolean {
-    const hx = p.gx, hy = alturaDaCabeca(p), hz = p.edgeZ;
-    let dx = hx - c.x, dy = hy - c.y, dz = hz - c.z;
-    const n = Math.hypot(dx, dy, dz) || 1;
-    dx /= n; dy /= n; dz /= n;
-
-    // A laje da beirada, em coordenadas de MUNDO. O grupo das lajes fica em
-    // (gx, gripY, edgeZ − EDGE_Z), e EDGE_Z é 0,35 (Floor3FallCutscene).
-    const laje = LAJES_DA_CUTSCENE[0];
-    const b = caixaDaLaje(laje);
-    const ox = p.gx, oy = p.gripY, oz = p.edgeZ - 0.35;
-    const cx0 = b.x0 + ox, cx1 = b.x1 + ox;
-    const cy0 = b.y0 + oy, cy1 = b.y1 + oy;
-    const cz0 = b.z0 + oz, cz1 = b.z1 + oz;
-
-    // Slab method, começando UM POUCO depois da cabeça (o que interessa é o
-    // fundo, não o corpo dele).
-    let t0 = 0.25, t1 = alcance;
-    const eixo = (o: number, dd: number, lo: number, hi: number) => {
-        if (Math.abs(dd) < 1e-9) return o >= lo && o <= hi;
-        let a = (lo - o) / dd, bq = (hi - o) / dd;
-        if (a > bq) { const t = a; a = bq; bq = t; }
-        t0 = Math.max(t0, a); t1 = Math.min(t1, bq);
-        return t0 <= t1;
-    };
-    const bx = hx, by = hy, bz = hz;   // o raio parte da cabeça
-    if (!eixo(bx, dx, cx0, cx1)) return true;
-    if (!eixo(by, dy, cy0, cy1)) return true;
-    if (!eixo(bz, dz, cz0, cz1)) return true;
-    return t0 > t1;
+// O que de fato escurece o quadro é mais simples, e por isso mesmo é o que
+// ficou: a laje tem 5 m de fundura e um bloco de tinta por baixo. Qualquer
+// câmera abaixo do convés olhando para o Diabrete tem essa barriga como CÉU.
+// Uma linha resolve, e é exatamente a linha que a cena quer: filme de cima.
+export function acimaDoConves(p: Palco, c: Plano): boolean {
+    return c.y > p.gripY;
 }

@@ -618,6 +618,13 @@ export default function App() {
   ];
   const [fallLine, setFallLine] = useState(0);
   const fallChoiceReady = fallLine >= FALL_DIALOGUE.length - 1;
+  // ── O HUD NÃO ENTRA EM CENA ───────────────────────────────────────────
+  // O painel do elevador e os botões do canto só olhavam para `hasStarted`, e
+  // atravessavam as três cutscenes do Andar 3. Na bancada dava para ler
+  // "FLOOR .03 / STATUS Ready" impresso EM CIMA do cartão de título, com os três
+  // botões redondos pousados na moldura. Um cartão de 1930 com widget de
+  // interface por cima não é um cartão de 1930 — é um print de jogo.
+  const f3EmCena = currentLevel === 3 && (cartoonIntro || cartoonCutscene || cartoonFall);
   useEffect(() => {
     if (!fallBegging) { setFallLine(0); return; }
     if (fallLine >= FALL_DIALOGUE.length - 1) return;     // reached the choice — hold
@@ -2389,13 +2396,13 @@ export default function App() {
           (safe-area-inset-top + 12, safe-area-inset-right + 12). No element
           should re-add env() inline — the wrapper resolves it once.
           ───────────────────────────────────────────────────────────────────── */}
-      {hasStarted && <div className="hud-fixed">
+      {hasStarted && !f3EmCena && <div className="hud-fixed">
         <ElevatorHud currentLevel={currentLevel} elevatorTimer={elevatorTimer} doorsClosed={doorsClosed} arrivalPulse={arrivalPulse} />
       </div>}
 
       {floorReveal && <FloorReveal level={currentLevel} />}
       
-      {hasStarted && (
+      {hasStarted && !f3EmCena && (
         <TopControls
           multiplayerEnabled={multiplayerEnabled}
           otherPlayersCount={otherPlayerIds.length}
@@ -2405,7 +2412,7 @@ export default function App() {
           onToggleMute={() => setMuted(!muted)}
         />
       )}
-      {settings.showFps && hasStarted && !diverDialogueOpen && <FpsCounter />}
+      {settings.showFps && hasStarted && !diverDialogueOpen && !f3EmCena && <FpsCounter />}
 
       {/* Floor 2 "cold" overlay — radial cyan tint at the edges, blue
           color cast in the middle. Sells underwater + cold without
