@@ -31,6 +31,8 @@ import {
 import { createToonMaterial, type ToonOpts } from './cartoonToon';
 import { molaDoTranco, TRANCO_DA_PLATAFORMA, TRANCO_PARADO } from './f3Fisica';
 import { faixaDaNevoa } from './f3Nevoa';
+import { acabamentoDoAndar, mudouOAcabamento } from './f3Desenho';
+import { f3Progress } from './f3Hazards';
 
 // ─── Palette (rubber-hose black & white) ─────────────────────────────────────
 const OUTLINE      = '#0a0712';
@@ -89,7 +91,11 @@ const ARROW_SHAPE = (() => {
     return s;
 })();
 const ARROW_GEO = new THREE.ShapeGeometry(ARROW_SHAPE);
-const ARROW_MAT = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.DoubleSide });
+// A seta é DESBOTÁVEL: ela é o único aviso que o Diabrete deixa no convés, e
+// quando ele perde os pincéis para de deixar. Ver `f3Desenho`.
+const ARROW_MAT = new THREE.MeshBasicMaterial({
+    color: OUTLINE, side: THREE.DoubleSide, transparent: true, opacity: 1, depthWrite: false,
+});
 
 const PlatformArrow: React.FC<{ topY: number; size: number; alonga?: number }> = ({
     topY, size, alonga = 1,
@@ -507,11 +513,15 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
     // resto — a mesma `molaDoTranco` da câmera e das mãos, com a afinação mais
     // seca das três (a peça é de tinta e madeira, não uma cama elástica).
     const afundando = useRef({ id: -1, tranco: TRANCO_PARADO });
+    const acabamentoRef = useRef(acabamentoDoAndar(0));
 
     // Build the endless course once on mount, then force a render so the freshly
     // populated pool actually paints (reset() mutates a module array, which
     // React can't see on its own).
     useEffect(() => {
+        // O andar volta acabado a cada entrada: quem recomeça a escalada
+        // recomeça contra um Diabrete com os três pincéis na mão.
+        acabamentoRef.current = { seta: -1, tabuado: -1 };
         f3Reset();
         if (import.meta.env?.DEV) {
             const c = validateNoOverlaps(f3Platforms);
@@ -521,6 +531,21 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
     }, []);
 
     useFrame((s, dt) => {
+        // ── O ANDAR SE DESFAZ JUNTO COM O DONO ───────────────────────────
+        // A frase mais forte do andar — "cada plataforma eu que rabisco" —
+        // nunca tinha consequência: roubar pincel mexia num contador e o chão
+        // seguia igual. Agora cada pincel roubado tira acabamento do lugar.
+        // Só toca nos materiais QUANDO MUDA; não é trabalho por quadro.
+        const acab = acabamentoDoAndar(f3Progress.brushes);
+        if (mudouOAcabamento(acab, acabamentoRef.current)) {
+            acabamentoRef.current = acab;
+            ARROW_MAT.opacity = acab.seta;
+            ARROW_MAT.visible = acab.seta > 0.01;
+            for (const m of _toonCache.values()) {
+                if (m.uniforms.uTabuasForca) m.uniforms.uTabuasForca.value = acab.tabuado;
+            }
+        }
+
         const before = f3Platforms.length ? f3Platforms[0].id : -1;
         f3Tick(s.clock.elapsedTime, f3PlayerZ.current);
         // Animate moving bridges' live X onto their group transforms.

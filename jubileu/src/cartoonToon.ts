@@ -77,6 +77,7 @@ const TOON_FRAG = /* glsl */`
   // celular do dono do jogo, que e a unica coisa que este projeto nao pode
   // gastar. Aqui sai de graca: e UV e normal, dentro do fragment que ja roda.
   uniform float uTabuas;       // 0 = sem tabuado; senao, o espacamento EM METROS
+  uniform float uTabuasForca;  // 1 = acabado; menos que isso, o desenho falta
   uniform vec3  uTinta;
 
   varying vec3 vWorldNormal;
@@ -133,7 +134,14 @@ const TOON_FRAG = /* glsl */`
       // Largura em metros, nao em fracao do periodo: assim a ripa nao engorda
       // quando o espacamento cresce.
       float linha = 1.0 - smoothstep(0.0, 0.035 / uTabuas, d);
-      col = mix(col, uTinta, linha * topo * 0.85);
+      // A FORCA DA LINHA E QUEM DIZ SE O ANDAR AINDA ESTA DESENHADO. Cada
+      // pincel que o Diabrete perde tira acabamento do lugar que ele mantem —
+      // ver f3Desenho.ts. A laje continua inteira: o que rareia e a tinta.
+      //
+      // (E CRASE AQUI DENTRO FECHA O TEMPLATE LITERAL. Terceira vez que eu caio
+      //  nessa neste arquivo; o teste f3Nevoa cobra, mas o comentario tem de
+      //  avisar antes, porque o erro sai como "',' expected" numa linha GLSL.)
+      col = mix(col, uTinta, linha * topo * 0.85 * uTabuasForca);
     }
 
     // ── Optional Aperture panel seams ──
@@ -169,6 +177,8 @@ export interface ToonOpts {
     tabuas?: number;
     /** A cor da tinta das ripas. */
     tinta?: THREE.ColorRepresentation;
+    /** Força da linha do tabuado (1 = acabado). Mexida em tempo real. */
+    tabuasForca?: number;
 }
 
 export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
@@ -198,6 +208,7 @@ export function createToonMaterial(o: ToonOpts = {}): THREE.ShaderMaterial {
             uSeams:            { value: o.seams ?? 0 },
             uSeamColor:        { value: new THREE.Color(o.seamColor ?? '#1a2230') },
             uTabuas:           { value: o.tabuas ?? 0 },
+            uTabuasForca:      { value: o.tabuasForca ?? 1 },
             uTinta:            { value: new THREE.Color(o.tinta ?? '#0a0712') },
         },
     });

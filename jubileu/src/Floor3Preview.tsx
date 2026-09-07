@@ -67,7 +67,7 @@ import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
 import Floor3Grito from './Floor3Grito';
-import { hazards, hazardBox, registerJump, resetHazards } from './f3Hazards';
+import { hazards, hazardBox, registerJump, resetHazards, f3Progress } from './f3Hazards';
 import { platforms as f3Platforms } from './f3Parkour';
 
 /**
@@ -84,6 +84,19 @@ function vetorDaUrl(chave: string): [number, number, number] | null {
     const n = bruto.split(',').map(Number);
     if (n.length !== 3 || n.some((v) => !Number.isFinite(v))) return null;
     return [n[0], n[1], n[2]];
+}
+
+/**
+ * DEV-ONLY: `?f3preview&pinceis=2` diz quantos pincéis já foram roubados.
+ *
+ * O andar se desfaz conforme o Diabrete perde as ferramentas (ver `f3Desenho`),
+ * e isso é impossível de comparar jogando: seriam vinte pulos por pincel, num
+ * navegador a 2 fps. Aqui os três estados ficam a uma URL de distância.
+ */
+function ForcarPinceis() {
+    const quantos = Number(new URLSearchParams(window.location.search).get('pinceis'));
+    if (Number.isFinite(quantos)) f3Progress.brushes = quantos;
+    return null;
 }
 
 function HandsDebug() {
@@ -167,6 +180,7 @@ export default function Floor3Preview() {
             >
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
+                <ForcarPinceis />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
