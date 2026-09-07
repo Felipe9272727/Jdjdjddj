@@ -21,6 +21,7 @@
 import { platforms as f3Platforms, f3PlayerZ, type F3Plat } from './f3Parkour';
 import { dizer, limparFalas } from './f3Falas';
 import { ruidoDaTinta, BOIL_HZ, BOIL_AMP } from './f3Tinta';
+import { PINCEIS_DO_DIABRETE } from './f3Desenho';
 import * as THREE from 'three';
 
 // Live world position of the Diabrete (feet), written every frame by
@@ -79,7 +80,20 @@ export const f3Progress = {
     drawZ: 0,           // Z of the platform being painted (rival goes there)
     fell: false,        // devil has begun its plunge
     fellAt: 0,          // ms the fall started
-    needed: 3,
+    // ── O SEGUNDO E MEIO ANTES DA QUEDA ──────────────────────────────
+    // Quando o terceiro pincel some, `fell` disparava NO MESMO QUADRO e a
+    // cutscene entrava por cima — o que deixava a melhor fala do andar
+    // ("sem ele eu não sou NADA aqui…") escrita, testada e nunca ouvida,
+    // porque o balão some assim que a cutscene começa. Agora o roubo
+    // marca a hora e a queda espera essa fala terminar. Zero = nada
+    // marcado.
+    caiEm: 0,
+    // UM NÚMERO, UM DONO. Este três também mora em `f3Desenho`, que é quem
+    // decide quanto acabamento o andar perde por pincél roubado. Eram dois
+    // literais iguais em arquivos diferentes: mexer num e esquecer o outro faria
+    // o andar se desfazer num ritmo e acabar noutro — sem quebrar nada, só
+    // ficando errado em silêncio.
+    needed: PINCEIS_DO_DIABRETE,
 };
 
 let _nextId = 1;
@@ -101,7 +115,8 @@ export function resetHazards(): void {
     f3Progress.drawFlashAt = 0;
     f3Progress.fell = false;
     f3Progress.fellAt = 0;
-    f3Progress.needed = 3;
+    f3Progress.caiEm = 0;
+    f3Progress.needed = PINCEIS_DO_DIABRETE;
     f3DevilPos.current.set(0, 0, 14);
     f3DevilPosValid.current = false;
     _nextId = 1;
@@ -192,7 +207,17 @@ export function registerJump(playerZ: number): void {
 }
 
 // ── Per-frame tick (renderer owns it) ─────────────────────────────────────────
+/** Quanto a queda espera depois do último pincel, para a fala dele caber. */
+export const ESPERA_DA_ULTIMA_FALA = 1500;
+
 export function tickHazards(dt: number): void {
+    // A queda marcada no roubo do terceiro pincel, agora que a fala já foi.
+    if (f3Progress.caiEm && now() >= f3Progress.caiEm && !f3Progress.fell) {
+        f3Progress.caiEm = 0;
+        f3Progress.fell = true;
+        f3Progress.fellAt = now();
+        _onProgress?.();
+    }
     for (const h of hazards) if (h.reveal < 1) h.reveal = Math.min(1, h.reveal + dt / 0.9);
     for (const b of brushes) {
         b.bob += dt;
@@ -337,13 +362,11 @@ export function tryCollectBrush(px: number, py: number, pz: number): boolean {
             f3Progress.brushes += 1;
             f3Progress.dizzyUntil = now() + 3000;     // devil dazed ~3s
             // O ARCO DELE EM TRÊS FALAS: dono do lugar → nervoso → desesperado.
-            // O TERCEIRO pincel não fala aqui — a fala dele é a cutscene da
-            // queda, que é onde ele finalmente pede socorro para quem passou o
-            // andar inteiro humilhando.
-            if (f3Progress.brushes < f3Progress.needed) dizer('roubou', { roubados: f3Progress.brushes });
-            if (f3Progress.brushes >= f3Progress.needed && !f3Progress.fell) {
-                f3Progress.fell = true;
-                f3Progress.fellAt = now();
+            // A terceira é a dobradiça do andar inteiro, e é dita AQUI — não na
+            // cutscene. Ela só precisava de um respiro para caber.
+            dizer('roubou', { roubados: f3Progress.brushes });
+            if (f3Progress.brushes >= f3Progress.needed && !f3Progress.fell && !f3Progress.caiEm) {
+                f3Progress.caiEm = now() + ESPERA_DA_ULTIMA_FALA;
             }
             _onProgress?.();
             return true;
