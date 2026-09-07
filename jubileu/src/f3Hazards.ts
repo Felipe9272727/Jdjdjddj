@@ -20,6 +20,7 @@
 
 import { platforms as f3Platforms, f3PlayerZ, type F3Plat } from './f3Parkour';
 import { dizer, limparFalas } from './f3Falas';
+import { ruidoDaTinta, BOIL_HZ, BOIL_AMP } from './f3Tinta';
 import * as THREE from 'three';
 
 // Live world position of the Diabrete (feet), written every frame by
@@ -262,17 +263,11 @@ export function brushPos(b: Brush): { x: number; y: number; z: number } | null {
 //
 // `ruidoDaTinta` e um hash, nao um sorteio: a mesma armadilha desenha a mesma
 // silhueta em toda maquina e em toda foto da bancada. Nao ha `Math.random` aqui.
-export function ruidoDaTinta(a: number): number {
-    const x = Math.sin(a * 127.1 + 311.7) * 43758.5453;
-    return x - Math.floor(x);
-}
-
-// O FERVILHAR ("boil"): a linha de um desenho de 1930 e redesenhada a cada dois
-// ou tres quadros e ferve. O tempo entra QUANTIZADO, entao a silhueta se
-// re-sorteia ~8x por segundo em vez de deslizar suave — que e a diferenca entre
-// tinta e interpolacao.
-export const BOIL_HZ = 8;
-export const BOIL_AMP = 0.045;
+// O ruido e o fervilhar mudaram de casa: agora moram em `f3Tinta`, porque a
+// passada do Diabrete tambem os usa, e um modulo de ARMADILHAS nao e lugar de
+// onde uma animacao de corrida deva importar. Reexportados aqui porque este
+// arquivo era o endereco deles.
+export { ruidoDaTinta, BOIL_HZ, BOIL_AMP } from './f3Tinta';
 
 export interface SilhuetaDoEspinho {
     alto: number;     // multiplicador de altura

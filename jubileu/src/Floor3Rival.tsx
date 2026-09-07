@@ -27,6 +27,7 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
+import { passada, PASSOS_POR_SEGUNDO } from './f3Passada';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const LEAD_Z    = 14;
@@ -244,20 +245,28 @@ const Floor3Rival: React.FC = () => {
         if (brushRef.current) brushRef.current.visible = false;
         groupRef.current.rotation.set(0, 0, 0);
 
-        // ── RUN ─────────────────────────────────────────────────────────────
+        // ── A CORRIDA ───────────────────────────────────────────────────────
+        // A conta mora em `f3Passada`, e não aqui, por um motivo prático: a
+        // bancada roda a ~2 fps e uma foto de um ciclo de corrida não diz nada
+        // sobre o ciclo. Lá dá para COBRAR o que importa — que o ciclo feche,
+        // que as pernas andem em oposição, que nada inverta, que a cabeça chegue
+        // atrasada e que o fervilhar salte em degraus.
         const air = !onGnd.current;
-        if (!air) phase.current += safeDt * 2.6 * Math.PI * 2;
-        const φ = phase.current; const sw = Math.sin(φ);
+        if (!air) phase.current += safeDt * PASSOS_POR_SEGUNDO * Math.PI * 2;
+        const φ = phase.current;
+        const pose = passada(φ, air, t);
 
-        bones[B.body].position.y = 0.46 + sBob.current.tick(air ? 0 : Math.abs(sw) * 0.075, safeDt);
-        bones[B.body].rotation.set(sLean.current.tick(air ? -0.22 : 0.20, safeDt), air ? 0 : Math.sin(φ) * 0.10, air ? 0 : Math.sin(φ) * 0.06);
-        bones[B.head].rotation.set(air ? -0.14 : 0.11 + Math.sin(φ * 2 + 0.6) * 0.06, 0, air ? 0 : Math.sin(φ + 0.3) * 0.08);
-        bones[B.l_leg].rotation.set(air ? -0.5 :  sw * 0.78, 0, 0);
-        bones[B.r_leg].rotation.set(air ? -0.5 : -sw * 0.78, 0, 0);
-        bones[B.l_arm].rotation.set(air ? -0.7 : -sw * 1.05, 0,  (air ? 1.3 : ARM_DROP));
-        bones[B.r_arm].rotation.set(air ? -0.7 :  sw * 1.05, 0, -(air ? 1.3 : ARM_DROP));
+        // As molas continuam mandando na inclinação e no quicar do quadril: elas
+        // é que dão PESO, e peso não sai de uma fórmula por quadro.
+        bones[B.body].position.y = sBob.current.tick(pose.corpoY, safeDt);
+        bones[B.body].rotation.set(sLean.current.tick(pose.corpoIncl, safeDt), pose.corpoGiro, pose.corpoTorc);
+        bones[B.head].rotation.set(pose.cabecaIncl, 0, pose.cabecaTorc);
+        bones[B.l_leg].rotation.set(pose.pernaE, 0, 0);
+        bones[B.r_leg].rotation.set(pose.pernaD, 0, 0);
+        bones[B.l_arm].rotation.set(pose.bracoE, 0,  (air ? 1.3 : ARM_DROP));
+        bones[B.r_arm].rotation.set(pose.bracoD, 0, -(air ? 1.3 : ARM_DROP));
 
-        let strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.06;
+        let strY = air ? 1 + Math.abs(velY.current) * 0.011 : pose.esticaY;
         strY *= 1 - 0.26 * landImpact.current;             // cartoon landing squash
         const strX = 1 / Math.sqrt(Math.max(0.5, strY));
         rig.group.scale.set(strX, strY, strX);
