@@ -180,9 +180,10 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 // O CONTRA-PLONGEE DAQUI SAIA PRETO. Era `cam.y = HANG_Y + 0.2`
                 // olhando para cima — ou seja, filmando a barriga da laje, que e
                 // um bloco de tinta. Ver `f3Decupagem`: neste palco so da para
-                // filmar DE CIMA. O perfil aberto ve a escorregada inteira e
-                // ainda mostra o vazio para onde ele quase foi.
-                const pl = plano('perfil', palco, clamp01((T - 0.5) / 0.45));
+                // filmar DE CIMA. O plano de CORPO INTEIRO e o certo para esta
+                // batida: ele escorrega, o corpo despenca e a mao bate na
+                // beirada, e e o unico plano de onde da para ver o corpo dele.
+                const pl = plano('corpo', palco, clamp01((T - 0.5) / 0.45));
                 cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
                 cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
             } else {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     LAJES_DA_CUTSCENE, caixaDaLaje, dentroDeAlgumaLaje,
-    plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves,
+    plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves, veOCorpoInteiro,
     DECUPAGEM_DA_SUPLICA, type Palco, type NomeDoPlano,
 } from '../f3Decupagem';
 
@@ -12,7 +12,7 @@ const palcos: Palco[] = [
     { gx: 1.4,  gripY: 6.2,  edgeZ: 6.55,  hangY: 4.7 },
     { gx: -2.1, gripY: 18.9, edgeZ: 19.25, hangY: 17.4 },
 ];
-const NOMES: NomeDoPlano[] = ['alto', 'raso', 'close', 'perfil'];
+const NOMES: NomeDoPlano[] = ['alto', 'raso', 'close', 'corpo'];
 
 describe('f3Decupagem — a decupagem da súplica', () => {
     it('toda fala tem um plano, e a lista cobre o diálogo inteiro', () => {
@@ -97,6 +97,23 @@ describe('f3Decupagem — a decupagem da súplica', () => {
         expect(acimaDoConves(p, oContraPlongee)).toBe(false);
     });
 
+    // ── ALGUÉM TEM DE VER AS PERNINHAS ──────────────────────────────────
+    // Toda a atuação da súplica acontece abaixo do tampo, e nenhum plano
+    // mostrava. Não era descuido: quem está em cima do convés não vê o que
+    // pendura sob a beirada. O plano `corpo` existe para isso e é o único que
+    // precisa cumprir — os de rosto podem (e devem) ficar em cima.
+    it('o plano `corpo` enxerga os pés dele; os de rosto não precisam', () => {
+        for (const p of palcos) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                expect(veOCorpoInteiro(p, plano('corpo', p, d)),
+                    `corpo d=${d.toFixed(2)} não vê os pés`).toBe(true);
+            }
+            // E a guarda não é vazia: o plano de cima, que é um plano de ROSTO,
+            // é exatamente quem a laje tapa.
+            expect(veOCorpoInteiro(p, plano('alto', p, 0))).toBe(false);
+        }
+    });
+
     // ── ENQUADRAR QUEM ESTÁ ATUANDO ──────────────────────────────────────
     // Um plano que não olha para ele é um plano do cenário. O alvo tem de ficar
     // perto da cabeça, e a câmera a uma distância que caiba na história: um
@@ -106,7 +123,7 @@ describe('f3Decupagem — a decupagem da súplica', () => {
             alto:   [2.0, 5.0],
             raso:   [5.5, 9.0],
             close:  [1.2, 2.6],
-            perfil: [6.0, 10.0],
+            corpo:  [3.5, 8.0],
         };
         for (const p of palcos) {
             const cabeca = alturaDaCabeca(p);

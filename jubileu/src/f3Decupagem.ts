@@ -119,7 +119,7 @@ export interface Plano {
 export const PENDURADO_ATE_A_CABECA = -0.04;
 export const alturaDaCabeca = (p: Palco) => p.gripY - PENDURADO_ATE_A_CABECA;
 
-export type NomeDoPlano = 'alto' | 'raso' | 'close' | 'perfil';
+export type NomeDoPlano = 'alto' | 'raso' | 'close' | 'corpo';
 
 // ── DE ONDE DÁ PARA FILMAR ESTE PALCO ────────────────────────────────────────
 //
@@ -188,26 +188,32 @@ export function plano(nome: NomeDoPlano, p: Palco, deriva = 0): Plano {
             x: p.gx - 1.25, y: p.gripY + 1.7 - d * 0.24, z: p.edgeZ - 0.9 + d * 0.2,
             lx: p.gx, ly: cabeca - 0.15, lz: p.edgeZ, fov: 42,
         };
-        // TRÊS QUARTOS ABERTO — de lado e bem de cima, com todo o ar embaixo
-        // dele. É onde as piadas do jogador caem melhor: a piada precisa do
-        // vazio.
+        // ── O PLANO QUE FALTAVA: ELE INTEIRO ────────────────────────────
         //
-        // Ele nasceu como um perfil BAIXO, e a conta explica por que não podia
-        // ser: ele pendura a 35 cm da face da laje, e a face tem 39 cm abaixo da
-        // cabeça dele. Para o raio que passa pela cabeça escapar do paredão
-        // dentro dessa folga, ele precisa cair mais de 2,8 por unidade de Z: a
-        // borda de tinta ainda se projeta 21 cm para fora do tampo, então a
-        // cabeça dele está a 14 cm da face e 39 cm acima do fundo dela. Um
-        // perfil raso é geometricamente impossível neste palco — o conserto de
-        // verdade é pendurá-lo MAIS BAIXO, com braços de borracha, e aí toda a
-        // gramática de ângulos baixos se abre. Fica para a próxima volta.
-        // A DERIVA TEM DE SUBIR, NÃO AFASTAR. Com ela empurrando +Z a inclinação
-        // caía para 2,78 no fim do plano — um fio de cabelo abaixo dos 2,79 que
-        // este palco exige — e o último terço da fala voltava a ter paredão
-        // atrás dele. Sobe e aproxima; a inclinação só melhora.
+        // Toda a atuação da súplica — as pernas pedalando, a mão que solta a
+        // beirada e suplica, o corpo cedendo a cada solavanco — acontece ABAIXO
+        // do tampo. E nenhum plano mostrava isso, por um motivo que é geometria
+        // e não descuido: quem está EM CIMA do convés não consegue ver embaixo
+        // da beirada. A linha de visão desce e entra na laje antes de sair dela.
+        // É a mesma coisa que estar de pé numa sacada: dá para ver o que está
+        // além da borda, não o que está pendurado sob ela.
+        //
+        // (Foi por isso que eu quase fui pendurar o Diabrete mais baixo, com
+        // braços de borracha. Não era preciso: o boneco nunca esteve errado, era
+        // a lista de planos que não tinha nenhum de onde ele fosse visível.)
+        //
+        // Este vem de FORA e de cima, a uns quatro metros e meio, e enquadra do
+        // punho ao pé. É onde a animação que já existia finalmente aparece.
+        // `veOCorpoInteiro` cobra isso: a linha até os pés dele não pode
+        // atravessar a laje.
+        // A ALTURA SEPARA. A 3,6 m e quase na altura do tampo, as pernas dele
+        // liam lindamente mas o tronco fundia com a massa preta da laje vista de
+        // canto — tinta sobre tinta outra vez, agora num plano diferente. Subir
+        // meio metro e afastar meio metro põe a beirada ABAIXO da linha de
+        // visão, e ele fica inteiro recortado contra o vazio.
         default: return {
-            x: p.gx + 4.2 + d * 0.5, y: p.gripY + 6.0 + d * 0.35, z: p.edgeZ + 2.0 - d * 0.12,
-            lx: p.gx + 0.1, ly: cabeca - 0.9, lz: p.edgeZ, fov: 50,
+            x: p.gx + 2.35 + d * 0.3, y: p.gripY + 1.95 + d * 0.2, z: p.edgeZ + 2.85 + d * 0.22,
+            lx: p.gx, ly: p.gripY - 0.95, lz: p.edgeZ, fov: 41,
         };
     }
 }
@@ -223,11 +229,11 @@ export function plano(nome: NomeDoPlano, p: Palco, deriva = 0): Plano {
  */
 export const DECUPAGEM_DA_SUPLICA: readonly NomeDoPlano[] = Object.freeze([
     'alto',     // 0 — "E-EI! Não vai embora não!"        (estabelece)
-    'raso',     // 1 — "…por que eu ajudaria?"            (a altura É a resposta)
+    'corpo',    // 1 — "…por que eu ajudaria?"            (veja o que ele tem embaixo)
     'close',    // 2 — "A gente tava só BRINCANDO"        (a lábia)
-    'perfil',   // 3 — "Você jogou espinhos em mim."      (a piada precisa do vazio)
+    'raso',     // 3 — "Você jogou espinhos em mim."      (a piada precisa do vazio)
     'close',    // 4 — "eu tenho família!"                (a mentira maior)
-    'raso',     // 5 — "Você apareceu faz cinco minutos." (o desmentido, de cima)
+    'corpo',    // 5 — "Você apareceu faz cinco minutos." (as perninhas pedalando)
     'close',    // 6 — "T-tá, menti. MAS…"                (a confissão)
     'alto',     // 7 — "Me salva… ou pisa?"               (a escolha, na mão dele)
 ]);
@@ -254,4 +260,35 @@ export function planoDaSuplica(linha: number, p: Palco, deriva = 0): Plano {
 // Uma linha resolve, e é exatamente a linha que a cena quer: filme de cima.
 export function acimaDoConves(p: Palco, c: Plano): boolean {
     return c.y > p.gripY;
+}
+
+
+// ── DÁ PARA VER O CORPO DELE? ────────────────────────────────────────────────
+//
+// Quem está em cima do convés não vê o que está pendurado sob a beirada: a
+// linha de visão desce e entra na laje. Por isso os planos de rosto (`alto`,
+// `close`) mostram só a cabeça dele por cima da borda — e isso está certo, é o
+// que eles são. Mas alguma coisa tinha de mostrar as pernas pedalando, e é o
+// `corpo`. Isto garante que ele cumpre a função: o segmento que vai da câmera
+// até os PÉS dele não pode atravessar a laje da beirada.
+export function veOCorpoInteiro(p: Palco, c: Plano): boolean {
+    const b = caixaDaLaje(LAJES_DA_CUTSCENE[0]);
+    const ox = p.gx, oy = p.gripY, oz = p.edgeZ - 0.35;
+    const cx0 = b.x0 + ox, cx1 = b.x1 + ox;
+    const cy0 = b.y0 + oy, cy1 = b.y1 + oy;
+    const cz0 = b.z0 + oz, cz1 = b.z1 + oz;
+
+    const dx = p.gx - c.x, dy = p.hangY - c.y, dz = p.edgeZ - c.z;   // até os pés
+    let t0 = 0, t1 = 1;                                              // segmento, não raio
+    const eixo = (o: number, dd: number, lo: number, hi: number) => {
+        if (Math.abs(dd) < 1e-9) return o >= lo && o <= hi;
+        let a = (lo - o) / dd, bq = (hi - o) / dd;
+        if (a > bq) { const t = a; a = bq; bq = t; }
+        t0 = Math.max(t0, a); t1 = Math.min(t1, bq);
+        return t0 <= t1;
+    };
+    if (!eixo(c.x, dx, cx0, cx1)) return true;
+    if (!eixo(c.y, dy, cy0, cy1)) return true;
+    if (!eixo(c.z, dz, cz0, cz1)) return true;
+    return t0 > t1;
 }
