@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-enxugar-diabrete.py — tira do GLB do Diabrete o que o Andar 3 não usa.
+enxugar-glb.py — tira de um GLB as texturas que o jogo não lê.
 
 ── O QUE ESTE SCRIPT DESCOBRIU ──────────────────────────────────────────────
 
@@ -19,14 +19,23 @@ A cor base fica, porque o limiar precisa dela — mas não em 1024×1024. Ela
 alimenta uma comparação com um número; um oitavo da resolução dá o mesmo
 resultado visual e um quarto do peso.
 
-Rodar: python3 ferramentas/enxugar-diabrete.py [--escrever]
+E O MESMO VALE PARA AS LUVAS. `cartoon_gloves.glb` são 1,72 MB, 92% textura,
+três PNGs de 1024×1024 do mesmo gerador — e `Floor3Hands` lê só `std?.map`, para
+o mesmíssimo limiar de dois tons (`materialDeLuva`). É o mesmo defeito no mesmo
+lugar, e por isso este script deixou de ser do Diabrete e passou a receber o
+caminho: quem gera modelo por IA entrega o pacote completo de PBR, e um jogo de
+dois tons paga por ele sem usar.
+
+Rodar: python3 ferramentas/enxugar-glb.py <caminho.glb> [--escrever]
 Sem --escrever ele só relata, que é como um script que mexe em asset binário
 deve começar.
 """
-import io, json, struct, sys
+import io, json, os, struct, sys
 from PIL import Image
 
-ENTRADA = 'src/assets/models/diabrete.glb'
+ENTRADA = next((a for a in sys.argv[1:] if not a.startswith('--')), None)
+if not ENTRADA:
+    print(__doc__); raise SystemExit(2)
 LADO_DA_COR = 256          # a cor base só alimenta um limiar de dois tons
 
 def ler(caminho):
@@ -111,9 +120,11 @@ def main():
     mat['pbrMetallicRoughness'] = {'baseColorTexture': {'index': 0}}
 
     if '--escrever' in sys.argv:
+        antes_bytes = os.path.getsize(ENTRADA)
         escrever(ENTRADA, js, bytes(novoBin))
-        import os
-        print(f"\n  escrito: {os.path.getsize(ENTRADA)/1e6:.2f} MB")
+        depois = os.path.getsize(ENTRADA)
+        print(f"\n  escrito: {antes_bytes/1e6:.2f} MB → {depois/1e6:.2f} MB "
+              f"(−{100*(1-depois/antes_bytes):.0f}%)")
     else:
         print(f"\n  (ensaio — passe --escrever para gravar; ficaria "
               f"~{(len(novoBin) + len(json.dumps(js)))/1e6:.2f} MB)")
