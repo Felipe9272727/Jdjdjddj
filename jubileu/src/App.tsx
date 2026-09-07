@@ -256,7 +256,19 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      {!(level === 6 && f6CabDead) && level !== 7 && level !== 9 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {/* ── A CABINE SAI DE CENA NA QUEDA DO ANDAR 3 ────────────────────
+          O `<ElevatorInterior>` é global: desenha em quase todo andar, na
+          origem. A cutscene da queda monta o próprio pedacinho de mapa perto
+          dali — e na foto da bancada a CABINE aparecia boiando no céu atrás do
+          Diabrete, um bloco cinza e marrom no meio de um andar que é só creme e
+          tinta. Na ramificação do empurrão era pior ainda: o jogador despenca e
+          passa raspando por um elevador pendurado no ar.
+
+          O andar já escondia a escadaria viva durante a queda (`fallActive`) e
+          esqueceu da cabine, que não é dele. */}
+      {!(level === 6 && f6CabDead) && level !== 7 && level !== 9
+        && !(level === 3 && floor3FallActive)
+        && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
       {/* Andar 9 (O Viveiro): o elevador é o cab enferrujado/coberto de vinhas
           (GLB modelado no Blender), não o <ElevatorInterior> genérico. */}
       {level === 9 && <Floor9Elevator />}
