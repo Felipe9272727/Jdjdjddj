@@ -27,7 +27,7 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { f3DevilPos, f3DevilPosValid, devilStageBase } from './f3Hazards';
 import { playFloor3Land, playFloor3Fall, playFloor3Dizzy, playFloor3Stomp, playFloor3Shove } from './floor3Sfx';
 import { PlatformView } from './Floor3';
-import { type F3Plat } from './f3Parkour';
+import { LAJES_DA_CUTSCENE, plano, planoDaSuplica, type Palco } from './f3Decupagem';
 import { diabreteModel } from './assets/textureImports';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
@@ -52,46 +52,20 @@ type Outcome = 'save' | 'stomp';
 
 interface Props {
     choice: 'none' | Outcome;
+    /** Qual fala da suplica esta no ar. E ela que dispara o CORTE de camera:
+     *  a decupagem em `f3Decupagem` da um plano a cada fala. */
+    line: number;
     onBeg: () => void;
     onDone: (outcome: Outcome) => void;
 }
 
-// The cutscene's own map slice, generated with the SAME rules as the real obby
-// (f3Parkour): gentle ~3.0–3.8 forward gaps, ~0.4–1.4 step in Y, ±1.9 lateral
-// wander, footprints from {1.0,1.2,1.4} — so it reads as the actual parkour
-// (floating tiles on a shallow slope), NOT a vertical tower. Here it DESCENDS
-// forward, the climb tumbling down into the abyss the devil dangles over; the
-// first tile is the big one he clings to. Deterministic (seeded), built once.
-function buildCutsceneTiles(): F3Plat[] {
-    let seed = 0x1a2b3c4d | 0;
-    const rng = () => {
-        seed = (seed + 0x6d2b79f5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    const rand = (a: number, b: number) => a + (b - a) * rng();
-    const HALF = [1.0, 1.2, 1.4], X_LIMIT = 11;
-    const mk = (id: number, bx: number, cz: number, topY: number, half: number, palette: number): F3Plat =>
-        ({ id, bx, cz, hw: half, hd: half, h: 0.6, topY, moving: false, amp: 0, phase: 0,
-          tipo: id === 0 ? 'descanso' : 'passo', x: bx, dx: 0, palette });
+// AS LAJES E OS PLANOS MORAM EM `f3Decupagem.ts`. O pedacinho de mapa estava
+// aqui dentro, o que impedia qualquer teste de perguntar "esta camera esta
+// dentro de uma laje?" — a pergunta que descobriu o quadro preto no meio da
+// cena. Agora palco e decupagem sao um modulo puro, e este arquivo so encena.
+const CUTSCENE_TILES = LAJES_DA_CUTSCENE;
 
-    const tiles: F3Plat[] = [mk(0, 0, -2.4, 0, 2.4, 0)];   // the tile he clings to (front edge ≈ grip)
-    let bx = 0, cz = -2.4, topY = 0;
-    for (let i = 1; i < 11; i++) {
-        const half = HALF[Math.floor(rng() * HALF.length)];
-        cz += rand(3.0, 3.8) + half;                          // step FORWARD (matches GAP)
-        topY -= rand(0.4, 1.4);                               // step DOWN into the abyss (matches RISE)
-        // veer off the centre fall-line on the first step, then wander like the obby
-        bx += i === 1 ? -2.6 : rand(-1.9, 1.9);
-        bx = Math.max(-X_LIMIT + half, Math.min(X_LIMIT - half, bx));
-        tiles.push(mk(i, bx, cz, topY, half, i % 6));
-    }
-    return tiles;
-}
-const CUTSCENE_TILES: F3Plat[] = buildCutsceneTiles();
-
-const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
+const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const { camera } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
@@ -108,6 +82,12 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
     const sfx     = useRef<Record<string, boolean>>({});
     const choiceRef = useRef(choice);
     choiceRef.current = choice;
+    // A fala entra por ref: o laco de quadro le, mas nao re-renderiza por causa
+    // dela. E `tLinha` marca QUANDO ela mudou, que e o instante do corte — a
+    // deriva de cada plano recomeca do zero a cada fala.
+    const lineRef = useRef(line);
+    const tLinha = useRef(0);
+    if (lineRef.current !== line) { lineRef.current = line; tLinha.current = -1; }
 
     useEffect(() => {
         const group = groupRef.current;
@@ -153,6 +133,10 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             if (typeof w.__fallScrub === 'number') T = w.__fallScrub;
             if (typeof w.__fallPhase === 'string') phase.current = w.__fallPhase;
             w.__fallT = T; w.__fallPh = phase.current;
+            // A POSICAO E A CAMERA, para a bancada poder dizer em NUMERO se a
+            // cena esta viva. Uma foto nao distingue "parado" de "eu fotografei
+            // duas vezes a mesma pose".
+
         }
         const b = rig.bones, g = groupRef.current;
         const gripY = base.current.y, gx = base.current.x, gz = base.current.z;
@@ -169,6 +153,8 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         // camera control — set per shot (see the switch at the bottom)
         let camRoll = 0;
         const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44 };
+
+        const palco: Palco = { gx, gripY, edgeZ, hangY: HANG_Y };
 
         const grip = () => { b[B.l_arm].rotation.set(-0.2, 0, 2.5); };   // left hand clamped on the ledge
 
@@ -191,8 +177,14 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                 b[B.r_arm].rotation.set(lerp(0.2, -0.2, k), 0, lerp(-0.5, 2.5, k));
                 b[B.head].rotation.set(lerp(0.3, -0.5, k), 0, 0);
                 if (T > 0.85 && !sfx.current.slap) { sfx.current.slap = true; playFloor3Land(); }
-                // low angle from the abyss looking UP at the catch
-                cam.x = gx - 2.0; cam.y = HANG_Y + 0.2; cam.z = edgeZ + 3.2; cam.ly = gripY + 0.3; cam.fov = 50;
+                // O CONTRA-PLONGEE DAQUI SAIA PRETO. Era `cam.y = HANG_Y + 0.2`
+                // olhando para cima — ou seja, filmando a barriga da laje, que e
+                // um bloco de tinta. Ver `f3Decupagem`: neste palco so da para
+                // filmar DE CIMA. O perfil aberto ve a escorregada inteira e
+                // ainda mostra o vazio para onde ele quase foi.
+                const pl = plano('perfil', palco, clamp01((T - 0.5) / 0.45));
+                cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
+                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
             } else {
                 const k = clamp01((T - 0.95) / 0.45);
                 g.position.set(gx, HANG_Y, edgeZ);
@@ -200,7 +192,11 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                 b[B.r_arm].rotation.set(lerp(-0.2, -0.1, k), 0, lerp(2.5, 1.4, k));    // settle toward a reach
                 b[B.head].rotation.set(-0.55, 0, 0);
                 b[B.l_leg].rotation.set(0.3, 0, 0.15); b[B.r_leg].rotation.set(0.3, 0, -0.15);
-                topDownBeg(cam, gx, gripY, edgeZ, T);
+                // Termina no MESMO plano em que a suplica comeca (o de cima),
+                // para a passagem intro→beg nao ter um corte sem motivo.
+                const pl = planoDaSuplica(0, palco, clamp01((T - 0.95) / 2.5));
+                cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
+                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
             }
             if (T >= 1.4) { phase.current = 'beg'; pt.current = 0; }
         }
@@ -239,7 +235,15 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             b[B.l_leg].rotation.set(Math.sin(T * kick) * (0.55 + slip * 0.5), 0, 0.18);
             b[B.r_leg].rotation.set(-Math.sin(T * kick + 1.1) * (0.55 + slip * 0.5), 0, -0.18);
             b[B.body].rotation.set(-0.06 + slip * 0.14, sway * 0.5, 0);
-            topDownBeg(cam, gx, gripY, edgeZ, T);
+            // ── O CORTE ──────────────────────────────────────────────
+            // Aqui morava `topDownBeg(...)` — UM plano, do comeco ao fim das
+            // oito falas. Medido: a camera andava 11 cm em 24 s. Agora cada
+            // fala tem o seu plano (f3Decupagem) e a troca de fala e o corte.
+            if (tLinha.current < 0) tLinha.current = T;
+            const naFala = T - tLinha.current;
+            const pl = planoDaSuplica(lineRef.current, palco, naFala / 3.2);
+            cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
+            cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
             const c = choiceRef.current;
             if (c === 'stomp') { phase.current = 'stomp'; pt.current = 0; }
             else if (c === 'save') { phase.current = 'climb'; pt.current = 0; }
@@ -336,6 +340,21 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         camera.lookAt(cam.lx, cam.ly, cam.lz);
         (camera as THREE.PerspectiveCamera).fov = cam.fov;
         camera.updateProjectionMatrix();
+
+        // ── A SONDA LE DEPOIS, NAO ANTES ──────────────────────────────────
+        // Ela ficava no topo deste callback e reportava a camera do <Player>,
+        // que roda antes no quadro — numeros reais, do objeto errado. Aqui
+        // embaixo e a camera que de fato foi renderizada.
+        if (import.meta.env?.DEV && typeof window !== 'undefined') {
+            const w = window as any;
+            const gg = groupRef.current;
+            if (gg) w.__f3DevilPos = { x: gg.position.x, y: gg.position.y, z: gg.position.z };
+            w.__fallCam = [
+                +camera.position.x.toFixed(2), +camera.position.y.toFixed(2),
+                +camera.position.z.toFixed(2), +(camera as THREE.PerspectiveCamera).fov.toFixed(1),
+            ];
+            w.__fallLinha = lineRef.current;
+        }
     });
 
     return (
@@ -387,14 +406,6 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         </group>
     );
 };
-
-// Shared "player looks down over the edge" framing for the catch + beg beats.
-function topDownBeg(cam: { x: number; y: number; z: number; lx: number; ly: number; lz: number; fov: number },
-                    gx: number, gripY: number, edgeZ: number, T: number) {
-    const push = 1 - clamp01((T - 0.95) / 2.5) * 0.16;     // slow push-in
-    cam.x = gx + 0.7; cam.y = gripY + (2.7 * push); cam.z = edgeZ + 1.3 - 3.0 * push;
-    cam.lx = gx; cam.ly = gripY - 0.45; cam.lz = edgeZ; cam.fov = 48;
-}
 
 useGLTF.preload(RIVAL_URL);
 export default Floor3FallCutscene;

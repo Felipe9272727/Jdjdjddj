@@ -2063,6 +2063,7 @@ export default function App() {
             {cartoonFall && currentLevel === 3 && (
                 <Floor3FallCutscene
                     choice={fallChoice}
+                    line={fallLine}
                     onBeg={() => setFallBegging(true)}
                     onDone={handleFallOutcome}
                 />
