@@ -51,9 +51,20 @@ const info = await p.evaluate(() => {
     });
     const gl = window.__gl;
     const sombra = gl ? { ligado: gl.shadowMap.enabled, tipo: gl.shadowMap.type } : null;
-    return { luzes, malhasComSombra: comSombra, malhas: total, grupos, sombra };
+    // O CUSTO DE DESENHO. É a única régua de desempenho que esta caixa dá com
+    // honestidade: FPS aqui é do SwiftShader e não diz nada sobre o celular, mas
+    // CHAMADA DE DESENHO e TRIÂNGULO são os mesmos números em qualquer máquina.
+    const custo = gl ? {
+        chamadas: gl.info.render.calls,
+        triangulos: gl.info.render.triangles,
+        texturas: gl.info.memory.textures,
+        geometrias: gl.info.memory.geometries,
+        programas: gl.info.programs ? gl.info.programs.length : null,
+    } : null;
+    return { luzes, malhasComSombra: comSombra, malhas: total, grupos, sombra, custo };
 });
 console.log('shadowMap:', JSON.stringify(info.sombra));
+console.log('CUSTO:', JSON.stringify(info.custo));
 console.log('luzes:', JSON.stringify(info.luzes));
 console.log('malhas com castShadow:', info.malhasComSombra, '/', info.malhas);
 for (const g of info.grupos ?? []) {

@@ -203,11 +203,15 @@ if (CARTAO === 'travado') {
 // e continua fotografando o que vem depois.
 const ESCOLHA = CARTAO === 'queda-pisar' ? 'PISAR NA MÃOZINHA'
               : CARTAO === 'queda-salvar' ? 'PUXAR PRA CIMA' : null;
+// O NOME DO ARQUIVO CARREGA A RAMIFICAÇÃO. Os dois desfechos gravavam como
+// `f3-desfecho-NN-sufixo.png`, os dois — então rodar os dois com o mesmo sufixo
+// fazia o segundo APAGAR o primeiro, e a folha de contato que eu montava dizia
+// "pisar" mostrando o "salvar". Errei uma avaliação inteira por causa disso.
 if (ESCOLHA) {
     const botao = p.locator('button', { hasText: ESCOLHA }).first();
     await botao.waitFor({ state: 'visible', timeout: Number(process.env.ESPERA_ESCOLHA ?? 300000) });
     // Uma foto do momento da decisão, antes de decidir.
-    await p.screenshot({ path: `${SAIDA}/f3-desfecho-00-escolha-${SUFIXO}.png` });
+    await p.screenshot({ path: `${SAIDA}/f3-${CARTAO}-00-escolha-${SUFIXO}.png` });
     console.log('📷 a escolha');
     await botao.click();
     console.log('   escolheu:', ESCOLHA);
@@ -222,7 +226,7 @@ if (ESCOLHA) {
                 ? (document.body.innerText.match(/FIM DO TRAÇO|ENGANADO!/) || [''])[0] : '',
         })).catch(() => null);
         if (u) console.log('   fase=', u.ph, 't=', u.t, 'cartão=', JSON.stringify(u.cartao));
-        const arq = `${SAIDA}/f3-desfecho-${String(i).padStart(2, '0')}-${SUFIXO}.png`;
+        const arq = `${SAIDA}/f3-${CARTAO}-${String(i).padStart(2, '0')}-${SUFIXO}.png`;
         try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
         catch (e) { console.log('falhou', i, String(e.message).slice(0, 70)); }
     }
