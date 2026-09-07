@@ -119,7 +119,7 @@ const Prisao: React.FC = () => {
             >
                 <Canvas shadows dpr={[1, 1.5]}>
                     <Camera />
-                    <Floor10Base />
+                    <Floor10Base playerPositionRef={playerPositionRef} onExit={() => {}} />
                     <Floor10Npc playerPositionRef={playerPositionRef} />
                     <MarcaDoJogador posRef={playerPositionRef} />
                 </Canvas>

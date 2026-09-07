@@ -202,9 +202,9 @@ export const FLOORS: FloorOption[] = [
   {
     id: 'floor-10-base',
     level: 10,
-    name: 'Andar 10 (base)',
+    name: 'Andar 10 — Sala 03:17',
     label: 'Andar 10',
-    description: 'PLACEHOLDER: base plana e vazia, esperando virar um andar de verdade',
+    description: 'Sala 03:17: coopere com Nilo para sincronizar os dois contatos e sair juntos pelo elevador.',
     color: 'from-slate-500 via-slate-400 to-zinc-300',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

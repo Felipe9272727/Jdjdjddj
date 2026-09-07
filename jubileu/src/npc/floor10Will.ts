@@ -124,6 +124,8 @@ type WillInput = {
      * foi, e nenhuma das duas metas novas chega a ser considerada.
      */
     prison?: F10PrisonState | null;
+    /** Alvo físico do outro aparelho enquanto o jogador mantém o pedido de cooperação. */
+    cooperationTarget?: { x: number; z: number } | null;
 };
 
 type Candidate = {
@@ -289,6 +291,8 @@ export class Floor10WillBrain {
     private learningDecision: LearningDecision | null = null;
     /** Impede a mesma deliberação de comandar o corpo em um loop de 45s. */
     private lastMotorDeliberationAt: number | null = null;
+    /** Preferência transitória: desaparece assim que o botão deixa de ser mantido. */
+    private cooperationTarget: Floor10WillSnapshot['target'] = null;
 
     /**
      * ── O HUMOR INICIAL ENTRA POR PARÂMETRO, E QUEM LÊ O RELÓGIO É O JOGO ─
@@ -1031,6 +1035,51 @@ export class Floor10WillBrain {
         return this.snapshot;
     }
 
+    private cancelCooperationRequest(time: number): void {
+        if (!this.cooperationTarget) return;
+        this.cooperationTarget = null;
+        // O pedido do jogador não vira compromisso persistente: ao soltá-lo,
+        // a próxima decisão normal pode escolher outra coisa imediatamente.
+        if (this.snapshot.goal === 'try-device') {
+            this.goalLockedUntil = time;
+            this.nextDecisionAt = time;
+        }
+    }
+
+    private followCooperationRequest(input: WillInput): Floor10WillSnapshot | null {
+        const requested = input.cooperationTarget;
+        if (!requested) return null;
+        const target = this.safeTarget(requested.x, requested.z);
+        const reason = 'você pediu ajuda no outro aparelho e eu vou tentar ficar no meu';
+        const targetChanged = !this.snapshot.target
+            || distanceXZ(target, this.snapshot.target) > 0.18;
+        this.cooperationTarget = target;
+
+        if (this.snapshot.goal !== 'try-device' || targetChanged) {
+            const candidate: Candidate = {
+                goal: 'try-device',
+                utility: 3,
+                target,
+                reason,
+            };
+            const learningState = this.settleLearning(input);
+            this.setGoal(candidate, input.time, 12);
+            this.rememberLearningChoice(candidate, input, learningState);
+        } else {
+            // Atualiza o alvo sem criar uma decisão nova a cada frame.
+            this.snapshot.target = target;
+            this.snapshot.moving = true;
+            this.snapshot.reason = reason;
+        }
+        this.snapshot.commitment = this.commitment;
+        this.snapshot.commitmentReason = this.commitmentReason;
+        this.snapshot.activeDirective = this.activeDirective?.action ?? null;
+        this.snapshot.activeDirectiveReason = this.activeDirective?.reason ?? null;
+        this.snapshot.drives = drivesCopy(this.drives);
+        this.snapshot.learning = this.reinforcement.snapshot();
+        return this.snapshot;
+    }
+
     private autonomousLine(): string {
         let index = Math.floor(this.random() * AUTONOMOUS_LINES.length);
         if (index === this.lastAutonomousLine) index = (index + 1) % AUTONOMOUS_LINES.length;
@@ -1040,6 +1089,7 @@ export class Floor10WillBrain {
 
     tick(input: WillInput): Floor10WillTick {
         this.updateDrives(input.dt, input.perception);
+        if (input.cooperationTarget == null) this.cancelCooperationRequest(input.time);
         const player = input.perception.player;
         if (player?.visible) {
             this.lastSeenPlayer = {
@@ -1062,6 +1112,16 @@ export class Floor10WillBrain {
             this.snapshot.drives = drivesCopy(this.drives);
             this.snapshot.learning = this.reinforcement.snapshot();
             return { snapshot: this.snapshot };
+        }
+
+        // A cooperação explícita do jogador vence compromissos autônomos
+        // persistentes (seguir o jogador/directive), mas conversa e fala acima
+        // continuam congelando o corpo. Sem esta prioridade, um follow-player
+        // aceito antes do convite pode impedir o Nilo de alcançar o aparelho.
+        const urgentPersonalSpace = !!player?.visible && player.distance < 1.05;
+        if (!urgentPersonalSpace) {
+            const acceptedCooperation = this.followCooperationRequest(input);
+            if (acceptedCooperation) return { snapshot: acceptedCooperation };
         }
 
         if (this.activeDirective) {
@@ -1099,7 +1159,6 @@ export class Floor10WillBrain {
             if (current) this.snapshot.target = current.target;
         }
 
-        const urgentPersonalSpace = !!player?.visible && player.distance < 1.05;
         const closeEnoughToTalk = !!player?.visible
             && player.distance <= 2.6
             && this.speechCooldown <= 0

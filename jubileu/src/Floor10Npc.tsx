@@ -1,3 +1,4 @@
+import { alvoDaCooperacao, cancelarCooperacao } from './npc/f10Cooperacao';
 import { jogadorVisivelParaOlhar, gestoChegouAoDestino } from './npc/floor10Presenca';
 import { RodadaDoNilo } from './npc/floor10Rodada';
 import React, { useRef, useMemo, useEffect, useCallback } from 'react';
@@ -274,6 +275,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             const languageCommand = npc.willCommand;
             if (languageCommand && languageCommand.id !== consumedWillCommandId.current) {
                 gestoPendente.current = null; gesto.current = null;
+                cancelarCooperacao();
                 willBrain.applyLanguageDecision(
                     languageCommand.action,
                     t,
@@ -415,6 +417,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     conversationOpen: npc.open,
                     speaking: npc.speaking,
                     deliberation: deliberation.current,
+                    cooperationTarget: alvoDaCooperacao(f10prison, pp ?? null),
                     prison: f10prison,
                 });
                 ultimaVontade.current = passo;

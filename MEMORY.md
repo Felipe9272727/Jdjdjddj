@@ -4178,11 +4178,8 @@ fonte + index.html + version.json juntos e remove o próprio workflow da árvore
 - Cinco regressões novas cobrem esses comportamentos; permanecem as limitações de terrenos especiais documentadas acima.
 - Auditoria de custo: histórico do 3B já limitado a 4 mensagens / 1.800 caracteres; rascunhador desligado por padrão. Correção de consistência pode gerar outra resposta de até 56 tokens. O diagnóstico agora mostra número de gerações, tempo somado de leitura/fala e contadores reportados de cada chamada; snapshots por token não são somados repetidamente. Teto de saída é limite, não consumo medido. Registra tamanhos de sistema/histórico em caracteres, sem registrar seu texto.
 
-### Nilo — presença coerente (2026-09-06)
-- Pesquisa com Luna: memória, iniciativa e coerência entre percepção/objetivo/ação como critérios observáveis (Park et al., https://arxiv.org/abs/2304.03442). Sem acrescentar inferência por quadro.
-- O corpo só encara coordenadas observadas de um jogador visível; coordenadas ocultas do sensor não comandam o olhar.
-- Gestos que prendem os pés aguardam seleção do plano e chegada ao destino aterrado. Pendências expiram, são canceladas por conversa/ordem nova, e a conferência de consequência começa depois do gesto. Isso não acrescenta efeitos físicos novos de tocar/bater.
-- Fala espontânea usa o mesmo funil de persistência do chat, com uma gravação e uma notificação.
+### Regra Luna — leitura e integração (2026-09-07)
 
-### Regra de trabalho do Felipe — 2026-09-06
-Sempre delegar análise/leitura de repositório e pesquisa aos subagentes gpt-5.6-luna. O agente principal cuida da implementação, integração, execução de validações e publicação. Manter escopos e retornos dos Luna curtos para economizar tokens; não repetir suas leituras no principal.
+- Toda leitura, análise ou pesquisa do repositório deve ser delegada ao subagente **GPT-5.6-Luna**; a sessão principal fica responsável por aplicar e executar as mudanças autorizadas.
+- A integração do mapa10 deve preservar o target `6757d48721fe7e3af98628ccf2547633217f1a48` e sua árvore completa `83c0aafb72884af2a848a4c86128313ec0d0e679`.
+- Os sete commits do target (35064209, dccc09ee, 7d8e7f94, 05b0c3e0, b1b16c01, 8b80f8fa, 6757d487) formam a sequência Floor3 a preservar durante a integração da Sala 03:17 cooperativa.
