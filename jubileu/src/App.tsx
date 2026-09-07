@@ -34,6 +34,7 @@ import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f
 import { aoFalar, f3Fala } from './f3Falas';
 import Floor3Grito from './Floor3Grito';
 import Floor3Cartao from './Floor3Cartao';
+import Floor3Balao from './Floor3Balao';
 
 import { reset as f3Reset, f3PlayerZ, f3PlayerY } from './f3Parkour';
 import { ShopOverlay } from './ShopOverlay';
@@ -2638,71 +2639,12 @@ export default function App() {
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: '15%', zIndex: 88,
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 26,
           fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none' }}>
-          <style>{`
-            /* O FERVILHAR DO CONTORNO. Três desenhos da mesma forma, trocados em
-               degraus: com steps() o navegador NÃO interpola, ele salta — que é
-               a diferença entre tinta e animação de computador. */
-            @keyframes f3-ferve {
-              0%   { border-radius: 33% 40% 36% 44% / 52% 44% 56% 40%; }
-              33%  { border-radius: 41% 34% 44% 36% / 44% 55% 41% 52%; }
-              66%  { border-radius: 36% 43% 38% 41% / 49% 47% 50% 46%; }
-              100% { border-radius: 33% 40% 36% 44% / 52% 44% 56% 40%; }
-            }
-            @keyframes f3-treme { 0%{transform:rotate(-1.1deg)} 33%{transform:rotate(0.5deg)}
-                                  66%{transform:rotate(-0.4deg)} 100%{transform:rotate(-1.1deg)} }
-          `}</style>
-
-          <div key={fallLine} style={{ position: 'relative',
-            animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
-            {/* o balão */}
-            <div style={{
-              maxWidth: 'min(84vw, 560px)', background: '#f6efe0', color: '#140c08',
-              // A LINHA TEM DE SER GROSSA COMO O RESTO DO ANDAR. A 6 px ela
-              // saía mais fina que o contorno de qualquer plataforma e o balão
-              // parecia de outro jogo. E a elipse pura apertava o texto nas
-              // pontas: raios menores dão um losango redondo, que é a forma de
-              // balão de verdade, com ar de sobra nas laterais.
-              border: 'min(0.95vw,9px) solid #140c08',
-              padding: 'min(2.6vw,22px) min(5vw,44px)',
-              fontSize: 'min(4vw,24px)', lineHeight: 1.16, textAlign: 'center',
-              letterSpacing: '.02em',
-              boxShadow: '0 min(0.9vw,7px) 0 rgba(20,12,8,0.4)',
-              animation: 'f3-ferve 0.375s steps(1,end) infinite, f3-treme 0.375s steps(1,end) infinite',
-            }}>
-              {fala.t}
-            </div>
-            {/* ── O RABICHO APONTA PARA ELE, E ELE ESTÁ EM CIMA ──────────
-                A primeira versão apontava para BAIXO, "porque ele está pendurado
-                no abismo". Errado: o balão mora no rodapé do quadro e o Diabrete
-                aparece no MEIO dele em todos os planos da decupagem (`alto`,
-                `close` e `raso` olham para baixo, então ele fica acima do
-                rodapé). Na foto o rabicho apontava para o chão e ainda por cima
-                furava os botões. Sobe. */}
-            {doDiabo && (
-              <>
-                <div style={{ position: 'absolute', left: '34%', top: 'min(-3.4vw,-26px)',
-                  width: 0, height: 0,
-                  borderLeft: 'min(1.4vw,11px) solid transparent',
-                  borderRight: 'min(2.8vw,22px) solid transparent',
-                  borderBottom: 'min(3.6vw,28px) solid #140c08' }} />
-                <div style={{ position: 'absolute', left: 'calc(34% + min(0.7vw,5px))', top: 'min(-2.0vw,-16px)',
-                  width: 0, height: 0,
-                  borderLeft: 'min(1.0vw,8px) solid transparent',
-                  borderRight: 'min(2.0vw,16px) solid transparent',
-                  borderBottom: 'min(2.6vw,20px) solid #f6efe0' }} />
-              </>
-            )}
-            {/* quem fala, assinado no canto do balão */}
-            <div style={{ position: 'absolute', left: 'min(2.4vw,18px)', bottom: 'min(-1.8vw,-14px)',
-              transform: 'rotate(-2.5deg)',
-              background: doDiabo ? '#c0271a' : '#2b6fb0', color: '#fff',
-              WebkitTextStroke: '2px #140c08', paintOrder: 'stroke', padding: '2px 14px',
-              fontSize: 'min(2.9vw,17px)', letterSpacing: '.08em',
-              border: 'min(0.42vw,3px) solid #140c08', borderRadius: 5,
-              boxShadow: '0 3px 0 #140c08' }}>
-              {doDiabo ? 'O DIABRETE' : 'VOCÊ'}
-            </div>
-          </div>
+          <Floor3Balao
+            texto={fala.t}
+            dono={doDiabo ? 'diabrete' : 'jogador'}
+            serie={fallLine}
+            rabicho={doDiabo ? 'cima' : 'nenhum'}
+          />
 
           {/* A ESCOLHA. Os botões eram gradiente verde/vermelho com canto
               arredondado — o vocabulário de um menu, não de um desenho. Agora

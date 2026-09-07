@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { DIABRETE_SCRIPT } from './diabreteScript';
+import Floor3Balao from './Floor3Balao';
 
 const INK = '#140c08';
 
@@ -24,9 +25,6 @@ const Floor3CutsceneUI: React.FC<Props> = ({ line }) => {
             fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
             <style>{`
                 @keyframes f3c-bars { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-                @keyframes f3c-pop  { 0%{transform:scale(0.4) rotate(-6deg);opacity:0;}
-                    60%{transform:scale(1.08) rotate(2deg);opacity:1;} 100%{transform:scale(1) rotate(-1.2deg);opacity:1;} }
-                @keyframes f3c-wob  { 0%,100%{transform:rotate(-1.2deg);} 50%{transform:rotate(1.4deg);} }
             `}</style>
 
             {/* letterbox bars */}
@@ -35,36 +33,19 @@ const Floor3CutsceneUI: React.FC<Props> = ({ line }) => {
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '11%', background: INK,
                 transformOrigin: 'bottom', animation: 'f3c-bars .4s ease-out both' }} />
 
-            {/* speech bubble */}
-            <div key={line} style={{
-                position: 'absolute',
-                ...(isDevil
-                    ? { top: '16%', right: '6%', left: 'auto' }
-                    : { bottom: '17%', left: '6%', right: 'auto' }),
-                maxWidth: 'min(46vw, 460px)',
-                animation: 'f3c-pop .35s cubic-bezier(.2,1.5,.4,1) both',
-            }}>
-                <div style={{ animation: 'f3c-wob 1.8s ease-in-out infinite' }}>
-                    {/* name tab */}
-                    <div style={{ display: 'inline-block', transform: 'rotate(-3deg)',
-                        background: isDevil ? '#c0271a' : '#2b6fb0', color: '#fff',
-                        WebkitTextStroke: `2px ${INK}`, paintOrder: 'stroke',
-                        padding: '2px 14px', fontSize: 'min(3.4vw,22px)', letterSpacing: '.06em',
-                        borderRadius: 8, marginBottom: -6, marginLeft: 14,
-                        boxShadow: `0 3px 0 ${INK}` }}>
-                        {isDevil ? 'O DIABRETE' : 'VOCÊ'}
-                    </div>
-                    {/* balloon */}
-                    <div style={{
-                        background: '#f6efe0', color: INK,
-                        border: `4px solid ${INK}`, borderRadius: 22,
-                        padding: '16px 22px', fontSize: 'min(4vw,26px)', lineHeight: 1.18,
-                        letterSpacing: '.01em', boxShadow: `0 7px 0 ${INK}`,
-                        fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
-                        {l.text}
-                    </div>
-                </div>
-            </div>
+            {/* O BALÃO É O DO ANDAR, e não mais um retângulo arredondado só
+                desta cena. Ver `Floor3Balao`: a súplica e o grito já falavam com
+                a linha fervilhando, e a apresentação — que é a PRIMEIRA coisa
+                que o jogador ouve aqui — ainda usava um balão de outro jogo. O
+                andar se apresentava com uma voz e terminava com outra. */}
+            <Floor3Balao
+                texto={l.text}
+                dono={isDevil ? 'diabrete' : 'jogador'}
+                serie={line}
+                style={isDevil
+                    ? { position: 'absolute', top: '15%', right: '6%' }
+                    : { position: 'absolute', bottom: '18%', left: '6%' }}
+            />
         </div>
     );
 };
