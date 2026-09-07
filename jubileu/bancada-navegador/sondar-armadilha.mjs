@@ -61,10 +61,27 @@ const info = await p.evaluate(() => {
         geometrias: gl.info.memory.geometries,
         programas: gl.info.programs ? gl.info.programs.length : null,
     } : null;
-    return { luzes, malhasComSombra: comSombra, malhas: total, grupos, sombra, custo };
+    // DE ONDE VEM CADA CHAMADA. Contar malha total não serve: o que a GPU paga
+    // é a malha VISÍVEL e dentro do tronco. Agrupar por geometria e cor diz onde
+    // está a gordura sem precisar adivinhar.
+    const porTipo = {};
+    cena.traverse((o) => {
+        if (!o.isMesh || !o.visible) return;
+        let p = o.parent, oculto = false;
+        while (p) { if (!p.visible) { oculto = true; break; } p = p.parent; }
+        if (oculto) return;
+        const g = o.geometry?.type ?? '?';
+        const c = o.material?.color?.getHexString?.() ?? o.material?.type ?? '?';
+        const k = g + ' #' + c;
+        porTipo[k] = (porTipo[k] || 0) + 1;
+    });
+    return { luzes, malhasComSombra: comSombra, malhas: total, grupos, sombra, custo, porTipo };
 });
 console.log('shadowMap:', JSON.stringify(info.sombra));
 console.log('CUSTO:', JSON.stringify(info.custo));
+console.log('MALHAS VISÍVEIS POR TIPO:');
+for (const [k, n] of Object.entries(info.porTipo ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 14))
+    console.log('   ', String(n).padStart(4), k);
 console.log('luzes:', JSON.stringify(info.luzes));
 console.log('malhas com castShadow:', info.malhasComSombra, '/', info.malhas);
 for (const g of info.grupos ?? []) {

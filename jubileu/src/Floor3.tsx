@@ -20,6 +20,7 @@ import React, { useRef, useEffect, useReducer, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { RoundedBox, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ElevatorFacade } from './Elevator';
 import FpHands from './Floor3Hands';
 import Floor3Rival from './Floor3Rival';
@@ -118,13 +119,36 @@ const PlatformArrow: React.FC<{ topY: number; size: number; alonga?: number }> =
 // spheres, leaving one clean silhouette around the whole cloud (no internal
 // seams). depthWrite off so the hulls never occlude each other.
 const CLOUD_PUFFS: number[][] = [[0,0,0,1.0],[1.1,-0.1,0,0.8],[-1.1,-0.05,0,0.85],[0.5,0.45,0,0.7],[-0.6,0.4,0,0.65]];
-// Uma geometria por raio, compartilhada pelas 15 nuvens. Antes cada `<mesh>`
-// declarava a sua: 15 nuvens × 5 bolhas × 2 (miolo + casco) = 150 esferas
-// idênticas subindo para a GPU em vez de 5.
-const CLOUD_GEOS: THREE.SphereGeometry[] = CLOUD_PUFFS.map(
-    (d) => new THREE.SphereGeometry(d[3], 16, 12),
-);
 const CLOUD_OUTLINE = 1.07; // hull scale → ink-line weight
+
+// ── A NUVEM VIRA DUAS MALHAS, E NÃO DEZ ──────────────────────────────────────
+//
+// Cada nuvem eram cinco bolotas × duas malhas (miolo + casco) = DEZ chamadas de
+// desenho por nuvem. Medido na sonda da bancada: 243 das ~330 malhas visíveis do
+// Andar 3 eram nuvem — 122 cascos de tinta e 121 miolos brancos. O céu, que é
+// cenário de fundo, era de longe a coisa mais cara da tela.
+//
+// As cinco bolotas de uma nuvem nunca se mexem umas em relação às outras, então
+// não há motivo para serem cinco objetos: elas viram UMA geometria, fundida uma
+// única vez no carregamento. Duas chamadas por nuvem em vez de dez.
+//
+// O truque do contorno continua o mesmo — casco maior desenhado de dentro para
+// fora, sem escrever profundidade — e continua funcionando fundido, porque são
+// os MESMOS triângulos, só que num desenho só. O que some é a chamada, não a
+// tinta.
+function fundirBolotas(engorda: number): THREE.BufferGeometry {
+    const partes = CLOUD_PUFFS.map((d) => {
+        const g = new THREE.SphereGeometry(d[3] * engorda, 16, 12);
+        g.translate(d[0], d[1], d[2]);
+        return g;
+    });
+    const fundida = mergeGeometries(partes, false);
+    for (const g of partes) g.dispose();
+    return fundida ?? partes[0];
+}
+const NUVEM_MIOLO = fundirBolotas(1);
+const NUVEM_CASCO = fundirBolotas(CLOUD_OUTLINE);
+
 const CLOUD_OUTLINE_MAT = (() => {
     const m = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.BackSide });
     m.depthWrite = false;
@@ -139,24 +163,14 @@ const CLOUD_OUTLINE_MAT = (() => {
 const CLOUD_FILL_TOON: ToonOpts = {
     color: '#ffffff', shadow: '#f0f3f7', bands: 1, rimStrength: 0, specThreshold: 1.1,
 };
-const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => {
-    const fill = toonMat(CLOUD_FILL_TOON);
-    return (
-        <group position={position} scale={[scale, scale, scale]}>
-            {CLOUD_PUFFS.map((d,i)=>(
-                <group key={i} position={[d[0],d[1],d[2]]}>
-                    {/* black ink-line hull (slightly larger back-face sphere) */}
-                    <mesh scale={CLOUD_OUTLINE} renderOrder={0}
-                        geometry={CLOUD_GEOS[i]} material={CLOUD_OUTLINE_MAT} />
-                    {/* white toon fill */}
-                    <mesh renderOrder={1} castShadow={false} geometry={CLOUD_GEOS[i]}>
-                        <primitive object={fill} attach="material" />
-                    </mesh>
-                </group>
-            ))}
-        </group>
-    );
-};
+const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => (
+    <group position={position} scale={[scale, scale, scale]}>
+        <mesh renderOrder={0} geometry={NUVEM_CASCO} material={CLOUD_OUTLINE_MAT} />
+        <mesh renderOrder={1} castShadow={false} geometry={NUVEM_MIOLO}>
+            <primitive object={toonMat(CLOUD_FILL_TOON)} attach="material" />
+        </mesh>
+    </group>
+);
 
 // ─── Platform palette (matte black-&-white rubber-hose, hard 2-band cel) ─────
 // No neon, no emissive — flat cream/white tops with a hard single shadow band,
