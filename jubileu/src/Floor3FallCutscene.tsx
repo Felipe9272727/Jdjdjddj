@@ -63,6 +63,9 @@ const shoeCadarco = new THREE.MeshToonMaterial({ color: '#140c08' });
 const gloveWhite   = new THREE.MeshToonMaterial({ color: '#f7f3ea' });
 const gloveCuff    = new THREE.MeshToonMaterial({ color: '#c0271a' });
 const gloveCostura = new THREE.MeshToonMaterial({ color: '#140c08' });
+const puffMat    = new THREE.MeshToonMaterial({ color: '#ffffff' });
+const puffTinta  = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide, depthWrite: false });
+const estrelaMat = new THREE.MeshToonMaterial({ color: INK });
 
 type Phase = 'intro' | 'beg' | 'stomp' | 'climb';
 type Outcome = 'save' | 'stomp';
@@ -89,6 +92,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
     const ledgeRef = useRef<THREE.Group>(null!);
     const shoeRef  = useRef<THREE.Group>(null!);
     const gloveRef = useRef<THREE.Group>(null!);
+    const puffRef  = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
 
     const base    = useRef(new THREE.Vector3());
@@ -161,6 +165,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
         const HANG_Y = gripY - HANG_DROP;
         const ph = phase.current;
         rig.group.scale.set(1, 1, 1);
+        g.visible = true;
         g.rotation.set(0, FACE_Y, 0);                  // FACE the platform / player
         // the cliff he clings to (top at gripY, front edge at z=gz) so he never floats
         if (ledgeRef.current) ledgeRef.current.position.set(gx, gripY, gz);
@@ -290,17 +295,83 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 // terço da largura, com sola, cadarço e cano todos dentro.
                 cam.x = gx + 1.7; cam.y = gripY + 2.5; cam.z = edgeZ + 2.05; cam.ly = gripY - 0.2; cam.lz = edgeZ; cam.fov = 45;
             } else {
-                // plummet — wide side shot following him down
+                // ── A QUEDA, EM QUATRO TEMPOS ────────────────────────────
+                //
+                // Ela era um só: gravidade desde o primeiro quadro, com o boneco
+                // encolhendo por conta de `scale`. Na folha de contato deram
+                // CINCO QUADROS de um pontinho diminuindo em creme vazio. Nenhum
+                // gag, nenhum remate — o clímax do andar terminava numa mosca.
+                //
+                // Um desenho de 1930 não deixa ninguém cair assim. Primeiro a
+                // gravidade NÃO PERCEBE: ele fica no ar pedalando, olha para a
+                // câmera, e só então despenca. Depois a câmera CAI JUNTO, para
+                // dar para ver o esperneio; se ela ficar parada ele vira uma
+                // mosca em dois segundos. Só no fim ela para e deixa ele sumir
+                // na distância — e aí vem a pontuação, que é o que diz "acabou".
                 const e = T - 0.7;
-                if (!sfx.current.fall) { sfx.current.fall = true; playFloor3Fall(); }
-                const y = HANG_Y - 0.5 * 26 * e * e;
+                const NO_AR = 0.34;          // o tempo em que a gravidade não percebe
+                const SOLTA = 0.95;          // quando a câmera para de acompanhar
+                const q = Math.max(0, e - NO_AR);
+                const queda = (t: number) => HANG_Y + 0.35 - 0.5 * 30 * t * t;
+                const y = queda(q);
                 g.position.set(gx, y, edgeZ);
-                g.rotation.set(e * 7, FACE_Y + Math.sin(e * 5) * 0.5, e * 4);
-                g.scale.setScalar(DIABRETE_SCALE * Math.max(0.12, 1 - e * 0.45));
-                b[B.l_arm].rotation.set(Math.sin(T * 26) * 1.6, 0, 0.3); b[B.r_arm].rotation.set(-Math.sin(T * 26) * 1.6, 0, -0.3);
-                b[B.l_leg].rotation.set(Math.sin(T * 22), 0, 0); b[B.r_leg].rotation.set(-Math.sin(T * 22), 0, 0);
-                cam.x = gx + 4.2; cam.y = gripY + 0.5; cam.z = edgeZ + 4.2; cam.ly = g.position.y + 0.8; cam.lz = edgeZ; cam.fov = 48;
-                if (e > 1.3 && !doneRef.current) { doneRef.current = true; onDone('stomp'); }
+
+                if (e < NO_AR) {
+                    // ── 1. O AR ──────────────────────────────────────────
+                    // Ele corre parado. As pernas pedalam depressa, os braços
+                    // moinham, e a cabeça vira para a câmera — a piada é ele
+                    // perceber antes de cair.
+                    const k = e / NO_AR;
+                    b[B.l_leg].rotation.set(Math.sin(T * 34), 0, 0.1);
+                    b[B.r_leg].rotation.set(-Math.sin(T * 34), 0, -0.1);
+                    b[B.l_arm].rotation.set(Math.sin(T * 30) * 2.2, 0, 0.6);
+                    b[B.r_arm].rotation.set(-Math.sin(T * 30) * 2.2, 0, -0.6);
+                    b[B.head].rotation.set(-0.15, lerp(0.4, 0, k), 0);
+                    g.rotation.set(0, FACE_Y, Math.sin(T * 18) * 0.05);
+                    cam.x = gx + 2.6; cam.y = HANG_Y + 1.2; cam.z = edgeZ + 2.6;
+                    cam.ly = HANG_Y + 0.2; cam.lz = edgeZ; cam.fov = 46;
+                } else {
+                    // ── 2/3. A QUEDA, E O SUMIÇO ─────────────────────────
+                    if (!sfx.current.fall) { sfx.current.fall = true; playFloor3Fall(); }
+                    g.rotation.set(q * 6, FACE_Y + Math.sin(q * 5) * 0.6, q * 3.4);
+                    b[B.l_arm].rotation.set(Math.sin(T * 26) * 1.8, 0, 0.3);
+                    b[B.r_arm].rotation.set(-Math.sin(T * 26) * 1.8, 0, -0.3);
+                    b[B.l_leg].rotation.set(Math.sin(T * 22) * 1.2, 0, 0);
+                    b[B.r_leg].rotation.set(-Math.sin(T * 22) * 1.2, 0, 0);
+                    // A câmera desce junto até `SOLTA` e depois fica: assim se vê
+                    // o esperneio de perto, e só no fim ele encolhe de verdade.
+                    const yCam = e < SOLTA ? y : queda(SOLTA - NO_AR);
+                    cam.x = gx + 3.4; cam.y = yCam + 1.5; cam.z = edgeZ + 3.4;
+                    cam.ly = (e < SOLTA ? y : Math.max(y, yCam - 14)) + 0.4;
+                    cam.lz = edgeZ; cam.fov = 48;
+                }
+
+                // ── 4. A PONTUAÇÃO ───────────────────────────────────────
+                // Um baque de tinta e uma estrelinha onde ele sumiu. Não está em
+                // escala com nada — pontuação de desenho nunca está; ela existe
+                // para dizer que acabou.
+                const PUFF_EM = 1.30;
+                if (puffRef.current) {
+                    const vivo = e >= PUFF_EM && e < PUFF_EM + 0.55;
+                    puffRef.current.visible = vivo;
+                    if (vivo) {
+                        const k = (e - PUFF_EM) / 0.55;
+                        const yFim = queda(SOLTA - NO_AR) - 11;
+                        puffRef.current.position.set(gx, yFim, edgeZ);
+                        // ABRE E CORTA, não dissolve. A primeira versão baixava a
+                        // opacidade e o baque virava uma nuvem CINZA se apagando —
+                        // creme translúcido sobre creme não some, fica sujo, e
+                        // pontuação de desenho nunca desbota: ela abre e sai.
+                        puffRef.current.scale.setScalar(1.2 + easeOut(k) * 2.4);
+                        puffRef.current.rotation.z = k * 0.45;
+                        // E ELE JÁ SE FOI. O boneco continuava lá dentro do baque,
+                        // como um pontinho no meio da fumaça — o que desmancha
+                        // justamente a piada de ele ter sumido.
+                        g.visible = false;
+                    }
+                    if (!vivo && e >= PUFF_EM) g.visible = false;
+                }
+                if (e > PUFF_EM + 0.5 && !doneRef.current) { doneRef.current = true; onDone('stomp'); }
             }
         }
 
@@ -457,6 +528,47 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                     <mesh key={z} position={[0, 0.34, z]} rotation={[0, 0, Math.PI / 2]}>
                         <cylinderGeometry args={[0.028, 0.028, 0.42, 8]} />
                         <primitive object={shoeCadarco} attach="material" />
+                    </mesh>
+                ))}
+            </group>
+
+            {/* ── O BAQUE ───────────────────────────────────────────────
+                A pontuação da queda: cinco bolotas de tinta abrindo e uma
+                estrela de quatro pontas no meio. É o que um curta desenha quando
+                alguém some — sem isto o clímax do andar terminava numa mosca
+                diminuindo em creme vazio. */}
+            <group ref={puffRef} visible={false}>
+                {/* O CONTORNO É CASCO INVERTIDO FEITO À MÃO, e não `<Outlines>`.
+                    O andar já tinha aprendido isso nas nuvens: o Outlines do drei
+                    fica SUB-PIXEL a esta distância e some. Uma esfera é
+                    radialmente simétrica, então aumentá-la um pouco e desenhá-la
+                    de dentro para fora dá um contorno perfeitamente uniforme —
+                    de graça, com `BackSide`. É o mesmo truque das nuvens, pelo
+                    mesmo motivo. */}
+                {[[0, 0], [0.9, 0.25], [-0.9, 0.2], [0.45, -0.7], [-0.5, -0.65]].map(([px, py], i) => (
+                    <group key={i} position={[px, py, 0]} scale={i === 0 ? 1 : 0.72}>
+                        <mesh scale={1.14}>
+                            <sphereGeometry args={[0.55, 12, 10]} />
+                            <primitive object={puffTinta} attach="material" />
+                        </mesh>
+                        <mesh>
+                            <sphereGeometry args={[0.55, 12, 10]} />
+                            <primitive object={puffMat} attach="material" />
+                        </mesh>
+                    </group>
+                ))}
+                {/* A estrela é de TINTA, não vermelha: sob a grade do andar o
+                    vermelho vira um marrom que, num baque creme, lê como um
+                    graveto. Preto sobre creme lê como estrela. */}
+                {/* AS PONTAS SAEM DE TRÁS DO BAQUE, e são TRÊS cruzadas a 60°.
+                    As duas primeiras estavam a 33° uma da outra e se somavam numa
+                    barra só: na foto a "estrela" era um graveto preto atravessado
+                    ao lado da fumaça. Cruzadas de verdade e atrás das bolotas,
+                    elas viram o que são — as pontas espocando por trás. */}
+                {[0, Math.PI / 3, (2 * Math.PI) / 3].map((r) => (
+                    <mesh key={r} position={[0, 0, -0.55]} rotation={[0, 0, r]}>
+                        <boxGeometry args={[2.7, 0.26, 0.06]} />
+                        <primitive object={estrelaMat} attach="material" />
                     </mesh>
                 ))}
             </group>
