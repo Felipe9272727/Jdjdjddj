@@ -335,7 +335,10 @@ export function hazardKnockback(px: number, py: number, pz: number):
         if (inX && inZ && low) {
             if (h.hit) return null;              // already bounced on this pass
             h.hit = true; h.hitAt = tNow;
-            dizer('espetou');
+            // `roubados` vai junto porque a VOZ dele (f3Voz) envelhece com isso:
+            // o texto de 'espetou' é o mesmo, mas o timbre não pode voltar a ser
+            // o do sujeito que ainda tinha os três pincéis.
+            dizer('espetou', { roubados: f3Progress.brushes });
             return { z: box.zSeguro, vy: 4.2 };  // atrás da tira, mas ainda em cima da plataforma
         }
         // ── O TRANCO QUE SÓ ACONTECIA UMA VEZ ────────────────────────────

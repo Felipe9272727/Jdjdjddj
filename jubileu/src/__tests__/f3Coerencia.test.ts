@@ -7,6 +7,8 @@
  * acontece. Este arquivo existe para essa classe.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { reset as resetParkour, platforms, tick, type TipoDePlataforma } from '../f3Parkour';
 import { f3Progress, resetHazards, ESPERA_DA_ULTIMA_FALA } from '../f3Hazards';
 import { escolherFala } from '../f3Falas';
@@ -81,5 +83,45 @@ describe('f3 — o último pincel dá tempo da fala caber', () => {
         );
         expect(ESPERA_DA_ULTIMA_FALA / 1000).toBeGreaterThanOrEqual(maisLonga - 2.2);
         expect(ESPERA_DA_ULTIMA_FALA).toBeLessThan(3000);   // respiro, não pausa
+    });
+
+    // ── NENHUM SOM FICA NA GAVETA ────────────────────────────────────────
+    // Foi exatamente assim que o Diabrete passou o andar inteiro mudo: o banco
+    // de som existia, era bom, e ninguém chamava metade dele. Um efeito
+    // sintetizado e nunca disparado é conteúdo morto igual a uma fala escrita e
+    // nunca dita — e nenhum tipo pega isso, porque o código compila lindo.
+    it('todo efeito do banco de som do andar tem quem o toque', () => {
+        const raiz = new URL('..', import.meta.url).pathname;
+        const banco = readFileSync(join(raiz, 'floor3Sfx.ts'), 'utf8');
+        const efeitos = [...banco.matchAll(/export function (playFloor3\w+)/g)].map(m => m[1]);
+        expect(efeitos.length).toBeGreaterThan(8);
+
+        const fontes = readdirSync(raiz)
+            .filter(f => (f.endsWith('.ts') || f.endsWith('.tsx')) && f !== 'floor3Sfx.ts' && !f.endsWith('.test.ts'))
+            .map(f => readFileSync(join(raiz, f), 'utf8'))
+            .join('\n');
+
+        const orfaos = efeitos.filter(e => !new RegExp(`\\b${e}\\s*\\(`).test(fontes));
+        expect(orfaos).toEqual([]);
+    });
+
+    // ── O ARCO DO TIMBRE NÃO PODE VOLTAR NO TEMPO ────────────────────────
+    // A voz dele (`f3Voz`) envelhece com `roubados`: cada pincel perdido sobe a
+    // altura e fecha a surdina. Isso só funciona se TODO disparo de fala contar
+    // em que altura do arco ele está. Um `dizer('espetou')` pelado não quebra
+    // nada — só faz o sujeito voltar a soar seguro de si depois de ter perdido
+    // tudo, que é a única coisa que esta voz existe para não fazer.
+    it('nenhuma fala é disparada sem dizer em que altura do arco ele está', () => {
+        const raiz = new URL('..', import.meta.url).pathname;
+        const pelados: string[] = [];
+        for (const f of readdirSync(raiz)) {
+            if (!(f.endsWith('.ts') || f.endsWith('.tsx')) || f.endsWith('.test.ts')) continue;
+            if (f === 'f3Falas.ts') continue;                       // a casa das falas
+            const src = readFileSync(join(raiz, f), 'utf8');
+            for (const m of src.matchAll(/\b(?:f3Dizer|dizer)\(([^)]*)\)/g)) {
+                if (!m[1].includes('roubados')) pelados.push(`${f}: dizer(${m[1]})`);
+            }
+        }
+        expect(pelados).toEqual([]);
     });
 });

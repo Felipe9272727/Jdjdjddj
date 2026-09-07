@@ -29,7 +29,7 @@ import Floor3Cutscene from './Floor3Cutscene';
 import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic, playCartoonSfx } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
-import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3Sfx';
+import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver, playFloor3Voice, resetFloor3Voice } from './floor3Sfx';
 import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
 import { aoFalar, f3Fala } from './f3Falas';
 import Floor3Grito from './Floor3Grito';
@@ -655,8 +655,13 @@ export default function App() {
   useEffect(() => {
     if (currentLevel !== 3) { setF3Grito(''); return; }
     let saida: ReturnType<typeof setTimeout> | undefined;
-    aoFalar(() => {
+    aoFalar((f) => {
       setF3Grito(f3Fala.texto);
+      // E ELE ABRE A BOCA. Até esta volta o balão nascia em silêncio absoluto,
+      // o que lia como notificação de interface e não como alguém falando. O
+      // timbre envelhece com `roubados` (ver f3Voz): quanto menos pincel na mão
+      // dele, mais agudo e mais fino sai — o arco do andar, pelo ouvido.
+      playFloor3Voice(f.texto, { roubados: f.roubados, grito: true });
       if (saida) clearTimeout(saida);
       saida = setTimeout(() => setF3Grito(''), Math.max(0, f3Fala.ate - performance.now()));
     });
@@ -664,6 +669,17 @@ export default function App() {
   }, [currentLevel]);
   useEffect(() => {
     if (!fallBegging) { setFallLine(0); return; }
+    // ── A SÚPLICA TEM VOZ, E É A VOZ MAIS RACHADA DO ANDAR ────────────────
+    // Aqui os três pincéis já estão fora das mãos dele, então `roubados: 3`
+    // leva o timbre ao extremo do arco: agudo, a surdina quase fechada, o
+    // fervilhar acelerado. É o mesmo instrumento que abriu o andar se gabando —
+    // e é POR ser o mesmo que dá pra ouvir o quanto ele mudou.
+    // O jogador responde com outro timbre e sem fervilhar: ele não é traço dele.
+    const linha = FALL_DIALOGUE[fallLine];
+    if (linha) playFloor3Voice(linha.t, {
+        roubados: 3,
+        quem: linha.s === 'player' ? 'jogador' : 'diabrete',
+    });
     if (fallLine >= FALL_DIALOGUE.length - 1) return;     // reached the choice — hold
     const dur = FALL_DIALOGUE[fallLine].s === 'player' ? 2500 : 3200;
     const id = setTimeout(() => setFallLine((i) => i + 1), dur);
@@ -1074,6 +1090,7 @@ export default function App() {
           stopCartoonMusic(0.5);
           setMusicActive('ragtime', false);
           clearFloor3Sfx();
+          resetFloor3Voice();   // a próxima visita não herda o intervalo da última fala
           setCartoonIntro(false);
           setCartoonCutscene(false);
           setCartoonFall(false);

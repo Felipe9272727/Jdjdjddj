@@ -15,7 +15,7 @@ import {
     molaDoTranco as f3Tranco, TRANCO_DA_CAMERA, TRANCO_PARADO,
 } from './f3Fisica';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
-import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
+import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush, f3Progress as f3Progresso } from './f3Hazards';
 import { dizer as f3Dizer } from './f3Falas';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
@@ -962,7 +962,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 // disparadas: conteúdo escrito, revisado, testado, e morto. É o
                 // único lugar do andar em que o jogador falha sozinho, e era
                 // justamente o único em que ninguém comentava.
-                f3Dizer('caiu');
+                f3Dizer('caiu', { roubados: f3Progresso.brushes });
                 const rp = f3RespawnPoint(pos.current.z);
                 pos.current.set(rp.x, rp.y, rp.z);
                 jumpVelYRef.current = 0;

@@ -33,6 +33,7 @@ import { createToonMaterial, type ToonOpts } from './cartoonToon';
 import { molaDoTranco, TRANCO_DA_PLATAFORMA, TRANCO_PARADO } from './f3Fisica';
 import { faixaDaNevoa } from './f3Nevoa';
 import { acabamentoDoAndar, mudouOAcabamento } from './f3Desenho';
+import { playFloor3Unmake } from './floor3Sfx';
 import { f3Progress } from './f3Hazards';
 
 // ─── Palette (rubber-hose black & white) ─────────────────────────────────────
@@ -528,6 +529,8 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
     // seca das três (a peça é de tinta e madeira, não uma cama elástica).
     const afundando = useRef({ id: -1, tranco: TRANCO_PARADO });
     const acabamentoRef = useRef(acabamentoDoAndar(0));
+    /** Falso até o andar aplicar acabamento uma vez — ver o comentário do som. */
+    const jaSincronizou = useRef(false);
 
     // Build the endless course once on mount, then force a render so the freshly
     // populated pool actually paints (reset() mutates a module array, which
@@ -558,6 +561,16 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
             for (const m of _toonCache.values()) {
                 if (m.uniforms.uTabuasForca) m.uniforms.uTabuasForca.value = acab.tabuado;
             }
+            // E DÁ PRA OUVIR O CHÃO SUMIR. Um esfregaço descendente — borracha
+            // no papel, o contrário do risco de pena com que ele desenha os
+            // espinhos. O mudo aqui era o pior tipo: a coisa mais importante que
+            // acontece no andar (o mundo dele se apagando) acontecia sem ruído.
+            //
+            // A PRIMEIRA sincronização é MUDA de propósito: quem volta ao andar
+            // com pincéis já no bolso encontra o acabamento certo, e não um
+            // apagamento que não aconteceu agora.
+            if (jaSincronizou.current) playFloor3Unmake();
+            jaSincronizou.current = true;
         }
 
         const before = f3Platforms.length ? f3Platforms[0].id : -1;

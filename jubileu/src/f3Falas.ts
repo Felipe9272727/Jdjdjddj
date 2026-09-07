@@ -151,9 +151,25 @@ export const f3Fala = {
     serie: 0,      // sobe a cada fala nova (o HUD compara isto, não a string)
 };
 
-let _avisar: (() => void) | null = null;
+/**
+ * O que o assinante recebe quando ele abre a boca. O HUD só quer saber QUE
+ * falou; a VOZ (`f3Voz`/`floor3Sfx`) precisa saber o TEXTO e em que altura do
+ * arco ele está, porque o timbre dele envelhece a cada pincel perdido.
+ *
+ * Isto anda por parâmetro, e não por import, DE PROPÓSITO: este módulo é puro e
+ * roda em teste sem navegador. Quem tem WebAudio é quem assina.
+ *
+ * E só carrega o que alguém lê. Chegou a levar o `evento` junto, que ninguém
+ * consumia — é a mesma classe de defeito que `f3Coerencia` varre no andar: campo
+ * escrito, tipado, e morto.
+ */
+export interface FalaViva extends Fala {
+    roubados: number;
+}
+
+let _avisar: ((f: FalaViva) => void) | null = null;
 /** O HUD se inscreve aqui para saber que tem fala nova sem varrer por quadro. */
-export function aoFalar(cb: (() => void) | null): void { _avisar = cb; }
+export function aoFalar(cb: ((f: FalaViva) => void) | null): void { _avisar = cb; }
 
 const agora = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -169,7 +185,7 @@ export function dizer(evento: EventoDoDiabrete, ctx: Contexto = {}): Fala {
     f3Fala.texto = f.texto;
     f3Fala.ate = agora() + f.dura * 1000;
     f3Fala.serie += 1;
-    _avisar?.();
+    _avisar?.({ ...f, roubados: Math.max(0, Math.floor(ctx.roubados ?? 0) || 0) });
     return f;
 }
 

@@ -15,6 +15,8 @@
  * music director — they're not music and are meant to sit on top of the score.
  */
 
+import { vozDoDiabrete, type OpcoesDeVoz } from './f3Voz';
+
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
 
@@ -308,4 +310,104 @@ export function playFloor3Fall(): void {
     pg.gain.exponentialRampToValueAtTime(0.18, t + 1.35);
     pg.gain.exponentialRampToValueAtTime(0.0005, t + 1.55);
     p.connect(pg).connect(d); p.start(t + 1.32); p.stop(t + 1.56);
+}
+
+// ── A BOCA DO DIABRETE ───────────────────────────────────────────────────────
+//
+// A partitura (quantas notas, altura, acento, como o timbre envelhece a cada
+// pincel roubado) mora em `f3Voz.ts`, que é puro e testado. Aqui só se TOCA o
+// que ela escreveu: um trombone com surdina, uma nota por palavra.
+//
+// Por que trombone e não fala: num curta de 1930 o vilão resmunga num
+// instrumento. E é o único jeito honesto — voz gravada seriam megabytes no
+// celular, e o andar inteiro foi enxugado justamente para não ter isso.
+
+let ultimaVozEm = -1;
+/** Duas falas coladas viravam um borrão. Uma atropela a outra, não soma. */
+const INTERVALO_MINIMO = 0.11;
+
+/** O Diabrete (ou o jogador) abrindo a boca. Ver `f3Voz.vozDoDiabrete`. */
+export function playFloor3Voice(texto: string, opts: OpcoesDeVoz = {}): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    if (!texto || !texto.trim()) return;
+    const t0 = ctx.currentTime;
+    if (t0 - ultimaVozEm < INTERVALO_MINIMO) return;
+    ultimaVozEm = t0;
+
+    const voz = vozDoDiabrete(texto, opts);
+    const trombone = voz.timbre === 'trombone';
+
+    for (const b of voz.blats) {
+        const ts = t0 + b.t;
+        const o = ctx.createOscillator();
+        o.type = trombone ? 'sawtooth' : 'triangle';
+        // Cada nota cai um tico dentro de si — o "wah" do trombone com surdina.
+        o.frequency.setValueAtTime(b.hz * 1.07, ts);
+        o.frequency.exponentialRampToValueAtTime(b.hz * 0.93, ts + b.dur);
+
+        // A surdina. É ela que faz virar boca em vez de bipe.
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = voz.q;
+        bp.frequency.setValueAtTime(voz.surdina * (b.acento ? 1.25 : 1), ts);
+        bp.frequency.exponentialRampToValueAtTime(voz.surdina * 0.72, ts + b.dur);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ts);
+        g.gain.exponentialRampToValueAtTime(b.ganho, ts + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0006, ts + b.dur);
+
+        let cadeia: AudioNode = o;
+        cadeia = cadeia.connect(bp);
+        cadeia.connect(g).connect(d);
+
+        // O FERVILHAR na voz: o mesmo 8 Hz do traço do chão, acelerando conforme
+        // ele perde os pincéis. O jogador não ferve (boilHz 0) — ele não é
+        // desenho do Diabrete, e dá pra ouvir de olhos fechados quem está falando.
+        if (voz.boilHz > 0) {
+            const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = voz.boilHz;
+            const lg = ctx.createGain(); lg.gain.value = b.hz * 0.05;
+            lfo.connect(lg).connect(o.frequency);
+            lfo.start(ts); lfo.stop(ts + b.dur + 0.02);
+        }
+
+        o.start(ts); o.stop(ts + b.dur + 0.02);
+    }
+}
+
+/** Esquece a última fala — para a bancada e para a troca de andar. */
+export function resetFloor3Voice(): void { ultimaVozEm = -1; }
+
+/** O andar se desmanchando: um pincel saiu da mão dele e o traço se apaga.
+ *  Um esfregaço DESCENDENTE de ruído filtrado — borracha passando no papel,
+ *  o contrário exato do risco de pena do `playFloor3Draw`. */
+export function playFloor3Unmake(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+
+    // Esfregaço: ruído por um passa-banda que DESCE (o desenho indo embora).
+    const n = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
+    const ch = n.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+    const ns = ctx.createBufferSource(); ns.buffer = n;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.setValueAtTime(2400, t);
+    bp.frequency.exponentialRampToValueAtTime(320, t + 0.42);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.13, t + 0.03);
+    ng.gain.exponentialRampToValueAtTime(0.0006, t + 0.46);
+    ns.connect(bp).connect(ng).connect(d);
+    ns.start(t); ns.stop(t + 0.48);
+
+    // E o tom despencando junto: o mesmo apito de queda do andar, curto e baixo.
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(560, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.40);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.44);
+    o.connect(g).connect(d);
+    o.start(t); o.stop(t + 0.46);
 }

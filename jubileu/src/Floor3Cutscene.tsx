@@ -21,6 +21,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
+import { playFloor3Voice } from './floor3Sfx';
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
@@ -95,8 +96,21 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         const t = clock.current;
 
         const li = lineAt(t);
-        if (li !== lineRef.current) { lineRef.current = li; onLine(li); }
         const line = DIABRETE_SCRIPT[li];
+        if (li !== lineRef.current) {
+            lineRef.current = li;
+            onLine(li);
+            // ── A APRESENTAÇÃO DEIXA DE SER MUDA ─────────────────────────
+            // A cutscene da queda já tinha quatro batidas de som; esta, que é
+            // onde o andar apresenta o vilão, não tinha nenhuma. Uma nota de
+            // trombone por palavra, na abertura do arco (`roubados: 0`): grave,
+            // gordo, seguro de si. É contra este timbre que a súplica lá no
+            // fim, com os três pincéis perdidos, vai soar rachada.
+            if (line) playFloor3Voice(line.text, {
+                roubados: 0,
+                quem: line.speaker === 'player' ? 'jogador' : 'diabrete',
+            });
+        }
         const gesture: Gesture = line?.gesture ?? 'idle';
         const tl = timeInLine(t);
         const dashing = gesture === 'dash';
