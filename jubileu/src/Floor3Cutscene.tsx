@@ -16,13 +16,14 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
+import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const STAND     = new THREE.Vector3(0.9, 0, -9.2);   // on the landing, ahead of the player
@@ -47,6 +48,7 @@ class Spring {
 
 const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
+    const { camera } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
 
@@ -54,6 +56,9 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const lineRef  = useRef(-1);
     const doneRef  = useRef(false);
     const dashPos  = useRef(new THREE.Vector3().copy(STAND));
+    // Qual fala está no ar e quando ela entrou — é a troca que dispara o CORTE.
+    const linhaRef = useRef(-1);
+    const tLinha   = useRef(0);
 
     // Springs for limber, weighty motion.
     const sLean  = useRef(new Spring(16, 5.5));
@@ -165,13 +170,35 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
             groupRef.current.rotation.y = Math.PI + 0.16;    // ≈ face the player (-Z), slight 3/4
         }
 
-        // Camera look-at = the character's FEET (the dialogue cam adds its own
-        // look/camera height; feeding chest height aimed it over his head).
+        // ── A CÂMERA É DESTA CENA, e não mais a de diálogo ────────────────
+        //
+        // Ela era a câmera genérica de diálogo do <Player>, alimentada com os PÉS
+        // dele. O resultado, fotografado pela bancada: um close fixo na cara,
+        // segurando as nove falas inteiras, com o CORPO INTEIRO FORA DO QUADRO.
+        // E ele está atuando o tempo todo — aponta, se inclina, abre os braços,
+        // gargalha. A animação existe, é boa, e ninguém via.
+        //
+        // Agora esta cena tem a própria decupagem (`f3Decupagem`), como a queda:
+        // cada fala tem o seu plano e a troca de fala é o corte. A regra que
+        // manda aqui é outra — em rubber-hose a atuação está no CORPO, então
+        // plano de corpo é o normal e close é tempero. O teste cobra que os
+        // planos de corpo abracem os 2,2 m dele com folga para o gesto.
+        //
+        // `targetRef` continua sendo alimentado porque é ele que a UI usa para
+        // saber onde o Diabrete está; a câmera é que deixou de depender dele.
         targetRef.current.set(
             groupRef.current.position.x,
             STAND.y,
             groupRef.current.position.z,
         );
+        if (linhaRef.current !== li) { linhaRef.current = li; tLinha.current = clock.current; }
+        const pl = planoDaApresentacao(li, PALCO_DA_APRESENTACAO,
+            (clock.current - tLinha.current) / 3.2);
+        camera.position.set(pl.x, pl.y, pl.z);
+        camera.up.set(0, 1, 0);
+        camera.lookAt(pl.lx, pl.ly, pl.lz);
+        (camera as THREE.PerspectiveCamera).fov = pl.fov;
+        camera.updateProjectionMatrix();
 
         // ── Apply bone targets with springs (+ wobble overshoot) ─────────────
         bones[B.body].position.y = 0.46 + bodyBob;

@@ -292,3 +292,140 @@ export function veOCorpoInteiro(p: Palco, c: Plano): boolean {
     if (!eixo(c.z, dz, cz0, cz1)) return true;
     return t0 > t1;
 }
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// A APRESENTAÇÃO — quando as portas abrem e ele se apresenta
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Fotografada pela bancada pela primeira vez, e o diagnóstico foi o mesmo da
+// súplica com um agravante. A câmera é UMA só, colada num close da cara dele,
+// segurando as nove falas inteiras. E ele ESTÁ ATUANDO — aponta, se inclina,
+// abre os braços, gargalha — só que o corpo inteiro fica FORA DO QUADRO. A
+// animação existe, é boa, e ninguém vê.
+//
+// Aqui a regra que manda não é "de onde dá para filmar" (como no abismo da
+// súplica): é O CORPO TEM DE CABER. Em rubber-hose a atuação está no corpo
+// inteiro, então quase todo plano é de corpo, e close é tempero.
+
+export interface PalcoDaApresentacao {
+    /** Onde ele planta os pés (o STAND do Floor3Cutscene). */
+    x: number; y: number; z: number;
+    /** Onde o jogador está, olhando para ele. */
+    jogadorZ: number;
+}
+
+export const PALCO_DA_APRESENTACAO: PalcoDaApresentacao =
+    Object.freeze({ x: 0.9, y: 0, z: -9.2, jogadorZ: -13 });
+
+/** A altura dele no mundo (modelo ~1,0 × DIABRETE_SCALE). */
+export const ALTURA_DO_DIABRETE = 2.2;
+
+export type NomeDaApresentacao = 'apresenta' | 'medio' | 'perto' | 'escadaria' | 'pincel';
+
+export function planoDeApresentacao(
+    nome: NomeDaApresentacao, p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO, deriva = 0,
+): Plano {
+    const d = Math.max(0, Math.min(1, deriva));
+    switch (nome) {
+        // O ESTABELECIMENTO — o ponto de vista de quem acabou de sair do
+        // elevador. Ele na plataforma e a escadaria inteira atrás.
+        case 'apresenta': return {
+            // A DERIVA RECUA, não avança: avançando ela fechava o quadro (o
+            // plano de corpo perdia a folga do gesto) e ainda encostava no plano
+            // seguinte, deixando o corte com menos de um metro — o que não é
+            // corte, é um passinho.
+            x: p.x - 0.7, y: 2.5 - d * 0.12, z: p.jogadorZ - 0.2 - d * 0.35,
+            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 55,
+        };
+        // O PLANO DE CORPO — o normal desta cena. Ele inteiro, do chapéu ao
+        // sapato, com espaço para o braço que aponta.
+        // (Estava a 3,1 m com fov 44 e abraçava 2,55 m — quinze centímetros a
+        //  menos que a folga que o teste exige, ou seja, cortava o gesto quando
+        //  ele levanta o braço. Meio metro atrás e dois graus mais aberto.)
+        case 'medio': return {
+            x: p.x - 0.9, y: 1.95 - d * 0.1, z: p.jogadorZ + 0.45 - d * 0.3,
+            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 46,
+        };
+        // A ESCADARIA — três quartos de lado, com o curso no quadro. É o plano
+        // da fala em que ele diz que o lugar é dele: o assunto é o LUGAR.
+        // ── O PLANO DE BAIXO, E POR QUE ELE NÃO É DE LADO ────────────────
+        //
+        // Este plano nasceu lateral, para a escadaria entrar no quadro junto com
+        // ele. A 3,9 m para o lado a câmera caiu DENTRO DO POÇO do elevador:
+        // quatro quadros de marrom chapado, no meio da fala mais importante da
+        // cena. Empurrei 1,2 m para a frente e continuou dentro — o poço é mais
+        // fundo do que eu supus, e eu estava adivinhando onde a parede acaba.
+        //
+        // Então ele deixou de ser lateral. Câmera BAIXA, no eixo, olhando para
+        // cima: o vão da porta é o único corredor que garantidamente não tem
+        // parede, e um contra-plongée diz exatamente o que a fala diz — o lugar
+        // é dele. A escadaria entra atrás pelo fundo, não pelo lado.
+        case 'escadaria': return {
+            x: p.x - 0.4, y: 0.75 + d * 0.12, z: p.jogadorZ + 0.6 + d * 0.3,
+            lx: p.x, ly: p.y + 1.5, lz: p.z, fov: 58,
+        };
+        // O PINCEL — mais perto e do lado direito dele, que é onde o pincel
+        // está preso. É o plano da fala que ensina a mecânica do andar.
+        case 'pincel': return {
+            x: p.x + 1.9, y: 1.7 - d * 0.08, z: p.jogadorZ + 1.7 + d * 0.2,
+            lx: p.x + 0.35, ly: p.y + 1.15, lz: p.z, fov: 38,
+        };
+        // O CLOSE — tempero, para a ameaça e para a gargalhada.
+        default: return {
+            x: p.x - 0.35, y: 1.85 - d * 0.08, z: p.jogadorZ + 1.9 + d * 0.25,
+            lx: p.x, ly: p.y + 1.35, lz: p.z, fov: 36,
+        };
+    }
+}
+
+/**
+ * A DECUPAGEM DA APRESENTAÇÃO, fala a fala (`diabreteScript`).
+ *
+ * A lógica: quem fala do LUGAR ganha o lugar no quadro; quem ameaça ganha a
+ * cara; quem ensina a regra do jogo ganha o pincel; e a corrida final precisa de
+ * plano aberto para a arrancada caber.
+ */
+export const DECUPAGEM_DA_APRESENTACAO: readonly NomeDaApresentacao[] = Object.freeze([
+    'apresenta',  // 0 — "Olha só o que o elevador cuspiu!"
+    'medio',      // 1 — "Que… que diabo é você?"
+    'medio',      // 2 — "DIABO é meu sobrenome!"        (ele aponta: corpo)
+    'escadaria',  // 3 — "Essa escadaria é MINHA"        (o assunto é o lugar)
+    'perto',      // 4 — "Vou desenhar o teu fracasso"   (a ameaça, na cara)
+    'medio',      // 5 — "Bora apostar corrida?"
+    'perto',      // 6 — "HÁ! Me alcança, perna-curta!"  (a gargalhada)
+    'pincel',     // 7 — "sem os meus PINCÉIS…"          (a regra do jogo)
+    'apresenta',  // 8 — "Até já… ou nunca! WHOOSH!"     (a arrancada)
+]);
+
+export function planoDaApresentacao(
+    linha: number, p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO, deriva = 0,
+): Plano {
+    return planoDeApresentacao(DECUPAGEM_DA_APRESENTACAO[linha] ?? 'medio', p, deriva);
+}
+
+/** Quantos metros de altura o quadro abraça, à distância do sujeito. */
+export function alturaEnquadrada(c: Plano, p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO): number {
+    const dist = Math.hypot(c.x - p.x, c.y - (p.y + ALTURA_DO_DIABRETE / 2), c.z - p.z);
+    return 2 * dist * Math.tan((c.fov * Math.PI) / 180 / 2);
+}
+
+
+/**
+ * A câmera está fora do poço do elevador?
+ *
+ * O jogador chega parado no vão da porta (`jogadorZ`), com a cabine atrás dele e
+ * as paredes dos dois lados. Quem quiser filmar DE LADO tem de ter saído também
+ * para a FRENTE — senão entra na parede, que é exatamente o que aconteceu com o
+ * plano da escadaria: quatro quadros de marrom chapado no meio da fala em que
+ * ele diz que a escadaria é dele.
+ */
+export function foraDoPoco(c: Plano, p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO): boolean {
+    const paraOLado = Math.abs(c.x - p.x);
+    if (paraOLado <= 2.2) return c.z >= p.jogadorZ - 1.2;   // no eixo, o vão é livre
+    // DE LADO A FOLGA É MUITO MAIOR do que eu tinha posto. Um plano a 3,4 m para
+    // o lado e a 1,2 m à frente da porta AINDA saiu dentro da parede — medido na
+    // bancada, não deduzido. Quem sai do eixo tem de estar praticamente na altura
+    // dele, já na plataforma, e não no vão.
+    return c.z >= p.z - 1.0;
+}

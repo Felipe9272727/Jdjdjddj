@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
     LAJES_DA_CUTSCENE, caixaDaLaje, dentroDeAlgumaLaje,
     plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves, veOCorpoInteiro,
+    planoDeApresentacao, planoDaApresentacao, alturaEnquadrada, ALTURA_DO_DIABRETE,
+    DECUPAGEM_DA_APRESENTACAO, PALCO_DA_APRESENTACAO, foraDoPoco, type NomeDaApresentacao,
     DECUPAGEM_DA_SUPLICA, type Palco, type NomeDoPlano,
 } from '../f3Decupagem';
 
@@ -188,5 +190,94 @@ describe('f3Decupagem — a decupagem da súplica', () => {
         expect(c.x1 - c.x0).toBeGreaterThan(laje.hw * 2);
         expect(c.y1).toBe(laje.topY);
         expect(c.y0).toBeLessThan(laje.topY - laje.h);   // o bloco de tinta desce mais
+    });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('f3Decupagem — a apresentação do Diabrete', () => {
+    const NOMES_AP: NomeDaApresentacao[] = ['apresenta', 'medio', 'perto', 'escadaria', 'pincel'];
+
+    it('toda fala do roteiro tem plano', () => {
+        expect(DECUPAGEM_DA_APRESENTACAO).toHaveLength(9);   // DIABRETE_SCRIPT
+        for (const n of DECUPAGEM_DA_APRESENTACAO) expect(NOMES_AP).toContain(n);
+    });
+
+    // ── O CORPO TEM DE CABER ────────────────────────────────────────────
+    // Foi ESTE o defeito que a bancada achou: um close fixo na cara dele
+    // segurando as nove falas, com o corpo inteiro fora do quadro. Ele aponta,
+    // se inclina, abre os braços, gargalha — e nada disso aparecia. Em
+    // rubber-hose a atuação está no corpo, então plano de corpo é o normal e
+    // close é tempero.
+    it('os planos de corpo abraçam o Diabrete inteiro, com folga para o gesto', () => {
+        for (const nome of ['apresenta', 'medio', 'escadaria'] as NomeDaApresentacao[]) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                const alt = alturaEnquadrada(planoDeApresentacao(nome, PALCO_DA_APRESENTACAO, d));
+                expect(alt, `${nome} d=${d.toFixed(2)} corta o corpo`)
+                    .toBeGreaterThan(ALTURA_DO_DIABRETE * 1.25);
+            }
+        }
+    });
+
+    it('e os closes são mesmo closes — senão não haveria variação nenhuma', () => {
+        for (const nome of ['perto', 'pincel'] as NomeDaApresentacao[]) {
+            const alt = alturaEnquadrada(planoDeApresentacao(nome));
+            expect(alt, nome).toBeLessThan(ALTURA_DO_DIABRETE * 1.25);
+        }
+    });
+
+    it('a maioria das falas é de CORPO; close é tempero', () => {
+        const deCorpo = DECUPAGEM_DA_APRESENTACAO
+            .filter((n) => n === 'apresenta' || n === 'medio' || n === 'escadaria').length;
+        expect(deCorpo).toBeGreaterThan(DECUPAGEM_DA_APRESENTACAO.length / 2);
+    });
+
+    // ── NINGUÉM FILMA DE DENTRO DA PAREDE ───────────────────────────────
+    // O jogador chega parado no vão da porta, com a cabine atrás e as paredes
+    // dos dois lados. O plano da escadaria saía 3,9 m para o lado sem sair para
+    // a frente, e entrava no poço: quatro quadros de marrom chapado no meio da
+    // fala mais importante da cena — a que diz que a escadaria é dele.
+    it('nenhum plano entra no poço do elevador', () => {
+        for (const nome of NOMES_AP) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                expect(foraDoPoco(planoDeApresentacao(nome, PALCO_DA_APRESENTACAO, d)),
+                    `${nome} d=${d.toFixed(2)}`).toBe(true);
+            }
+        }
+    });
+
+    it('foraDoPoco reprova o plano que realmente entrou na parede', () => {
+        // as DUAS tentativas que a bancada mostrou entrando na parede
+        const primeira = { x: PALCO_DA_APRESENTACAO.x + 3.9, y: 2.7,
+                           z: PALCO_DA_APRESENTACAO.jogadorZ + 0.7,
+                           lx: 1.6, ly: 1.0, lz: -8.3, fov: 50 };
+        const segunda  = { x: PALCO_DA_APRESENTACAO.x + 3.4, y: 2.7,
+                           z: PALCO_DA_APRESENTACAO.z - 2.6,
+                           lx: 1.6, ly: 1.0, lz: -8.3, fov: 50 };
+        expect(foraDoPoco(primeira)).toBe(false);
+        expect(foraDoPoco(segunda)).toBe(false);
+    });
+
+    it('trocar de plano entre falas move a câmera de verdade', () => {
+        let cortes = 0;
+        for (let i = 1; i < DECUPAGEM_DA_APRESENTACAO.length; i++) {
+            if (DECUPAGEM_DA_APRESENTACAO[i] === DECUPAGEM_DA_APRESENTACAO[i - 1]) continue;
+            const a = planoDaApresentacao(i - 1, PALCO_DA_APRESENTACAO, 1);
+            const b = planoDaApresentacao(i, PALCO_DA_APRESENTACAO, 0);
+            expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), `corte ${i - 1}→${i}`)
+                .toBeGreaterThan(0.8);
+            cortes += 1;
+        }
+        expect(cortes).toBeGreaterThanOrEqual(5);   // é cena montada, não plano-sequência
+    });
+
+    it('todo plano olha para ele, e nenhum fica atrás dele', () => {
+        for (const nome of NOMES_AP) {
+            const c = planoDeApresentacao(nome);
+            expect(Math.hypot(c.lx - PALCO_DA_APRESENTACAO.x, c.lz - PALCO_DA_APRESENTACAO.z), nome)
+                .toBeLessThan(1.5);
+            // ele encara o jogador (−Z); a câmera fica desse lado
+            expect(c.z, `${nome} foi parar atrás dele`).toBeLessThan(PALCO_DA_APRESENTACAO.z);
+        }
     });
 });
