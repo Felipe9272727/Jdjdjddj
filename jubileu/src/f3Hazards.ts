@@ -163,7 +163,7 @@ function spawnObstacle(playerZ: number): void {
     f3Progress.drawFlashAt = now();
     // ELE COMENTA O QUE FAZ. Ver `f3Falas`: o cara que prometeu desenhar o
     // fracasso do jogador ficava mudo do começo ao fim da escalada.
-    dizer('desenhou');
+    dizer('desenhou', { roubados: f3Progress.brushes });
     // Drop a paintbrush further up: the FIRST one right away (teaches the steal
     // mechanic immediately), then on every other obstacle after that.
     if (f3Progress.obstacles % 2 === 1) spawnBrush(playerZ);
@@ -188,7 +188,7 @@ export function registerJump(playerZ: number): void {
     // A provocação de ócio anda no RITMO DO JOGO, e não num temporizador novo:
     // quem sobe devagar ouve menos, quem voa ouve mais. E cai no meio do
     // compasso de dez para não pisar na fala do obstáculo.
-    else if (f3Progress.jumps % 10 === 5) dizer('provoca');
+    else if (f3Progress.jumps % 10 === 5) dizer('provoca', { roubados: f3Progress.brushes });
 }
 
 // ── Per-frame tick (renderer owns it) ─────────────────────────────────────────

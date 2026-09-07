@@ -83,8 +83,38 @@ const ROUBOU: Fala[] = [
     { texto: 'N-não… esse não… sem ele eu não sou NADA aqui…', dura: 3.6 },
 ];
 
+// ── E DEPOIS QUE O ANDAR COMEÇA A FALTAR ─────────────────────────────────────
+//
+// A partir da volta em que o Andar 3 se desfaz junto com o dono (`f3Desenho`:
+// as setas desbotam com um pincel roubado, somem com dois, e o tabuado rareia),
+// as falas dele ficaram DESATUALIZADAS. Ele continuava se gabando do traço
+// enquanto o traço sumia do chão atrás dele — a mecânica dizia uma coisa e a
+// boca dizia outra, e é a boca que o jogador escuta.
+//
+// Então ele passa a comentar o estrago. Não é um evento novo: são os MESMOS
+// eventos, com outro repertório depois que a primeira ferramenta some. É assim
+// que um personagem muda de tom sem precisar de mais uma cutscene.
+const DESENHOU_ESTRAGADO: Fala[] = [
+    { texto: 'Com dois pincéis ainda dá pra estragar o teu dia, ó!', dura: 3.2 },
+    { texto: 'Tá torto? Tá torto porque tu MEXEU nas minhas coisas!', dura: 3.4 },
+    { texto: 'Esse aqui saiu meio borrado… culpa TUA, ladrão!', dura: 3.2 },
+];
+
+const PROVOCA_ESTRAGADO: Fala[] = [
+    { texto: 'Olha o que tu fez com a minha escadaria!', dura: 3.0 },
+    { texto: 'Sumiram as setas, viu? Agora te vira pra achar o caminho!', dura: 3.6 },
+    { texto: 'Tá vendo o tabuado sumindo? Eu não tenho MÃO pra tudo!', dura: 3.6 },
+    { texto: 'Devolve, vai! Eu prometo que só espeto um pouquinho!', dura: 3.4 },
+];
+
 const BANCO: Record<EventoDoDiabrete, Fala[]> = {
     desenhou: DESENHOU, espetou: ESPETOU, caiu: CAIU, provoca: PROVOCA, roubou: ROUBOU,
+};
+
+/** O repertório depois que o andar começa a faltar. */
+const BANCO_ESTRAGADO: Partial<Record<EventoDoDiabrete, Fala[]>> = {
+    desenhou: DESENHOU_ESTRAGADO,
+    provoca: PROVOCA_ESTRAGADO,
 };
 
 /** Quantos pincéis já foram roubados quando a fala de roubo é escolhida. */
@@ -103,7 +133,11 @@ export function escolherFala(evento: EventoDoDiabrete, ctx: Contexto = {}): Fala
         const i = Math.max(1, Math.min(ROUBOU.length, ctx.roubados ?? 1)) - 1;
         return ROUBOU[i];
     }
-    const lista = BANCO[evento];
+    // Com ferramenta faltando, ele fala do estrago — quando há repertório para
+    // isso. O cursor é o MESMO, então trocar de repertório no meio da escalada
+    // não faz ele repetir a fala que acabou de dizer.
+    const estragado = (ctx.roubados ?? 0) >= 1;
+    const lista = (estragado && BANCO_ESTRAGADO[evento]) || BANCO[evento];
     const f = lista[cursor[evento] % lista.length];
     cursor[evento] += 1;
     return f;

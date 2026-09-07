@@ -21,7 +21,8 @@ const ctx = await b.newContext({ viewport:{width:L,height:A}, deviceScaleFactor:
 const p = await ctx.newPage(); await ponte.instalarEm(p);
 await p.route('**://raw.githubusercontent.com/**', r=>r.fulfill({status:200,contentType:'image/png',body:PNG}));
 await p.route('**://www.google.com/**', r=>r.abort());
-const falas = ['EI! EI! Aquele é MEU! Larga o meu pincel, ladrão!','Tá cansando, perna-curta?','N-não… esse não… sem ele eu não sou NADA aqui…'];
+const falas = process.env.FALAS ? JSON.parse(process.env.FALAS)
+  : ['EI! EI! Aquele é MEU! Larga o meu pincel, ladrão!','Tá cansando, perna-curta?','N-não… esse não… sem ele eu não sou NADA aqui…'];
 for (let i=0;i<falas.length;i++){
   await p.goto('http://127.0.0.1:3011/index.html?f3preview&nopost&grito='+encodeURIComponent(falas[i]),{waitUntil:'domcontentloaded',timeout:120000});
   await new Promise(r=>setTimeout(r,9000));

@@ -98,3 +98,47 @@ describe('f3Falas — a voz do Diabrete durante a escalada', () => {
         expect(escolherFala('provoca').texto).toBe(primeira);
     });
 });
+
+// ── DEPOIS QUE O ANDAR COMEÇA A FALTAR ───────────────────────────────────────
+// O Andar 3 se desfaz conforme ele perde os pincéis (f3Desenho): as setas
+// desbotam, depois somem, e o tabuado rareia. As falas não sabiam disso — ele
+// continuava se gabando do traço enquanto o traço sumia do chão atrás dele. A
+// mecânica dizia uma coisa e a boca dizia outra, e é a boca que se escuta.
+describe('f3Falas — o tom muda quando a ferramenta some', () => {
+    beforeEach(() => { limparFalas(); aoFalar(null); });
+
+    it('com pincel roubado ele passa a falar do ESTRAGO', () => {
+        for (const ev of ['provoca', 'desenhou'] as EventoDoDiabrete[]) {
+            limparFalas();
+            const inteiro = new Set<string>();
+            for (let i = 0; i < 6; i++) inteiro.add(escolherFala(ev, { roubados: 0 }).texto);
+            limparFalas();
+            const estragado = new Set<string>();
+            for (let i = 0; i < 6; i++) estragado.add(escolherFala(ev, { roubados: 1 }).texto);
+            for (const t of estragado) expect(inteiro.has(t), `${ev}: "${t}" repetiu o repertório de antes`).toBe(false);
+        }
+    });
+
+    it('e o que ele fala nomeia o que o jogador está vendo sumir', () => {
+        limparFalas();
+        const ditas: string[] = [];
+        for (let i = 0; i < 4; i++) ditas.push(escolherFala('provoca', { roubados: 2 }).texto);
+        const juntas = ditas.join(' | ');
+        expect(juntas).toMatch(/escadaria|setas?|tabuado/i);
+    });
+
+    it('trocar de repertório no meio não faz ele repetir a fala anterior', () => {
+        limparFalas();
+        const antes = escolherFala('provoca', { roubados: 0 }).texto;
+        const depois = escolherFala('provoca', { roubados: 1 }).texto;
+        expect(depois).not.toBe(antes);
+    });
+
+    it('sem pincel roubado, nada muda — o repertório de sempre', () => {
+        limparFalas();
+        const a = escolherFala('desenhou', { roubados: 0 }).texto;
+        limparFalas();
+        const b = escolherFala('desenhou').texto;
+        expect(a).toBe(b);
+    });
+});
