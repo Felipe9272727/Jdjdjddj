@@ -2570,50 +2570,124 @@ export default function App() {
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'bottom', animation: 'f3fall-bars .4s ease-out both' }} />
         </div>
       )}
-      {/* Diabrete's conversation + (at the end) the choice: SALVAR (→ betrayed,
-          shoved, back to the start of Floor 3) or PISAR (→ Floor 4) */}
-      {cartoonFall && fallBegging && fallChoice === 'none' && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: '12%', zIndex: 88,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+      {/* ── A VOZ DO ANDAR ──────────────────────────────────────────────
+          A conversa do Diabrete pendurado, e no fim a escolha: SALVAR (→ ele te
+          trai, te empurra, volta pro começo do Andar 3) ou PISAR (→ Andar 4).
+
+          O texto sempre foi o melhor do jogo; a CAIXA é que era de outro jogo.
+          Retângulo arredondado, sombra dura, gradiente verde e vermelho nos
+          botões: interface de menu mobile pousada em cima de um curta de 1930.
+
+          Agora é um BALÃO desenhado: contorno de tinta grossa, forma torta (os
+          quatro cantos com raios diferentes, que é o que faz parecer traçado à
+          mão e não gerado), rabicho apontando para quem fala, e — a parte que
+          amarra tudo — a linha FERVILHA. É o mesmo `steps()` de 8 Hz dos
+          espinhos do andar: o contorno se redesenha oito vezes por segundo em
+          vez de ficar parado, que é como tinta de verdade anda. Dois lugares
+          diferentes do andar, a mesma mão tremida.
+
+          O rabicho só aparece nas falas do DIABRETE, apontando para baixo — que
+          é onde ele está em todos os planos da decupagem. A fala do jogador não
+          tem rabicho: a voz de quem joga é a da câmera, não a de um boneco. */}
+      {cartoonFall && fallBegging && fallChoice === 'none' && (() => {
+        const fala = FALL_DIALOGUE[fallLine];
+        const doDiabo = fala.s === 'diabrete';
+        return (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: '15%', zIndex: 88,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 26,
           fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none' }}>
-          {/* speaker name tab */}
-          <div key={'tab' + fallLine} style={{ alignSelf: 'center', transform: 'rotate(-2deg)',
-            background: FALL_DIALOGUE[fallLine].s === 'diabrete' ? '#c0271a' : '#2b6fb0', color: '#fff',
-            WebkitTextStroke: '2px #140c08', paintOrder: 'stroke', padding: '2px 16px',
-            fontSize: 'min(3.4vw,20px)', letterSpacing: '.06em', borderRadius: 8,
-            boxShadow: '0 3px 0 #140c08', marginBottom: -10, zIndex: 1 }}>
-            {FALL_DIALOGUE[fallLine].s === 'diabrete' ? 'O DIABRETE' : 'VOCÊ'}
-          </div>
-          {/* speech bubble — the conversation line */}
-          <div key={fallLine} style={{ maxWidth: 'min(84vw, 560px)', background: '#f6efe0', color: '#140c08',
-            border: '4px solid #140c08', borderRadius: 20, padding: '14px 24px',
-            fontSize: 'min(4vw,24px)', lineHeight: 1.18, textAlign: 'center',
-            boxShadow: '0 6px 0 #140c08', transform: 'rotate(-1deg)',
+          <style>{`
+            /* O FERVILHAR DO CONTORNO. Três desenhos da mesma forma, trocados em
+               degraus: com steps() o navegador NÃO interpola, ele salta — que é
+               a diferença entre tinta e animação de computador. */
+            @keyframes f3-ferve {
+              0%   { border-radius: 33% 40% 36% 44% / 52% 44% 56% 40%; }
+              33%  { border-radius: 41% 34% 44% 36% / 44% 55% 41% 52%; }
+              66%  { border-radius: 36% 43% 38% 41% / 49% 47% 50% 46%; }
+              100% { border-radius: 33% 40% 36% 44% / 52% 44% 56% 40%; }
+            }
+            @keyframes f3-treme { 0%{transform:rotate(-1.1deg)} 33%{transform:rotate(0.5deg)}
+                                  66%{transform:rotate(-0.4deg)} 100%{transform:rotate(-1.1deg)} }
+          `}</style>
+
+          <div key={fallLine} style={{ position: 'relative',
             animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
-            {FALL_DIALOGUE[fallLine].t}
+            {/* o balão */}
+            <div style={{
+              maxWidth: 'min(84vw, 560px)', background: '#f6efe0', color: '#140c08',
+              // A LINHA TEM DE SER GROSSA COMO O RESTO DO ANDAR. A 6 px ela
+              // saía mais fina que o contorno de qualquer plataforma e o balão
+              // parecia de outro jogo. E a elipse pura apertava o texto nas
+              // pontas: raios menores dão um losango redondo, que é a forma de
+              // balão de verdade, com ar de sobra nas laterais.
+              border: 'min(0.95vw,9px) solid #140c08',
+              padding: 'min(2.6vw,22px) min(5vw,44px)',
+              fontSize: 'min(4vw,24px)', lineHeight: 1.16, textAlign: 'center',
+              letterSpacing: '.02em',
+              boxShadow: '0 min(0.9vw,7px) 0 rgba(20,12,8,0.4)',
+              animation: 'f3-ferve 0.375s steps(1,end) infinite, f3-treme 0.375s steps(1,end) infinite',
+            }}>
+              {fala.t}
+            </div>
+            {/* ── O RABICHO APONTA PARA ELE, E ELE ESTÁ EM CIMA ──────────
+                A primeira versão apontava para BAIXO, "porque ele está pendurado
+                no abismo". Errado: o balão mora no rodapé do quadro e o Diabrete
+                aparece no MEIO dele em todos os planos da decupagem (`alto`,
+                `close` e `raso` olham para baixo, então ele fica acima do
+                rodapé). Na foto o rabicho apontava para o chão e ainda por cima
+                furava os botões. Sobe. */}
+            {doDiabo && (
+              <>
+                <div style={{ position: 'absolute', left: '34%', top: 'min(-3.4vw,-26px)',
+                  width: 0, height: 0,
+                  borderLeft: 'min(1.4vw,11px) solid transparent',
+                  borderRight: 'min(2.8vw,22px) solid transparent',
+                  borderBottom: 'min(3.6vw,28px) solid #140c08' }} />
+                <div style={{ position: 'absolute', left: 'calc(34% + min(0.7vw,5px))', top: 'min(-2.0vw,-16px)',
+                  width: 0, height: 0,
+                  borderLeft: 'min(1.0vw,8px) solid transparent',
+                  borderRight: 'min(2.0vw,16px) solid transparent',
+                  borderBottom: 'min(2.6vw,20px) solid #f6efe0' }} />
+              </>
+            )}
+            {/* quem fala, assinado no canto do balão */}
+            <div style={{ position: 'absolute', left: 'min(2.4vw,18px)', bottom: 'min(-1.8vw,-14px)',
+              transform: 'rotate(-2.5deg)',
+              background: doDiabo ? '#c0271a' : '#2b6fb0', color: '#fff',
+              WebkitTextStroke: '2px #140c08', paintOrder: 'stroke', padding: '2px 14px',
+              fontSize: 'min(2.9vw,17px)', letterSpacing: '.08em',
+              border: 'min(0.42vw,3px) solid #140c08', borderRadius: 5,
+              boxShadow: '0 3px 0 #140c08' }}>
+              {doDiabo ? 'O DIABRETE' : 'VOCÊ'}
+            </div>
           </div>
-          {/* choice buttons — only once the conversation reaches its end */}
+
+          {/* A ESCOLHA. Os botões eram gradiente verde/vermelho com canto
+              arredondado — o vocabulário de um menu, não de um desenho. Agora
+              são chapados, com tinta grossa e o mesmo tremor do balão, e o
+              texto diz o que a mão faz. */}
           {fallChoiceReady && (
-          <div style={{ display: 'flex', gap: 16, pointerEvents: 'auto', marginTop: 6,
+          <div style={{ display: 'flex', gap: 'min(3vw,22px)', pointerEvents: 'auto', marginTop: 10,
             animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
-            <button onClick={() => { setFallChoice('save'); setFallBegging(false); }}
-              style={{ fontFamily: 'inherit', fontSize: 'min(4.4vw,24px)', letterSpacing: '.04em',
-                color: '#fff', background: 'linear-gradient(#3a9d5a,#2b7d45)', border: '4px solid #140c08',
-                borderRadius: 16, padding: '10px 22px', cursor: 'pointer', boxShadow: '0 5px 0 #140c08',
-                WebkitTextStroke: '1px #140c08', paintOrder: 'stroke' }}>
-              🤝 SALVAR
-            </button>
-            <button onClick={() => { setFallChoice('stomp'); setFallBegging(false); }}
-              style={{ fontFamily: 'inherit', fontSize: 'min(4.4vw,24px)', letterSpacing: '.04em',
-                color: '#fff', background: 'linear-gradient(#c0392b,#9b2418)', border: '4px solid #140c08',
-                borderRadius: 16, padding: '10px 22px', cursor: 'pointer', boxShadow: '0 5px 0 #140c08',
-                WebkitTextStroke: '1px #140c08', paintOrder: 'stroke' }}>
-              👟 PISAR NA MÃO
-            </button>
+            {([
+              ['save',  '#e8b23a', 'PUXAR PRA CIMA', '-1.6deg'],
+              ['stomp', '#c0271a', 'PISAR NA MÃOZINHA', '1.4deg'],
+            ] as const).map(([qual, cor, texto, giro]) => (
+              <button key={qual}
+                onClick={() => { setFallChoice(qual); setFallBegging(false); }}
+                style={{ fontFamily: 'inherit', fontSize: 'min(4vw,22px)', letterSpacing: '.05em',
+                  color: '#fff', background: cor, border: 'min(0.6vw,5px) solid #140c08',
+                  borderRadius: 10, padding: '12px 24px', cursor: 'pointer',
+                  boxShadow: '0 min(0.7vw,6px) 0 #140c08', transform: `rotate(${giro})`,
+                  WebkitTextStroke: '2px #140c08', paintOrder: 'stroke' }}>
+                {texto}
+              </button>
+            ))}
           </div>
           )}
         </div>
-      )}
+        );
+      })()}
       {/* FLOOR 4 — the real 2D side-scroller, its own orthographic canvas over
           the 3D game (Felipe: Floor 4 is literally 2D). Walk left into the
           elevator to ride back down. */}

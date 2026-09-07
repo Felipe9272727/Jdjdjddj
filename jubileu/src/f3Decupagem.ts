@@ -174,9 +174,19 @@ export function plano(nome: NomeDoPlano, p: Palco, deriva = 0): Plano {
         // cima e PARA FORA, com o vazio atrás da cabeça. É o mesmo eixo do
         // plano `alto`, que a bancada já provou que lê, só que empurrado e com
         // lente mais longa. Agora quem cobra isso é `fundoLimpoAtrasDaCabeca`.
+        // A LENTE ESTAVA APERTADA DEMAIS. A 1,9 m com fov 31, a cabeça dele
+        // ocupava 60% da altura do quadro — e ele NÃO fica parado: a súplica tem
+        // solavanco de 24 cm a cada 2,4 s. Num deles a cabeça preta tomou a tela
+        // inteira e o quadro virou uma mancha. Um primeiro plano precisa de folga
+        // para o personagem se mexer dentro dele.
+        // ...E ELE VEM DO OUTRO LADO. Abrir a lente sem mais nada aproximava o
+        // close do `alto`: 1,31 m entre os dois, o que não é um corte, é um
+        // passinho — e o teste do corte cobrou. Botar a câmera do lado oposto
+        // resolve as duas coisas de uma vez: vira CONTRA-PLANO (corte de
+        // verdade, 2,4 m) e ainda dá a variação de ângulo que a cena precisa.
         case 'close': return {
-            x: p.gx + 0.45, y: p.gripY + 1.75 - d * 0.22, z: p.edgeZ - 0.85 + d * 0.18,
-            lx: p.gx, ly: cabeca - 0.15, lz: p.edgeZ, fov: 31,
+            x: p.gx - 1.25, y: p.gripY + 1.7 - d * 0.24, z: p.edgeZ - 0.9 + d * 0.2,
+            lx: p.gx, ly: cabeca - 0.15, lz: p.edgeZ, fov: 42,
         };
         // TRÊS QUARTOS ABERTO — de lado e bem de cima, com todo o ar embaixo
         // dele. É onde as piadas do jogador caem melhor: a piada precisa do
