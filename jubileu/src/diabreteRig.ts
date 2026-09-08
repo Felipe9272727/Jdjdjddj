@@ -263,6 +263,30 @@ const OLHOS_CENTRO_Y = 0.826;
 // 0,030 antigo não passava, e era ele que empurrava olho e boca para longe um
 // do outro e deixava a cara espalhada.
 // Fica logo abaixo da órbita: o pé do olho está em Y 0,7693.
+/**
+ * ── NÚMERO PARA DENTRO DE GLSL TEM QUE TER PONTO ─────────────────────────────
+ *
+ * Isto existe por causa de um personagem que SUMIU da tela inteiro. Eu tinha
+ * ajustado a abertura do bico de viúva de 2,2 para 2,0 e o Diabrete
+ * desapareceu, sobrando só a gravata.
+ *
+ * A causa: em JavaScript `${2.0}` vira a string "2", não "2.0". No shader isso
+ * escreve `2 * (p.y - 0.885)`, que é INTEIRO vezes float — erro de tipo em GLSL
+ * ES. O programa não compila, o material vai junto, e a malha não desenha.
+ *
+ * O sintoma é cruel porque não parece erro de número: parece que o modelo não
+ * carregou. É primo do outro que já mordeu este arquivo — crase dentro de
+ * comentário de GLSL fecha o template literal.
+ *
+ * Então nenhum número entra em GLSL sem passar por aqui.
+ */
+export const emGlsl = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+
+// ── O BICO DE VIÚVA ──────────────────────────────────────────────────────────
+// A ponta do V do cabelo, e o quanto ele abre subindo. Ver a nota no shader.
+const BICO_Y = 0.885;
+const BICO_ABERTURA = 2.0;
+
 const NARIZ_CENTRO_Y = 0.754;
 const NARIZ_RAIO = 0.015;
 
@@ -534,8 +558,21 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
             //     propósito;
             //   • não custa textura, canvas nem draw call: é uma elipse em
             //     coordenada local, tatuada na pele em pose de descanso.
-            + `    vec2 _n = (p.xy - vec2(0.0, ${NARIZ_CENTRO_Y})) / vec2(${NARIZ_RAIO});\n`
+            + `    vec2 _n = (p.xy - vec2(0.0, ${emGlsl(NARIZ_CENTRO_Y)})) / vec2(${emGlsl(NARIZ_RAIO)});\n`
             + '    if (dot(_n, _n) < 1.0) return 0.0;\n'
+            // ── O BICO DE VIÚVA ──────────────────────────────────────────
+            //
+            // Na ficha dele o creme do rosto NÃO é um óvalo liso: o cabelo
+            // desce num V no meio da testa, e é esse V que faz a cara ter
+            // formato de coração em vez de ovo. Sem ele a cúpula do crânio
+            // ficava creme até entre os chifres e o personagem lia como um
+            // boneco de neve com chifre.
+            //
+            // É uma cunha em coordenada local, e portanto de graça: preta
+            // acima de `BICO_Y`, com a meia-largura crescendo `BICO_ABERTURA`
+            // por unidade de altura. A ponta encosta na régua 0,90 do rosto,
+            // que é logo acima do olho.
+            + `    if (p.y > ${emGlsl(BICO_Y)} && abs(p.x) < ${emGlsl(BICO_ABERTURA)} * (p.y - ${emGlsl(BICO_Y)})) return 0.0;\n`
             + '    return 1.0;\n  }\n'
             // AS MÃOS e o punho.
             + '  if (abs(p.x) > 0.325 && p.y > 0.40 && p.y < 0.64) return 1.0;\n'

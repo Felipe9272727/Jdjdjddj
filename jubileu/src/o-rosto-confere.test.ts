@@ -17,7 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CAIXAS_DO_ROSTO } from './diabreteRig';
+import { CAIXAS_DO_ROSTO, emGlsl } from './diabreteRig';
 import { TELA_DA_CARA, ORBITA_NA_TELA } from './f3OlhosTextura';
 
 const FOLHA = new URL('../bancada-navegador/o-rosto-inteiro.html', import.meta.url);
@@ -100,5 +100,34 @@ describe('as peças do rosto cabem no rosto', () => {
         // Sobra pouca testa de propósito — na ficha dele a sobrancelha é um fio
         // encostado no olho. O que ela não pode é acabar DENTRO do cabelo.
         expect(regua(topoDaOrbita)).toBeLessThan(0.946);
+    });
+});
+
+// ── O NÚMERO QUE FEZ O PERSONAGEM SUMIR ──────────────────────────────────────
+// Ajustar a abertura do bico de viúva de 2,2 para 2,0 apagou o Diabrete inteiro
+// da tela, sobrando só a gravata. Em JavaScript `${2.0}` vira a string "2", e no
+// shader isso escreve `2 * (p.y - 0.885)` — inteiro vezes float, erro de tipo em
+// GLSL ES. O programa não compila, o material vai junto e a malha não desenha.
+//
+// O sintoma não parece erro de número, parece que o modelo não carregou — por
+// isso vale um teste, e não só um comentário.
+describe('emGlsl: número que entra em GLSL sempre tem ponto', () => {
+    it('põe ponto em inteiro, que é o caso que quebra', () => {
+        expect(emGlsl(2)).toBe('2.0');
+        expect(emGlsl(2.0)).toBe('2.0');
+        expect(emGlsl(0)).toBe('0.0');
+        expect(emGlsl(-3)).toBe('-3.0');
+    });
+
+    it('deixa fracionário como está', () => {
+        expect(emGlsl(0.885)).toBe('0.885');
+        expect(emGlsl(2.2)).toBe('2.2');
+        expect(emGlsl(0.015)).toBe('0.015');
+    });
+
+    it('o que sai daqui sempre tem ponto — é a regra inteira', () => {
+        for (const n of [0, 1, 2, 0.5, 1.25, -7, 0.03, 100]) {
+            expect(emGlsl(n)).toContain('.');
+        }
     });
 });

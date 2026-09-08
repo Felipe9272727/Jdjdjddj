@@ -62,6 +62,7 @@ do olho o cabelo desce e o creme acaba bem antes.
     caixa dos olhos ... cy 0,826   0,30 x 0,168     (canvas 256 x 143)
       órbita no canvas   cy 78,5   92,2 x 113,0     testa 22 px
     nariz ............. cy 0,754   raio 0,015
+    bico de viúva ..... ponta em Y 0,885, abrindo 2,0 por unidade de altura
     caixa da boca ..... cy 0,716   0,29 x 0,19      (canvas 192 x 128)
 
 `o-rosto-confere.test.ts` quebra se a folha da bancada
@@ -94,6 +95,8 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
 - [ ] a sobrancelha ainda encosta na franja: as pontas de fora somem no preto.
       Ciclo 2 encurtou de 0,64 para 0,56 e ajudou, mas não resolveu.
 - [ ] `fechadoSorrindo` ficou largo e chapado demais
-- [ ] o rosto do modelo é um óvalo liso; na ficha o creme tem um bico de viúva
-      preto no alto e tufos pontudos nos lados
+- [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
+      cor por geometria (uma cunha em coordenada local, de graça). É ele que faz
+      a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o
+      modelo já tinha, de malha.
 - [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
