@@ -40,16 +40,33 @@ const LARG = 256;
 // assimetria da `ironia`, que é o que faz a cara dele ser irônica, virava duas
 // sobrancelhas iguais.
 //
-// A conta do espaço necessário, tirada das oito da ficha:
-//     surpresa ....... 19,5 (altura) + 31,8 (arco) + 4,8 (traço) = 56,1 px
-//     ironia direita . 24,0          + 18,7        + 4,8         = 47,5 px
-//     pensativa dir. . 22,5          + 22,5        + 4,8         = 49,8 px
-// Então 62 px de testa, com folga. O canvas cresce só para cima e o olho desce
-// dentro dele; a CAIXA no rosto cresce junto, na mesma proporção, para que o
-// olho continue exatamente do mesmo tamanho e no mesmo lugar da cara
-// (`OLHOS_ALTURA` e `OLHOS_CENTRO_Y` em `diabreteRig.ts`).
-const TESTA = 62;
-const ALT = 172;
+// ── E DEPOIS AS FICHAS DELE CHEGARAM, E A PROPORÇÃO ESTAVA TODA ERRADA ───────
+//
+// Ele mandou as três folhas do personagem (frente/perfil/costas, expressões e
+// guia de implementação) com a frase que resolve a discussão: "é esse o visual
+// do personagem, não o que vc fez". Comparando a foto do jogo com a ficha, os
+// dois erros grandes são de TAMANHO, não de posição:
+//
+//     olho ...... na ficha ele é ENORME. Os dois quase se tocam no meio da
+//                 cara e ocupam quase metade da altura do rosto. O meu tinha
+//                 0,075 de largura numa cara de 0,314 — 24%. Na ficha: ~38%.
+//     nariz ..... na ficha é uma BOLINHA que cabe na fresta entre os olhos. O
+//                 meu tinha raio 0,030, quase o dobro, e por ser tão grande
+//                 empurrava boca e olhos para longe um do outro.
+//
+// Ou seja: eu tinha feito a cara ao contrário — olho pequeno e afastado, nariz
+// grande. Isso muda tudo o que está aqui embaixo. O olho cresce de 74 para 102
+// px de largura e de 94 para 103 de altura, e chega mais para o meio (de 0,327
+// para 0,26 da meia-largura do canvas).
+//
+// A TESTA encolhe junto, e isso é a ficha mandando também: nela as
+// sobrancelhas são fios finos encostados no olho, não arcos altos. Com olho
+// desse tamanho não sobra testa para arco alto — e não é para sobrar. Os
+// valores de `f3Sobrancelha` desceram na mesma conta.
+//     mais alta (surpresa): 103*0,17 + 103*0,26 + 10/2 = 49,6... não cabia;
+//     com os valores novos:  103*0,06 + 103*0,10 +  9/2 = 21,0 px, e há 24.
+const TESTA = 22;
+const ALT = 143;
 
 /**
  * O tamanho do canvas, exportado porque as fichas da bancada precisam dele.
@@ -77,10 +94,21 @@ const CREME = '#f7f3ea';
 // caixa (0,26 x 0,159 do modelo, num canvas de 256 x 156):
 // O tamanho do olho é ancorado na LARGURA do canvas, não na altura: assim dá
 // para dar testa (mexer em `ALT`) sem que o olho mude de tamanho junto.
-const OLHO_LARG = LARG * 0.289;    // 74,0 px
-const OLHO_ALT = LARG * 0.3656;    // 93,6 px — o mesmo de sempre
-const OLHO_CX = LARG * 0.327;      // distância do centro até o meio de cada olho
+// Segunda passada: a primeira deixou o olho quase REDONDO (101 x 103), e na
+// ficha ele é um oval EM PÉ. Estreitando e esticando — e aproximando mais um
+// pouco, porque na folha os dois quase se encostam.
+const OLHO_LARG = LARG * 0.360;    // 92,2 px  (era 74 antes da ficha, depois 101,6)
+const OLHO_ALT = LARG * 0.4414;    // 113,0 px — proporção 0,82, de pé
+const OLHO_CX = LARG * 0.245;      // 62,7 px — era 83,7; sobra 0,0196 de fresta para o nariz
 const OLHO_CY = TESTA + OLHO_ALT / 2;
+
+/**
+ * Onde a ÓRBITA mora dentro do canvas, exportado para a bancada poder conferir
+ * que ainda sobra testa para a sobrancelha (`o-rosto-confere.test.ts`). O teste
+ * copiava estes três números na mão e envelheceu na primeira vez que eles
+ * mudaram.
+ */
+export const ORBITA_NA_TELA = Object.freeze({ cy: OLHO_CY, alt: OLHO_ALT, larg: OLHO_LARG });
 
 /** Desenha UM olho, centrado em (cx, cy). `lado` = -1 esquerdo, +1 direito. */
 function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: number, lado: number) {
@@ -134,9 +162,14 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     const desvioX = desliza ? o.olharX * rx * 0.22 : 0;
     const desvioY = desliza ? -o.olharY * ry * 0.20 : 0;
     c.save();
+    // ── A INCLINAÇÃO ─────────────────────────────────────────────────────────
+    // Na ficha os olhos não são ovais em pé: são inclinados, com a ponta de FORA
+    // mais alta. É um detalhe pequeno e é metade da malícia da cara dele — olho
+    // reto lê como bonequinho, olho inclinado lê como quem está aprontando.
+    const INCLINACAO = 0.16;
     c.fillStyle = TINTA;
     c.beginPath();
-    c.ellipse(cx + desvioX, cy + desvioY, rx, ry, 0, 0, Math.PI * 2);
+    c.ellipse(cx + desvioX, cy + desvioY, rx, ry, lado * INCLINACAO, 0, Math.PI * 2);
     c.fill();
 
     if (o.pupila > 0) {
@@ -195,15 +228,31 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     // O BRILHO. Um pontinho claro no alto do olho — é o que impede a amêndoa de
     // ler como buraco. Todo desenho de 1930 tem, e some quando o olho fecha.
     if (o.brilho && o.pupila === 0 && !o.espiral && o.palpebraCima < 0.6) {
+        // ── O ENTALHE, QUE NA FICHA É UMA MORDIDA E NÃO UM PONTO ─────────────
+        //
+        // Eu vinha desenhando um pontinho claro solto dentro da amêndoa. Na
+        // ficha dele não é isso: é uma MORDIDA DE CREME na BORDA do olho — uma
+        // meia-lua que entra pelo contorno. Olhando a folha de olhos inteira, é
+        // ela que faz o `neutro` parecer olho em vez de bolota, e é ela que
+        // conta a direção: em `esquerda` e `direita` a mordida troca de lado, em
+        // `cima` ela desce para o pé do olho.
+        //
+        // A mordida fica do lado CONTRÁRIO ao olhar, que é como um olho de
+        // verdade se comporta: a massa escura rola para onde ele olha e o claro
+        // aparece atrás. Parado, ela mora do lado de DENTRO e um pouco abaixo —
+        // é a posição que a `CABEÇA DE REGISTRO` da ficha mostra.
+        let dx = -lado * 0.55, dy = 0.20;
+        if (o.olharX !== 0 || o.olharY !== 0) { dx = -o.olharX; dy = o.olharY; }
+        const norma = Math.hypot(dx, dy) || 1;
+        // 0,86 do raio: longe o bastante para a meia-lua cortar o contorno em
+        // vez de virar um furo no meio da massa. Na primeira tentativa ela tinha
+        // 0,34 de raio e o olho virava um Pac-Man; na ficha é uma mordidinha.
         c.fillStyle = CREME;
         c.beginPath();
-        // Ele viaja MUITO mais que a amêndoa (0,55 contra 0,22): é ele que conta
-        // para onde o personagem está olhando. E anda junto com ela, somando o
-        // desvio, senão as duas contariam histórias diferentes.
         c.ellipse(
-            cx + desvioX + lado * rx * 0.26 + o.olharX * rx * 0.55,
-            cy + desvioY - ry * 0.34 - o.olharY * ry * 0.45,
-            rx * 0.19, ry * 0.18, -0.3 * lado, 0, Math.PI * 2);
+            cx + desvioX + (dx / norma) * rx * 0.86,
+            cy + desvioY + (dy / norma) * ry * 0.86,
+            rx * 0.26, ry * 0.25, 0, 0, Math.PI * 2);
         c.fill();
     }
     c.restore();
@@ -219,7 +268,7 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
  * não fica feia, fica INVISÍVEL, que foi o que a foto de perto mostrou duas
  * vezes seguidas. Quem passar dessa linha desce, em vez de sumir.
  */
-const MARGEM_DO_CENHO = 9;
+const MARGEM_DO_CENHO = 3;
 
 /**
  * Fio de creme que separa a sobrancelha do olho quando as duas se encavalam.

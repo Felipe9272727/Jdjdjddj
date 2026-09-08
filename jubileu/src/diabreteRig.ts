@@ -180,7 +180,11 @@ const BOCA_ALTURA = 0.19;   // cresceu junto com a largura, na mesma proporção
 // Era isso que a foto mostrava: a boca encostada no queixo, misturada com a
 // tinta do corpo. Levando o centro do desenho para a régua ~0,24, que é onde a
 // cara é larga e creme e onde sobra espaço embaixo do nariz:
-const BOCA_CENTRO_Y = 0.731;
+// Desceu de 0,731 para 0,716 quando o nariz desceu: com a boca mais larga, a
+// mais alta delas (`provocando`) sobe até 0,063 de régua acima do centro, e o
+// pé do nariz agora está na régua 0,330. 0,247 de centro deixa 0,020 de creme
+// entre as duas — medido, não estimado.
+const BOCA_CENTRO_Y = 0.716;
 
 // A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
 // boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
@@ -194,12 +198,19 @@ const BOCA_CENTRO_Y = 0.731;
 //     testa (cenho) .... até ~0,95              →  Y 0,800
 // A caixa cobre os dois olhos mais a testa. Ela é SEPARADA da caixa da boca de
 // propósito — ver o comentário de `f3OlhosTextura`.
-const OLHOS_LARGURA = 0.26;
-// A caixa cresceu de 0,159 para 0,175 junto com o canvas, que ganhou 16 px de
-// TESTA para as sobrancelhas caberem (ver `f3OlhosTextura`). Cresceu na mesma
-// proporção de propósito: 93,6 px de olho continuam valendo 0,346 da régua da
-// cara, ou seja o olho não mudou de tamanho — só passou a ter céu em cima.
-const OLHOS_ALTURA = 0.175;
+// ── OS NÚMEROS DA FICHA DELE ─────────────────────────────────────────────────
+// Medido nas três folhas que ele mandou ("é esse o visual do personagem, não o
+// que vc fez"), sobre um rosto que tem 0,314 de largura e 0,275 de altura:
+//     cada olho ..... ~38% da largura do rosto  (o meu tinha 24%)
+//     os dois juntos  quase se tocam: na fresta entre eles cabe o nariz e nada mais
+//     o nariz ....... uma BOLINHA nessa fresta   (o meu tinha o dobro do raio)
+//     a sobrancelha . fio fino encostado no olho, sem arco alto
+// Eu tinha feito a cara ao contrário: olho pequeno e afastado, nariz grande.
+// A caixa alarga de 0,26 para 0,30 porque os olhos, maiores, não cabiam mais.
+const OLHOS_LARGURA = 0.30;
+// Altura na mesma proporção do canvas (256 x 143), para o pixel continuar
+// quadrado: 0,30 * 143/256.
+const OLHOS_ALTURA = 0.168;
 // Mesma correção da boca, pelo mesmo motivo: com 0,80 o olho desenhado caía na
 // régua 0,49 — o meio exato do rosto — e sobrava uma testa enorme e vazia por
 // cima enquanto embaixo não cabia nariz nem boca. O olho tem que ficar na régua
@@ -231,7 +242,13 @@ const OLHOS_ALTURA = 0.175;
 //
 // Com o olho na régua 0,44..0,78 sobram 0,165 de testa — 45 px de canvas contra
 // os 36 que a sobrancelha mais alta precisa:
-const OLHOS_CENTRO_Y = 0.8285;
+// E depois DESCEU 0,012. Com o olho no tamanho da ficha, a 0,8345 o topo dele
+// encostava na linha do cabelo e a sobrancelha ficava metade dentro da franja —
+// lia como contorno do cabelo, não como sobrancelha. Descendo, a testa passa de
+// 0,066 para 0,110 de régua e o canvas inteiro fica abaixo da franja.
+// O nariz continua onde está: ele ENCAIXA na fresta entre os dois olhos, que é
+// exatamente como a ficha o mostra.
+const OLHOS_CENTRO_Y = 0.826;
 
 // ── O NARIZ ──────────────────────────────────────────────────────────────────
 // Ele era um literal dentro do GLSL, o que é ruim por dois motivos: número solto
@@ -240,8 +257,14 @@ const OLHOS_CENTRO_Y = 0.8285;
 // conversão para o texto do shader é feita na hora de montar.
 // Régua 0,509 (entre os olhos e a boca) e raio de ~17% da largura do rosto, que
 // é a proporção da bola na ficha de referência que ele mandou.
-const NARIZ_CENTRO_Y = 0.7883;
-const NARIZ_RAIO = 0.030;
+// O nariz desceu e encolheu para MEIO RAIO. Na ficha ele é uma bolinha que
+// cabe na fresta entre os dois olhos — e a fresta, com os olhos no tamanho
+// certo, tem 0,0186 de meia-largura. Raio 0,015 passa por ela com folga; o
+// 0,030 antigo não passava, e era ele que empurrava olho e boca para longe um
+// do outro e deixava a cara espalhada.
+// Fica logo abaixo da órbita: o pé do olho está em Y 0,7693.
+const NARIZ_CENTRO_Y = 0.754;
+const NARIZ_RAIO = 0.015;
 
 /**
  * As caixas do rosto, num objeto só, para a bancada poder CONFERIR a folha

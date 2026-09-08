@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CAIXAS_DO_ROSTO } from './diabreteRig';
+import { TELA_DA_CARA, ORBITA_NA_TELA } from './f3OlhosTextura';
 
 const FOLHA = new URL('../bancada-navegador/o-rosto-inteiro.html', import.meta.url);
 const texto = readFileSync(FOLHA, 'utf8');
@@ -87,12 +88,17 @@ describe('as peças do rosto cabem no rosto', () => {
         expect(regua(CAIXAS_DO_ROSTO.boca.cy)).toBeGreaterThan(0.15);
     });
 
-    it('sobra testa acima do olho para a sobrancelha', () => {
-        // Acima do olho o creme acaba na régua 0,946; a sobrancelha mais alta
-        // (`surpresa`) precisa de 0,165 de régua a partir do topo da órbita.
+    it('o topo da órbita fica abaixo da linha do cabelo', () => {
+        // Os três números da órbita vêm do PINCEL, não copiados: a primeira
+        // versão deste teste os tinha na mão e envelheceu na primeira vez que
+        // eles mudaram — que é exatamente o defeito que este arquivo existe
+        // para pegar.
         const { olhos } = CAIXAS_DO_ROSTO;
-        // A órbita ocupa 93,6 px de um canvas de 172, centrada em y 108,8.
-        const topoDaOrbita = olhos.cy + olhos.alt * (172 / 2 - 108.8 + 93.6 / 2) / 172;
-        expect(0.946 - regua(topoDaOrbita)).toBeGreaterThan(0.15);
+        const topoDaOrbita = olhos.cy + olhos.alt
+            * (TELA_DA_CARA.altura / 2 - ORBITA_NA_TELA.cy + ORBITA_NA_TELA.alt / 2)
+            / TELA_DA_CARA.altura;
+        // Sobra pouca testa de propósito — na ficha dele a sobrancelha é um fio
+        // encostado no olho. O que ela não pode é acabar DENTRO do cabelo.
+        expect(regua(topoDaOrbita)).toBeLessThan(0.946);
     });
 });

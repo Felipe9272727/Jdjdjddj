@@ -54,8 +54,15 @@ export interface Sobrancelha {
 // 0,13 o traço saía com ~6 px na tela do celular — no meio de um olho de 100 px
 // e de um nariz de 70 px, isso não lê como sobrancelha, lê como risco. Traço de
 // desenho animado é grosso; é dele que vem a leitura de longe.
+// ── E DEPOIS A FICHA DELE MOSTROU QUE ELAS SÃO FIOS, NÃO ARCOS ───────────────
+// Nas três folhas que ele mandou, as sobrancelhas do Diabrete são traços FINOS
+// e RASOS, encostados no olho. Não há arco alto nem testa para ele: com o olho
+// no tamanho certo (ver a nota da ficha em `f3OlhosTextura`) sobram 24 px de
+// testa, e é assim que tem que ser — o rosto dele é quase todo olho.
+// Então altura, arco e grossura desceram todos, mantendo a diferença ENTRE as
+// oito, que é o que distingue uma expressão da outra.
 const S = (o: Partial<Sobrancelha> = {}): Sobrancelha => ({
-    altura: 0.12, angulo: 0, arco: 0.16, grossura: 0.17,
+    altura: 0.06, angulo: 0, arco: 0.10, grossura: 0.09,
     assimetria: 0.0, ruga: false, ...o,
 });
 
@@ -64,16 +71,16 @@ export const SOBRANCELHAS: Readonly<Record<NomeDaSobrancelha, Sobrancelha>> = Ob
     // `surpresa` era a ÚNICA das oito que não cabia na testa: 0,208 de altura mais
     // 0,34 de arco punham o alto do traço 3 px acima da linha do cabelo, e ela
     // saía aparada. Baixando a altura (o arco é que faz a surpresa, não a altura):
-    surpresa:     S({ altura: 0.168, arco: 0.34 }),
-    raiva:        S({ altura: 0.064, angulo: 30, arco: -0.06 }),
+    surpresa:     S({ altura: 0.105, arco: 0.21 }),
+    raiva:        S({ altura: 0.032, angulo: 30, arco: -0.04 }),
     // A QUATRO da ficha. Uma sobe, a outra fica — e a que sobe é a do lado que o
     // sorriso torto também levanta (ver `TORTO` em `f3Boca`), senão a cara
     // briga consigo mesma.
-    ironia:       S({ altura: 0.12, angulo: 6, arco: 0.20, assimetria: 0.136 }),
-    preocupada:   S({ altura: 0.16, angulo: -26, arco: 0.10 }),
-    desconfiada:  S({ altura: 0.072, angulo: 10, arco: 0.04, assimetria: 0.064 }),
-    pensativa:    S({ altura: 0.136, angulo: -8, arco: 0.24, assimetria: 0.104 }),
-    bravaComRuga: S({ altura: 0.056, angulo: 34, arco: -0.10, grossura: 0.21, ruga: true }),
+    ironia:       S({ altura: 0.06, angulo: 6, arco: 0.125, assimetria: 0.10 }),
+    preocupada:   S({ altura: 0.085, angulo: -26, arco: 0.065 }),
+    desconfiada:  S({ altura: 0.036, angulo: 10, arco: 0.025, assimetria: 0.05 }),
+    pensativa:    S({ altura: 0.07, angulo: -8, arco: 0.15, assimetria: 0.08 }),
+    bravaComRuga: S({ altura: 0.028, angulo: 34, arco: -0.06, grossura: 0.115, ruga: true }),
 });
 
 export const NOMES_DAS_SOBRANCELHAS = Object.keys(SOBRANCELHAS) as NomeDaSobrancelha[];
