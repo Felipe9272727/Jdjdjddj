@@ -519,6 +519,78 @@ const SkyBackground: React.FC = () => {
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+// ── O PREÇO DESTE ANDAR, MENSURÁVEL ──────────────────────────────────────────
+//
+// A regra número um do dono do jogo é velocidade no celular dele, e mesmo assim
+// o custo deste andar só tinha sido medido uma vez, na mão. O Andar 9 já tem
+// esta sonda (`floor9-dev.tsx`); aqui não havia nenhuma, então toda coisa nova
+// acrescentada ao andar — a boca, a gravata, os shaders de duas cores, o
+// instantâneo de ossos — entrava sem ninguém saber o que custava.
+//
+// Só em DEV. `window.__f3perf()` devolve draws, triângulos, programas de shader,
+// geometrias e texturas; `window.__f3fps()` devolve o tempo entre quadros.
+const SondaDoPreco: React.FC = () => {
+    const gl = useThree((s) => s.gl);
+    useEffect(() => {
+        if (!import.meta.env?.DEV || typeof window === 'undefined') return;
+        const w = window as unknown as Record<string, unknown>;
+        // ── COMO LER draws SEM LER LIXO ──────────────────────────────────
+        // `render.calls` e `render.triangles` ZERAM a cada quadro, e um `rAF`
+        // próprio roda ANTES do render do r3f — então ler dali devolve o
+        // contador já zerado. Esta sonda deu "1 draw call" duas vezes seguidas,
+        // e eu quase reportei uma economia de 100 chamadas que não existe.
+        //
+        // O jeito que funciona: desligar o auto-reset, deixar acumular, e dividir
+        // pelo número de QUADROS que o próprio three contou. Independe de ordem.
+        gl.info.autoReset = false;
+        let calls0 = gl.info.render.calls, tris0 = gl.info.render.triangles, frame0 = gl.info.render.frame;
+        const porQuadro = () => {
+            const nq = gl.info.render.frame - frame0;
+            if (nq <= 0) return { draws: 0, tris: 0, quadros: 0 };
+            return {
+                draws: Math.round((gl.info.render.calls - calls0) / nq),
+                tris: Math.round((gl.info.render.triangles - tris0) / nq),
+                quadros: nq,
+            };
+        };
+        w.__f3perf = () => ({
+            ...porQuadro(),
+            programas: gl.info.programs ? gl.info.programs.length : 0,
+            geometrias: gl.info.memory.geometries,
+            texturas: gl.info.memory.textures,
+        });
+        const deltas: number[] = [];
+        let last = performance.now();
+        let raf = 0;
+        const laco = (agora: number) => {
+            deltas.push(agora - last); last = agora;
+            if (deltas.length > 240) deltas.shift();
+            raf = requestAnimationFrame(laco);
+        };
+        raf = requestAnimationFrame(laco);
+        w.__f3zerar = () => {
+            calls0 = gl.info.render.calls; tris0 = gl.info.render.triangles;
+            frame0 = gl.info.render.frame;
+        };
+        w.__f3fps = () => {
+            if (!deltas.length) return null;
+            const ord = [...deltas].sort((a, b) => a - b);
+            return {
+                n: ord.length,
+                medio: +(ord.reduce((a, b) => a + b, 0) / ord.length).toFixed(1),
+                p95: +ord[Math.floor(ord.length * 0.95)].toFixed(1),
+            };
+        };
+        return () => {
+            cancelAnimationFrame(raf);
+            gl.info.autoReset = true;
+            delete w.__f3perf; delete w.__f3fps; delete w.__f3zerar;
+        };
+    }, [gl]);
+    return null;
+};
+
 export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; gloves?: boolean; fallActive?: boolean }> = ({ elevator = true, hands = true, gloves = hands, fallActive = false }) => {
     // Live group refs by platform id, so the single frame loop can drive the
     // moving bridges imperatively (no per-platform useFrame, correct ordering).
@@ -662,6 +734,8 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
                     }}
                 />
             ))}
+
+            <SondaDoPreco />
 
             {/* Elevator facade */}
             {elevator && !fallActive && (

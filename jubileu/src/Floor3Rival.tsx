@@ -317,7 +317,18 @@ const Floor3Rival: React.FC = () => {
         const qp = quadroDaPose(tRef.current);
         if (qp !== quadroPose.current || !poseGuardada.current) {
             quadroPose.current = qp;
-            poseGuardada.current = bones.map((b) => ({ p: b.position.clone(), r: b.rotation.clone() }));
+            // Sem `.clone()`: o buffer nasce uma vez e é REESCRITO. Clonar 7
+            // Vector3 e 7 Euler doze vezes por segundo é lixo para o coletor num
+            // aparelho modesto, e a regra número um deste jogo é o celular do
+            // dono. Copiar para dentro custa o mesmo e não aloca nada.
+            const ossos = bones;
+            if (!poseGuardada.current) {
+                poseGuardada.current = ossos.map(() => ({ p: new THREE.Vector3(), r: new THREE.Euler() }));
+            }
+            for (let k = 0; k < ossos.length; k++) {
+                poseGuardada.current[k].p.copy(ossos[k].position);
+                poseGuardada.current[k].r.copy(ossos[k].rotation);
+            }
         } else {
             const g = poseGuardada.current;
             for (let i = 0; i < bones.length && i < g.length; i++) {
