@@ -21,6 +21,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { quadroDaPose } from './f3Pose';
 import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
@@ -98,6 +99,19 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
     const gloveRef = useRef<THREE.Group>(null!);
     const puffRef  = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
+    // ── O CLÍMAX TAMBÉM DESLIZAVA ────────────────────────────────────────
+    // A varredura das voltas 27–30 achou o Diabrete deslizando na apresentação e
+    // na perseguição, e consertou os dois. Esta cena — que é o CLÍMAX do andar,
+    // com ele pendurado no abismo implorando — tinha vinte e cinco senos
+    // contínuos e nenhuma quantização. É a cena que o jogador olha mais de
+    // perto, porque a câmera está nele e não há nada para fazer além de olhar.
+    //
+    // Mesmo remédio do `Floor3Rival`: instantâneo dos ossos entre um desenho e
+    // outro. Este arquivo tem quatro fases (queda, agarrada, súplica, desfecho)
+    // escrevendo ossos em ramos diferentes, e embrulhar as quatro seria muito
+    // risco para um efeito idêntico.
+    const quadroPose = useRef(-1);
+    const poseGuardada = useRef<{ p: THREE.Vector3; r: THREE.Euler }[] | null>(null);
 
     const base    = useRef(new THREE.Vector3());
     const phase   = useRef<Phase>('intro');
@@ -462,6 +476,22 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 w.__f3Cabeca = [+wp.x.toFixed(3), +wp.y.toFixed(3), +wp.z.toFixed(3)];
             }
             w.__f3Beirada = [+gx.toFixed(3), +gripY.toFixed(3), +edgeZ.toFixed(3)];
+        }
+
+        // ── SEGURA O DESENHO ─────────────────────────────────────────────────
+        // Ver o comentário de `quadroPose`. A pose fica parada entre um desenho
+        // e outro; a POSIÇÃO no mundo e a CÂMERA continuam contínuas, porque ele
+        // está caindo e uma queda que anda aos saltos vira defeito, não estilo.
+        const qp = quadroDaPose(T);
+        if (qp !== quadroPose.current || !poseGuardada.current) {
+            quadroPose.current = qp;
+            poseGuardada.current = rig.bones.map((b) => ({ p: b.position.clone(), r: b.rotation.clone() }));
+        } else {
+            const g = poseGuardada.current;
+            for (let k = 0; k < rig.bones.length && k < g.length; k++) {
+                rig.bones[k].position.copy(g[k].p);
+                rig.bones[k].rotation.copy(g[k].r);
+            }
         }
     });
 

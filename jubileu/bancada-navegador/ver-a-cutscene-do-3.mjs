@@ -110,7 +110,11 @@ try {
     // cena direto para a apresentação, que é o que esta bancada existe para ver.
     // Sem isto, uma execução inteira fotografa o cartão de título e nada mais —
     // já aconteceu.
-    if (process.env.PULAR !== '0') {
+    // SÓ no cartão da intro. Chamado no cartão da QUEDA, este gancho liga a
+    // apresentação POR CIMA da cena de súplica — e a foto sai com o Diabrete em
+    // pé dizendo "olha o que o elevador cuspiu" no meio do clímax. Já aconteceu:
+    // uma verificação inteira da queda foi invalidada por isso.
+    if (process.env.PULAR !== '0' && CARTAO !== 'queda') {
         await p.waitForFunction(() => typeof window.__f3PularIntro === 'function',
             null, { timeout: 180000 }).catch(() => {});
         await p.waitForTimeout(3000);

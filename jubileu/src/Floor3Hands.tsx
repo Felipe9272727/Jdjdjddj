@@ -217,6 +217,27 @@ export default function FpHands() {
         walk.current += (target - walk.current) * Math.min(1, dt * 10);
         const w = walk.current;
 
+        // ── E AQUI O LISO É O CERTO ──────────────────────────────────────
+        //
+        // A varredura das voltas 27–31 achou o Diabrete deslizando em três
+        // lugares (apresentação, perseguição, e a cutscene da queda) e pôs os
+        // três para andar EM DOIS, a 12 Hz, como um curta de 1930. Estas mãos
+        // são o candidato óbvio seguinte — ficam na tela o tempo todo.
+        //
+        // Elas NÃO foram quantizadas, de propósito.
+        //
+        // O Diabrete é um personagem FILMADO: a câmera olha para ele e ele atua
+        // dentro do quadro, então segurar a pose por dois quadros é o ofício.
+        // Estas mãos são a CÂMERA — elas seguem a cabeça do jogador quadro a
+        // quadro. Uma mão que anda em dois enquanto a vista anda em sessenta não
+        // lê como desenho: lê como a mão escorregando dentro da tela quando você
+        // vira, que é defeito de jogo e não estilo de filme.
+        //
+        // E há a parte que eu não consigo julgar: isto é TATO, a 60 fps, no
+        // celular do Felipe. A bancada desta caixa roda a 2 fps e não distingue
+        // as duas coisas. Mexer aqui por simetria com o resto do andar seria
+        // trocar uma coisa que funciona por um palpite meu que ninguém mediu.
+        //
         // ── Procedural pose ──────────────────────────────────────────────
         const breath = Math.sin(t * 1.6) * 0.012 * k;
         const bobY   = Math.sin(t * 12) * 0.025 * w * k;
