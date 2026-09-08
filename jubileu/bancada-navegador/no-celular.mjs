@@ -19,6 +19,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const SUFIXO = process.argv[2] ?? 'agora';
+/** `jogo` = andar jogável pelo gancho (mede o GRITO). `cutscene` = o caminho antigo. */
+const MODO = process.argv[3] ?? 'jogo';
 const PORTA = process.env.PORTA ?? '3011';
 const SAIDA = process.env.SAIDA ?? '/tmp';
 const PNG = Buffer.from(
@@ -82,6 +84,36 @@ for (const ap of APARELHOS) {
         }
     }
 
+    // ── ENTRAR DIRETO NO ANDAR JOGÁVEL ───────────────────────────────────────
+    // O caminho pelo Modo Criador cai na CUTSCENE, e a ~2 fps ela não termina
+    // dentro do tempo de uma execução — foi por isso que a volta 23 mediu os
+    // balões da cutscene e nunca o balão de grito de dentro do jogo, que é do
+    // que o Felipe reclamou. `__startFloor` pula direto pro andar.
+    if (MODO === 'jogo') {
+        await p.waitForFunction(() => typeof window.__startFloor === 'function', null, { timeout: 120000 }).catch(() => {});
+        await p.evaluate(() => window.__startFloor?.(3)).catch(() => {});
+        await p.waitForFunction(() => typeof window.__f3Dizer === 'function', null, { timeout: 180000 }).catch(() => {});
+        // O andar ainda toca a intro e a apresentação por cima; espera elas
+        // saírem de cena, que é quando o HUD e o grito voltam a existir.
+        await p.waitForFunction(() => !!document.querySelector('.f3-hud, .hud-fixed'),
+            null, { timeout: 300000 }).catch(() => {});
+        await p.waitForTimeout(4000);
+        for (const f of FALAS) {
+            await p.evaluate(({ e, r }) => {
+                window.__f3Pincel?.(r);
+                window.__f3Dizer?.(e, { roubados: r });
+            }, { e: f.evento, r: f.roubados }).catch(() => {});
+            await p.waitForSelector('[data-f3-grito]', { timeout: 20000 }).catch(() => {});
+            const m = await medirGrito();
+            console.log(`  ${f.apelido.padEnd(6)} ${JSON.stringify(m)}`);
+            await p.screenshot({ path: `${SAIDA}/f3-jogo-${ap.nome}-${f.apelido}-${SUFIXO}.png` })
+                .catch((e) => console.log('   (sem foto:', String(e.message).slice(0, 60), ')'));
+        }
+        await ctx.close().catch(() => {});
+        rmSync(perfil, { recursive: true, force: true });
+        continue;
+    }
+
     if (!await clicar('MODO CRIADOR')) {
         await p.screenshot({ path: `${SAIDA}/f3-cel-${ap.nome}-MENU-${SUFIXO}.png` });
         console.log('  não achei MODO CRIADOR — foto do menu salva');
@@ -104,6 +136,34 @@ for (const ap of APARELHOS) {
     // O gancho aparece assim que o módulo do andar carrega.
     await p.waitForFunction(() => typeof window.__f3Dizer === 'function', null, { timeout: 240000 }).catch(() => {});
     await p.waitForTimeout(20000);   // deixa a cena assentar
+
+    // ── O GRITO, QUE É A QUEIXA ──────────────────────────────────────────────
+    async function medirGrito() {
+        return p.evaluate(() => {
+            const W = innerWidth, H = innerHeight;
+            const el = document.querySelector('[data-f3-grito]');
+            if (!el) return { tela: `${W}x${H}`, grito: null };
+            const r = el.getBoundingClientRect();
+            const texto = el.querySelector('div,span,p');
+            // A FONTE: `Luckiest Guy` vem do Google em tempo de execução. Se ela
+            // não chegar, o cartão de 1930 vira system-ui — e num celular com
+            // rede ruim isso é o caso comum, não o raro.
+            const fonteOk = document.fonts
+                ? document.fonts.check("16px 'Luckiest Guy'") : null;
+            return {
+                tela: `${W}x${H}`,
+                grito: {
+                    larg: +(r.width / W * 100).toFixed(1),
+                    alt: +(r.height / H * 100).toFixed(1),
+                    area: +((r.width * r.height) / (W * H) * 100).toFixed(1),
+                    px: `${Math.round(r.width)}x${Math.round(r.height)}`,
+                },
+                fontePx: texto ? getComputedStyle(texto).fontSize : null,
+                luckiestGuyCarregou: fonteOk,
+                texto: (el.textContent ?? '').trim().slice(0, 50),
+            };
+        }).catch((e) => ({ erro: String(e).slice(0, 100) }));
+    }
 
     // ── A MEDIÇÃO ────────────────────────────────────────────────────────────
     // Retângulo de cada coisa, em por cento da tela. É isto que responde

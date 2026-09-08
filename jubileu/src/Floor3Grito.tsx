@@ -49,11 +49,35 @@ export default function Floor3Grito({ texto, serie }: Props) {
         // Vai para o canto de cima à esquerda e encolhe: o meio da tela é de
         // quem joga, o canto de baixo à direita é do botão de PULAR, o topo-
         // centro é do contador. Sobra este canto, e ele basta — a fala é curta.
-        <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-            left: 'calc(env(safe-area-inset-left, 0px) + 10px)',
+        // ── E NO CELULAR ELE NÃO CABE AO LADO DO CONTADOR ───────────────
+        // O comentário acima dizia "o topo-centro é do contador, sobra este
+        // canto" — e sobra, no desktop. Numa foto de 390 px de largura não
+        // sobra nada: o balão vai de x=10 a x=174, a pílula de PINCÉIS (centrada,
+        // ~238 px com a palavra e os três pincéis) vai de x=76 a x=314, e as
+        // duas se comem em 98 px. Em 1280 elas nem se tocam, que é por isso que
+        // nenhuma foto minha mostrou isso até alguém abrir o jogo no telefone.
+        //
+        // Então no celular ele DESCE para debaixo da linha do contador. 74 px
+        // são os 14 do topo da pílula mais a altura dela e uma folga; continua
+        // a 9% da tela, longe da linha de visão de quem está pulando.
+        <div data-f3-grito="" className="f3-grito-raiz" style={{ position: 'fixed',
             zIndex: 70, pointerEvents: 'none', width: 'min(42vw, 300px)',
             fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
             <style>{`
+                .f3-grito-raiz {
+                    top: calc(env(safe-area-inset-top, 0px) + 12px);
+                    left: calc(env(safe-area-inset-left, 0px) + 10px);
+                }
+                /* O mesmo 1024 que o jogo usa para decidir se é celular. Abaixo
+                   disso o balão desce para não brigar com o contador de pincéis,
+                   e ganha uma margem maior à esquerda porque as pontas da
+                   estrela chegavam a ser cortadas pela borda da tela. */
+                @media (max-width: 1023px) {
+                    .f3-grito-raiz {
+                        top: calc(env(safe-area-inset-top, 0px) + 74px);
+                        left: calc(env(safe-area-inset-left, 0px) + 16px);
+                    }
+                }
                 @keyframes f3-grito-entra { 0%{transform:scale(0.3) rotate(-8deg);opacity:0}
                     60%{transform:scale(1.12) rotate(3deg);opacity:1} 100%{transform:scale(1) rotate(-1.2deg);opacity:1} }
                 @keyframes f3-grito-treme { 0%{transform:rotate(-1.2deg) scale(1)} 33%{transform:rotate(0.9deg) scale(1.012)}
@@ -63,8 +87,10 @@ export default function Floor3Grito({ texto, serie }: Props) {
                 <div style={{ position: 'relative', animation: 'f3-grito-treme .375s steps(1,end) infinite' }}>
                     <div style={{ position: 'absolute', inset: 'min(-0.6vw,-5px)', background: INK, clipPath: FORMA }} />
                     <div style={{ position: 'relative', background: PAPEL, color: INK, clipPath: FORMA,
-                        padding: 'min(2.6vw,20px) min(3.4vw,26px)',
-                        fontSize: 'min(3.4vw,15px)', lineHeight: 1.12, textAlign: 'center', letterSpacing: '.01em' }}>
+                        // O `vh` entra na conta pelo mesmo motivo do balão de
+                        // fala: em paisagem no celular a altura é o que falta.
+                        padding: 'min(2.6vw,20px,3vh) min(3.4vw,26px,4vh)',
+                        fontSize: 'min(3.4vw,15px,4.2vh)', lineHeight: 1.12, textAlign: 'center', letterSpacing: '.01em' }}>
                         {texto}
                     </div>
                 </div>

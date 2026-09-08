@@ -32,6 +32,7 @@ import {
 import { createToonMaterial, type ToonOpts } from './cartoonToon';
 import { molaDoTranco, TRANCO_DA_PLATAFORMA, TRANCO_PARADO } from './f3Fisica';
 import { faixaDaNevoa } from './f3Nevoa';
+import { ruidoDaTinta, quadroDaTinta } from './f3Tinta';
 import { acabamentoDoAndar, mudouOAcabamento } from './f3Desenho';
 import { playFloor3Unmake } from './floor3Sfx';
 import { trilhaDoAndar, TEMPO_DA_VIRADA } from './f3Trilha';
@@ -533,6 +534,8 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
     const acabamentoRef = useRef(acabamentoDoAndar(0));
     /** Falso até o andar aplicar acabamento uma vez — ver o comentário do som. */
     const jaSincronizou = useRef(false);
+    /** A seta desbotada FERVE, para ler como desenho por acabar. */
+    const setaTremendo = useRef(false);
 
     // Build the endless course once on mount, then force a render so the freshly
     // populated pool actually paints (reset() mutates a module array, which
@@ -556,10 +559,20 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
         // seguia igual. Agora cada pincel roubado tira acabamento do lugar.
         // Só toca nos materiais QUANDO MUDA; não é trabalho por quadro.
         const acab = acabamentoDoAndar(f3Progress.brushes);
+        // ── A SETA POR ACABAR FERVE ──────────────────────────────────────
+        // Desbotada e PARADA lê como "quebrou". Desbotada e tremendo no mesmo
+        // 8 Hz do resto do andar lê como "ele não terminou de pintar" — que é o
+        // que a mecânica quer dizer. Duas linhas por quadro, só quando falta
+        // acabamento: com o andar inteiro isto nem roda.
+        if (setaTremendo.current) {
+            ARROW_MAT.opacity = acabamentoRef.current.seta
+                * (0.82 + 0.18 * ruidoDaTinta(quadroDaTinta(s.clock.elapsedTime)));
+        }
         if (mudouOAcabamento(acab, acabamentoRef.current)) {
             acabamentoRef.current = acab;
             ARROW_MAT.opacity = acab.seta;
-            ARROW_MAT.visible = acab.seta > 0.01;
+            ARROW_MAT.visible = true;   // a seta nunca some — ver `f3Desenho`
+            setaTremendo.current = acab.seta < 0.999;
             for (const m of _toonCache.values()) {
                 if (m.uniforms.uTabuasForca) m.uniforms.uTabuasForca.value = acab.tabuado;
             }

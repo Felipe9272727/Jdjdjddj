@@ -69,8 +69,18 @@ export default function Floor3Balao({
             <div style={{
                 background: PAPEL, color: INK,
                 border: 'min(0.95vw,9px) solid ' + INK,
-                padding: 'min(2.4vw,20px) min(4.4vw,38px)',
-                fontSize: 'min(3.6vw,21px)', lineHeight: 1.16, textAlign: 'center',
+                // ── O BALÃO TAMBÉM TEM QUE CABER NA ALTURA ──────────────
+                // O Felipe mandou foto do celular DEITADO e o balão estava com
+                // metade da altura da tela, tampando o Diabrete inteiro. A
+                // conta explicava: tudo aqui media por `vw`. Em paisagem o
+                // aparelho dele tem ~880 px de largura e ~400 de ALTURA, então
+                // `min(3.6vw,21px)` dava os 21px cheios — tamanho certo para a
+                // largura e enorme para a altura que sobra. Todas as minhas
+                // fotos foram em retrato, onde a altura é folgada e o defeito
+                // não aparece.
+                // Agora o `vh` entra na mesma conta: o que for menor manda.
+                padding: 'min(2.4vw,20px,2.8vh) min(4.4vw,38px,5.2vh)',
+                fontSize: 'min(3.6vw,21px,5vh)', lineHeight: 1.16, textAlign: 'center',
                 letterSpacing: '.02em',
                 boxShadow: '0 min(0.9vw,7px) 0 rgba(20,12,8,0.4)',
                 animation: 'f3balao-ferve 0.375s steps(1,end) infinite, f3balao-treme 0.375s steps(1,end) infinite',
@@ -115,7 +125,7 @@ export default function Floor3Balao({
                 background: doDiabo ? '#c0271a' : '#f2e9d5',
                 color: doDiabo ? '#fff' : INK,
                 WebkitTextStroke: doDiabo ? `2px ${INK}` : '0', paintOrder: 'stroke', padding: '2px 14px',
-                fontSize: 'min(2.9vw,17px)', letterSpacing: '.08em',
+                fontSize: 'min(2.9vw,17px,3.6vh)', letterSpacing: '.08em',
                 border: `min(0.42vw,3px) solid ${INK}`, borderRadius: 5,
                 boxShadow: `0 3px 0 ${INK}` }}>
                 {doDiabo ? 'O DIABRETE' : 'VOCÊ'}

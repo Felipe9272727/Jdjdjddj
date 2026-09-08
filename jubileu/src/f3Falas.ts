@@ -102,7 +102,7 @@ const DESENHOU_ESTRAGADO: Fala[] = [
 
 const PROVOCA_ESTRAGADO: Fala[] = [
     { texto: 'Olha o que tu fez com a minha escadaria!', dura: 3.0 },
-    { texto: 'Sumiram as setas, viu? Agora te vira pra achar o caminho!', dura: 3.6 },
+    { texto: 'Olha as setas! Sem tinta, tremendo… culpa TUA!', dura: 3.4 },
     { texto: 'Tá vendo o tabuado sumindo? Eu não tenho MÃO pra tudo!', dura: 3.6 },
     { texto: 'Devolve, vai! Eu prometo que só espeto um pouquinho!', dura: 3.4 },
 ];

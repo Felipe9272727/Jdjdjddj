@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { acabamentoDoAndar, mudouOAcabamento, PINCEIS_DO_DIABRETE } from '../f3Desenho';
+import { acabamentoDoAndar, mudouOAcabamento, PINCEIS_DO_DIABRETE, SETA_MINIMA } from '../f3Desenho';
 
 describe('f3Desenho — o andar se desfaz junto com o dono', () => {
     it('começa inteiro e só piora', () => {
@@ -40,5 +40,27 @@ describe('f3Desenho — o andar se desfaz junto com o dono', () => {
     it('mudouOAcabamento não acusa mudança onde não houve', () => {
         expect(mudouOAcabamento(acabamentoDoAndar(1), acabamentoDoAndar(1))).toBe(false);
         expect(mudouOAcabamento(acabamentoDoAndar(2), acabamentoDoAndar(3))).toBe(true);
+    });
+});
+
+// ── A SETA É NAVEGAÇÃO, NÃO É ENFEITE ────────────────────────────────────────
+// O Felipe jogou no celular e reportou como bug: "quando o player avança de
+// mais, as setas começam a sumir". A tabela levava a seta a 0,00 com dois
+// pincéis — e o próprio texto deste módulo já dizia que isto não pode "deixar
+// ninguém sem saber onde pisar". Este teste é para a contradição não voltar.
+describe('a seta desbota, mas nunca some', () => {
+    it('nenhuma etapa deixa a seta abaixo do piso legível', () => {
+        for (let r = 0; r <= PINCEIS_DO_DIABRETE; r++) {
+            expect(acabamentoDoAndar(r).seta).toBeGreaterThanOrEqual(SETA_MINIMA);
+        }
+        expect(SETA_MINIMA).toBeGreaterThan(0.25);   // abaixo disso não se enxerga
+    });
+    it('ela ainda PERDE tinta a cada pincel — a história continua sendo contada', () => {
+        for (let r = 1; r <= PINCEIS_DO_DIABRETE; r++) {
+            expect(acabamentoDoAndar(r).seta).toBeLessThan(acabamentoDoAndar(r - 1).seta);
+        }
+    });
+    it('e quem some de verdade é o TABUADO, que é acabamento e não caminho', () => {
+        expect(acabamentoDoAndar(3).tabuado).toBeLessThan(acabamentoDoAndar(3).seta);
     });
 });
