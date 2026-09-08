@@ -4,6 +4,24 @@ Uma página, para não ter que ler quarenta commits.
 
 ---
 
+## A boca, volta 44 — não havia nada para remendar
+
+O dono do jogo: **"ainda está cobrindo o nariz, coloque uns -8 de altura que dá
+certo"**. Ele estava certo na direção e curto no número: medido varrendo
+`?bocameio=`, o ponto em que a bola sai INTACTA é **-24**, não -8.
+
+E aí caiu a ficha do erro que atravessou quatro voltas. A boca vinha com um
+remendo — um pedaço de cara creme por baixo dela — para apagar "a boca pintada na
+textura do GLB". **Aquilo nunca foi uma boca. É a bola do nariz dele.** Não havia
+nada para apagar, e o remendo só podia fazer uma coisa: comer o nariz. Foi o que
+fez, das três formas diferentes que eu tentei.
+
+Agora não há remendo nenhum. A boca não precisava de remendo, precisava de
+LUGAR: desceu até passar POR BAIXO da bola, e as pontas sobem pelos lados com a
+bola aninhada no berço do sorriso — como ele desenhou na folha de referência.
+Conferido na coluna do nariz, foto a foto: **a bola sai idêntica à cara crua em
+todas as formas**.
+
 ## A boca, volta 43 — a textura estava de cabeça para baixo
 
 O dono do jogo: **"ainda está cobrindo o nariz, a bola preta inteira é o nariz"**.

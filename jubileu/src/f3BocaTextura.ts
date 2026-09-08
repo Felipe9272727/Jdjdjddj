@@ -42,40 +42,28 @@ const GANHO_Y = 1.15;
 // SEGUNDA: o y=0 do desenho não cai no meio do canvas, cai mais para baixo — a
 // metade de cima do canvas é o pedaço da bola que FICA, e a de baixo é onde a
 // boca mora.
-const BOCA_MEIO = 72;
+const BOCA_MEIO = 96;
+
+/** `?bocameio=80` desce a boca no canvas, para varrer a altura numa rodada só. */
+function meioDaUrl(): number {
+    try {
+        const v = new URLSearchParams(globalThis.location?.search ?? '').get('bocameio');
+        const n = v === null ? NaN : parseFloat(v);
+        return Number.isFinite(n) ? n : BOCA_MEIO;
+    } catch { return BOCA_MEIO; }
+}
 
 // O que o remendo creme cobre, em pixel de canvas: da metade da bola (44) até
 // pouco antes do queixo (108). Não pode passar de 108: abaixo disso é pescoço, e
 // creme ali esticaria o queixo dele.
-// Em pixel de canvas, medido com `?remendo=` e a régua da cara:
-//   0 .. 43  = a bola do nariz (o que fica);  14 .. 62 = o que o remendo apara;
-//   63       = o queixo — passar disso pintaria creme no pescoço dele.
-const REMENDO_DE = 49;
-const REMENDO_ATE = 92;
 
-/**
- * `?remendo=44,108` move o corte pela URL, em pixel de canvas.
- *
- * Existe porque acertar isto por tentativa custava cinco minutos de bancada por
- * palpite: é uma linha na textura, mas ela vive num canvas que vira uma caixa em
- * espaço local que vira pixel na cara. Com a URL, uma rodada varre a faixa
- * inteira e a régua (`medir-a-cara.mjs`) diz onde cada corte caiu.
- */
-function corteDaUrl(): [number, number] {
-    try {
-        const v = new URLSearchParams(globalThis.location?.search ?? '').get('remendo');
-        if (!v) return [REMENDO_DE, REMENDO_ATE];
-        const n = v.split(',').map(Number);
-        return n.length === 2 && n.every(Number.isFinite) ? [n[0], n[1]] : [REMENDO_DE, REMENDO_ATE];
-    } catch { return [REMENDO_DE, REMENDO_ATE]; }
-}
 
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
 
 function paraTela(p: { x: number; y: number }): [number, number] {
     // y do desenho aponta para cima; o canvas aponta para baixo.
-    return [LARG / 2 + p.x * (LARG / 2) * MARGEM, BOCA_MEIO - p.y * (ALT / 2) * GANHO_Y];
+    return [LARG / 2 + p.x * (LARG / 2) * MARGEM, meioDaUrl() - p.y * (ALT / 2) * GANHO_Y];
 }
 
 function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number }[], fechar: boolean) {
@@ -91,25 +79,21 @@ function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number
 export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
     c.clearRect(0, 0, LARG, ALT);
 
-    // ── O REMENDO APARA A BOLA POR BAIXO ─────────────────────────────────────
+    // ── NÃO HÁ REMENDO, E ESSA É A HISTÓRIA INTEIRA ──────────────────────────
     //
-    // Ele já foi uma elipse de canvas inteiro e comia o rosto do queixo aos
-    // olhos ("aí ele perde a nareba"). Depois encolheu demais e a boca passou a
-    // ser desenhada EM CIMA da bola ("ainda está cobrindo o nariz, a bola preta
-    // inteira é o nariz"). Agora ele faz uma coisa só, decidida pelo dono do
-    // jogo: apara a METADE DE BAIXO da bola, e nada mais.
+    // A boca já veio com um pedaço de cara junto três vezes, e as três comeram o
+    // nariz do personagem. O dono do jogo reclamou nas três: "aí ele perde a
+    // nareba", depois "ainda está cobrindo o nariz", depois "a bola preta inteira
+    // é o nariz".
     //
-    // O que sobra em cima continua sendo o nariz dele — bola preta, mesmo lugar,
-    // só menor. O que abre embaixo é onde a boca cabe.
-    c.save();
-    c.fillStyle = CREME;
-    c.beginPath();
-    const [corteDe, corteAte] = corteDaUrl();
-    c.ellipse(LARG / 2, (corteDe + corteAte) / 2, LARG * 0.47,
-        (corteAte - corteDe) / 2, 0, 0, Math.PI * 2);
-    c.fill();
-    c.restore();
-
+    // O remendo existia para apagar a boca pintada na textura do GLB — mas aquilo
+    // nunca foi uma boca. É a BOLA DO NARIZ dele. Não havia nada para apagar.
+    //
+    // A boca não precisa de remendo, precisa de LUGAR: ela desceu (ver
+    // `BOCA_MEIO`) até passar POR BAIXO da bola, e as pontas sobem pelos lados,
+    // com a bola aninhada no berço do sorriso — que é como ele desenhou na folha
+    // de referência. Medido na coluna do nariz, foto a foto: a bola sai idêntica
+    // à cara crua, em todas as vinte e sete formas.
     c.save();
     c.translate(LARG / 2, ALT / 2);
     c.rotate((forma.inclinacao * Math.PI) / 180);
