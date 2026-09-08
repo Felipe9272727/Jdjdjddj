@@ -122,3 +122,41 @@ describe('f3Passada — a corrida do Diabrete', () => {
         expect(ar.esticaY).toBe(1);                    // no ar quem estica é o pulo
     });
 });
+
+// ── E ELE TAMBÉM DESLIZAVA ───────────────────────────────────────────────────
+//
+// A cutscene foi consertada primeiro (ver `f3Pose.ts`): a atuação passou a ser
+// desenhada EM DOIS, 12 poses por segundo, paradas entre uma e outra. Faltava
+// perguntar o mesmo desta corrida, que é o Diabrete que o jogador vê por MUITO
+// mais tempo.
+//
+// A resposta é a mesma. `passada()` recebe uma fase contínua e devolve um valor
+// novo a cada quadro de tela; o único degrau aqui dentro é o TREMOR, que é
+// pequeno de propósito e não segura pose nenhuma. Um corpo liso com um tremor
+// saltando por cima não é desenho: é um boneco com chiado.
+//
+// Quem segura a pose é `Floor3Rival.tsx`, que devolve os ossos ao instantâneo do
+// desenho anterior enquanto o desenho não vira. Estes dois testes fixam o
+// diagnóstico, para ninguém "otimizar" o instantâneo achando que é redundante.
+describe('a corrida, sem quem a segure, desliza', () => {
+    it('a fase contínua dá uma pose nova em quase todo quadro de tela', () => {
+        let novas = 0;
+        let ant = passada(0, false, 0);
+        for (let i = 1; i < 60; i++) {
+            const t = i / 60;
+            const p = passada(t * 9, false, t);
+            const d = Math.abs(p.pernaE - ant.pernaE) + Math.abs(p.bracoE - ant.bracoE)
+                + Math.abs(p.corpoIncl - ant.corpoIncl) + Math.abs(p.cabecaIncl - ant.cabecaIncl);
+            if (d > 1e-9) novas++;
+            ant = p;
+        }
+        expect(novas).toBeGreaterThan(50);
+    });
+    it('e o tremor sozinho não segura nada — ele é pequeno de propósito', () => {
+        // Duas amostras dentro do MESMO degrau de tremor: se o tremor fosse o que
+        // desenha a pose, elas seriam iguais. Não são: a fase andou.
+        const a = passada(1.000, false, 0.500);
+        const b = passada(1.045, false, 0.510);
+        expect(Math.abs(a.pernaE - b.pernaE)).toBeGreaterThan(1e-6);
+    });
+});

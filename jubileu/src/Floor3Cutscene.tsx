@@ -30,6 +30,7 @@ import { poseDoGesto, quadroDaPose, tempoDaPose, POSE_HZ, ARM_REST } from './f3P
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
+import { Spring } from './f3Mola';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const STAND     = new THREE.Vector3(0.9, 0, -9.2);   // on the landing, ahead of the player
@@ -38,17 +39,6 @@ interface Props {
     targetRef: React.MutableRefObject<THREE.Vector3>;   // camera look-at (feet)
     onLine: (i: number) => void;
     onDone: () => void;
-}
-
-class Spring {
-    value = 0; vel = 0;
-    constructor(readonly k = 22, readonly d = 7) {}
-    tick(target: number, dt: number) {
-        this.vel += (-this.k * (this.value - target) - this.d * this.vel) * dt;
-        this.value += this.vel * dt;
-        return this.value;
-    }
-    reset(v = 0) { this.value = v; this.vel = 0; }
 }
 
 const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {

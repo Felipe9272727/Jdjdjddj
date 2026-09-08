@@ -28,9 +28,11 @@ import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { f3Fala } from './f3Falas';
 import { vozDoDiabrete } from './f3Voz';
 import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { quadroDaPose } from './f3Pose';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
 import { passada, PASSOS_POR_SEGUNDO } from './f3Passada';
+import { Spring } from './f3Mola';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const LEAD_Z    = 14;
@@ -47,17 +49,6 @@ const ferruleMat = new THREE.MeshToonMaterial({ color: '#c2c7cf' });
 const bristleMat = new THREE.MeshToonMaterial({ color: '#1a1420' });
 const tipMat     = new THREE.MeshToonMaterial({ color: '#c0271a' });
 
-class Spring {
-    value = 0; vel = 0;
-    constructor(readonly k = 22, readonly d = 7) {}
-    tick(target: number, dt: number) {
-        this.vel += (-this.k * (this.value - target) - this.d * this.vel) * dt;
-        this.value += this.vel * dt;
-        return this.value;
-    }
-    reset(v = 0) { this.value = v; this.vel = 0; }
-}
-
 const Floor3Rival: React.FC = () => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const groupRef = useRef<THREE.Group>(null!);
@@ -70,6 +61,19 @@ const Floor3Rival: React.FC = () => {
     const vozDaFala = useRef<ReturnType<typeof vozDoDiabrete> | null>(null);
     const t0DaFala = useRef(0);
     const quadroBoca = useRef(-1);
+    // ── ELE TAMBÉM ANDA EM DOIS ──────────────────────────────────────────
+    // A cutscene foi consertada primeiro, mas o jogador vê ESTE Diabrete por
+    // muito mais tempo — é ele que corre na frente o andar inteiro. Medido: o
+    // ciclo de `f3Passada` recebe uma fase contínua, e só o TREMOR dentro dele
+    // salta em degraus; o corpo em volta do tremor deslizava igual ao da
+    // cutscene.
+    //
+    // Aqui o conserto é por INSTANTÂNEO em vez de reestruturação: o quadro corre
+    // normal e, quando não é um desenho novo, os ossos voltam para onde estavam.
+    // O arquivo tem três ramos que escrevem ossos (tonto, pintando, correndo) e
+    // embrulhar os três em `if` seria muito risco para um efeito idêntico.
+    const quadroPose = useRef(-1);
+    const poseGuardada = useRef<{ p: THREE.Vector3; r: THREE.Euler }[] | null>(null);
     const birdRefs = useRef<THREE.Group[]>([]);
     const brushRef = useRef<THREE.Group | null>(null);
 
@@ -304,6 +308,23 @@ const Floor3Rival: React.FC = () => {
         strY *= 1 - 0.26 * landImpact.current;             // cartoon landing squash
         const strX = 1 / Math.sqrt(Math.max(0.5, strY));
         rig.group.scale.set(strX, strY, strX);
+
+        // ── SEGURA O DESENHO ─────────────────────────────────────────────────
+        // Ver o comentário de `quadroPose`. Entre um desenho e outro os ossos
+        // voltam para onde estavam, então a pose FICA PARADA — que é o que faz
+        // um curta de 1930 ter estalo. A posição no MUNDO não entra nisso: ele
+        // corre pelo curso e a câmera o acompanha, e isso continua contínuo.
+        const qp = quadroDaPose(tRef.current);
+        if (qp !== quadroPose.current || !poseGuardada.current) {
+            quadroPose.current = qp;
+            poseGuardada.current = bones.map((b) => ({ p: b.position.clone(), r: b.rotation.clone() }));
+        } else {
+            const g = poseGuardada.current;
+            for (let i = 0; i < bones.length && i < g.length; i++) {
+                bones[i].position.copy(g[i].p);
+                bones[i].rotation.copy(g[i].r);
+            }
+        }
     });
 
     return (
