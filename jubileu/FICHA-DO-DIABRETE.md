@@ -147,8 +147,15 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       chapada, presos ao osso da cabeça, um pouco maiores que as placas. Como
       tudo é posterizado em duas cores, preto sobre preto não tem emenda.
       Medido em execução emparelhada: 139,5 ms com, 137,0 ms sem — 2,5 ms.
-- [ ] os TUFOS laterais continuam placas planas (nº 4 dele). Mesmo remédio dos
-      chifres, mas a forma é de três pontas.
+- [x] ~~os TUFOS laterais são placas planas~~ — ciclo 6: três cones por lado, na
+      faixa entre a borda da máscara (0,196) e o extremo da franja (0,27). NÃO
+      cobri a franja inteira de propósito: medida, ela é uma massa de espetos
+      pequenos que envolve a cabeça (x -0,269..-0,004, z -0,194..0,204), e
+      engoli-la deixaria uma bola no lugar do cabelo. Só as PONTAS ficaram
+      marcadas, que é o que a ficha pede ("três pontas principais").
+- [x] ~~a boca não tem o sorriso torto (nº 8)~~ — ciclo 6: `sorrisoIronico`, que
+      é a boca de repouso e a que mais aparece, abriu de 0,05/0,13 para
+      0,09/0,22, e o `TORTO` universal subiu de 0,10 para 0,13.
 - [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
       cor por geometria (uma cunha em coordenada local, de graça). É ele que faz

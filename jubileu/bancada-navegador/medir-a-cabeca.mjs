@@ -93,3 +93,20 @@ grupo('chifre esquerdo', (q) => q[1] > 0.90 && q[0] < -0.02);
 grupo('chifre direito',  (q) => q[1] > 0.90 && q[0] > 0.02);
 grupo('tufo esquerdo',   (q) => q[1] > 0.70 && q[1] < 0.92 && q[0] < -0.21);
 grupo('tufo direito',    (q) => q[1] > 0.70 && q[1] < 0.92 && q[0] > 0.21);
+
+// A franja lateral inteira, não só as pontas: tudo que está fora da esfera do
+// crânio (raio ~0,205 em torno de (0, 0,775, 0)) na faixa de altura do cabelo.
+console.log('\nfranja lateral (fora da esfera do crânio):');
+const fora = pontos.filter((q) => {
+    const dx = q[0], dy = q[1] - 0.775, dz = q[2];
+    return q[1] > 0.64 && q[1] < 0.93 && Math.hypot(dx / 0.205, dy / 0.215, dz / 0.205) > 1.0;
+});
+grupo('franja esquerda', (q) => fora.includes(q) && q[0] < 0);
+grupo('franja direita',  (q) => fora.includes(q) && q[0] > 0);
+for (let y = 0.64; y < 0.94; y += 0.06) {
+    const f = fora.filter((q) => q[1] >= y && q[1] < y + 0.06 && q[0] < 0);
+    if (!f.length) continue;
+    const xs = f.map((q) => q[0]), zs = f.map((q) => q[2]);
+    console.log(`  esq y ${y.toFixed(2)}  x ${Math.min(...xs).toFixed(3)}..${Math.max(...xs).toFixed(3)}`
+        + `  z ${Math.min(...zs).toFixed(3)}..${Math.max(...zs).toFixed(3)}  n=${f.length}`);
+}

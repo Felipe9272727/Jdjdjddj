@@ -416,6 +416,39 @@ const CHIFRE_CURVA = 0.070;  // o quanto a ponta foge para fora e para trás
 /** Os dois cones e a tinta deles, compartilhados por todos os Diabretes. */
 let _chifres: THREE.BufferGeometry[] | null = null;
 let _tintaChapada: THREE.MeshBasicMaterial | null = null;
+let _tufo: THREE.BufferGeometry | null = null;
+
+// ── OS TUFOS LATERAIS ────────────────────────────────────────────────────────
+//
+// Defeito nº 4 dele: "tufos do cabelo com forma errada e pouco definidos, devem
+// ser maiores, mais marcados e com o recorte certo". A folha de modelagem
+// detalha: "TRÊS PONTAS PRINCIPAIS, elemento separado da cabeça, volume
+// arredondado".
+//
+// Medido, a franja da malha não é um tufo: é uma massa de espetos pequenos e
+// irregulares que envolve a cabeça (esquerda x -0,269..-0,004, z -0,194..0,204).
+// Cobrir a massa inteira engoliria a silhueta e deixaria o personagem com uma
+// bola no lugar do cabelo — pior do que está.
+//
+// O que dá para fazer sem esse risco: engrossar só as PONTAS. Entre a borda da
+// máscara creme (|x| 0,196) e o extremo da franja (0,27) há uma faixa de 0,074
+// onde os espetos aparecem contra o céu. Três cones por lado nessa faixa, com a
+// base do lado de fora da máscara para não morder o rosto, dão as três pontas
+// marcadas que a ficha pede sem tocar no resto.
+const TUFO_BASE_X = 0.190;
+const TUFO_RAIO = 0.046;
+const TUFO_COMPRIMENTO = 0.105;
+/** As três pontas: altura da base, e para onde a ponta aponta (dy, dz). */
+const TUFO_PONTAS: ReadonlyArray<readonly [number, number, number]> = [
+    [0.868,  0.55, -0.10],   // a de cima, apontando para fora e para cima
+    [0.780,  0.05, -0.30],   // a do meio, quase reta para o lado
+    [0.694, -0.45, -0.20],   // a de baixo, para fora e para baixo
+];
+
+/** Uma ponta de tufo: cone de 6 lados, que já basta numa forma deste tamanho. */
+function construirTufo(): THREE.BufferGeometry {
+    return new THREE.ConeGeometry(TUFO_RAIO, TUFO_COMPRIMENTO, 6, 1, false);
+}
 
 /**
  * Um chifre: cone de 8 lados, encurvado. A curva é uma parábola no eixo da
@@ -818,9 +851,12 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // Ver a nota longa em `geometriaDoChifre`. Eles são filhos do osso, então
     // acompanham cada giro e cada tranco da cabeça sem uma linha de código a
     // mais. As posições são relativas à posição de repouso do osso.
-    // `?semchifre` desliga os cones. Serve para MEDIR: com e sem, na mesma
-    // execução, que é o único jeito honesto de saber o que eles custam — comparar
-    // duas execuções mente, porque a cena para em momentos diferentes.
+    // `?semchifre` desliga TODA a geometria que eu acrescentei — os dois cones
+    // dos chifres e as seis pontas dos tufos. Serve para MEDIR: com e sem, na
+    // mesma execução, que é o único jeito honesto de saber o que custam.
+    // Comparar duas execuções mente, porque a cena para em momentos diferentes,
+    // e esta bancada já me enganou assim uma vez (56 ms viraram 137 sem nenhuma
+    // mudança que justificasse).
     const semChifre = (() => {
         try { return new URLSearchParams(globalThis.location?.search ?? '').has('semchifre'); }
         catch { return false; }
@@ -836,6 +872,23 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         m.frustumCulled = false;
         bones[B.head].add(m);
     });
+
+    // As três pontas de cada lado. O cone nasce apontando para +Y, então cada
+    // ponta é uma rotação: primeiro deitá-lo para o lado, depois inclinar.
+    _tufo ??= construirTufo();
+    for (const lado of [-1, 1]) {
+        for (const [y, dy, dz] of TUFO_PONTAS) {
+            const m = new THREE.Mesh(_tufo, _tintaChapada!);
+            const dir = new THREE.Vector3(lado, dy, dz).normalize();
+            m.position.set(
+                lado * TUFO_BASE_X - BP[B.head][0] + dir.x * TUFO_COMPRIMENTO * 0.5,
+                y - BP[B.head][1] + dir.y * TUFO_COMPRIMENTO * 0.5,
+                -0.02 - BP[B.head][2] + dir.z * TUFO_COMPRIMENTO * 0.5);
+            m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            m.frustumCulled = false;
+            bones[B.head].add(m);
+        }
+    }
     }
 
     // NOTE: no ink outline on the Diabrete. The inverted-hull read as torn black

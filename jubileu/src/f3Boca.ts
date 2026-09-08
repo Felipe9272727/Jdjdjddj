@@ -110,7 +110,12 @@ export interface Forma {
  *
  * Assim ele sorri irônico o tempo todo E continua tendo dezoito caras.
  */
-export const TORTO = 0.10;
+// 0,13, e não 0,10: a folha de modelagem dele repete "sorriso torto" como a
+// característica da boca, e no close da referência a diferença entre um canto e
+// o outro é bem maior do que eu tinha posto. Como o TORTO entra em TODAS as
+// bocas, subir aqui deixa o personagem irônico o tempo todo sem precisar de
+// forma nova nenhuma.
+export const TORTO = 0.13;
 
 /**
  * Arco de parábola de `-1..1`, com flecha `f` (positiva sobe nas pontas) e
@@ -199,9 +204,17 @@ export const BOCAS: Readonly<Record<NomeDaBoca, Forma>> = Object.freeze({
     sorriso:           F({ cheia: false, traco: curva(-0.26, 11, 0.60), inclinacao: -2 }),
     // F3 — falando 1: cunha de espeto à esquerda, cheia à direita
     falando1:          F({ cheia: true, caminho: lente(0.42, 0.10, 0.26, -0.85, 0.187), goela: 0.30 }),
-    // F4 — sorriso irônico: fresta longa com fileira de dentes, subindo à direita
-    sorrisoIronico:    F({ cheia: true, caminho: lente(0.56, 0.05, 0.13, -0.55, 0.165),
-        dentes: 6, dentesDe: 0.30, dentesAte: 0.98 }),
+    // F4 — sorriso irônico: fresta longa com fileira de dentes, subindo à direita.
+    //
+    // ── E ELA ABRIU ──────────────────────────────────────────────────────────
+    // Esta é a boca de REPOUSO dele — a que aparece na apresentação e entre as
+    // falas, ou seja a que o jogador mais vê. Na lista de defeitos que ele
+    // mandou é o nº 8: "a boca não tem o sorriso torto e expressivo
+    // característico". Com 0,05 acima e 0,13 abaixo ela lia como um risco fino;
+    // no close da referência é um sorriso claramente ABERTO, com a fileira de
+    // dentes de um lado só. 0,09 e 0,22, e um pouco mais larga.
+    sorrisoIronico:    F({ cheia: true, caminho: lente(0.60, 0.09, 0.22, -0.55, 0.165),
+        dentes: 6, dentesDe: 0.34, dentesAte: 0.98 }),
     // F5 — falando 2: boca grande com goela
     falando2:          F({ cheia: true, caminho: lente(0.50, 0.16, 0.34, 0.35, 0.22), goela: 0.52 }),
     // F6 — dentes debochados: sorrisão de dentes quadrados
