@@ -60,19 +60,41 @@ export interface Forma {
 }
 
 // ── Ajudantes de traçado ─────────────────────────────────────────────────────
-/** Arco de parábola de `-1..1`, com flecha `f` (positiva sobe nas pontas). */
-function curva(f: number, n = 9, largura = 1): Ponto[] {
+/**
+ * O SORRISO TORTO NÃO É UMA DAS BOCAS — É TODAS ELAS.
+ *
+ * O dono do jogo jogou e disse: "ele tinha que sempre sorrir ironicamente".
+ * A primeira leitura seria trocar a tabela de expressões para devolver
+ * `sorrisoIronico` em todo canto — e seria errada, porque ele tinha acabado de
+ * pedir MAIS expressões, não menos.
+ *
+ * A leitura certa é que a ironia não é uma expressão, é o TRAÇO. Um sorriso
+ * torto não é um sorriso girado: girar mantém a boca simétrica, só inclinada. O
+ * que faz o canto da boca subir de um lado só é CISALHAR — somar uma rampa
+ * linear ao arco. É o que este `torto` faz, e por isso ele entra em todas as
+ * dezoito formas, inclusive na `neutra`: uma reta cisalhada já é um sorrisinho
+ * de canto de boca.
+ *
+ * Assim ele sorri irônico o tempo todo E continua tendo dezoito caras.
+ */
+export const TORTO = 0.16;
+
+/**
+ * Arco de parábola de `-1..1`, com flecha `f` (positiva sobe nas pontas) e
+ * `torto` erguendo a ponta direita (o canto da boca do sorriso irônico).
+ */
+function curva(f: number, n = 9, largura = 1, torto = TORTO): Ponto[] {
     const p: Ponto[] = [];
     for (let i = 0; i <= n; i++) {
-        const x = (-1 + (2 * i) / n) * largura;
-        p.push({ x, y: f * (1 - x * x / (largura * largura)) });
+        const u = -1 + (2 * i) / n;
+        p.push({ x: u * largura, y: f * (1 - u * u) + torto * u });
     }
     return p;
 }
 /** Lente: dois arcos costurados. É a forma de toda boca aberta desta ficha. */
-function lente(largura: number, alto: number, baixo: number, n = 10): Ponto[] {
-    const cima = curva(alto, n, largura);
-    const baixoP = curva(-baixo, n, largura).reverse();
+function lente(largura: number, alto: number, baixo: number, n = 10, torto = TORTO): Ponto[] {
+    const cima = curva(alto, n, largura, torto);
+    const baixoP = curva(-baixo, n, largura, torto).reverse();
     return [...cima, ...baixoP];
 }
 
@@ -88,33 +110,57 @@ const F = (
  * traços finos e fechados, a fileira do meio é aberta e cheia de dente, e a de
  * baixo volta a ser traço, salvo o "zangado" e o "provocando".
  */
+// ── A INCLINAÇÃO ENCOLHEU PELA METADE ────────────────────────────────────────
+// Antes do `torto`, quem fazia o sorriso parecer irônico era GIRAR a forma
+// inteira. Agora são os dois juntos, e juntos eles brigavam: o `sorrisoIronico`
+// (o desenho que mais aparece, porque é o repouso) somava 0,16 de cisalhamento a
+// 9° de giro sobre 1,56 de largura e saía uma RISCA ATRAVESSADA na cara — na
+// foto parecia cicatriz, ou cigarro. O cisalhamento é o que faz o canto subir;
+// o giro virou tempero.
 export const BOCAS: Readonly<Record<NomeDaBoca, Forma>> = Object.freeze({
     // ── fileira 1 da ficha: o registro do dia a dia ──────────────────────────
-    neutra:         F([], curva(0.00, 5, 0.62), false, 0, false, false, 0),
-    sorriso:        F([], curva(-0.22, 9, 0.68), false, 0, false, false, 0),
-    sorrisoIronico: F([], curva(-0.26, 9, 0.78), false, 4, false, false, -9),
-    deboche:        F(lente(0.72, 0.10, 0.34), [], true, 5, false, false, -13),
-    falando1:       F(lente(0.36, 0.16, 0.16), [], true, 0, false, false, -4),
-    falando2:       F(lente(0.52, 0.34, 0.30), [], true, 0, false, false, -2),
+    neutra:         F([], curva(0.00, 5, 0.52), false, 0, false, false, 0),
+    sorriso:        F([], curva(-0.22, 9, 0.58), false, 0, false, false, 0),
+    // O repouso é o desenho mais visto do personagem: estreito, boca pequena, o
+    // canto direito erguido pelo `torto` e mais nada por cima.
+    sorrisoIronico: F([], curva(-0.24, 9, 0.56), false, 3, false, false, -3),
+    deboche:        F(lente(0.66, 0.10, 0.30), [], true, 5, false, false, -6),
+    falando1:       F(lente(0.34, 0.16, 0.16), [], true, 0, false, false, -2),
+    falando2:       F(lente(0.50, 0.30, 0.26), [], true, 0, false, false, -1),
 
     // ── fileira 2: as emoções grandes ────────────────────────────────────────
-    feliz:          F(lente(0.82, 0.06, 0.52), [], true, 6, false, false, 0),
-    empolgado:      F(lente(0.86, 0.10, 0.58), [], true, 7, true, false, 0),
-    bravo:          F(lente(0.70, 0.30, 0.10), [], true, 5, false, false, 0),
-    irritado:       F(lente(0.62, 0.34, 0.06), [], true, 4, true, false, 11),
-    surpreso:       F(lente(0.30, 0.42, 0.42), [], true, 0, false, false, 0),
-    assustado:      F(lente(0.34, 0.56, 0.24), [], true, 3, true, false, 0),
+    feliz:          F(lente(0.76, 0.06, 0.46), [], true, 6, false, false, 0),
+    empolgado:      F(lente(0.80, 0.08, 0.50), [], true, 7, true, false, 0),
+    bravo:          F(lente(0.66, 0.26, 0.10), [], true, 5, false, false, 0),
+    irritado:       F(lente(0.58, 0.30, 0.06), [], true, 4, true, false, 5),
+    surpreso:       F(lente(0.30, 0.36, 0.36), [], true, 0, false, false, 0),
+    assustado:      F(lente(0.34, 0.48, 0.22), [], true, 3, true, false, 0),
 
     // ── fileira 3: o registro baixo ──────────────────────────────────────────
-    triste:         F([], curva(0.20, 9, 0.60), false, 0, false, false, 0),
-    desanimado:     F([], curva(0.16, 9, 0.62), false, 2, false, false, -7),
-    confuso:        F([], curva(0.10, 7, 0.40), false, 0, false, false, -14),
-    pensativo:      F([], curva(-0.06, 5, 0.36), false, 0, false, false, 17),
-    zangado:        F(lente(0.76, 0.14, 0.14), [], true, 8, false, false, 0),
-    provocando:     F(lente(0.54, 0.14, 0.30), [], true, 0, false, true, -8),
+    triste:         F([], curva(0.20, 9, 0.54), false, 0, false, false, 0),
+    desanimado:     F([], curva(0.16, 9, 0.56), false, 2, false, false, -3),
+    confuso:        F([], curva(0.10, 7, 0.38), false, 0, false, false, -7),
+    pensativo:      F([], curva(-0.06, 5, 0.34), false, 0, false, false, 8),
+    zangado:        F(lente(0.70, 0.14, 0.14), [], true, 8, false, false, 0),
+    provocando:     F(lente(0.50, 0.14, 0.28), [], true, 0, false, true, -4),
 });
 
 export const NOMES_DAS_BOCAS = Object.keys(BOCAS) as NomeDaBoca[];
+
+/**
+ * Quanto a boca ABRE, em altura normalizada. Boca fechada (traço) dá 0.
+ *
+ * Existe para o teste poder cobrar INTENÇÃO — "a palavra gritada abre mais que
+ * as outras" — em vez de fixar o nome da forma. Teste de nome literal já quebrou
+ * duas vezes neste arquivo por motivo nenhum: bastou o vocabulário melhorar.
+ */
+export function aberturaDaBoca(nome: NomeDaBoca): number {
+    const f = BOCAS[nome];
+    if (!f.cheia || !f.caminho.length) return 0;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of f.caminho) { if (p.y < lo) lo = p.y; if (p.y > hi) hi = p.y; }
+    return hi - lo;
+}
 
 // ── O REPOUSO ────────────────────────────────────────────────────────────────
 /**
@@ -126,16 +172,42 @@ export const BOCA_EM_REPOUSO: NomeDaBoca = 'sorrisoIronico';
 
 // ── A FALA ───────────────────────────────────────────────────────────────────
 /**
- * Qual boca numa nota da fala. A voz (`f3Voz`) já entrega uma nota por palavra,
- * com `acento` marcado nas que o texto escreveu em CAIXA ALTA — então a boca abre
- * MAIS exatamente onde ele grita, de graça, sem uma segunda fonte de verdade.
+ * ── A BOCA SE MEXIA MUITO POUCO ──────────────────────────────────────────────
  *
- * As duas bocas de fala alternam porque a ficha traz DUAS ("Falando 1" e
- * "Falando 2") e não uma: boca que pisca sempre igual lê como luz de aviso.
+ * O dono do jogo jogou e disse: "percebi que a boca dele se mexe muito pouco".
+ * Dava para ver por quê na partitura: a boca trocava UMA VEZ POR NOTA, e uma
+ * fala curta tem duas notas (`PISO_DE_BLATS` em `f3Voz`). Ou seja, a fala
+ * inteira dele acontecia com dois desenhos de boca. Isso não é boca falando,
+ * é boca abrindo e fechando.
+ *
+ * Desenho animado não faz assim. A boca de um tagarela de 1930 troca a cada
+ * QUADRO desenhado, e o quadro deste andar é 8 Hz (`BOCA_HZ`, o mesmo fervilhar
+ * dos espinhos e dos balões). Então a nota não escolhe mais A boca: ela escolhe
+ * o CICLO, e o quadro dentro da nota escolhe onde no ciclo ela está.
+ *
+ * O que a nota ainda manda é o TAMANHO — o `acento` (palavra em CAIXA ALTA na
+ * fala) troca para o ciclo grande, então ele continua escancarando a boca
+ * exatamente onde grita, sem uma segunda fonte de verdade.
+ *
+ * Os ciclos têm QUATRO passos e nenhum passo repete o vizinho: cada 1/8 de
+ * segundo o desenho muda de verdade.
  */
-export function bocaDaNota(indiceDaNota: number, acento: boolean): NomeDaBoca {
-    if (acento) return 'deboche';
-    return indiceDaNota % 2 === 0 ? 'falando2' : 'falando1';
+// Nenhum passo repete o vizinho, INCLUSIVE na volta do ciclo — senão, uma vez a
+// cada quatro quadros, o desenho ficava parado por 1/4 de segundo e voltava o
+// defeito em miniatura.
+// O `sorrisoIronico` no meio do ciclo normal não é enfeite: é o quadro FECHADO
+// que faz leitura de consoante em desenho animado, e de quebra é o sorriso
+// torto dele piscando no meio da própria fala.
+const FALA_NORMAL: readonly NomeDaBoca[] = ['falando1', 'falando2', 'sorrisoIronico', 'deboche'];
+const FALA_ACENTO: readonly NomeDaBoca[] = ['deboche', 'empolgado', 'falando2', 'surpreso'];
+
+export function bocaDaNota(indiceDaNota: number, acento: boolean, quadroNaNota = 0): NomeDaBoca {
+    const ciclo = acento ? FALA_ACENTO : FALA_NORMAL;
+    // A nota entra como FASE: notas seguidas não começam na mesma boca, senão o
+    // ciclo vira um piscar regular — o defeito que ele apontou, só que mais
+    // rápido.
+    const i = Math.floor(indiceDaNota) + Math.max(0, Math.floor(quadroNaNota));
+    return ciclo[((i % ciclo.length) + ciclo.length) % ciclo.length];
 }
 
 /**
@@ -214,16 +286,50 @@ export const quadroDaBoca = (t: number) => Math.floor(t * BOCA_HZ);
  * Antes da primeira nota e depois da última, ele volta ao `repouso`, que é a
  * expressão do momento (ver `expressaoDoDiabrete`).
  */
-export function bocaNoInstante(voz: Voz, t: number, repouso: NomeDaBoca): NomeDaBoca {
+/**
+ * Quanto do tempo do balão ele passa de boca mexendo. O resto é o silêncio
+ * depois da piada — e é ali que o sorriso torto aparece sozinho, que é a metade
+ * da graça do personagem.
+ */
+export const PARTE_FALANDO = 0.82;
+
+export function bocaNoInstante(
+    voz: Voz, t: number, repouso: NomeDaBoca, duraNaTela = 0,
+): NomeDaBoca {
     const blats = voz.blats;
-    if (!blats.length || t < 0) return repouso;
-    // Cada nota segura a boca até a próxima; a última segura pela própria duração.
-    for (let i = blats.length - 1; i >= 0; i--) {
-        const b = blats[i];
-        if (t >= b.t) {
-            const fim = i + 1 < blats.length ? blats[i + 1].t : b.t + b.dur;
-            return t < fim ? bocaDaNota(i, b.acento) : repouso;
-        }
-    }
-    return repouso;
+    if (!blats.length || t < 0 || t < blats[0].t) return repouso;
+    const ultimo = blats[blats.length - 1];
+
+    // ── O SOM ACABA MUITO ANTES DO BALÃO ─────────────────────────────────────
+    // Aqui estava o defeito de verdade, e ele só apareceu quando o teste
+    // imprimiu a partitura: a fala do trombone inteira dura 0,55 s (sete notas
+    // de 0,1 s, coladas), e o balão dela fica 3 s no ar. Ou seja, ele mexia a
+    // boca por meio segundo e passava os outros dois e meio de cara parada —
+    // exatamente o "a boca dele se mexe muito pouco" que o dono do jogo relatou.
+    //
+    // A voz não pode esticar: o trombone é curto de propósito, é o jeito de
+    // 1930 e é ele que faz graça. Quem estica é a BOCA. Ela continua articulando
+    // enquanto o balão está no ar (`duraNaTela`), com o mesmo ciclo, só sem
+    // escancarar — o acento pertence às notas que existem de fato.
+    const fimDoSom = ultimo.t + ultimo.dur;
+    const fimDaBoca = Math.max(fimDoSom, duraNaTela * PARTE_FALANDO);
+    if (t >= fimDaBoca) return repouso;
+
+    // Qual nota está soando (ou acabou de soar).
+    let i = 0;
+    for (let k = blats.length - 1; k >= 0; k--) { if (t >= blats[k].t) { i = k; break; } }
+    const b = blats[i];
+
+    // ── O RELÓGIO É O DO ANDAR, NÃO O DA NOTA ────────────────────────────────
+    // A primeira tentativa contou o quadro DENTRO da nota, e não adiantou nada:
+    // as notas do trombone duram menos de 1/8 de segundo, então "o quadro
+    // dentro da nota" era sempre zero e a boca continuava trocando uma vez por
+    // palavra — o defeito que ele apontou, intacto. (Descoberto pelo teste, que
+    // deu conjunto vazio; não por olhar foto.)
+    //
+    // Quem manda é o fervilhar de 8 Hz do andar inteiro: enquanto ele fala, a
+    // boca troca oito vezes por segundo, tenha nota soando ou não. Nos vãos
+    // entre palavras ela usa o ciclo normal — só escancara onde de fato grita.
+    const gritando = t < b.t + b.dur && b.acento;
+    return bocaDaNota(i, gritando, quadroDaBoca(t));
 }

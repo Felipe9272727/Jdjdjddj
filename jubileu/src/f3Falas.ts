@@ -148,6 +148,7 @@ export function escolherFala(evento: EventoDoDiabrete, ctx: Contexto = {}): Fala
 export const f3Fala = {
     texto: '',
     ate: 0,        // performance.now() em que ela sai do ar
+    dura: 0,       // segundos que ela fica no ar — a BOCA precisa disto, não o HUD
     serie: 0,      // sobe a cada fala nova (o HUD compara isto, não a string)
 };
 
@@ -184,6 +185,7 @@ export function dizer(evento: EventoDoDiabrete, ctx: Contexto = {}): Fala {
     const f = escolherFala(evento, ctx);
     f3Fala.texto = f.texto;
     f3Fala.ate = agora() + f.dura * 1000;
+    f3Fala.dura = f.dura;
     f3Fala.serie += 1;
     _avisar?.({ ...f, roubados: Math.max(0, Math.floor(ctx.roubados ?? 0) || 0) });
     return f;
@@ -195,7 +197,7 @@ export function falaViva(t = agora()): string {
 }
 
 export function limparFalas(): void {
-    f3Fala.texto = ''; f3Fala.ate = 0; f3Fala.serie = 0;
+    f3Fala.texto = ''; f3Fala.ate = 0; f3Fala.dura = 0; f3Fala.serie = 0;
     for (const k of Object.keys(cursor) as EventoDoDiabrete[]) cursor[k] = 0;
 }
 

@@ -49,6 +49,12 @@ const ferruleMat = new THREE.MeshToonMaterial({ color: '#c2c7cf' });
 const bristleMat = new THREE.MeshToonMaterial({ color: '#1a1420' });
 const tipMat     = new THREE.MeshToonMaterial({ color: '#c0271a' });
 
+/** DEV-ONLY: `?parado` trava a pose de ócio, para foto comparável. */
+const PARADO = (() => {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').has('parado'); }
+    catch { return false; }
+})();
+
 const Floor3Rival: React.FC = () => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const groupRef = useRef<THREE.Group>(null!);
@@ -60,6 +66,7 @@ const Floor3Rival: React.FC = () => {
     const serieDaFala = useRef(-1);
     const vozDaFala = useRef<ReturnType<typeof vozDoDiabrete> | null>(null);
     const t0DaFala = useRef(0);
+    const duraDaFala = useRef(0);
     const quadroBoca = useRef(-1);
     // ── ELE TAMBÉM ANDA EM DOIS ──────────────────────────────────────────
     // A cutscene foi consertada primeiro, mas o jogador vê ESTE Diabrete por
@@ -143,6 +150,9 @@ const Floor3Rival: React.FC = () => {
             vozDaFala.current = f3Fala.texto
                 ? vozDoDiabrete(f3Fala.texto, { roubados: f3Progress.brushes, grito: true })
                 : null;
+            // Quanto tempo o balão fica no ar: é por ESTE tempo que a boca
+            // articula, não pelo tempo do trombone (ver `bocaNoInstante`).
+            duraDaFala.current = f3Fala.dura;
         }
         const qb = quadroDaBoca(t);
         if (qb !== quadroBoca.current) {
@@ -154,7 +164,8 @@ const Floor3Rival: React.FC = () => {
                 ? 'surpreso'
                 : expressaoDoDiabrete('provoca', f3Progress.brushes);
             const nova = vozDaFala.current
-                ? bocaNoInstante(vozDaFala.current, t - t0DaFala.current, repouso)
+                ? bocaNoInstante(vozDaFala.current, t - t0DaFala.current, repouso,
+                    duraDaFala.current)
                 : repouso;
             rig.definirBoca(nova);
         }
@@ -291,21 +302,31 @@ const Floor3Rival: React.FC = () => {
         // atrasada e que o fervilhar salte em degraus.
         const air = !onGnd.current;
         if (!air) phase.current += safeDt * PASSOS_POR_SEGUNDO * Math.PI * 2;
-        const φ = phase.current;
-        const pose = passada(φ, air, t);
+        const φ = PARADO ? 0 : phase.current;
+        const pose = passada(φ, PARADO ? false : air, PARADO ? 3 : t);
 
         // As molas continuam mandando na inclinação e no quicar do quadril: elas
         // é que dão PESO, e peso não sai de uma fórmula por quadro.
-        bones[B.body].position.y = sBob.current.tick(pose.corpoY, safeDt);
-        bones[B.body].rotation.set(sLean.current.tick(pose.corpoIncl, safeDt), pose.corpoGiro, pose.corpoTorc);
+        bones[B.body].position.y = PARADO ? pose.corpoY : sBob.current.tick(pose.corpoY, safeDt);
+        bones[B.body].rotation.set(PARADO ? pose.corpoIncl : sLean.current.tick(pose.corpoIncl, safeDt),
+            pose.corpoGiro, pose.corpoTorc);
         bones[B.head].rotation.set(pose.cabecaIncl, 0, pose.cabecaTorc);
+        // `?parado`: CABEÇA NIVELADA, para foto de boca comparável.
+        //
+        // A primeira versão disto congelava o relógio dele inteiro, e ele saiu
+        // andando para fora do enquadramento — o relógio também é quem diz onde
+        // ele está. Congelar só a cabeça é o que a foto precisa: mesma pose em
+        // toda foto, sem mexer em mais nada. Sem isto eu comparava duas fotos com
+        // a cabeça em ângulos diferentes e "via" a boca em cima do nariz quando
+        // era só o queixo abaixado.
+        if (PARADO) bones[B.head].rotation.set(0, 0, 0);
         bones[B.l_leg].rotation.set(pose.pernaE, 0, 0);
         bones[B.r_leg].rotation.set(pose.pernaD, 0, 0);
         bones[B.l_arm].rotation.set(pose.bracoE, 0,  (air ? 1.3 : ARM_DROP));
         bones[B.r_arm].rotation.set(pose.bracoD, 0, -(air ? 1.3 : ARM_DROP));
 
-        let strY = air ? 1 + Math.abs(velY.current) * 0.011 : pose.esticaY;
-        strY *= 1 - 0.26 * landImpact.current;             // cartoon landing squash
+        let strY = air && !PARADO ? 1 + Math.abs(velY.current) * 0.011 : pose.esticaY;
+        if (!PARADO) strY *= 1 - 0.26 * landImpact.current;   // cartoon landing squash
         const strX = 1 / Math.sqrt(Math.max(0.5, strY));
         rig.group.scale.set(strX, strY, strX);
 

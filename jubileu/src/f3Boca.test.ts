@@ -13,7 +13,8 @@
 import { describe, it, expect } from 'vitest';
 import {
     BOCAS, NOMES_DAS_BOCAS, BOCA_EM_REPOUSO, BOCA_HZ,
-    bocaDaNota, expressaoDoDiabrete, bocaNoInstante, quadroDaBoca,
+    bocaDaNota, expressaoDoDiabrete, bocaNoInstante, quadroDaBoca, aberturaDaBoca, TORTO,
+    PARTE_FALANDO,
     type MomentoExtra,
     type NomeDaBoca,
 } from './f3Boca';
@@ -53,19 +54,54 @@ describe('o repouso é metade do personagem', () => {
         expect(BOCA_EM_REPOUSO).not.toBe('neutra');
     });
     it('e o sorriso irônico é torto, que é o que faz ele ser irônico', () => {
-        expect(Math.abs(BOCAS.sorrisoIronico.inclinacao)).toBeGreaterThan(4);
+        // O torto mora no TRAÇO (um canto mais alto que o outro), não no giro.
+        // Esta asserção cobrava `inclinacao > 4°` e travou o conserto de um
+        // defeito real: giro e cisalhamento somados viravam uma risca
+        // atravessada na cara. O giro encolheu; a ironia ficou.
+        const t = BOCAS.sorrisoIronico.traco;
+        const esq = t.reduce((a, p) => (p.x < a.x ? p : a));
+        const dir = t.reduce((a, p) => (p.x > a.x ? p : a));
+        expect(dir.y - esq.y).toBeGreaterThan(0.1);
+    });
+    it('e é uma boca PEQUENA — ela divide a cara com a nareba dele', () => {
+        // Medido na foto com a pose congelada: a nareba está em 0,333 da régua
+        // da cara e as bocas grandes chegavam a 0,323. A largura do repouso
+        // caiu junto: a 0,78 ele virava uma risca de canto a canto do rosto.
+        const larg = (n: NomeDaBoca) => {
+            const p = BOCAS[n].cheia ? BOCAS[n].caminho : BOCAS[n].traco;
+            return Math.max(...p.map(q => q.x)) - Math.min(...p.map(q => q.x));
+        };
+        expect(larg('sorrisoIronico')).toBeLessThan(1.3);
+        for (const n of NOMES_DAS_BOCAS) expect(larg(n)).toBeLessThanOrEqual(1.7);
     });
 });
 
 describe('falar não é piscar', () => {
-    it('as duas bocas de fala se alternam', () => {
-        const seq = [0, 1, 2, 3, 4].map(i => bocaDaNota(i, false));
-        expect(new Set(seq).size).toBe(2);
-        expect(seq[0]).not.toBe(seq[1]);
+    it('a boca troca a cada QUADRO da nota, não uma vez por nota', () => {
+        // O dono do jogo: "a boca dele se mexe muito pouco". Uma nota sozinha
+        // tem que render vários desenhos.
+        const dentroDaNota = [0, 1, 2, 3].map(q => bocaDaNota(0, false, q));
+        expect(new Set(dentroDaNota).size).toBeGreaterThanOrEqual(3);
+        for (let i = 1; i < dentroDaNota.length; i++) {
+            expect(dentroDaNota[i]).not.toBe(dentroDaNota[i - 1]);
+        }
+    });
+    it('notas seguidas não começam todas na mesma boca', () => {
+        const inicios = [0, 1, 2, 3].map(i => bocaDaNota(i, false, 0));
+        expect(new Set(inicios).size).toBeGreaterThan(1);
     });
     it('a palavra em CAIXA ALTA abre mais que as outras', () => {
-        expect(bocaDaNota(0, true)).toBe('deboche');
-        expect(bocaDaNota(0, true)).not.toBe(bocaDaNota(0, false));
+        // Intenção, não nome: o CICLO de acento abre mais, na média. Quadro a
+        // quadro não é a régua certa — um ciclo tem quadro fechado de
+        // propósito, e é a média que o olho lê como "escancarou".
+        const media = (acento: boolean) => [0, 1, 2, 3]
+            .reduce((soma, q) => soma + aberturaDaBoca(bocaDaNota(0, acento, q)), 0) / 4;
+        expect(media(true)).toBeGreaterThan(media(false));
+    });
+    it('índice de nota ou quadro estranho não quebra a boca', () => {
+        for (const [i, q] of [[-3, 0], [0, -5], [1e9, 1e9], [2.7, 1.9]] as const) {
+            expect(NOMES_DAS_BOCAS).toContain(bocaDaNota(i, false, q));
+        }
     });
 });
 
@@ -83,10 +119,48 @@ describe('a boca segue a MESMA partitura que o trombone', () => {
         expect(vistas.size).toBeGreaterThan(1);
         expect(vistas.has('neutra')).toBe(false);   // nenhuma nota fica de boca fechada
     });
-    it('o acento da frase cai na boca de acento', () => {
+    it('o acento da frase abre mais a boca que as notas caladas', () => {
         const i = voz.blats.findIndex(b => b.acento);
         expect(i).toBeGreaterThanOrEqual(0);
-        expect(bocaNoInstante(voz, voz.blats[i].t + 0.001, 'neutra')).toBe('deboche');
+        const j = voz.blats.findIndex(b => !b.acento);
+        const naNota = (k: number) => aberturaDaBoca(bocaNoInstante(voz, voz.blats[k].t + 0.001, 'neutra'));
+        expect(naNota(i)).toBeGreaterThan(0);
+        expect(naNota(i)).toBeGreaterThanOrEqual(naNota(j));
+    });
+    // ── A RÉGUA DO DEFEITO QUE ELE RELATOU ───────────────────────────────
+    // "percebi que a boca dele se mexe muito pouco". A causa não era o ciclo:
+    // era que o som dura 0,55 s e o BALÃO fica 3 s no ar. Estes dois testes
+    // fixam o conserto para ele não voltar.
+    const DURA = 3.0;   // o que `f3Falas` dá a uma fala destas
+
+    const filme = (dura: number) => {
+        const q0 = 0, q1 = Math.ceil(dura * BOCA_HZ);
+        const quadros: NomeDaBoca[] = [];
+        for (let q = q0; q < q1; q++) quadros.push(bocaNoInstante(voz, (q + 0.5) / BOCA_HZ, 'sorrisoIronico', dura));
+        return quadros;
+    };
+
+    it('o som acaba em meio segundo, mas o balão fica três — e a boca acompanha o balão', () => {
+        expect(voz.total).toBeLessThan(1);          // o trombone é curto de propósito
+        // Ele passa a maior parte do balão de boca mexendo, não meio segundo.
+        const mexendo = filme(DURA).slice(0, Math.floor(DURA * PARTE_FALANDO * BOCA_HZ));
+        expect(mexendo.length).toBeGreaterThan(voz.total * BOCA_HZ * 3);
+        expect(new Set(mexendo).size).toBeGreaterThan(2);
+        // e nenhum desses quadros é a cara de repouso parada
+        expect(mexendo.filter(n => n !== 'sorrisoIronico').length)
+            .toBeGreaterThan(mexendo.length * 0.6);
+    });
+
+    it('e troca de desenho em quase todo quadro de 8 Hz', () => {
+        const quadros = filme(DURA).slice(0, Math.floor(DURA * PARTE_FALANDO * BOCA_HZ));
+        let trocas = 0;
+        for (let k = 1; k < quadros.length; k++) if (quadros[k] !== quadros[k - 1]) trocas++;
+        expect(trocas).toBeGreaterThan(quadros.length * 0.8);
+        expect(trocas).toBeGreaterThan(voz.blats.length);   // muito mais que uma por palavra
+    });
+
+    it('no fim do balão ele volta ao sorriso torto — a piada precisa do silêncio', () => {
+        expect(bocaNoInstante(voz, DURA * 0.99, 'sorrisoIronico', DURA)).toBe('sorrisoIronico');
     });
     it('fala sem nota nenhuma não trava a cara', () => {
         expect(bocaNoInstante({ ...voz, blats: [] }, 0.5, 'triste')).toBe('triste');
@@ -133,6 +207,35 @@ describe('a boca é tinta, não interpolação', () => {
     });
 });
 
+// ── ELE SORRI IRÔNICO O TEMPO TODO ───────────────────────────────────────────
+// "ele tinha que sempre sorrir ironicamente", disse o dono do jogo. Isso não é
+// uma expressão que se escolhe — é o traço de todas elas. O teste cobra a
+// ASSIMETRIA: em toda forma da ficha, um canto da boca está mais alto que o
+// outro. Boca simétrica não é irônica, por mais que se gire.
+describe('a ironia está no traço, não na escolha', () => {
+    const cantos = (n: string) => {
+        const f = BOCAS[n as NomeDaBoca];
+        const pts = f.cheia ? f.caminho : f.traco;
+        const esq = pts.reduce((a, p) => (p.x < a.x ? p : a));
+        const dir = pts.reduce((a, p) => (p.x > a.x ? p : a));
+        return dir.y - esq.y;
+    };
+
+    it('toda boca da ficha tem um canto mais alto que o outro', () => {
+        for (const n of NOMES_DAS_BOCAS) {
+            expect(Math.abs(cantos(n))).toBeGreaterThan(0.05);
+        }
+    });
+    it('e é sempre o MESMO canto — senão ele faz careta, não ironia', () => {
+        const sinais = new Set(NOMES_DAS_BOCAS.map(n => Math.sign(cantos(n))));
+        expect(sinais.size).toBe(1);
+    });
+    it('o torto é forte o bastante para se ver, e não tanto que vire careta', () => {
+        expect(TORTO).toBeGreaterThan(0.08);
+        expect(TORTO).toBeLessThan(0.30);
+    });
+});
+
 // ── NENHUMA FORMA DA FICHA FICA NA GAVETA ────────────────────────────────────
 // O dono do jogo jogou e disse "tem poucas expressões". Estava certo: as
 // dezoito estavam desenhadas e o jogo usava seis. Forma que nunca aparece é
@@ -148,10 +251,11 @@ describe('as dezoito formas são alcançáveis em jogo', () => {
         for (const m of MOMENTOS) {
             for (let r = 0; r <= 3; r++) alcancadas.add(expressaoDoDiabrete(m as MomentoExtra, r));
         }
-        // as duas de fala vêm da partitura, não da expressão
-        alcancadas.add(bocaDaNota(0, false));
-        alcancadas.add(bocaDaNota(1, false));
-        alcancadas.add(bocaDaNota(0, true));
+        // as de fala vêm da partitura, não da expressão
+        for (let q = 0; q < 8; q++) {
+            alcancadas.add(bocaDaNota(0, false, q));
+            alcancadas.add(bocaDaNota(0, true, q));
+        }
 
         const naGaveta = NOMES_DAS_BOCAS.filter(n => !alcancadas.has(n));
         expect(naGaveta).toEqual([]);

@@ -4,6 +4,40 @@ Uma página, para não ter que ler quarenta commits.
 
 ---
 
+## A boca, volta 41 — a nareba e o "se mexe muito pouco"
+
+Duas coisas que o dono do jogo apontou jogando, e as duas eram reais.
+
+**"aí ele perde a nareba".** O remendo creme que a boca carrega junto (para tirar
+de baixo dela a boca já pintada na textura do GLB) era uma elipse de CANVAS
+INTEIRO — e a caixa da boca é bem maior que a boca. Ele apagava o rosto do queixo
+aos olhos, nareba incluída. Agora ele é medido: com a pose congelada (`?parado`)
+e a régua da própria cara (`bancada-navegador/medir-a-cara.mjs`, 1 no alto da
+cabeça e 0 no queixo), a nareba mora em **0,333..0,339** e a boca pintada em
+**0,083..0,244**. O remendo cobre de 0,30 a 0,78 do canvas: pega a boca pintada
+com folga e para treze pixels antes da nareba. Conferido nas cinco formas.
+
+**"a boca dele se mexe muito pouco".** A causa não era o desenho, era o relógio:
+a fala do trombone inteira dura **0,55 s** (sete notas de 0,1 s) e o balão dela
+fica **3 s** no ar. Ele mexia a boca por meio segundo e passava dois e meio de
+cara parada. A voz não podia esticar — o trombone curto é o que faz graça —
+então quem estica é a boca: ela articula a 8 Hz enquanto o BALÃO está no ar
+(`duraNaTela`, 82% dele), com um ciclo de quatro desenhos que nunca repete o
+vizinho. Medido na bancada: 20 trocas onde antes havia 2.
+
+**"ele tinha que sempre sorrir ironicamente".** Não virou uma expressão fixa —
+isso apagaria as dezoito que ele tinha pedido uma mensagem antes. A ironia foi
+para o TRAÇO: `TORTO` cisalha toda forma da ficha, um canto da boca sempre mais
+alto que o outro, inclusive na `neutra`. O giro por forma encolheu pela metade,
+porque giro + cisalhamento somados faziam do repouso uma risca atravessada na
+cara.
+
+Ferramentas novas: `?semboca` (desliga a boca), `?parado` (congela a pose para
+foto comparável), `ver-a-boca.mjs` (fotografa forma a forma) e `medir-a-cara.mjs`
+(lê a foto e devolve onde cada mancha cai na régua da cara). As três primeiras
+existem porque comparar fotos com a cabeça em ângulos diferentes me fez "ver" a
+boca em cima do nariz mais de uma vez quando era só o queixo abaixado.
+
 ## O arco
 
 O Andar 3 não é uma pista de obstáculos com um vilão em cima. É **o desmonte de

@@ -95,10 +95,18 @@ export interface DiabreteRig {
 // risco escuro. Na ficha dele as bocas abertas ocupam quase metade da largura da
 // cara — que aqui tem ~0,40 de largura.
 const BOCA_LARGURA = 0.245;
-const BOCA_ALTURA = 0.165;
-const BOCA_CENTRO_Y = 0.638;
+// A caixa encolheu na ALTURA (0,165 -> 0,145) e desceu um fio. Medido, não
+// chutado: com a pose congelada (`?parado`) e a régua da própria cara
+// (`bancada-navegador/medir-a-cara.mjs`, 0 no queixo, 1 no alto da cabeça), a
+// nareba dele mora em 0,317..0,323 e as bocas grandes — `empolgado` à frente —
+// subiam até 0,323 e a engoliam. Com esta caixa a maior delas para antes.
+const BOCA_ALTURA = 0.145;
+const BOCA_CENTRO_Y = 0.632;
 
-const GRAVATA_Y = 0.60;
+// A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
+// boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
+// sumia atrás do laço. Gravata-borboleta é de colarinho, não de queixo.
+const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
 const GRAVATA_LARGURA = 0.175;
 
@@ -338,8 +346,15 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // A injecao e guardada: se o chunk esperado nao existir (three mudou por
     // dentro), ela nao acontece e o material continua um toon normal, em vez de
     // embarcar um shader quebrado.
+    // `?semboca` desliga a boca inteira. Serve para MEDIR: com e sem, lado a
+    // lado no mesmo enquadramento, dá para ver exatamente que pedaço do rosto o
+    // remendo está cobrindo — foi assim que o nariz apareceu.
+    const semBoca = (() => {
+        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semboca'); }
+        catch { return false; }
+    })();
     const bocaFixa = bocaDaUrl();
-    const tela = criarTelaDaBoca(bocaFixa ?? BOCA_EM_REPOUSO);
+    const tela = semBoca ? null : criarTelaDaBoca(bocaFixa ?? BOCA_EM_REPOUSO);
     const aj = ajusteDaBoca();
     const alturaCaixa = aj.l * (BOCA_ALTURA / BOCA_LARGURA);
     const caixaDaBoca = new THREE.Vector4(-aj.l / 2, aj.y - alturaCaixa / 2, aj.l, alturaCaixa);

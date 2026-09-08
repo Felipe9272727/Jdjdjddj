@@ -214,7 +214,8 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
             quadroBoca.current = qb;
             const repouso: NomeDaBoca = expressaoDoDiabrete('apresentacao', 0);
             const nova = vozDaLinha.current
-                ? bocaNoInstante(vozDaLinha.current, clock.current - tLinha.current, repouso)
+                ? bocaNoInstante(vozDaLinha.current, clock.current - tLinha.current, repouso,
+                    DIABRETE_SCRIPT[li]?.dur ?? 0)
                 : repouso;
             rig.definirBoca(nova);
         }

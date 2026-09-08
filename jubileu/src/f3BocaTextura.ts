@@ -48,23 +48,34 @@ function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number
 export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
     c.clearRect(0, 0, LARG, ALT);
 
-    // ── O REMENDO ────────────────────────────────────────────────────────────
-    // O GLB já vem com uma boca PINTADA na textura: um oval escuro, parado. As
-    // formas fechadas desta ficha são traços finos, e traço fino não esconde
-    // oval — a foto de perto mostrou os dois ao mesmo tempo, um sorriso irônico
-    // por cima de uma boca aberta que não era dele.
+    // ── O REMENDO, AGORA DO TAMANHO CERTO ────────────────────────────────────
     //
-    // Então a boca nova traz o próprio pedaço de cara: uma elipse do creme do
-    // rosto, por baixo de tudo. Como o material dele posteriza em DUAS cores
-    // (ver `DIABRETE_CLARO` aqui do lado), o creme do remendo é exatamente o
-    // creme da cara e a emenda não aparece.
+    // O GLB vem com uma boca PINTADA na textura, e ela precisa sair de baixo da
+    // boca desenhada: sem isso o sorriso irônico (um traço fino) fica POR CIMA
+    // dela e o que se vê na foto é um risco saindo de uma mancha preta, como um
+    // cigarro. Então a boca traz o próprio pedaço de cara — creme do rosto, por
+    // baixo de tudo. Como o material posteriza em duas cores, o creme do remendo
+    // é o creme da cara e a emenda não aparece.
+    //
+    // ELE COMIA O NARIZ. O dono do jogo jogou e disse "aí ele perde a nareba", e
+    // estava certo: o remendo era uma elipse de CANVAS INTEIRO, e a caixa da boca
+    // é bem maior que a boca. Ele apagava o rosto todo entre o queixo e os olhos.
+    //
+    // Agora ele é medido, não chutado. Com a pose congelada (`?parado`) e a régua
+    // da própria cara (`bancada-navegador/medir-a-cara.mjs`: 1 no alto da cabeça,
+    // 0 no queixo), a cara do Diabrete tem:
+    //     nareba .................. 0,333 .. 0,339
+    //     boca pintada na textura . 0,083 .. 0,244
+    // e a caixa desta textura cobre de -0,13 a 0,45 dessa régua. Passando para
+    // fração do canvas (0 em cima), a nareba cai em 0,20 e a boca pintada em
+    // 0,35..0,63. O remendo vai de 0,30 a 0,78: cobre a boca pintada com folga e
+    // para treze pixels antes da nareba.
     c.save();
     c.fillStyle = CREME;
     c.beginPath();
-    c.ellipse(LARG / 2, ALT / 2, LARG * 0.495, ALT * 0.49, 0, 0, Math.PI * 2);
+    c.ellipse(LARG / 2, ALT * 0.54, LARG * 0.46, ALT * 0.24, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
-
     c.save();
     c.translate(LARG / 2, ALT / 2);
     c.rotate((forma.inclinacao * Math.PI) / 180);
