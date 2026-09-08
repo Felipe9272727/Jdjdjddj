@@ -22,6 +22,8 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { quadroDaPose } from './f3Pose';
+import { olhoDoDiabrete } from './f3Olhos';
+import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
 import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
@@ -195,6 +197,20 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
         const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44 };
 
         const palco: Palco = { gx, gripY, edgeZ, hangY: HANG_Y };
+
+        // ── A CARA ───────────────────────────────────────────────────────────
+        // Esta cena é a que MAIS precisa de cara: ele está pendurado no abismo
+        // implorando, e até agora fazia isso de olho parado. Cada fase tem a sua
+        // — e nenhuma delas é de deboche, que é o que o teste de `f3Olhos`
+        // cobra para a súplica.
+        //
+        // A `fase` da piscada é 0,37 para ele NÃO piscar junto com o Diabrete da
+        // perseguição, caso os dois apareçam na mesma tela.
+        const caraDaFase = ph === 'intro' ? 'roubou'
+            : ph === 'beg' ? 'suplica'
+            : ph === 'stomp' ? 'perdeuOUltimo'
+            : 'vitorioso';
+        rig.definirCara(olhoDoDiabrete(caraDaFase, 3), sobrancelhaDoDiabrete(caraDaFase, 3), T + 0.37);
 
         const grip = () => { b[B.l_arm].rotation.set(-0.2, 0, 2.5); };   // left hand clamped on the ledge
 
