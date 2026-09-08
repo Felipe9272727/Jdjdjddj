@@ -221,6 +221,13 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
  */
 const MARGEM_DO_CENHO = 9;
 
+/**
+ * Fio de creme que separa a sobrancelha do olho quando as duas se encavalam.
+ * Quatro pixels: menos que isso a posterização do shader (`step(0.5, ...)`)
+ * come o fio e as duas voltam a virar uma mancha só.
+ */
+const SEPARACAO = 4;
+
 /** Desenha UMA sobrancelha. `subir` vem da assimetria — é ela que faz a ironia. */
 function desenharUmaSobrancelha(
     c: CanvasRenderingContext2D, s: Sobrancelha, cx: number, cy: number, lado: number, subir: number,
@@ -259,15 +266,35 @@ function desenharUmaSobrancelha(
     c.save();
     c.translate(cx + paraDentro, y);
     c.rotate(ang);
-    c.strokeStyle = TINTA;
-    c.lineWidth = grosso;
     c.lineCap = 'round';
-    c.beginPath();
     // Um arco raso: três pontos e uma quadrática é tudo o que uma sobrancelha
     // de desenho animado precisa.
-    c.moveTo(-meia, 0);
-    c.quadraticCurveTo(0, -OLHO_ALT * s.arco * 2, meia, 0);
-    c.stroke();
+    const arco = () => {
+        c.beginPath();
+        c.moveTo(-meia, 0);
+        c.quadraticCurveTo(0, -OLHO_ALT * s.arco * 2, meia, 0);
+        c.stroke();
+    };
+
+    // ── A SEPARAÇÃO DE CREME ─────────────────────────────────────────────────
+    //
+    // `raiva` (30 graus), `bravaComRuga` (34) e `desconfiada` inclinam tanto que
+    // a ponta de DENTRO desce por cima do olho. Isso é certo — sobrancelha
+    // invadindo o olho é exatamente o que faz uma cara brava. O problema é que
+    // aqui só existem duas cores: tinta sobre tinta não fica brava, fica uma
+    // mancha só. Na folha do rosto montado essas três liam como se o olho
+    // tivesse criado uma presa.
+    //
+    // O jeito de 1930 não é afastar a sobrancelha (isso mataria a raiva): é
+    // deixar um FIO DE CREME entre as duas formas, para as bordas continuarem
+    // se enxergando. Um traço creme mais grosso por baixo do de tinta faz isso
+    // sozinho, e onde não há olho embaixo ele é invisível — a cara já é creme.
+    c.strokeStyle = CREME;
+    c.lineWidth = grosso + SEPARACAO * 2;
+    arco();
+    c.strokeStyle = TINTA;
+    c.lineWidth = grosso;
+    arco();
     c.restore();
 }
 
