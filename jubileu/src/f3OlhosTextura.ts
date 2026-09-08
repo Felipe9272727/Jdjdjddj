@@ -51,6 +51,14 @@ const LARG = 256;
 const TESTA = 62;
 const ALT = 172;
 
+/**
+ * O tamanho do canvas, exportado porque as fichas da bancada precisam dele.
+ * Elas o tinham COPIADO (256 x 156), e quando a testa cresceu para 172 as duas
+ * continuaram desenhando num quadro velho — a ficha mentiria sobre o pincel que
+ * ela existe para vigiar.
+ */
+export const TELA_DA_CARA = Object.freeze({ largura: LARG, altura: ALT });
+
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
 

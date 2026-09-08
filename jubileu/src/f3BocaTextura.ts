@@ -17,6 +17,9 @@ import { BOCAS, type Forma, type NomeDaBoca } from './f3Boca';
 const LARG = 192;
 const ALT = 128;
 
+/** O tamanho do canvas, pelo mesmo motivo de `TELA_DA_CARA` em `f3OlhosTextura`. */
+export const TELA_DA_BOCA = Object.freeze({ largura: LARG, altura: ALT });
+
 // ── A FENDA DA CARA É 6:1, E AS BOCAS DA FICHA SÃO 2:1 ───────────────────────
 //
 // Medido (`medir-a-cara.mjs` sobre `?semboca&parado`), na régua da própria cara

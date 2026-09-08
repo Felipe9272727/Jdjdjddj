@@ -133,13 +133,22 @@ export interface DiabreteRig {
 // da bola) e BAIXA (o meio dela desce para o queixo). O que passa por baixo do
 // nariz é o meio do sorriso; o que sobe pelos lados são as pontas. A bola fica
 // aninhada no berço — que é exatamente como ele desenhou na ficha de referência.
-const BOCA_LARGURA = 0.24;
+// ── E ELA CRESCEU, DEPOIS QUE DEU PARA VER O ROSTO MONTADO ───────────────────
+// 0,24 de caixa, com a margem de 0,74 do canvas, dava um sorriso de 0,178 de
+// largura num rosto de 0,314 — 57%. Na folha `o-rosto-inteiro.html`, que é a
+// primeira coisa deste projeto a mostrar boca, nariz, olho e sobrancelha JUNTOS,
+// isso lê como boquinha, não como sorriso de vilão de 1930. E tem a ver com a
+// primeira queixa dele, "a boca dele se mexe muito pouco": boca pequena move
+// pouco em pixel mesmo quando move muito em proporção.
+// 0,29 dá 68% da largura do rosto, e a maior das bocas ainda para 0,03 de régua
+// antes do nariz (conferido em `provocando`, que é a que sobe mais).
+const BOCA_LARGURA = 0.29;
 // A caixa encolheu na ALTURA (0,165 -> 0,145) e desceu um fio. Medido, não
 // chutado: com a pose congelada (`?parado`) e a régua da própria cara
 // (`bancada-navegador/medir-a-cara.mjs`, 0 no queixo, 1 no alto da cabeça), a
 // nareba dele mora em 0,317..0,323 e as bocas grandes — `empolgado` à frente —
 // subiam até 0,323 e a engoliam. Com esta caixa a maior delas para antes.
-const BOCA_ALTURA = 0.16;
+const BOCA_ALTURA = 0.19;   // cresceu junto com a largura, na mesma proporção
 // ── A RÉGUA DE VERDADE: 5,8, NÃO 4,02 ────────────────────────────────────────
 //
 // Aqui morava um erro que custou meia dúzia de rodadas: eu tinha calibrado
@@ -223,6 +232,30 @@ const OLHOS_ALTURA = 0.175;
 // Com o olho na régua 0,44..0,78 sobram 0,165 de testa — 45 px de canvas contra
 // os 36 que a sobrancelha mais alta precisa:
 const OLHOS_CENTRO_Y = 0.8285;
+
+// ── O NARIZ ──────────────────────────────────────────────────────────────────
+// Ele era um literal dentro do GLSL, o que é ruim por dois motivos: número solto
+// no meio de uma string não aparece em busca, e a folha da bancada precisava
+// COPIAR o valor sem nada para conferir a cópia. Agora ele tem nome, e a
+// conversão para o texto do shader é feita na hora de montar.
+// Régua 0,509 (entre os olhos e a boca) e raio de ~17% da largura do rosto, que
+// é a proporção da bola na ficha de referência que ele mandou.
+const NARIZ_CENTRO_Y = 0.7883;
+const NARIZ_RAIO = 0.030;
+
+/**
+ * As caixas do rosto, num objeto só, para a bancada poder CONFERIR a folha
+ * `o-rosto-inteiro.html` — que copia estes números (importar este módulo lá
+ * arrastaria o three inteiro). Ver `o-rosto-confere.test.ts`: sem ele a folha
+ * envelhece calada, e uma régua desatualizada é pior que régua nenhuma. Foi
+ * exatamente assim que as duas fichas ficaram desenhando num canvas de 156 px
+ * depois que a testa cresceu para 172.
+ */
+export const CAIXAS_DO_ROSTO = Object.freeze({
+    boca: Object.freeze({ cy: BOCA_CENTRO_Y, larg: BOCA_LARGURA, alt: BOCA_ALTURA }),
+    olhos: Object.freeze({ cy: OLHOS_CENTRO_Y, larg: OLHOS_LARGURA, alt: OLHOS_ALTURA }),
+    nariz: Object.freeze({ cy: NARIZ_CENTRO_Y, r: NARIZ_RAIO }),
+});
 
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
@@ -478,9 +511,7 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
             //     propósito;
             //   • não custa textura, canvas nem draw call: é uma elipse em
             //     coordenada local, tatuada na pele em pose de descanso.
-            // Raio 0,030 = ~17% da largura do rosto, que é a proporção da bola
-            // na ficha de referência dele.
-            + '    vec2 _n = (p.xy - vec2(0.0, 0.7883)) / vec2(0.030, 0.030);\n'
+            + `    vec2 _n = (p.xy - vec2(0.0, ${NARIZ_CENTRO_Y})) / vec2(${NARIZ_RAIO});\n`
             + '    if (dot(_n, _n) < 1.0) return 0.0;\n'
             + '    return 1.0;\n  }\n'
             // AS MÃOS e o punho.

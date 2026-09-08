@@ -1,0 +1,181 @@
+<!doctype html>
+<!--
+  O ROSTO INTEIRO — o espelho chapado do que o shader faz.
+
+  ── POR QUE ISTO EXISTE ─────────────────────────────────────────────────────
+
+  `ficha-de-bocas.html` e `ficha-da-cara.html` mostram as PEÇAS, cada uma no seu
+  quadradinho. Elas já pagaram por si: acharam dentes que não desenhavam em onze
+  bocas, tudo 50% achatado, e quatro olhos que eram idênticos ao neutro. Mas
+  peça isolada não conta a única coisa que essa cara errou o tempo todo — ONDE
+  cada peça cai em relação às outras. A boca no pescoço, a sobrancelha dentro da
+  franja e o nariz que não existia passaram TODOS pelas fichas sem alarme.
+
+  E olhar no modelo 3D custa doze segundos e um navegador por combinação, o que
+  na prática significa olhar três e supor as vinte e quatro restantes.
+
+  Então isto aqui monta o rosto em duas dimensões, com a MESMA aritmética do
+  fragmento (ver `duasCores` em `diabreteRig.ts`): cada peça é uma caixa em
+  coordenada local do modelo, e desenhar é converter essa caixa para pixel. As
+  constantes abaixo são as do jogo, e a régua que as traduz foi medida varrendo
+  `?olhosY=` e conferida contra o nariz — que é um círculo de raio conhecido e
+  caiu onde a conta mandou, com 0,005 de erro.
+
+  O que ele NÃO mostra, e é honesto dizer: a cabeça é uma esfera, então de perfil
+  e nas bordas a coisa encolhe. Para julgar silhueta, foto no modelo. Para julgar
+  ENCAIXE — que é onde estavam todos os defeitos — isto aqui, e de graça.
+
+      node bancada-navegador/a-ficha-inteira.mjs /tmp/o-rosto-inteiro.png rosto
+-->
+<meta charset="utf-8">
+<title>O rosto inteiro — Diabrete</title>
+<style>
+  body { margin: 0; background: #14100e; color: #f6efe0;
+         font: 13px/1.3 system-ui, sans-serif; padding: 18px; }
+  h2 { font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+       color: #c9a86a; margin: 22px 0 10px; }
+  p.nota { max-width: 62em; opacity: .72; margin: 0 0 12px; }
+  .grade { display: flex; flex-wrap: wrap; gap: 10px; }
+  figure { margin: 0; text-align: center; }
+  canvas { background: #2a2420; border-radius: 8px; display: block; }
+  figcaption { margin-top: 4px; font-size: 11px; opacity: .8; }
+</style>
+<div id="folha"></div>
+<script type="module">
+  import { BOCAS, NOMES_DAS_BOCAS, CICLO_FALA } from '/src/f3Boca.ts';
+  import { desenharBoca, TELA_DA_BOCA } from '/src/f3BocaTextura.ts';
+  import { OLHOS, NOMES_DOS_OLHOS, olhoDoDiabrete } from '/src/f3Olhos.ts';
+  import { SOBRANCELHAS, NOMES_DAS_SOBRANCELHAS, sobrancelhaDoDiabrete } from '/src/f3Sobrancelha.ts';
+  import { desenharCara, TELA_DA_CARA } from '/src/f3OlhosTextura.ts';
+  import { expressaoDoDiabrete } from '/src/f3Boca.ts';
+
+  // ── AS CONSTANTES DO JOGO ─────────────────────────────────────────────────
+  // Copiadas de `diabreteRig.ts` de propósito, e não importadas: aquele módulo
+  // arrasta o three inteiro, e esta folha tem que abrir num piscar. O preço é
+  // que elas podem envelhecer — por isso o cabeçalho de cada uma diz o valor
+  // esperado, e `o-rosto-confere.test.ts` quebra se o jogo mudar e isto não.
+  const CAIXAS = {
+    boca:  { cy: 0.731,  larg: 0.29, alt: 0.19  },
+    olhos: { cy: 0.8285, larg: 0.26, alt: 0.175 },
+  };
+  const NARIZ = { cy: 0.7883, r: 0.030 };
+  // O rosto visível, em coordenada do modelo. Medido na foto: o creme vai da
+  // régua 0 (queixo) à 1 (alto da cúpula), e régua = 3,633 * Y - 2,3549.
+  const ROSTO = { baixo: 0.6482, alto: 0.9234, meiaLargura: 0.157 };
+  // Em cima do OLHO o cabelo desce e o creme acaba antes do alto da cúpula.
+  const CABELO = 0.946;   // em régua
+
+  const ESCALA = 620;     // pixels por unidade do modelo
+  // ── AS DUAS CORES TÊM QUE SER AS DUAS CORES ──────────────────────────────
+  // Primeira versão usava um creme um tico diferente do que os pincéis usam, e
+  // a folha imediatamente "achou" um defeito que não existe: uma auréola clara
+  // em volta de cada olho. Era a órbita do pincel dos olhos aparecendo, porque
+  // aqui os dois cremes eram distinguíveis. No jogo os dois passam pela MESMA
+  // posterização e viram o mesmo pixel. Uma régua com uma cor a mais inventa
+  // defeito, que é o oposto do que ela serve.
+  // São `DIABRETE_CLARO` e `DIABRETE_ESCURO` de `diabreteRig.ts`.
+  const CREME = '#f7f3ea', TINTA = '#141014', FUNDO = '#2a2420';
+
+  const emY = (y) => (ROSTO.alto - y) * ESCALA + 14;
+  const emX = (x) => (x + ROSTO.meiaLargura) * ESCALA + 14;
+  const L = ROSTO.meiaLargura * 2 * ESCALA + 28;
+  const A = (ROSTO.alto - ROSTO.baixo) * ESCALA + 28;
+
+  const telaBoca = document.createElement('canvas');
+  telaBoca.width = TELA_DA_BOCA.largura; telaBoca.height = TELA_DA_BOCA.altura;
+  const telaCara = document.createElement('canvas');
+  telaCara.width = TELA_DA_CARA.largura; telaCara.height = TELA_DA_CARA.altura;
+
+  /** Pinta uma caixa desenhada pelo pincel, com o mesmo alfa duro do shader. */
+  function porCaixa(c, fonte, caixa) {
+    const x = emX(-caixa.larg / 2), y = emY(caixa.cy + caixa.alt / 2);
+    const w = caixa.larg * ESCALA, h = caixa.alt * ESCALA;
+    // `step(0.5, alfa)` no shader: dentro ou fora, sem meio-termo. O canvas não
+    // tem isso, mas com a mesma resolução o resultado é o mesmo desenho.
+    c.drawImage(fonte, x, y, w, h);
+  }
+
+  function rosto(boca, olho, cenho) {
+    const cv = document.createElement('canvas');
+    cv.width = L; cv.height = A;
+    const c = cv.getContext('2d');
+    c.fillStyle = FUNDO; c.fillRect(0, 0, L, A);
+
+    // O óvalo do rosto, e a linha do cabelo por cima dele.
+    c.fillStyle = CREME;
+    c.beginPath();
+    c.ellipse(L / 2, (emY(ROSTO.alto) + emY(ROSTO.baixo)) / 2,
+      ROSTO.meiaLargura * ESCALA, (ROSTO.alto - ROSTO.baixo) * ESCALA / 2, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // O NARIZ, que no jogo é geometria e entra ANTES de qualquer pintura.
+    c.fillStyle = TINTA;
+    c.beginPath();
+    c.ellipse(L / 2, emY(NARIZ.cy), NARIZ.r * ESCALA, NARIZ.r * ESCALA, 0, 0, Math.PI * 2);
+    c.fill();
+
+    desenharCara(telaCara.getContext('2d'), olho, cenho);
+    porCaixa(c, telaCara, CAIXAS.olhos);
+    desenharBoca(telaBoca.getContext('2d'), boca);
+    porCaixa(c, telaBoca, CAIXAS.boca);
+
+    // A linha do cabelo: o que passar dela some no preto, e é o defeito que
+    // engoliu as sobrancelhas duas vezes. Desenhada por último, como no jogo.
+    const yCabelo = emY(ROSTO.baixo + CABELO * (ROSTO.alto - ROSTO.baixo));
+    c.save();
+    c.globalCompositeOperation = 'source-atop';
+    c.fillStyle = TINTA;
+    c.fillRect(0, 0, L, yCabelo);
+    c.restore();
+
+    cv.style.width = `${Math.round(L * 0.42)}px`;
+    cv.style.height = `${Math.round(A * 0.42)}px`;
+    return cv;
+  }
+
+  const folha = document.getElementById('folha');
+  function secao(titulo, nota, itens) {
+    const h = document.createElement('h2'); h.textContent = titulo;
+    folha.append(h);
+    if (nota) { const p = document.createElement('p'); p.className = 'nota'; p.textContent = nota; folha.append(p); }
+    const g = document.createElement('div'); g.className = 'grade';
+    for (const [boca, olho, cenho, rotulo] of itens) {
+      const fig = document.createElement('figure');
+      const cap = document.createElement('figcaption'); cap.textContent = rotulo;
+      fig.append(rosto(boca, olho, cenho), cap);
+      g.append(fig);
+    }
+    folha.append(g);
+  }
+
+  const MOMENTOS = ['apresentacao', 'provoca', 'desenhou', 'espetou', 'roubou',
+    'caiu', 'suplica', 'ocioso', 'quaseLaEmCima', 'perdeuOPrimeiro',
+    'perdeuOUltimo', 'tonto', 'pensando', 'confuso', 'vitorioso', 'derrotado'];
+
+  secao('A cara em cada momento do andar (0 pincéis roubados)',
+    'Boca, olho e sobrancelha como o JOGO os combina — não como eu escolheria.',
+    MOMENTOS.map(m => [
+      BOCAS[expressaoDoDiabrete(m, 0)], OLHOS[olhoDoDiabrete(m, 0)],
+      SOBRANCELHAS[sobrancelhaDoDiabrete(m, 0)], m]));
+
+  secao('E com os três pincéis roubados',
+    'O mesmo momento muda de cara conforme ele perde as ferramentas.',
+    MOMENTOS.map(m => [
+      BOCAS[expressaoDoDiabrete(m, 3)], OLHOS[olhoDoDiabrete(m, 3)],
+      SOBRANCELHAS[sobrancelhaDoDiabrete(m, 3)], m]));
+
+  secao('O ciclo de fala de 12 quadros, na cara de repouso dele',
+    'É isto que se vê quando ele fala: doze bocas trocando a 8 Hz sob o mesmo olhar.',
+    CICLO_FALA.map((b, i) => [BOCAS[b], OLHOS.malicia, SOBRANCELHAS.ironia, `F${i + 1} · ${b}`]));
+
+  secao('As 27 bocas, todas na cara',
+    'Aqui é onde se vê boca encostando no nariz ou caindo no queixo.',
+    NOMES_DAS_BOCAS.map(b => [BOCAS[b], OLHOS.malicia, SOBRANCELHAS.ironia, b]));
+
+  secao('Os 12 olhos e as 8 sobrancelhas, na cara',
+    'Aqui é onde se vê sobrancelha sumindo na franja.',
+    [...NOMES_DOS_OLHOS.map(o => [BOCAS.sorrisoIronico, OLHOS[o], SOBRANCELHAS.neutra, o]),
+     ...NOMES_DAS_SOBRANCELHAS.map(s => [BOCAS.sorrisoIronico, OLHOS.neutro, SOBRANCELHAS[s], s])]);
+
+  document.title = 'pronto';
+</script>

@@ -27,7 +27,7 @@
 <div id="folha"></div>
 <script type="module">
   import { BOCAS, CICLO_FALA, CICLO_SUTIL, CICLO_DEBOCHE, CICLO_RISADA } from '/src/f3Boca.ts';
-  import { desenharBoca } from '/src/f3BocaTextura.ts';
+  import { desenharBoca , TELA_DA_BOCA } from '/src/f3BocaTextura.ts';
 
   const folha = document.getElementById('folha');
   const jaVisto = new Set();
@@ -35,8 +35,10 @@
   function quadro(nome, rotulo) {
     const fig = document.createElement('figure');
     const cv = document.createElement('canvas');
-    cv.width = 192; cv.height = 128;
-    cv.style.width = '192px'; cv.style.height = '128px';
+    // Do PINCEL, não copiado. Ver a mesma nota em `ficha-da-cara.html`.
+    cv.width = TELA_DA_BOCA.largura; cv.height = TELA_DA_BOCA.altura;
+    cv.style.width = `${TELA_DA_BOCA.largura}px`;
+    cv.style.height = `${TELA_DA_BOCA.altura}px`;
     desenharBoca(cv.getContext('2d'), BOCAS[nome]);
     const cap = document.createElement('figcaption');
     cap.textContent = rotulo ?? nome;

@@ -26,14 +26,18 @@
 <script type="module">
   import { OLHOS, NOMES_DOS_OLHOS, PISCADA, QUADROS_DA_PISCADA, olhoPiscando } from '/src/f3Olhos.ts';
   import { SOBRANCELHAS, NOMES_DAS_SOBRANCELHAS } from '/src/f3Sobrancelha.ts';
-  import { desenharCara } from '/src/f3OlhosTextura.ts';
+  import { desenharCara, TELA_DA_CARA } from '/src/f3OlhosTextura.ts';
 
   const folha = document.getElementById('folha');
   function quadro(olho, cenho, rotulo) {
     const fig = document.createElement('figure');
     const cv = document.createElement('canvas');
-    cv.width = 256; cv.height = 156;
-    cv.style.width = '208px'; cv.style.height = '127px';
+    // O tamanho vem do PINCEL, não copiado daqui: quando a testa cresceu de
+    // 156 para 172 px esta ficha continuou desenhando num quadro velho, e uma
+    // ficha que mente sobre o pincel que ela vigia é pior que nenhuma.
+    cv.width = TELA_DA_CARA.largura; cv.height = TELA_DA_CARA.altura;
+    cv.style.width = '208px';
+    cv.style.height = `${Math.round(208 * TELA_DA_CARA.altura / TELA_DA_CARA.largura)}px`;
     desenharCara(cv.getContext('2d'), olho, cenho);
     const cap = document.createElement('figcaption');
     cap.textContent = rotulo;

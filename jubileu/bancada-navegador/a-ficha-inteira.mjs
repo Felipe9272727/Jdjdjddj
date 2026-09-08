@@ -3,8 +3,11 @@
 //   node bancada-navegador/a-ficha-inteira.mjs [saida.png]
 import { chromium } from 'playwright';
 const SAIDA = process.argv[2] ?? '/tmp/ficha-de-bocas.png';
-/** `cara` fotografa a ficha de olhos/sobrancelhas em vez da de bocas. */
-const QUAL = process.argv[3] === 'cara' ? 'ficha-da-cara' : 'ficha-de-bocas';
+/**
+ * Qual folha: `cara` (olhos e sobrancelhas), `rosto` (as peças MONTADAS, que é
+ * onde se vê encaixe) ou nada, que dá a das bocas.
+ */
+const QUAL = { cara: 'ficha-da-cara', rosto: 'o-rosto-inteiro' }[process.argv[3]] ?? 'ficha-de-bocas';
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const p = await b.newPage({ viewport: { width: 1300, height: 900 } });
