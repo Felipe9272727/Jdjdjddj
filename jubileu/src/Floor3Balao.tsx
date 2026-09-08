@@ -39,17 +39,58 @@ export interface BalaoProps {
     rabicho?: 'nenhum' | 'cima' | 'baixo';
     /** Posicionamento; a cutscene põe no alto à direita, a súplica no rodapé. */
     style?: React.CSSProperties;
+    /** Classe extra — a cutscene usa para posicionar por media query. */
+    className?: string;
 }
 
 export default function Floor3Balao({
-    texto, dono, serie, rabicho = 'nenhum', style,
+    texto, dono, serie, rabicho = 'nenhum', style, className,
 }: BalaoProps) {
     const doDiabo = dono === 'diabrete';
     return (
-        <div key={serie} data-f3-balao={doDiabo ? 'diabrete' : 'jogador'} style={{ position: 'relative', maxWidth: 'min(64vw, 460px)',
+        <div key={serie} data-f3-balao={doDiabo ? 'diabrete' : 'jogador'} className={`f3balao-raiz ${className ?? ''}`} style={{ position: 'relative',
             fontFamily: "'Luckiest Guy', system-ui, sans-serif",
             animation: 'f3balao-entra .35s cubic-bezier(.2,1.5,.4,1) both', ...style }}>
             <style>{`
+                .f3balao-raiz { max-width: min(64vw, 460px); }
+                .f3balao-texto { padding: min(2.4vw,20px,2.8vh) min(4.4vw,38px,5.2vh);
+                                 font-size: min(3.6vw,21px,5vh); }
+                .f3balao-nome  { bottom: min(-1.8vw,-14px); top: auto;
+                                 font-size: min(2.9vw,17px,3.6vh); }
+
+                /* ── CELULAR DEITADO ─────────────────────────────────────
+                   Medido no aparelho do Felipe: em 844x390 este balão dava
+                   462x93 px — 55% da largura e 24% da ALTURA — e a foto dele
+                   mostrava por quê: ele e a plaquinha tapavam a cabeça inteira
+                   do Diabrete. Em retrato o mesmo balão é 2,9% da área, e foi
+                   por isso que eu disse "resolvido" duas vezes medindo a tela
+                   errada.
+                   Deitado, três coisas mudam: ele pode ser MAIS LARGO (mais
+                   largura = menos linhas = menos altura, e altura é o que
+                   falta), a fonte encolhe pela altura, e a plaquinha sobe para
+                   CIMA do balão — pendurada embaixo, era ela que pousava no
+                   rosto dele. */
+                @media (max-height: 520px) {
+                    /* A conta que manda aqui é de ALTURA, e ela é geométrica: a
+                       tarja da película come 11% no topo, o balão começa logo
+                       abaixo, e a cabeça do Diabrete está a ~34% da altura. Com
+                       24% de balão ele terminava EXATAMENTE no rosto dele.
+                       Alargar não resolveu (a altura caiu de 24% para 21% e a
+                       largura foi a 74%); o que resolve é encolher: ~14% de
+                       altura acaba em 26% e passa longe da cabeça. */
+                    .f3balao-raiz  { max-width: min(64vw, 500px); }
+                    .f3balao-texto { padding: min(1.5vh,11px) min(2.6vh,20px);
+                                     font-size: min(3.9vh,15px); line-height: 1.08; }
+                    /* A plaquinha sai do balão pelo canto de CIMA à esquerda.
+                       Pendurada embaixo ela pousava no rosto dele; dentro, comia
+                       a primeira linha do texto; e crescer o balão para caber
+                       levaria a borda de baixo de volta para a cabeça dele. Fora
+                       do canto não custa altura nenhuma, e é convenção de
+                       quadrinho — a aba do balão. */
+                    .f3balao-nome  { bottom: auto; top: min(-2.2vh,-15px);
+                                     left: min(-1.2vh,-8px);
+                                     font-size: min(2.9vh,12px); }
+                }
                 @keyframes f3balao-entra { 0%{transform:scale(0.4) rotate(-6deg);opacity:0}
                     60%{transform:scale(1.08) rotate(2deg);opacity:1} 100%{transform:scale(1) rotate(-1.2deg);opacity:1} }
                 /* O FERVILHAR DO CONTORNO: três desenhos da mesma forma trocados
@@ -66,7 +107,7 @@ export default function Floor3Balao({
                     66%{transform:rotate(-0.4deg)} 100%{transform:rotate(-1.1deg)} }
             `}</style>
 
-            <div style={{
+            <div className="f3balao-texto" style={{
                 background: PAPEL, color: INK,
                 border: 'min(0.95vw,9px) solid ' + INK,
                 // ── O BALÃO TAMBÉM TEM QUE CABER NA ALTURA ──────────────
@@ -79,8 +120,9 @@ export default function Floor3Balao({
                 // fotos foram em retrato, onde a altura é folgada e o defeito
                 // não aparece.
                 // Agora o `vh` entra na mesma conta: o que for menor manda.
-                padding: 'min(2.4vw,20px,2.8vh) min(4.4vw,38px,5.2vh)',
-                fontSize: 'min(3.6vw,21px,5vh)', lineHeight: 1.16, textAlign: 'center',
+                // padding/fontSize vêm da classe `f3balao-texto`: inline
+                // venceria a media query de celular deitado.
+                lineHeight: 1.16, textAlign: 'center',
                 letterSpacing: '.02em',
                 boxShadow: '0 min(0.9vw,7px) 0 rgba(20,12,8,0.4)',
                 animation: 'f3balao-ferve 0.375s steps(1,end) infinite, f3balao-treme 0.375s steps(1,end) infinite',
@@ -111,7 +153,7 @@ export default function Floor3Balao({
             )}
 
             {/* Quem fala, assinado no canto do balão. */}
-            <div style={{ position: 'absolute', left: 'min(2.4vw,18px)', bottom: 'min(-1.8vw,-14px)',
+            <div className="f3balao-nome" style={{ position: 'absolute', left: 'min(2.4vw,18px)',
                 transform: 'rotate(-2.5deg)',
                 // DUAS VOZES, DUAS CORES — MAS DAS CORES DESTE FILME.
                 // A plaquinha do jogador era azul (#2b6fb0), e essa era a ÚNICA
@@ -125,7 +167,7 @@ export default function Floor3Balao({
                 background: doDiabo ? '#c0271a' : '#f2e9d5',
                 color: doDiabo ? '#fff' : INK,
                 WebkitTextStroke: doDiabo ? `2px ${INK}` : '0', paintOrder: 'stroke', padding: '2px 14px',
-                fontSize: 'min(2.9vw,17px,3.6vh)', letterSpacing: '.08em',
+                letterSpacing: '.08em',   // fontSize vem da classe `f3balao-nome`
                 border: `min(0.42vw,3px) solid ${INK}`, borderRadius: 5,
                 boxShadow: `0 3px 0 ${INK}` }}>
                 {doDiabo ? 'O DIABRETE' : 'VOCÊ'}

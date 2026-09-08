@@ -28,9 +28,14 @@ const PNG = Buffer.from(
     'base64');
 
 // Dois aparelhos reais: o iPhone comum e o Android barato, que é mais estreito.
+// DEITADO ENTRA NA LISTA. O Felipe reclamou de celular DEITADO desde a primeira
+// vez, e eu medi retrato duas vezes seguidas e disse que estava resolvido. Em
+// paisagem a tela tem ~390 px de ALTURA, que é a dimensão que falta — e é
+// exatamente onde o balão continua tampando.
 const APARELHOS = [
+    { nome: 'iphone-deitado', largura: 844, altura: 390, dpr: 3 },
+    { nome: 'android-deitado', largura: 800, altura: 360, dpr: 2.75 },
     { nome: 'iphone', largura: 390, altura: 844, dpr: 3 },
-    { nome: 'android', largura: 360, altura: 800, dpr: 2.75 },
 ];
 
 // As falas que interessam medir: a mais longa de cada repertório. Se a maior

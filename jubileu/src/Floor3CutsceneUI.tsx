@@ -25,6 +25,12 @@ const Floor3CutsceneUI: React.FC<Props> = ({ line }) => {
             fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
             <style>{`
                 @keyframes f3c-bars { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+                .f3cut-fala-diabo   { top: 15%; }
+                .f3cut-fala-jogador { bottom: 18%; }
+                @media (max-height: 520px) {
+                    .f3cut-fala-diabo   { top: 12%; }
+                    .f3cut-fala-jogador { bottom: 13%; }
+                }
             `}</style>
 
             {/* letterbox bars */}
@@ -42,9 +48,13 @@ const Floor3CutsceneUI: React.FC<Props> = ({ line }) => {
                 texto={l.text}
                 dono={isDevil ? 'diabrete' : 'jogador'}
                 serie={line}
+                // Em tela BAIXA (celular deitado) o balão encosta na tarja: a
+                // cabeça dele está a ~34% da altura, e cada ponto percentual que
+                // o balão desce é um ponto a mais em cima do rosto.
+                className={isDevil ? 'f3cut-fala-diabo' : 'f3cut-fala-jogador'}
                 style={isDevil
-                    ? { position: 'absolute', top: '15%', right: '6%' }
-                    : { position: 'absolute', bottom: '18%', left: '6%' }}
+                    ? { position: 'absolute', right: '6%' }
+                    : { position: 'absolute', left: '6%' }}
             />
         </div>
     );
