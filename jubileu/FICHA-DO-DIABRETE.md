@@ -81,6 +81,42 @@ Para julgar no modelo de verdade (silhueta, cabelo, chifre):
     CAM='&cam=0.66,1.94,15.35&alvo=0.66,1.91,14' \
       node bancada-navegador/perto-da-cara.mjs "boca=sorrisoIronico&olho=malicia&cenho=ironia"
 
+## A lista de 10 defeitos que ele mandou (comparativo lado a lado)
+
+Ele mandou um comparativo do modelo em jogo contra a referência, com 10 defeitos
+numerados e uma checklist de 13 itens "para o artista". Metade é DESENHO (meu) e
+metade é MALHA (o GLB). Separar isso é a primeira coisa útil a fazer com a lista.
+
+Medido com `bancada-navegador/medir-a-cabeca.mjs`, que lê o GLB direto:
+
+    modelo inteiro   larg 0,869  alt 1,002  fund 0,409   fundo/larg 0,47
+    crânio           larg 0,418              fund 0,408   fundo/larg 0,97
+    fatia y 0,92     larg 0,376              fund 0,181   fundo/larg 0,48
+    fatia y 0,97     larg 0,323              fund 0,057   fundo/larg 0,18
+
+Ou seja: **o crânio é redondo** (0,97). O que é chapado são os CHIFRES e os
+TUFOS — no alto da cabeça a profundidade cai para 0,18 da largura. Eles são
+placas planas, não cones. Isso é a causa medida dos defeitos 1, 3 e 4 dele.
+
+| nº | defeito dele | de quem é |
+|---|---|---|
+| 1 | cabeça chapada | malha — mas é o CHIFRE/TUFO, não o crânio |
+| 2 | silhueta errada | metade malha (chifre/tufo), metade minha (recorte da máscara) |
+| 3 | chifres finos e retos | malha |
+| 4 | tufos laterais incorretos | malha |
+| 5 | olhos com proporção errada | meu |
+| 6 | sobrancelhas mal posicionadas | meu |
+| 7 | nariz pequeno e mal encaixado | meu |
+| 8 | boca sem o sorriso irônico | meu |
+| 9 | falta de separação de cores | meu |
+| 10 | expressão sem carisma | consequência dos outros |
+
+Da folha de modelagem, dois detalhes que mudam o desenho:
+- **"Sobrancelha é parte do contorno do olho (desenho 2D)"** — ela não é um arco
+  solto flutuando na testa; é parte da mesma forma de tinta do olho.
+- **"Boca: dentes apenas de um lado"** — o sorriso é torto e os dentes só
+  aparecem no lado que sobe.
+
 ## O que ainda não bate com a ficha
 
 Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
@@ -92,9 +128,21 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       olho de 113 px deixava uma lasca de 25 px.
 - [x] ~~a mordida de creme está grande demais~~ — ciclo 2: 0,26 -> 0,21 de raio,
       e empurrada de 0,86 para 0,90, mais na borda.
-- [ ] a sobrancelha ainda encosta na franja: as pontas de fora somem no preto.
-      Ciclo 2 encurtou de 0,64 para 0,56 e ajudou, mas não resolveu.
-- [ ] `fechadoSorrindo` ficou largo e chapado demais
+- [x] ~~`fechadoSorrindo` largo e chapado~~ — ciclo 4: arco de raio menor com
+      abertura maior (53 x 18 em vez de 67 x 18), a curva aparece.
+- [x] ~~falta de separação de cores (nº 9)~~ — ciclo 4: a máscara deixou de ser
+      "onde a normal aponta para frente" e virou uma ELIPSE em coordenada local.
+      O teste por normal fazia a borda do creme acompanhar a curvatura da malha,
+      e ela mudava de formato a cada ângulo de câmera.
+- [x] ~~nariz pequeno (nº 7)~~ — ciclo 4: 0,015 -> 0,019. Eu tinha passado do
+      ponto para o outro lado ao corrigir o 0,030.
+- [ ] a sobrancelha ainda encosta na franja. E, pela folha de modelagem, ela
+      deveria ser PARTE DO CONTORNO DO OLHO, não um arco solto — isso é um
+      redesenho, não um ajuste de número.
+- [ ] a boca precisa dos dentes só de UM lado (nº 8)
+- [ ] CHIFRES e TUFOS são placas planas na malha (medido: 0,18 de profundidade
+      sobre largura no alto da cabeça). Conserto de verdade é remodelar; opção
+      barata é gerar cones e tufos por código e recolher os do GLB.
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
       cor por geometria (uma cunha em coordenada local, de graça). É ele que faz
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o

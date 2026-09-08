@@ -58,7 +58,12 @@
     boca:  { cy: 0.716,  larg: 0.29, alt: 0.19  },
     olhos: { cy: 0.826, larg: 0.30, alt: 0.168 },
   };
-  const NARIZ = { cy: 0.754, r: 0.015 };
+  const NARIZ = { cy: 0.754, r: 0.019 };
+  // O BICO DE VIÚVA: a cunha preta que o cabelo desce no meio da testa. Ela é
+  // geometria no jogo (`_claroPorForma`), e sem ela esta folha mostrava uma
+  // testa que não existe — e é justamente nos bolsos de creme dos LADOS dela
+  // que as sobrancelhas moram.
+  const BICO = { y: 0.885, abertura: 2.0 };
   // O rosto visível, em coordenada do modelo. Medido na foto: o creme vai da
   // régua 0 (queixo) à 1 (alto da cúpula), e régua = 3,633 * Y - 2,3549.
   const ROSTO = { baixo: 0.6482, alto: 0.9234, meiaLargura: 0.157 };
@@ -112,6 +117,15 @@
     c.fillStyle = TINTA;
     c.beginPath();
     c.ellipse(L / 2, emY(NARIZ.cy), NARIZ.r * ESCALA, NARIZ.r * ESCALA, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // O BICO DE VIÚVA, também geometria e também antes das pinturas.
+    c.beginPath();
+    c.moveTo(L / 2, emY(BICO.y));
+    const meioBico = BICO.abertura * (ROSTO.alto - BICO.y) * ESCALA;
+    c.lineTo(L / 2 - meioBico, emY(ROSTO.alto));
+    c.lineTo(L / 2 + meioBico, emY(ROSTO.alto));
+    c.closePath();
     c.fill();
 
     desenharCara(telaCara.getContext('2d'), olho, cenho);

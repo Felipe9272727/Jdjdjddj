@@ -282,13 +282,24 @@ const OLHOS_CENTRO_Y = 0.826;
  */
 export const emGlsl = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
 
+// ── A MÁSCARA DO ROSTO ───────────────────────────────────────────────────────
+// A elipse de creme, em coordenada local. Ver a nota longa no shader: ela
+// substituiu o teste por normal, que dava borda recortada e mutável.
+const MASCARA_CY = 0.782;
+const MASCARA_RX = 0.196;
+const MASCARA_RY = 0.170;
+
 // ── O BICO DE VIÚVA ──────────────────────────────────────────────────────────
 // A ponta do V do cabelo, e o quanto ele abre subindo. Ver a nota no shader.
 const BICO_Y = 0.885;
 const BICO_ABERTURA = 2.0;
 
 const NARIZ_CENTRO_Y = 0.754;
-const NARIZ_RAIO = 0.015;
+// E voltou a crescer: 0,015 era a metade certa do 0,030 antigo, mas a lista
+// dele diz "NARIZ PEQUENO E MAL ENCAIXADO". Eu tinha passado do ponto para o
+// outro lado. 0,019 é a bolinha da referência sem voltar a comer a fresta
+// entre os olhos, que tem 0,0178 de meia-largura.
+const NARIZ_RAIO = 0.019;
 
 /**
  * As caixas do rosto, num objeto só, para a bancada poder CONFERIR a folha
@@ -540,8 +551,22 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
         // `?semboca&semolhos` mostra o rosto liso de verdade.
         let decl = 'float _claroPorForma(vec3 p, vec3 n) {\n'
             + '  vec3 h = (p - vec3(0.0, 0.775, 0.0)) / vec3(0.205, 0.215, 0.205);\n'
-            // A CARA: a frente da esfera da cabeça. `n.z` mantém a nuca preta.
-            + '  if (dot(h, h) < 1.06 && p.z > 0.0 && n.z > 0.30) {\n'
+            // ── A MÁSCARA DEIXA DE SER "ONDE A NORMAL APONTA PARA FRENTE" ────
+            //
+            // Defeito nº 9 da lista dele: "não há separação clara entre a face
+            // creme e a cabeça preta, o que prejudica a leitura das formas". E
+            // o nº 2: "a face deveria ser mais arredondada e bem definida".
+            //
+            // A causa era o teste: `n.z > 0.30` decide pela NORMAL do vértice,
+            // então a borda do creme acompanhava a curvatura da malha e saía
+            // recortada e irregular — em cada ângulo de câmera ela mudava de
+            // formato. Máscara de personagem de desenho não é assim: é uma
+            // FORMA, com recorte limpo, igual em todo quadro.
+            //
+            // Agora é uma elipse em coordenada local, que é o que a referência
+            // mostra. `n.z > 0.0` fica só para a nuca não acender.
+            + `  vec2 _m = (p.xy - vec2(0.0, ${emGlsl(MASCARA_CY)})) / vec2(${emGlsl(MASCARA_RX)}, ${emGlsl(MASCARA_RY)});\n`
+            + '  if (dot(h, h) < 1.06 && dot(_m, _m) < 1.0 && p.z > 0.0 && n.z > 0.0) {\n'
             // ── O NARIZ, E POR QUE ELE MORA AQUI E NÃO NUM CANVAS ────────
             //
             // "aí ele perde a nareba". "ainda está cobrindo o nariz". "a bola

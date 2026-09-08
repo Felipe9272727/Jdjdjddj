@@ -97,9 +97,9 @@ const CREME = '#f7f3ea';
 // Segunda passada: a primeira deixou o olho quase REDONDO (101 x 103), e na
 // ficha ele é um oval EM PÉ. Estreitando e esticando — e aproximando mais um
 // pouco, porque na folha os dois quase se encostam.
-const OLHO_LARG = LARG * 0.360;    // 92,2 px  (era 74 antes da ficha, depois 101,6)
+const OLHO_LARG = LARG * 0.345;    // 88,3 px  (era 74 antes da ficha, depois 101,6)
 const OLHO_ALT = LARG * 0.4414;    // 113,0 px — proporção 0,82, de pé
-const OLHO_CX = LARG * 0.245;      // 62,7 px — era 83,7; sobra 0,0196 de fresta para o nariz
+const OLHO_CX = LARG * 0.232;      // 59,4 px — era 83,7; sobra 0,0178 de fresta para o nariz
 const OLHO_CY = TESTA + OLHO_ALT / 2;
 
 /**
@@ -119,7 +119,10 @@ export const ORBITA_NA_TELA = Object.freeze({ cy: OLHO_CY, alt: OLHO_ALT, larg: 
  * Mora aqui fora, e não dentro do desenho do olho, porque a PÁLPEBRA precisa
  * dela: ver a nota longa em `palpebra`.
  */
-const INCLINACAO = 0.16;
+// 0,10 e não 0,16: a inclinação levanta a ponta de FORA do olho, e é justo ali
+// que o cabelo desce pela lateral da cabeça. Com 0,16 o canto de cima-fora dos
+// dois olhos batia na franja e o olho saía cortado.
+const INCLINACAO = 0.10;
 
 /** Desenha UM olho, centrado em (cx, cy). `lado` = -1 esquerdo, +1 direito. */
 function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: number, lado: number) {
@@ -134,11 +137,17 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
         c.beginPath();
         c.ellipse(cx, cy, rx * 1.06, ry * 1.06, 0, 0, Math.PI * 2);
         c.fill();
+        // ── ARCO CURTO E FUNDO, NÃO COMPRIDO E RASO ─────────────────────────
+        // Com raio 0,86 e 115 graus o traço saía 67 x 18 px — quase uma linha
+        // reta, e na folha do rosto montado `fechadoSorrindo` lia como boca
+        // extra na testa. Na ficha do Felipe são dois arcos bem CURVOS. Raio
+        // menor com abertura maior dá 53 x 18: mesma altura, quase um terço
+        // menos de largura, e a curva aparece.
         c.strokeStyle = TINTA;
         c.lineWidth = ry * 0.20;
         c.lineCap = 'round';
         c.beginPath();
-        c.arc(cx, cy + ry * 0.34, rx * 0.86, Math.PI * 1.18, Math.PI * 1.82);
+        c.arc(cx, cy + ry * 0.22, rx * 0.62, Math.PI * 1.12, Math.PI * 1.88);
         c.stroke();
         c.restore();
         return;
@@ -310,8 +319,8 @@ function desenharUmaSobrancelha(
     // Depois da ficha, 0,56: com o olho maior a sobrancelha subiu junto, e lá em
     // cima a faixa de creme é mais estreita ainda — a ponta de FORA era a que
     // entrava na franja.
-    const meia = rx * 0.56;
-    const paraDentro = -lado * OLHO_LARG * 0.09;
+    const meia = rx * 0.50;
+    const paraDentro = -lado * OLHO_LARG * 0.14;
     const ang = (s.angulo * Math.PI) / 180 * lado;
     const grosso = OLHO_LARG * s.grossura;
 
