@@ -24,13 +24,15 @@ import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from 
 import { playFloor3Voice } from './floor3Sfx';
 import { vozDoDiabrete } from './f3Voz';
 import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+// ARM_REST vem de `f3Pose` junto com a atuação: era declarado aqui TAMBÉM,
+// e dois donos do mesmo número é como uma pose passa a discordar da outra.
+import { poseDoGesto, quadroDaPose, tempoDaPose, POSE_HZ, ARM_REST } from './f3Pose';
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const STAND     = new THREE.Vector3(0.9, 0, -9.2);   // on the landing, ahead of the player
-const ARM_REST  = 0.95;                               // lower the T-pose arms to rest
 
 interface Props {
     targetRef: React.MutableRefObject<THREE.Vector3>;   // camera look-at (feet)
@@ -63,6 +65,8 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const linhaRef = useRef(-1);
     const vozDaLinha = useRef<ReturnType<typeof vozDoDiabrete> | null>(null);
     const quadroBoca = useRef(-1);
+    const quadroPose = useRef(-1);
+    const poseRef = useRef(poseDoGesto('idle', 0));
     const tLinha   = useRef(0);
 
     // Springs for limber, weighty motion.
@@ -125,62 +129,50 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         const tl = timeInLine(t);
         const dashing = gesture === 'dash';
 
-        // ── Per-gesture targets (computed first so position hops can use them) ─
-        const breath = Math.sin(t * 2.4) * 0.5 + 0.5;
-        let leanT = 0.12, headXT = 0, headZT = 0;
-        let armLzT = ARM_REST, armRzT = ARM_REST, armLxT = 0, armRxT = 0;
-        let bodyBob = Math.sin(t * 2.4) * 0.02;     // idle breathing
-        let bodyYaw = 0, bodyRoll = 0;
-        let hop = 0;                                 // whole-body vertical hop
-        const wob = Math.sin(t * 11) * 0.07;         // rubber-hose jitter
-
-        switch (gesture) {
-            case 'lean':   // cocky size-up: lean way in, head tilt, one arm akimbo
-                leanT = 0.40 + Math.sin(t * 3) * 0.05; headZT = 0.22; bodyYaw = 0.12;
-                armLzT = 1.7; armLxT = 0.15;
-                armRzT = ARM_REST - 0.15; armRxT = -0.2;
-                break;
-            case 'point':  // jab a finger right at the player, stabbing repeatedly
-                leanT = 0.28; headXT = 0.10;
-                armRzT = 0.30; armRxT = -1.45 + Math.sin(t * 13) * 0.28;
-                armLzT = 1.5;  armLxT = 0.25;
-                hop = Math.abs(Math.sin(t * 6.5)) * 0.06;
-                break;
-            case 'throw':  // big two-arm "I'll bury you" overhead sweep + lunge
-                leanT = 0.10 + Math.sin(t * 5) * 0.12;
-                armLzT = 0.15; armRzT = 0.15;
-                armLxT = -1.7 + Math.sin(t * 7) * 0.5;
-                armRxT = -1.7 + Math.sin(t * 7 + 0.5) * 0.5;
-                headXT = -0.18; bodyRoll = Math.sin(t * 7) * 0.12;
-                break;
-            case 'laugh':  // belly-laugh: rock back, arms flung out, whole body shake
-                leanT = -0.30 + Math.sin(t * 15) * 0.10;
-                armLzT = 1.35 + Math.sin(t * 15) * 0.2;
-                armRzT = 1.35 + Math.sin(t * 15 + 0.4) * 0.2;
-                armLxT = 0.4; armRxT = 0.4;
-                headXT = -0.38; headZT = Math.sin(t * 15) * 0.12;
-                bodyBob = Math.abs(Math.sin(t * 7.5)) * 0.06;
-                hop = Math.abs(Math.sin(t * 7.5)) * 0.10; bodyRoll = Math.sin(t * 15) * 0.06;
-                break;
-            case 'taunt':  // chest-puff swagger: bounce, hands wide, hips weaving
-                leanT = 0.12; bodyYaw = Math.sin(t * 4.5) * 0.22;
-                armLzT = 1.1 + Math.sin(t * 7) * 0.3; armRzT = 1.1 + Math.sin(t * 7 + 0.5) * 0.3;
-                armLxT = 0.15 + Math.sin(t * 7) * 0.25; armRxT = 0.15 - Math.sin(t * 7) * 0.25;
-                headZT = Math.sin(t * 5) * 0.12;
-                hop = Math.abs(Math.sin(t * 4.5)) * 0.12;
-                break;
-            case 'dash': { // wind-up crouch then stretch into the run
-                const run = Math.max(0, tl - 0.25);
-                if (run <= 0) { leanT = 0.55; bodyBob = -0.08; armLxT = 0.7; armRxT = 0.7; armLzT = 1.5; armRzT = 1.5; }
-                else { leanT = 0.5; armLzT = ARM_REST; armRzT = ARM_REST;
-                       armLxT = -Math.sin(run * 22) * 1.0; armRxT = Math.sin(run * 22) * 1.0; }
-                break;
+        // ── A POSE, EM DOIS ──────────────────────────────────────────────────
+        //
+        // A atuação saiu daqui para `f3Pose.ts` e passou a ser desenhada EM
+        // DOIS: 12 poses por segundo, paradas entre uma e outra, que é como um
+        // curta de 1930 é feito. Antes ela era `Math.sin(t)` avaliado todo
+        // quadro — o corpo dele DESLIZAVA no meio de um andar onde os espinhos,
+        // os balões, as nuvens, a corrida e a boca dele fervem em quadros. Corpo
+        // liso num mundo que treme não lê como suavidade: lê como personagem de
+        // outro filme colado por cima do desenho.
+        //
+        // Quem segura a pose é o `if` abaixo: entre um desenho e outro NADA é
+        // escrito nos ossos, então eles ficam exatamente onde estavam. Não
+        // adiantaria só quantizar o alvo — as molas alisariam tudo de volta.
+        const qp = quadroDaPose(t);
+        const desenhoNovo = qp !== quadroPose.current;
+        if (desenhoNovo) {
+            quadroPose.current = qp;
+            const po = poseDoGesto(gesture, tempoDaPose(t), tl);
+            poseRef.current = po;
+            // As molas correm no relógio do DESENHO, não no da tela: um passo
+            // por pose, sempre do mesmo tamanho, dê o navegador 60 fps ou 2.
+            const dtPose = 1 / POSE_HZ;
+            const wob = po.wob;
+            bones[B.body].position.y = 0.46 + po.bodyBob;
+            bones[B.body].rotation.x = sLean.current.tick(po.lean, dtPose);
+            bones[B.body].rotation.y = po.bodyYaw;
+            bones[B.body].rotation.z = po.bodyRoll;
+            bones[B.head].rotation.x = sHead.current.tick(po.headX, dtPose);
+            bones[B.head].rotation.z = po.headZ + wob * 0.3;
+            bones[B.l_arm].rotation.z =  sArmL.current.tick(po.armLz, dtPose);
+            bones[B.r_arm].rotation.z = -sArmR.current.tick(po.armRz, dtPose);
+            bones[B.l_arm].rotation.x =  sArmLx.current.tick(po.armLx, dtPose) + wob;
+            bones[B.r_arm].rotation.x =  sArmRx.current.tick(po.armRx, dtPose) - wob;
+            if (dashing && tl > 0.25) {
+                const run = tl - 0.25;
+                bones[B.l_leg].rotation.x =  Math.sin(run * 22) * 0.8;
+                bones[B.r_leg].rotation.x = -Math.sin(run * 22) * 0.8;
+            } else {
+                const tq = tempoDaPose(t);
+                bones[B.l_leg].rotation.x =  Math.sin(tq * 2.0) * 0.07;
+                bones[B.r_leg].rotation.x = -Math.sin(tq * 2.0) * 0.07;
             }
-            default:       // idle — breathing sway, weight shift
-                leanT = 0.10 + breath * 0.04; bodyYaw = Math.sin(t * 1.4) * 0.06;
-                armLzT = ARM_REST + 0.06; armRzT = ARM_REST + 0.06;
-                headZT = Math.sin(t * 1.6) * 0.07;
         }
+        const hop = poseRef.current.hop;
 
         // ── Position: stand (with hops), then DASH away on the last beat ──────
         if (dashing) {
@@ -237,29 +229,6 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         camera.lookAt(pl.lx, pl.ly, pl.lz);
         (camera as THREE.PerspectiveCamera).fov = pl.fov;
         camera.updateProjectionMatrix();
-
-        // ── Apply bone targets with springs (+ wobble overshoot) ─────────────
-        bones[B.body].position.y = 0.46 + bodyBob;
-        bones[B.body].rotation.x = sLean.current.tick(leanT, safeDt);
-        bones[B.body].rotation.y = bodyYaw;
-        bones[B.body].rotation.z = bodyRoll;
-        bones[B.head].rotation.x = sHead.current.tick(headXT, safeDt);
-        bones[B.head].rotation.z = headZT + wob * 0.3;
-
-        bones[B.l_arm].rotation.z =  sArmL.current.tick(armLzT, safeDt);
-        bones[B.r_arm].rotation.z = -sArmR.current.tick(armRzT, safeDt);
-        bones[B.l_arm].rotation.x =  sArmLx.current.tick(armLxT, safeDt) + wob;
-        bones[B.r_arm].rotation.x =  sArmRx.current.tick(armRxT, safeDt) - wob;
-
-        // Legs: relaxed weight-shift while talking, running kick on dash.
-        if (dashing && tl > 0.25) {
-            const run = tl - 0.25;
-            bones[B.l_leg].rotation.x =  Math.sin(run * 22) * 0.8;
-            bones[B.r_leg].rotation.x = -Math.sin(run * 22) * 0.8;
-        } else {
-            bones[B.l_leg].rotation.x = Math.sin(t * 2.0) * 0.07;
-            bones[B.r_leg].rotation.x = -Math.sin(t * 2.0) * 0.07;
-        }
 
         // ── Finish: dash cleared frame → hand back to gameplay ───────────────
         if (!doneRef.current && (t >= SCRIPT_TOTAL + 0.5 || dashPos.current.z > f3PlayerZ.current + 12)) {

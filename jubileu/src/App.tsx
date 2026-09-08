@@ -1553,6 +1553,15 @@ export default function App() {
   useEffect(() => {
     const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
     w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    // ── PULAR A INTRO DO ANDAR 3 ─────────────────────────────────────────
+    // A intro é guiada por `dt` acumulado e a bancada roda a ~2 fps, então
+    // atravessá-la custa oito minutos de relógio por olhada. Isso já fez uma
+    // volta inteira fotografar só o cartão de título e voltar de mãos vazias.
+    // Este gancho entrega a cena direto para a apresentação, que é onde o
+    // Diabrete atua. Só em desenvolvimento; não é atalho de jogo.
+    (w as unknown as { __f3PularIntro?: () => void }).__f3PularIntro = () => {
+      setCartoonIntro(false); setCutsceneLine(0); setCartoonCutscene(true);
+    };
     w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
     w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
     // Teleporte de teste: usado pela sonda da prisão do Andar 10 para pôr o

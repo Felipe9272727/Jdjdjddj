@@ -106,6 +106,17 @@ try {
     }
     if (!clicou) throw new Error('nenhum PLAY visivel e ligado');
     console.log('   começou');
+    // A INTRO CUSTA OITO MINUTOS A 2 fps. `__f3PularIntro` (só em DEV) entrega a
+    // cena direto para a apresentação, que é o que esta bancada existe para ver.
+    // Sem isto, uma execução inteira fotografa o cartão de título e nada mais —
+    // já aconteceu.
+    if (process.env.PULAR !== '0') {
+        await p.waitForFunction(() => typeof window.__f3PularIntro === 'function',
+            null, { timeout: 180000 }).catch(() => {});
+        await p.waitForTimeout(3000);
+        await p.evaluate(() => window.__f3PularIntro?.()).catch(() => {});
+        console.log('   pulou a intro');
+    }
 } catch (e) {
     await p.screenshot({ path: `${SAIDA}/f3-cut-MENU-${SUFIXO}.png` });
     console.log('não consegui entrar:', String(e.message).slice(0, 200));
