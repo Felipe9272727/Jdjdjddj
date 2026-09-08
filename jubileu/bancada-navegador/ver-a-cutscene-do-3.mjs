@@ -10,7 +10,7 @@
 //     cartão: 'queda' (padrão) | 'intro'
 import { chromium } from 'playwright';
 import { abrirPonte } from './ponte.mjs';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -110,7 +110,11 @@ try {
     await p.screenshot({ path: `${SAIDA}/f3-cut-MENU-${SUFIXO}.png` });
     console.log('não consegui entrar:', String(e.message).slice(0, 200));
     console.log('foto do menu em', `${SAIDA}/f3-cut-MENU-${SUFIXO}.png`);
-    ponte.fechar(); await ctx.close(); process.exit(1);
+    ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true }); process.exit(1);
 }
 
 // ── O RELÓGIO DA CUTSCENE ────────────────────────────────────────────────────
@@ -162,7 +166,11 @@ if (CARTAO === 'falas') {
         try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
         catch (e) { console.log('falhou', ev, String(e.message).slice(0, 70)); }
     }
-    ponte.fechar(); await ctx.close(); process.exit(0);
+    ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true }); process.exit(0);
 }
 
 // ── A TRAVA DA CUTSCENE ──────────────────────────────────────────────────────
@@ -192,7 +200,11 @@ if (CARTAO === 'travado') {
                                  : `TRAVA FALHOU — andou ${andou.toFixed(2)} m`);
     }
     await p.screenshot({ path: `${SAIDA}/f3-travado-${SUFIXO}.png` });
-    ponte.fechar(); await ctx.close(); process.exit(0);
+    ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true }); process.exit(0);
 }
 
 // ── OS DOIS DESFECHOS ────────────────────────────────────────────────────────
@@ -230,7 +242,11 @@ if (ESCOLHA) {
         try { await p.screenshot({ path: arq, timeout: 30000 }); console.log('📷', arq); }
         catch (e) { console.log('falhou', i, String(e.message).slice(0, 70)); }
     }
-    ponte.fechar(); await ctx.close(); process.exit(0);
+    ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true }); process.exit(0);
 }
 
 // Rajada: a cutscene é TEMPO, então uma foto só não diz nada.

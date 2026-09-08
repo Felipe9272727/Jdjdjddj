@@ -18,7 +18,7 @@
 //   node bancada-navegador/ouvir-o-diabrete.mjs [intro|queda]
 import { chromium } from 'playwright';
 import { abrirPonte } from './ponte.mjs';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -192,7 +192,11 @@ if (CENA === 'pinceis') {
     for (const r of (t0?.rotacao ?? [])) console.log(`  -> ${r.para}  (deslizando até t=${r.ate}s)`);
     const emLoop0 = (t0?.amostras ?? []).filter((a) => a.loop);
     console.log(`\n  trilha em loop: ${emLoop0.length}   rampas de rotação: ${(t0?.rotacao ?? []).length}`);
-    ponte.fechar(); await ctx.close();
+    ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true });
     process.exit(0);
 }
 
@@ -236,4 +240,8 @@ if (t?.rotacao?.length) {
     for (const r of t.rotacao) console.log(`  -> ${r.para}  (deslizando até t=${r.ate}s)`);
 }
 
-ponte.fechar(); await ctx.close();
+ponte.fechar(); await ctx.close().catch(() => {});
+// O perfil de Chromium (~70 MB por execução) ia ficando em /tmp. Dezenas de
+// voltas depois o disco da caixa bateu 100% e a bancada passou a falhar com
+// "Unable to capture screenshot" — sintoma que não tem nada a ver com o jogo.
+rmSync(perfil, { recursive: true, force: true });

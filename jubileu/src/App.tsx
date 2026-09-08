@@ -2530,7 +2530,7 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
+      {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !f3EmCena && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
           all share the same bottom anchor. Bottom anchor uses safe-area
@@ -2881,7 +2881,14 @@ export default function App() {
       )}
 
       {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}
-      {hasStarted && (currentLevel === 3 || currentLevel === 11) && !isDesktop && (
+      {/* O BOTÃO NÃO ENTRA EM CENA. Todo o resto da interface já sumia nas
+          cutscenes do Andar 3 por `f3EmCena` — HUD, controles do topo, contador
+          de quadros. Este ficou de fora, e só dava para ver isso numa foto de
+          CELULAR: no desktop o botão nem existe. Resultado, no aparelho do
+          Felipe: um disco vermelho de "PULAR" pousado em cima de um curta de
+          1930, durante a apresentação inteira do vilão. (O andar 11 divide o
+          botão e não tem cutscene, então a guarda é só do 3.) */}
+      {hasStarted && (currentLevel === 3 || currentLevel === 11) && !isDesktop && !f3EmCena && (
         <button
           aria-label="Pular"
           className="font-toon fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"

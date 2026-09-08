@@ -46,7 +46,7 @@ export default function Floor3Balao({
 }: BalaoProps) {
     const doDiabo = dono === 'diabrete';
     return (
-        <div key={serie} style={{ position: 'relative', maxWidth: 'min(64vw, 460px)',
+        <div key={serie} data-f3-balao={doDiabo ? 'diabrete' : 'jogador'} style={{ position: 'relative', maxWidth: 'min(64vw, 460px)',
             fontFamily: "'Luckiest Guy', system-ui, sans-serif",
             animation: 'f3balao-entra .35s cubic-bezier(.2,1.5,.4,1) both', ...style }}>
             <style>{`
@@ -103,8 +103,18 @@ export default function Floor3Balao({
             {/* Quem fala, assinado no canto do balão. */}
             <div style={{ position: 'absolute', left: 'min(2.4vw,18px)', bottom: 'min(-1.8vw,-14px)',
                 transform: 'rotate(-2.5deg)',
-                background: doDiabo ? '#c0271a' : '#2b6fb0', color: '#fff',
-                WebkitTextStroke: `2px ${INK}`, paintOrder: 'stroke', padding: '2px 14px',
+                // DUAS VOZES, DUAS CORES — MAS DAS CORES DESTE FILME.
+                // A plaquinha do jogador era azul (#2b6fb0), e essa era a ÚNICA
+                // ocorrência de azul no jogo inteiro. Num andar de tinta preta,
+                // creme e um vermelho de acento, ela lia como um chip de
+                // interface de outro aplicativo pousado no curta — e só dava
+                // para ver isso numa foto de celular, onde a plaquinha fica
+                // grande em relação à tela.
+                // O vermelho é do Diabrete (a mesma tinta do botão de pular);
+                // o jogador fica com o creme do papel e o texto de tinta.
+                background: doDiabo ? '#c0271a' : '#f2e9d5',
+                color: doDiabo ? '#fff' : INK,
+                WebkitTextStroke: doDiabo ? `2px ${INK}` : '0', paintOrder: 'stroke', padding: '2px 14px',
                 fontSize: 'min(2.9vw,17px)', letterSpacing: '.08em',
                 border: `min(0.42vw,3px) solid ${INK}`, borderRadius: 5,
                 boxShadow: `0 3px 0 ${INK}` }}>
