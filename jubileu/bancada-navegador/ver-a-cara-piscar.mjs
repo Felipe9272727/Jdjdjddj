@@ -26,17 +26,18 @@ if (!log.length) { console.log('nenhuma troca de cara — a sonda não gravou na
 else {
     const t0 = log[0].t;
     console.log('── A SEQUÊNCIA DA CARA ──');
-    for (const l of log) console.log(`  +${String(l.t - t0).padStart(6)} ms  ${l.cara}`);
+    for (const l of log) console.log(`  +${String(l.t - t0).padStart(6)} ms  (dele ${String(l.tp).padStart(6)} s)  ${l.cara}`);
     // Quantas PISCADAS: uma piscada é uma corrida de quadros 0..3 seguidos.
     const piscadas = log.filter(l => l.cara.endsWith('/0')).length;
     const span = (log[log.length - 1].t - t0) / 1000;
     console.log(`\n  trocas: ${log.length}   piscadas: ${piscadas}   em ${span.toFixed(1)} s`);
-    // ── CUIDADO COM A CONTA ──────────────────────────────────────────────────
-    // Esta bancada roda a ~2 fps, e o relógio do personagem soma `dt` com teto
-    // de 0,05 s por quadro. Ou seja: o relógio DELE anda ~10x mais devagar que o
-    // relógio de parede. Vinte e seis segundos aqui são ~2,6 s de personagem, e
-    // esperar nove piscadas nesse tempo seria esperar errado.
-    const relogioDele = span / 10;
+    // ── A CONTA É NO RELÓGIO DELE, NÃO NO DA PAREDE ──────────────────────────
+    // Esta bancada roda a poucos quadros por segundo e o relógio do personagem
+    // soma `dt` com teto de 0,05 s por quadro, então ele anda MUITO mais devagar
+    // que o relógio de parede — e por um fator que depende do fps do momento.
+    // Por isso a sonda grava os dois (`tp` é o dele) e a conta usa o dele: supor
+    // o fator seria inventar o resultado.
+    const relogioDele = log[log.length - 1].tp - log[0].tp;
     console.log(`\n  relógio de parede: ${span.toFixed(1)} s  →  relógio DELE: ~${relogioDele.toFixed(1)} s`);
     console.log(`  esperado nesse tempo: ~${(relogioDele / INTERVALO_DA_PISCADA).toFixed(1)} piscadas `
         + `(uma a cada ${INTERVALO_DA_PISCADA} s, durando ${DURACAO_DA_PISCADA.toFixed(2)} s)`);

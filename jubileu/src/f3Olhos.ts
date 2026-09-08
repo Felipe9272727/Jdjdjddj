@@ -137,6 +137,26 @@ export function quadroDaPiscada(t: number, fase = 0): number {
     return Math.min(QUADROS_DA_PISCADA - 1, Math.floor(ciclo * PISCADA_HZ));
 }
 
+// ── O OLHO ACOMPANHA O GRITO ─────────────────────────────────────────────────
+/**
+ * A cara estava dividida em duas: a boca soletrando a frase inteira e os olhos
+ * parados olhando. Numa cara de desenho isso não existe — quando o personagem
+ * ESCANCARA a boca no acento da piada, o olho abre junto. É um quadro só, e é
+ * ele que costura as duas metades do rosto.
+ *
+ * Só nos acentos (a palavra que o texto escreveu em CAIXA ALTA), e só quando o
+ * olho de base não é uma cara que contradiria: quem está de olho fechado
+ * sorrindo, ou tonto, ou já arregalado, fica como está.
+ */
+const NAO_ARREGALAM: readonly NomeDoOlho[] = Object.freeze([
+    'fechadoSorrindo', 'tonto', 'arregalado', 'triste',
+]);
+
+export function olhoNoGrito(base: NomeDoOlho, gritando: boolean): NomeDoOlho {
+    if (!gritando || NAO_ARREGALAM.includes(base)) return base;
+    return 'arregalado';
+}
+
 // ── O OLHO SEGUE O MESMO ARCO QUE TUDO NESTE ANDAR ───────────────────────────
 import type { MomentoDoDiabrete, MomentoExtra } from './f3Boca';
 

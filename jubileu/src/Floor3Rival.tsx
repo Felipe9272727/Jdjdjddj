@@ -27,8 +27,8 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { f3Fala } from './f3Falas';
 import { vozDoDiabrete } from './f3Voz';
-import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
-import { olhoDoDiabrete } from './f3Olhos';
+import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, gritandoNoInstante, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { olhoDoDiabrete, olhoNoGrito } from './f3Olhos';
 import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
 import { quadroDaPose } from './f3Pose';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
@@ -178,7 +178,13 @@ const Floor3Rival: React.FC = () => {
             // dono. A piscada não entra aqui: ela tem relógio próprio e o rig
             // resolve sozinho a partir de `t`.
             const momento = isDizzy() ? 'tonto' : 'provoca';
-            rig.definirCara(olhoDoDiabrete(momento, f3Progress.brushes),
+            // O OLHO LÊ A MESMA PARTITURA QUE A BOCA: no acento da frase ele
+            // arregala junto. Sem isso a cara fica dividida — a boca soletrando
+            // a frase inteira e o olho parado olhando.
+            const grita = !!vozDaFala.current
+                && gritandoNoInstante(vozDaFala.current, t - t0DaFala.current);
+            rig.definirCara(
+                olhoNoGrito(olhoDoDiabrete(momento, f3Progress.brushes), grita),
                 sobrancelhaDoDiabrete(momento, f3Progress.brushes), t);
         }
         // Landing squash decays fast back to neutral (set on touchdown below).

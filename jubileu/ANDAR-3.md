@@ -4,6 +4,62 @@ Uma página, para não ter que ler quarenta commits.
 
 ---
 
+## A cara inteira, voltas 45–47
+
+O dono do jogo: *"seria legal a cara inteira dele ser animada (tipo uma animação
+dos anos 80/60)"* — e gerou a ficha com o prompt que está em
+`PROMPT-CARA-DO-DIABRETE.md`: doze olhos, quatro quadros de piscada, oito
+sobrancelhas e oito poses.
+
+**O instinto dele tem nome.** Desenho de TV daquela época não redesenhava a cara
+quadro a quadro: mantinha a cabeça parada e TROCAVA CÉLULAS. É o que este andar
+já fazia com a boca, e é o que faz tudo isto caber no celular dele.
+
+### O que ficou
+
+- `f3Olhos.ts` — um olho é SEIS NÚMEROS (pálpebra de cima, de baixo, ângulo dela,
+  direção do olhar, pupila, brilho), não uma lista de pontos. É isso que faz as
+  doze expressões saírem do mesmo desenho, e é isso que dá a piscada de graça:
+  piscar é a pálpebra de cima descendo de 0 a 1.
+- `f3Sobrancelha.ts` — oito, e a que importa é a assimétrica: é ela, não a boca,
+  que faz a cara ser irônica de longe. Sobe do mesmo lado que o `TORTO` da boca.
+- **A piscada tem relógio só dela**: 14 Hz numa cara que fervilha a 8, a cada
+  2,8 s. Piscar é involuntário; cair no compasso da fala faria a cara pulsar
+  junto e entregaria o truque.
+- **Duas caixas no shader**, não uma maior: a boca troca 8x por segundo e os
+  olhos a cada poucos segundos. Num canvas só, cada quadro de fala redesenharia
+  os olhos de graça.
+- **O olho lê a MESMA partitura da boca**: no acento da frase ele arregala junto
+  (`gritandoNoInstante` + `olhoNoGrito`). Sem isso a cara fica dividida — a boca
+  soletrando a frase e o olho parado olhando.
+- **A boca soletra**: os visemas da segunda ficha ("CH", "SH", "TH", "LÍNGUA",
+  "FECHADA") viraram alfabeto, e a boca monta a frase inteira ao longo do balão.
+  Por PALAVRA não podia funcionar — as notas duram 0,1 s e o quadro desenhado
+  0,125 s, há menos quadros do que palavras.
+
+### A regra de ouro deste rosto, e por que ela existe
+
+**O repouso tem que ser a cara que o modelo JÁ TEM.** O GLB vem com olhos e nariz
+pintados, e desenhar por cima é COBRIR. Foi assim que o nariz do personagem
+morreu três vezes seguidas, cada vez de um jeito diferente, e ele teve de
+reclamar as três. Hoje há um teste de três linhas cobrando isso, e a órbita de
+creme dos olhos só é pintada QUANDO O OLHAR SE DESLOCA.
+
+### O que as fichas numa foto acharam sozinhas
+
+`ficha-de-bocas.html` e `ficha-da-cara.html` desenham o vocabulário inteiro com o
+MESMO pincel do jogo, numa foto. As duas entregaram defeitos no primeiro
+disparo que a bancada peça-a-peça nunca mostrou:
+
+- dentes e goela não desenhavam em **onze das vinte e sete** bocas (ancorados no
+  topo da CAIXA, e nenhuma boca chega lá);
+- tudo saía **50% achatado** (71 px por unidade na largura contra 47 na altura);
+- `esquerda`, `direita` e `cima` saíam **idênticas a `neutro`** — três das doze
+  não faziam nada, porque numa massa preta sólida não existe pupila para mover.
+
+Custo de tudo isto: **uma textura** (13 → 14), zero draw call, zero byte de
+download. Medido A/B na mesma execução: 128,9 ms com a cara nova, 131,1 ms sem.
+
 ## A boca, volta 44 — não havia nada para remendar
 
 O dono do jogo: **"ainda está cobrindo o nariz, coloque uns -8 de altura que dá

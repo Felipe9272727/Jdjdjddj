@@ -594,6 +594,22 @@ export function bocaOciosa(repouso: NomeDaBoca, t: number, fase = 0): NomeDaBoca
  */
 export const PARTE_FALANDO = 0.82;
 
+/**
+ * Ele está no acento da frase neste instante?
+ *
+ * Existe para o OLHO poder ler a mesma partitura que a boca (ver `olhoNoGrito`
+ * em `f3Olhos`). Sem isto o olho precisaria da própria noção de "grito", e mais
+ * cedo ou mais tarde as duas metades do rosto discordariam — que é exatamente o
+ * que já acontece com qualquer número que ganha um segundo dono neste andar.
+ */
+export function gritandoNoInstante(voz: Voz, t: number): boolean {
+    for (let k = voz.blats.length - 1; k >= 0; k--) {
+        const b = voz.blats[k];
+        if (t >= b.t) return t < b.t + b.dur && b.acento;
+    }
+    return false;
+}
+
 export function bocaNoInstante(
     voz: Voz, t: number, repouso: NomeDaBoca, duraNaTela = 0,
 ): NomeDaBoca {

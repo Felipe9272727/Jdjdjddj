@@ -547,10 +547,14 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             // outra coisa. O mesmo motivo de `__f3BocaLog` existir.
             if (import.meta.env?.DEV && typeof window !== 'undefined') {
                 const marca = `${olho}/${cenho}/${q}`;
-                const w = window as unknown as { __f3CaraLog?: { t: number; cara: string }[] };
+                const w = window as unknown as { __f3CaraLog?: { t: number; tp: number; cara: string }[] };
                 const log = (w.__f3CaraLog ??= []);
                 if (log[log.length - 1]?.cara !== marca) {
-                    log.push({ t: +performance.now().toFixed(0), cara: marca });
+                    // `t` é o relógio de parede e `tp` é o do PERSONAGEM. Os dois
+                    // porque a bancada roda a poucos quadros por segundo e o
+                    // relógio dele soma `dt` com teto — sem gravar os dois, a
+                    // conta de "quantas piscadas era para ter" é chute.
+                    log.push({ t: +performance.now().toFixed(0), tp: +t.toFixed(2), cara: marca });
                 }
             }
             telaDaCara.definir(olho, cenho, q >= 0 ? olhoPiscando(OLHOS_VALIDOS[olho], q) : null);

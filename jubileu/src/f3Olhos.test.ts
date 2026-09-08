@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     OLHOS, NOMES_DOS_OLHOS, OLHO_EM_REPOUSO, PISCADA, QUADROS_DA_PISCADA,
-    olhoPiscando, quadroDaPiscada, olhoDoDiabrete,
+    olhoPiscando, quadroDaPiscada, olhoDoDiabrete, olhoNoGrito,
     INTERVALO_DA_PISCADA, DURACAO_DA_PISCADA, PISCADA_HZ,
     type NomeDoOlho,
 } from './f3Olhos';
@@ -19,6 +19,8 @@ import {
     sobrancelhaDoDiabrete,
 } from './f3Sobrancelha';
 import { BOIL_HZ } from './f3Tinta';
+import { gritandoNoInstante } from './f3Boca';
+import { vozDoDiabrete } from './f3Voz';
 
 const MOMENTOS = ['apresentacao', 'desenhou', 'espetou', 'roubou', 'provoca',
     'caiu', 'suplica', 'ocioso', 'quaseLaEmCima', 'perdeuOPrimeiro',
@@ -150,6 +152,29 @@ describe('olho e sobrancelha seguem o MESMO arco do andar', () => {
         // do arco — então só se cobra que a MAIORIA seja alcançável pelo arco.
         expect(olhos.size).toBeGreaterThanOrEqual(8);
         expect(cenhos.size).toBeGreaterThanOrEqual(7);
+    });
+});
+
+describe('o olho acompanha o grito', () => {
+    it('no acento ele arregala', () => {
+        expect(olhoNoGrito('malicia', true)).toBe('arregalado');
+        expect(olhoNoGrito('malicia', false)).toBe('malicia');
+    });
+    it('mas não contradiz a cena: quem está de olho fechado, tonto ou triste fica', () => {
+        // Arregalar por cima de "fechado sorrindo" apagaria a piada; por cima de
+        // "tonto" apagaria a gag; por cima de "triste" trocaria a emoção no meio
+        // de uma frase.
+        for (const n of ['fechadoSorrindo', 'tonto', 'arregalado', 'triste'] as const) {
+            expect(olhoNoGrito(n, true)).toBe(n);
+        }
+    });
+    it('e o grito vem da MESMA partitura da boca, não de uma segunda conta', () => {
+        const voz = vozDoDiabrete('Olha o TRAÇO! Espinho fresquinho!', { roubados: 0 });
+        const i = voz.blats.findIndex(b => b.acento);
+        expect(gritandoNoInstante(voz, voz.blats[i].t + 0.01)).toBe(true);
+        const j = voz.blats.findIndex(b => !b.acento);
+        expect(gritandoNoInstante(voz, voz.blats[j].t + 0.01)).toBe(false);
+        expect(gritandoNoInstante(voz, -1)).toBe(false);
     });
 });
 
