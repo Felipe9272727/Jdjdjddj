@@ -171,6 +171,8 @@ interface WorldProps {
   /** During the defeat fall cutscene, hide the live parkour/elevator/hazards so
    *  the cutscene shows its OWN staged "high up the climb" set, not the start. */
   floor3FallActive: boolean;
+  /** A cabine sai de cena na apresentação também — ver o comentário no JSX. */
+  floor3CenaSemCabine: boolean;
   /** Floor 6: true once the cab blows — Floor6Suite renders its own DEAD cab
    *  (crooked, enterable), so the global "alive" interior must unmount. */
   f6CabDead: boolean;
@@ -194,7 +196,7 @@ const LOBBY_CRATES: CrateSpec[] = [
 // Sealed lobby perimeter — keeps debris in the room no matter the door state.
 const LOBBY_PHYS_WALLS = wallsForState(0, true, false);
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead, f8InImage, onFloor10Exit }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, floor3CenaSemCabine, f6CabDead, f8InImage, onFloor10Exit }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -266,9 +268,24 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           passa raspando por um elevador pendurado no ar.
 
           O andar já escondia a escadaria viva durante a queda (`fallActive`) e
-          esqueceu da cabine, que não é dele. */}
+          esqueceu da cabine, que não é dele.
+
+          ── E A APRESENTAÇÃO TINHA O MESMO PROBLEMA ──────────────────────
+          Só deu para ver isto quando `__f3PularIntro()` passou a entregar a
+          cena em trinta segundos e a apresentação inteira foi fotografada fala
+          por fala pela primeira vez. Em três dos quatro planos, o batente
+          marrom da porta E O PAINEL DE BOTÕES ficavam no quadro junto com ele —
+          um objeto fotográfico, com parafuso e luzinha, dividindo a tela com um
+          desenho de 1930. No plano baixo da escadaria o painel chegava a ter
+          quase o tamanho do Diabrete.
+
+          A cabine fica no PRIMEIRO plano, e sai do segundo em diante: a fala de
+          abertura é "olha só o que o elevador cuspiu", então ali ela está
+          dizendo alguma coisa. Depois disso ela só ocupa espaço que é do
+          personagem. É corte de decupagem, não é remendo. */}
       {!(level === 6 && f6CabDead) && level !== 7 && level !== 9
         && !(level === 3 && floor3FallActive)
+        && !(level === 3 && floor3CenaSemCabine)
         && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
       {/* Andar 9 (O Viveiro): o elevador é o cab enferrujado/coberto de vinhas
           (GLB modelado no Blender), não o <ElevatorInterior> genérico. */}
@@ -1978,7 +1995,7 @@ export default function App() {
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} floor3CenaSemCabine={cartoonCutscene && cutsceneLine >= 1} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
