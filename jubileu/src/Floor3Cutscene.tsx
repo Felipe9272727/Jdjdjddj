@@ -32,6 +32,7 @@ import { poseDoGesto, quadroDaPose, tempoDaPose, POSE_HZ, ARM_REST } from './f3P
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
+import { enquadrar, afastar } from './f3Enquadramento';
 import { Spring } from './f3Mola';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
@@ -45,7 +46,7 @@ interface Props {
 
 const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
-    const { camera } = useThree();
+    const { camera, size: tamanho } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
 
@@ -230,10 +231,19 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         }
         const pl = planoDaApresentacao(li, PALCO_DA_APRESENTACAO,
             (clock.current - tLinha.current) / 3.2);
-        camera.position.set(pl.x, pl.y, pl.z);
+        // ── O PLANO TEM QUE CABER NA TELA DELE ───────────────────────────────
+        // `fov` no three é VERTICAL, e estes planos foram compostos olhando a
+        // bancada em 1024x640. Num celular EM PÉ a abertura horizontal cai 3,5
+        // vezes e o plano vira um close em que só cabe um olho e meia boca. Ver
+        // `f3Enquadramento`: abre a lente até um teto e anda para trás o resto.
+        // Em tela larga isto é um `if` e nada mais.
+        const alvo = { x: pl.lx, y: pl.ly, z: pl.lz };
+        const enq = enquadrar(pl.fov, tamanho.width / Math.max(1, tamanho.height));
+        const olho = afastar({ x: pl.x, y: pl.y, z: pl.z }, alvo, enq.recuo);
+        camera.position.set(olho.x, olho.y, olho.z);
         camera.up.set(0, 1, 0);
-        camera.lookAt(pl.lx, pl.ly, pl.lz);
-        (camera as THREE.PerspectiveCamera).fov = pl.fov;
+        camera.lookAt(alvo.x, alvo.y, alvo.z);
+        (camera as THREE.PerspectiveCamera).fov = enq.fov;
         camera.updateProjectionMatrix();
 
         // ── Finish: dash cleared frame → hand back to gameplay ───────────────

@@ -22,6 +22,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { quadroDaPose } from './f3Pose';
+import { enquadrar, afastar } from './f3Enquadramento';
 import { olhoDoDiabrete } from './f3Olhos';
 import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
 import { useGLTF, Outlines } from '@react-three/drei';
@@ -94,7 +95,7 @@ const CUTSCENE_TILES = LAJES_DA_CUTSCENE;
 
 const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
-    const { camera } = useThree();
+    const { camera, size: tamanho } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
     const ledgeRef = useRef<THREE.Group>(null!);
     const shoeRef  = useRef<THREE.Group>(null!);
@@ -463,10 +464,17 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
         }
 
         // ── Apply the chosen camera shot (hard cuts, cartoon style) ──────────
-        camera.position.set(cam.x, cam.y, cam.z);
+        // Mesma correcao da cutscene de apresentacao: estes vinte e poucos
+        // planos foram compostos em 1024x640, e `fov` no three e VERTICAL. Numa
+        // tela de celular em pe a abertura horizontal cai por 3,5 e o plano
+        // vira close. Ver `f3Enquadramento`. Em tela larga nada muda.
+        const enq = enquadrar(cam.fov, tamanho.width / Math.max(1, tamanho.height));
+        const olho = afastar({ x: cam.x, y: cam.y, z: cam.z },
+            { x: cam.lx, y: cam.ly, z: cam.lz }, enq.recuo);
+        camera.position.set(olho.x, olho.y, olho.z);
         camera.up.set(Math.sin(camRoll), Math.cos(camRoll), 0);
         camera.lookAt(cam.lx, cam.ly, cam.lz);
-        (camera as THREE.PerspectiveCamera).fov = cam.fov;
+        (camera as THREE.PerspectiveCamera).fov = enq.fov;
         camera.updateProjectionMatrix();
 
         // ── A SONDA LE DEPOIS, NAO ANTES ──────────────────────────────────
