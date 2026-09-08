@@ -110,6 +110,17 @@ const OLHO_CY = TESTA + OLHO_ALT / 2;
  */
 export const ORBITA_NA_TELA = Object.freeze({ cy: OLHO_CY, alt: OLHO_ALT, larg: OLHO_LARG });
 
+/**
+ * ── A INCLINAÇÃO ────────────────────────────────────────────────────────────
+ * Na ficha os olhos não são ovais em pé: são inclinados, com a ponta de FORA
+ * mais alta. É um detalhe pequeno e é metade da malícia da cara dele — olho
+ * reto lê como bonequinho, olho inclinado lê como quem está aprontando.
+ *
+ * Mora aqui fora, e não dentro do desenho do olho, porque a PÁLPEBRA precisa
+ * dela: ver a nota longa em `palpebra`.
+ */
+const INCLINACAO = 0.16;
+
 /** Desenha UM olho, centrado em (cx, cy). `lado` = -1 esquerdo, +1 direito. */
 function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: number, lado: number) {
     const rx = OLHO_LARG / 2, ry = OLHO_ALT / 2;
@@ -162,14 +173,10 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     const desvioX = desliza ? o.olharX * rx * 0.22 : 0;
     const desvioY = desliza ? -o.olharY * ry * 0.20 : 0;
     c.save();
-    // ── A INCLINAÇÃO ─────────────────────────────────────────────────────────
-    // Na ficha os olhos não são ovais em pé: são inclinados, com a ponta de FORA
-    // mais alta. É um detalhe pequeno e é metade da malícia da cara dele — olho
-    // reto lê como bonequinho, olho inclinado lê como quem está aprontando.
-    const INCLINACAO = 0.16;
+    const giro = lado * INCLINACAO;
     c.fillStyle = TINTA;
     c.beginPath();
-    c.ellipse(cx + desvioX, cy + desvioY, rx, ry, lado * INCLINACAO, 0, Math.PI * 2);
+    c.ellipse(cx + desvioX, cy + desvioY, rx, ry, giro, 0, Math.PI * 2);
     c.fill();
 
     if (o.pupila > 0) {
@@ -207,14 +214,24 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     // separa raiva de tristeza, e o SINAL dele é o mesmo da sobrancelha
     // (positivo desce a ponta de dentro) — as duas peças falam a mesma língua,
     // ver `f3Sobrancelha`.
+    //
+    // ── E O CORTE TEM QUE ACOMPANHAR O OLHO ──────────────────────────────────
+    // Quando o olho ganhou a inclinação da ficha, a pálpebra continuou cortando
+    // na HORIZONTAL, e as duas brigaram: `malicia` e `baixoMalicioso`, que são
+    // pálpebra pesada sobre olho alto, saíam como BARRAS deitadas, iguais a um
+    // óculos escuro. Na ficha elas são formas de FOLHA — sobra uma fatia do
+    // olho, e a fatia segue o eixo dele.
+    // O recorte também estava errado pelo mesmo motivo: era uma elipse SEM
+    // giro em volta de um olho girado, então nos cantos a pálpebra vazava para
+    // fora da massa.
     const palpebra = (fracao: number, deCima: boolean) => {
         if (fracao <= 0) return;
         c.save();
         c.beginPath();
-        c.ellipse(cx, cy, rx * 1.08, ry * 1.08, 0, 0, Math.PI * 2);
+        c.ellipse(cx + desvioX, cy + desvioY, rx * 1.08, ry * 1.08, giro, 0, Math.PI * 2);
         c.clip();
-        const ang = (o.anguloDaPalpebra * Math.PI) / 180 * lado * (deCima ? 1 : -1);
-        c.translate(cx, cy);
+        const ang = giro + (o.anguloDaPalpebra * Math.PI) / 180 * lado * (deCima ? 1 : -1);
+        c.translate(cx + desvioX, cy + desvioY);
         c.rotate(ang);
         c.fillStyle = CREME;
         const borda = deCima ? -ry - ry * 0.4 : ry + ry * 0.4;
@@ -250,9 +267,9 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
         c.fillStyle = CREME;
         c.beginPath();
         c.ellipse(
-            cx + desvioX + (dx / norma) * rx * 0.86,
-            cy + desvioY + (dy / norma) * ry * 0.86,
-            rx * 0.26, ry * 0.25, 0, 0, Math.PI * 2);
+            cx + desvioX + (dx / norma) * rx * 0.90,
+            cy + desvioY + (dy / norma) * ry * 0.90,
+            rx * 0.21, ry * 0.20, 0, 0, Math.PI * 2);
         c.fill();
     }
     c.restore();
@@ -290,7 +307,10 @@ function desenharUmaSobrancelha(
     // contorno do cabelo, não como sobrancelha. 0,64 e um empurrão para o meio
     // resolvem — e o que ela perde de comprimento ganha de grossura, que é o que
     // faz um traço de desenho animado ser lido de longe.
-    const meia = rx * 0.64;
+    // Depois da ficha, 0,56: com o olho maior a sobrancelha subiu junto, e lá em
+    // cima a faixa de creme é mais estreita ainda — a ponta de FORA era a que
+    // entrava na franja.
+    const meia = rx * 0.56;
     const paraDentro = -lado * OLHO_LARG * 0.09;
     const ang = (s.angulo * Math.PI) / 180 * lado;
     const grosso = OLHO_LARG * s.grossura;

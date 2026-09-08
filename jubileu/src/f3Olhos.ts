@@ -78,12 +78,19 @@ export const OLHOS: Readonly<Record<NomeDoOlho, Olho>> = Object.freeze({
     cima:            O({ olharY: 0.40 }),
     // 5. "baixo (malicioso)": olhar caído E pálpebra pesada. As duas coisas
     // juntas é o que faz parecer malícia em vez de sono.
-    baixoMalicioso:  O({ olharY: -0.38, palpebraCima: 0.34 }),
-    semicerrado:     O({ palpebraCima: 0.48, palpebraBaixo: 0.10 }),
+    baixoMalicioso:  O({ olharY: -0.38, palpebraCima: 0.30 }),
+    semicerrado:     O({ palpebraCima: 0.40, palpebraBaixo: 0.06 }),
     fechadoSorrindo: O({ fechado: true, brilho: false }),
-    // 8. "malícia": fresta fina e inclinada. É a cara padrão dele em repouso
-    // quando está aprontando, e combina com o sorriso torto da boca.
-    malicia:         O({ palpebraCima: 0.56, palpebraBaixo: 0.22, anguloDaPalpebra: 12 }),
+    // 8. "malícia": fenda inclinada. É a cara padrão dele em repouso quando está
+    // aprontando, e combina com o sorriso torto da boca.
+    //
+    // As frações caíram (0,56/0,22 -> 0,42/0,10) quando o olho ganhou o tamanho
+    // da ficha. A conta é a mesma, o olho é que ficou alto: 78% de pálpebra
+    // sobre um olho de 113 px deixava uma lasca de 25 px, e na folha do rosto
+    // montado `malicia` e `semicerrado` liam como dois riscos, não como olho
+    // apertado. Na ficha do Felipe a "malícia apertada" é uma forma de FOLHA,
+    // com massa.
+    malicia:         O({ palpebraCima: 0.42, palpebraBaixo: 0.10, anguloDaPalpebra: 12 }),
     arregalado:      O({ pupila: 0.34, palpebraCima: -0.12 }),
     bravo:           O({ palpebraCima: 0.40, anguloDaPalpebra: 26, olharY: -0.10 }),
     triste:          O({ palpebraCima: 0.36, anguloDaPalpebra: -24, olharY: -0.16 }),

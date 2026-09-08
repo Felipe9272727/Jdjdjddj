@@ -84,10 +84,16 @@ Para julgar no modelo de verdade (silhueta, cabelo, chifre):
 
 Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
 
-- [ ] a sobrancelha ainda encosta na franja: as pontas de fora somem no preto
-- [ ] a mordida de creme está grande demais; na ficha é menor e mais na borda
-- [ ] `malicia` e `baixoMalicioso` viram barras horizontais — na ficha são
-      formas de folha, com massa, não frestas
+- [x] ~~`malicia` e `baixoMalicioso` viram barras horizontais~~ — ciclo 2: a
+      pálpebra cortava na HORIZONTAL enquanto o olho já era inclinado, e as duas
+      brigavam. Agora o corte (e o recorte) acompanham o eixo do olho, e as
+      frações caíram de 0,56/0,22 para 0,42/0,10, porque 78% de pálpebra sobre um
+      olho de 113 px deixava uma lasca de 25 px.
+- [x] ~~a mordida de creme está grande demais~~ — ciclo 2: 0,26 -> 0,21 de raio,
+      e empurrada de 0,86 para 0,90, mais na borda.
+- [ ] a sobrancelha ainda encosta na franja: as pontas de fora somem no preto.
+      Ciclo 2 encurtou de 0,64 para 0,56 e ajudou, mas não resolveu.
 - [ ] `fechadoSorrindo` ficou largo e chapado demais
 - [ ] o rosto do modelo é um óvalo liso; na ficha o creme tem um bico de viúva
       preto no alto e tufos pontudos nos lados
+- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
