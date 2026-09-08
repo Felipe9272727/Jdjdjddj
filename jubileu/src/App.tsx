@@ -2,7 +2,7 @@ import Floor10Desfecho from './Floor10Desfecho';
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -2179,33 +2179,68 @@ export default function App() {
         {/* o andar 9 tem composer próprio (F9PostEffects) — sem duplicar aqui */}
         {hasStarted && !photo.progress.active && currentLevel !== 9 && (settings.quality === 'high' || currentLevel === 3 || currentLevel === 7) && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
-                {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
-                    conservatively: tight screen-space radius + low intensity +
-                    high-quality denoise so it adds contact shadows in corners
-                    without the full-surface grain / dark halo the aggressive
-                    settings produced. Runs on the depth buffer so it works with
-                    the custom toon ShaderMaterial. */}
-                {currentLevel === 3 && settings.quality === 'high' && (
-                    <N8AO
-                        screenSpaceRadius
-                        aoRadius={16}
-                        distanceFalloff={0.5}
-                        intensity={1.4}
-                        quality="performance"
-                        halfRes
-                        color="#0a0e1a"
-                    />
-                )}
+                {/* ── A OCLUSÃO DE AMBIENTE SAIU, E ERA ELA ────────────────
+                    O N8AO morava aqui, e SÓ no Andar 3 — ou seja, o único
+                    andar cujo estilo proíbe sombreado tinha o efeito que
+                    sombreia. Oclusão de ambiente escurece reentrância por
+                    geometria; num rosto de esfera lisa isso desenha vincos
+                    moles pela bochecha, pelo queixo e em volta do nariz.
+
+                    Medido, não achado: numa linha atravessando a bochecha, o
+                    creme (que num desenho de duas cores tem que ser PLANO) ia
+                    de 241 a 255. Desligando a oclusão: 252 a 255, ou seja
+                    chapado. E o andar de LONGE fica idêntico — o cenário já é
+                    silhueta de tinta sobre papel e não tem reentrância para
+                    ocluir. Ou seja o efeito só tinha efeito onde ele fazia mal.
+
+                    UMA RESSALVA, para não virar lenda: isto NÃO é,
+                    necessariamente, a foto que ele mandou. As duas queixas dele
+                    ("as texturas estão extremamente bugadas", "tá todo lascada
+                    a textura, parece que vc botou ela por cima de uma textura
+                    que já existe") vieram do celular, e no celular
+                    `Settings.tsx` entra em `medium` — em `medium` nem a oclusão
+                    nem o bloom rodam. A descrição bate bem demais com o defeito,
+                    mas quem joga em `high` é quem via isso. O conserto vale de
+                    todo jeito: sombra calculada por quadro num desenho chapado
+                    de 1930 está errada em qualquer qualidade, e sai de graça.
+
+                    O Bloom logo abaixo saiu do Andar 3 pelo mesmo motivo e com
+                    a mesma medida: com a oclusão desligada, ligar ou desligar o
+                    bloom dá exatamente os mesmos 252..255. Ele não fazia nada
+                    além de custar um desfoque de mipmap por quadro. */}
                 {/* Bloom — moderate on Floor 2. Threshold kept high so only
                     truly bright emissive crystals + water surface bloom;
                     low enough to avoid washing the whole cave cyan.
                     High quality only — on medium/low the Floor-3 composer runs
-                    just the cheap grayscale pass below. */}
-                {(settings.quality === 'high' || currentLevel === 7) && (
+                    just the cheap grayscale pass below.
+
+                    ── E NENHUM NO ANDAR 3 ─────────────────────────────────
+                    O dono do jogo mandou duas fotos do celular dizendo "as
+                    texturas estão extremamente bugadas" e "tá todo lascada a
+                    textura, parece que vc botou ela por cima de uma textura que
+                    já existe". A segunda descrição estava mais certa do que
+                    parecia, e não era textura nenhuma: era ISTO.
+
+                    O creme do Diabrete é `#f7f3ea`, cuja luminância cai
+                    exatamente em cima do `luminanceThreshold` de 0,95. Com
+                    `luminanceSmoothing` de 0,20 ele não passava nem ficava
+                    fora: pegava um bloom PARCIAL, e parcial num desfoque de
+                    mipmap quer dizer que cada pedaço do rosto brilha conforme o
+                    tamanho da mancha clara em volta dele. Medido na foto: o
+                    creme, que deveria ser plano em 247, ia de 241 no canto do
+                    rosto a 255 no meio da bochecha. Isso desenha vincos moles
+                    por toda a cara — que é exatamente a aparência de uma
+                    segunda textura por baixo.
+
+                    E o efeito não tinha o que fazer aqui: cristal emissivo é do
+                    Andar 2. Um desenho a nanquim de 1930 não tem brilho — a
+                    graça dele é ser CHAPADO, duas cores e ponto. O passe de
+                    mipmap por quadro sai de graça do celular dele junto. */}
+                {((settings.quality === 'high' && currentLevel !== 3) || currentLevel === 7) && (
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : currentLevel === 7 ? 0.38 : 0.35}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 7 ? 0.38 : 0.35}
                     luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 7 ? 0.85 : 0.95}
-                    luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
+                    luminanceSmoothing={currentLevel === 2 ? 0.25 : 0.2}
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
                 />

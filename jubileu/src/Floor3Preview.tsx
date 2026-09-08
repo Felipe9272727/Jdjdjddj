@@ -13,8 +13,7 @@
  */
 
 import { Canvas, useFrame } from '@react-three/fiber';
-import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
-import { KernelSize } from 'postprocessing';
+import { EffectComposer, Vignette, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
 import { Suspense, useRef } from 'react';
@@ -188,16 +187,19 @@ export default function Floor3Preview() {
                 {!fphands && <OrbitControls target={alvoLivre ? alvoLivre : debug ? [0, 0, 0] : armadilha ? [0, 1.2, 12] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
-                    <N8AO
-                        screenSpaceRadius
-                        aoRadius={16}
-                        distanceFalloff={0.5}
-                        intensity={1.4}
-                        quality="performance"
-                        halfRes
-                        color="#0a0e1a"
-                    />
-                    <Bloom intensity={0.22} luminanceThreshold={0.95} luminanceSmoothing={0.20} mipmapBlur kernelSize={KernelSize.MEDIUM} />
+                    {/* Sem N8AO e sem Bloom, iguais ao jogo — ver a nota longa
+                        em `App.tsx`. Os dois saíram do Andar 3 depois de medir:
+                        a oclusão desenhava vincos no rosto (creme de 241 a 255
+                        onde tinha que ser chapado) e o bloom não mudava um
+                        pixel. Vale notar que esta tela rodava os DOIS sempre,
+                        enquanto o jogo só os roda em qualidade `high` — o que
+                        significa que por um tempo eu vinha decidindo a cara
+                        dele numa imagem mais suja que a do celular dele.
+                        Esta tela existe para eu decidir visual olhando,
+                        então ela tem que ter a MESMA pilha do jogo — com uma
+                        cópia divergente ela me mostrava um andar que não é o
+                        que o Felipe joga, e bancada que mente é pior que
+                        bancada nenhuma. */}
                     {/* MESMOS números do jogo (floor3Grade.ts). Esta tela existe
                         para eu decidir visual olhando — com uma cópia própria
                         dos valores ela me mostrava um andar que não era o do
