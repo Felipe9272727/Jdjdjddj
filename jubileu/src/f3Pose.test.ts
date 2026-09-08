@@ -10,7 +10,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { poseDoGesto, distanciaDaPose, tempoDaPose, quadroDaPose, POSE_HZ } from './f3Pose';
+import { poseDoGesto, distanciaDaPose, tempoDaPose, quadroDaPose, POSE_HZ,
+         golpe, DURACAO_DO_PREPARO, QUADROS_DE_EXCESSO } from './f3Pose';
+import { Mola } from './f3Mola';
 import { BOIL_HZ } from './f3Tinta';
 import { DIABRETE_SCRIPT, type Gesture } from './diabreteScript';
 
@@ -97,5 +99,62 @@ describe('dois relógios, dois ofícios', () => {
             expect(Math.abs(tempoDaPose(t) * POSE_HZ % 1)).toBeLessThan(1e-9);
             expect(tempoDaPose(t)).toBeLessThanOrEqual(t + 1e-9);
         }
+    });
+});
+
+// ── ANTECIPAÇÃO ──────────────────────────────────────────────────────────────
+// O que separa gesto de deslocamento. Sem preparação o dedo dele NASCIA na cara
+// do jogador; com ela, o braço recua dois desenhos e só então dispara.
+describe('todo golpe é preparado', () => {
+    it('o membro vai para o lado OPOSTO antes de chegar ao alvo', () => {
+        // apontar: alvo negativo (para a frente), preparo positivo (para trás)
+        expect(golpe(0.0, 0.30, -1.45)).toBe(0.30);
+        expect(golpe(DURACAO_DO_PREPARO - 0.001, 0.30, -1.45)).toBe(0.30);
+        expect(golpe(0.9, 0.30, -1.45)).toBe(-1.45);
+    });
+    it('e passa do alvo logo depois — é o excesso que dá o estalo', () => {
+        const logoDepois = golpe(DURACAO_DO_PREPARO + 0.001, 0.30, -1.45);
+        expect(logoDepois).toBeLessThan(-1.45);          // passou
+        expect(logoDepois).toBeGreaterThan(-1.45 * 1.4); // mas não virou piada
+    });
+    it('o excesso dura pouco: um desenho', () => {
+        const depoisDoExcesso = DURACAO_DO_PREPARO + QUADROS_DE_EXCESSO / POSE_HZ + 0.001;
+        expect(golpe(depoisDoExcesso, 0.30, -1.45)).toBe(-1.45);
+    });
+    it('a preparação cabe num quarto de segundo — tacada, não pausa', () => {
+        expect(DURACAO_DO_PREPARO + QUADROS_DE_EXCESSO / POSE_HZ).toBeLessThan(0.3);
+    });
+    it('nos gestos de golpe, o braço realmente inverte antes de apontar', () => {
+        const antes = poseDoGesto('point', 0.5, 0.02);
+        const depois = poseDoGesto('point', 0.5, 0.9);
+        expect(Math.sign(antes.armRx)).toBe(1);    // recuado
+        expect(Math.sign(depois.armRx)).toBe(-1);  // apontando
+    });
+    it('gesto sem golpe não ganha preparação nenhuma', () => {
+        for (const tl of [0.0, 0.05, 0.9]) {
+            expect(poseDoGesto('idle', 0.5, tl)).toEqual(poseDoGesto('idle', 0.5, 0.5));
+        }
+    });
+});
+
+// ── SOBRA ────────────────────────────────────────────────────────────────────
+// O corpo chega primeiro, as pontas depois. Estava ao contrário: os braços eram
+// as molas mais duras e o tronco a mais mole, então a mão chegava antes do corpo
+// que a empurrou.
+describe('a sobra: o corpo lidera, as pontas chegam atrasadas', () => {
+    const quantoLeva = (k: number) => {
+        const m = new Mola(k, 5.5);
+        for (let i = 0; i < 400; i++) {
+            if (m.tick(1, 1 / POSE_HZ) >= 0.9) return i;
+        }
+        return 999;
+    };
+    it('tronco mais rápido que braço, braço mais rápido que cabeça', () => {
+        const tronco = quantoLeva(26), braco = quantoLeva(19), cabeca = quantoLeva(13);
+        expect(tronco).toBeLessThan(braco);
+        expect(braco).toBeLessThan(cabeca);
+    });
+    it('mas a cabeça chega — sobra não é membro solto', () => {
+        expect(quantoLeva(13)).toBeLessThan(30);   // menos de 2,5 s a 12 Hz
     });
 });

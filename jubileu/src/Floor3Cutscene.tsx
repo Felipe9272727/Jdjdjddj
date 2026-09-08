@@ -60,12 +60,18 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const tLinha   = useRef(0);
 
     // Springs for limber, weighty motion.
-    const sLean  = useRef(new Spring(16, 5.5));
-    const sArmL  = useRef(new Spring(24, 5.5));
-    const sArmR  = useRef(new Spring(24, 5.5));
-    const sArmLx = useRef(new Spring(28, 5.5));
-    const sArmRx = useRef(new Spring(28, 5.5));
-    const sHead  = useRef(new Spring(20, 5.5));
+    // ── AS MOLAS ESTAVAM INVERTIDAS ──────────────────────────────────────
+    // Sobra (follow-through) é o CORPO chegar primeiro e as pontas depois: o
+    // tronco vira, e a mão e a cabeça ainda estão a caminho. Aqui era o
+    // contrário — os braços eram as molas mais DURAS (k=28) e o tronco a mais
+    // mole (k=16), então a mão chegava antes do corpo que a empurrou.
+    // Agora o tronco manda, os braços vêm atrás e a cabeça é a última.
+    const sLean  = useRef(new Spring(26, 5.5));
+    const sArmL  = useRef(new Spring(19, 5.5));
+    const sArmR  = useRef(new Spring(19, 5.5));
+    const sArmLx = useRef(new Spring(19, 5.5));
+    const sArmRx = useRef(new Spring(19, 5.5));
+    const sHead  = useRef(new Spring(13, 5.5));
 
     useEffect(() => {
         const group = groupRef.current;

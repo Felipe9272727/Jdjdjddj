@@ -49,6 +49,38 @@ export const tempoDaPose = (t: number) => Math.floor(t * POSE_HZ) / POSE_HZ;
 /** Braço em repouso, herdado do rig em T. */
 export const ARM_REST = 0.95;
 
+// ── ANTECIPAÇÃO ──────────────────────────────────────────────────────────────
+//
+// Desenho de 1930 PREPARA todo golpe: antes de apontar, o braço vai para trás;
+// antes de pular, o corpo agacha; e logo depois do golpe a pose passa um pouco
+// do alvo e volta. Sem isso o gesto não é gesto, é deslocamento — o braço
+// simplesmente aparece na posição final.
+//
+// Isto só ficou barato depois que a pose passou a ser desenhada EM DOIS: dois
+// quadros de preparação e um de excesso são três desenhos, e três desenhos a
+// 12 Hz são um quarto de segundo — o tempo exato de uma tacada de cartoon.
+export const QUADROS_DE_PREPARO = 2;
+export const QUADROS_DE_EXCESSO = 1;
+export const DURACAO_DO_PREPARO = QUADROS_DE_PREPARO / POSE_HZ;
+
+/**
+ * O valor de um membro que dá um golpe, no instante `tl` da fala.
+ *
+ *   até 2 quadros → `preparo` (o contrário do golpe)
+ *   1 quadro      → passa do alvo (o excesso, que é o que dá o estalo)
+ *   depois        → `alvo`
+ *
+ * `tl` é o tempo DENTRO da fala, e não o relógio da cena: a preparação acontece
+ * quando o gesto começa, e o gesto começa quando a fala troca.
+ */
+export function golpe(tl: number, preparo: number, alvo: number): number {
+    if (tl < 0) return alvo;
+    if (tl < DURACAO_DO_PREPARO) return preparo;
+    const depois = tl - DURACAO_DO_PREPARO;
+    if (depois < QUADROS_DE_EXCESSO / POSE_HZ) return alvo + (alvo - preparo) * 0.18;
+    return alvo;
+}
+
 export interface Pose {
     lean: number; headX: number; headZ: number;
     armLz: number; armRz: number; armLx: number; armRx: number;
@@ -84,19 +116,26 @@ export function poseDoGesto(gesto: Gesture, t: number, tl = 0): Pose {
             break;
         case 'point':  // dedo na cara do jogador, cutucando
             p.lean = 0.28; p.headX = 0.10;
-            p.armRz = 0.30; p.armRx = -1.45 + Math.sin(t * 13) * 0.28;
+            p.armRz = 0.30;
+            // O braço RECUA antes de apontar. Sem isto o dedo nascia já na cara
+            // do jogador, e um dedo que aparece pronto não é um gesto.
+            p.armRx = golpe(tl, 0.30, -1.45 + Math.sin(t * 13) * 0.28);
             p.armLz = 1.5;  p.armLx = 0.25;
             p.hop = Math.abs(Math.sin(t * 6.5)) * 0.06;
             break;
         case 'throw':  // o "eu te enterro" de dois braços por cima da cabeça
             p.lean = 0.10 + Math.sin(t * 5) * 0.12;
             p.armLz = 0.15; p.armRz = 0.15;
-            p.armLx = -1.7 + Math.sin(t * 7) * 0.5;
-            p.armRx = -1.7 + Math.sin(t * 7 + 0.5) * 0.5;
+            // Os dois braços descem antes de subir — a força de quem vai jogar
+            // alguma coisa por cima da cabeça vem de trás.
+            p.armLx = golpe(tl, 0.55, -1.7 + Math.sin(t * 7) * 0.5);
+            p.armRx = golpe(tl, 0.55, -1.7 + Math.sin(t * 7 + 0.5) * 0.5);
             p.headX = -0.18; p.bodyRoll = Math.sin(t * 7) * 0.12;
             break;
         case 'laugh':  // gargalhada de barriga: joga o corpo pra trás e treme
-            p.lean = -0.30 + Math.sin(t * 15) * 0.10;
+            // Ele se DOBRA para a frente antes de jogar o corpo para trás. É a
+            // preparação que faz a gargalhada ter tamanho.
+            p.lean = golpe(tl, 0.35, -0.30 + Math.sin(t * 15) * 0.10);
             p.armLz = 1.35 + Math.sin(t * 15) * 0.2;
             p.armRz = 1.35 + Math.sin(t * 15 + 0.4) * 0.2;
             p.armLx = 0.4; p.armRx = 0.4;
