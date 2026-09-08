@@ -50,14 +50,21 @@ export interface Sobrancelha {
 // `?semolhos&parado`): ela vai da régua 0,750 (topo do olho) a ~0,82, e ENCOLHE
 // subindo, porque é o V entre as orelhas. Então a sobrancelha mora ali, baixa e
 // mais estreita que o olho.
+// A GROSSURA subiu de 0,13 para 0,17. Motivo, e é medido na foto de perto: com
+// 0,13 o traço saía com ~6 px na tela do celular — no meio de um olho de 100 px
+// e de um nariz de 70 px, isso não lê como sobrancelha, lê como risco. Traço de
+// desenho animado é grosso; é dele que vem a leitura de longe.
 const S = (o: Partial<Sobrancelha> = {}): Sobrancelha => ({
-    altura: 0.12, angulo: 0, arco: 0.16, grossura: 0.13,
+    altura: 0.12, angulo: 0, arco: 0.16, grossura: 0.17,
     assimetria: 0.0, ruga: false, ...o,
 });
 
 export const SOBRANCELHAS: Readonly<Record<NomeDaSobrancelha, Sobrancelha>> = Object.freeze({
     neutra:       S(),
-    surpresa:     S({ altura: 0.208, arco: 0.34 }),
+    // `surpresa` era a ÚNICA das oito que não cabia na testa: 0,208 de altura mais
+    // 0,34 de arco punham o alto do traço 3 px acima da linha do cabelo, e ela
+    // saía aparada. Baixando a altura (o arco é que faz a surpresa, não a altura):
+    surpresa:     S({ altura: 0.168, arco: 0.34 }),
     raiva:        S({ altura: 0.064, angulo: 30, arco: -0.06 }),
     // A QUATRO da ficha. Uma sobe, a outra fica — e a que sobe é a do lado que o
     // sorriso torto também levanta (ver `TORTO` em `f3Boca`), senão a cara
@@ -66,7 +73,7 @@ export const SOBRANCELHAS: Readonly<Record<NomeDaSobrancelha, Sobrancelha>> = Ob
     preocupada:   S({ altura: 0.16, angulo: -26, arco: 0.10 }),
     desconfiada:  S({ altura: 0.072, angulo: 10, arco: 0.04, assimetria: 0.064 }),
     pensativa:    S({ altura: 0.136, angulo: -8, arco: 0.24, assimetria: 0.104 }),
-    bravaComRuga: S({ altura: 0.056, angulo: 34, arco: -0.10, grossura: 0.16, ruga: true }),
+    bravaComRuga: S({ altura: 0.056, angulo: 34, arco: -0.10, grossura: 0.21, ruga: true }),
 });
 
 export const NOMES_DAS_SOBRANCELHAS = Object.keys(SOBRANCELHAS) as NomeDaSobrancelha[];

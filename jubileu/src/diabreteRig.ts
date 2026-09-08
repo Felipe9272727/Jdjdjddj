@@ -153,12 +153,25 @@ const BOCA_ALTURA = 0.16;
 //     queixo ........ 0,636
 //     A BOLA ........ 0,647 .. 0,675   ← o nariz
 //     olhos a partir de 0,684
-// ── AGORA A BOCA É POSICIONADA PELA GEOMETRIA, NÃO POR FOTO ──────────────────
-// A cabeça é uma esfera de raio ~0,21 centrada em (0, 0,775, 0), medida no GLB.
-// Logo o rosto vai de y 0,56 a 0,99, e a boca de um personagem assim fica no
-// terço de baixo: 0,685. Isto não é mais o resultado de fotografar manchas de
-// ruído e chamar de nariz — é onde a malha diz que o queixo está.
-const BOCA_CENTRO_Y = 0.685;
+// ── 0,685 CAÍA NO PESCOÇO, E DESTA VEZ ESTÁ MEDIDO DE VERDADE ────────────────
+//
+// A conta da esfera dizia "terço de baixo do rosto = 0,685". A conta estava
+// certa e o número estava errado, porque o ROSTO VISÍVEL não é a esfera inteira:
+// a nuca é preta, o queixo acaba onde o pescoço começa, e a perspectiva encolhe
+// o de baixo. O que aparece na tela vai de y 0,664 (queixo) a 0,940 (alto).
+//
+// Calibração nova, e esta é uma VARREDURA, não uma leitura de mancha: mesmo
+// olho fotografado com `?olhosY=0.80` e `?olhosY=0.74`, e a régua da própria
+// cara (`bancada-navegador/regua-do-rosto.mjs`, 0 no queixo, 1 no alto) mediu
+// o desenho descer de 0,4925 para 0,2748. Ou seja
+//
+//     3,628 de régua por unidade do modelo   (72,5 px para 0,06)
+//
+// Com ela, a caixa antiga de 0,685 tinha o centro na régua 0,075 — no PESCOÇO.
+// Era isso que a foto mostrava: a boca encostada no queixo, misturada com a
+// tinta do corpo. Levando o centro do desenho para a régua ~0,24, que é onde a
+// cara é larga e creme e onde sobra espaço embaixo do nariz:
+const BOCA_CENTRO_Y = 0.731;
 
 // A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
 // boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
@@ -173,11 +186,43 @@ const BOCA_CENTRO_Y = 0.685;
 // A caixa cobre os dois olhos mais a testa. Ela é SEPARADA da caixa da boca de
 // propósito — ver o comentário de `f3OlhosTextura`.
 const OLHOS_LARGURA = 0.26;
-const OLHOS_ALTURA = 0.159;
-// CONTA, NÃO FOTO. A cabeça é uma esfera de raio ~0,21 em (0, 0,775, 0) — o
-// rosto vai de 0,56 a 0,99, e o olho de um personagem assim fica um pouco acima
-// do meio: 0,80. Os números antigos vinham de medir manchas de ruído.
-const OLHOS_CENTRO_Y = 0.80;
+// A caixa cresceu de 0,159 para 0,175 junto com o canvas, que ganhou 16 px de
+// TESTA para as sobrancelhas caberem (ver `f3OlhosTextura`). Cresceu na mesma
+// proporção de propósito: 93,6 px de olho continuam valendo 0,346 da régua da
+// cara, ou seja o olho não mudou de tamanho — só passou a ter céu em cima.
+const OLHOS_ALTURA = 0.175;
+// Mesma correção da boca, pelo mesmo motivo: com 0,80 o olho desenhado caía na
+// régua 0,49 — o meio exato do rosto — e sobrava uma testa enorme e vazia por
+// cima enquanto embaixo não cabia nariz nem boca. O olho tem que ficar na régua
+// ~0,63, que é onde ele fica num rosto de desenho de cabeça grande.
+//
+// O valor não é 0,63 traduzido direto porque o canvas não é mais simétrico: o
+// olho mora embaixo dele e a testa em cima. Com o olho em y 109 de 172, o CENTRO
+// da caixa cai 23 px acima do olho — 0,085 de régua, 0,023 do modelo.
+//
+// ── E A CALIBRAÇÃO TINHA UM ERRO DE REFERÊNCIA ───────────────────────────────
+// A primeira varredura mediu a TINTA do olho `malicia`, que é uma fresta: com
+// pálpebra de cima em 0,56 e a de baixo em 0,22, o que sobra visível fica no
+// terço de BAIXO da órbita, 0,059 de régua abaixo do centro dela. Eu tratei
+// essa mancha como se fosse o meio do olho, e a caixa inteira subiu esse tanto:
+// na foto o olho encostava na régua 0,88 e a sobrancelha ia parar em cima da
+// linha do cabelo, virando contorno de franja.
+//
+// A INCLINAÇÃO estava certa (3,63 de régua por unidade, confirmada nas duas
+// fotos, e depois pelo nariz, que é um círculo de raio conhecido e caiu na
+// régua medida com 0,005 de erro); o ponto de referência é que era outro.
+//
+// ── E A TESTA É MENOR DO QUE A RÉGUA DIZ ─────────────────────────────────────
+// Terceiro erro do mesmo tipo, e vale anotar porque é sutil: a régua chama de
+// 1,0 o pixel de creme MAIS ALTO da foto — que é o alto da cúpula do crânio,
+// lá no meio. Em cima do OLHO, que é onde a sobrancelha mora, o cabelo desce e
+// o creme acaba na régua ~0,946. Eu estava orçando a testa com 0,196 de altura
+// quando ela tem 0,105, e por isso a sobrancelha caía dentro da franja mesmo
+// depois de dois consertos: só a pontinha de baixo do arco escapava.
+//
+// Com o olho na régua 0,44..0,78 sobram 0,165 de testa — 45 px de canvas contra
+// os 36 que a sobrancelha mais alta precisa:
+const OLHOS_CENTRO_Y = 0.8285;
 
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
@@ -336,8 +381,9 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
                 'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
                 + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n'
                 + '#include <opaque_fragment>');
-        if (!pinturas.length) return;
-        // Com boca, a posterização acontece DEPOIS dela — desfaz a de cima.
+        // A posterização acima é substituída pela de baixo, que vem DEPOIS da
+        // cor por geometria e do desenho. Sempre — inclusive sem pintura
+        // nenhuma. Ver a nota de `?semboca&semolhos` logo abaixo.
         shader.fragmentShader = shader.fragmentShader.replace(
             'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
             + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n', '');
@@ -398,10 +444,45 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
         //
         // Creme nesses lugares, tinta no resto. Sem confete, e a boca finalmente
         // tem uma cara limpa embaixo dela.
+        // ── A RÉGUA ESTAVA MENTINDO ──────────────────────────────────────────
+        //
+        // Até agora tudo daqui para baixo estava atrás de um `if
+        // (!pinturas.length) return;`. Parece inofensivo — sem boca e sem olhos
+        // não há o que desenhar — mas a COR POR GEOMETRIA também mora aqui.
+        // Resultado: `?semboca&semolhos`, que é justamente a foto que eu tiro
+        // para ver a cara PELADA e medir onde as peças caem, saía com o
+        // personagem inteiro creme. Sem cabelo, sem chifre preto, sem silhueta.
+        // Eu olhei essa foto e concluí "o modelo não tem nariz nenhum".
+        //
+        // A conclusão pode até ser verdade, mas não era essa foto que provava.
+        // É a mesma armadilha da textura de ruído, de novo: o instrumento
+        // mostrando uma coisa que não existe. Agora a geometria pinta sempre, e
+        // `?semboca&semolhos` mostra o rosto liso de verdade.
         let decl = 'float _claroPorForma(vec3 p, vec3 n) {\n'
             + '  vec3 h = (p - vec3(0.0, 0.775, 0.0)) / vec3(0.205, 0.215, 0.205);\n'
             // A CARA: a frente da esfera da cabeça. `n.z` mantém a nuca preta.
-            + '  if (dot(h, h) < 1.06 && p.z > 0.0 && n.z > 0.30) return 1.0;\n'
+            + '  if (dot(h, h) < 1.06 && p.z > 0.0 && n.z > 0.30) {\n'
+            // ── O NARIZ, E POR QUE ELE MORA AQUI E NÃO NUM CANVAS ────────
+            //
+            // "aí ele perde a nareba". "ainda está cobrindo o nariz". "a bola
+            // preta inteira é o nariz". Três vezes ele reclamou do mesmo nariz,
+            // e eu passei o tempo todo tentando NÃO COBRIR uma bola que não
+            // existia: a bola era uma mancha da textura de ruído do GLB. Tirado
+            // o ruído, a foto da cara pelada é um ovo liso — sem nariz nenhum.
+            //
+            // Então o nariz passa a ser desenhado, e desenhado AQUI, na cor por
+            // geometria, antes de qualquer pintura. Duas consequências, e as
+            // duas são o conserto:
+            //   • é a primeira coisa a entrar, então nenhuma boca futura o
+            //     apaga por acidente — só o apaga quem pintar tinta em cima de
+            //     propósito;
+            //   • não custa textura, canvas nem draw call: é uma elipse em
+            //     coordenada local, tatuada na pele em pose de descanso.
+            // Raio 0,030 = ~17% da largura do rosto, que é a proporção da bola
+            // na ficha de referência dele.
+            + '    vec2 _n = (p.xy - vec2(0.0, 0.7883)) / vec2(0.030, 0.030);\n'
+            + '    if (dot(_n, _n) < 1.0) return 0.0;\n'
+            + '    return 1.0;\n  }\n'
             // AS MÃOS e o punho.
             + '  if (abs(p.x) > 0.325 && p.y > 0.40 && p.y < 0.64) return 1.0;\n'
             // O ANEL DO TORNOZELO, que é o que separa a perna do sapato.
@@ -507,16 +588,16 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         try { return new URLSearchParams(globalThis.location?.search ?? '').has('semolhos'); }
         catch { return false; }
     })();
-    // ── OS OLHOS ESTÃO DESLIGADOS, A PEDIDO DELE ─────────────────────────────
-    // "esquece os olhos e o resto, foca ajeitar a boca". Está certo: enquanto a
-    // CARA por baixo for ruído, desenhar mais coisa em cima só empilha problema.
-    // O código continua aqui inteiro e testado; `?comolhos` liga de volta.
-    const comOlhos = (() => {
-        try { return new URLSearchParams(globalThis.location?.search ?? '').has('comolhos'); }
-        catch { return false; }
-    })();
+    // ── OS OLHOS VOLTARAM, E A RAZÃO IMPORTA ─────────────────────────────────
+    // Ele tinha pedido "esquece os olhos e o resto, foca ajeitar a boca", e eu
+    // desliguei. Só que aquele pedido valia enquanto a textura de RUÍDO fazia as
+    // vezes de olho: manchas erradas, mas manchas. Com o ruído fora, desligar os
+    // olhos deixou o personagem sem cara nenhuma — um ovo com chifre. A foto
+    // seguinte dele foi só "Mn...".
+    // Agora a cara é geometria limpa e o olho desenhado é o ÚNICO olho que
+    // existe. `?semolhos` continua desligando.
     const olhoFixo = olhoDaUrl();
-    const telaDaCara = (semOlhos || !comOlhos) ? null
+    const telaDaCara = semOlhos ? null
         : criarTelaDaCara(olhoFixo.olho ?? OLHO_EM_REPOUSO, olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
     const ajO = ajusteDosOlhos();
     const caixaDosOlhos = new THREE.Vector4(

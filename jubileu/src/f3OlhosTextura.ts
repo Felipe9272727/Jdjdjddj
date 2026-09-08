@@ -29,7 +29,27 @@ import { OLHOS, type Olho, type NomeDoOlho } from './f3Olhos';
 import { SOBRANCELHAS, type Sobrancelha, type NomeDaSobrancelha } from './f3Sobrancelha';
 
 const LARG = 256;
-const ALT = 156;
+// ── A TESTA NÃO CABIA NO CANVAS ──────────────────────────────────────────────
+//
+// O canvas tinha 156 px e o olho ocupava 60% dele, CENTRADO: sobravam 31 px de
+// testa. Uma sobrancelha de `surpresa` sobe 32 px só de arco, mais metade da
+// grossura do traço — ela precisava de 56 e tinha 31. Resultado na ficha
+// inteira: as sobrancelhas ou eram aparadas pela borda de cima (a da direita, a
+// que a ironia levanta, sumia inteira) ou, com o aparo consertado, desabavam
+// todas para a mesma altura e ficavam POUSADAS no olho, como um chapéu — e a
+// assimetria da `ironia`, que é o que faz a cara dele ser irônica, virava duas
+// sobrancelhas iguais.
+//
+// A conta do espaço necessário, tirada das oito da ficha:
+//     surpresa ....... 19,5 (altura) + 31,8 (arco) + 4,8 (traço) = 56,1 px
+//     ironia direita . 24,0          + 18,7        + 4,8         = 47,5 px
+//     pensativa dir. . 22,5          + 22,5        + 4,8         = 49,8 px
+// Então 62 px de testa, com folga. O canvas cresce só para cima e o olho desce
+// dentro dele; a CAIXA no rosto cresce junto, na mesma proporção, para que o
+// olho continue exatamente do mesmo tamanho e no mesmo lugar da cara
+// (`OLHOS_ALTURA` e `OLHOS_CENTRO_Y` em `diabreteRig.ts`).
+const TESTA = 62;
+const ALT = 172;
 
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
@@ -47,10 +67,12 @@ const CREME = '#f7f3ea';
 // geometria: esfera de raio ~0,21 em (0, 0,775, 0). O olho fica em
 // x = ±0,085, y = 0,80, com ~0,075 x 0,095 de tamanho. Convertido para esta
 // caixa (0,26 x 0,159 do modelo, num canvas de 256 x 156):
-const OLHO_LARG = LARG * 0.289;
-const OLHO_ALT = ALT * 0.60;
+// O tamanho do olho é ancorado na LARGURA do canvas, não na altura: assim dá
+// para dar testa (mexer em `ALT`) sem que o olho mude de tamanho junto.
+const OLHO_LARG = LARG * 0.289;    // 74,0 px
+const OLHO_ALT = LARG * 0.3656;    // 93,6 px — o mesmo de sempre
 const OLHO_CX = LARG * 0.327;      // distância do centro até o meio de cada olho
-const OLHO_CY = ALT * 0.50;
+const OLHO_CY = TESTA + OLHO_ALT / 2;
 
 /** Desenha UM olho, centrado em (cx, cy). `lado` = -1 esquerdo, +1 direito. */
 function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: number, lado: number) {
@@ -172,23 +194,58 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     c.restore();
 }
 
+/**
+ * Folga mínima entre o topo do traço da sobrancelha e a borda de cima do canvas.
+ *
+ * Nove pixels, e o número não é folga estética: é ONDE O CABELO COMEÇA. Com a
+ * caixa dos olhos onde ela está, o alto do canvas cai na régua 0,973 do rosto e
+ * o creme acima do olho acaba na 0,946 — ou seja os nove primeiros pixels do
+ * canvas já estão pintando dentro da franja preta. Sobrancelha desenhada ali
+ * não fica feia, fica INVISÍVEL, que foi o que a foto de perto mostrou duas
+ * vezes seguidas. Quem passar dessa linha desce, em vez de sumir.
+ */
+const MARGEM_DO_CENHO = 9;
+
 /** Desenha UMA sobrancelha. `subir` vem da assimetria — é ela que faz a ironia. */
 function desenharUmaSobrancelha(
     c: CanvasRenderingContext2D, s: Sobrancelha, cx: number, cy: number, lado: number, subir: number,
 ) {
     const rx = OLHO_LARG / 2, ry = OLHO_ALT / 2;
-    const y = cy - ry - OLHO_ALT * s.altura - OLHO_ALT * subir;
-    // Mais ESTREITA que o olho: a faixa de creme acima dele encolhe subindo (é o
-    // V entre as orelhas), então uma sobrancelha da largura do olho tem as duas
-    // pontas dentro do cabelo preto e some.
-    const meia = rx * 0.76;
+    // ── ESTREITA, E PUXADA PARA DENTRO ───────────────────────────────────────
+    // A faixa de creme acima do olho encolhe subindo — é o V entre as orelhas —
+    // então uma sobrancelha da largura do olho tem as pontas de fora dentro do
+    // cabelo. Com 0,76 da meia-largura ela ainda encostava: na foto de perto as
+    // duas sobrancelhas tinham a ponta externa grudada na franja e liam como
+    // contorno do cabelo, não como sobrancelha. 0,64 e um empurrão para o meio
+    // resolvem — e o que ela perde de comprimento ganha de grossura, que é o que
+    // faz um traço de desenho animado ser lido de longe.
+    const meia = rx * 0.64;
+    const paraDentro = -lado * OLHO_LARG * 0.09;
     const ang = (s.angulo * Math.PI) / 180 * lado;
+    const grosso = OLHO_LARG * s.grossura;
+
+    // ── A SOBRANCELHA DA DIREITA ESTAVA SENDO CORTADA FORA DO CANVAS ─────────
+    //
+    // Na foto só aparecia UMA sobrancelha, e eu tinha anotado que a outra
+    // "sumia no cabelo". Não sumia: era APARADA. A conta da altura ignorava duas
+    // coisas que sobem o traço depois — o arco (a quadrática chega a subir
+    // `OLHO_ALT * arco`) e a metade da grossura do traço. Na `ironia`, que é a
+    // cara padrão dele, a assimetria ainda soma mais 0,136 de altura; o topo do
+    // traço caía em y = -11, onze pixels ACIMA da borda do canvas.
+    //
+    // É o mesmo erro dos dentes e da goela, que estavam ancorados na borda da
+    // caixa em vez de na forma: peça posicionada por um número que não é o dela.
+    // Agora a altura é pedida, o topo real é calculado, e se não couber a
+    // sobrancelha desce o necessário em vez de ser cortada.
+    const pedida = cy - ry - OLHO_ALT * (s.altura + subir);
+    const sobeOArco = Math.max(0, OLHO_ALT * s.arco);
+    const y = Math.max(MARGEM_DO_CENHO + sobeOArco + grosso / 2, pedida);
 
     c.save();
-    c.translate(cx, y);
+    c.translate(cx + paraDentro, y);
     c.rotate(ang);
     c.strokeStyle = TINTA;
-    c.lineWidth = OLHO_LARG * s.grossura;
+    c.lineWidth = grosso;
     c.lineCap = 'round';
     c.beginPath();
     // Um arco raso: três pontos e uma quadrática é tudo o que uma sobrancelha
@@ -212,7 +269,13 @@ export function desenharCara(c: CanvasRenderingContext2D, olho: Olho, cenho: Sob
         // A ASSIMETRIA só levanta a da DIREITA — o mesmo lado que o sorriso
         // torto da boca levanta (ver `TORTO` em `f3Boca`). Se fosse o outro, a
         // cara brigaria consigo mesma.
-        desenharUmaSobrancelha(c, cenho, cx, OLHO_CY, lado, lado > 0 ? cenho.assimetria : 0);
+        // ── A ASSIMETRIA É REPARTIDA ENTRE AS DUAS ───────────────────────────
+        // Ela subia SÓ a da direita, e a testa dele não tem essa altura para
+        // dar: a sobrancelha erguida ia parar dentro da franja e a ironia — que
+        // é a cara padrão dele — sumia. Metade sobe de um lado e metade desce do
+        // outro. A diferença entre as duas, que é o que os olhos leem, continua
+        // a mesma; o que muda é que nenhuma das duas sai da testa.
+        desenharUmaSobrancelha(c, cenho, cx, OLHO_CY, lado, lado * cenho.assimetria / 2);
     }
 
     // A RUGA em V entre as duas, que a ficha pede na oitava sobrancelha.
