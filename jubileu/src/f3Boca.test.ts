@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
     BOCAS, NOMES_DAS_BOCAS, BOCA_EM_REPOUSO, BOCA_HZ,
     bocaDaNota, expressaoDoDiabrete, bocaNoInstante, quadroDaBoca,
+    type MomentoExtra,
     type NomeDaBoca,
 } from './f3Boca';
 import { vozDoDiabrete } from './f3Voz';
@@ -109,8 +110,14 @@ describe('a cara segue o arco do andar', () => {
         }
     });
     it('espetar o jogador é gozação, não desespero — mesmo já tendo perdido', () => {
-        expect(expressaoDoDiabrete('espetou', 0)).toBe('empolgado');
+        // Cobra a INTENÇÃO, não a forma exata: esta asserção fixava
+        // 'empolgado' e quebrou quando o vocabulário se abriu e o espetar com o
+        // andar inteiro passou a ser 'feliz'. Teste de intenção sobrevive ao
+        // ajuste; teste de valor literal vira atrito.
+        const gozacao: NomeDaBoca[] = ['feliz', 'empolgado', 'deboche', 'sorrisoIronico', 'sorriso'];
+        expect(gozacao).toContain(expressaoDoDiabrete('espetou', 0));
         expect(expressaoDoDiabrete('espetou', 3)).not.toBe('assustado');
+        expect(expressaoDoDiabrete('espetou', 3)).not.toBe('triste');
     });
     it('contagem fora da faixa não quebra a cara', () => {
         expect(expressaoDoDiabrete('provoca', 99)).toBe(expressaoDoDiabrete('provoca', 3));
@@ -123,5 +130,38 @@ describe('a boca é tinta, não interpolação', () => {
         expect(BOCA_HZ).toBe(BOIL_HZ);
         expect(quadroDaBoca(0.4)).toBe(quadroDaBoca(0.49));
         expect(quadroDaBoca(0.4)).not.toBe(quadroDaBoca(0.55));
+    });
+});
+
+// ── NENHUMA FORMA DA FICHA FICA NA GAVETA ────────────────────────────────────
+// O dono do jogo jogou e disse "tem poucas expressões". Estava certo: as
+// dezoito estavam desenhadas e o jogo usava seis. Forma que nunca aparece é
+// conteúdo morto — a mesma classe de defeito que `f3Coerencia` varre no andar.
+describe('as dezoito formas são alcançáveis em jogo', () => {
+    const MOMENTOS = ['apresentacao', 'desenhou', 'espetou', 'roubou', 'provoca',
+        'caiu', 'suplica', 'ocioso', 'quaseLaEmCima', 'perdeuOPrimeiro',
+        'perdeuOUltimo', 'tonto', 'pensando', 'confuso', 'vitorioso',
+        'derrotado'] as const;
+
+    it('toda forma da ficha tem pelo menos um momento que a produz', () => {
+        const alcancadas = new Set<NomeDaBoca>();
+        for (const m of MOMENTOS) {
+            for (let r = 0; r <= 3; r++) alcancadas.add(expressaoDoDiabrete(m as MomentoExtra, r));
+        }
+        // as duas de fala vêm da partitura, não da expressão
+        alcancadas.add(bocaDaNota(0, false));
+        alcancadas.add(bocaDaNota(1, false));
+        alcancadas.add(bocaDaNota(0, true));
+
+        const naGaveta = NOMES_DAS_BOCAS.filter(n => !alcancadas.has(n));
+        expect(naGaveta).toEqual([]);
+    });
+
+    it('e cada momento devolve uma forma que existe de verdade', () => {
+        for (const m of MOMENTOS) {
+            for (let r = 0; r <= 3; r++) {
+                expect(NOMES_DAS_BOCAS).toContain(expressaoDoDiabrete(m as MomentoExtra, r));
+            }
+        }
     });
 });

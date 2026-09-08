@@ -138,6 +138,19 @@ export function bocaDaNota(indiceDaNota: number, acento: boolean): NomeDaBoca {
     return indiceDaNota % 2 === 0 ? 'falando2' : 'falando1';
 }
 
+/**
+ * O vocabulário INTEIRO da ficha, e não um canto dele.
+ *
+ * O dono do jogo jogou e disse "tem poucas expressões". Estava certo: as
+ * dezoito formas existiam e o jogo usava seis. Forma desenhada e nunca usada é
+ * conteúdo morto — e este andar tem varredura para essa classe de defeito.
+ *
+ * Estes são os momentos que faltavam ter cara própria.
+ */
+export type MomentoExtra =
+    | 'ocioso' | 'quaseLaEmCima' | 'perdeuOPrimeiro' | 'perdeuOUltimo'
+    | 'tonto' | 'pensando' | 'confuso' | 'vitorioso' | 'derrotado';
+
 // ── A EXPRESSÃO ──────────────────────────────────────────────────────────────
 export type MomentoDoDiabrete =
     | 'apresentacao' | 'desenhou' | 'espetou' | 'roubou' | 'provoca' | 'caiu' | 'suplica';
@@ -149,19 +162,34 @@ export type MomentoDoDiabrete =
  * O arco é o mesmo dos outros três: dono do lugar → irritado → nervoso →
  * acabado. A ficha dá os nomes; a mecânica dá a hora.
  */
-export function expressaoDoDiabrete(momento: MomentoDoDiabrete, roubados = 0): NomeDaBoca {
+export function expressaoDoDiabrete(
+    momento: MomentoDoDiabrete | MomentoExtra, roubados = 0,
+): NomeDaBoca {
     const r = Math.max(0, Math.min(3, Math.floor(roubados) || 0));
     switch (momento) {
-        // Ele está gozando da sua cara: é o mesmo deboche em qualquer altura.
-        case 'espetou': return r >= 2 ? 'irritado' : 'empolgado';
+        // Espetar o jogador é gozação: ele fica FELIZ, e só azeda quando já
+        // perdeu ferramenta demais para achar graça.
+        case 'espetou': return r === 0 ? 'feliz' : r === 1 ? 'empolgado' : 'irritado';
         case 'caiu':    return r >= 2 ? 'bravo' : 'empolgado';
         case 'desenhou': return r === 0 ? 'deboche' : r === 1 ? 'bravo' : 'irritado';
         case 'provoca':  return r === 0 ? 'sorrisoIronico' : r === 1 ? 'deboche' : 'irritado';
-        // Roubar é a perda DELE, e é o único momento em que a cara despenca.
-        case 'roubou':   return r <= 1 ? 'bravo' : r === 2 ? 'irritado' : 'assustado';
+        // Roubar é a perda DELE, e é onde a cara despenca. O primeiro pincel o
+        // pega DE SURPRESA — ele não achava que dava para tirar dele.
+        case 'roubou':   return r <= 1 ? 'surpreso' : r === 2 ? 'bravo' : 'assustado';
         // Pendurado no abismo, com os três pincéis fora da mão.
         case 'suplica':  return 'assustado';
         case 'apresentacao': return 'sorrisoIronico';
+
+        // ── OS QUE FALTAVAM TER CARA ─────────────────────────────────────
+        case 'ocioso':          return 'provocando';    // língua de fora, sem ninguém por perto
+        case 'quaseLaEmCima':   return 'sorriso';       // vantagem confortável
+        case 'perdeuOPrimeiro': return 'zangado';       // dentes trincados
+        case 'perdeuOUltimo':   return 'triste';
+        case 'tonto':           return 'confuso';
+        case 'pensando':        return 'pensativo';
+        case 'confuso':         return 'desanimado';
+        case 'vitorioso':       return 'empolgado';
+        case 'derrotado':       return 'neutra';        // a cara de quem já era
     }
 }
 

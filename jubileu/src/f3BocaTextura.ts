@@ -22,7 +22,10 @@ const ALT = 128;
 // mesmo tamanho e quem cresce é só o pedaço de cara que ela carrega junto.
 // Precisou crescer porque, com a cabeça inclinada, o remendo antigo saía de
 // cima da boca pintada do GLB e as duas apareciam lado a lado.
-const MARGEM = 0.56;
+// O desenho voltou a ocupar mais do canvas: com a boca pintada no shader da cara
+// (e não num plano), o remendo já não precisa sobrar tanto para cobrir a boca da
+// textura em qualquer ângulo — a caixa acompanha a malha.
+const MARGEM = 0.74;
 
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
@@ -58,7 +61,7 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
     c.save();
     c.fillStyle = CREME;
     c.beginPath();
-    c.ellipse(LARG / 2, ALT / 2, LARG * 0.47, ALT * 0.46, 0, 0, Math.PI * 2);
+    c.ellipse(LARG / 2, ALT / 2, LARG * 0.495, ALT * 0.49, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
@@ -76,7 +79,7 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
         c.fillStyle = TINTA;
         c.fill();
         c.strokeStyle = TINTA;
-        c.lineWidth = 7;
+        c.lineWidth = 5;
         c.stroke();
 
         // Os dentes são CREME sobre a tinta — é assim que a ficha dele desenha:
@@ -129,7 +132,7 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
         // Boca fechada: um traço só, da grossura de um pincel.
         traçarCaminho(c, forma.traco, false);
         c.strokeStyle = TINTA;
-        c.lineWidth = 8;
+        c.lineWidth = 6;
         c.stroke();
         // Os "dentes" de uma boca fechada são os risquinhos do sorriso irônico.
         if (forma.dentes > 0) {
