@@ -21,6 +21,14 @@
 
 import * as THREE from 'three';
 import { criarTelaDaBoca, criarTelaDaGravata, type TelaDaBoca } from './f3BocaTextura';
+import { criarTelaDaCara, type TelaDaCara } from './f3OlhosTextura';
+import {
+    OLHOS as OLHOS_VALIDOS, OLHO_EM_REPOUSO, olhoPiscando, quadroDaPiscada,
+    type NomeDoOlho,
+} from './f3Olhos';
+import {
+    SOBRANCELHAS as CENHOS_VALIDOS, SOBRANCELHA_EM_REPOUSO, type NomeDaSobrancelha,
+} from './f3Sobrancelha';
 import { BOCA_EM_REPOUSO, BOCAS as BOCAS_VALIDAS, type NomeDaBoca } from './f3Boca';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
@@ -53,6 +61,14 @@ export interface DiabreteRig {
     bones: THREE.Bone[];         // index with B.*
     /** Troca a boca dele. Ver `f3Boca.ts` — o vocabulário é o da ficha do Felipe. */
     definirBoca: (nome: NomeDaBoca) => void;
+    /**
+     * A cara: olho + sobrancelha, e a piscada por conta própria.
+     *
+     * `t` é o relógio do personagem. A piscada é involuntária e tem o relógio
+     * DELA (ver `f3Olhos`), então quem chama não precisa saber quando ela cai —
+     * passa o tempo e pronto.
+     */
+    definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => void;
     dispose: () => void;
 }
 
@@ -142,6 +158,19 @@ const BOCA_CENTRO_Y = 0.653;
 // A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
 // boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
 // sumia atrás do laço. Gravata-borboleta é de colarinho, não de queixo.
+// ── A CAIXA DOS OLHOS E DAS SOBRANCELHAS ─────────────────────────────────────
+//
+// Medida com a mesma régua do resto (`bancada-navegador/medir-a-cara.mjs` sobre
+// `?semboca&parado`, 1 no alto da cabeça e 0 no queixo, e a calibração de 5,8
+// frações de cara por unidade do modelo):
+//     olhos ............ 0,35 .. 0,87 da cara   →  Y 0,693 .. 0,783
+//     testa (cenho) .... até ~0,95              →  Y 0,800
+// A caixa cobre os dois olhos mais a testa. Ela é SEPARADA da caixa da boca de
+// propósito — ver o comentário de `f3OlhosTextura`.
+const OLHOS_LARGURA = 0.185;
+const OLHOS_ALTURA = 0.113;
+const OLHOS_CENTRO_Y = 0.744;
+
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
 const GRAVATA_LARGURA = 0.175;
@@ -158,6 +187,30 @@ function bocaDaUrl(): NomeDaBoca | null {
         const v = new URLSearchParams(globalThis.location?.search ?? '').get('boca');
         return (v && v in BOCAS_VALIDAS) ? (v as NomeDaBoca) : null;
     } catch { return null; }
+}
+
+/** `?olho=bravo&cenho=raiva` fixa a cara, para a bancada fotografar a ficha. */
+function olhoDaUrl(): { olho: NomeDoOlho | null; cenho: NomeDaSobrancelha | null } {
+    try {
+        const q = new URLSearchParams(globalThis.location?.search ?? '');
+        const o = q.get('olho'), c = q.get('cenho');
+        return {
+            olho: (o && o in OLHOS_VALIDOS) ? (o as NomeDoOlho) : null,
+            cenho: (c && c in CENHOS_VALIDOS) ? (c as NomeDaSobrancelha) : null,
+        };
+    } catch { return { olho: null, cenho: null }; }
+}
+
+function ajusteDosOlhos(): { y: number; l: number } {
+    const padrao = { y: OLHOS_CENTRO_Y, l: OLHOS_LARGURA };
+    try {
+        const q = new URLSearchParams(globalThis.location?.search ?? '');
+        const n = (k: string, v: number) => {
+            const x = q.has(k) ? parseFloat(q.get(k)!) : NaN;
+            return Number.isFinite(x) ? x : v;
+        };
+        return { y: n('olhosY', padrao.y), l: n('olhosL', padrao.l) };
+    } catch { return padrao; }
 }
 
 function ajusteDaBoca(): { y: number; l: number } {
@@ -260,7 +313,9 @@ const _grad = (() => {
  * posterização, o creme do remendo vira exatamente `DIABRETE_CLARO` e a tinta
  * vira `DIABRETE_ESCURO`, iguais aos do rosto, sob a mesma luz.
  */
-function duasCores(corte: number, boca?: { textura: THREE.Texture; caixa: THREE.Vector4 }) {
+interface CaixaPintada { nome: string; textura: THREE.Texture; caixa: THREE.Vector4 }
+
+function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
     return (shader: THREE.WebGLProgramParametersWithUniforms) => {
         if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
         shader.uniforms.uClaro  = { value: new THREE.Color(DIABRETE_CLARO) };
@@ -273,7 +328,7 @@ function duasCores(corte: number, boca?: { textura: THREE.Texture; caixa: THREE.
                 'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
                 + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n'
                 + '#include <opaque_fragment>');
-        if (!boca) return;
+        if (!pinturas.length) return;
         // Com boca, a posterização acontece DEPOIS dela — desfaz a de cima.
         shader.fragmentShader = shader.fragmentShader.replace(
             'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
@@ -305,40 +360,47 @@ function duasCores(corte: number, boca?: { textura: THREE.Texture; caixa: THREE.
         // Os UVs deste modelo NÃO serviriam para isto (medido: a boca cai em
         // u 0,05–0,60, em cima dos olhos), por isso a caixa é em espaço local e
         // não em espaço de textura.
-        shader.uniforms.uBoca = { value: boca.textura };
-        shader.uniforms.uBocaCaixa = { value: boca.caixa };
+        // ── UMA CAIXA POR PEDAÇO DE CARA ─────────────────────────────────────
+        // Duas hoje: a boca e a dupla olhos+sobrancelhas. Separadas de propósito
+        // — a boca troca oito vezes por segundo enquanto ele fala e os olhos
+        // trocam a cada poucos segundos; num canvas só, cada quadro de fala
+        // redesenharia os olhos junto, de graça.
+        let decl = '';
+        let corpo = '';
+        for (const p of pinturas) {
+            shader.uniforms[`u${p.nome}`] = { value: p.textura };
+            shader.uniforms[`u${p.nome}Caixa`] = { value: p.caixa };
+            decl += `uniform sampler2D u${p.nome};\nuniform vec4 u${p.nome}Caixa;\n`;
+            corpo += `{\n`
+                // uXCaixa = (x0, y0, largura, altura) em coordenada local.
+                + `  vec2 _b = (vLocalPos.xy - u${p.nome}Caixa.xy) / u${p.nome}Caixa.zw;\n`
+                + '  _b.y = 1.0 - _b.y;\n'
+                // Só na FRENTE da cabeça: sem isto o desenho apareceria
+                // espelhado na nuca.
+                + '  if (_b.x > 0.0 && _b.x < 1.0 && _b.y > 0.0 && _b.y < 1.0 && vLocalNor.z > 0.25) {\n'
+                + `    vec4 _m = texture2D(u${p.nome}, _b);\n`
+                + '    float _ml = dot(_m.rgb, vec3(0.299, 0.587, 0.114));\n'
+                // ALFA DURO: a borda antisserrilhada caía bem no limiar da
+                // posterização e desenhava um anel pontilhado em volta do
+                // desenho. `step` corta isso — dentro ou fora, sem meio-termo.
+                + '    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(step(0.5, _ml)), step(0.5, _m.a));\n'
+                + '  }\n}\n';
+        }
         shader.vertexShader = shader.vertexShader
             .replace('void main() {', 'varying vec3 vLocalPos;\nvarying vec3 vLocalNor;\nvoid main() {')
             .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvLocalPos = transformed;')
             .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n\tvLocalNor = objectNormal;');
         shader.fragmentShader = shader.fragmentShader
             .replace('void main() {',
-                'uniform sampler2D uBoca;\nuniform vec4 uBocaCaixa;\n'
-                + 'varying vec3 vLocalPos;\nvarying vec3 vLocalNor;\nvoid main() {')
+                decl + 'varying vec3 vLocalPos;\nvarying vec3 vLocalNor;\nvoid main() {')
             .replace('#include <opaque_fragment>',
-                // uBocaCaixa = (x0, y0, largura, altura) em coordenada local.
-                // A BOCA ENTRA ANTES DA POSTERIZAÇÃO, na `diffuseColor`, e não
-                // depois na cor final. Escrever a cor final direto funcionava,
-                // mas apagava o sombreado do rosto naquele pedaço — e na foto
-                // aparecia um anel creme em volta da boca, como um curativo.
-                // Empurrando a LUMINÂNCIA da textura (branco onde é pele, preto
-                // onde é traço), a boca passa pela mesma posterização e pela
-                // mesma luz que o resto da cara, e a emenda deixa de existir.
-                'vec2 _b = (vLocalPos.xy - uBocaCaixa.xy) / uBocaCaixa.zw;\n'
-                + '_b.y = 1.0 - _b.y;\n'
-                // Só na FRENTE da cabeça: sem isto ela apareceria espelhada na
-                // nuca. O limiar era 0,25 e ACHATAVA a boca: a cara é curva, e
-                // acima e abaixo da linha média a normal cai abaixo de 0,25 —
-                // sobrava uma faixa horizontal, e as dezoito formas viravam a
-                // mesma barra escura. 0,02 mantém a nuca fora e devolve a altura.
-                + 'if (_b.x > 0.0 && _b.x < 1.0 && _b.y > 0.0 && _b.y < 1.0 && vLocalNor.z > 0.25) {\n'
-                + '  vec4 _m = texture2D(uBoca, _b);\n'
-                + '  float _ml = dot(_m.rgb, vec3(0.299, 0.587, 0.114));\n'
-                // ALFA DURO: a borda antisserrilhada do remendo caía bem no
-                // limiar da posterização e desenhava um anel pontilhado em volta
-                // da boca. `step` corta isso — dentro ou fora, sem meio-termo.
-                + '  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(step(0.5, _ml)), step(0.5, _m.a));\n'
-                + '}\n'
+                // O DESENHO ENTRA ANTES DA POSTERIZAÇÃO, na `diffuseColor`, e
+                // não depois na cor final. Escrever a cor final direto
+                // funcionava, mas apagava o sombreado do rosto naquele pedaço —
+                // na foto aparecia um anel creme em volta da boca, como um
+                // curativo. Empurrando a LUMINÂNCIA da textura, o desenho passa
+                // pela mesma posterização e pela mesma luz que o resto da cara.
+                corpo
                 + 'float _lum2 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
                 + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum2));\n'
                 + '#include <opaque_fragment>');
@@ -394,10 +456,27 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     const aj = ajusteDaBoca();
     const alturaCaixa = aj.l * (BOCA_ALTURA / BOCA_LARGURA);
     const caixaDaBoca = new THREE.Vector4(-aj.l / 2, aj.y - alturaCaixa / 2, aj.l, alturaCaixa);
-    fillMat.onBeforeCompile = duasCores(corteDoDiabrete(),
-        tela ? { textura: tela.textura, caixa: caixaDaBoca } : undefined);
-    // Distinct cache key so the patched program isn't shared with a plain toon.
-    fillMat.customProgramCacheKey = () => 'diabrete-duas-cores-com-boca';
+
+    // `?semolhos` desliga olhos e sobrancelhas, do mesmo jeito que `?semboca`
+    // desliga a boca: é assim que se mede o que o desenho está cobrindo.
+    const semOlhos = (() => {
+        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semolhos'); }
+        catch { return false; }
+    })();
+    const olhoFixo = olhoDaUrl();
+    const telaDaCara = semOlhos ? null
+        : criarTelaDaCara(olhoFixo.olho ?? OLHO_EM_REPOUSO, olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
+    const ajO = ajusteDosOlhos();
+    const caixaDosOlhos = new THREE.Vector4(
+        -ajO.l / 2, ajO.y - OLHOS_ALTURA / 2, ajO.l, OLHOS_ALTURA);
+
+    const pinturas: CaixaPintada[] = [];
+    if (tela) pinturas.push({ nome: 'Boca', textura: tela.textura, caixa: caixaDaBoca });
+    if (telaDaCara) pinturas.push({ nome: 'Olhos', textura: telaDaCara.textura, caixa: caixaDosOlhos });
+    fillMat.onBeforeCompile = duasCores(corteDoDiabrete(), pinturas);
+    // A chave conta QUANTAS caixas o programa tem: com e sem olhos são shaders
+    // diferentes, e compartilhar o programa entre eles daria uniform faltando.
+    fillMat.customProgramCacheKey = () => `diabrete-duas-cores-${pinturas.map(p => p.nome).join('-')}`;
 
     // Bones (parented hierarchy, local offsets from parent rest position).
     const bones: THREE.Bone[] = BNAME.map((name) => { const b = new THREE.Bone(); b.name = name; return b; });
@@ -450,6 +529,21 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     return {
         group,
         bones,
+        definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => {
+            if (!telaDaCara) return;
+            if (olhoFixo.olho || olhoFixo.cenho) {
+                // Com `?olho=`/`?cenho=` a cara fica TRAVADA. Sem isso a foto da
+                // ficha saía toda igual: o Floor3Rival reescreve a cara a cada
+                // desenho e sobrescrevia a URL em milissegundos — a mesma
+                // armadilha que me fez caçar um defeito de projeção inexistente
+                // quando fotografei as dezoito bocas.
+                telaDaCara.definir(olhoFixo.olho ?? OLHO_EM_REPOUSO,
+                    olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
+                return;
+            }
+            const q = quadroDaPiscada(t);
+            telaDaCara.definir(olho, cenho, q >= 0 ? olhoPiscando(OLHOS_VALIDOS[olho], q) : null);
+        },
         definirBoca: (nome: NomeDaBoca) => {
             if (bocaFixa) return;   // ver `bocaDaUrl`
             // DEV-ONLY: a bancada precisa da SEQUÊNCIA, não de uma pose. Uma foto
@@ -471,6 +565,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             (gravataMesh?.material as THREE.Material | undefined)?.dispose();
             texGravata?.dispose();
             tela?.dispose();
+            telaDaCara?.dispose();
         },
     };
 }

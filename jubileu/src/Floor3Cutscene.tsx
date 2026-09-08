@@ -24,6 +24,8 @@ import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from 
 import { playFloor3Voice } from './floor3Sfx';
 import { vozDoDiabrete } from './f3Voz';
 import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { olhoDoDiabrete } from './f3Olhos';
+import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
 // ARM_REST vem de `f3Pose` junto com a atuação: era declarado aqui TAMBÉM,
 // e dois donos do mesmo número é como uma pose passa a discordar da outra.
 import { poseDoGesto, quadroDaPose, tempoDaPose, POSE_HZ, ARM_REST } from './f3Pose';
@@ -221,6 +223,8 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
                     DIABRETE_SCRIPT[li]?.dur ?? 0)
                 : repouso;
             rig.definirBoca(nova);
+            rig.definirCara(olhoDoDiabrete('apresentacao', 0),
+                sobrancelhaDoDiabrete('apresentacao', 0), clock.current);
         }
         const pl = planoDaApresentacao(li, PALCO_DA_APRESENTACAO,
             (clock.current - tLinha.current) / 3.2);
