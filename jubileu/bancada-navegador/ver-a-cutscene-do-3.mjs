@@ -39,7 +39,8 @@ const ctx = await chromium.launchPersistentContext(perfil, {
     headless: true,
     // 1280×800: `isDesktop` é `min-width: 1024px`. Abaixo disso o jogo entra em
     // modo celular, o teclado morre e o menu tem outro layout.
-    viewport: { width: 1280, height: 800 },
+    viewport: process.env.CEL ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+    ...(process.env.CEL ? { deviceScaleFactor: 3, isMobile: true, hasTouch: true } : {}),
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--unlimited-storage',
         '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
         '--autoplay-policy=no-user-gesture-required'],
@@ -53,7 +54,7 @@ await p.route('**://firestore.googleapis.com/**', (r) => r.abort());
 p.on('pageerror', (e) => console.log('  [erro]', String(e.message).slice(0, 160)));
 p.on('console', (m) => { if (m.type() === 'error') console.log('  [console]', m.text().slice(0, 160)); });
 
-await p.goto(`http://127.0.0.1:${PORTA}/index.html`, { waitUntil: 'domcontentloaded', timeout: 180000 });
+await p.goto(`http://127.0.0.1:${PORTA}/index.html${process.env.PARAM ? `?${process.env.PARAM}` : ""}`, { waitUntil: "domcontentloaded", timeout: 180000 });
 
 // O MENU TEM DOIS DE CADA BOTAO — um do layout de celular e um do de desktop —
 // e o primeiro do DOM e o escondido. `.first()` pendurava 120 s esperando um

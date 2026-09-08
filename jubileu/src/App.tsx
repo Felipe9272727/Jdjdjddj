@@ -106,6 +106,12 @@ import { perfGovernor } from './ai/perfGovernor';
 
 // Game-wide adaptive performance probe — samples frame time every frame and
 // feeds the shared governor that simulation systems read to scale their cost.
+/** DEV: `?semgrade` tira a película do Andar 3, para medir a cena por baixo. */
+const semGrade = (() => {
+  try { return new URLSearchParams(globalThis.location?.search ?? '').has('semgrade'); }
+  catch { return false; }
+})();
+
 const AdaptivePerfProbe: React.FC = () => {
   useFrame((_, dt) => perfGovernor.tick(dt));
   return null;
@@ -2238,15 +2244,22 @@ export default function App() {
                     entrega — por isso roda em toda qualidade, junto com o
                     grade, e não só no `high`. `GRADE_F3` fica aqui em cima
                     justamente para o dono do jogo poder mexer num número. */}
-                {currentLevel === 3 && <HueSaturation saturation={GRADE_F3.saturacao} />}
-                {currentLevel === 3 && <Sepia intensity={GRADE_F3.sepia} />}
-                {currentLevel === 3 && (
+                {/* `?semgrade` desliga a película do Andar 3 — só para MEDIR.
+                    O grade é quase preto e branco (saturação -0,62) com sépia
+                    0,5, e o comentário dele já avisava do risco de "colar céu,
+                    tabuado e nuvem no mesmo branco". Comparar a mesma cena com e
+                    sem é a única forma de saber se o que se vê chapado na tela é
+                    a cena ou a película por cima dela — sem isso a conversa vira
+                    palpite, e já virou. */}
+                {currentLevel === 3 && !semGrade && <HueSaturation saturation={GRADE_F3.saturacao} />}
+                {currentLevel === 3 && !semGrade && <Sepia intensity={GRADE_F3.sepia} />}
+                {currentLevel === 3 && !semGrade && (
                     <BrightnessContrast brightness={GRADE_F3.brilho} contrast={GRADE_F3.contraste} />
                 )}
-                {currentLevel === 3 && (
+                {currentLevel === 3 && !semGrade && (
                     <Noise opacity={GRADE_F3.grao} premultiply />
                 )}
-                {currentLevel === 3 && (
+                {currentLevel === 3 && !semGrade && (
                     <Vignette eskil={false} offset={GRADE_F3.vinhetaInicio} darkness={GRADE_F3.vinheta} />
                 )}
             </EffectComposer>
