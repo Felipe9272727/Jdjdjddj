@@ -70,7 +70,17 @@ export default function Floor3Cartao({
                 // assim lêem como as mãos que a seguram.
                 ? { position: 'absolute', left: '7%', right: '7%', top: '5%', height: '57%',
                     animation: 'f3cartao-entra 0.5s cubic-bezier(.2,1.5,.4,1) both' }
-                : { width: 'min(86vw, 900px)', height: 'min(62vh, 460px)',
+                // ── O CARTÃO É PAISAGEM, INCLUSIVE NO CELULAR ────────────
+                // A altura era `min(62vh, 460px)` e a largura `min(86vw, 900px)`.
+                // Num desktop isso dá 900x460 — um cartão de título de 1930, mais
+                // largo que alto. Num celular de 390 de largura dá 335x460, ou
+                // seja RETRATO: o cartão vira um retângulo creme alto com as três
+                // linhas boiando no meio e vazio em cima e embaixo. E ele é a
+                // última coisa que o jogador vê no andar.
+                //
+                // O `60vw` amarra a altura à largura: no celular ela cai para
+                // ~234 px (paisagem de novo) e no desktop nem entra na conta.
+                : { width: 'min(86vw, 900px)', height: 'min(62vh, 460px, 60vw)',
                     animation: 'f3cartao-entra 0.5s cubic-bezier(.2,1.5,.4,1) both' }}>
                 <div style={{
                     width: '100%', height: '100%',
