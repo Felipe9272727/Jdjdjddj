@@ -25,7 +25,7 @@ for (const css of [...html.matchAll(/<link rel="stylesheet"[^>]*href="([^"]+)"[^
   html = html.replace(css[0], () => `<style>${escapeStyle(fs.readFileSync(cssFile, 'utf8'))}</style>`);
 }
 if (!html.includes('</body>')) throw new Error('HTML sem </body>; recusando gerar preview quebrado.');
-html = html.replace('</body>', () => `<script>${escapeScript(js)}</script>\n</body>`);
+html = html.replace('</body>', () => `<script type="module">${escapeScript(js)}</script>\n</body>`);
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, html);
