@@ -20,7 +20,7 @@
  */
 
 import * as THREE from 'three';
-import { criarTelaDaBoca, type TelaDaBoca } from './f3BocaTextura';
+import { criarTelaDaBoca, criarTelaDaGravata, type TelaDaBoca } from './f3BocaTextura';
 import { BOCA_EM_REPOUSO, BOCAS as BOCAS_VALIDAS, type NomeDaBoca } from './f3Boca';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
@@ -83,6 +83,12 @@ export interface DiabreteRig {
 const BOCA_Y = 0.672;
 const BOCA_Z = 0.215;
 const BOCA_LARGURA = 0.115;
+// A gravata: no pescoço, logo abaixo do queixo. A sonda mostrou o pescoço na
+// faixa Y 0,60–0,65 (acima disso a cara alarga, abaixo começa a barra dos
+// braços em Y 0,55). Z na frente da malha, como a boca.
+const GRAVATA_Y = 0.60;
+const GRAVATA_Z = 0.175;
+const GRAVATA_LARGURA = 0.175;
 const BOCA_ALTURA = 0.0775;
 
 /**
@@ -317,6 +323,25 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         bones[B.head].add(bocaMesh);
     }
 
+    // ── A GRAVATA ────────────────────────────────────────────────────────────
+    // Ver `desenharGravata`: é o único ponto de cor do personagem, e por isso
+    // NÃO passa pela posterização de duas cores — se passasse, o vinho da ficha
+    // viraria preto e a terceira cor da paleta continuaria não existindo.
+    // Fica no osso do CORPO, não no da cabeça: gravata não balança com a cara.
+    const texGravata = criarTelaDaGravata();
+    let gravataMesh: THREE.Mesh | null = null;
+    if (texGravata) {
+        const g = new THREE.PlaneGeometry(GRAVATA_LARGURA, GRAVATA_LARGURA * 0.6);
+        const m = new THREE.MeshToonMaterial({
+            map: texGravata, gradientMap: _grad, transparent: true, alphaTest: 0.4,
+            depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+        });
+        gravataMesh = new THREE.Mesh(g, m);
+        gravataMesh.frustumCulled = false;
+        gravataMesh.position.set(0, GRAVATA_Y - BP[B.body][1], GRAVATA_Z);
+        bones[B.body].add(gravataMesh);
+    }
+
     return {
         group,
         bones,
@@ -337,6 +362,9 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             fillGeo.dispose();
             fillMat.dispose();
             bocaMesh?.geometry.dispose();
+            gravataMesh?.geometry.dispose();
+            (gravataMesh?.material as THREE.Material | undefined)?.dispose();
+            texGravata?.dispose();
             (bocaMesh?.material as THREE.Material | undefined)?.dispose();
             tela?.dispose();
         },

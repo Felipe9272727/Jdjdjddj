@@ -17,7 +17,12 @@ import { BOCAS, type Forma, type NomeDaBoca } from './f3Boca';
 const LARG = 192;
 const ALT = 128;
 /** Quanto do canvas a boca ocupa. Sobra margem para o traço grosso não cortar. */
-const MARGEM = 0.80;
+// O desenho ocupa esta fração do canvas; o resto é REMENDO. A margem foi de
+// 0,80 para 0,56 quando o plano cresceu: assim a boca desenhada continua do
+// mesmo tamanho e quem cresce é só o pedaço de cara que ela carrega junto.
+// Precisou crescer porque, com a cabeça inclinada, o remendo antigo saía de
+// cima da boca pintada do GLB e as duas apareciam lado a lado.
+const MARGEM = 0.56;
 
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
@@ -53,7 +58,7 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
     c.save();
     c.fillStyle = CREME;
     c.beginPath();
-    c.ellipse(LARG / 2, ALT / 2, LARG * 0.42, ALT * 0.40, 0, 0, Math.PI * 2);
+    c.ellipse(LARG / 2, ALT / 2, LARG * 0.47, ALT * 0.46, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
@@ -175,4 +180,66 @@ export function criarTelaDaBoca(inicial: NomeDaBoca): TelaDaBoca | null {
         atual: () => atual,
         dispose: () => { textura.dispose(); },
     };
+}
+
+// ── A GRAVATA-BORBOLETA ──────────────────────────────────────────────────────
+//
+// A ficha do Felipe traz TRÊS cores: o preto de tinta, o creme, e um marrom-vinho
+// escuro — que aparece num lugar só, a gravata-borboleta no pescoço. O modelo
+// não tem gravata nenhuma, e por isso a terceira cor da paleta dele nunca
+// existiu no jogo.
+//
+// Ela vem pelo mesmo caminho da boca: desenho num plano, zero byte de download.
+// Mas com material PRÓPRIO, e é aí que está a graça — o corpo dele posteriza em
+// duas cores, então uma gravata que passasse por essa posterização viraria preta
+// ou creme. Ela fica de fora, e é o único ponto de cor do personagem.
+// O vinho da ficha é #4a2328. Na foto ele leu como PRETO: contra o
+// `DIABRETE_ESCURO` (#141014) do corpo, e ainda por baixo da grade de película
+// que o andar aplica, não sobrava contraste nenhum e a terceira cor continuava
+// não existindo. Subiu de valor até separar da tinta sem virar vermelho de
+// bombeiro — continua vinho, agora dá para ver que é vinho.
+export const VINHO = '#8f3a40';
+
+const GLARG = 160;
+const GALT = 96;
+
+export function desenharGravata(c: CanvasRenderingContext2D): void {
+    c.clearRect(0, 0, GLARG, GALT);
+    const cx = GLARG / 2, cy = GALT / 2;
+    const asa = GLARG * 0.30, alt = GALT * 0.30;
+
+    c.strokeStyle = TINTA;
+    c.lineJoin = 'round';
+    c.lineWidth = 7;
+    c.fillStyle = VINHO;
+
+    // As duas asas: triângulos com a ponta virada para dentro, como no desenho.
+    for (const lado of [-1, 1]) {
+        c.beginPath();
+        c.moveTo(cx + lado * GLARG * 0.055, cy);
+        c.lineTo(cx + lado * asa, cy - alt);
+        c.lineTo(cx + lado * asa * 0.92, cy + alt);
+        c.closePath();
+        c.fill();
+        c.stroke();
+    }
+    // O nó no meio.
+    c.beginPath();
+    c.ellipse(cx, cy, GLARG * 0.075, GALT * 0.16, 0, 0, Math.PI * 2);
+    c.fill();
+    c.stroke();
+}
+
+export function criarTelaDaGravata(): THREE.CanvasTexture | null {
+    if (typeof document === 'undefined') return null;
+    const cv = document.createElement('canvas');
+    cv.width = GLARG; cv.height = GALT;
+    const c = cv.getContext('2d');
+    if (!c) return null;
+    desenharGravata(c);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = THREE.LinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    return t;
 }
