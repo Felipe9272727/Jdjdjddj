@@ -24,10 +24,8 @@ function Trilha({ x, z, w, d, ligada = false }: {x:number;z:number;w:number;d:nu
 export default function Floor10Oficina({energia,calibrado}:Props) {
     return <group name="sala-0317">
         <fog attach="fog" args={['#12191d',24,62]}/>
-        <ambientLight intensity={0.62} color="#b9c9d2"/>
-        <hemisphereLight args={['#9bc4d7','#242018',0.9]}/>
-        {/* Sala 03:17 fill: one non-shadowing overhead source keeps the floor and pedestals readable. */}
-        <pointLight position={[0,5,0]} intensity={5} distance={40} decay={1.6} color="#bed3d8"/>
+        <ambientLight intensity={0.48} color="#b9c9d2"/>
+        <hemisphereLight args={['#9bc4d7','#242018',0.75]}/>
         <mesh position={[0,0.004,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[20,20]}/><meshStandardMaterial color="#283034" roughness={0.9}/></mesh>
         {[-1,1].map(side=><React.Fragment key={side}>
             <mesh position={[side*10.6,2.95,0]}><boxGeometry args={[0.12,0.18,21]}/><meshStandardMaterial color="#8b7960" metalness={0.6} roughness={0.55}/></mesh>

@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "description": "Independent Floor 10 workbench; paths relative to repository root.",
+  "branch": "nilo/floor10-workshop",
+  "hostBase": "d7160c9a001010eb78f8c2ee8469e1303a0857a5",
+  "entry": "jubileu/floor10.html",
+  "sceneExport": "jubileu/src/floor10/Floor10Module.tsx#default",
+  "interfaceExport": "jubileu/src/floor10/Floor10Module.tsx#Floor10Interface",
+  "contract": {
+    "playerPositionRef": "MutableRefObject<THREE.Vector3> — actual player feet position",
+    "onExit": "Called after both cooperative locks and both characters boarding",
+    "active": "Optional mount/unmount control"
+  },
+  "ownedSources": [
+    "jubileu/src/Floor10Base.tsx",
+    "jubileu/src/Floor10Oficina.tsx",
+    "jubileu/src/Floor10Prison.tsx",
+    "jubileu/src/Floor10Mission.tsx",
+    "jubileu/src/NiloVisual.tsx",
+    "jubileu/src/Floor10Npc.tsx",
+    "jubileu/src/Floor10NpcChat.tsx",
+    "jubileu/src/Floor10Desfecho.tsx",
+    "jubileu/src/floor10Redesign.css",
+    "jubileu/src/npc/floor10Will.ts",
+    "jubileu/src/floor10/"
+  ],
+  "buildFiles": [
+    "jubileu/vite.floor10.config.ts",
+    "jubileu/tsconfig.floor10.json",
+    "jubileu/inline-build.floor10.mjs",
+    "jubileu/tools/floor10-smoke.mjs"
+  ],
+  "runtimeDependencies": [
+    "jubileu/src/npc/ (existing Nilo logic, model runtime, memory and conversation)",
+    "Shared browser/storage/settings helpers reached by those imports",
+    "Existing package.json/package-lock.json dependencies"
+  ],
+  "runtimeAssets": [
+    "wllama-relaxed/",
+    "wllama-espec/",
+    "npcWorker.js",
+    "Model GGUF downloads remain external and optional for the puzzle"
+  ],
+  "doNotTransferFromWorkbench": [
+    "jubileu/src/App.tsx",
+    "jubileu/src/Player.tsx",
+    "index.html",
+    "Unrelated floors",
+    "Global HUD"
+  ],
+  "reintegration": "Apply only owned module changes onto latest host HEAD; connect Scene and Interface using the contract. Reconcile shared dependency changes if present; do not merge an old App or Player."
+}

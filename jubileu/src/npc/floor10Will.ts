@@ -1,4 +1,4 @@
-import { PR, wallsForState } from '../constants';
+import { FLOOR10_NPC_RADIUS, FLOOR10_WALLS } from '../floor10/worldGeometry';
 import { resolveCollision } from '../physics';
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
@@ -1215,14 +1215,14 @@ export class Floor10WillBrain {
  * pré-montadas, então isto não aloca — mas guardar a referência deixa explícito
  * que o passo de 60 Hz não recalcula nada.
  */
-const PAREDES_DO_10 = wallsForState(10, false, true);
+const PAREDES_DO_10 = FLOOR10_WALLS;
 
 /**
  * O raio do corpo do Nilo é o do jogador. Ele ocupa o mesmo tipo de espaço e
  * atravessa as mesmas portas; um raio próprio seria um segundo número para
  * alguém esquecer de atualizar.
  */
-const RAIO_DO_NILO = PR;
+const RAIO_DO_NILO = FLOOR10_NPC_RADIUS;
 
 // ── A PORTA DO PRÉDIO DO ELEVADOR, E A FAIXA MORTA QUE PRENDIA O NILO ─────
 //

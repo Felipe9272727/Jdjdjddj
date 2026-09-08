@@ -43,7 +43,7 @@ export default function Floor10Base({playerPositionRef,onExit}:Props) {
         </React.Fragment>)}
         <Floor10Oficina energia={view.energia} calibrado={view.calibrado}/>
         <Floor10Prison/>
-        <Html fullscreen calculatePosition={(_, __, size) => [size.width / 2, size.height / 2]} style={{pointerEvents:'none'}}>
+        <Html fullscreen style={{pointerEvents:'none'}}>
             <div data-floor10-workshop style={{position:'absolute',top:58,left:'50%',transform:'translateX(-50%)',width:'min(520px,calc(100vw - 180px))',boxSizing:'border-box',padding:'12px 16px',border:'1px solid #566369',borderRadius:8,background:'rgba(16,24,28,.94)',color:'#e8e7dc',fontFamily:'monospace',textAlign:'center',pointerEvents:'none'}}>
                 <div style={{fontSize:10,letterSpacing:2,color:'#c4ab77'}}>SALA 03:17 · NILO AZEVEDO</div>
                 <div style={{marginTop:5,fontSize:14,fontWeight:700}}>{titulo}</div>
