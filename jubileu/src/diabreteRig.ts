@@ -320,7 +320,18 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     return {
         group,
         bones,
-        definirBoca: (nome: NomeDaBoca) => tela?.definir(nome),
+        definirBoca: (nome: NomeDaBoca) => {
+            // DEV-ONLY: a bancada precisa da SEQUÊNCIA, não de uma pose. Uma foto
+            // mostra que a boca existe; só a sequência mostra que ela SINCRONIZA
+            // — que alterna nota a nota, que cai no acento e que volta ao
+            // repouso quando a fala acaba.
+            if (import.meta.env?.DEV && typeof window !== 'undefined' && tela && tela.atual() !== nome) {
+                const w = window as unknown as { __f3BocaLog?: { t: number; boca: string }[] };
+                (w.__f3BocaLog ??= []).push({ t: +performance.now().toFixed(0), boca: nome });
+                if (w.__f3BocaLog.length > 400) w.__f3BocaLog.shift();
+            }
+            tela?.definir(nome);
+        },
         dispose: () => {
             skeleton.dispose();
             fillGeo.dispose();
