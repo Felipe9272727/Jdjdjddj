@@ -1,0 +1,69 @@
+<!doctype html>
+<!--
+  A FICHA DA CARA, DESENHADA PELO PINCEL DO JOGO.
+
+  A irmã de `ficha-de-bocas.html`, e existe pelo mesmo motivo: aquela, na
+  primeira foto, entregou dois defeitos que seis minutos de bancada por forma
+  nunca mostraram (dentes que não desenhavam em onze das vinte e sete bocas, e
+  tudo saindo 50% achatado). Ver o vocabulário inteiro de uma vez é mais barato
+  e mais honesto do que olhar peça por peça num rosto 3D, de longe.
+
+      node bancada-navegador/a-ficha-inteira.mjs /tmp/ficha-da-cara.png cara
+-->
+<meta charset="utf-8">
+<title>Ficha da cara — Diabrete</title>
+<style>
+  body { margin: 0; background: #14100e; color: #f6efe0;
+         font: 13px/1.3 system-ui, sans-serif; padding: 18px; }
+  h2 { font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+       color: #c9a86a; margin: 22px 0 10px; }
+  .grade { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; text-align: center; }
+  canvas { background: #f7f3ea; border-radius: 6px; display: block; }
+  figcaption { margin-top: 4px; font-size: 11px; opacity: .8; }
+</style>
+<div id="folha"></div>
+<script type="module">
+  import { OLHOS, NOMES_DOS_OLHOS, PISCADA, QUADROS_DA_PISCADA, olhoPiscando } from '/src/f3Olhos.ts';
+  import { SOBRANCELHAS, NOMES_DAS_SOBRANCELHAS } from '/src/f3Sobrancelha.ts';
+  import { desenharCara } from '/src/f3OlhosTextura.ts';
+
+  const folha = document.getElementById('folha');
+  function quadro(olho, cenho, rotulo) {
+    const fig = document.createElement('figure');
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 156;
+    cv.style.width = '208px'; cv.style.height = '127px';
+    desenharCara(cv.getContext('2d'), olho, cenho);
+    const cap = document.createElement('figcaption');
+    cap.textContent = rotulo;
+    fig.append(cv, cap);
+    return fig;
+  }
+  function secao(titulo, itens) {
+    const h = document.createElement('h2'); h.textContent = titulo;
+    const g = document.createElement('div'); g.className = 'grade';
+    for (const [olho, cenho, rotulo] of itens) g.append(quadro(olho, cenho, rotulo));
+    folha.append(h, g);
+  }
+
+  secao('Olhos — 12 expressões (sobrancelha neutra)',
+    NOMES_DOS_OLHOS.map(n => [OLHOS[n], SOBRANCELHAS.neutra, n]));
+  secao('Piscada — 4 quadros',
+    Array.from({ length: QUADROS_DA_PISCADA }, (_, i) =>
+      [olhoPiscando(OLHOS.neutro, i), SOBRANCELHAS.neutra, `${i + 1}. ${PISCADA[i]}`]));
+  secao('Sobrancelhas — 8 expressões (olho neutro)',
+    NOMES_DAS_SOBRANCELHAS.map(n => [OLHOS.neutro, SOBRANCELHAS[n], n]));
+  secao('As poses da ficha — olho + sobrancelha juntos', [
+    [OLHOS.malicia, SOBRANCELHAS.ironia, 'irônico (repouso)'],
+    [OLHOS.fechadoSorrindo, SOBRANCELHAS.surpresa, 'gargalhando'],
+    [OLHOS.baixoMalicioso, SOBRANCELHAS.desconfiada, 'provocando'],
+    [OLHOS.bravo, SOBRANCELHAS.bravaComRuga, 'bravo'],
+    [OLHOS.arregalado, SOBRANCELHAS.preocupada, 'assustado'],
+    [OLHOS.arregalado, SOBRANCELHAS.surpresa, 'surpreso'],
+    [OLHOS.cima, SOBRANCELHAS.pensativa, 'pensando'],
+    [OLHOS.semicerrado, SOBRANCELHAS.preocupada, 'derrotado'],
+  ]);
+
+  document.title = 'pronto';
+</script>

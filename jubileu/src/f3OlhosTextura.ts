@@ -78,12 +78,35 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
         return;
     }
 
-    // A MASSA. É o olho do modelo: uma amêndoa cheia de tinta. Com `pupila` ela
-    // vira campo claro com uma pupila pequena — o arregalado da ficha.
+    // ── A MASSA, E COMO ELA OLHA PARA OS LADOS ───────────────────────────────
+    //
+    // A massa é o olho do modelo: uma amêndoa cheia de tinta.
+    //
+    // O defeito que a ficha inteira numa foto entregou: `esquerda`, `direita` e
+    // `cima` saíam IDÊNTICAS a `neutro`. Óbvio em retrospecto — numa massa preta
+    // sólida não existe pupila para mover, e `olharX/olharY` só mexiam na
+    // pupila, que só existe no `arregalado`.
+    //
+    // Quem olha para o lado num olho assim é a AMÊNDOA INTEIRA: ela desliza
+    // dentro da órbita e o creme aparece do lado que ela deixou. Por isso a
+    // órbita de creme só é pintada QUANDO HÁ DESLOCAMENTO — em `neutro` o olho
+    // do modelo fica intocado, que é a regra de ouro deste arquivo.
+    const desliza = (o.olharX !== 0 || o.olharY !== 0) && o.pupila === 0;
     c.save();
+    if (desliza) {
+        c.fillStyle = CREME;
+        c.beginPath();
+        c.ellipse(cx, cy, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2);
+        c.fill();
+    }
     c.fillStyle = TINTA;
     c.beginPath();
-    c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    if (desliza) {
+        c.ellipse(cx + o.olharX * rx * 0.30, cy - o.olharY * ry * 0.26,
+            rx * 0.84, ry * 0.86, 0, 0, Math.PI * 2);
+    } else {
+        c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    }
     c.fill();
 
     if (o.pupila > 0) {
