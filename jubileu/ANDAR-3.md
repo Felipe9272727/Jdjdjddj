@@ -43,6 +43,16 @@ Três relógios diferentes, de propósito — são três ofícios distintos:
   deliberado: elas são a câmera, não um personagem filmado. Mão em dois com a
   vista em sessenta lê como mão escorregando na tela.
 
+**A boca não é um objeto.** Ela é pintada no fragmento da própria cara, numa
+caixa medida em coordenada local do vértice, ANTES do skinning — está tatuada na
+malha em pose de descanso, então a cabeça pode girar que ela vai junto porque ela
+É a pele. Zero draw call, uma textura, e trocar de boca é trocar textura.
+
+A **gravata** continua sendo um plano, e isso foi verificado, não suposto: o osso
+do corpo tem pivô na cintura (0,46) e ela está em 0,60 — 0,14 de distância. O
+osso da cabeça está em 0,84 e a boca em 0,638 — 0,20, e a cabeça gira muito mais.
+Era o offset da cabeça que estourava.
+
 Mais: **duas cores só** (tinta e creme, com o vinho da gravata como único
 acento), **antecipação e sobra** nos gestos (o braço recua antes de apontar; o
 tronco chega antes das pontas), e a **boca** com as 18 formas da ficha do
@@ -55,9 +65,9 @@ ALTA abre a boca mais, porque a voz já marcava onde ele grita.
 
 | coisa | número |
 |---|---|
-| custo de render, andar inteiro | 23 draws, 14.223 triângulos |
-| custo, 3 pincéis roubados + falando | 33 draws, 17.559 triângulos |
-| programas de shader | 20 |
+| custo de render, andar inteiro | 21 draws, 13.781 triângulos |
+| custo, 3 pincéis roubados + falando | 27 draws, 16.334 triângulos |
+| programas de shader | 19 |
 | download dos dois personagens | **416 KB** (era 4,73 MB) |
 | balão de grito no celular, pior caso | 9,4% da altura da tela |
 | balão da cutscene no celular | 6% da área |
@@ -135,7 +145,11 @@ Cinco diagnósticos meus caíram quando eu fui medir ou desligar o componente:
    problema era o retrato do celular;
 4. "a seta é creme sobre branco" → a seta é tinta preta; o creme era a luz do
    elevador entrando;
-5. "a gravata tem shader sem chave de cache" → é material puro, não precisa.
+5. "a gravata tem shader sem chave de cache" → é material puro, não precisa;
+6. "a projeção do shader achata as formas da boca" → era o Rival sobrescrevendo
+   o gancho `?boca=` da bancada a cada quadro;
+7. "a gravata deve ir para o shader também" → o pivô do corpo é perto, ela não
+   desencaixa.
 
 O que funcionou toda vez: **medir antes de afirmar**, e **desligar o componente
 para ver o que muda** em vez de deduzir da imagem.
