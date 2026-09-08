@@ -13,7 +13,7 @@
 import { chromium } from 'playwright';
 import { abrirPonte } from './ponte.mjs';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const CAM = '&cam=0.66,1.90,15.8&alvo=0.66,1.80,14';
+const CAM = (process.env.CAM ?? '&cam=0.66,1.90,15.8&alvo=0.66,1.80,14') + (process.env.MAIS ?? '');
 const ponte = abrirPonte({ manterCache: true, registrar: () => {} });
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });

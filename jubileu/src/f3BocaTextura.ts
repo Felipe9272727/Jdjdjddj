@@ -37,12 +37,14 @@ const ALT = 128;
 // na folha dele, e é o preço de caber. (A versão anterior era isotrópica e o
 // desenho saía do tamanho de uma unha.)
 const MARGEM = 0.74;
-const GANHO_Y = 1.15;
+const GANHO_Y = 0.90;
 
 // SEGUNDA: o y=0 do desenho não cai no meio do canvas, cai mais para baixo — a
 // metade de cima do canvas é o pedaço da bola que FICA, e a de baixo é onde a
 // boca mora.
-const BOCA_MEIO = 96;
+// Com a cara limpa, o desenho volta ao meio do canvas: não há mais mancha de
+// ruído para desviar. Era 96 para fugir de uma "bola do nariz" que não existia.
+const BOCA_MEIO = 64;
 
 /** `?bocameio=80` desce a boca no canvas, para varrer a altura numa rodada só. */
 function meioDaUrl(): number {

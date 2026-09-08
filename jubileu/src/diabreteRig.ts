@@ -133,13 +133,13 @@ export interface DiabreteRig {
 // da bola) e BAIXA (o meio dela desce para o queixo). O que passa por baixo do
 // nariz é o meio do sorriso; o que sobe pelos lados são as pontas. A bola fica
 // aninhada no berço — que é exatamente como ele desenhou na ficha de referência.
-const BOCA_LARGURA = 0.32;
+const BOCA_LARGURA = 0.24;
 // A caixa encolheu na ALTURA (0,165 -> 0,145) e desceu um fio. Medido, não
 // chutado: com a pose congelada (`?parado`) e a régua da própria cara
 // (`bancada-navegador/medir-a-cara.mjs`, 0 no queixo, 1 no alto da cabeça), a
 // nareba dele mora em 0,317..0,323 e as bocas grandes — `empolgado` à frente —
 // subiam até 0,323 e a engoliam. Com esta caixa a maior delas para antes.
-const BOCA_ALTURA = 0.070;
+const BOCA_ALTURA = 0.16;
 // ── A RÉGUA DE VERDADE: 5,8, NÃO 4,02 ────────────────────────────────────────
 //
 // Aqui morava um erro que custou meia dúzia de rodadas: eu tinha calibrado
@@ -153,7 +153,12 @@ const BOCA_ALTURA = 0.070;
 //     queixo ........ 0,636
 //     A BOLA ........ 0,647 .. 0,675   ← o nariz
 //     olhos a partir de 0,684
-const BOCA_CENTRO_Y = 0.653;
+// ── AGORA A BOCA É POSICIONADA PELA GEOMETRIA, NÃO POR FOTO ──────────────────
+// A cabeça é uma esfera de raio ~0,21 centrada em (0, 0,775, 0), medida no GLB.
+// Logo o rosto vai de y 0,56 a 0,99, e a boca de um personagem assim fica no
+// terço de baixo: 0,685. Isto não é mais o resultado de fotografar manchas de
+// ruído e chamar de nariz — é onde a malha diz que o queixo está.
+const BOCA_CENTRO_Y = 0.685;
 
 // A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
 // boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
@@ -167,9 +172,12 @@ const BOCA_CENTRO_Y = 0.653;
 //     testa (cenho) .... até ~0,95              →  Y 0,800
 // A caixa cobre os dois olhos mais a testa. Ela é SEPARADA da caixa da boca de
 // propósito — ver o comentário de `f3OlhosTextura`.
-const OLHOS_LARGURA = 0.185;
-const OLHOS_ALTURA = 0.113;
-const OLHOS_CENTRO_Y = 0.744;
+const OLHOS_LARGURA = 0.26;
+const OLHOS_ALTURA = 0.159;
+// CONTA, NÃO FOTO. A cabeça é uma esfera de raio ~0,21 em (0, 0,775, 0) — o
+// rosto vai de 0,56 a 0,99, e o olho de um personagem assim fica um pouco acima
+// do meio: 0,80. Os números antigos vinham de medir manchas de ruído.
+const OLHOS_CENTRO_Y = 0.80;
 
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
@@ -365,8 +373,41 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
         // — a boca troca oito vezes por segundo enquanto ele fala e os olhos
         // trocam a cada poucos segundos; num canvas só, cada quadro de fala
         // redesenharia os olhos junto, de graça.
-        let decl = '';
-        let corpo = '';
+        // ── A TEXTURA DO GLB É RUÍDO, E ERA ELA O DEFEITO O TEMPO TODO ───────
+        //
+        // O dono do jogo: "tá todo lascada a textura, parece que vc botou ela por
+        // cima de uma textura que já existe". Estava, e a textura que já existia
+        // não era uma cara: é um PNG de 256x256 saído do gerador 3D por IA —
+        // manchas marrons, pretas e vermelhas, sem olho, sem nariz, sem boca.
+        // Posterizada em duas cores, ela vira confete aleatório.
+        //
+        // Isso explica a série inteira de voltas deste rosto. Cada "olho",
+        // "nariz" e "boca pintada" que eu medi com régua e defendi com número era
+        // uma MANCHA DE RUÍDO que calhava de cair perto do lugar naquele ângulo
+        // de câmera. Medir com cuidado a coisa errada dá o mesmo resultado de não
+        // medir nada.
+        //
+        // Então a cara não vem mais da textura. Vem da GEOMETRIA, que é
+        // determinística e foi medida no próprio GLB (3433 vértices, caixa
+        // x ±0,434 / y 0..1,002 / z ±0,204):
+        //
+        //     cabeça ... esfera de raio ~0,21 centrada em (0, 0,775, 0)
+        //     mãos ..... |x| > 0,33 na faixa y 0,42..0,62
+        //     punho .... o anel logo antes da mão
+        //     tornozelo  y 0,115..0,155
+        //
+        // Creme nesses lugares, tinta no resto. Sem confete, e a boca finalmente
+        // tem uma cara limpa embaixo dela.
+        let decl = 'float _claroPorForma(vec3 p, vec3 n) {\n'
+            + '  vec3 h = (p - vec3(0.0, 0.775, 0.0)) / vec3(0.205, 0.215, 0.205);\n'
+            // A CARA: a frente da esfera da cabeça. `n.z` mantém a nuca preta.
+            + '  if (dot(h, h) < 1.06 && p.z > 0.0 && n.z > 0.30) return 1.0;\n'
+            // AS MÃOS e o punho.
+            + '  if (abs(p.x) > 0.325 && p.y > 0.40 && p.y < 0.64) return 1.0;\n'
+            // O ANEL DO TORNOZELO, que é o que separa a perna do sapato.
+            + '  if (p.y > 0.115 && p.y < 0.155) return 1.0;\n'
+            + '  return 0.0;\n}\n';
+        let corpo = 'diffuseColor.rgb = vec3(_claroPorForma(vLocalPos, normalize(vLocalNor)));\n';
         for (const p of pinturas) {
             shader.uniforms[`u${p.nome}`] = { value: p.textura };
             shader.uniforms[`u${p.nome}Caixa`] = { value: p.caixa };
@@ -420,9 +461,12 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     fillGeo.computeVertexNormals();
 
     const srcMat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+    // SEM `map`: a textura do GLB é ruído (ver o comentário longo em
+    // `duasCores`). A cor vem da geometria, no fragmento.
+    void srcMat;
     const fillMat = new THREE.MeshToonMaterial({
-        map: srcMat?.map ?? null,
-        color: srcMat?.map ? 0xffffff : 0xf2e8d0,
+        map: null,
+        color: 0xffffff,
         gradientMap: _grad,
     });
     // ── DUAS CORES, COMO TODO VILAO DE 1930 ───────────────────────────────
@@ -463,8 +507,16 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         try { return new URLSearchParams(globalThis.location?.search ?? '').has('semolhos'); }
         catch { return false; }
     })();
+    // ── OS OLHOS ESTÃO DESLIGADOS, A PEDIDO DELE ─────────────────────────────
+    // "esquece os olhos e o resto, foca ajeitar a boca". Está certo: enquanto a
+    // CARA por baixo for ruído, desenhar mais coisa em cima só empilha problema.
+    // O código continua aqui inteiro e testado; `?comolhos` liga de volta.
+    const comOlhos = (() => {
+        try { return new URLSearchParams(globalThis.location?.search ?? '').has('comolhos'); }
+        catch { return false; }
+    })();
     const olhoFixo = olhoDaUrl();
-    const telaDaCara = semOlhos ? null
+    const telaDaCara = (semOlhos || !comOlhos) ? null
         : criarTelaDaCara(olhoFixo.olho ?? OLHO_EM_REPOUSO, olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
     const ajO = ajusteDosOlhos();
     const caixaDosOlhos = new THREE.Vector4(

@@ -41,19 +41,16 @@ const CREME = '#f7f3ea';
  * meia-largura. A caixa desta textura cobre essa faixa mais a testa das
  * sobrancelhas.
  */
-// Medido: o olho ESQUERDO do modelo ocupa x 40..86 de uma cara de 223 px e vai
-// de 0,321 a 0,750 da régua da cara. Convertido para esta caixa (que cobre
-// 0,318..0,974 da régua e 81% da largura do rosto), isso dá:
-//     centro   canvas (59, 104)
-//     tamanho  66 x 102 px de canvas
-// Estes números não são gosto: são A REGRA DE OURO. O modelo já tem olhos
-// pintados, e desenhar por cima é cobrir — se o desenho não couber no olho
-// dele, o personagem muda de cara sem ninguém pedir, que foi o que aconteceu
-// com o nariz três vezes.
-const OLHO_LARG = LARG * 0.258;
-const OLHO_ALT = ALT * 0.654;
-const OLHO_CX = LARG * 0.270;      // distância do centro até o meio de cada olho
-const OLHO_CY = ALT * 0.667;
+// ── DERIVADO DA MALHA, NÃO DE FOTO ──────────────────────────────────────────
+// Os números antigos vinham de medir manchas de RUÍDO da textura do GLB e
+// chamá-las de olho (ver o comentário longo em `diabreteRig`). Agora a cara é
+// geometria: esfera de raio ~0,21 em (0, 0,775, 0). O olho fica em
+// x = ±0,085, y = 0,80, com ~0,075 x 0,095 de tamanho. Convertido para esta
+// caixa (0,26 x 0,159 do modelo, num canvas de 256 x 156):
+const OLHO_LARG = LARG * 0.289;
+const OLHO_ALT = ALT * 0.60;
+const OLHO_CX = LARG * 0.327;      // distância do centro até o meio de cada olho
+const OLHO_CY = ALT * 0.50;
 
 /** Desenha UM olho, centrado em (cx, cy). `lado` = -1 esquerdo, +1 direito. */
 function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: number, lado: number) {
