@@ -114,26 +114,29 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     // sólida não existe pupila para mover, e `olharX/olharY` só mexiam na
     // pupila, que só existe no `arregalado`.
     //
-    // Quem olha para o lado num olho assim é a AMÊNDOA INTEIRA: ela desliza
-    // dentro da órbita e o creme aparece do lado que ela deixou. Por isso a
-    // órbita de creme só é pintada QUANDO HÁ DESLOCAMENTO — em `neutro` o olho
-    // do modelo fica intocado, que é a regra de ouro deste arquivo.
+    // ── A ÓRBITA DE CREME ERA INÚTIL, E COBRAVA CARO ─────────────────────────
+    //
+    // O conserto anterior desenhava uma órbita de creme e fazia a amêndoa
+    // ENCOLHER (0,84) e deslizar dentro dela, para "o creme aparecer do lado que
+    // ela deixou". A ideia estava certa para um olho sobre fundo escuro. Sobre
+    // este rosto ela é literalmente invisível: a cara JÁ É do mesmo creme, e as
+    // duas passam pela mesma posterização e viram o mesmo pixel.
+    //
+    // Então a órbita nunca apareceu, e o preço dela apareceu: o olho ficava
+    // menor sempre que ele olhava de lado. Na folha do rosto montado, `esquerda`
+    // e `direita` liam como "olho encolheu um pouco", não como "olhou".
+    //
+    // O jeito de 1930 de fazer um olho de tinta maciça olhar para o lado é
+    // outro, e é mais barato: a amêndoa desliza um POUCO, sem mudar de tamanho,
+    // e quem viaja de verdade é o BRILHO — que num olho todo preto é a única
+    // coisa clara que existe e portanto faz as vezes de pupila.
     const desliza = (o.olharX !== 0 || o.olharY !== 0) && o.pupila === 0;
+    const desvioX = desliza ? o.olharX * rx * 0.22 : 0;
+    const desvioY = desliza ? -o.olharY * ry * 0.20 : 0;
     c.save();
-    if (desliza) {
-        c.fillStyle = CREME;
-        c.beginPath();
-        c.ellipse(cx, cy, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2);
-        c.fill();
-    }
     c.fillStyle = TINTA;
     c.beginPath();
-    if (desliza) {
-        c.ellipse(cx + o.olharX * rx * 0.30, cy - o.olharY * ry * 0.26,
-            rx * 0.84, ry * 0.86, 0, 0, Math.PI * 2);
-    } else {
-        c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    }
+    c.ellipse(cx + desvioX, cy + desvioY, rx, ry, 0, 0, Math.PI * 2);
     c.fill();
 
     if (o.pupila > 0) {
@@ -194,9 +197,13 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     if (o.brilho && o.pupila === 0 && !o.espiral && o.palpebraCima < 0.6) {
         c.fillStyle = CREME;
         c.beginPath();
-        c.ellipse(cx + lado * rx * 0.26 + o.olharX * rx * 0.3,
-            cy - ry * 0.34 - o.olharY * ry * 0.2,
-            rx * 0.17, ry * 0.16, -0.3 * lado, 0, Math.PI * 2);
+        // Ele viaja MUITO mais que a amêndoa (0,55 contra 0,22): é ele que conta
+        // para onde o personagem está olhando. E anda junto com ela, somando o
+        // desvio, senão as duas contariam histórias diferentes.
+        c.ellipse(
+            cx + desvioX + lado * rx * 0.26 + o.olharX * rx * 0.55,
+            cy + desvioY - ry * 0.34 - o.olharY * ry * 0.45,
+            rx * 0.19, ry * 0.18, -0.3 * lado, 0, Math.PI * 2);
         c.fill();
     }
     c.restore();

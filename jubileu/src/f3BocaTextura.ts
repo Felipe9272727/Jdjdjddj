@@ -192,14 +192,32 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
             // fotografada — vira uma bolinha ao lado do rosto, não uma língua.
             // Então o centro fica ABAIXO do pé da forma e o corpo dela sobe até
             // entrar na boca.
+            //
+            // ── E ELA ERA CREME COM CONTORNO, O QUE AQUI SIGNIFICA ANEL ──────
+            // Este rosto tem DUAS cores, e a língua estava pintada de creme com
+            // um traço de tinta em volta. Sobre uma cara que já é creme, isso
+            // não desenha uma língua: desenha uma ROSQUINHA pendurada no canto
+            // da boca — foi assim que `o-rosto-inteiro.html` a mostrou, e é a
+            // forma que sai em todo L e todo N que ele fala (ver os visemas em
+            // `f3Boca`), além do `ocioso`.
+            // Num mundo de duas cores a regra é simples: quem sai para o creme
+            // tem que ser tinta. A língua é maciça, e o vinco no meio dela —
+            // creme, fininho — é o que a faz ler como língua e não como pingo.
+            const lx = LARG / 2 + LARG * 0.11;
+            const ly = peDaForma - alturaDaForma * 0.16;
+            const lrx = LARG * 0.075, lry = alturaDaForma * 0.55;
             c.save();
-            c.fillStyle = CREME;
-            c.strokeStyle = TINTA;
-            c.lineWidth = 5;
+            c.fillStyle = TINTA;
             c.beginPath();
-            c.ellipse(LARG / 2 + LARG * 0.11, peDaForma - alturaDaForma * 0.16,
-                LARG * 0.075, alturaDaForma * 0.55, 0.30, 0, Math.PI * 2);
-            c.fill(); c.stroke();
+            c.ellipse(lx, ly, lrx, lry, 0.30, 0, Math.PI * 2);
+            c.fill();
+            c.strokeStyle = CREME;
+            c.lineWidth = Math.max(2, lrx * 0.22);
+            c.lineCap = 'round';
+            c.beginPath();
+            c.moveTo(lx + Math.sin(0.30) * lry * 0.10, ly - Math.cos(0.30) * lry * 0.10);
+            c.lineTo(lx + Math.sin(0.30) * lry * 0.78, ly + Math.cos(0.30) * lry * 0.78);
+            c.stroke();
             c.restore();
         }
     } else if (forma.traco.length) {
