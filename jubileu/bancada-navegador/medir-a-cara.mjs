@@ -105,6 +105,21 @@ for (const caminho of process.argv.slice(2)) {
         if (u && it.y - u.y1 <= 3) { u.y1 = it.y; u.larg = Math.max(u.larg, it.g[1] - it.g[0]); }
         else grupos.push({ y0: it.y, y1: it.y, larg: it.g[1] - it.g[0] });
     }
+    // ── A COLUNA DO NARIZ ────────────────────────────────────────────────────
+    // A pergunta que importa desde que o dono do jogo disse "a bola preta
+    // inteira é o nariz" não é onde a boca está: é se a BOLA continua inteira.
+    // Então mede-se a coluna central estreita — a largura da bola — e conta-se,
+    // linha a linha, se ainda há tinta ali. Comparar essa coluna entre a foto
+    // sem boca e a foto com boca responde a pergunta dele com número.
+    const colunaDoNariz = [];
+    {
+        const raio = larguraDaCara * 0.09;    // a bola tem ~36 px numa cara de 222
+        for (const { y, gs } of linhas) {
+            const temTinta = gs.some(g => g[1] >= meio - raio && g[0] <= meio + raio);
+            if (temTinta) colunaDoNariz.push(y);
+        }
+    }
+
     // Régua da CARA: 1 no alto da cabeça, 0 no queixo.
     const f = (y) => ((cara.y1 - y) / alt).toFixed(3);
     console.log(`\n${caminho}`);
@@ -112,4 +127,11 @@ for (const caminho of process.argv.slice(2)) {
     for (const g of grupos) {
         console.log(`  mancha ${f(g.y1)}..${f(g.y0)} (${g.y1 - g.y0 + 1}px de alto, ${g.larg}px de largo)`);
     }
+    // A coluna do nariz, em blocos: `sem` dá a bola; com boca tem que dar o mesmo.
+    const blocos = [];
+    for (const y of colunaDoNariz) {
+        const u = blocos[blocos.length - 1];
+        if (u && y - u[1] <= 2) u[1] = y; else blocos.push([y, y]);
+    }
+    console.log(`  coluna do nariz: ${blocos.map(b => `${f(b[1])}..${f(b[0])}`).join('  ')}`);
 }

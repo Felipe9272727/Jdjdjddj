@@ -16,37 +16,66 @@ import { BOCAS, type Forma, type NomeDaBoca } from './f3Boca';
 
 const LARG = 192;
 const ALT = 128;
-/** Quanto do canvas a boca ocupa. Sobra margem para o traço grosso não cortar. */
-// O desenho ocupa esta fração do canvas; o resto é REMENDO. A margem foi de
-// 0,80 para 0,56 quando o plano cresceu: assim a boca desenhada continua do
-// mesmo tamanho e quem cresce é só o pedaço de cara que ela carrega junto.
-// Precisou crescer porque, com a cabeça inclinada, o remendo antigo saía de
-// cima da boca pintada do GLB e as duas apareciam lado a lado.
-// O desenho voltou a ocupar mais do canvas: com a boca pintada no shader da cara
-// (e não num plano), o remendo já não precisa sobrar tanto para cobrir a boca da
-// textura em qualquer ângulo — a caixa acompanha a malha.
+
+// ── A FENDA DA CARA É 6:1, E AS BOCAS DA FICHA SÃO 2:1 ───────────────────────
+//
+// Medido (`medir-a-cara.mjs` sobre `?semboca&parado`), na régua da própria cara
+// — 1 no alto da cabeça, 0 no queixo:
+//     olhos ........ 1,000 .. 0,300
+//     A BOLA ....... 0,244 .. 0,083     ← o nariz, palavra do dono do jogo
+//     queixo ....... 0,020
+// Sobram dez pixels de cara livre abaixo da bola, numa cara de 168. As bocas das
+// fichas dele têm proporção ~2:1; a fenda tem 14:1. Elas não cabem — erram por
+// um fator de cinco.
+//
+// A decisão foi dele, e foi APARAR A BOLA POR BAIXO: o remendo creme cobre a
+// metade de baixo dela, o nariz continua uma bola preta no mesmo lugar, só
+// menor, e a boca ganha o vão. Aqui embaixo estão as duas coisas que isso exige.
+//
+// PRIMEIRA: o eixo y ganha `GANHO_Y`. A boca ocupa uma fatia larga e baixa do
+// rosto, então o desenho é esticado na horizontal de propósito — mais chato que
+// na folha dele, e é o preço de caber. (A versão anterior era isotrópica e o
+// desenho saía do tamanho de uma unha.)
 const MARGEM = 0.74;
+const GANHO_Y = 1.15;
+
+// SEGUNDA: o y=0 do desenho não cai no meio do canvas, cai mais para baixo — a
+// metade de cima do canvas é o pedaço da bola que FICA, e a de baixo é onde a
+// boca mora.
+const BOCA_MEIO = 72;
+
+// O que o remendo creme cobre, em pixel de canvas: da metade da bola (44) até
+// pouco antes do queixo (108). Não pode passar de 108: abaixo disso é pescoço, e
+// creme ali esticaria o queixo dele.
+// Em pixel de canvas, medido com `?remendo=` e a régua da cara:
+//   0 .. 43  = a bola do nariz (o que fica);  14 .. 62 = o que o remendo apara;
+//   63       = o queixo — passar disso pintaria creme no pescoço dele.
+const REMENDO_DE = 49;
+const REMENDO_ATE = 92;
+
+/**
+ * `?remendo=44,108` move o corte pela URL, em pixel de canvas.
+ *
+ * Existe porque acertar isto por tentativa custava cinco minutos de bancada por
+ * palpite: é uma linha na textura, mas ela vive num canvas que vira uma caixa em
+ * espaço local que vira pixel na cara. Com a URL, uma rodada varre a faixa
+ * inteira e a régua (`medir-a-cara.mjs`) diz onde cada corte caiu.
+ */
+function corteDaUrl(): [number, number] {
+    try {
+        const v = new URLSearchParams(globalThis.location?.search ?? '').get('remendo');
+        if (!v) return [REMENDO_DE, REMENDO_ATE];
+        const n = v.split(',').map(Number);
+        return n.length === 2 && n.every(Number.isFinite) ? [n[0], n[1]] : [REMENDO_DE, REMENDO_ATE];
+    } catch { return [REMENDO_DE, REMENDO_ATE]; }
+}
 
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
 
-// ── A ESCALA É A MESMA NOS DOIS EIXOS ────────────────────────────────────────
-//
-// Ela não era, e esse foi o defeito que a ficha inteira numa foto entregou: x
-// usava `LARG/2` e y usava `ALT/2`. Num canvas de 192x128 isso são 71 px por
-// unidade na largura e 47 na altura — toda boca chegava à cara 50% mais
-// achatada do que o desenho. As folhas do Felipe são de bocas ABERTAS, altas
-// (o F5 dele é quase 2:1, o F8 é quase redondo), e as minhas saíam frestas.
-//
-// Agora o passo é o mesmo nos dois eixos, e a caixa no rosto tem a proporção do
-// canvas (ver `BOCA_LARGURA` em `diabreteRig`), então o que se desenha aqui é o
-// que aparece lá. O preço é que o eixo y só usa ±ALT/LARG = ±0,67 do quadro
-// normalizado — sobra de folha, não de desenho.
-const PASSO = (LARG / 2) * MARGEM;
-
 function paraTela(p: { x: number; y: number }): [number, number] {
     // y do desenho aponta para cima; o canvas aponta para baixo.
-    return [LARG / 2 + p.x * PASSO, ALT / 2 - p.y * PASSO];
+    return [LARG / 2 + p.x * (LARG / 2) * MARGEM, BOCA_MEIO - p.y * (ALT / 2) * GANHO_Y];
 }
 
 function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number }[], fechar: boolean) {
@@ -62,34 +91,25 @@ function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number
 export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
     c.clearRect(0, 0, LARG, ALT);
 
-    // ── O REMENDO, AGORA DO TAMANHO CERTO ────────────────────────────────────
+    // ── O REMENDO APARA A BOLA POR BAIXO ─────────────────────────────────────
     //
-    // O GLB vem com uma boca PINTADA na textura, e ela precisa sair de baixo da
-    // boca desenhada: sem isso o sorriso irônico (um traço fino) fica POR CIMA
-    // dela e o que se vê na foto é um risco saindo de uma mancha preta, como um
-    // cigarro. Então a boca traz o próprio pedaço de cara — creme do rosto, por
-    // baixo de tudo. Como o material posteriza em duas cores, o creme do remendo
-    // é o creme da cara e a emenda não aparece.
+    // Ele já foi uma elipse de canvas inteiro e comia o rosto do queixo aos
+    // olhos ("aí ele perde a nareba"). Depois encolheu demais e a boca passou a
+    // ser desenhada EM CIMA da bola ("ainda está cobrindo o nariz, a bola preta
+    // inteira é o nariz"). Agora ele faz uma coisa só, decidida pelo dono do
+    // jogo: apara a METADE DE BAIXO da bola, e nada mais.
     //
-    // ELE COMIA O NARIZ. O dono do jogo jogou e disse "aí ele perde a nareba", e
-    // estava certo: o remendo era uma elipse de CANVAS INTEIRO, e a caixa da boca
-    // é bem maior que a boca. Ele apagava o rosto todo entre o queixo e os olhos.
-    //
-    // Agora ele é medido, não chutado. Com a pose congelada (`?parado`) e a régua
-    // da própria cara (`bancada-navegador/medir-a-cara.mjs`: 1 no alto da cabeça,
-    // 0 no queixo), a cara do Diabrete tem:
-    //     nareba .................. 0,333 .. 0,339
-    //     boca pintada na textura . 0,083 .. 0,244
-    // e a caixa desta textura cobre de -0,13 a 0,45 dessa régua. Passando para
-    // fração do canvas (0 em cima), a nareba cai em 0,20 e a boca pintada em
-    // 0,35..0,63. O remendo vai de 0,30 a 0,78: cobre a boca pintada com folga e
-    // para treze pixels antes da nareba.
+    // O que sobra em cima continua sendo o nariz dele — bola preta, mesmo lugar,
+    // só menor. O que abre embaixo é onde a boca cabe.
     c.save();
     c.fillStyle = CREME;
     c.beginPath();
-    c.ellipse(LARG / 2, ALT * 0.54, LARG * 0.46, ALT * 0.24, 0, 0, Math.PI * 2);
+    const [corteDe, corteAte] = corteDaUrl();
+    c.ellipse(LARG / 2, (corteDe + corteAte) / 2, LARG * 0.47,
+        (corteAte - corteDe) / 2, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
+
     c.save();
     c.translate(LARG / 2, ALT / 2);
     c.rotate((forma.inclinacao * Math.PI) / 180);
@@ -148,7 +168,7 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
             c.clip();
             const topo = topoDaForma;
             c.fillStyle = CREME;
-            const largura = 2 * PASSO;
+            const largura = LARG * MARGEM;
             const x0 = LARG / 2 - largura / 2 + largura * forma.dentesDe;
             const faixa = largura * (forma.dentesAte - forma.dentesDe);
             const passo = faixa / forma.dentes;
@@ -188,8 +208,8 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
             c.strokeStyle = TINTA;
             c.lineWidth = 5;
             c.beginPath();
-            c.ellipse(LARG / 2 + PASSO * 0.26, peDaForma + alturaDaForma * 0.22,
-                PASSO * 0.16, alturaDaForma * 0.50, 0.30, 0, Math.PI * 2);
+            c.ellipse(LARG / 2 + LARG * 0.11, peDaForma - alturaDaForma * 0.16,
+                LARG * 0.075, alturaDaForma * 0.55, 0.30, 0, Math.PI * 2);
             c.fill(); c.stroke();
             c.restore();
         }
@@ -233,6 +253,19 @@ export function criarTelaDaBoca(inicial: NomeDaBoca): TelaDaBoca | null {
     let atual: NomeDaBoca = inicial;
     desenharBoca(c, BOCAS[inicial]);
     const textura = new THREE.CanvasTexture(cv);
+    // ── DE CABEÇA PARA BAIXO ─────────────────────────────────────────────────
+    // Isto aqui custou meia dúzia de rodadas de bancada. `CanvasTexture` nasce
+    // com `flipY = true` (a convenção de UV do OpenGL), e o shader da cara JÁ
+    // vira o eixo por conta própria (`_b.y = 1.0 - _b.y`, porque a caixa é medida
+    // em espaço local, com y para cima). Os dois flips se somam e se cancelam ao
+    // contrário: a linha de cima do canvas caía embaixo do rosto.
+    //
+    // Sintoma que me enganou: empurrar o desenho PARA BAIXO no canvas subia a
+    // boca na cara. E, o tempo todo, cada boca estava aparecendo espelhada na
+    // vertical — o sorriso torto que sobe para a direita descia, os dentes
+    // pendurados na gengiva de cima ficavam pendurados na de baixo, e a goela
+    // aparecia no céu da boca.
+    textura.flipY = false;
     textura.colorSpace = THREE.SRGBColorSpace;
     textura.minFilter = THREE.LinearFilter;
     textura.magFilter = THREE.LinearFilter;

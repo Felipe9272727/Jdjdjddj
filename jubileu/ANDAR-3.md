@@ -4,6 +4,45 @@ Uma página, para não ter que ler quarenta commits.
 
 ---
 
+## A boca, volta 43 — a textura estava de cabeça para baixo
+
+O dono do jogo: **"ainda está cobrindo o nariz, a bola preta inteira é o nariz"**.
+A bola era o nariz, e eu vinha desenhando a boca em cima dela.
+
+Tentar consertar por tentativa não andava, e o motivo era um defeito de verdade
+escondido embaixo: **a textura da boca era amostrada espelhada na vertical**.
+`CanvasTexture` nasce com `flipY = true`, e o shader da cara já vira o eixo por
+conta própria (`_b.y = 1.0 - _b.y`, porque a caixa é medida em espaço local com y
+para cima). Os dois flips se somavam: a linha de cima do canvas caía embaixo do
+rosto. O sintoma que entregou foi absurdo o bastante para não ter outra
+explicação — **empurrar o desenho para baixo no canvas SUBIA a boca na cara**.
+Enquanto isso durou, toda boca aparecia de cabeça para baixo: o sorriso torto que
+sobe para a direita descia, os dentes pendurados na gengiva de cima ficavam
+pendurados na de baixo, e a goela aparecia no céu da boca.
+
+Junto saiu um erro de régua meu: eu tinha calibrado "quanto de cara vale uma
+unidade do modelo" em **4,02** lendo duas fotos com `bocaY` diferente — e li a
+mancha errada nas duas. O número, medido varrendo `?bocaY=` com o remendo
+cobrindo o canvas inteiro e vendo O QUE SOME, é **5,8**. Por isso a caixa vivia
+0,12 abaixo do rosto e o remendo "não aparava nada": ele estava no pescoço.
+
+A cara do Diabrete, em coordenada do modelo:
+
+    queixo ......... 0,636
+    A BOLA ......... 0,647 .. 0,675   ← o nariz
+    olhos a partir de 0,684
+
+Entre a bola e o queixo cabem dez pixels numa cara de 168, e as bocas da ficha
+dele têm proporção 2:1 contra 14:1 do vão. **A decisão foi dele**: aparar a bola
+por baixo. O remendo cobre a metade de baixo dela, o nariz continua uma bola
+preta no mesmo lugar, só menor, e o sorriso passa POR BAIXO e sobe pelos lados —
+com a bola aninhada no berço, que é como ele mesmo desenhou na folha de
+referência. Conferido na coluna do nariz, foto a foto: a bola sobrevive em todas.
+
+Ferramentas: `?remendo=de,ate` move o corte pela URL, e
+`bancada-navegador/onde-a-boca-cai.mjs` prevê onde cada forma cai sem abrir
+navegador.
+
 ## A boca, volta 42 — a segunda ficha do Felipe
 
 Ele mandou duas folhas novas: **"Bocas Irônicas — animação de fala, 12 frames

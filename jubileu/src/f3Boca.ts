@@ -110,7 +110,7 @@ export interface Forma {
  *
  * Assim ele sorri irônico o tempo todo E continua tendo dezoito caras.
  */
-export const TORTO = 0.16;
+export const TORTO = 0.10;
 
 /**
  * Arco de parábola de `-1..1`, com flecha `f` (positiva sobe nas pontas) e
@@ -127,12 +127,39 @@ function curva(f: number, n = 9, largura = 1, torto = TORTO, bico = 0): Ponto[] 
     }
     return p;
 }
-/** Cunha: dois arcos costurados. É a forma de toda boca aberta destas fichas. */
-function lente(largura: number, alto: number, baixo: number,
-    bico = 0, n = 12, torto = TORTO): Ponto[] {
-    const cima = curva(alto, n, largura, torto, bico);
-    const baixoP = curva(-baixo, n, largura, torto, bico).reverse();
-    return [...cima, ...baixoP];
+/**
+ * ── A BOCA DELE É UM CRESCENTE, NÃO UMA LENTE ────────────────────────────────
+ *
+ * E isto não é gosto meu — é geometria da cara dele, medida.
+ *
+ * O dono do jogo disse "a bola preta inteira é o nariz", e com a régua da cara
+ * (`bancada-navegador/medir-a-cara.mjs`) a conta fica cruel: o nariz ocupa de
+ * 0,083 a 0,244 da altura do rosto, os olhos descem até 0,30, e o queixo está em
+ * 0,02. Sobram DEZ PIXELS de cara livre abaixo do nariz, numa cara de 168. Uma
+ * boca que não encoste no nariz não cabe ali.
+ *
+ * Mas cabe do jeito que ele mesmo desenhou na ficha: o sorriso passa POR BAIXO
+ * do nariz no meio e SOBE pelos lados, e a bola fica aninhada no berço dele. Nos
+ * lados sobra cara de sobra — 155 px de creme na altura do nariz, contra 36 do
+ * nariz.
+ *
+ * Para isso as duas bordas da boca têm que seguir a mesma linha de sorriso —
+ * um crescente, tipo banana — e não fazer uma lente simétrica, gorda no meio.
+ * É o que `arco` faz: afunda as DUAS bordas no meio. A espessura (`alto` e
+ * `baixo`) continua abrindo a boca; o arco decide por onde ela passa.
+ */
+function lente(largura: number, alto: number, baixo: number, bico = 0, arco = 0, n = 14, torto = TORTO): Ponto[] {
+    const cima: Ponto[] = [];
+    const baixoP: Ponto[] = [];
+    for (let i = 0; i <= n; i++) {
+        const u = -1 + (2 * i) / n;
+        const afina = bico < 0 ? 1 + bico * (1 - u) / 2 : 1 - bico * (1 + u) / 2;
+        const berco = -arco * (1 - u * u);          // por onde a boca passa
+        const grossa = (1 - u * u) * afina;         // quanto ela abre
+        cima.push({ x: u * largura, y: berco + alto * grossa + torto * u });
+        baixoP.push({ x: u * largura, y: berco - baixo * grossa + torto * u });
+    }
+    return [...cima, ...baixoP.reverse()];
 }
 
 /**
@@ -171,28 +198,28 @@ export const BOCAS: Readonly<Record<NomeDaBoca, Forma>> = Object.freeze({
     // F2 — sorriso de lado
     sorriso:           F({ cheia: false, traco: curva(-0.26, 11, 0.60), inclinacao: -2 }),
     // F3 — falando 1: cunha de espeto à esquerda, cheia à direita
-    falando1:          F({ cheia: true, caminho: lente(0.42, 0.10, 0.26, -0.85), goela: 0.30 }),
+    falando1:          F({ cheia: true, caminho: lente(0.42, 0.10, 0.26, -0.85, 0.187), goela: 0.30 }),
     // F4 — sorriso irônico: fresta longa com fileira de dentes, subindo à direita
-    sorrisoIronico:    F({ cheia: true, caminho: lente(0.56, 0.05, 0.13, -0.55),
+    sorrisoIronico:    F({ cheia: true, caminho: lente(0.56, 0.05, 0.13, -0.55, 0.165),
         dentes: 6, dentesDe: 0.30, dentesAte: 0.98 }),
     // F5 — falando 2: boca grande com goela
-    falando2:          F({ cheia: true, caminho: lente(0.50, 0.16, 0.34, 0.35), goela: 0.52 }),
+    falando2:          F({ cheia: true, caminho: lente(0.50, 0.16, 0.34, 0.35, 0.22), goela: 0.52 }),
     // F6 — dentes debochados: sorrisão de dentes quadrados
-    dentesDebochados:  F({ cheia: true, caminho: lente(0.62, 0.06, 0.26, -0.35),
+    dentesDebochados:  F({ cheia: true, caminho: lente(0.62, 0.06, 0.26, -0.35, 0.165),
         dentes: 8, dentesDe: 0.12, dentesAte: 0.96 }),
     // F7 — falando 3: fresta pontuda, dentes só na ponta que sobe
-    falando3:          F({ cheia: true, caminho: lente(0.44, 0.14, 0.18, 0.70),
+    falando3:          F({ cheia: true, caminho: lente(0.44, 0.14, 0.18, 0.70, 0.187),
         dentes: 3, dentesDe: 0.05, dentesAte: 0.45 }),
     // F8 — falando 4: o oval preto de goela funda
-    falando4:          F({ cheia: true, caminho: lente(0.26, 0.30, 0.34), goela: 0.46 }),
+    falando4:          F({ cheia: true, caminho: lente(0.26, 0.30, 0.34, 0, 0.242), goela: 0.46 }),
     // F9 — risada irônica: presas e goela, a boca mais aberta do ciclo
-    risadaIronica:     F({ cheia: true, caminho: lente(0.62, 0.10, 0.44, -0.25),
+    risadaIronica:     F({ cheia: true, caminho: lente(0.62, 0.10, 0.44, -0.25, 0.22),
         dentes: 7, presas: true, dentesDe: 0.08, dentesAte: 0.94, goela: 0.42 }),
     // F10 — falando 5: triângulo com dentes na metade direita
-    falando5:          F({ cheia: true, caminho: lente(0.46, 0.08, 0.22, -0.80),
+    falando5:          F({ cheia: true, caminho: lente(0.46, 0.08, 0.22, -0.80, 0.176),
         dentes: 4, dentesDe: 0.40, dentesAte: 0.96 }),
     // F11 — falando 6: aberta média, dentes no canto de cima
-    falando6:          F({ cheia: true, caminho: lente(0.44, 0.12, 0.28, -0.30),
+    falando6:          F({ cheia: true, caminho: lente(0.44, 0.12, 0.28, -0.30, 0.198),
         dentes: 3, dentesDe: 0.50, dentesAte: 0.98, goela: 0.24 }),
     // F12 — fechado (satisfeito)
     fechadoSatisfeito: F({ cheia: false, traco: curva(-0.24, 11, 0.58), dentes: 3,
@@ -200,33 +227,33 @@ export const BOCAS: Readonly<Record<NomeDaBoca, Forma>> = Object.freeze({
 
     // ── OS EXTRAS DA PRIMEIRA FOLHA ──────────────────────────────────────────
     neutra:        F({ cheia: false, traco: curva(0.00, 5, 0.50) }),
-    grinhoLateral: F({ cheia: true, caminho: lente(0.50, 0.04, 0.14, -0.60),
+    grinhoLateral: F({ cheia: true, caminho: lente(0.50, 0.04, 0.14, -0.60, 0.154),
         dentes: 5, dentesDe: 0.35, dentesAte: 0.98 }),
-    deboche:       F({ cheia: true, caminho: lente(0.56, 0.08, 0.26, -0.45),
+    deboche:       F({ cheia: true, caminho: lente(0.56, 0.08, 0.26, -0.45, 0.187),
         dentes: 5, dentesDe: 0.20, dentesAte: 0.95, goela: 0.20, inclinacao: -4 }),
-    provocando:    F({ cheia: true, caminho: lente(0.46, 0.10, 0.26, -0.30),
+    provocando:    F({ cheia: true, caminho: lente(0.46, 0.10, 0.26, -0.30, 0.198),
         lingua: true, goela: 0.18, inclinacao: -3 }),
     pensativo:     F({ cheia: false, traco: curva(-0.06, 5, 0.32), inclinacao: 7 }),
 
     // ── O ARCO DO ANDAR: as caras que contam a história dos três pincéis ─────
     // Estas não estão nas folhas de FALA porque não são de fala. Ganharam bico e
     // goela junto, para não destoarem do resto.
-    feliz:      F({ cheia: true, caminho: lente(0.60, 0.05, 0.36, -0.35),
+    feliz:      F({ cheia: true, caminho: lente(0.60, 0.05, 0.36, -0.35, 0.187),
         dentes: 6, dentesDe: 0.10, dentesAte: 0.95, goela: 0.30 }),
-    empolgado:  F({ cheia: true, caminho: lente(0.64, 0.07, 0.40, -0.30),
+    empolgado:  F({ cheia: true, caminho: lente(0.64, 0.07, 0.40, -0.30, 0.209),
         dentes: 7, presas: true, dentesDe: 0.06, dentesAte: 0.96, goela: 0.34 }),
-    bravo:      F({ cheia: true, caminho: lente(0.54, 0.24, 0.08, 0.30),
+    bravo:      F({ cheia: true, caminho: lente(0.54, 0.24, 0.08, 0.30, 0.143),
         dentes: 5, dentesDe: 0.10, dentesAte: 0.90 }),
-    irritado:   F({ cheia: true, caminho: lente(0.48, 0.26, 0.05, 0.45),
+    irritado:   F({ cheia: true, caminho: lente(0.48, 0.26, 0.05, 0.45, 0.132),
         dentes: 4, presas: true, dentesDe: 0.10, dentesAte: 0.90, inclinacao: 4 }),
-    surpreso:   F({ cheia: true, caminho: lente(0.26, 0.30, 0.30), goela: 0.40 }),
-    assustado:  F({ cheia: true, caminho: lente(0.30, 0.40, 0.20, 0.20),
+    surpreso:   F({ cheia: true, caminho: lente(0.26, 0.30, 0.30, 0, 0.242), goela: 0.40 }),
+    assustado:  F({ cheia: true, caminho: lente(0.30, 0.40, 0.20, 0.20, 0.231),
         dentes: 3, presas: true, dentesDe: 0.15, dentesAte: 0.85, goela: 0.26 }),
     triste:     F({ cheia: false, traco: curva(0.20, 9, 0.48) }),
     desanimado: F({ cheia: false, traco: curva(0.16, 9, 0.50), dentes: 2,
         dentesDe: 0.4, dentesAte: 0.9, inclinacao: -2 }),
     confuso:    F({ cheia: false, traco: curva(0.10, 7, 0.34), inclinacao: -6 }),
-    zangado:    F({ cheia: true, caminho: lente(0.56, 0.12, 0.12, -0.20),
+    zangado:    F({ cheia: true, caminho: lente(0.56, 0.12, 0.12, -0.20, 0.154),
         dentes: 8, dentesDe: 0.06, dentesAte: 0.96 }),
 });
 

@@ -100,14 +100,44 @@ export interface DiabreteRig {
 // rosto 13% mais achatada do que na folha do Felipe — e as folhas dele são de
 // bocas ABERTAS, altas. Com 0,218 x 0,145 a proporção fecha e o desenho chega
 // como foi desenhado.
-const BOCA_LARGURA = 0.218;
+// ── A CAIXA CRESCEU E DESCEU, PORQUE A BOLA É O NARIZ ────────────────────────
+//
+// "a bola preta inteira é o nariz", disse o dono do jogo — e com isso a régua da
+// cara (`medir-a-cara.mjs`) diz onde a boca pode existir e onde não pode:
+//     olhos ....... 1,000 .. 0,300
+//     creme livre . 0,300 .. 0,244   (9 px)
+//     O NARIZ ..... 0,244 .. 0,083   (a bola)
+//     creme livre . 0,083 .. 0,020   (10 px)
+//     corpo ....... abaixo de 0,020
+// Dez pixels de cara livre abaixo do nariz, numa cara de 168. Boca que não
+// encoste no nariz não cabe ali de frente — mas cabe DE LADO: na altura do
+// nariz sobram 155 px de creme contra 36 px de bola.
+//
+// Por isso a caixa ficou LARGA (a boca atravessa o rosto e passa dos dois lados
+// da bola) e BAIXA (o meio dela desce para o queixo). O que passa por baixo do
+// nariz é o meio do sorriso; o que sobe pelos lados são as pontas. A bola fica
+// aninhada no berço — que é exatamente como ele desenhou na ficha de referência.
+const BOCA_LARGURA = 0.32;
 // A caixa encolheu na ALTURA (0,165 -> 0,145) e desceu um fio. Medido, não
 // chutado: com a pose congelada (`?parado`) e a régua da própria cara
 // (`bancada-navegador/medir-a-cara.mjs`, 0 no queixo, 1 no alto da cabeça), a
 // nareba dele mora em 0,317..0,323 e as bocas grandes — `empolgado` à frente —
 // subiam até 0,323 e a engoliam. Com esta caixa a maior delas para antes.
-const BOCA_ALTURA = 0.145;
-const BOCA_CENTRO_Y = 0.632;
+const BOCA_ALTURA = 0.070;
+// ── A RÉGUA DE VERDADE: 5,8, NÃO 4,02 ────────────────────────────────────────
+//
+// Aqui morava um erro que custou meia dúzia de rodadas: eu tinha calibrado
+// "quanto de cara vale uma unidade do modelo" em 4,02, lendo duas fotos com
+// `bocaY` diferente — e li a mancha errada nas duas. O número certo, medido
+// varrendo `?bocaY=` com o remendo cobrindo o canvas inteiro e vendo O QUE
+// SOME, é 5,8. Por isso a caixa vivia 0,12 abaixo do rosto e o remendo "não
+// aparava nada": ele estava no pescoço.
+//
+// Com a régua certa, a cara do Diabrete em coordenada do modelo:
+//     queixo ........ 0,636
+//     A BOLA ........ 0,647 .. 0,675   ← o nariz
+//     olhos a partir de 0,684
+const BOCA_CENTRO_Y = 0.653;
 
 // A gravata desceu do QUEIXO para o pescoço. Ela estava a 0,038 do centro da
 // boca, e na foto de perto as duas se encavalavam: metade de toda boca aberta
