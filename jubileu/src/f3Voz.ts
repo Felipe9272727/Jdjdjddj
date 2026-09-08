@@ -49,6 +49,13 @@ export interface Blat {
     dur: number;
     /** Palavra em CAIXA ALTA — o acento da piada, que o texto já marca. */
     acento: boolean;
+    /**
+     * A PALAVRA em si. Não serve para o som — o trombone não pronuncia nada —,
+     * serve para a BOCA: `f3Boca` lê as letras dela e monta os visemas, para o
+     * desenho acompanhar o que ele diz em vez de rodar um ciclo cego.
+     * É a mesma fonte de verdade (o texto da fala) chegando a mais um sentido.
+     */
+    palavra: string;
 }
 
 export interface Voz {
@@ -156,7 +163,7 @@ export function vozDoDiabrete(texto: string, opts: OpcoesDeVoz = {}): Voz {
         const salto = acento ? (jogador ? 1.12 : 1.22 + 0.06 * roubados) : 1;
         const hz = base * caindo * salto * (i === ultimo ? curva : 1);
         const ganho = (grito ? 0.20 : 0.13) * (acento ? 1.35 : 1) * (jogador ? 0.85 : 1);
-        return { t: i * passo, hz, ganho, dur: DUR_BLAT, acento };
+        return { t: i * passo, hz, ganho, dur: DUR_BLAT, acento, palavra: p };
     });
 
     return {

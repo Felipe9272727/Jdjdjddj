@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
     BOCAS, NOMES_DAS_BOCAS, BOCA_EM_REPOUSO, BOCA_HZ,
     bocaDaNota, expressaoDoDiabrete, bocaNoInstante, quadroDaBoca, aberturaDaBoca, TORTO,
+    bocaDaLetra, visemasDaPalavra, visemasDaFala,
     bocaOciosa, RESPIRO_S, QUADROS_DE_TEMPERO, CICLO_FALA,
     PARTE_FALANDO,
     type MomentoExtra,
@@ -128,13 +129,19 @@ describe('a boca segue a MESMA partitura que o trombone', () => {
         expect(vistas.size).toBeGreaterThan(1);
         expect(vistas.has('neutra')).toBe(false);   // nenhuma nota fica de boca fechada
     });
-    it('o acento da frase abre mais a boca que as notas caladas', () => {
+    it('ninguém grita de boca fechada', () => {
+        // A régua mudou de "abre MAIS" para "não fecha", e a razão é boa: desde
+        // que a boca passou a soletrar os VISEMAS da frase, a forma de cada
+        // quadro é a letra que caiu ali, e uma nota calada com "A" abre mais que
+        // um grito que calhou no "M". O que continua sendo verdade — e é o que o
+        // olho cobra — é que durante a palavra GRITADA a boca nunca está fechada.
         const i = voz.blats.findIndex(b => b.acento);
         expect(i).toBeGreaterThanOrEqual(0);
-        const j = voz.blats.findIndex(b => !b.acento);
-        const naNota = (k: number) => aberturaDaBoca(bocaNoInstante(voz, voz.blats[k].t + 0.001, 'neutra'));
-        expect(naNota(i)).toBeGreaterThan(0);
-        expect(naNota(i)).toBeGreaterThanOrEqual(naNota(j));
+        const b = voz.blats[i];
+        for (let q = 0; q < Math.max(1, Math.ceil(b.dur * BOCA_HZ)); q++) {
+            const n = bocaNoInstante(voz, b.t + (q + 0.4) / BOCA_HZ, 'neutra');
+            expect(aberturaDaBoca(n)).toBeGreaterThan(0);
+        }
     });
     // ── A RÉGUA DO DEFEITO QUE ELE RELATOU ───────────────────────────────
     // "percebi que a boca dele se mexe muito pouco". A causa não era o ciclo:
@@ -242,6 +249,49 @@ describe('a ironia está no traço, não na escolha', () => {
     it('o torto é forte o bastante para se ver, e não tanto que vire careta', () => {
         expect(TORTO).toBeGreaterThan(0.08);
         expect(TORTO).toBeLessThan(0.30);
+    });
+});
+
+// ── A BOCA SOLETRA O QUE ELE DIZ ─────────────────────────────────────────────
+// O ciclo de doze quadros resolveu "a boca se mexe muito pouco", mas era CEGO:
+// rodava igual dizendo "OLHA O TRAÇO" ou "perna-curta". A segunda ficha do
+// Felipe já vem com formas de nome de som ("CH", "SH", "TH", "LÍNGUA",
+// "FECHADA"), então ela virou alfabeto.
+describe('os visemas', () => {
+    it('vogal abre e M/B/P fecha — é isso que o olho lê como consoante', () => {
+        for (const vogal of ['a', 'e', 'o', 'u']) {
+            const n = bocaDaLetra(vogal);
+            expect(n).not.toBeNull();
+            expect(aberturaDaBoca(n as NomeDaBoca)).toBeGreaterThan(0);
+        }
+        for (const fecha of ['m', 'b', 'p']) {
+            expect(BOCAS[bocaDaLetra(fecha) as NomeDaBoca].cheia).toBe(false);
+        }
+    });
+    it('acentuada ou maiúscula dá o mesmo visema que a letra pelada', () => {
+        expect(bocaDaLetra('Á')).toBe(bocaDaLetra('a'));
+        expect(bocaDaLetra('Õ')).toBe(bocaDaLetra('o'));
+        expect(bocaDaLetra('Ç')).toBe(bocaDaLetra('ç'));
+    });
+    it('pontuação não vira boca', () => {
+        for (const ch of ['!', '?', ',', ' ', '…', '3']) expect(bocaDaLetra(ch)).toBeNull();
+    });
+    it('letra repetida não vira quadro repetido', () => {
+        // "carroça" tem dois erres seguidos; desenhar o mesmo quadro duas vezes
+        // é um quadro perdido numa boca que só tem vinte e quatro.
+        const v = visemasDaPalavra('carroça');
+        for (let i = 1; i < v.length; i++) expect(v[i]).not.toBe(v[i - 1]);
+    });
+    it('a fala inteira vira fila, e ela cobre o balão', () => {
+        const fala = vozDoDiabrete('Olha o TRAÇO! Espinho fresquinho, saindo do forno!', { roubados: 0 });
+        const fila = visemasDaFala(fala);
+        // Mais visemas do que quadros no balão: a frase não se repete no ar.
+        expect(fila.length).toBeGreaterThan(3.0 * PARTE_FALANDO * BOCA_HZ);
+        for (const n of fila) expect(NOMES_DAS_BOCAS).toContain(n);
+    });
+    it('fala sem letra nenhuma cai no ciclo cego, que continua de reserva', () => {
+        expect(visemasDaPalavra('!!! ...')).toEqual([]);
+        expect(NOMES_DAS_BOCAS).toContain(bocaDaNota(0, false, 0, []));
     });
 });
 

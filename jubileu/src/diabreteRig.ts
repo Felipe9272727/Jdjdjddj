@@ -542,6 +542,17 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
                 return;
             }
             const q = quadroDaPiscada(t);
+            // DEV-ONLY: a bancada precisa da SEQUÊNCIA. Foto parada não prova
+            // piscada — prova que existe um desenho de olho fechado, que é
+            // outra coisa. O mesmo motivo de `__f3BocaLog` existir.
+            if (import.meta.env?.DEV && typeof window !== 'undefined') {
+                const marca = `${olho}/${cenho}/${q}`;
+                const w = window as unknown as { __f3CaraLog?: { t: number; cara: string }[] };
+                const log = (w.__f3CaraLog ??= []);
+                if (log[log.length - 1]?.cara !== marca) {
+                    log.push({ t: +performance.now().toFixed(0), cara: marca });
+                }
+            }
             telaDaCara.definir(olho, cenho, q >= 0 ? olhoPiscando(OLHOS_VALIDOS[olho], q) : null);
         },
         definirBoca: (nome: NomeDaBoca) => {

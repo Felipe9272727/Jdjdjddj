@@ -338,6 +338,85 @@ export const CICLO_RISADA: readonly NomeDaBoca[] = Object.freeze([
     'empolgado', 'falando2', 'provocando',
 ]);
 
+// ── OS VISEMAS: A BOCA ACOMPANHA O QUE ELE DIZ ───────────────────────────────
+//
+// O ciclo de doze quadros da ficha resolveu "a boca se mexe muito pouco", mas
+// ele é CEGO: roda igual dizendo "OLHA O TRAÇO" ou "perna-curta". Desenho
+// animado de verdade não faz isso — desde os anos 30 a boca é montada por
+// VISEMA, uma forma por som, e é isso que faz parecer que o personagem está
+// dizendo aquilo e não mexendo a boca.
+//
+// A segunda ficha do Felipe já traz as formas com nome de som ("CH", "SH",
+// "TH", "LÍNGUA 1", "FECHADA"), então a tabela abaixo é a ficha dele lida como
+// alfabeto. As vogais mandam (é o que abre a boca); as consoantes de lábio
+// fechado (M, B, P) são as que dão o ESTALO, porque fechar a boca no meio de
+// uma frase é o que o olho lê como consoante.
+//
+// Não há fonética séria aqui e nem precisa haver: a voz dele é um trombone, não
+// fala português. O que precisa bater é o RITMO — boca fechando onde a palavra
+// fecha.
+const VISEMA: Readonly<Record<string, NomeDaBoca>> = Object.freeze({
+    a: 'falando2',          // aberta e larga
+    á: 'falando2', à: 'falando2', â: 'falando2', ã: 'falando2',
+    e: 'dentesDebochados',  // larga, menos aberta — a fileira de dentes aparece
+    é: 'dentesDebochados', ê: 'dentesDebochados',
+    i: 'sorrisoIronico',    // fresta larga
+    í: 'sorrisoIronico',
+    o: 'falando4',          // redonda
+    ó: 'falando4', ô: 'falando4', õ: 'falando4',
+    u: 'falando3',          // redonda e pequena
+    ú: 'falando3',
+    m: 'fechadoSarcastico', b: 'fechadoSarcastico', p: 'fechadoSarcastico',
+    f: 'grinhoLateral', v: 'grinhoLateral',        // dente no lábio
+    s: 'falando5', z: 'falando5', c: 'falando5', ç: 'falando5',
+    x: 'falando6', j: 'falando6', g: 'falando6',   // o "CH/SH" da ficha
+    l: 'provocando', n: 'provocando',              // a "LÍNGUA" da ficha
+    r: 'falando1', t: 'falando1', d: 'falando1', h: 'falando1',
+    k: 'falando6', q: 'falando6', w: 'falando2', y: 'sorrisoIronico',
+});
+
+/** A boca de uma letra. Devolve `null` para o que não é letra (pontuação). */
+export function bocaDaLetra(letra: string): NomeDaBoca | null {
+    return VISEMA[letra.toLowerCase()] ?? null;
+}
+
+/**
+ * A sequência de bocas de uma palavra, uma por letra que vale desenho.
+ *
+ * Letras iguais seguidas viram UMA (ninguém desenha o mesmo quadro duas vezes),
+ * e palavra sem letra nenhuma cai no ciclo cego, que continua ali de reserva.
+ */
+export function visemasDaPalavra(palavra: string): NomeDaBoca[] {
+    const fora: NomeDaBoca[] = [];
+    for (const ch of palavra) {
+        const v = bocaDaLetra(ch);
+        if (v && v !== fora[fora.length - 1]) fora.push(v);
+    }
+    return fora;
+}
+
+/**
+ * Os visemas da FALA INTEIRA, em fila.
+ *
+ * A primeira tentativa foi por palavra, e não podia funcionar: as notas do
+ * trombone são de 0,1 s e caem a cada 0,075 s, enquanto um quadro desenhado dura
+ * 0,125 s — há MENOS quadros do que palavras. Cada palavra ganhava um quadro e
+ * as letras dela nunca tocavam em ordem.
+ *
+ * Quem tem tempo é o BALÃO: três segundos, vinte e quatro quadros. Então a boca
+ * soletra a frase inteira ao longo dele, que é o que desenho animado faz — e o
+ * que faz parecer que ele está dizendo aquilo, e não mexendo a boca.
+ */
+export function visemasDaFala(voz: Voz): NomeDaBoca[] {
+    const fora: NomeDaBoca[] = [];
+    for (const b of voz.blats) {
+        for (const v of visemasDaPalavra(b.palavra)) {
+            if (v !== fora[fora.length - 1]) fora.push(v);
+        }
+    }
+    return fora;
+}
+
 /**
  * Qual boca no quadro `quadroNaNota` da nota `indiceDaNota`.
  *
@@ -346,9 +425,21 @@ export const CICLO_RISADA: readonly NomeDaBoca[] = Object.freeze([
  * O QUADRO escolhe onde no ciclo. O índice da nota entra como fase, para duas
  * palavras seguidas não começarem no mesmo desenho.
  */
-export function bocaDaNota(indiceDaNota: number, acento: boolean, quadroNaNota = 0): NomeDaBoca {
+export function bocaDaNota(
+    indiceDaNota: number, acento: boolean, quadroNaNota = 0, fila: readonly NomeDaBoca[] = [],
+): NomeDaBoca {
+    const q = Math.max(0, Math.floor(quadroNaNota));
+    // A FALA MANDA, quando há letras: o desenho soletra o que ele diz.
+    if (fila.length) {
+        const v = fila[q % fila.length];
+        // O acento continua ABRINDO: a letra escolhe a forma, o grito escolhe o
+        // tamanho. Se a letra caiu numa boca fechada e ele está gritando, a boca
+        // abre — ninguém grita de boca fechada.
+        if (acento && !BOCAS[v].cheia) return CICLO_DEBOCHE[q % CICLO_DEBOCHE.length];
+        return v;
+    }
     const ciclo = acento ? CICLO_DEBOCHE : CICLO_FALA;
-    const i = Math.floor(indiceDaNota) + Math.max(0, Math.floor(quadroNaNota));
+    const i = Math.floor(indiceDaNota) + q;
     return ciclo[((i % ciclo.length) + ciclo.length) % ciclo.length];
 }
 
@@ -541,5 +632,5 @@ export function bocaNoInstante(
     // boca troca oito vezes por segundo, tenha nota soando ou não. Nos vãos
     // entre palavras ela usa o ciclo normal — só escancara onde de fato grita.
     const gritando = t < b.t + b.dur && b.acento;
-    return bocaDaNota(i, gritando, quadroDaBoca(t));
+    return bocaDaNota(i, gritando, quadroDaBoca(t), visemasDaFala(voz));
 }
