@@ -30,9 +30,23 @@ const MARGEM = 0.74;
 const TINTA = '#141014';
 const CREME = '#f7f3ea';
 
+// ── A ESCALA É A MESMA NOS DOIS EIXOS ────────────────────────────────────────
+//
+// Ela não era, e esse foi o defeito que a ficha inteira numa foto entregou: x
+// usava `LARG/2` e y usava `ALT/2`. Num canvas de 192x128 isso são 71 px por
+// unidade na largura e 47 na altura — toda boca chegava à cara 50% mais
+// achatada do que o desenho. As folhas do Felipe são de bocas ABERTAS, altas
+// (o F5 dele é quase 2:1, o F8 é quase redondo), e as minhas saíam frestas.
+//
+// Agora o passo é o mesmo nos dois eixos, e a caixa no rosto tem a proporção do
+// canvas (ver `BOCA_LARGURA` em `diabreteRig`), então o que se desenha aqui é o
+// que aparece lá. O preço é que o eixo y só usa ±ALT/LARG = ±0,67 do quadro
+// normalizado — sobra de folha, não de desenho.
+const PASSO = (LARG / 2) * MARGEM;
+
 function paraTela(p: { x: number; y: number }): [number, number] {
     // y do desenho aponta para cima; o canvas aponta para baixo.
-    return [LARG / 2 + p.x * (LARG / 2) * MARGEM, ALT / 2 - p.y * (ALT / 2) * MARGEM];
+    return [LARG / 2 + p.x * PASSO, ALT / 2 - p.y * PASSO];
 }
 
 function traçarCaminho(c: CanvasRenderingContext2D, pts: { x: number; y: number }[], fechar: boolean) {
@@ -93,49 +107,89 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
         c.lineWidth = 5;
         c.stroke();
 
-        // Os dentes são CREME sobre a tinta — é assim que a ficha dele desenha:
-        // não são objetos, são o vazio entre riscos.
+        // ── ONDE A FORMA COMEÇA E ACABA ──────────────────────────────────────
+        // Isto aqui era um defeito e a ficha inteira numa foto o entregou: os
+        // dentes e a goela eram ancorados no TOPO e no PÉ DA CAIXA (`y = ±1`),
+        // e nenhuma boca desta ficha chega perto disso — a maior abre 0,44. O
+        // resultado é que eles caíam fora do recorte da boca e simplesmente não
+        // apareciam: onze das vinte e sete bocas saíam como cunhas pretas lisas,
+        // sem dente nenhum. Agora a âncora é a própria forma.
+        const ys = forma.caminho.map((q) => q.y);
+        const topoDaForma = paraTela({ x: 0, y: Math.max(...ys) })[1];
+        const peDaForma = paraTela({ x: 0, y: Math.min(...ys) })[1];
+        const alturaDaForma = peDaForma - topoDaForma;
+
+        // ── A GOELA ──────────────────────────────────────────────────────────
+        // Nas duas fichas novas, boca aberta dele NUNCA é um buraco preto
+        // chapado: tem o fundo claro aparecendo embaixo (F5, F8, F9, 2C, 2F).
+        // É o que dá profundidade e o que faltava para as bocas grandes não
+        // virarem manchas. Vai por baixo dos dentes e recortada pela boca.
+        if (forma.goela > 0) {
+            c.save();
+            traçarCaminho(c, forma.caminho, true);
+            c.clip();
+            c.fillStyle = CREME;
+            c.beginPath();
+            c.ellipse(LARG / 2 + LARG * 0.04, peDaForma,
+                LARG * 0.16 * forma.goela + LARG * 0.06, alturaDaForma * 0.55 * forma.goela,
+                0, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+
+        // ── OS DENTES ────────────────────────────────────────────────────────
+        // Creme sobre a tinta, pendurados na gengiva de CIMA — é assim que as
+        // duas fichas desenham. E num PEDAÇO da largura (`dentesDe`/`dentesAte`),
+        // não na largura toda: dente de ponta a ponta lê como dentadura, dente
+        // num pedaço lê como canto da boca levantado.
         if (forma.dentes > 0) {
             c.save();
             traçarCaminho(c, forma.caminho, true);
             c.clip();
-            const topo = paraTela({ x: 0, y: 1 })[1];
-            const meio = ALT / 2;
+            const topo = topoDaForma;
             c.fillStyle = CREME;
-            const largura = LARG * MARGEM;
-            const passo = largura / forma.dentes;
+            const largura = 2 * PASSO;
+            const x0 = LARG / 2 - largura / 2 + largura * forma.dentesDe;
+            const faixa = largura * (forma.dentesAte - forma.dentesDe);
+            const passo = faixa / forma.dentes;
             for (let i = 0; i < forma.dentes; i++) {
-                const x = LARG / 2 - largura / 2 + i * passo;
+                const x = x0 + i * passo;
                 if (forma.presas) {
                     // Presa: triângulo pendurado da gengiva de cima.
                     c.beginPath();
                     c.moveTo(x, topo);
                     c.lineTo(x + passo, topo);
-                    c.lineTo(x + passo / 2, meio + ALT * 0.10);
+                    c.lineTo(x + passo / 2, topo + alturaDaForma * 0.62);
                     c.closePath();
                     c.fill();
                 } else {
-                    c.fillRect(x + 1.5, topo, passo - 3, ALT * 0.30);
+                    c.fillRect(x + 1.2, topo, Math.max(1, passo - 2.4), alturaDaForma * 0.52);
                 }
             }
             // e o risco entre um dente e outro
             c.strokeStyle = TINTA;
-            c.lineWidth = 3;
+            c.lineWidth = 2.5;
             for (let i = 1; i < forma.dentes; i++) {
-                const x = LARG / 2 - largura / 2 + i * passo;
-                c.beginPath(); c.moveTo(x, topo); c.lineTo(x, meio + ALT * 0.12); c.stroke();
+                const x = x0 + i * passo;
+                c.beginPath(); c.moveTo(x, topo); c.lineTo(x, topo + alturaDaForma * 0.55); c.stroke();
             }
             c.restore();
         }
 
         if (forma.lingua) {
-            // Língua para fora, por baixo da boca — a "provocando" da ficha.
+            // ── A LÍNGUA DE FORA (3F da ficha) ───────────────────────────────
+            // Ela PENDURA do lábio de baixo, no lado que sobe, e encosta na
+            // boca. Solta no ar — que foi como saiu na primeira ficha
+            // fotografada — vira uma bolinha ao lado do rosto, não uma língua.
+            // Então o centro fica ABAIXO do pé da forma e o corpo dela sobe até
+            // entrar na boca.
             c.save();
             c.fillStyle = CREME;
             c.strokeStyle = TINTA;
-            c.lineWidth = 6;
+            c.lineWidth = 5;
             c.beginPath();
-            c.ellipse(LARG / 2 + LARG * 0.06, ALT / 2 + ALT * 0.22, LARG * 0.11, ALT * 0.15, 0.2, 0, Math.PI * 2);
+            c.ellipse(LARG / 2 + PASSO * 0.26, peDaForma + alturaDaForma * 0.22,
+                PASSO * 0.16, alturaDaForma * 0.50, 0.30, 0, Math.PI * 2);
             c.fill(); c.stroke();
             c.restore();
         }
@@ -145,15 +199,15 @@ export function desenharBoca(c: CanvasRenderingContext2D, forma: Forma): void {
         c.strokeStyle = TINTA;
         c.lineWidth = 6;
         c.stroke();
-        // Os "dentes" de uma boca fechada são os risquinhos do sorriso irônico.
+        // Os "dentes" de uma boca fechada são os risquinhos do canto da boca.
         if (forma.dentes > 0) {
-            c.lineWidth = 3;
-            const largura = LARG * MARGEM * 0.55;
-            const passo = largura / forma.dentes;
-            for (let i = 1; i < forma.dentes; i++) {
-                const x = LARG / 2 - largura / 2 + i * passo;
-                const [, y] = paraTela(forma.traco[Math.floor((i / forma.dentes) * (forma.traco.length - 1))]);
-                c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - ALT * 0.09); c.stroke();
+            c.lineWidth = 2.5;
+            const n = forma.traco.length - 1;
+            for (let i = 0; i < forma.dentes; i++) {
+                const t = forma.dentesDe + ((i + 0.5) / forma.dentes) * (forma.dentesAte - forma.dentesDe);
+                const p = forma.traco[Math.min(n, Math.max(0, Math.round(t * n)))];
+                const [x, y] = paraTela(p);
+                c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - ALT * 0.08); c.stroke();
             }
         }
     }

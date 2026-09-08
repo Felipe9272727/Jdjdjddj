@@ -27,7 +27,7 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { f3Fala } from './f3Falas';
 import { vozDoDiabrete } from './f3Voz';
-import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
 import { quadroDaPose } from './f3Pose';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
@@ -160,9 +160,13 @@ const Floor3Rival: React.FC = () => {
             // Tonto tem cara de tonto; fora isso, a cara é a do ponto do arco
             // em que ele está (ver `expressaoDoDiabrete`, que usa o MESMO
             // `brushes` do chão, da voz e da trilha).
-            const repouso: NomeDaBoca = isDizzy()
+            const base: NomeDaBoca = isDizzy()
                 ? 'surpreso'
                 : expressaoDoDiabrete('provoca', f3Progress.brushes);
+            // O RESPIRO. Sem ele a boca só se mexia com balão no ar, e balão no
+            // ar é a minoria do tempo em que ele aparece — era metade do "a boca
+            // dele se mexe muito pouco".
+            const repouso = bocaOciosa(base, t);
             const nova = vozDaFala.current
                 ? bocaNoInstante(vozDaFala.current, t - t0DaFala.current, repouso,
                     duraDaFala.current)

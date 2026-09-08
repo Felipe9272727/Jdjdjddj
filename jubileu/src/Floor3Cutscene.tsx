@@ -23,7 +23,7 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
 import { playFloor3Voice } from './floor3Sfx';
 import { vozDoDiabrete } from './f3Voz';
-import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
 // ARM_REST vem de `f3Pose` junto com a atuação: era declarado aqui TAMBÉM,
 // e dois donos do mesmo número é como uma pose passa a discordar da outra.
 import { poseDoGesto, quadroDaPose, tempoDaPose, POSE_HZ, ARM_REST } from './f3Pose';
@@ -212,7 +212,10 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         const qb = quadroDaBoca(clock.current);
         if (qb !== quadroBoca.current) {
             quadroBoca.current = qb;
-            const repouso: NomeDaBoca = expressaoDoDiabrete('apresentacao', 0);
+            // O RESPIRO da boca parada: nas linhas do JOGADOR, e nos vãos entre
+            // as falas dele, a cara do Diabrete ficava congelada em cena — e a
+            // apresentação é justamente onde ele aparece maior na tela.
+            const repouso = bocaOciosa(expressaoDoDiabrete('apresentacao', 0), clock.current);
             const nova = vozDaLinha.current
                 ? bocaNoInstante(vozDaLinha.current, clock.current - tLinha.current, repouso,
                     DIABRETE_SCRIPT[li]?.dur ?? 0)

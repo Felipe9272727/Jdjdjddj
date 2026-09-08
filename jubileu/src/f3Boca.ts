@@ -36,9 +36,15 @@ import { BOIL_HZ } from './f3Tinta';
 import type { Voz } from './f3Voz';
 
 export type NomeDaBoca =
-    | 'neutra' | 'sorriso' | 'sorrisoIronico' | 'deboche' | 'falando1' | 'falando2'
+    // O ciclo de fala da segunda ficha, F1 a F12, com os nomes dele
+    | 'fechadoSarcastico' | 'sorriso' | 'falando1' | 'sorrisoIronico'
+    | 'falando2' | 'dentesDebochados' | 'falando3' | 'falando4'
+    | 'risadaIronica' | 'falando5' | 'falando6' | 'fechadoSatisfeito'
+    // os extras da primeira folha
+    | 'neutra' | 'grinhoLateral' | 'deboche' | 'provocando' | 'pensativo'
+    // e o arco do andar, que não é de fala
     | 'feliz' | 'empolgado' | 'bravo' | 'irritado' | 'surpreso' | 'assustado'
-    | 'triste' | 'desanimado' | 'confuso' | 'pensativo' | 'zangado' | 'provocando';
+    | 'triste' | 'desanimado' | 'confuso' | 'zangado';
 
 export interface Ponto { x: number; y: number }
 
@@ -49,12 +55,39 @@ export interface Forma {
     traco: Ponto[];
     /** Boca ABERTA se preenche de tinta; fechada se é só linha. */
     cheia: boolean;
-    /** Quantos dentes, distribuídos na largura. 0 = sem dentes. */
+    /** Quantos dentes. 0 = sem dentes. */
     dentes: number;
     /** Dentes pontudos (zigue-zague de vilão) em vez de retos. */
     presas: boolean;
-    /** Língua de fora — a boca "provocando" da ficha. */
+    /**
+     * Onde a fileira de dentes começa e acaba, em fração da largura.
+     *
+     * Da segunda ficha: os dentes dele quase nunca atravessam a boca inteira —
+     * eles ocupam um PEDAÇO, quase sempre o do lado que sobe (F4, F7, F10, F11).
+     * Dente de ponta a ponta lê como dentadura; dente num pedaço só lê como
+     * canto da boca levantado.
+     */
+    dentesDe: number;
+    dentesAte: number;
+    /**
+     * A GOELA: a mancha creme no fundo da boca aberta, entre 0 e 1.
+     *
+     * É o detalhe que mais aparece nas duas fichas novas (F5, F8, F9, 1D, 2C,
+     * 2F) e o que eu não tinha: uma boca aberta dele não é um buraco preto
+     * chapado, é um buraco preto com o fundo claro aparecendo embaixo. Sem isso
+     * as bocas grandes viravam manchas.
+     */
+    goela: number;
+    /** Língua PARA FORA — a "3F / língua de fora" da ficha. */
     lingua: boolean;
+    /**
+     * O BICO: -1 afina a ponta esquerda até virar um espeto, +1 a direita.
+     *
+     * As bocas da ficha nova não são lentes simétricas — quase toda uma delas é
+     * uma CUNHA, fina de um lado e cheia do outro (F3, F5, F7, F10). Era isso
+     * que fazia as minhas parecerem bocas de boneco: simetria.
+     */
+    bico: number;
     /** Inclinação em graus. O irônico é TORTO, e é o torto que faz o personagem. */
     inclinacao: number;
 }
@@ -83,66 +116,118 @@ export const TORTO = 0.16;
  * Arco de parábola de `-1..1`, com flecha `f` (positiva sobe nas pontas) e
  * `torto` erguendo a ponta direita (o canto da boca do sorriso irônico).
  */
-function curva(f: number, n = 9, largura = 1, torto = TORTO): Ponto[] {
+function curva(f: number, n = 9, largura = 1, torto = TORTO, bico = 0): Ponto[] {
     const p: Ponto[] = [];
     for (let i = 0; i <= n; i++) {
         const u = -1 + (2 * i) / n;
-        p.push({ x: u * largura, y: f * (1 - u * u) + torto * u });
+        // O BICO afina uma das pontas: com bico=-1 a esquerda vira espeto e a
+        // direita fica cheia, que é o desenho da ficha nova.
+        const afina = bico < 0 ? 1 + bico * (1 - u) / 2 : 1 - bico * (1 + u) / 2;
+        p.push({ x: u * largura, y: f * (1 - u * u) * afina + torto * u });
     }
     return p;
 }
-/** Lente: dois arcos costurados. É a forma de toda boca aberta desta ficha. */
-function lente(largura: number, alto: number, baixo: number, n = 10, torto = TORTO): Ponto[] {
-    const cima = curva(alto, n, largura, torto);
-    const baixoP = curva(-baixo, n, largura, torto).reverse();
+/** Cunha: dois arcos costurados. É a forma de toda boca aberta destas fichas. */
+function lente(largura: number, alto: number, baixo: number,
+    bico = 0, n = 12, torto = TORTO): Ponto[] {
+    const cima = curva(alto, n, largura, torto, bico);
+    const baixoP = curva(-baixo, n, largura, torto, bico).reverse();
     return [...cima, ...baixoP];
 }
 
-const F = (
-    caminho: Ponto[], traco: Ponto[], cheia: boolean,
-    dentes = 0, presas = false, lingua = false, inclinacao = 0,
-): Forma => ({ caminho, traco, cheia, dentes, presas, lingua, inclinacao });
+/**
+ * Um construtor por campo nomeado. Com nove parâmetros posicionais a tabela
+ * virava uma parede de `true, false, 0, 0` e ninguém lia mais o desenho nela.
+ */
+const F = (o: Partial<Forma> & Pick<Forma, 'cheia'>): Forma => ({
+    caminho: [], traco: [], dentes: 0, presas: false,
+    dentesDe: 0, dentesAte: 1, goela: 0, lingua: false, bico: 0, inclinacao: 0, ...o,
+});
 
 /**
- * As dezoito bocas da ficha, na ordem em que ele as desenhou.
+ * ── AS BOCAS, DA SEGUNDA FICHA DO FELIPE ─────────────────────────────────────
  *
- * Os números saíram de LER o desenho dele, não de inventar: as bocas de cima são
- * traços finos e fechados, a fileira do meio é aberta e cheia de dente, e a de
- * baixo volta a ser traço, salvo o "zangado" e o "provocando".
+ * Ele mandou duas folhas novas: "Bocas Irônicas — animação de fala, 12 frames
+ * (ciclo de fala)", com F1 a F12 nomeados um a um, e uma folha de ciclos
+ * (fala irônica sutil de 5, sarcástica de 6, risada maliciosa de 6) mais uma
+ * fileira de extras.
+ *
+ * Três coisas nelas eu não tinha, e são as três que faziam as minhas parecerem
+ * bocas de boneco em vez de bocas dele:
+ *   1. TODA boca sobe para a direita — o que eu já tinha acabado de acertar por
+ *      medição (`TORTO`), e as duas folhas confirmam em vinte e tantos desenhos;
+ *   2. quase nenhuma é simétrica: são CUNHAS, espeto de um lado (`bico`);
+ *   3. boca aberta tem GOELA — o fundo claro aparecendo por baixo do preto — e
+ *      os dentes ocupam um PEDAÇO da largura, não a largura toda.
+ *
+ * Os nomes de F1..F12 são os dele. Os do arco do andar (`feliz`, `assustado`,
+ * `triste`…) continuam, porque são eles que `expressaoDoDiabrete` usa para
+ * contar a história dos três pincéis — as folhas novas são de FALA, não de arco.
  */
-// ── A INCLINAÇÃO ENCOLHEU PELA METADE ────────────────────────────────────────
-// Antes do `torto`, quem fazia o sorriso parecer irônico era GIRAR a forma
-// inteira. Agora são os dois juntos, e juntos eles brigavam: o `sorrisoIronico`
-// (o desenho que mais aparece, porque é o repouso) somava 0,16 de cisalhamento a
-// 9° de giro sobre 1,56 de largura e saía uma RISCA ATRAVESSADA na cara — na
-// foto parecia cicatriz, ou cigarro. O cisalhamento é o que faz o canto subir;
-// o giro virou tempero.
 export const BOCAS: Readonly<Record<NomeDaBoca, Forma>> = Object.freeze({
-    // ── fileira 1 da ficha: o registro do dia a dia ──────────────────────────
-    neutra:         F([], curva(0.00, 5, 0.52), false, 0, false, false, 0),
-    sorriso:        F([], curva(-0.22, 9, 0.58), false, 0, false, false, 0),
-    // O repouso é o desenho mais visto do personagem: estreito, boca pequena, o
-    // canto direito erguido pelo `torto` e mais nada por cima.
-    sorrisoIronico: F([], curva(-0.24, 9, 0.56), false, 3, false, false, -3),
-    deboche:        F(lente(0.66, 0.10, 0.30), [], true, 5, false, false, -6),
-    falando1:       F(lente(0.34, 0.16, 0.16), [], true, 0, false, false, -2),
-    falando2:       F(lente(0.50, 0.30, 0.26), [], true, 0, false, false, -1),
+    // ── O CICLO DE FALA, F1 a F12, na ordem em que ele desenhou ──────────────
+    // F1 — fechado (sarcástico)
+    fechadoSarcastico: F({ cheia: false, traco: curva(-0.20, 11, 0.60) }),
+    // F2 — sorriso de lado
+    sorriso:           F({ cheia: false, traco: curva(-0.26, 11, 0.60), inclinacao: -2 }),
+    // F3 — falando 1: cunha de espeto à esquerda, cheia à direita
+    falando1:          F({ cheia: true, caminho: lente(0.42, 0.10, 0.26, -0.85), goela: 0.30 }),
+    // F4 — sorriso irônico: fresta longa com fileira de dentes, subindo à direita
+    sorrisoIronico:    F({ cheia: true, caminho: lente(0.56, 0.05, 0.13, -0.55),
+        dentes: 6, dentesDe: 0.30, dentesAte: 0.98 }),
+    // F5 — falando 2: boca grande com goela
+    falando2:          F({ cheia: true, caminho: lente(0.50, 0.16, 0.34, 0.35), goela: 0.52 }),
+    // F6 — dentes debochados: sorrisão de dentes quadrados
+    dentesDebochados:  F({ cheia: true, caminho: lente(0.62, 0.06, 0.26, -0.35),
+        dentes: 8, dentesDe: 0.12, dentesAte: 0.96 }),
+    // F7 — falando 3: fresta pontuda, dentes só na ponta que sobe
+    falando3:          F({ cheia: true, caminho: lente(0.44, 0.14, 0.18, 0.70),
+        dentes: 3, dentesDe: 0.05, dentesAte: 0.45 }),
+    // F8 — falando 4: o oval preto de goela funda
+    falando4:          F({ cheia: true, caminho: lente(0.26, 0.30, 0.34), goela: 0.46 }),
+    // F9 — risada irônica: presas e goela, a boca mais aberta do ciclo
+    risadaIronica:     F({ cheia: true, caminho: lente(0.62, 0.10, 0.44, -0.25),
+        dentes: 7, presas: true, dentesDe: 0.08, dentesAte: 0.94, goela: 0.42 }),
+    // F10 — falando 5: triângulo com dentes na metade direita
+    falando5:          F({ cheia: true, caminho: lente(0.46, 0.08, 0.22, -0.80),
+        dentes: 4, dentesDe: 0.40, dentesAte: 0.96 }),
+    // F11 — falando 6: aberta média, dentes no canto de cima
+    falando6:          F({ cheia: true, caminho: lente(0.44, 0.12, 0.28, -0.30),
+        dentes: 3, dentesDe: 0.50, dentesAte: 0.98, goela: 0.24 }),
+    // F12 — fechado (satisfeito)
+    fechadoSatisfeito: F({ cheia: false, traco: curva(-0.24, 11, 0.58), dentes: 3,
+        dentesDe: 0.45, dentesAte: 0.95 }),
 
-    // ── fileira 2: as emoções grandes ────────────────────────────────────────
-    feliz:          F(lente(0.76, 0.06, 0.46), [], true, 6, false, false, 0),
-    empolgado:      F(lente(0.80, 0.08, 0.50), [], true, 7, true, false, 0),
-    bravo:          F(lente(0.66, 0.26, 0.10), [], true, 5, false, false, 0),
-    irritado:       F(lente(0.58, 0.30, 0.06), [], true, 4, true, false, 5),
-    surpreso:       F(lente(0.30, 0.36, 0.36), [], true, 0, false, false, 0),
-    assustado:      F(lente(0.34, 0.48, 0.22), [], true, 3, true, false, 0),
+    // ── OS EXTRAS DA PRIMEIRA FOLHA ──────────────────────────────────────────
+    neutra:        F({ cheia: false, traco: curva(0.00, 5, 0.50) }),
+    grinhoLateral: F({ cheia: true, caminho: lente(0.50, 0.04, 0.14, -0.60),
+        dentes: 5, dentesDe: 0.35, dentesAte: 0.98 }),
+    deboche:       F({ cheia: true, caminho: lente(0.56, 0.08, 0.26, -0.45),
+        dentes: 5, dentesDe: 0.20, dentesAte: 0.95, goela: 0.20, inclinacao: -4 }),
+    provocando:    F({ cheia: true, caminho: lente(0.46, 0.10, 0.26, -0.30),
+        lingua: true, goela: 0.18, inclinacao: -3 }),
+    pensativo:     F({ cheia: false, traco: curva(-0.06, 5, 0.32), inclinacao: 7 }),
 
-    // ── fileira 3: o registro baixo ──────────────────────────────────────────
-    triste:         F([], curva(0.20, 9, 0.54), false, 0, false, false, 0),
-    desanimado:     F([], curva(0.16, 9, 0.56), false, 2, false, false, -3),
-    confuso:        F([], curva(0.10, 7, 0.38), false, 0, false, false, -7),
-    pensativo:      F([], curva(-0.06, 5, 0.34), false, 0, false, false, 8),
-    zangado:        F(lente(0.70, 0.14, 0.14), [], true, 8, false, false, 0),
-    provocando:     F(lente(0.50, 0.14, 0.28), [], true, 0, false, true, -4),
+    // ── O ARCO DO ANDAR: as caras que contam a história dos três pincéis ─────
+    // Estas não estão nas folhas de FALA porque não são de fala. Ganharam bico e
+    // goela junto, para não destoarem do resto.
+    feliz:      F({ cheia: true, caminho: lente(0.60, 0.05, 0.36, -0.35),
+        dentes: 6, dentesDe: 0.10, dentesAte: 0.95, goela: 0.30 }),
+    empolgado:  F({ cheia: true, caminho: lente(0.64, 0.07, 0.40, -0.30),
+        dentes: 7, presas: true, dentesDe: 0.06, dentesAte: 0.96, goela: 0.34 }),
+    bravo:      F({ cheia: true, caminho: lente(0.54, 0.24, 0.08, 0.30),
+        dentes: 5, dentesDe: 0.10, dentesAte: 0.90 }),
+    irritado:   F({ cheia: true, caminho: lente(0.48, 0.26, 0.05, 0.45),
+        dentes: 4, presas: true, dentesDe: 0.10, dentesAte: 0.90, inclinacao: 4 }),
+    surpreso:   F({ cheia: true, caminho: lente(0.26, 0.30, 0.30), goela: 0.40 }),
+    assustado:  F({ cheia: true, caminho: lente(0.30, 0.40, 0.20, 0.20),
+        dentes: 3, presas: true, dentesDe: 0.15, dentesAte: 0.85, goela: 0.26 }),
+    triste:     F({ cheia: false, traco: curva(0.20, 9, 0.48) }),
+    desanimado: F({ cheia: false, traco: curva(0.16, 9, 0.50), dentes: 2,
+        dentesDe: 0.4, dentesAte: 0.9, inclinacao: -2 }),
+    confuso:    F({ cheia: false, traco: curva(0.10, 7, 0.34), inclinacao: -6 }),
+    zangado:    F({ cheia: true, caminho: lente(0.56, 0.12, 0.12, -0.20),
+        dentes: 8, dentesDe: 0.06, dentesAte: 0.96 }),
 });
 
 export const NOMES_DAS_BOCAS = Object.keys(BOCAS) as NomeDaBoca[];
@@ -192,23 +277,54 @@ export const BOCA_EM_REPOUSO: NomeDaBoca = 'sorrisoIronico';
  * Os ciclos têm QUATRO passos e nenhum passo repete o vizinho: cada 1/8 de
  * segundo o desenho muda de verdade.
  */
-// Nenhum passo repete o vizinho, INCLUSIVE na volta do ciclo — senão, uma vez a
-// cada quatro quadros, o desenho ficava parado por 1/4 de segundo e voltava o
-// defeito em miniatura.
-// O `sorrisoIronico` no meio do ciclo normal não é enfeite: é o quadro FECHADO
-// que faz leitura de consoante em desenho animado, e de quebra é o sorriso
-// torto dele piscando no meio da própria fala.
-const FALA_NORMAL: readonly NomeDaBoca[] = ['falando1', 'falando2', 'sorrisoIronico', 'deboche'];
-const FALA_ACENTO: readonly NomeDaBoca[] = ['deboche', 'empolgado', 'falando2', 'surpreso'];
+// ── OS CICLOS SÃO DELE, NÃO MEUS ─────────────────────────────────────────────
+//
+// A segunda ficha não manda só as formas: manda a ORDEM. Ela se chama "animação
+// de fala — 12 frames (ciclo de fala)" e numera F1 a F12. A primeira folha traz
+// mais três ciclos, com nome e contagem: fala irônica sutil (5), fala sarcástica
+// / deboche (6), risada maliciosa / provocação (6).
+//
+// Eu tinha inventado um ciclo de quatro. O dele tem doze, e é por isso que
+// funciona melhor: um ciclo de quatro a 8 Hz se repete duas vezes por segundo e
+// o olho pega o padrão; um de doze leva um segundo e meio para voltar, e nesse
+// tempo já mudou de palavra.
+export const CICLO_FALA: readonly NomeDaBoca[] = Object.freeze([
+    'fechadoSarcastico', 'sorriso', 'falando1', 'sorrisoIronico',
+    'falando2', 'dentesDebochados', 'falando3', 'falando4',
+    'risadaIronica', 'falando5', 'falando6', 'fechadoSatisfeito',
+]);
 
+/** Folha 1, quadro 1: "fala irônica (sutil)", 5 frames. O registro de conversa. */
+export const CICLO_SUTIL: readonly NomeDaBoca[] = Object.freeze([
+    'fechadoSarcastico', 'falando1', 'falando3', 'falando4', 'falando6',
+]);
+
+/** Folha 1, quadro 2: "fala sarcástica / deboche", 6 frames. O acento da fala. */
+export const CICLO_DEBOCHE: readonly NomeDaBoca[] = Object.freeze([
+    'grinhoLateral', 'dentesDebochados', 'risadaIronica',
+    'sorrisoIronico', 'falando5', 'falando4',
+]);
+
+/** Folha 1, quadro 3: "risada maliciosa / provocação", 6 frames. */
+export const CICLO_RISADA: readonly NomeDaBoca[] = Object.freeze([
+    'sorriso', 'dentesDebochados', 'risadaIronica',
+    'empolgado', 'falando2', 'provocando',
+]);
+
+/**
+ * Qual boca no quadro `quadroNaNota` da nota `indiceDaNota`.
+ *
+ * A NOTA escolhe o ciclo — o acento (palavra em CAIXA ALTA na fala) troca o
+ * sutil pelo sarcástico, então ele continua escancarando exatamente onde grita.
+ * O QUADRO escolhe onde no ciclo. O índice da nota entra como fase, para duas
+ * palavras seguidas não começarem no mesmo desenho.
+ */
 export function bocaDaNota(indiceDaNota: number, acento: boolean, quadroNaNota = 0): NomeDaBoca {
-    const ciclo = acento ? FALA_ACENTO : FALA_NORMAL;
-    // A nota entra como FASE: notas seguidas não começam na mesma boca, senão o
-    // ciclo vira um piscar regular — o defeito que ele apontou, só que mais
-    // rápido.
+    const ciclo = acento ? CICLO_DEBOCHE : CICLO_FALA;
     const i = Math.floor(indiceDaNota) + Math.max(0, Math.floor(quadroNaNota));
     return ciclo[((i % ciclo.length) + ciclo.length) % ciclo.length];
 }
+
 
 /**
  * O vocabulário INTEIRO da ficha, e não um canto dele.
@@ -254,14 +370,21 @@ export function expressaoDoDiabrete(
 
         // ── OS QUE FALTAVAM TER CARA ─────────────────────────────────────
         case 'ocioso':          return 'provocando';    // língua de fora, sem ninguém por perto
-        case 'quaseLaEmCima':   return 'sorriso';       // vantagem confortável
+        // "ELE TINHA QUE SEMPRE SORRIR IRONICAMENTE", disse o dono do jogo. Os
+        // dois momentos em que a cara dele era MORNA — a vantagem confortável
+        // (sorriso comum) e o fim de linha (boca neutra) — viraram o sorriso
+        // torto. É o que o personagem faria: com vantagem ele debocha, e
+        // derrotado ele debocha do próprio fim. As duas formas que saíram daqui
+        // continuam desenhadas e continuam aparecendo — vêm pelo RESPIRO
+        // (`TEMPERO`), que é onde toda boca tem uma vizinha.
+        case 'quaseLaEmCima':   return 'sorrisoIronico';
         case 'perdeuOPrimeiro': return 'zangado';       // dentes trincados
         case 'perdeuOUltimo':   return 'triste';
         case 'tonto':           return 'confuso';
         case 'pensando':        return 'pensativo';
         case 'confuso':         return 'desanimado';
         case 'vitorioso':       return 'empolgado';
-        case 'derrotado':       return 'neutra';        // a cara de quem já era
+        case 'derrotado':       return 'sorrisoIronico'; // sorri até no fim
     }
 }
 
@@ -273,6 +396,66 @@ export function expressaoDoDiabrete(
  */
 export const BOCA_HZ = BOIL_HZ;
 export const quadroDaBoca = (t: number) => Math.floor(t * BOCA_HZ);
+
+// ── O RESPIRO: A BOCA PARADA NÃO FICA PARADA ─────────────────────────────────
+/**
+ * O dono do jogo disse duas vezes "a boca dele se mexe muito pouco". A primeira
+ * causa era o relógio da FALA (ver `bocaNoInstante`: o som dura 0,55 s e o balão
+ * três). A segunda é maior e estava escondida atrás dela: **a boca só se mexia
+ * enquanto havia balão no ar.** Fora isso — que é quase todo o tempo em que ele
+ * aparece — era um desenho congelado na cara.
+ *
+ * Boca parada em desenho de 1930 não existe. O personagem respira: de tempos em
+ * tempos a boca dá um pulinho para a vizinha dela e volta. Dois quadros, um
+ * quarto de segundo, e o rosto deixa de ser um adesivo.
+ *
+ * E o pulo SEMPRE VOLTA para o repouso, que é o sorriso torto — que é a outra
+ * coisa que ele pediu, "ele tinha que sempre sorrir ironicamente". O respiro não
+ * troca a cara dele, ele reafirma: sorri torto, dá uma risadinha, sorri torto.
+ */
+export const RESPIRO_S = 1.45;
+export const QUADROS_DE_TEMPERO = 2;
+
+/**
+ * A vizinha de cada boca — a que o respiro mostra por dois quadros.
+ *
+ * Não é sorteio: é a forma do MESMO registro. Quem está de sorriso torto dá uma
+ * risadinha (`deboche`); quem está de boca aberta fecha um instante; quem está
+ * assustado passa por `surpreso`. Assim o respiro nunca contradiz a cena —
+ * ninguém sorri no meio de estar pendurado no abismo.
+ */
+const TEMPERO: Readonly<Record<NomeDaBoca, NomeDaBoca>> = Object.freeze({
+    // o ciclo de fala
+    fechadoSarcastico: 'sorriso',      sorriso: 'sorrisoIronico',
+    falando1: 'falando2',              sorrisoIronico: 'dentesDebochados',
+    falando2: 'falando1',              dentesDebochados: 'sorrisoIronico',
+    falando3: 'falando6',              falando4: 'falando2',
+    risadaIronica: 'dentesDebochados', falando5: 'falando3',
+    falando6: 'falando5',              fechadoSatisfeito: 'grinhoLateral',
+    // os extras
+    neutra: 'fechadoSarcastico',       grinhoLateral: 'fechadoSatisfeito',
+    deboche: 'sorrisoIronico',         provocando: 'sorrisoIronico',
+    pensativo: 'confuso',
+    // o arco do andar
+    feliz: 'grinhoLateral',            empolgado: 'risadaIronica',
+    bravo: 'irritado',                 irritado: 'zangado',
+    surpreso: 'falando4',              assustado: 'surpreso',
+    triste: 'neutra',                  desanimado: 'triste',
+    confuso: 'pensativo',              zangado: 'bravo',
+});
+
+/**
+ * A boca no instante `t` quando ele NÃO está falando.
+ *
+ * `fase` desencontra personagens (ou cenas) que estejam na tela juntos: sem ela,
+ * dois Diabretes respirariam no mesmo quadro e o truque apareceria.
+ */
+export function bocaOciosa(repouso: NomeDaBoca, t: number, fase = 0): NomeDaBoca {
+    if (!(t >= 0)) return repouso;
+    const dentroDoCiclo = (t + fase * RESPIRO_S) % RESPIRO_S;
+    const sobra = RESPIRO_S - dentroDoCiclo;
+    return sobra <= QUADROS_DE_TEMPERO / BOCA_HZ ? TEMPERO[repouso] : repouso;
+}
 
 // ── A BOCA SEGUE A VOZ ───────────────────────────────────────────────────────
 /**

@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
     BOCAS, NOMES_DAS_BOCAS, BOCA_EM_REPOUSO, BOCA_HZ,
     bocaDaNota, expressaoDoDiabrete, bocaNoInstante, quadroDaBoca, aberturaDaBoca, TORTO,
+    bocaOciosa, RESPIRO_S, QUADROS_DE_TEMPERO, CICLO_FALA,
     PARTE_FALANDO,
     type MomentoExtra,
     type NomeDaBoca,
@@ -22,8 +23,14 @@ import { vozDoDiabrete } from './f3Voz';
 import { BOIL_HZ } from './f3Tinta';
 
 describe('a ficha inteira está no jogo', () => {
-    it('as dezoito bocas existem', () => {
-        expect(NOMES_DAS_BOCAS).toHaveLength(18);
+    it('as bocas das DUAS fichas existem', () => {
+        // A primeira ficha trazia dezoito. A segunda trouxe o ciclo de fala
+        // numerado (F1..F12) e uma fileira de extras — o vocabulário cresceu, e
+        // este número cresce com ele em vez de travar o desenho novo.
+        expect(NOMES_DAS_BOCAS.length).toBeGreaterThanOrEqual(18);
+        // e o ciclo de doze quadros que ele nomeou está inteiro aqui
+        for (const n of CICLO_FALA) expect(NOMES_DAS_BOCAS).toContain(n);
+        expect(CICLO_FALA).toHaveLength(12);
         for (const n of NOMES_DAS_BOCAS) expect(BOCAS[n]).toBeTruthy();
     });
     it('cada uma tem desenho: ou contorno fechado, ou traço', () => {
@@ -34,9 +41,9 @@ describe('a ficha inteira está no jogo', () => {
             expect(f.cheia ? f.caminho.length > 0 : f.traco.length > 0).toBe(true);
         }
     });
-    it('nenhuma boca é cópia de outra — dezoito nomes, dezoito desenhos', () => {
+    it('nenhuma boca é cópia de outra — um nome, um desenho', () => {
         const impressoes = NOMES_DAS_BOCAS.map(n => JSON.stringify(BOCAS[n]));
-        expect(new Set(impressoes).size).toBe(18);
+        expect(new Set(impressoes).size).toBe(NOMES_DAS_BOCAS.length);
     });
     it('nada sai do quadro normalizado', () => {
         for (const n of NOMES_DAS_BOCAS) {
@@ -58,7 +65,9 @@ describe('o repouso é metade do personagem', () => {
         // Esta asserção cobrava `inclinacao > 4°` e travou o conserto de um
         // defeito real: giro e cisalhamento somados viravam uma risca
         // atravessada na cara. O giro encolheu; a ironia ficou.
-        const t = BOCAS.sorrisoIronico.traco;
+        // O F4 da ficha nova é uma boca ABERTA (fresta com fileira de dentes),
+        // então a régua olha o contorno, não o traço.
+        const t = BOCAS.sorrisoIronico.cheia ? BOCAS.sorrisoIronico.caminho : BOCAS.sorrisoIronico.traco;
         const esq = t.reduce((a, p) => (p.x < a.x ? p : a));
         const dir = t.reduce((a, p) => (p.x > a.x ? p : a));
         expect(dir.y - esq.y).toBeGreaterThan(0.1);
@@ -236,6 +245,52 @@ describe('a ironia está no traço, não na escolha', () => {
     });
 });
 
+// ── BOCA PARADA NÃO FICA PARADA ──────────────────────────────────────────────
+// "a boca dele se mexe muito pouco" — a segunda causa, atrás do relógio da fala:
+// fora do balão ela era um desenho congelado, e fora do balão é quase todo o
+// tempo em que ele aparece.
+describe('o respiro da boca parada', () => {
+    it('a maior parte do tempo ele fica na cara dele', () => {
+        let noRepouso = 0;
+        const passos = Math.round(RESPIRO_S * BOCA_HZ) * 4;
+        for (let q = 0; q < passos; q++) {
+            if (bocaOciosa('sorrisoIronico', q / BOCA_HZ) === 'sorrisoIronico') noRepouso++;
+        }
+        expect(noRepouso / passos).toBeGreaterThan(0.6);
+        expect(noRepouso).toBeLessThan(passos);      // mas NÃO fica parada
+    });
+    it('e o pulinho volta sempre para o sorriso torto', () => {
+        const vistas = new Set<NomeDaBoca>();
+        for (let q = 0; q < RESPIRO_S * BOCA_HZ * 3; q++) vistas.add(bocaOciosa('sorrisoIronico', q / BOCA_HZ));
+        expect(vistas.has('sorrisoIronico')).toBe(true);
+        expect(vistas.size).toBe(2);                 // o repouso e a vizinha dele
+    });
+    it('o respiro nunca contradiz a cena — pendurado no abismo ele não sorri', () => {
+        const vistas = new Set<NomeDaBoca>();
+        for (let q = 0; q < RESPIRO_S * BOCA_HZ * 3; q++) vistas.add(bocaOciosa('assustado', q / BOCA_HZ));
+        for (const n of vistas) {
+            expect(['assustado', 'surpreso']).toContain(n);
+        }
+    });
+    it('toda boca da ficha tem vizinha, e a vizinha existe', () => {
+        for (const n of NOMES_DAS_BOCAS) {
+            const v = bocaOciosa(n as NomeDaBoca, RESPIRO_S - 0.01);
+            expect(NOMES_DAS_BOCAS).toContain(v);
+            expect(v).not.toBe(n);
+        }
+    });
+    it('a fase desencontra dois personagens na mesma tela', () => {
+        const a = bocaOciosa('sorrisoIronico', RESPIRO_S - 0.01, 0);
+        const b = bocaOciosa('sorrisoIronico', RESPIRO_S - 0.01, 0.5);
+        expect(a).not.toBe(b);
+    });
+    it('tempo inválido não trava a cara', () => {
+        for (const t of [-1, NaN, Infinity]) {
+            expect(NOMES_DAS_BOCAS).toContain(bocaOciosa('sorrisoIronico', t));
+        }
+    });
+});
+
 // ── NENHUMA FORMA DA FICHA FICA NA GAVETA ────────────────────────────────────
 // O dono do jogo jogou e disse "tem poucas expressões". Estava certo: as
 // dezoito estavam desenhadas e o jogo usava seis. Forma que nunca aparece é
@@ -256,6 +311,10 @@ describe('as dezoito formas são alcançáveis em jogo', () => {
             alcancadas.add(bocaDaNota(0, false, q));
             alcancadas.add(bocaDaNota(0, true, q));
         }
+        // e o RESPIRO alcança a vizinha de cada uma: é por aqui que `sorriso` e
+        // `neutra` continuam aparecendo depois que os momentos mornos viraram
+        // sorriso torto.
+        for (const n of [...alcancadas]) alcancadas.add(bocaOciosa(n, RESPIRO_S - 0.01));
 
         const naGaveta = NOMES_DAS_BOCAS.filter(n => !alcancadas.has(n));
         expect(naGaveta).toEqual([]);

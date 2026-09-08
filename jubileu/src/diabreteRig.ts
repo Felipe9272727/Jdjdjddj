@@ -94,7 +94,13 @@ export interface DiabreteRig {
 // foto: nesse tamanho os contornos grossos fecham o desenho e todo mundo vira um
 // risco escuro. Na ficha dele as bocas abertas ocupam quase metade da largura da
 // cara — que aqui tem ~0,40 de largura.
-const BOCA_LARGURA = 0.245;
+// A CAIXA TEM A PROPORÇÃO DO CANVAS, e é por isso que ela é 0,218 e não 0,245.
+// O desenho nasce num canvas de 192x128 (proporção 1,5) e é esticado para a
+// caixa; com a caixa em 0,245 x 0,145 (proporção 1,69) toda boca chegava ao
+// rosto 13% mais achatada do que na folha do Felipe — e as folhas dele são de
+// bocas ABERTAS, altas. Com 0,218 x 0,145 a proporção fecha e o desenho chega
+// como foi desenhado.
+const BOCA_LARGURA = 0.218;
 // A caixa encolheu na ALTURA (0,165 -> 0,145) e desceu um fio. Medido, não
 // chutado: com a pose congelada (`?parado`) e a régua da própria cara
 // (`bancada-navegador/medir-a-cara.mjs`, 0 no queixo, 1 no alto da cabeça), a

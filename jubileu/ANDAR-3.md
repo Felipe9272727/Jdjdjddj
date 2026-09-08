@@ -4,6 +4,45 @@ Uma página, para não ter que ler quarenta commits.
 
 ---
 
+## A boca, volta 42 — a segunda ficha do Felipe
+
+Ele mandou duas folhas novas: **"Bocas Irônicas — animação de fala, 12 frames
+(ciclo de fala)"**, com F1 a F12 nomeados um a um, e uma folha de ciclos (fala
+irônica sutil 5, sarcástica/deboche 6, risada maliciosa 6) mais extras.
+
+Três coisas nelas eu não tinha, e eram as três que faziam as minhas parecerem
+bocas de boneco:
+
+1. **Toda boca sobe para a direita.** Isso eu tinha acabado de acertar por
+   medição na volta 41 (`TORTO`); as folhas confirmam em vinte e tantos desenhos.
+2. **Quase nenhuma é simétrica** — são CUNHAS, espeto de um lado e cheias do
+   outro. Virou o campo `bico`.
+3. **Boca aberta tem GOELA** (o fundo claro por baixo do preto) e os dentes
+   ocupam um PEDAÇO da largura, não a largura toda. Viraram `goela` e
+   `dentesDe`/`dentesAte`.
+
+O ciclo de fala agora é o dele, doze quadros, na ordem que ele numerou. Um ciclo
+de quatro a 8 Hz se repete duas vezes por segundo e o olho pega o padrão; o de
+doze leva um segundo e meio para voltar. Medido na bancada: **13 formas
+distintas numa fala**, onde antes eram 4.
+
+**Duas ferramentas novas, e uma delas achou dois defeitos sozinha.**
+`bancada-navegador/ficha-de-bocas.html` desenha as vinte e sete bocas com o
+MESMO pincel do jogo, do tamanho da folha dele, e `a-ficha-inteira.mjs`
+fotografa tudo numa rodada. A primeira foto mostrou na hora o que seis minutos
+de bancada por boca nunca mostraram:
+
+- **os dentes e a goela não desenhavam em onze das vinte e sete bocas** — eles
+  eram ancorados no topo e no pé da CAIXA (`y = ±1`) e nenhuma boca chega perto
+  disso (a maior abre 0,44), então caíam fora do recorte;
+- **tudo saía 50% achatado**, porque o pincel usava `LARG/2` em x e `ALT/2` em y
+  — 71 px por unidade na largura contra 47 na altura. Agora o passo é o mesmo nos
+  dois eixos e a caixa no rosto tem a proporção do canvas (`BOCA_LARGURA` caiu
+  para 0,218).
+
+Conferido depois na cara, com a régua de sempre: toda forma fica em
+0,083..0,244 e a nareba (0,333) sobrevive em todas.
+
 ## A boca, volta 41 — a nareba e o "se mexe muito pouco"
 
 Duas coisas que o dono do jogo apontou jogando, e as duas eram reais.
