@@ -22,6 +22,8 @@ import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
 import { playFloor3Voice } from './floor3Sfx';
+import { vozDoDiabrete } from './f3Voz';
+import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
 import { f3PlayerZ } from './f3Parkour';
 import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
@@ -59,6 +61,8 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const dashPos  = useRef(new THREE.Vector3().copy(STAND));
     // Qual fala está no ar e quando ela entrou — é a troca que dispara o CORTE.
     const linhaRef = useRef(-1);
+    const vozDaLinha = useRef<ReturnType<typeof vozDoDiabrete> | null>(null);
+    const quadroBoca = useRef(-1);
     const tLinha   = useRef(0);
 
     // Springs for limber, weighty motion.
@@ -110,6 +114,12 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
                 roubados: 0,
                 quem: line.speaker === 'player' ? 'jogador' : 'diabrete',
             });
+            // A BOCA LÊ A MESMA PARTITURA QUE O TROMBONE. `vozDoDiabrete` já
+            // decidiu quantas notas a frase tem e quais são acento; guardar a
+            // partitura aqui é o que faz o desenho bater com o som em vez de
+            // andar do lado dele. A fala do JOGADOR não mexe na boca dele.
+            vozDaLinha.current = (line && line.speaker !== 'player')
+                ? vozDoDiabrete(line.text, { roubados: 0 }) : null;
         }
         const gesture: Gesture = line?.gesture ?? 'idle';
         const tl = timeInLine(t);
@@ -206,6 +216,20 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
             groupRef.current.position.z,
         );
         if (linhaRef.current !== li) { linhaRef.current = li; tLinha.current = clock.current; }
+
+        // ── A BOCA ───────────────────────────────────────────────────────────
+        // Em QUADROS DESENHADOS (8 Hz), não interpolada: boca que desliza é
+        // interpolação, boca que salta é tinta. E só se mexe no rig quando o
+        // quadro vira, não a cada frame.
+        const qb = quadroDaBoca(clock.current);
+        if (qb !== quadroBoca.current) {
+            quadroBoca.current = qb;
+            const repouso: NomeDaBoca = expressaoDoDiabrete('apresentacao', 0);
+            const nova = vozDaLinha.current
+                ? bocaNoInstante(vozDaLinha.current, clock.current - tLinha.current, repouso)
+                : repouso;
+            rig.definirBoca(nova);
+        }
         const pl = planoDaApresentacao(li, PALCO_DA_APRESENTACAO,
             (clock.current - tLinha.current) / 3.2);
         camera.position.set(pl.x, pl.y, pl.z);

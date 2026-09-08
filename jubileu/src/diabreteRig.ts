@@ -20,6 +20,8 @@
  */
 
 import * as THREE from 'three';
+import { criarTelaDaBoca, type TelaDaBoca } from './f3BocaTextura';
+import { BOCA_EM_REPOUSO, BOCAS as BOCAS_VALIDAS, type NomeDaBoca } from './f3Boca';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
 // doll on the platforms (and barely filled the cutscene frame). Bumped so the
@@ -49,7 +51,63 @@ export const enum B { root, body, head, l_arm, r_arm, l_leg, r_leg }
 export interface DiabreteRig {
     group: THREE.Group;          // add to your scene; holds fill + outline
     bones: THREE.Bone[];         // index with B.*
+    /** Troca a boca dele. Ver `f3Boca.ts` — o vocabulário é o da ficha do Felipe. */
+    definirBoca: (nome: NomeDaBoca) => void;
     dispose: () => void;
+}
+
+// ── ONDE FICA A BOCA ─────────────────────────────────────────────────────────
+//
+// Medido no GLB, não chutado (a sonda leu o acessor de POSITION direto do
+// contêiner). A cabeça vai de Y 0,75 a 1,00 com largura ±0,20, e a frente da
+// cara, na linha do meio, está em Z = 0,162 na faixa Y 0,80–0,85 — acima disso
+// ela já começa a fugir para trás (Z = 0,069 em Y 0,95, que é o alto do crânio).
+//
+// A boca de um vilão desses fica na parte de baixo da cara, abaixo dos olhos
+// grandes. Então: Y 0,815 e Z um fio à frente da malha, para o desenho não
+// brigar com a superfície (z-fighting).
+//
+// A PRIMEIRA TENTATIVA FOI EM Y=0,815 E SAIU NA TESTA. A faixa 0,85–0,95 que o
+// texto do rig chama de "head" é o CRÂNIO inteiro, com chifre e orelha; a cara
+// branca desce bem mais. A foto de perto (bancada `ver-o-diabrete.mjs`, vista
+// `boca`) mostrou o desenho novo pousado acima dos olhos, e a boca pintada da
+// textura lá embaixo, a uns 22% da altura da cabeça de distância.
+// Y=0,63 caiu no peito e Y=0,68 encostou na boca pintada por cima. Com dois
+// pontos medidos na mesma foto a escala saiu: 2324 px de imagem por unidade do
+// modelo, naquele enquadramento. O alvo fica em 0,665.
+// Terceira medição: em 0,665 ela escorreu pro queixo (o remendo creme vazando
+// no corpo preto) e em 0,68 ficou logo acima da boca pintada. O meio-termo
+// medido nas duas fotos é 0,672. A largura desceu de 0,15 para 0,115 porque a
+// 0,15 ela tomava a cara inteira — a boca dele na ficha é pequena e fica no
+// terço de baixo do rosto.
+const BOCA_Y = 0.672;
+const BOCA_Z = 0.215;
+const BOCA_LARGURA = 0.115;
+const BOCA_ALTURA = 0.0775;
+
+/**
+ * Afinação por URL, só em desenvolvimento: `?bocaY=`, `?bocaZ=`, `?bocaL=`.
+ * Sem isto, cada milímetro de ajuste custa uma rodada de bancada de quatro
+ * minutos; com isto, uma rodada testa três posições.
+ */
+/** `?boca=empolgado` fixa uma forma, para a bancada fotografar a ficha inteira. */
+function bocaDaUrl(): NomeDaBoca {
+    try {
+        const v = new URLSearchParams(globalThis.location?.search ?? '').get('boca');
+        return (v && v in BOCAS_VALIDAS) ? (v as NomeDaBoca) : BOCA_EM_REPOUSO;
+    } catch { return BOCA_EM_REPOUSO; }
+}
+
+function ajusteDaBoca(): { y: number; z: number; l: number } {
+    const padrao = { y: BOCA_Y, z: BOCA_Z, l: BOCA_LARGURA };
+    try {
+        const q = new URLSearchParams(globalThis.location?.search ?? '');
+        const n = (k: string, v: number) => {
+            const x = q.has(k) ? parseFloat(q.get(k)!) : NaN;
+            return Number.isFinite(x) ? x : v;
+        };
+        return { y: n('bocaY', padrao.y), z: n('bocaZ', padrao.z), l: n('bocaL', padrao.l) };
+    } catch { return padrao; }
 }
 
 // Rest positions (model-local, feet at Y=0) derived from the vertex analysis.
@@ -130,6 +188,32 @@ const _grad = (() => {
  * fill + outline SkinnedMeshes and the bone array to animate. `null` if no mesh
  * was found.
  */
+/**
+ * A injeção de DUAS CORES, isolada para a cara e a boca usarem a MESMA.
+ *
+ * Foi preciso separar quando a boca ganhou remendo: o plano da boca era
+ * `MeshBasicMaterial`, que não recebe luz, então o creme dele saía chapado e
+ * brilhante contra o creme SOMBREADO da cara — na foto de perto aparecia uma
+ * elipse mais clara no meio do rosto, como um curativo. Rodando pela mesma
+ * posterização, o creme do remendo vira exatamente `DIABRETE_CLARO` e a tinta
+ * vira `DIABRETE_ESCURO`, iguais aos do rosto, sob a mesma luz.
+ */
+function duasCores(corte: number) {
+    return (shader: THREE.WebGLProgramParametersWithUniforms) => {
+        if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
+        shader.uniforms.uClaro  = { value: new THREE.Color(DIABRETE_CLARO) };
+        shader.uniforms.uEscuro = { value: new THREE.Color(DIABRETE_ESCURO) };
+        shader.uniforms.uCorte  = { value: corte };
+        shader.fragmentShader = shader.fragmentShader
+            .replace('void main() {',
+                'uniform vec3 uClaro;\nuniform vec3 uEscuro;\nuniform float uCorte;\nvoid main() {')
+            .replace('#include <opaque_fragment>',
+                'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
+                + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n'
+                + '#include <opaque_fragment>');
+    };
+}
+
 export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     let src: THREE.Mesh | null = null;
     gltf.traverse((o) => { if ((o as THREE.Mesh).isMesh && !src) src = o as THREE.Mesh; });
@@ -167,19 +251,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // A injecao e guardada: se o chunk esperado nao existir (three mudou por
     // dentro), ela nao acontece e o material continua um toon normal, em vez de
     // embarcar um shader quebrado.
-    fillMat.onBeforeCompile = (shader) => {
-        if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
-        shader.uniforms.uClaro  = { value: new THREE.Color(DIABRETE_CLARO) };
-        shader.uniforms.uEscuro = { value: new THREE.Color(DIABRETE_ESCURO) };
-        shader.uniforms.uCorte  = { value: corteDoDiabrete() };
-        shader.fragmentShader = shader.fragmentShader
-            .replace('void main() {',
-                'uniform vec3 uClaro;\nuniform vec3 uEscuro;\nuniform float uCorte;\nvoid main() {')
-            .replace('#include <opaque_fragment>',
-                'float _lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n'
-                + 'outgoingLight = mix(uEscuro, uClaro, smoothstep(uCorte - 0.05, uCorte + 0.05, _lum));\n'
-                + '#include <opaque_fragment>');
-    };
+    fillMat.onBeforeCompile = duasCores(corteDoDiabrete());
     // Distinct cache key so the patched program isn't shared with a plain toon.
     fillMat.customProgramCacheKey = () => 'diabrete-duas-cores';
 
@@ -210,13 +282,52 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     const group = new THREE.Group();
     group.add(fill);
 
+    // ── A BOCA ───────────────────────────────────────────────────────────────
+    // O Felipe pediu boca e mandou a ficha com dezoito formas. Ela entra como um
+    // plano com a forma desenhada (ver `f3BocaTextura`), pendurado no OSSO DA
+    // CABEÇA — então ela acompanha cada inclinada e cada gargalhada do rig de
+    // graça, sem ninguém ter de sincronizar nada por quadro.
+    //
+    // O modelo já tem uma boca pintada na textura: um oval escuro parado. Este
+    // plano fica na frente dela e é maior, então cobre.
+    const tela = criarTelaDaBoca(bocaDaUrl());
+    let bocaMesh: THREE.Mesh | null = null;
+    if (tela) {
+        const aj = ajusteDaBoca();
+        const geo = new THREE.PlaneGeometry(aj.l, aj.l * (BOCA_ALTURA / BOCA_LARGURA));
+        const mat = new THREE.MeshToonMaterial({
+            map: tela.textura,
+            gradientMap: _grad,
+            transparent: true,
+            alphaTest: 0.35,
+            // `depthWrite: false` + polygonOffset: o plano encosta na cara e sem
+            // isto ele pisca contra a malha conforme a cabeça gira.
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+            polygonOffsetUnits: -4,
+        });
+        // A MESMA posterização da cara — ver `duasCores`.
+        mat.onBeforeCompile = duasCores(corteDoDiabrete());
+        mat.customProgramCacheKey = () => 'diabrete-boca-duas-cores';
+        bocaMesh = new THREE.Mesh(geo, mat);
+        bocaMesh.frustumCulled = false;
+        // Local ao osso da cabeça, que descansa em Y = 0,84.
+        bocaMesh.position.set(0, aj.y - BP[B.head][1], aj.z);
+        bones[B.head].add(bocaMesh);
+    }
+
     return {
         group,
         bones,
+        definirBoca: (nome: NomeDaBoca) => tela?.definir(nome),
         dispose: () => {
             skeleton.dispose();
             fillGeo.dispose();
             fillMat.dispose();
+            bocaMesh?.geometry.dispose();
+            (bocaMesh?.material as THREE.Material | undefined)?.dispose();
+            tela?.dispose();
         },
     };
 }

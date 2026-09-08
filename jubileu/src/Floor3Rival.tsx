@@ -25,6 +25,9 @@ import * as THREE from 'three';
 import { f3PlayerZ, nearestPlatform } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
+import { f3Fala } from './f3Falas';
+import { vozDoDiabrete } from './f3Voz';
+import { bocaNoInstante, expressaoDoDiabrete, quadroDaBoca, type NomeDaBoca } from './f3Boca';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
 import { passada, PASSOS_POR_SEGUNDO } from './f3Passada';
@@ -59,6 +62,14 @@ const Floor3Rival: React.FC = () => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
+    // ── A BOCA DELE DURANTE A PERSEGUIÇÃO ────────────────────────────────
+    // `f3Falas` publica a fala viva (texto, até quando, e uma série que sobe a
+    // cada fala nova). Basta olhar a série: quando ela muda, monta-se a mesma
+    // partitura que o trombone vai tocar e a boca passa a segui-la.
+    const serieDaFala = useRef(-1);
+    const vozDaFala = useRef<ReturnType<typeof vozDoDiabrete> | null>(null);
+    const t0DaFala = useRef(0);
+    const quadroBoca = useRef(-1);
     const birdRefs = useRef<THREE.Group[]>([]);
     const brushRef = useRef<THREE.Group | null>(null);
 
@@ -120,6 +131,29 @@ const Floor3Rival: React.FC = () => {
         const bones  = rig.bones;
         tRef.current += safeDt;
         const t = tRef.current;
+
+        // ── A BOCA ───────────────────────────────────────────────────────────
+        if (f3Fala.serie !== serieDaFala.current) {
+            serieDaFala.current = f3Fala.serie;
+            t0DaFala.current = t;
+            vozDaFala.current = f3Fala.texto
+                ? vozDoDiabrete(f3Fala.texto, { roubados: f3Progress.brushes, grito: true })
+                : null;
+        }
+        const qb = quadroDaBoca(t);
+        if (qb !== quadroBoca.current) {
+            quadroBoca.current = qb;
+            // Tonto tem cara de tonto; fora isso, a cara é a do ponto do arco
+            // em que ele está (ver `expressaoDoDiabrete`, que usa o MESMO
+            // `brushes` do chão, da voz e da trilha).
+            const repouso: NomeDaBoca = isDizzy()
+                ? 'surpreso'
+                : expressaoDoDiabrete('provoca', f3Progress.brushes);
+            const nova = vozDaFala.current
+                ? bocaNoInstante(vozDaFala.current, t - t0DaFala.current, repouso)
+                : repouso;
+            rig.definirBoca(nova);
+        }
         // Landing squash decays fast back to neutral (set on touchdown below).
         landImpact.current = Math.max(0, landImpact.current - safeDt / 0.16);
 
