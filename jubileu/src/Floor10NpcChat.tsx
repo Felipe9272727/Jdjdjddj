@@ -3,7 +3,7 @@ import { useNpc, npc, npcSet, bolhaDeEspera } from './npc/npcStore';
 import { esperar, RESPIRO_APOS_DESCARGA_MS } from './npc/floor10Carga';
 // Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
 import {
-    FLOOR10_MODEL, initLLM, sendToNpc, unloadConversationBrain,
+    initLLM, sendToNpc, unloadConversationBrain,
 } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
@@ -22,7 +22,7 @@ import { formatGB } from './npc/floor10ModelStorage';
 import { useOptionalSettings } from './Settings';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
 import {
-    definirFilaDoAndar10, filaLinha, floor10Fila,
+    definirFilaDoAndar10, floor10Fila,
     FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
 import { bancadaLigada, linhaDaCarga } from './npc/floor10TelaDeCarga';
@@ -123,6 +123,7 @@ const LinhaDownload: React.FC<{
     return (
         <div>
             <div
+                data-floor10-loading-title
                 style={flutuante
                     ? { ...miniDownloadTitleStyle, color: tom.texto }
                     : { ...modelLoadingTitleStyle, color: tom.texto }}
@@ -130,7 +131,7 @@ const LinhaDownload: React.FC<{
                 <span>{rotulo}</span>
                 <strong>{pct}%</strong>
             </div>
-            <div style={barOuter}>
+            <div data-floor10-loading-bar style={barOuter}>
                 <div style={{
                     height: '100%',
                     transition: 'width 0.2s',
@@ -144,10 +145,10 @@ const LinhaDownload: React.FC<{
                 distingue "acabou de começar" de "parado faz três minutos", e é
                 por isso que ela nunca pode ficar sozinha aqui. */}
             {linhaDeJogo !== '' && (
-                <div style={downloadBytesStyle}>{linhaDeJogo}</div>
+                <div data-floor10-loading-status style={downloadBytesStyle}>{linhaDeJogo}</div>
             )}
             {numeros && (
-                <div style={flutuante ? miniDownloadTextStyle : modelLoadingDetailStyle}>
+                <div data-floor10-loading-detail style={flutuante ? miniDownloadTextStyle : modelLoadingDetailStyle}>
                     {downloadLine(amostra)}
                     {detalhe ? ` · ${detalhe}` : ''}
                 </div>
@@ -174,7 +175,7 @@ const PensamentoCru: React.FC<{
     threads: number;
     segundos: number;
 }> = ({ texto, pensando, tps, threads, segundos }) => (
-    <div style={pensamentoCruStyle} aria-live="polite">
+    <div data-floor10-brain-debug="thought" style={pensamentoCruStyle} aria-live="polite">
         <div style={pensamentoCabecaStyle}>
             <span>{pensando ? '🧠 vontade · pensando' : '🧠 vontade · pensou'}</span>
             <span style={{ opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
@@ -489,7 +490,7 @@ const Floor10NpcChat: React.FC = () => {
                     <div style={miniDownloadFloatingStyle} aria-live="polite">
                         <LinhaDownload
                             flutuante
-                            rotulo={`⬇ ${filaLinha(filaFlut)}`}
+                            rotulo="Preparando a conversa…"
                             pct={Math.round(filaFlut.fracao * 100)}
                             amostra={{
                                 ...filaFlut.amostra,
@@ -609,8 +610,10 @@ const Floor10NpcChat: React.FC = () => {
                 : st.loadText;
 
     return (
-        <div style={panelStyle}>
-            <div style={headerStyle}>
+        <>
+            <style>{floor10ChatResponsiveCss}</style>
+            <div className="floor10-chat-sheet" data-floor10-chat style={panelStyle}>
+            <div data-floor10-chat-header style={headerStyle}>
                 {/* "Nilo Azevedo · Hóspede do 10º · SmolLM3-3B · CPU×4" era a
                     primeira linha do painel, e metade dela era ficha técnica:
                     o nome do gguf e o número de threads em cima do nome do
@@ -624,7 +627,7 @@ const Floor10NpcChat: React.FC = () => {
             </div>
 
             {algumBaixando && (
-                <div style={modelLoadingStackStyle}>
+                <div data-floor10-chat-loading style={modelLoadingStackStyle}>
                     {/* UMA BARRA SÓ, e ela mede a fila INTEIRA.
                         Três barras separadas pareciam certas enquanto eu
                         escrevia. Jogando, não: os cérebros não baixam juntos —
@@ -633,9 +636,9 @@ const Floor10NpcChat: React.FC = () => {
                         nunca dizer quanto faltava no TOTAL, que é a única coisa
                         que ele quer saber. O detalhe por modelo continua no
                         ?mente e na bancada. */}
-                    <div style={modelLoadingCardStyle}>
+                    <div data-floor10-chat-loading-card style={modelLoadingCardStyle}>
                         <LinhaDownload
-                            rotulo={`⬇ Cérebros do Nilo · ${filaLinha(fila)}`}
+                            rotulo="Preparando a conversa…"
                             pct={Math.round(fila.fracao * 100)}
                             amostra={{
                                 ...fila.amostra,
@@ -672,7 +675,7 @@ const Floor10NpcChat: React.FC = () => {
                         </div>
                     ))}
                     {espacoEmJogo && (
-                        <div style={{
+                        <div data-floor10-loading-warning style={{
                             ...modelLoadingDetailStyle,
                             padding: '0 2px',
                             fontSize: 11.5,
@@ -728,7 +731,7 @@ const Floor10NpcChat: React.FC = () => {
                 || st.phase === 'ready'
                 || st.phase === 'thinking') && (
                 <>
-                    <div ref={scrollRef} style={logStyle}>
+                    <div data-floor10-chat-log ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
                                 {/* ── O PRIMEIRO TEXTO QUE O JOGADOR LÊ ────────────
@@ -742,9 +745,7 @@ const Floor10NpcChat: React.FC = () => {
                                     escritos na VOZ DELE, no infinitivo ("me aproximar
                                     de você"): qualquer outro prefixo quebraria a
                                     concordância. */}
-                                {bancadaLigada()
-                                    ? `Vontade atual: ${st.autonomy.label}. Conversa usa o ${FLOOR10_MODEL.label}; olhos, vontade e deliberação seguem por conta própria.`
-                                    : `Vontade atual: ${st.autonomy.label}. Ele decide por conta própria — diga alguma coisa.`}
+                                Converse com Nilo.
                             </div>
                         )}
                         {st.history.map((m, i) => (
@@ -752,11 +753,16 @@ const Floor10NpcChat: React.FC = () => {
                                 <div style={m.role === 'user' ? userBubble : npcBubble}>{m.content}</div>
                             </div>
                         ))}
-                        {/* O REFLEXO. Aparece só enquanto o 3B ainda não
-                            escreveu nada, e sai de cena quando ele começa. É
-                            marcado como reação — não pode ser confundido com a
-                            resposta, senão viraria o modelo pequeno falando pelo
-                            Nilo, que é o oposto do que este andar defende. */}
+                        {/* O REFLEXO — HOJE SEM NINGUÉM ALIMENTANDO.
+                            A reação saiu do turno depois de medida: o 135M
+                            precisa de 4,4 s a 14,8 s para meia dúzia de
+                            palavras, contra um teto de 2,5 s (o porquê inteiro
+                            está em wllamaEngine.ts, em `sendToNpc`). Nada mais
+                            escreve `st.reflexo`, então esta bolha não renderiza.
+                            Fica de pé porque a peça que falta é só um modelo que
+                            caiba no orçamento — quando existir, é uma linha para
+                            voltar. Se você veio caçar um bug de UI aqui, não há:
+                            é o estado que está vazio, de propósito. */}
                         {st.reflexo !== '' && st.streaming === '' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
                                 <div style={reflexoBubble} aria-live="polite">
@@ -780,7 +786,7 @@ const Floor10NpcChat: React.FC = () => {
                             <button onClick={() => npcSet({ error: '' })} style={errXStyle} aria-label="Dispensar">✕</button>
                         </div>
                     )}
-                    <div style={inputRow}>
+                    <div data-floor10-chat-input style={inputRow}>
                         <input
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -801,9 +807,38 @@ const Floor10NpcChat: React.FC = () => {
                     </div>
                 </>
             )}
-        </div>
+            </div>
+        </>
     );
 };
+
+const floor10ChatResponsiveCss = `
+[data-floor10-hud="chat-open"] { display: none !important; }
+
+@media (pointer: coarse) and (orientation: landscape) {
+  [data-floor10-brain-debug] { display: none !important; }
+  [data-floor10-chat] {
+    left: max(8px, env(safe-area-inset-left, 0px)) !important;
+    right: max(8px, env(safe-area-inset-right, 0px)) !important;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    height: min(68dvh, 390px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: 12px !important;
+  }
+  [data-floor10-chat-header] { padding: 7px 10px !important; font-size: 12px !important; }
+  [data-floor10-chat-log] { padding: 8px !important; gap: 6px !important; }
+  [data-floor10-chat] [data-floor10-chat-input] { gap: 6px !important; padding: 7px !important; }
+  [data-floor10-chat] [data-floor10-loading-title] { margin-bottom: 0 !important; font-size: 11px !important; }
+  [data-floor10-chat] [data-floor10-loading-title] strong,
+  [data-floor10-chat] [data-floor10-loading-bar],
+  [data-floor10-chat] [data-floor10-loading-status],
+  [data-floor10-chat] [data-floor10-loading-detail],
+  [data-floor10-chat] [data-floor10-loading-warning] { display: none !important; }
+  [data-floor10-chat-loading] { padding: 3px 9px !important; gap: 0 !important; }
+  [data-floor10-chat-loading-card] { padding: 0 !important; border: 0 !important; background: transparent !important; }
+}
+`;
 
 // ── estilos inline (o projeto não usa CSS-modules aqui) ──
 const hintStyle: React.CSSProperties = {

@@ -2,6 +2,7 @@ import { alvoDaCooperacao, cancelarCooperacao } from './npc/f10Cooperacao';
 import { jogadorVisivelParaOlhar, gestoChegouAoDestino } from './npc/floor10Presenca';
 import { RodadaDoNilo } from './npc/floor10Rodada';
 import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import { NiloVisual } from './NiloVisual';
 import {
     MemoriaDeConsequencia, type MundoObservado,
 } from './npc/floor10Consequencia';
@@ -583,35 +584,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
 
     return (
         <group ref={root} position={[NPC_START.x, NPC_START.y, NPC_START.z]}>
-            {/* pernas */}
-            <group ref={legL} position={[-0.11, 0.74, 0]}>
-                <mesh position={[0, -0.32, 0]}><capsuleGeometry args={[0.1, 0.62, 4, 8]} /><meshStandardMaterial color={PANTS} roughness={0.9} /></mesh>
-            </group>
-            <group ref={legR} position={[0.11, 0.74, 0]}>
-                <mesh position={[0, -0.32, 0]}><capsuleGeometry args={[0.1, 0.62, 4, 8]} /><meshStandardMaterial color={PANTS} roughness={0.9} /></mesh>
-            </group>
-            {/* tronco */}
-            <group ref={torso} position={[0, 0.82, 0]}>
-                <mesh position={[0, 0.22, 0]}><capsuleGeometry args={[0.22, 0.42, 6, 12]} /><meshStandardMaterial color={SHIRT} roughness={0.85} /></mesh>
-                {/* braços */}
-                <group ref={armL} position={[-0.26, 0.36, 0]}>
-                    <mesh position={[0, -0.24, 0]}><capsuleGeometry args={[0.07, 0.44, 4, 8]} /><meshStandardMaterial color={SHIRT} roughness={0.85} /></mesh>
-                    <mesh position={[0, -0.5, 0]}><sphereGeometry args={[0.07, 10, 10]} /><meshStandardMaterial color={SKIN} roughness={0.7} /></mesh>
-                </group>
-                <group ref={armR} position={[0.26, 0.36, 0]}>
-                    <mesh position={[0, -0.24, 0]}><capsuleGeometry args={[0.07, 0.44, 4, 8]} /><meshStandardMaterial color={SHIRT} roughness={0.85} /></mesh>
-                    <mesh position={[0, -0.5, 0]}><sphereGeometry args={[0.07, 10, 10]} /><meshStandardMaterial color={SKIN} roughness={0.7} /></mesh>
-                </group>
-            </group>
-            {/* cabeça */}
-            <group ref={head} position={[0, 1.52, 0]}>
-                <mesh><sphereGeometry args={[0.17, 20, 20]} /><meshStandardMaterial color={SKIN} roughness={0.65} /></mesh>
-                {/* cabelo */}
-                <mesh position={[0, 0.06, -0.02]}><sphereGeometry args={[0.178, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.62]} /><meshStandardMaterial color={HAIR} roughness={0.9} /></mesh>
-                {/* olhos */}
-                <mesh ref={eyeL} position={[-0.06, 0.01, 0.15]}><sphereGeometry args={[0.025, 8, 8]} /><meshStandardMaterial color="#141414" /></mesh>
-                <mesh ref={eyeR} position={[0.06, 0.01, 0.15]}><sphereGeometry args={[0.025, 8, 8]} /><meshStandardMaterial color="#141414" /></mesh>
-            </group>
+            <NiloVisual refs={{ torso, head, armL, armR, legL, legR, eyeL, eyeR }} />
             {/* luzinha suave pra destacar o NPC na base cinza */}
             <pointLight position={[0, 1.7, 0.5]} intensity={0.5} distance={4} color="#ffe6c0" />
         </group>
