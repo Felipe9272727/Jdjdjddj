@@ -136,13 +136,20 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       e ela mudava de formato a cada ângulo de câmera.
 - [x] ~~nariz pequeno (nº 7)~~ — ciclo 4: 0,015 -> 0,019. Eu tinha passado do
       ponto para o outro lado ao corrigir o 0,030.
-- [ ] a sobrancelha ainda encosta na franja. E, pela folha de modelagem, ela
-      deveria ser PARTE DO CONTORNO DO OLHO, não um arco solto — isso é um
-      redesenho, não um ajuste de número.
+- [x] ~~a sobrancelha encosta na franja~~ — ciclo 5, e a solução foi trocar a
+      ÂNCORA, não os números. Ela virou um arco CONCÊNTRICO com a amêndoa,
+      girado junto com ela, como a folha de modelagem manda ("sobrancelha é
+      parte do contorno do olho"). Quatro ciclos eu a encurtei, afinei, empurrei
+      e aparei sem resolver, porque o número que a posicionava não tinha relação
+      com a forma que ela devia acompanhar.
 - [ ] a boca precisa dos dentes só de UM lado (nº 8)
-- [ ] CHIFRES e TUFOS são placas planas na malha (medido: 0,18 de profundidade
-      sobre largura no alto da cabeça). Conserto de verdade é remodelar; opção
-      barata é gerar cones e tufos por código e recolher os do GLB.
+- [x] ~~CHIFRES são placas planas~~ — ciclo 5: dois cones curvos de tinta
+      chapada, presos ao osso da cabeça, um pouco maiores que as placas. Como
+      tudo é posterizado em duas cores, preto sobre preto não tem emenda.
+      Medido em execução emparelhada: 139,5 ms com, 137,0 ms sem — 2,5 ms.
+- [ ] os TUFOS laterais continuam placas planas (nº 4 dele). Mesmo remédio dos
+      chifres, mas a forma é de três pontas.
+- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
       cor por geometria (uma cunha em coordenada local, de graça). É ele que faz
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o

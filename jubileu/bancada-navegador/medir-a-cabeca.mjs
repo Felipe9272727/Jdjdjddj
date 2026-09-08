@@ -75,3 +75,21 @@ for (let y = 0.62; y < 1.0; y += 0.05) {
     console.log(`  y ${y.toFixed(2)}  larg ${(x1 - x0).toFixed(3)}  fund ${(z1 - z0).toFixed(3)}`
         + `  fundo/larg ${((z1 - z0) / (x1 - x0)).toFixed(2)}`);
 }
+
+// ── ONDE FICAM CHIFRE E TUFO ─────────────────────────────────────────────────
+// Para poder cobri-los com geometria redonda é preciso saber a caixa de cada um.
+// Agrupa por sinal de x acima de y 0,88 (chifres) e a faixa lateral (tufos).
+const grupo = (nome, filtro) => {
+    const l = pontos.filter(filtro);
+    if (!l.length) { console.log(`${nome}: vazio`); return; }
+    const eixo = (i) => { const v = l.map((q) => q[i]); return [Math.min(...v), Math.max(...v)]; };
+    const [x0, x1] = eixo(0), [y0, y1] = eixo(1), [z0, z1] = eixo(2);
+    console.log(`${nome.padEnd(18)} n=${String(l.length).padStart(4)}  `
+        + `x ${x0.toFixed(3)}..${x1.toFixed(3)}  y ${y0.toFixed(3)}..${y1.toFixed(3)}  `
+        + `z ${z0.toFixed(3)}..${z1.toFixed(3)}`);
+};
+console.log('\nchifres e tufos:');
+grupo('chifre esquerdo', (q) => q[1] > 0.90 && q[0] < -0.02);
+grupo('chifre direito',  (q) => q[1] > 0.90 && q[0] > 0.02);
+grupo('tufo esquerdo',   (q) => q[1] > 0.70 && q[1] < 0.92 && q[0] < -0.21);
+grupo('tufo direito',    (q) => q[1] > 0.70 && q[1] < 0.92 && q[0] > 0.21);

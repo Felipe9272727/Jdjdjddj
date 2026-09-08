@@ -382,6 +382,73 @@ const BP: ReadonlyArray<readonly [number, number, number]> = [
 const BPARENT = [-1, 0, 1, 1, 1, 1, 1] as const;
 const BNAME   = ['root', 'body', 'head', 'l_arm', 'r_arm', 'l_leg', 'r_leg'] as const;
 
+// ── OS CHIFRES DE VERDADE ────────────────────────────────────────────────────
+//
+// Defeito nº 3 da lista dele: "os chifres estão finos e retos demais, precisam
+// ser mais grossos, curvos e com a forma característica da referência". E o nº 1,
+// "cabeça muito chapada", tem a mesma origem — mas não é o crânio.
+//
+// Medido no GLB por `bancada-navegador/medir-a-cabeca.mjs`:
+//
+//     crânio ........ larg 0,418  fund 0,408   fundo/larg 0,97   ← redondo
+//     fatia y 0,92 .. larg 0,376  fund 0,181   fundo/larg 0,48
+//     fatia y 0,97 .. larg 0,323  fund 0,057   fundo/larg 0,18   ← placa
+//     chifre esq .... x -0,208..-0,028   y 0,901..1,002
+//     chifre dir .... x  0,029.. 0,179   y 0,901..0,999
+//
+// Ou seja: a cabeça DELE é redonda; o que é chapado são os chifres, que na malha
+// são placas de 0,18 de largura por 0,10 de altura — largas, curtas e finas. Da
+// referência eles são o contrário: cônicos, altos, grossos e curvados para trás.
+//
+// Remodelar o GLB pede um modelador. O que dá para fazer daqui, e é barato, é
+// COBRIR: dois cones curvos de tinta chapada, um pouco maiores que as placas,
+// presos ao osso da cabeça. Como o personagem inteiro é posterizado em duas
+// cores, um cone preto liso encobre a placa preta sem emenda nenhuma — não há
+// sombreado que denuncie a junta. Custo: dois materiais básicos sem luz e ~200
+// triângulos, contra os 17 mil do andar.
+const CHIFRE_X = 0.112;      // centro de cada chifre, medido nas placas
+const CHIFRE_Z = -0.030;
+const CHIFRE_BASE_Y = 0.880; // começa abaixo da placa, onde ela é mais larga
+const CHIFRE_RAIO = 0.118;
+const CHIFRE_ALTURA = 0.215;
+const CHIFRE_CURVA = 0.070;  // o quanto a ponta foge para fora e para trás
+
+/** Os dois cones e a tinta deles, compartilhados por todos os Diabretes. */
+let _chifres: THREE.BufferGeometry[] | null = null;
+let _tintaChapada: THREE.MeshBasicMaterial | null = null;
+
+/**
+ * Um chifre: cone de 8 lados, encurvado. A curva é uma parábola no eixo da
+ * altura — ponta puxada para FORA e para TRÁS, como na referência, e não um
+ * espeto reto.
+ *
+ * ── E ELE É CONSTRUÍDO UMA VEZ SÓ ────────────────────────────────────────────
+ * A primeira versão criava os dois cones DENTRO de `buildDiabreteRig`. A bancada
+ * de custo entregou na hora: as geometrias do andar pularam de 58 para 96 e o
+ * quadro de 56 para 134 ms. Trinta e oito geometrias novas quer dizer dezenove
+ * construções de rig — o rig é remontado (troca de cena, remontagem do React), e
+ * cada remontagem deixava mais dois cones para trás.
+ *
+ * Chifre não depende de instância nenhuma: é a mesma forma sempre. Então nasce
+ * no módulo, preguiçoso, e as duas instâncias do personagem dividem os mesmos
+ * dois cones e o mesmo material. Quem dispõe do rig não dispõe deles.
+ */
+function construirChifre(lado: number): THREE.BufferGeometry {
+    const g = new THREE.ConeGeometry(CHIFRE_RAIO, CHIFRE_ALTURA, 8, 5, false);
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        // `t` = 0 na base, 1 na ponta. O cone nasce centrado na origem.
+        const t = (y + CHIFRE_ALTURA / 2) / CHIFRE_ALTURA;
+        const k = t * t;
+        pos.setX(i, pos.getX(i) + lado * CHIFRE_CURVA * k);
+        pos.setZ(i, pos.getZ(i) - CHIFRE_CURVA * 0.55 * k);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    return g;
+}
+
 function ss(v: number, lo: number, hi: number): number {
     const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
     return t * t * (3 - 2 * t);
@@ -747,6 +814,30 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     fill.add(bones[0]);
     fill.bind(skeleton);
 
+    // ── OS CHIFRES ENTRAM AQUI, PRESOS AO OSSO DA CABEÇA ─────────────────────
+    // Ver a nota longa em `geometriaDoChifre`. Eles são filhos do osso, então
+    // acompanham cada giro e cada tranco da cabeça sem uma linha de código a
+    // mais. As posições são relativas à posição de repouso do osso.
+    // `?semchifre` desliga os cones. Serve para MEDIR: com e sem, na mesma
+    // execução, que é o único jeito honesto de saber o que eles custam — comparar
+    // duas execuções mente, porque a cena para em momentos diferentes.
+    const semChifre = (() => {
+        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semchifre'); }
+        catch { return false; }
+    })();
+    if (!semChifre) {
+    _chifres ??= [construirChifre(-1), construirChifre(1)];
+    _tintaChapada ??= new THREE.MeshBasicMaterial({ color: DIABRETE_ESCURO });
+    [-1, 1].forEach((lado, i) => {
+        const m = new THREE.Mesh(_chifres![i], _tintaChapada!);
+        m.position.set(lado * CHIFRE_X - BP[B.head][0],
+            CHIFRE_BASE_Y + CHIFRE_ALTURA / 2 - BP[B.head][1],
+            CHIFRE_Z - BP[B.head][2]);
+        m.frustumCulled = false;
+        bones[B.head].add(m);
+    });
+    }
+
     // NOTE: no ink outline on the Diabrete. The inverted-hull read as torn black
     // streaks on his split-vertex GLB mesh; the toon fill + fresnel rim carry his
     // silhouette instead. (The scenery + player hands keep their own outlines via
@@ -823,6 +914,8 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         },
         dispose: () => {
             skeleton.dispose();
+            // Os chifres NÃO são dispostos aqui: são do módulo, e o próximo
+            // Diabrete usa os mesmos.
             fillGeo.dispose();
             fillMat.dispose();
             gravataMesh?.geometry.dispose();

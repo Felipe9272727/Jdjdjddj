@@ -284,17 +284,13 @@ function desenharUmOlho(c: CanvasRenderingContext2D, o: Olho, cx: number, cy: nu
     c.restore();
 }
 
-/**
- * Folga mínima entre o topo do traço da sobrancelha e a borda de cima do canvas.
- *
- * Nove pixels, e o número não é folga estética: é ONDE O CABELO COMEÇA. Com a
- * caixa dos olhos onde ela está, o alto do canvas cai na régua 0,973 do rosto e
- * o creme acima do olho acaba na 0,946 — ou seja os nove primeiros pixels do
- * canvas já estão pintando dentro da franja preta. Sobrancelha desenhada ali
- * não fica feia, fica INVISÍVEL, que foi o que a foto de perto mostrou duas
- * vezes seguidas. Quem passar dessa linha desce, em vez de sumir.
+/*
+ * Aqui morava `MARGEM_DO_CENHO`, que aparava a sobrancelha contra a borda de
+ * cima do canvas para ela não sair da faixa de creme. Sumiu junto com o arco
+ * solto: ancorada no contorno do OLHO, ela não tem como sair de uma forma que
+ * já cabe no creme. Um número a menos para manter em dia é melhor que um número
+ * bem ajustado.
  */
-const MARGEM_DO_CENHO = 3;
 
 /**
  * Fio de creme que separa a sobrancelha do olho quando as duas se encavalam.
@@ -303,70 +299,65 @@ const MARGEM_DO_CENHO = 3;
  */
 const SEPARACAO = 4;
 
-/** Desenha UMA sobrancelha. `subir` vem da assimetria — é ela que faz a ironia. */
+/**
+ * Desenha UMA sobrancelha. `subir` vem da assimetria — é ela que faz a ironia.
+ *
+ * ── ELA É PARTE DO CONTORNO DO OLHO, NÃO UM ARCO SOLTO ───────────────────────
+ *
+ * A folha de modelagem que ele mandou diz isso com todas as letras: "Sobrancelha
+ * é parte do contorno do olho (desenho 2D)". Eu vinha desenhando outra coisa —
+ * uma quadrática solta, posicionada por uma altura própria, flutuando na testa.
+ *
+ * E é por isso que ela nunca assentou. Quatro ciclos seguidos eu a encurtei, a
+ * afinei, a empurrei para dentro e a aparei contra a borda do canvas, e em toda
+ * foto ela continuava encostando na franja ou grudando no olho — porque o
+ * número que a posicionava não tinha relação nenhuma com a forma que ela devia
+ * acompanhar. Peça posicionada por um número que não é o dela: o mesmo erro dos
+ * dentes ancorados na borda da caixa, e o mesmo da boca ancorada no pescoço.
+ *
+ * Agora ela é um ARCO CONCÊNTRICO com a amêndoa, girado junto com ela. Sai de
+ * graça o que eu não conseguia por ajuste:
+ *   • acompanha a inclinação do olho sem eu somar ângulo nenhum;
+ *   • não pode entrar na franja, porque mora a uma distância fixa de uma forma
+ *     que já cabe no creme;
+ *   • a curva é a curva do olho, que é a curva que a referência tem.
+ *
+ * Os campos de `Sobrancelha` mudam de sentido, e o cabeçalho daquele arquivo
+ * conta quais:
+ *   altura ..... o quanto ela se afasta da borda do olho
+ *   arco ....... o quanto do contorno ela cobre (abertura angular)
+ *   angulo ..... gira o trecho coberto — é o que levanta uma ponta ou a outra
+ *   grossura ... a espessura do traço, como antes
+ */
 function desenharUmaSobrancelha(
     c: CanvasRenderingContext2D, s: Sobrancelha, cx: number, cy: number, lado: number, subir: number,
 ) {
     const rx = OLHO_LARG / 2, ry = OLHO_ALT / 2;
-    // ── ESTREITA, E PUXADA PARA DENTRO ───────────────────────────────────────
-    // A faixa de creme acima do olho encolhe subindo — é o V entre as orelhas —
-    // então uma sobrancelha da largura do olho tem as pontas de fora dentro do
-    // cabelo. Com 0,76 da meia-largura ela ainda encostava: na foto de perto as
-    // duas sobrancelhas tinham a ponta externa grudada na franja e liam como
-    // contorno do cabelo, não como sobrancelha. 0,64 e um empurrão para o meio
-    // resolvem — e o que ela perde de comprimento ganha de grossura, que é o que
-    // faz um traço de desenho animado ser lido de longe.
-    // Depois da ficha, 0,56: com o olho maior a sobrancelha subiu junto, e lá em
-    // cima a faixa de creme é mais estreita ainda — a ponta de FORA era a que
-    // entrava na franja.
-    const meia = rx * 0.50;
-    const paraDentro = -lado * OLHO_LARG * 0.14;
-    const ang = (s.angulo * Math.PI) / 180 * lado;
     const grosso = OLHO_LARG * s.grossura;
+    const giro = lado * INCLINACAO;
 
-    // ── A SOBRANCELHA DA DIREITA ESTAVA SENDO CORTADA FORA DO CANVAS ─────────
-    //
-    // Na foto só aparecia UMA sobrancelha, e eu tinha anotado que a outra
-    // "sumia no cabelo". Não sumia: era APARADA. A conta da altura ignorava duas
-    // coisas que sobem o traço depois — o arco (a quadrática chega a subir
-    // `OLHO_ALT * arco`) e a metade da grossura do traço. Na `ironia`, que é a
-    // cara padrão dele, a assimetria ainda soma mais 0,136 de altura; o topo do
-    // traço caía em y = -11, onze pixels ACIMA da borda do canvas.
-    //
-    // É o mesmo erro dos dentes e da goela, que estavam ancorados na borda da
-    // caixa em vez de na forma: peça posicionada por um número que não é o dela.
-    // Agora a altura é pedida, o topo real é calculado, e se não couber a
-    // sobrancelha desce o necessário em vez de ser cortada.
-    const pedida = cy - ry - OLHO_ALT * (s.altura + subir);
-    const sobeOArco = Math.max(0, OLHO_ALT * s.arco);
-    const y = Math.max(MARGEM_DO_CENHO + sobeOArco + grosso / 2, pedida);
+    // Distância entre a borda do olho e o MEIO do traço. `SEPARACAO` garante o
+    // fio de creme; o resto é a altura pedida.
+    const folga = SEPARACAO + grosso / 2 + OLHO_ALT * (s.altura + subir);
+    const raioX = rx + folga, raioY = ry + folga;
 
-    c.save();
-    c.translate(cx + paraDentro, y);
-    c.rotate(ang);
-    c.lineCap = 'round';
-    // Um arco raso: três pontos e uma quadrática é tudo o que uma sobrancelha
-    // de desenho animado precisa.
+    // O topo do olho é -PI/2 no espaço da elipse. O ângulo da ficha gira esse
+    // trecho: positivo desce a ponta de DENTRO, igual à pálpebra e ao sinal que
+    // `f3Sobrancelha` documenta.
+    const centro = -Math.PI / 2 + (s.angulo * Math.PI) / 180 * lado * 0.9;
+    const meiaAbertura = 0.52 + s.arco * 1.8;
+
     const arco = () => {
         c.beginPath();
-        c.moveTo(-meia, 0);
-        c.quadraticCurveTo(0, -OLHO_ALT * s.arco * 2, meia, 0);
+        c.ellipse(cx, cy, raioX, raioY, giro, centro - meiaAbertura, centro + meiaAbertura);
         c.stroke();
     };
 
-    // ── A SEPARAÇÃO DE CREME ─────────────────────────────────────────────────
-    //
-    // `raiva` (30 graus), `bravaComRuga` (34) e `desconfiada` inclinam tanto que
-    // a ponta de DENTRO desce por cima do olho. Isso é certo — sobrancelha
-    // invadindo o olho é exatamente o que faz uma cara brava. O problema é que
-    // aqui só existem duas cores: tinta sobre tinta não fica brava, fica uma
-    // mancha só. Na folha do rosto montado essas três liam como se o olho
-    // tivesse criado uma presa.
-    //
-    // O jeito de 1930 não é afastar a sobrancelha (isso mataria a raiva): é
-    // deixar um FIO DE CREME entre as duas formas, para as bordas continuarem
-    // se enxergando. Um traço creme mais grosso por baixo do de tinta faz isso
-    // sozinho, e onde não há olho embaixo ele é invisível — a cara já é creme.
+    c.save();
+    c.lineCap = 'round';
+    // O fio de creme por baixo: onde a sobrancelha encosta no olho ou na franja,
+    // ele mantém as duas formas se enxergando. Onde não há nada embaixo, é
+    // invisível — a cara já é creme.
     c.strokeStyle = CREME;
     c.lineWidth = grosso + SEPARACAO * 2;
     arco();
