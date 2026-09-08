@@ -41,23 +41,32 @@ export interface Sobrancelha {
     ruga: boolean;
 }
 
+// ── A TESTA DELE É ESTREITA, E ISSO É MEDIDO ─────────────────────────────────
+// A primeira versão pôs as sobrancelhas a 0,30 da altura do olho acima dele, que
+// é onde elas ficariam num rosto humano. Na foto elas subiram no CABELO PRETO e
+// viraram engrossamento da franja — desenhar tinta sobre tinta é o mesmo que não
+// desenhar.
+// Medida a faixa de creme que sobra acima do olho (`medir-a-cara.mjs` sobre
+// `?semolhos&parado`): ela vai da régua 0,750 (topo do olho) a ~0,82, e ENCOLHE
+// subindo, porque é o V entre as orelhas. Então a sobrancelha mora ali, baixa e
+// mais estreita que o olho.
 const S = (o: Partial<Sobrancelha> = {}): Sobrancelha => ({
-    altura: 0.30, angulo: 0, arco: 0.16, grossura: 0.13,
-    assimetria: 0, ruga: false, ...o,
+    altura: 0.12, angulo: 0, arco: 0.16, grossura: 0.13,
+    assimetria: 0.0, ruga: false, ...o,
 });
 
 export const SOBRANCELHAS: Readonly<Record<NomeDaSobrancelha, Sobrancelha>> = Object.freeze({
     neutra:       S(),
-    surpresa:     S({ altura: 0.52, arco: 0.34 }),
-    raiva:        S({ altura: 0.16, angulo: 30, arco: -0.06 }),
+    surpresa:     S({ altura: 0.208, arco: 0.34 }),
+    raiva:        S({ altura: 0.064, angulo: 30, arco: -0.06 }),
     // A QUATRO da ficha. Uma sobe, a outra fica — e a que sobe é a do lado que o
     // sorriso torto também levanta (ver `TORTO` em `f3Boca`), senão a cara
     // briga consigo mesma.
-    ironia:       S({ altura: 0.30, angulo: 6, arco: 0.20, assimetria: 0.34 }),
-    preocupada:   S({ altura: 0.40, angulo: -26, arco: 0.10 }),
-    desconfiada:  S({ altura: 0.18, angulo: 10, arco: 0.04, assimetria: 0.16 }),
-    pensativa:    S({ altura: 0.34, angulo: -8, arco: 0.24, assimetria: 0.26 }),
-    bravaComRuga: S({ altura: 0.14, angulo: 34, arco: -0.10, grossura: 0.16, ruga: true }),
+    ironia:       S({ altura: 0.12, angulo: 6, arco: 0.20, assimetria: 0.136 }),
+    preocupada:   S({ altura: 0.16, angulo: -26, arco: 0.10 }),
+    desconfiada:  S({ altura: 0.072, angulo: 10, arco: 0.04, assimetria: 0.064 }),
+    pensativa:    S({ altura: 0.136, angulo: -8, arco: 0.24, assimetria: 0.104 }),
+    bravaComRuga: S({ altura: 0.056, angulo: 34, arco: -0.10, grossura: 0.16, ruga: true }),
 });
 
 export const NOMES_DAS_SOBRANCELHAS = Object.keys(SOBRANCELHAS) as NomeDaSobrancelha[];

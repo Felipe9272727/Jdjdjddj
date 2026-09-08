@@ -158,7 +158,10 @@ function desenharUmaSobrancelha(
 ) {
     const rx = OLHO_LARG / 2, ry = OLHO_ALT / 2;
     const y = cy - ry - OLHO_ALT * s.altura - OLHO_ALT * subir;
-    const meia = rx * 0.94;
+    // Mais ESTREITA que o olho: a faixa de creme acima dele encolhe subindo (é o
+    // V entre as orelhas), então uma sobrancelha da largura do olho tem as duas
+    // pontas dentro do cabelo preto e some.
+    const meia = rx * 0.76;
     const ang = (s.angulo * Math.PI) / 180 * lado;
 
     c.save();

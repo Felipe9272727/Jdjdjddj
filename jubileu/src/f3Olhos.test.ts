@@ -154,8 +154,16 @@ describe('olho e sobrancelha seguem o MESMO arco do andar', () => {
 });
 
 describe('a assimetria é o que faz a ironia', () => {
-    it('a sobrancelha de ironia tem um lado mais alto que o outro', () => {
-        expect(SOBRANCELHAS.ironia.assimetria).toBeGreaterThan(0.2);
+    it('a sobrancelha de ironia é a MAIS torta de todas', () => {
+        // Régua relativa, não número mágico: esta asserção fixava 0,2 e quebrou
+        // quando as sobrancelhas desceram para caber na testa dele (a faixa de
+        // creme acima do olho é estreita). A intenção não mudou — a ironia
+        // continua sendo a mais assimétrica da ficha —, só a escala.
+        const outras = NOMES_DAS_SOBRANCELHAS
+            .filter(n => n !== 'ironia')
+            .map(n => SOBRANCELHAS[n].assimetria);
+        expect(SOBRANCELHAS.ironia.assimetria).toBeGreaterThan(Math.max(...outras));
+        expect(SOBRANCELHAS.ironia.assimetria).toBeGreaterThan(0);
     });
     it('e a de raiva NÃO — raiva é simétrica, ironia é torta', () => {
         expect(SOBRANCELHAS.raiva.assimetria).toBe(0);

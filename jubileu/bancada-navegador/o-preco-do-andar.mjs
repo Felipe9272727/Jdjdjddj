@@ -41,7 +41,11 @@ await p.route('**://raw.githubusercontent.com/**', (r) => r.fulfill({ status: 20
 await p.route('**://www.google.com/**', (r) => r.abort());
 p.on('pageerror', (e) => console.log('  [erro]', String(e.message).slice(0, 140)));
 
-await p.goto('http://127.0.0.1:3011/index.html', { waitUntil: 'domcontentloaded', timeout: 180000 });
+// `PARAM=semolhos` mede o mesmo andar SEM os olhos desenhados. É assim que se
+// responde "quanto custou a cara nova" sem depender de comparar duas execuções
+// da bancada, que variam com a câmera e com o SwiftShader desta caixa.
+const PARAM = process.env.PARAM ? `?${process.env.PARAM}` : '';
+await p.goto(`http://127.0.0.1:3011/index.html${PARAM}`, { waitUntil: 'domcontentloaded', timeout: 180000 });
 await p.waitForFunction(() => typeof window.__startFloor === 'function', null, { timeout: 120000 });
 await p.evaluate(() => window.__startFloor?.(3));
 await p.waitForFunction(() => typeof window.__f3perf === 'function', null, { timeout: 300000 });
