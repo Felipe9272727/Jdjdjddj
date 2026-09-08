@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { acabamentoDoAndar, mudouOAcabamento, PINCEIS_DO_DIABRETE, SETA_MINIMA } from '../f3Desenho';
+import { acabamentoDoAndar, mudouOAcabamento, PINCEIS_DO_DIABRETE, SETA_MINIMA, TABUADO_MINIMO } from '../f3Desenho';
 
 describe('f3Desenho — o andar se desfaz junto com o dono', () => {
     it('começa inteiro e só piora', () => {
@@ -60,7 +60,38 @@ describe('a seta desbota, mas nunca some', () => {
             expect(acabamentoDoAndar(r).seta).toBeLessThan(acabamentoDoAndar(r - 1).seta);
         }
     });
-    it('e quem some de verdade é o TABUADO, que é acabamento e não caminho', () => {
-        expect(acabamentoDoAndar(3).tabuado).toBeLessThan(acabamentoDoAndar(3).seta);
+    // Esta asserção dizia que o tabuado tinha de terminar ABAIXO da seta —
+    // "quem some de verdade é o acabamento". Era um proxy para "decoração
+    // desbota mais que navegação", e ele parou de valer quando o tabuado também
+    // ganhou piso, na volta 32: os dois pisos agora saem de LEGIBILIDADE (dá
+    // para ver a seta? dá para julgar a profundidade do chão?), e não de uma
+    // hierarquia entre eles.
+    //
+    // Trocada pela regra de verdade, que é a que importa: os dois perdem muito, e
+    // nenhum dos dois some.
+    it('os dois perdem mais da metade, e nenhum dos dois some', () => {
+        for (const campo of ['seta', 'tabuado'] as const) {
+            const inteiro = acabamentoDoAndar(0)[campo];
+            const acabado = acabamentoDoAndar(PINCEIS_DO_DIABRETE)[campo];
+            expect(acabado).toBeLessThan(inteiro * 0.65);
+            expect(acabado).toBeGreaterThan(0.3);
+        }
+    });
+});
+
+describe('e o chão continua dando pista de profundidade', () => {
+    it('nenhuma etapa apaga o tabuado abaixo do piso', () => {
+        for (let r = 0; r <= PINCEIS_DO_DIABRETE; r++) {
+            expect(acabamentoDoAndar(r).tabuado).toBeGreaterThanOrEqual(TABUADO_MINIMO);
+        }
+    });
+    it('mas ele ainda PERDE mais da metade do acabamento pelo caminho', () => {
+        expect(acabamentoDoAndar(PINCEIS_DO_DIABRETE).tabuado)
+            .toBeLessThan(acabamentoDoAndar(0).tabuado * 0.6);
+    });
+    it('e a perda é degrau a degrau, sem etapa em branco', () => {
+        for (let r = 1; r <= PINCEIS_DO_DIABRETE; r++) {
+            expect(acabamentoDoAndar(r).tabuado).toBeLessThan(acabamentoDoAndar(r - 1).tabuado);
+        }
     });
 });

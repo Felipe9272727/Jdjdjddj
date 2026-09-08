@@ -59,11 +59,29 @@ export const PINCEIS_DO_DIABRETE = 3;
 // perda é o material; quem garante que dá para jogar é este piso.
 const PISO_DA_SETA = 0.38;
 
+// ── E O TABUADO TINHA O MESMO PROBLEMA DA SETA ───────────────────────────────
+//
+// A seta ganhou piso quando o Felipe reportou o sumiço como bug. O TABUADO
+// continuou caindo até 0,20 — e a folha de estados da volta 32 (o andar
+// fotografado nos quatro estágios, no tamanho do celular) mostrou o custo: com
+// dois pincéis roubados o chão vira uma extensão de papel quase liso, e a seta,
+// que é creme sobre branco, some junto no contraste.
+//
+// Ou seja, os dois defeitos se somam exatamente no ponto em que o jogo fica mais
+// difícil: menos pista de profundidade justamente quando é preciso julgar onde a
+// laje acaba. A silhueta de tinta continua lá e ninguém cai por isso — mas
+// julgar distância num plano branco é pior do que precisa ser.
+//
+// Então o tabuado também ganha piso. A queda de 1,00 para 0,44 continua sendo
+// uma perda enorme e visível (é mais da metade do acabamento indo embora); o que
+// ela deixa de ser é a diferença entre um chão cru e um chão que não existe.
+const PISO_DO_TABUADO = 0.44;
+
 const ETAPAS: readonly Acabamento[] = Object.freeze([
     { seta: 1.00, tabuado: 1.00 },   // 0 roubados — o andar dele, inteiro
-    { seta: 0.62, tabuado: 0.78 },   // 1 — a seta perde tinta
-    { seta: 0.45, tabuado: 0.34 },   // 2 — quase só o contorno; o tabuado vira esboço
-    { seta: PISO_DA_SETA, tabuado: 0.20 },   // 3 — ele já era; fica o osso do desenho
+    { seta: 0.62, tabuado: 0.72 },   // 1 — a seta perde tinta
+    { seta: 0.45, tabuado: 0.55 },   // 2 — quase só o contorno; o tabuado rareia
+    { seta: PISO_DA_SETA, tabuado: PISO_DO_TABUADO },   // 3 — o osso do desenho
 ]);
 
 /** O acabamento do andar com `roubados` pincéis fora das mãos dele. */
@@ -79,3 +97,5 @@ export function mudouOAcabamento(a: Acabamento, b: Acabamento): boolean {
 
 /** Abaixo disto a seta deixa de ser ajuda e vira defeito. Ver o comentário. */
 export const SETA_MINIMA = PISO_DA_SETA;
+/** E abaixo disto o chão deixa de dar pista de profundidade. */
+export const TABUADO_MINIMO = PISO_DO_TABUADO;
