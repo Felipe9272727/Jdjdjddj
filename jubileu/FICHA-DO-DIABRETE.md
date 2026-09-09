@@ -163,7 +163,19 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       soltos na lateral. Era redundante — quem mantém a nuca preta é `p.z > 0`,
       que é posição. E o `p.z` subiu para 0,075 para o creme parar ANTES da
       franja, em vez de contornar a cabeça e aparecer entre os espetos.
-- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
+- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada.
+      TENTATIVA NO CICLO 8, e falhou: montei uma rota `?f3preview&queda=N` e ela
+      desenha tela branca, mesmo plantando `f3DevilPos`/`f3DevilPosValid` na mão.
+      Sem erro de página e sem exceção — só dois avisos de textura do WebGL
+      (`glTexStorage2D: Invalid internal format 0x1907`). A cena depende de mais
+      estado do jogo do que eu identifiquei. A rota foi REVERTIDA em vez de ficar
+      no repo quebrada.
+      O que já está coberto, e é o motivo de isto não ser urgente: a CARA daquela
+      cena sai de `olhoDoDiabrete`/`sobrancelhaDoDiabrete`/`expressaoDoDiabrete`
+      nos momentos `roubou`, `suplica`, `perdeuOUltimo` e `vitorioso`, e os quatro
+      aparecem na folha do rosto montado toda vez que ela roda. O ENQUADRAMENTO
+      dela passa por `f3Enquadramento`, que é testado contra a lista de planos
+      real. Falta a foto, não a verificação.
 - [ ] o PERFIL continua limitado pela malha: a franja lateral passa na frente da
       bochecha e recorta o creme. Isso é remodelagem, não ajuste.
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
