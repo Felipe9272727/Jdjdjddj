@@ -18,7 +18,7 @@
  * here we only DRIVE the bones each frame with spring-damped rubber-hose motion.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -35,6 +35,7 @@ import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
 import { passada, PASSOS_POR_SEGUNDO } from './f3Passada';
 import { Spring } from './f3Mola';
+import { createF3ActingLayer } from './f3Acting';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const LEAD_Z    = 14;
@@ -59,6 +60,7 @@ const PARADO = (() => {
 
 const Floor3Rival: React.FC = () => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
+    const acting = useMemo(() => createF3ActingLayer(), []);
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
     // ── A BOCA DELE DURANTE A PERSEGUIÇÃO ────────────────────────────────
@@ -85,6 +87,7 @@ const Floor3Rival: React.FC = () => {
     const poseGuardada = useRef<{ p: THREE.Vector3; r: THREE.Euler }[] | null>(null);
     const birdRefs = useRef<THREE.Group[]>([]);
     const brushRef = useRef<THREE.Group | null>(null);
+    const brushAnchorRef = useRef<THREE.Group | null>(null);
 
     const posRef = useRef(new THREE.Vector3(0, 0, LEAD_Z));
     const velY   = useRef(0);
@@ -105,6 +108,10 @@ const Floor3Rival: React.FC = () => {
     const sLean = useRef(new Spring(14, 5));
     const landImpact = useRef(0);   // 0→1 squash spike on touchdown, decays fast
 
+    // The acting layer is deliberately kept outside React state: it is driven
+    // at render cadence and must not add reconciliation work on mobile.
+    useEffect(() => () => acting.dispose(), [acting]);
+
     useEffect(() => {
         const group = groupRef.current;
         if (!group) return;
@@ -113,24 +120,44 @@ const Floor3Rival: React.FC = () => {
         group.add(rig.group);
         rigRef.current = rig;
 
-        // Giant paintbrush prop, parented to the right-arm bone (so it tracks the
-        // hand), lying along the arm (+X), bristles at the far tip. Hidden until
-        // a painting set-piece.
+        // Empty anchor follows the hand; the visible brush stays outside the
+        // skeleton because meshes must not be children of a bone.
+        const anchor = new THREE.Group();
+        anchor.name = 'diabrete-paintbrush-anchor';
+        anchor.position.set(0.24, 0, 0);
+        rig.bones[B.r_arm].add(anchor);
+        brushAnchorRef.current = anchor;
+
+        // Giant paintbrush visual, lying along the arm (+X), bristles at the
+        // far tip. Hidden until a painting set-piece.
         const brush = new THREE.Group();
+        brush.name = 'diabrete-paintbrush-visual';
+        brush.matrixAutoUpdate = false;
         const h  = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.42, 10), handleMat);  h.rotation.z = Math.PI / 2; h.position.x = 0.2;
         const fe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 10), ferruleMat);    fe.rotation.z = Math.PI / 2; fe.position.x = 0.43;
         const br = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 10), bristleMat);              br.rotation.z = -Math.PI / 2; br.position.x = 0.57;
         const tp = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), tipMat);                    tp.position.x = 0.68;
         brush.add(h, fe, br, tp);
-        brush.position.set(0.24, 0, 0);
         brush.visible = false;
-        rig.bones[B.r_arm].add(brush);
+        group.add(brush);
         brushRef.current = brush;
 
         sBob.current.reset(0);
         sLean.current.reset(0.14);
         return () => {
             if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; }
+            if (brushAnchorRef.current) {
+                rig.bones[B.r_arm].remove(brushAnchorRef.current);
+                brushAnchorRef.current = null;
+            }
+            if (brushRef.current) {
+                group.remove(brushRef.current);
+                brushRef.current.traverse((obj) => {
+                    const mesh = obj as THREE.Mesh;
+                    if (mesh.geometry) mesh.geometry.dispose();
+                });
+                brushRef.current = null;
+            }
             group.remove(rig.group);
             rig.dispose();
             rigRef.current = null;
@@ -144,6 +171,23 @@ const Floor3Rival: React.FC = () => {
         const bones  = rig.bones;
         tRef.current += safeDt;
         const t = tRef.current;
+        acting.begin();
+
+        // Keep the existing face score as the fallback; the acting layer may
+        // replace either eye or brow for a beat without taking over the mouth.
+        const applyActing = (phase: 'run' | 'paint' | 'dizzy' | 'fall') => {
+            const face = acting.apply(bones, {
+                scene: 'rival', phase, time: t,
+                speaking: !!vozDaFala.current,
+            });
+            if (!face.eye && !face.brow) return;
+            const momento = isDizzy() ? 'tonto' : 'provoca';
+            const grita = !!vozDaFala.current
+                && gritandoNoInstante(vozDaFala.current, t - t0DaFala.current);
+            rig.definirCara(
+                face.eye ?? olhoNoGrito(olhoDoDiabrete(momento, f3Progress.brushes), grita),
+                face.brow ?? sobrancelhaDoDiabrete(momento, f3Progress.brushes), t);
+        };
 
         // ── A BOCA ───────────────────────────────────────────────────────────
         if (f3Fala.serie !== serieDaFala.current) {
@@ -202,6 +246,7 @@ const Floor3Rival: React.FC = () => {
             if (brushRef.current) brushRef.current.visible = false;
             for (const b of birdRefs.current) if (b) b.visible = false;
             if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; }
+            applyActing('fall');
             return;
         }
         groupRef.current.visible = true;
@@ -266,6 +311,18 @@ const Floor3Rival: React.FC = () => {
         groupRef.current.position.copy(posRef.current);
         groupRef.current.scale.setScalar(DIABRETE_SCALE);
 
+        const syncBrushVisual = () => {
+            const anchor = brushAnchorRef.current;
+            const brush = brushRef.current;
+            if (!anchor || !brush || !brush.visible) return;
+            // Compute the bone's world matrix after authored pose writes, then
+            // convert it into the external visual's group-local space.
+            groupRef.current.updateMatrixWorld(true);
+            const parentInv = new THREE.Matrix4().copy(groupRef.current.matrixWorld).invert();
+            brush.matrix.copy(parentInv).multiply(anchor.matrixWorld);
+            brush.matrixWorldNeedsUpdate = true;
+        };
+
         // ── DIZZY — classic "seeing stars" pose, FROZEN in place ─────────────
         if (dazed) {
             if (brushRef.current) brushRef.current.visible = false;
@@ -288,6 +345,7 @@ const Floor3Rival: React.FC = () => {
                 b.rotation.set(0, -a + Math.PI / 2, Math.sin(t * 18 + i) * 0.5);
             }
             rig.group.scale.set(1.05, 0.95, 1.05);
+            applyActing('dizzy');
             return;
         }
         if (wasDizzy.current) { wasDizzy.current = false; catchUp.current = true; if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; } }
@@ -307,6 +365,8 @@ const Floor3Rival: React.FC = () => {
             bones[B.l_leg].rotation.set(0.06, 0, 0.04);
             bones[B.r_leg].rotation.set(-0.06, 0, -0.04);
             rig.group.scale.set(1, 1, 1);
+            applyActing('paint');
+            syncBrushVisual();
             return;
         }
         if (brushRef.current) brushRef.current.visible = false;
@@ -375,6 +435,9 @@ const Floor3Rival: React.FC = () => {
                 bones[i].rotation.copy(g[i].r);
             }
         }
+        // Apply after the held pose has been restored so acting accents never
+        // get erased by the two-frame pose latch.
+        applyActing('run');
     });
 
     return (
