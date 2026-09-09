@@ -72,6 +72,7 @@ function eye(side: number) {
 function stroke(points: number[][], width: number, lift = 0.045) {
   const outline = new THREE.CatmullRomCurve3(points.map(([x, y]) => new THREE.Vector3(x, y, 0)));
   class SurfaceCurve extends THREE.Curve<THREE.Vector3> {
+    constructor() { super(); }
     override getPoint(t: number, target = new THREE.Vector3()) {
       const p = outline.getPoint(t);
       return target.set(p.x, p.y, front(p.x, p.y, lift));
