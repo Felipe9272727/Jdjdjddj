@@ -299,6 +299,31 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   roundShape.absellipse(0.07, -0.655, 0.163, 0.178, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
+  // ── A LÍNGUA ──────────────────────────────────────────────────────────────
+  //
+  // `provocando` não tinha língua na escultura, e não é uma pose rara: além do
+  // `ocioso`, ela é o visema de TODO L e TODO N que ele fala (ver `f3Boca`), ou
+  // seja aparece o tempo todo no meio das frases. Sem ela, "provocando" e
+  // "sorrindo" eram a mesma cara.
+  //
+  // Duas peças, e a segunda é o que a faz ler: a massa de TINTA pendurada no
+  // lábio de baixo, e um VINCO de creme no meio dela. Sem o vinco, sobre um
+  // rosto que já é claro, ela vira um pingo — foi exatamente esse o erro na
+  // versão em canvas, onde a língua saía creme com contorno e desenhava uma
+  // rosquinha.
+  const linguaShape = new THREE.Shape();
+  // Onde ela cabe, e isso é conta: a máscara do rosto acaba em y -0,965, e o
+  // lábio de baixo do sorriso passa por -0,715 perto de x -0,14. Centrada em
+  // (-0,14, -0,795) com raio 0,145 ela nasce DENTRO da boca e pendura até
+  // -0,94 — ainda no creme. A primeira tentativa, centrada em (-0,02, -0,80)
+  // com raio 0,175, ia até -0,975: caía do queixo e se misturava com a tinta do
+  // pescoço.
+  linguaShape.absellipse(-0.13, -0.700, 0.118, 0.150, 0, Math.PI * 2, false, 0);
+  const lingua = add(curvedShape(linguaShape, 0.052, 3), line);
+  const vincoDaLingua = add(
+    stroke([[-0.135, -0.615], [-0.13, -0.70], [-0.124, -0.792]], 0.015, 0.064), cream);
+  lingua.visible = false; vincoDaLingua.visible = false;
+
   let lastMouth = -1;
   let lastPose = '';
   function setMouth(amount: number, pose = 'sorrisoIronico') {
@@ -325,6 +350,8 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     const wide = ['risadaIronica', 'empolgado', 'feliz', 'dentesDebochados'].includes(pose);
     const narrow = ['falando1', 'falando3', 'falando5', 'sorriso'].includes(pose);
     roundMouth.visible = round;
+    const comLingua = pose === 'provocando';
+    lingua.visible = comLingua; vincoDaLingua.visible = comLingua;
     for (const mesh of mouthMeshes) mesh.visible = !round;
     for (let j = 0; j < mouthGeometries.length; j++) {
       const a = mouthGeometries[j].getAttribute('position') as THREE.BufferAttribute;
