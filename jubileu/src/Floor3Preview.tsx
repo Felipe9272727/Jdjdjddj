@@ -73,6 +73,11 @@ import Floor3Grito from './Floor3Grito';
 import { hazards, hazardBox, registerJump, resetHazards, f3Progress, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { MOMENTOS_DA_CARA } from './f3Boca';
 import Floor3FallCutscene from './Floor3FallCutscene';
+// Import DIRETO, como o da queda: `lazy()` dentro do Canvas do r3f suspende, o
+// `<Suspense>` do DOM lá fora não pega, e a árvore some inteira sem erro nenhum
+// no console. Já custou três telas.
+import Floor3Cutscene from './Floor3Cutscene';
+import * as THREE from 'three';
 import { platforms as f3Platforms } from './f3Parkour';
 
 /**
@@ -156,6 +161,36 @@ function QuedaEncenada() {
             line={Number.isFinite(linha) ? linha : 0}
             onBeg={() => {}}
             onDone={() => {}}
+        />
+    );
+}
+
+/**
+ * DEV-ONLY: `?f3preview&fala=3` encena a APRESENTAÇÃO, travada na fala 3.
+ *
+ * A queda recebe a fala como prop; a apresentação não — ela se dirige por um
+ * relógio interno (`lineAt`), então o único jeito de ver a fala 7 era esperar a
+ * cena inteira chegar lá, e numa bancada a ~2 fps isso é o mesmo que nunca ver.
+ * `travarNaFala` prende o relógio do roteiro num instante da fala pedida.
+ *
+ * `&instante=0.8` escolhe onde DENTRO da fala parar (padrão: o meio). Importa
+ * porque todo plano tem uma deriva, e um plano pode caber no começo da fala e
+ * cortar o gesto no fim dela.
+ */
+function ApresentacaoEncenada() {
+    const q = new URLSearchParams(window.location.search);
+    const bruto = q.get('fala');
+    const alvo = useRef(new THREE.Vector3());
+    if (bruto === null) return null;
+    const linha = Number(bruto);
+    const inst = Number(q.get('instante'));
+    return (
+        <Floor3Cutscene
+            targetRef={alvo}
+            onLine={() => {}}
+            onDone={() => {}}
+            travarNaFala={Number.isFinite(linha) ? linha : 0}
+            fracaoDaFala={Number.isFinite(inst) ? inst : undefined}
         />
     );
 }
@@ -257,6 +292,12 @@ export default function Floor3Preview() {
     // e as armadilhas quando `fallActive`, e esta tela nunca passava esse sinal.
     // Uma foto com peça a mais é tão mentirosa quanto uma com peça a menos.
     const queda = new URLSearchParams(window.location.search).has('queda');
+    // A APRESENTAÇÃO desliga as DUAS coisas no jogo: `App.tsx` passa
+    // `floor3Hands={!cartoonIntro && !cartoonCutscene}` e as luvas idem. Uma
+    // foto da apresentação com mão de jogador dentro é foto errada, não jogo
+    // errado — foi assim que a varredura da queda quase virou um relatório de
+    // defeito que não existia.
+    const apresentacao = new URLSearchParams(window.location.search).has('fala');
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             {grito && <Floor3Grito texto={grito} serie={1} />}
@@ -279,9 +320,13 @@ export default function Floor3Preview() {
                 <ForcarPinceis />
                 <PublicarMomentos />
                 <QuedaEncenada />
+                <ApresentacaoEncenada />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
-                        : <Floor3Environment elevator={false} hands={!panorama && !queda} gloves={!panorama && !diabo && !queda} fallActive={queda} />}
+                        : <Floor3Environment elevator={false}
+                            hands={!panorama && !queda && !apresentacao}
+                            gloves={!panorama && !diabo && !queda && !apresentacao}
+                            fallActive={queda} />}
                 </Suspense>
                 {!fphands && <OrbitControls target={alvoLivre ? alvoLivre : debug ? [0, 0, 0] : armadilha ? [0, 1.2, 12] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (

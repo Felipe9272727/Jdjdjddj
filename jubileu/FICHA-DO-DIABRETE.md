@@ -187,6 +187,60 @@ valores saíram da medida, não da opinião.
 | 6 | close | +0,82 | +0,75 | 25,2% | 69,6% |
 | 7 | alto  | +0,82 | +0,81 | 10,8% | 27,6% |
 
+### A régua estava errada sobre si mesma (e por isso os números acima mudaram)
+
+Nos ciclos 15 e 16 a sonda calculava a fração de tela assim: projetava o centro
+da cabeça e um ponto um RAIO acima, e multiplicava o delta de NDC por 200. Mas
+NDC vai de −1 a +1 na altura INTEIRA da tela, então o delta de um raio já é a
+fração do DIÂMETRO — o 200 conta duas vezes. **Os "69% da altura" que eu reportei
+no close da súplica eram 34%.**
+
+As comparações antes/depois continuam de pé (o erro é o mesmo fator dos dois
+lados), e as fotos nunca mentiram. O que estava errado era o número absoluto — e
+foi o suficiente para eu escolher as cinco larguras da apresentação por conta de
+cabeça e errar as cinco: a constante que tirei da foto discordava do modelo puro
+por 2,7 vezes. Quinta vez que o instrumento responde sobre outra coisa neste
+andar; primeira vez que o instrumento é meu.
+
+## A apresentação — mesmo defeito de lente, conserto DIFERENTE
+
+`?f3preview&fala=N` trava o relógio do roteiro numa fala (`travarNaFala` em
+`Floor3Cutscene`). A queda recebia a fala como prop; a apresentação se dirige por
+relógio interno, então até aqui a única forma de ver a fala 7 era esperar a cena
+inteira chegar lá — numa bancada a ~2 fps, ou seja nunca.
+
+Medido: **`fov` 66 nas nove falas.** As cinco lentes compostas (55, 46, 58, 38,
+36) achatadas numa só, cada plano 2,5× mais longe. E ele centrado no quadro, mas
+minúsculo — o crânio ocupando 6% a 9% da altura da tela em cinco das nove falas,
+numa cena cujo assunto declarado é "em rubber-hose a atuação está no corpo
+inteiro".
+
+**E o conserto NÃO é o da súplica.** Lá os planos de rosto queriam `largura`
+baixa (0,27); aqui `perto` e `pincel` foram compostos como lentes LONGAS a
+distância curta (fov 36 a 1,35 m), já apertadíssimos no eixo vertical — que é
+justamente o que a tela em pé preserva. Copiar o valor da súplica teria estourado
+os dois. Cada plano tem a sua conta, e a conta sai da varredura:
+
+| plano | largura | corpo na tela | crânio: antes → agora |
+|-------|--------:|--------------:|----------------------:|
+| apresenta | 0,05 |  41–44% | 6,6% → 20,5% |
+| escadaria | 0,10 |  49–54% | 8,1% → 18,3% |
+| medio     | 0,10 |  54–58% | 8,7% → 27,4% |
+| pincel    | 0,20 |  73–77% | 14,2% → 34,9% |
+| perto     | 0,20 | 108–123% | 21,5% → 55,3% |
+
+A escada é monotônica de propósito: plano de rosto tem de ser mais fechado que
+qualquer plano de corpo, senão o corte de `medio` para `pincel` AFASTA em vez de
+aproximar e o nome do plano passa a mentir. É o que o teste novo cobra.
+
+### O teste que era cego para a tela dele
+
+`alturaEnquadrada` lê o `fov` e a distância COMPOSTOS, sem passar por
+`enquadrar()`. Os dois testes que dependiam dela ("os planos de corpo abraçam o
+Diabrete inteiro", "os closes são mesmo closes") **passavam** enquanto no celular
+dele o Diabrete ocupava 20% do quadro. `fracaoNaTela` mede o que o jogador vê, e
+os dois testes novos cobram na tela em pé (`ASPECTO_DO_CELULAR`).
+
 ### O que fica aberto
 
 - **A fala 3 (`raso`) ainda falha o próprio propósito.** Ele ocupa 2,4% da
@@ -195,9 +249,9 @@ valores saíram da medida, não da opinião.
   cinza, duas nuvens e uma laje. Aqui `largura: 1` está certo (é o único plano
   cujo assunto é mesmo largo); o que está errado é a MIRA, e recompor isso é
   escolha de direção, não conta.
-- **A apresentação tem o mesmo defeito de lente** e não foi tocada neste ciclo:
-  `planoDeApresentacao` tem `perto` (fov 36) e `close` (38) que na tela dele
-  também estouram para 66 com recuo 2,5. `Plano.largura` já existe para eles.
+- **A fala 8 da apresentação (a arrancada) não tem ninguém no quadro** no meio
+  da fala: ele já rocketou para 54 m e ocupa 1,6% da tela. Pode ser intenção (é
+  o "WHOOSH"), mas a fala é dele e o quadro está vazio.
 - **Tudo sai com um dutch angle forte** (`camRoll`), igual nas oito. Pode ser
   intenção; não mexi.
 

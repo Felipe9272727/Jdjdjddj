@@ -102,7 +102,10 @@ for (let linha = 0; linha < FALAS; linha++) {
             const u = c3.up, nu = Math.hypot(u.x, u.y, u.z) || 1;
             const a = ndcY(px, py, pz);
             const bq = ndcY(px + (u.x / nu) * raio, py + (u.y / nu) * raio, pz + (u.z / nu) * raio);
-            telaPct = +(Math.abs(bq - a) * 100).toFixed(1);   // meia altura, em % da tela
+            // NDC de -1 a +1 cobre a tela INTEIRA, então o delta de um raio já
+            // é a fração de tela do DIÂMETRO. Aqui isto é o número final; quem
+            // dobrava era a impressão lá embaixo, e dobrar era erro.
+            telaPct = +(Math.abs(bq - a) * 100).toFixed(1);   // diâmetro do crânio, em % da altura
         }
         const r3 = (a) => a.map((n) => +n.toFixed(3));
         return { cam, cabeca, beirada: w.__f3Beirada, corpo: w.__f3DevilPos,
@@ -130,7 +133,7 @@ for (const [linha, m] of medidas) {
     ;
     const pct = m?.telaPct;
     console.log(` ${String(linha).padStart(4)} | ${String(c ?? '—').padStart(5)} | ${leitura.padEnd(12)}`
-        + ` | ${String(m?.dist ?? '—').padStart(5)} | ${pct === null || pct === undefined ? '—' : (2 * pct).toFixed(1) + '% da altura'}`);
+        + ` | ${String(m?.dist ?? '—').padStart(5)} | ${pct === null || pct === undefined ? '—' : pct.toFixed(1) + '% da altura'}`);
 }
 
 const py = `

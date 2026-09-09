@@ -26,6 +26,7 @@
  */
 
 import { type F3Plat } from './f3Parkour';
+import { enquadrar, afastar } from './f3Enquadramento';
 
 // ── O PALCO ──────────────────────────────────────────────────────────────────
 // A cutscene não acontece na escadaria viva: ela monta o próprio pedacinho de
@@ -407,6 +408,42 @@ export const ALTURA_DO_DIABRETE = 2.2;
 
 export type NomeDaApresentacao = 'apresenta' | 'medio' | 'perto' | 'escadaria' | 'pincel';
 
+/**
+ * ── AS LARGURAS DA APRESENTAÇÃO, E POR QUE ELAS NÃO SÃO AS DA SÚPLICA ────────
+ *
+ * A varredura das nove falas (`as-nove-apresentacoes.mjs`) mediu `fov` 66 em
+ * TODAS — as cinco lentes compostas (55, 46, 58, 38, 36) viravam uma só, cada
+ * plano 2,5 vezes mais longe. Mesmo defeito da súplica.
+ *
+ * Mas o conserto NÃO é o mesmo, e isto é o que a medida ensinou: na súplica os
+ * planos de rosto queriam `largura` baixa (0,27); aqui `perto` e `pincel` querem
+ * 0,87 e 0,82, quase o recuo inteiro. O motivo é que eles foram compostos como
+ * lentes LONGAS a distância curta (fov 36 a 1,35 m) — já são apertadíssimos no
+ * vertical, que é justamente o eixo que a tela em pé preserva. Sem o recuo, o
+ * `perto` poria a cabeça dele em 209% da altura da tela.
+ *
+ * Ter chutado "close quer largura baixa" a partir da súplica teria estragado os
+ * dois planos. Cada plano tem a sua conta, e a conta sai da foto:
+ *
+ * Os números saem de `fracaoNaTela`, varrida de 0 a 1 — não de conta de cabeça.
+ * A primeira tentativa FOI conta de cabeça e errou os cinco: eu tinha derivado
+ * uma constante da foto e ela discordava do modelo por 2,7 vezes, porque a
+ * sonda da bancada contava o diâmetro do crânio duas vezes. Régua que erra
+ * sobre si mesma é o defeito favorito deste andar.
+ *
+ * A escada, em fração da altura da tela ocupada pelo corpo inteiro dele
+ * (`ALTURA_DO_DIABRETE`), na tela em pé, ao longo da deriva:
+ *
+ *   apresenta 0,05  41-44%   estabelece: ele, a plataforma e a escadaria atrás
+ *   escadaria 0,10  49-54%   guarda alguma largura, porque o assunto é o LUGAR
+ *   medio     0,10  54-58%   o normal da cena: corpo inteiro com folga p/ o gesto
+ *   pincel    0,20  73-77%   mais fechado, que é o que faz o pincel dar para ver
+ *   perto     0,20 108-123%  transborda de propósito: é a cara dele no quadro
+ *
+ * A escada é MONOTÔNICA de propósito — plano de rosto tem de ser mais fechado
+ * que qualquer plano de corpo, senão o corte de `medio` para `pincel` afasta em
+ * vez de aproximar, e o nome do plano passa a mentir.
+ */
 export function planoDeApresentacao(
     nome: NomeDaApresentacao, p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO, deriva = 0,
 ): Plano {
@@ -420,7 +457,7 @@ export function planoDeApresentacao(
             // seguinte, deixando o corte com menos de um metro — o que não é
             // corte, é um passinho.
             x: p.x - 0.7, y: 2.5 - d * 0.12, z: p.jogadorZ - 0.2 - d * 0.35,
-            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 55,
+            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 55, largura: 0.05,
         };
         // O PLANO DE CORPO — o normal desta cena. Ele inteiro, do chapéu ao
         // sapato, com espaço para o braço que aponta.
@@ -429,7 +466,7 @@ export function planoDeApresentacao(
         //  ele levanta o braço. Meio metro atrás e dois graus mais aberto.)
         case 'medio': return {
             x: p.x - 0.9, y: 1.95 - d * 0.1, z: p.jogadorZ + 0.45 - d * 0.3,
-            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 46,
+            lx: p.x, ly: p.y + 1.05, lz: p.z, fov: 46, largura: 0.10,
         };
         // A ESCADARIA — três quartos de lado, com o curso no quadro. É o plano
         // da fala em que ele diz que o lugar é dele: o assunto é o LUGAR.
@@ -447,18 +484,18 @@ export function planoDeApresentacao(
         // é dele. A escadaria entra atrás pelo fundo, não pelo lado.
         case 'escadaria': return {
             x: p.x - 0.4, y: 0.75 + d * 0.12, z: p.jogadorZ + 0.6 + d * 0.3,
-            lx: p.x, ly: p.y + 1.5, lz: p.z, fov: 58,
+            lx: p.x, ly: p.y + 1.5, lz: p.z, fov: 58, largura: 0.10,
         };
         // O PINCEL — mais perto e do lado direito dele, que é onde o pincel
         // está preso. É o plano da fala que ensina a mecânica do andar.
         case 'pincel': return {
             x: p.x + 1.9, y: 1.7 - d * 0.08, z: p.jogadorZ + 1.7 + d * 0.2,
-            lx: p.x + 0.35, ly: p.y + 1.15, lz: p.z, fov: 38,
+            lx: p.x + 0.35, ly: p.y + 1.15, lz: p.z, fov: 38, largura: 0.20,
         };
         // O CLOSE — tempero, para a ameaça e para a gargalhada.
         default: return {
             x: p.x - 0.35, y: 1.85 - d * 0.08, z: p.jogadorZ + 1.9 + d * 0.25,
-            lx: p.x, ly: p.y + 1.35, lz: p.z, fov: 36,
+            lx: p.x, ly: p.y + 1.35, lz: p.z, fov: 36, largura: 0.20,
         };
     }
 }
@@ -493,6 +530,38 @@ export function alturaEnquadrada(c: Plano, p: PalcoDaApresentacao = PALCO_DA_APR
     const dist = Math.hypot(c.x - p.x, c.y - (p.y + ALTURA_DO_DIABRETE / 2), c.z - p.z);
     return 2 * dist * Math.tan((c.fov * Math.PI) / 180 / 2);
 }
+
+/**
+ * Que FRAÇÃO DA ALTURA DA TELA um sujeito de `altura` metros ocupa neste plano,
+ * numa tela de `aspecto` — passando pela compensação de enquadramento.
+ *
+ * ── POR QUE `alturaEnquadrada` NÃO BASTAVA ───────────────────────────────────
+ *
+ * Ela usa o `fov` e a distância COMPOSTOS, sem passar por `enquadrar()`. Ou
+ * seja: ela responde sobre a tela larga da bancada, e é cega para a do Felipe —
+ * que é onde o jogo é jogado. Os testes que dependiam só dela aprovavam a cena
+ * inteira enquanto, no celular em pé, o Diabrete ocupava 20% da altura do quadro
+ * numa cutscene cujo assunto declarado é a atuação do corpo inteiro dele.
+ *
+ * É o formato de defeito que este andar já teve quatro vezes: o instrumento
+ * respondendo sobre outra coisa. Esta função mede o que o jogador vê.
+ */
+export function fracaoNaTela(
+    c: Plano,
+    aspecto: number,
+    altura = ALTURA_DO_DIABRETE,
+    p: PalcoDaApresentacao = PALCO_DA_APRESENTACAO,
+): number {
+    const enq = enquadrar(c.fov, aspecto, undefined, c.largura);
+    const olho = afastar({ x: c.x, y: c.y, z: c.z }, { x: c.lx, y: c.ly, z: c.lz }, enq.recuo);
+    const dist = Math.hypot(olho.x - p.x, olho.y - (p.y + altura / 2), olho.z - p.z);
+    const abraca = 2 * dist * Math.tan((enq.fov * Math.PI) / 180 / 2);
+    return abraca > 0 ? altura / abraca : 0;
+}
+
+/** O aspecto da tela do Felipe: celular em pé, 412 x 915. É a tela em que o jogo
+ *  é jogado, e por isso a que os testes de enquadramento cobram. */
+export const ASPECTO_DO_CELULAR = 412 / 915;
 
 
 /**
