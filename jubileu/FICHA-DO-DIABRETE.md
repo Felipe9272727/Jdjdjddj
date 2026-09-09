@@ -57,16 +57,63 @@ A última linha é a que me pegou três vezes: a régua chama de 1,0 o pixel de
 creme mais alto da FOTO, que é o alto da cúpula do crânio, lá no meio. Em cima
 do olho o cabelo desce e o creme acaba bem antes.
 
-## Os valores de agora
+## A CARA MUDOU DE TECNOLOGIA — leia isto antes do resto
 
-    caixa dos olhos ... cy 0,826   0,30 x 0,168     (canvas 256 x 143)
-      órbita no canvas   cy 78,5   92,2 x 113,0     testa 22 px
-    nariz ............. cy 0,754   raio 0,015
-    bico de viúva ..... ponta em Y 0,885, abrindo 2,0 por unidade de altura
-    caixa da boca ..... cy 0,716   0,29 x 0,19      (canvas 192 x 128)
+Tudo o que este arquivo descreve abaixo desta seção sobre CAIXAS, régua do rosto
+e pincéis de canvas vale para a cara PINTADA NO SHADER, que era como eu vinha
+construindo o rosto: máscara, nariz e bico de viúva decididos por posição no
+fragmento, mais olhos e boca desenhados em canvas e projetados por caixa.
 
-`o-rosto-confere.test.ts` quebra se a folha da bancada
-(`bancada-navegador/o-rosto-inteiro.html`) deixar de bater com estes.
+Ela foi SUBSTITUÍDA. O dono do jogo trouxe `src/DiabreteSculptedHead.tsx` — uma
+cabeça inteira de geometria, feita de formas bezier projetadas num elipsoide
+(RX 1,04 / RY 1 / RZ 0,91): máscara, olhos, pálpebras, sobrancelhas, chifres,
+tufos, nariz, sorriso, dentes e as divisões entre eles. `diabreteRig.ts` a monta
+e `definirCara`/`definirBoca` a dirigem pelo MESMO vocabulário dos módulos puros
+(`malicia`, `ironia`, `sorrisoIronico`).
+
+E ela é melhor, sem meio termo. O motivo é estrutural, não de gosto: ela é
+geometria curvada SOBRE o crânio, então se sustenta de 3/4 e de perfil. A minha
+máscara pintada era uma decisão por posição no espaço local — de frente ficava
+boa, e em qualquer outro ângulo a borda se desfazia. Sete ciclos de foto de
+frente esconderam isso.
+
+O que sobrou de útil do trabalho antigo, e continua valendo:
+- os módulos PUROS (`f3Boca`, `f3Olhos`, `f3Sobrancelha`) — o vocabulário de
+  expressões, os ciclos de fala, os visemas e a tabela momento→cara. A cabeça
+  esculpida consome tudo isso;
+- `f3Enquadramento`, que conserta o plano das cutscenes em tela de celular;
+- a lição das três câmeras, e `?sempiscar`.
+
+## O custo dela, e o que já foi devolvido
+
+A cabeça esculpida é geometria, então custa triângulo onde a cara pintada custava
+textura. Medido no andar inteiro com três pincéis e falando:
+
+    cara pintada (antes) ....... 22.600 triângulos
+    esculpida, como chegou ..... 52.817
+    esculpida, depois de podar . 36.132
+
+A poda não mudou um pixel em nenhum dos três ângulos, e foi em dois lugares:
+- `curvedShape` subdivide 4^n vezes; a máscara usava n=4, ou seja 256 triângulos
+  por triângulo de origem. Com n=3 são 64. A máscara é a maior forma da cabeça, e
+  perto do centro — onde ela é grande — é quase plana, então a subdivisão extra
+  não estava comprando curvatura nenhuma;
+- o crânio era uma esfera 56x40 (4.480 triângulos) chapada de tinta; 40x28 dá
+  2.240 e o contorno na tela continua liso.
+
+Ainda sobra o que podar se precisar: os `tufts` são seis cones de 12x10.
+
+## As três câmeras, e o freio da piscada
+
+Foto de cara SEMPRE nos três ângulos, e SEMPRE com `&sempiscar`:
+
+    frente  CAM='&cam=0.66,1.94,15.35&alvo=0.66,1.91,14'
+    3/4     CAM='&cam=1.53,1.94,15.03&alvo=0.66,1.91,14'
+    perfil  CAM='&cam=2.02,1.93,14.05&alvo=0.66,1.91,14'
+
+`?parado` congela pose, marcha e molas — mas NÃO a piscada, que tem relógio
+próprio de propósito. Sem `?sempiscar`, duas fotos do mesmo olho saem diferentes
+e eu quase "consertei" uma pálpebra que estava certa.
 
 ## Como conferir sem abrir o jogo
 
