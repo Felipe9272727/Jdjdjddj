@@ -289,7 +289,14 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   const mouthBases = mouthGeometries.map(g => Float32Array.from(g.getAttribute('position').array));
   const mouthMeshes = group.children.filter(child => child instanceof THREE.Mesh && mouthGeometries.includes(child.geometry));
   const roundShape = new THREE.Shape();
-  roundShape.absellipse(0, -0.68, 0.12, 0.13, 0, Math.PI * 2, false, 0);
+  // ── A BOCA REDONDA ERA UM SEGUNDO NARIZ ────────────────────────────────────
+  // Com 0,12 x 0,13 logo abaixo de um nariz de 0,126 x 0,077, o "O" de susto
+  // saía do mesmo tamanho e no mesmo eixo que a bola do nariz — na folha das
+  // dezesseis caras, `roubou` lia como se ele tivesse duas nareba, uma em cima
+  // da outra. Boca de susto de desenho animado é GRANDE, e desloca para o lado
+  // que o sorriso torto já levanta. Mas 0,19 x 0,215 em -0,71 passou do outro
+  // lado: encostava no queixo e virava um borrão. 0,163 x 0,178 em -0,655.
+  roundShape.absellipse(0.07, -0.655, 0.163, 0.178, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
   let lastMouth = -1;

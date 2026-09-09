@@ -137,13 +137,20 @@ de pé sem fazer nada, e eu tirei seis fotos de bocas diferentes que saíram
 idênticas. Agora ela mora em `definirBoca`/`definirCara`, que é por onde toda
 cara passa. Flag morta é pior que flag ausente — ela responde.
 
-## Como conferir sem abrir o jogo
+## Como ver as dezesseis caras
 
-    node bancada-navegador/a-ficha-inteira.mjs /tmp/o-rosto-inteiro.png rosto
+    node bancada-navegador/as-dezesseis-caras.mjs 0 /tmp/caras-0.png
+    node bancada-navegador/as-dezesseis-caras.mjs 3 /tmp/caras-3.png
 
-Monta o rosto em 2D com a mesma aritmética do fragmento: as 16 expressões do
-andar (com 0 e com 3 pincéis), o ciclo de fala, as 27 bocas e os 12 olhos, tudo
-numa foto. É a folha que achou a língua-rosquinha e o sorriso pequeno.
+Fotografa o JOGO em cada um dos dezesseis momentos, com 0 e com 3 pincéis
+roubados, e monta a folha de contato. A trava é `?momento=`, que resolve a tripla
+(boca, olho, sobrancelha) DENTRO do rig — a bancada não copia essa tabela, e a
+lista de momentos ela lê da própria página.
+
+Isso substitui `o-rosto-inteiro.html`, que foi aposentado: aquela folha
+REDESENHAVA o rosto com os pincéis de canvas, e o rosto deixou de ser desenhado
+em canvas quando virou escultura. Ela seguia desenhando bonito uma cara que o
+jogo não tem mais. A nova fotografa o jogo, então não tem como divergir dele.
 
 Para julgar no modelo de verdade (silhueta, cabelo, chifre):
 

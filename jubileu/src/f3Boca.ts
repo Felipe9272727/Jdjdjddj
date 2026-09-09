@@ -475,6 +475,21 @@ export type MomentoDoDiabrete =
     | 'apresentacao' | 'desenhou' | 'espetou' | 'roubou' | 'provoca' | 'caiu' | 'suplica';
 
 /**
+ * TODOS os momentos, numa lista só — os sete do arco e os nove extras.
+ *
+ * Existe porque a bancada precisava deles para montar a folha de contato das
+ * dezesseis caras, e a alternativa era COPIAR a lista lá. Tabela copiada
+ * envelhece calada, e neste rosto isso já cobriu caro duas vezes: a folha do
+ * rosto montado ficou desenhando um canvas velho, e a trava de URL continuou de
+ * pé sem fazer nada depois que a cara mudou de tecnologia.
+ */
+export const MOMENTOS_DA_CARA: ReadonlyArray<MomentoDoDiabrete | MomentoExtra> = Object.freeze([
+    'apresentacao', 'provoca', 'desenhou', 'espetou', 'roubou', 'caiu', 'suplica',
+    'ocioso', 'quaseLaEmCima', 'perdeuOPrimeiro', 'perdeuOUltimo',
+    'tonto', 'pensando', 'confuso', 'vitorioso', 'derrotado',
+]);
+
+/**
  * A cara dele conforme o andar anda. Usa o MESMO `roubados` que o chão
  * (`f3Desenho`), a voz (`f3Voz`) e a trilha (`f3Trilha`) — um número, um dono.
  *

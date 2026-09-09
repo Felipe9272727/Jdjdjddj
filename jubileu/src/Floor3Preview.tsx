@@ -67,6 +67,7 @@ import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
 import Floor3Grito from './Floor3Grito';
 import { hazards, hazardBox, registerJump, resetHazards, f3Progress } from './f3Hazards';
+import { MOMENTOS_DA_CARA } from './f3Boca';
 import { platforms as f3Platforms } from './f3Parkour';
 
 /**
@@ -119,6 +120,21 @@ function Esculpida() {
             />
         </group>
     );
+}
+
+/**
+ * DEV-ONLY: expõe a lista dos momentos para a bancada.
+ *
+ * `as-dezesseis-caras.mjs` precisa saber quais são os dezesseis, e havia dois
+ * jeitos ruins: importar `f3Boca.ts` do Node (não dá — os imports internos são
+ * sem extensão) ou COPIAR a lista para a bancada. Copiar é o que já cobrou caro
+ * duas vezes neste rosto: tabela copiada envelhece calada.
+ *
+ * Então a página publica a lista e a bancada lê dali. Uma fonte só.
+ */
+function PublicarMomentos() {
+    (window as unknown as { __f3Momentos?: readonly string[] }).__f3Momentos = MOMENTOS_DA_CARA;
+    return null;
 }
 
 /**
@@ -216,6 +232,7 @@ export default function Floor3Preview() {
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
+                <PublicarMomentos />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
