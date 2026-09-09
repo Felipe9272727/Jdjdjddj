@@ -132,7 +132,7 @@ function sculptAssets() {
     return { mask, eyes, brows, lids, horns, tufts, grin, teeth, divisions, corners };
 }
 
-export function createDiabreteSculpt() {
+export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) {
   const group = new THREE.Group();
   group.name = 'diabrete-sculpted-head';
   const assets = sculptAssets();
@@ -152,6 +152,10 @@ export function createDiabreteSculpt() {
   }
   const skull = add(new THREE.SphereGeometry(1, 56, 40), ink);
   skull.scale.set(RX, RY, RZ);
+  if (neck) {
+    const collar = add(new THREE.CylinderGeometry(0.2, 0.23, 0.5, 20), ink);
+    collar.position.y = -1.22;
+  }
   skull.renderOrder = -1; // Synchronize the attachment before any facial mesh is drawn.
   for (const geometry of [...assets.horns, ...assets.tufts]) add(geometry, ink);
   add(assets.mask, cream);
@@ -245,7 +249,7 @@ export function createDiabreteSculpt() {
   const mouthBases = mouthGeometries.map(g => Float32Array.from(g.getAttribute('position').array));
   const mouthMeshes = group.children.filter(child => child instanceof THREE.Mesh && mouthGeometries.includes(child.geometry));
   const roundShape = new THREE.Shape();
-  roundShape.absellipse(0, -0.6, 0.13, 0.17, 0, Math.PI * 2, false, 0);
+  roundShape.absellipse(0, -0.68, 0.12, 0.13, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
   let lastMouth = -1;
@@ -272,7 +276,7 @@ export function createDiabreteSculpt() {
         let y = originalY - open * lowerLip * (j === 0 ? 0.13 : 0.01);
         if (angry || sad) {
           x = (originalX - 0.2) * (sad ? 0.72 : 0.9);
-          y = -1.1 - (originalY - 0.31 * (originalX - 0.2));
+          y = -1.22 - (originalY - 0.31 * (originalX - 0.2));
           if (sad) y = -0.57 + (y + 0.57) * 0.5;
         } else if (closedPose) {
           const upper = -0.62 + (originalX + 0.24) * 0.31;

@@ -619,21 +619,17 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // index layout and all non-position attributes remain aligned.
     const fillGeo = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
     const { joints, weights } = paintWeights(fillGeo.attributes.position.array as Float32Array);
-    const headWeight = (vertex: number) => {
-        let total = 0;
-        for (let k = 0; k < 4; k++) {
-            if (joints[vertex * 4 + k] === B.head) total += weights[vertex * 4 + k];
-        }
-        return total;
-    };
+    // Skin weights blend through the jaw; replacement must remove geometry, not just
+    // vertices dominated by the head bone. The collar and arms remain below this cut.
+    const isLegacyHeadVertex = (vertex: number) => fillGeo.attributes.position.getY(vertex) >= 0.61;
     const kept: number[] = [];
     const vertexCount = fillGeo.attributes.position.count;
     for (let vertex = 0; vertex + 2 < vertexCount; vertex += 3) {
         // Drop a whole triangle as soon as any corner belongs to the head;
         // otherwise a mixed boundary triangle leaves a sliver of the legacy
         // face poking through the procedural mask.
-        if (headWeight(vertex) < 0.5 && headWeight(vertex + 1) < 0.5
-            && headWeight(vertex + 2) < 0.5) {
+        if (!isLegacyHeadVertex(vertex) && !isLegacyHeadVertex(vertex + 1)
+            && !isLegacyHeadVertex(vertex + 2)) {
             kept.push(vertex, vertex + 1, vertex + 2);
         }
     }
@@ -707,7 +703,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // under the head bone: putting renderable meshes in the skeleton hierarchy
     // can make Three's skinning traversal unstable. The sculpt is rendered as
     // a sibling and copied into the rig's local space immediately before draw.
-    const sculpt = createDiabreteSculpt();
+    const sculpt = createDiabreteSculpt({ neck: true });
     const headAnchor = new THREE.Object3D();
     headAnchor.name = 'diabrete-head-anchor';
     bones[B.head].add(headAnchor);
