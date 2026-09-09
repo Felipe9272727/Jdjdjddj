@@ -666,7 +666,18 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
             // Agora é uma elipse em coordenada local, que é o que a referência
             // mostra. `n.z > 0.0` fica só para a nuca não acender.
             + `  vec2 _m = (p.xy - vec2(0.0, ${emGlsl(MASCARA_CY)})) / vec2(${emGlsl(MASCARA_RX)}, ${emGlsl(MASCARA_RY)});\n`
-            + '  if (dot(h, h) < 1.06 && dot(_m, _m) < 1.0 && p.z > 0.0 && n.z > 0.0) {\n'
+            // ── E A NORMAL SAIU DE VEZ ───────────────────────────────────
+            // Sobrou um `n.z > 0.0` do teste antigo, "para a nuca não acender".
+            // De frente ele não fazia diferença. De 3/4 e de PERFIL — que eu
+            // nunca tinha fotografado — ele desmontava a cara: perto da
+            // silhueta a normal interpolada oscila de triângulo em triângulo,
+            // então a borda do creme saía serrilhada e apareciam retalhos
+            // soltos de creme na lateral da cabeça.
+            //
+            // E ele era redundante: quem mantém a nuca preta é `p.z > 0`, que é
+            // POSIÇÃO e não muda com o facetamento da malha. Sem a normal, a
+            // máscara é uma forma pura — mesma borda limpa em todo ângulo.
+            + '  if (dot(h, h) < 1.06 && dot(_m, _m) < 1.0 && p.z > 0.075) {\n'
             // ── O NARIZ, E POR QUE ELE MORA AQUI E NÃO NUM CANVAS ────────
             //
             // "aí ele perde a nareba". "ainda está cobrindo o nariz". "a bola

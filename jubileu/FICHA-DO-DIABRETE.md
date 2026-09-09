@@ -156,7 +156,16 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
 - [x] ~~a boca não tem o sorriso torto (nº 8)~~ — ciclo 6: `sorrisoIronico`, que
       é a boca de repouso e a que mais aparece, abriu de 0,05/0,13 para
       0,09/0,22, e o `TORTO` universal subiu de 0,10 para 0,13.
+- [x] ~~a máscara desmontava de 3/4 e de perfil~~ — ciclo 7, e só apareceu porque
+      foi a primeira vez que fotografei o personagem de outro ângulo. Sobrava um
+      `n.z > 0.0` do teste antigo: perto da silhueta a normal interpolada oscila
+      de triângulo em triângulo, e a borda do creme saía serrilhada com retalhos
+      soltos na lateral. Era redundante — quem mantém a nuca preta é `p.z > 0`,
+      que é posição. E o `p.z` subiu para 0,075 para o creme parar ANTES da
+      franja, em vez de contornar a cabeça e aparecer entre os espetos.
 - [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
+- [ ] o PERFIL continua limitado pela malha: a franja lateral passa na frente da
+      bochecha e recorta o creme. Isso é remodelagem, não ajuste.
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
       cor por geometria (uma cunha em coordenada local, de graça). É ele que faz
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o
