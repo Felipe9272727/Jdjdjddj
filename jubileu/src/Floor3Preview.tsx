@@ -216,7 +216,6 @@ export default function Floor3Preview() {
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
-                <Esculpida />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}

@@ -116,7 +116,11 @@ function mouth() {
 
 function sculptAssets() {
     const mask = faceMask(), eyes = [-1, 1].map(eye);
-    const brows = [-1, 1].map(side => stroke([[side * 0.29, 0.47], [side * 0.41, 0.59], [side * 0.54, 0.61], [side * 0.64, 0.51]], 0.010, 0.039));
+    // As sobrancelhas desceram (0,47..0,61 -> 0,41..0,53) e engrossaram um fio.
+    // Com a piscada travada (`?sempiscar`) dá para ver o repouso, e nele elas
+    // flutuavam perto da linha do cabelo, longe do olho, que acaba em 0,38 — a
+    // ficha de modelagem dele diz que a sobrancelha é PARTE DO CONTORNO DO OLHO.
+    const brows = [-1, 1].map(side => stroke([[side * 0.29, 0.41], [side * 0.41, 0.51], [side * 0.54, 0.53], [side * 0.64, 0.44]], 0.012, 0.039));
     const lids = [-1, 1].map(side => stroke([[side * 0.24, -0.035], [side * 0.42, -0.065], [side * 0.62, -0.055], [side * 0.72, 0.002]], 0.013));
     const horns = [-1, 1].map(side => tapered([[side * 0.67, 0.65, -0.04], [side * 0.86, 0.92, -0.035], [side * 0.91, 1.2, -0.015], [side * 0.86, 1.52, 0]], 0.27));
     const tufts = [-1, 1].flatMap(side => [0, 1, 2].map(i => tapered(

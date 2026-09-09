@@ -53,6 +53,23 @@ export function corteDoDiabrete(): number {
     } catch { return DIABRETE_CORTE; }
 }
 
+/**
+ * `?sempiscar` trava a piscada. SEM ISTO, TODA FOTO DA CARA É UM CHUTE.
+ *
+ * `?parado` congela a pose, a marcha e as molas — mas não a piscada, que tem
+ * relógio próprio de propósito (ver `f3Olhos`). Resultado: duas fotos do MESMO
+ * olho `malicia`, com um minuto de diferença, saíram uma como fresta e a outra
+ * como olho FECHADO, e eu estava a um passo de "consertar" uma pálpebra que não
+ * tinha nada de errado — era uma piscada apanhada no meio.
+ *
+ * É a terceira vez neste rosto que medir o momento errado quase virou conserto
+ * errado. Com o freio, foto de cara passa a ser reproduzível.
+ */
+function semPiscar(): boolean {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').has('sempiscar'); }
+    catch { return false; }
+}
+
 // ── Bone indices ──────────────────────────────────────────────────────────────
 export const enum B { root, body, head, l_arm, r_arm, l_leg, r_leg }
 
@@ -771,7 +788,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         bones,
         definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => {
             sculpt.setExpression(olho, cenho);
-            const q = quadroDaPiscada(t);
+            const q = semPiscar() ? -1 : quadroDaPiscada(t);
             sculpt.setBlink(olho === 'fechadoSorrindo'
                 ? 1
                 : q < 0 ? 0 : PISCADA[Math.min(PISCADA.length - 1, q)]);
