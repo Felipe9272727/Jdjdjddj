@@ -1,10 +1,32 @@
-import React, { useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import DiabreteSculptedHead from './DiabreteSculptedHead';
+import { buildDiabreteRig } from './diabreteRig';
+import { diabreteModel } from './assets/textureImports';
+
+function FullRig({ speaking }: { speaking: boolean }) {
+  const { scene } = useGLTF(diabreteModel);
+  const rig = useMemo(() => buildDiabreteRig(scene), [scene]);
+  useEffect(() => {
+    if (rig) document.documentElement.dataset.diabreteRig = 'ready';
+    return () => { delete document.documentElement.dataset.diabreteRig; rig?.dispose(); };
+  }, [rig]);
+  useFrame(({ clock }) => {
+    if (!rig) return;
+    const t = clock.elapsedTime;
+    rig.bones[2].rotation.y = speaking ? Math.sin(t * 1.3) * 0.3 : 0;
+    rig.definirCara('neutro', 'ironia', t);
+    rig.definirBoca(speaking ? (Math.sin(t * 11) > 0 ? 'falando2' : 'falando1') : 'sorrisoIronico');
+  });
+  return rig ? <group position={[0, -1.1, 0]}><primitive object={rig.group} scale={2.2} /></group> : null;
+}
 
 function View({ angle, speaking }: { angle: number; speaking: boolean }) {
   const { camera } = useThree();
+  const mood = new URLSearchParams(location.search).get('mood');
+  const expression = mood === 'angry' ? { look: 'bravo', brow: 'raiva', mouth: 'bravo' } : mood === 'surprised' ? { look: 'arregalado', brow: 'surpresa', mouth: 'surpreso' } : {}; 
   camera.position.set(Math.sin(angle) * 5.3, 0.27, Math.cos(angle) * 5.3);
   camera.lookAt(0, 0.17, 0);
   return <>
@@ -12,7 +34,9 @@ function View({ angle, speaking }: { angle: number; speaking: boolean }) {
     <hemisphereLight args={['#fff8ea', '#564332', 2.1]} />
     <directionalLight position={[-3, 5, 5]} intensity={3.4} />
     <directionalLight position={[4, 2, -3]} intensity={3} color="#fff6df" />
-    <DiabreteSculptedHead speaking={speaking} blink={speaking ? undefined : 0} />
+    <Suspense fallback={null}>{new URLSearchParams(location.search).has('rig')
+      ? <FullRig speaking={speaking} />
+      : <DiabreteSculptedHead speaking={speaking} blink={speaking ? undefined : 0} {...expression} />}</Suspense>
   </>;
 }
 

@@ -2,6 +2,9 @@ name: Diabrete sculpt validation
 on:
   push:
     branches: [diabrete/floor3-head]
+concurrency:
+  group: diabrete-sculpt-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -19,6 +22,7 @@ jobs:
           cache-dependency-path: jubileu/package-lock.json
       - run: npm ci
       - run: npm run lint:types
+      - run: npx vitest run src/__tests__/diabreteRig.test.ts
       - run: npm run build && node inline-build.mjs
       - name: Start model studio
         run: npx vite --host 0.0.0.0 --port 5173 > /tmp/diabrete-vite.log 2>&1 &
