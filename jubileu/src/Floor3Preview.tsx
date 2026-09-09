@@ -86,6 +86,42 @@ function vetorDaUrl(chave: string): [number, number, number] | null {
 }
 
 /**
+ * DEV-ONLY: `?f3preview&esculpida` mostra a CABEÇA ESCULPIDA sozinha.
+ *
+ * Ela chegou no repo pelo commit "sculpted Diabrete (sources only)" e não estava
+ * ligada em lugar nenhum — nada a importava. Antes de decidir o que fazer com
+ * ela é preciso VER o que ela desenha, e ver de três ângulos, que é a lição que
+ * o ciclo 7 cobrou caro: sete voltas de foto de frente esconderam uma máscara
+ * que caía aos pedaços de perfil.
+ *
+ * Diferente da cutscene da queda, esta não depende de estado nenhum do jogo —
+ * é um componente fechado, o que faz dela uma tela de bancada barata.
+ *
+ * ── E O IMPORT É DIRETO, NÃO `lazy` ─────────────────────────────────────────
+ * A primeira versão usava `lazy()`, e a página inteira saía BRANCA — sem erro,
+ * sem exceção, sem nada no console. Um componente `lazy` SUSPENDE, e dentro do
+ * Canvas do react-three-fiber a suspensão não é pega pelo `<Suspense>` do DOM
+ * que está por fora: a árvore some inteira. A mesma coisa tinha derrubado a
+ * tentativa de encenar a cutscene da queda, e eu tinha culpado o estado do jogo.
+ * Numa tela de bancada não há o que ganhar com divisão de código.
+ */
+import CabecaEsculpida from './DiabreteSculptedHead';
+
+function Esculpida() {
+    if (!new URLSearchParams(window.location.search).has('esculpida')) return null;
+    const q = new URLSearchParams(window.location.search);
+    return (
+        <group position={[0.66, 1.9, 14]} scale={0.22}>
+            <CabecaEsculpida
+                look={q.get('olho') ?? 'malicia'}
+                brow={q.get('cenho') ?? 'ironia'}
+                mouth={q.get('boca') ?? 'sorrisoIronico'}
+            />
+        </group>
+    );
+}
+
+/**
  * DEV-ONLY: `?f3preview&pinceis=2` diz quantos pincéis já foram roubados.
  *
  * O andar se desfaz conforme o Diabrete perde as ferramentas (ver `f3Desenho`),
@@ -180,6 +216,7 @@ export default function Floor3Preview() {
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
+                <Esculpida />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
