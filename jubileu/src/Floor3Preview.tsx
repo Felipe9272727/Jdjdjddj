@@ -72,6 +72,7 @@ import { GRADE_F3 } from './floor3Grade';
 import Floor3Grito from './Floor3Grito';
 import { hazards, hazardBox, registerJump, resetHazards, f3Progress, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { MOMENTOS_DA_CARA } from './f3Boca';
+import { dizer, f3Fala, type EventoDoDiabrete } from './f3Falas';
 import Floor3FallCutscene from './Floor3FallCutscene';
 // Import DIRETO, como o da queda: `lazy()` dentro do Canvas do r3f suspende, o
 // `<Suspense>` do DOM lá fora não pega, e a árvore some inteira sem erro nenhum
@@ -211,6 +212,37 @@ function PublicarMomentos() {
 }
 
 /**
+ * DEV-ONLY: `?f3preview&diabo&evento=roubou` põe uma FALA no ar e a mantém lá.
+ *
+ * ── POR QUE ISTO NÃO PODE SER SIMULADO ───────────────────────────────────────
+ *
+ * A cara do Diabrete da escalada passou a seguir o evento que causou a fala. Há
+ * teste puro cobrando a tabela e cobrando que `f3Fala.evento` fique publicado —
+ * e teste puro NÃO prova que `Floor3Rival` chegou a ler. Essa distinção já
+ * cobrou caro neste andar: `?boca=` foi flag morta por vários ciclos, seis
+ * bocas "diferentes" saíram idênticas na foto, e o teste passava o tempo todo
+ * porque testava o outro lado do fio.
+ *
+ * Por isso aqui chama a MESMA função que `f3Hazards` e `Player` chamam, em vez
+ * de escrever em `f3Fala` na mão. Escrever na mão testaria a bancada.
+ *
+ * E REEMITE: uma fala dura ~3 s e a bancada fotografa aos 12. Sem renovar, a
+ * foto pegaria o repouso e eu concluiria que o fio não anda.
+ */
+function ForcarFala() {
+    const q = new URLSearchParams(window.location.search);
+    const evento = q.get('evento');
+    const roubados = Number(q.get('pinceis')) || 0;
+    useFrame(() => {
+        if (!evento) return;
+        const agora = performance.now();
+        if (agora < f3Fala.ate - 400) return;
+        dizer(evento as EventoDoDiabrete, { roubados });
+    });
+    return null;
+}
+
+/**
  * DEV-ONLY: `?f3preview&pinceis=2` diz quantos pincéis já foram roubados.
  *
  * O andar se desfaz conforme o Diabrete perde as ferramentas (ver `f3Desenho`),
@@ -318,6 +350,7 @@ export default function Floor3Preview() {
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
+                <ForcarFala />
                 <PublicarMomentos />
                 <QuedaEncenada />
                 <ApresentacaoEncenada />

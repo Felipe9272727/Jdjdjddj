@@ -465,3 +465,59 @@ Desenhados, testados, fotografados — e nunca escolhidos por código de jogo:
 cada um deles precisa de uma decisão de quando dispara (o `ocioso`, por exemplo,
 quer "o jogador está longe" — que o andar hoje não pergunta), e isso é escolha de
 design, não conserto.
+
+
+## Ciclo 18 — o fio da cara, provado em foto
+
+O ciclo 17 ligou a cara do Diabrete da escalada ao evento que causa cada fala, e
+entregou isso com teste puro. Teste puro prova a TABELA; não prova que
+`Floor3Rival` chegou a ler. A distinção não é acadêmica: `?boca=` foi flag morta
+por vários ciclos neste mesmo rosto, seis bocas "diferentes" saíram idênticas na
+foto, e o teste passava o tempo todo — porque testava o outro lado do fio.
+
+`?f3preview&diabo&evento=roubou&pinceis=3` põe uma fala no ar e a RENOVA (uma
+fala dura ~3 s, a bancada fotografa aos 12). Ela chama a mesma função que
+`f3Hazards` e `Player` chamam, e não escreve em `f3Fala` na mão — escrever na mão
+testaria a bancada.
+
+Quatro fotos da tela de verdade, e as quatro caras são diferentes:
+
+| o que está no ar | cara | como lê |
+|---|---|---|
+| nada (repouso) | `provoca` → sorriso irônico | olho estreito e malicioso |
+| `roubou`, 3 pincéis | `assustado` | olho ARREGALADO, sobrancelha alta |
+| `espetou` | `feliz` | olho fechado em arco, sorrisão |
+| `caiu` | `empolgado` | olho fechado, boca aberta |
+
+O fio anda. (`espetou` e `caiu` ficam parecidos com zero pincéis roubados —
+`feliz` e `empolgado` são primos. É a tabela, não o fio.)
+
+### O gatilho que o `ocioso` quer NÃO EXISTE neste andar
+
+A ficha listava cinco momentos sem gatilho, e o plano era ligar o `ocioso`, cujo
+comentário diz o que ele quer: *"língua de fora, sem ninguém por perto"*. Fui
+ver, e não dá — não por dificuldade, por geometria de design.
+
+`Floor3Rival` persegue `f3PlayerZ.current + LEAD_Z`, com `LEAD_Z = 14`. Ele é um
+lebre amarrada ao jogador: o alvo dele é SEMPRE catorze metros à frente de onde o
+jogador está. "Sem ninguém por perto" não é um estado que este andar tenha —
+ligar o `ocioso` a distância seria inventar uma condição que a encenação removeu
+de propósito. Não liguei, e o motivo fica aqui para o próximo ciclo não tentar de
+novo.
+
+Os outros quatro, revistos com a mesma régua: `quaseLaEmCima` resolve para
+`sorrisoIronico`, que é a MESMA cara de `provoca` com zero pincéis — ligá-lo não
+mudaria um pixel. `perdeuOPrimeiro` (`zangado`) tem cara própria, mas o gatilho
+dele é o roubo do primeiro pincel, que `roubou` já cobre. Ou seja: dos cinco
+"desligados", só o `ocioso` tinha algo a acrescentar, e é justamente o que não
+tem onde ser ligado.
+
+### A guarda de coerência mordeu a mão certa pelo motivo certo
+
+`f3Coerencia` varre o código atrás de `dizer(...)` sem `roubados` — porque a voz
+dele envelhece a cada pincel perdido e uma fala pelada faz o sujeito voltar a
+soar seguro de si depois de ter perdido tudo. Ela reprovou o commit por causa de
+um COMENTÁRIO meu que escrevia o nome da função com parênteses vazios. A guarda
+estava certa em ser textual; o `*` do padrão é que aceitava lista vazia. Virou
+`+`: chamada sem argumento nenhum o compilador já barra, então exigir ao menos um
+argumento não tira dente nenhum — `dizer('espetou')` continua sendo pego.
