@@ -19,7 +19,7 @@
  * Owns its own camera (rendered after <Player>, so its writes win).
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { quadroDaPose } from './f3Pose';
 import { enquadrar, afastar } from './f3Enquadramento';
@@ -33,6 +33,7 @@ import { playFloor3Land, playFloor3Fall, playFloor3Dizzy, playFloor3Stomp, playF
 import { PlatformView } from './Floor3';
 import { LAJES_DA_CUTSCENE, plano, planoDaSuplica, type Palco } from './f3Decupagem';
 import { diabreteModel } from './assets/textureImports';
+import { createF3ActingLayer } from './f3Acting';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const HANG_DROP = 1.5;      // how far below the ledge he dangles (hands clamp the lip, head just under)
@@ -43,6 +44,10 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const easeIn = (t: number) => t * t;
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+// App advances these exact lines with 3.2 s for Diabrete and 2.5 s for player.
+// Keep the acting-layer `speaking` flag tied to the live line window so the
+// waiting-for-choice beat can use its listening gaze after the final voice ends.
+const FALL_LINE_ENDS = [3.2, 5.7, 8.9, 11.4, 14.6, 17.1, 20.3, 23.5] as const;
 
 // ── AS CORES DOS DOIS PROPS ──────────────────────────────────────────────────
 // O couro era `#7a4a24`, um marrom médio: sob a grade do andar (sat −0,62,
@@ -102,6 +107,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
     const gloveRef = useRef<THREE.Group>(null!);
     const puffRef  = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
+    const acting = useMemo(() => createF3ActingLayer(), []);
     // ── O CLÍMAX TAMBÉM DESLIZAVA ────────────────────────────────────────
     // A varredura das voltas 27–30 achou o Diabrete deslizando na apresentação e
     // na perseguição, e consertou os dois. Esta cena — que é o CLÍMAX do andar,
@@ -164,7 +170,11 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
         };
     }, [gltf, camera]);
 
+    useEffect(() => () => acting.dispose(), [acting]);
+
     useFrame((_, dt) => {
+        // Reset additive acting offsets before every phase branch/early return.
+        acting.begin();
         const rig = rigRef.current;
         if (!groupRef.current || !rig) return;
         const safeDt = Math.min(dt, 0.05);
@@ -455,7 +465,8 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 b[B.l_arm].rotation.set(-1.7 * lunge, 0, 0.45); b[B.r_arm].rotation.set(-1.7 * lunge, 0, -0.45);  // both palms shove out
                 b[B.head].rotation.set(-0.15, 0, 0);
                 const ff = easeIn(clamp01((e - 0.18) / 0.9));               // the player falling
-                camRoll = ff * 1.3;
+                const mobile = tamanho.height < 520 || tamanho.width < 700;
+                camRoll = ff * (mobile ? 0.10 : 0.30);
                 cam.x = gx + ff * 1.2; cam.y = gripY + 1.0 - ff * 9.0; cam.z = gz + 3.0 + ff * 5.0;
                 cam.lx = gx; cam.ly = gripY + 0.8; cam.lz = gz; cam.fov = 48;
                 if (e > 0.4 && !sfx.current.shove) { sfx.current.shove = true; playFloor3Shove(); }
@@ -527,6 +538,20 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 rig.bones[k].position.copy(g[k].p);
                 rig.bones[k].rotation.copy(g[k].r);
             }
+        }
+
+        // Apply additive acting only after the em-dois restore, so the layer's
+        // offsets survive held drawings without accumulating frame over frame.
+        const cue = acting.apply(rig.bones, {
+            scene: 'fall', phase: ph, time: T, phaseTime: T,
+            line: lineRef.current,
+            speaking: ph === 'beg' && lineRef.current >= 0
+                && T < (FALL_LINE_ENDS[lineRef.current] ?? 0),
+        });
+        if (cue.eye || cue.brow) {
+            const baseEye = olhoDoDiabrete(caraDaFase, 3);
+            const baseBrow = sobrancelhaDoDiabrete(caraDaFase, 3);
+            rig.definirCara(cue.eye ?? baseEye, cue.brow ?? baseBrow, T + 0.37);
         }
     });
 

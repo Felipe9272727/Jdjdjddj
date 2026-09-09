@@ -15,7 +15,7 @@
  * `onLine` and calls `onDone` when the dash clears frame.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -34,6 +34,7 @@ import { diabreteModel } from './assets/textureImports';
 import { planoDaApresentacao, PALCO_DA_APRESENTACAO } from './f3Decupagem';
 import { enquadrar, afastar } from './f3Enquadramento';
 import { Spring } from './f3Mola';
+import { createF3ActingLayer } from './f3Acting';
 
 const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const STAND     = new THREE.Vector3(0.9, 0, -9.2);   // on the landing, ahead of the player
@@ -49,6 +50,7 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
     const { camera, size: tamanho } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
+    const acting = useMemo(() => createF3ActingLayer(), []);
 
     const clock    = useRef(0);
     const lineRef  = useRef(-1);
@@ -94,7 +96,12 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         return () => { group.remove(rig.group); rig.dispose(); rigRef.current = null; };
     }, [gltf]);
 
+    useEffect(() => () => acting.dispose(), [acting]);
+
     useFrame((_, dt) => {
+        // Clear additive acting offsets before any branch (including dash) writes
+        // the next base pose.
+        acting.begin();
         const rig = rigRef.current;
         if (!groupRef.current || !rig) return;
         const safeDt = Math.min(dt, 0.05);
@@ -170,6 +177,17 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
                 bones[B.l_leg].rotation.x =  Math.sin(tq * 2.0) * 0.07;
                 bones[B.r_leg].rotation.x = -Math.sin(tq * 2.0) * 0.07;
             }
+        }
+        const cue = acting.apply(bones, {
+            scene: 'intro', phase: gesture, time: t, phaseTime: tl,
+            line: li, speaking: line?.speaker === 'diabrete',
+        });
+        if (cue.eye || cue.brow) {
+            const gritaAgora = !!vozDaLinha.current
+                && gritandoNoInstante(vozDaLinha.current, clock.current - tLinha.current);
+            const baseEye = olhoNoGrito(olhoDoDiabrete('apresentacao', 0), gritaAgora);
+            const baseBrow = sobrancelhaDoDiabrete('apresentacao', 0);
+            rig.definirCara(cue.eye ?? baseEye, cue.brow ?? baseBrow, clock.current);
         }
         const hop = poseRef.current.hop;
 

@@ -20,16 +20,16 @@
  */
 
 import * as THREE from 'three';
-import { criarTelaDaBoca, criarTelaDaGravata, type TelaDaBoca } from './f3BocaTextura';
-import { criarTelaDaCara, type TelaDaCara } from './f3OlhosTextura';
+import { criarTelaDaGravata } from './f3BocaTextura';
 import {
-    OLHOS as OLHOS_VALIDOS, OLHO_EM_REPOUSO, olhoPiscando, quadroDaPiscada,
+    PISCADA, quadroDaPiscada,
     type NomeDoOlho,
 } from './f3Olhos';
 import {
-    SOBRANCELHAS as CENHOS_VALIDOS, SOBRANCELHA_EM_REPOUSO, type NomeDaSobrancelha,
+    type NomeDaSobrancelha,
 } from './f3Sobrancelha';
-import { BOCA_EM_REPOUSO, BOCAS as BOCAS_VALIDAS, type NomeDaBoca } from './f3Boca';
+import { aberturaDaBoca, type NomeDaBoca } from './f3Boca';
+import { createDiabreteSculpt } from './DiabreteSculptedHead';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
 // doll on the platforms (and barely filled the cutscene frame). Bumped so the
@@ -319,56 +319,6 @@ const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
 const GRAVATA_LARGURA = 0.175;
 
-/**
- * `?boca=empolgado` fixa uma forma, para a bancada fotografar a ficha inteira.
- *
- * E FIXAR quer dizer fixar: `Floor3Rival` reescreve a boca a cada desenho, então
- * sem trava a URL era sobrescrita em milissegundos e as fotos das dezoito formas
- * saíam todas iguais — o que me fez caçar um defeito de projeção que não existia.
- */
-function bocaDaUrl(): NomeDaBoca | null {
-    try {
-        const v = new URLSearchParams(globalThis.location?.search ?? '').get('boca');
-        return (v && v in BOCAS_VALIDAS) ? (v as NomeDaBoca) : null;
-    } catch { return null; }
-}
-
-/** `?olho=bravo&cenho=raiva` fixa a cara, para a bancada fotografar a ficha. */
-function olhoDaUrl(): { olho: NomeDoOlho | null; cenho: NomeDaSobrancelha | null } {
-    try {
-        const q = new URLSearchParams(globalThis.location?.search ?? '');
-        const o = q.get('olho'), c = q.get('cenho');
-        return {
-            olho: (o && o in OLHOS_VALIDOS) ? (o as NomeDoOlho) : null,
-            cenho: (c && c in CENHOS_VALIDOS) ? (c as NomeDaSobrancelha) : null,
-        };
-    } catch { return { olho: null, cenho: null }; }
-}
-
-function ajusteDosOlhos(): { y: number; l: number } {
-    const padrao = { y: OLHOS_CENTRO_Y, l: OLHOS_LARGURA };
-    try {
-        const q = new URLSearchParams(globalThis.location?.search ?? '');
-        const n = (k: string, v: number) => {
-            const x = q.has(k) ? parseFloat(q.get(k)!) : NaN;
-            return Number.isFinite(x) ? x : v;
-        };
-        return { y: n('olhosY', padrao.y), l: n('olhosL', padrao.l) };
-    } catch { return padrao; }
-}
-
-function ajusteDaBoca(): { y: number; l: number } {
-    const padrao = { y: BOCA_CENTRO_Y, l: BOCA_LARGURA };
-    try {
-        const q = new URLSearchParams(globalThis.location?.search ?? '');
-        const n = (k: string, v: number) => {
-            const x = q.has(k) ? parseFloat(q.get(k)!) : NaN;
-            return Number.isFinite(x) ? x : v;
-        };
-        return { y: n('bocaY', padrao.y), l: n('bocaL', padrao.l) };
-    } catch { return padrao; }
-}
-
 // Rest positions (model-local, feet at Y=0) derived from the vertex analysis.
 const BP: ReadonlyArray<readonly [number, number, number]> = [
     [0,     0.00, 0],   // root
@@ -381,106 +331,6 @@ const BP: ReadonlyArray<readonly [number, number, number]> = [
 ];
 const BPARENT = [-1, 0, 1, 1, 1, 1, 1] as const;
 const BNAME   = ['root', 'body', 'head', 'l_arm', 'r_arm', 'l_leg', 'r_leg'] as const;
-
-// ── OS CHIFRES DE VERDADE ────────────────────────────────────────────────────
-//
-// Defeito nº 3 da lista dele: "os chifres estão finos e retos demais, precisam
-// ser mais grossos, curvos e com a forma característica da referência". E o nº 1,
-// "cabeça muito chapada", tem a mesma origem — mas não é o crânio.
-//
-// Medido no GLB por `bancada-navegador/medir-a-cabeca.mjs`:
-//
-//     crânio ........ larg 0,418  fund 0,408   fundo/larg 0,97   ← redondo
-//     fatia y 0,92 .. larg 0,376  fund 0,181   fundo/larg 0,48
-//     fatia y 0,97 .. larg 0,323  fund 0,057   fundo/larg 0,18   ← placa
-//     chifre esq .... x -0,208..-0,028   y 0,901..1,002
-//     chifre dir .... x  0,029.. 0,179   y 0,901..0,999
-//
-// Ou seja: a cabeça DELE é redonda; o que é chapado são os chifres, que na malha
-// são placas de 0,18 de largura por 0,10 de altura — largas, curtas e finas. Da
-// referência eles são o contrário: cônicos, altos, grossos e curvados para trás.
-//
-// Remodelar o GLB pede um modelador. O que dá para fazer daqui, e é barato, é
-// COBRIR: dois cones curvos de tinta chapada, um pouco maiores que as placas,
-// presos ao osso da cabeça. Como o personagem inteiro é posterizado em duas
-// cores, um cone preto liso encobre a placa preta sem emenda nenhuma — não há
-// sombreado que denuncie a junta. Custo: dois materiais básicos sem luz e ~200
-// triângulos, contra os 17 mil do andar.
-const CHIFRE_X = 0.112;      // centro de cada chifre, medido nas placas
-const CHIFRE_Z = -0.030;
-const CHIFRE_BASE_Y = 0.880; // começa abaixo da placa, onde ela é mais larga
-const CHIFRE_RAIO = 0.118;
-const CHIFRE_ALTURA = 0.215;
-const CHIFRE_CURVA = 0.070;  // o quanto a ponta foge para fora e para trás
-
-/** Os dois cones e a tinta deles, compartilhados por todos os Diabretes. */
-let _chifres: THREE.BufferGeometry[] | null = null;
-let _tintaChapada: THREE.MeshBasicMaterial | null = null;
-let _tufo: THREE.BufferGeometry | null = null;
-
-// ── OS TUFOS LATERAIS ────────────────────────────────────────────────────────
-//
-// Defeito nº 4 dele: "tufos do cabelo com forma errada e pouco definidos, devem
-// ser maiores, mais marcados e com o recorte certo". A folha de modelagem
-// detalha: "TRÊS PONTAS PRINCIPAIS, elemento separado da cabeça, volume
-// arredondado".
-//
-// Medido, a franja da malha não é um tufo: é uma massa de espetos pequenos e
-// irregulares que envolve a cabeça (esquerda x -0,269..-0,004, z -0,194..0,204).
-// Cobrir a massa inteira engoliria a silhueta e deixaria o personagem com uma
-// bola no lugar do cabelo — pior do que está.
-//
-// O que dá para fazer sem esse risco: engrossar só as PONTAS. Entre a borda da
-// máscara creme (|x| 0,196) e o extremo da franja (0,27) há uma faixa de 0,074
-// onde os espetos aparecem contra o céu. Três cones por lado nessa faixa, com a
-// base do lado de fora da máscara para não morder o rosto, dão as três pontas
-// marcadas que a ficha pede sem tocar no resto.
-const TUFO_BASE_X = 0.190;
-const TUFO_RAIO = 0.046;
-const TUFO_COMPRIMENTO = 0.105;
-/** As três pontas: altura da base, e para onde a ponta aponta (dy, dz). */
-const TUFO_PONTAS: ReadonlyArray<readonly [number, number, number]> = [
-    [0.868,  0.55, -0.10],   // a de cima, apontando para fora e para cima
-    [0.780,  0.05, -0.30],   // a do meio, quase reta para o lado
-    [0.694, -0.45, -0.20],   // a de baixo, para fora e para baixo
-];
-
-/** Uma ponta de tufo: cone de 6 lados, que já basta numa forma deste tamanho. */
-function construirTufo(): THREE.BufferGeometry {
-    return new THREE.ConeGeometry(TUFO_RAIO, TUFO_COMPRIMENTO, 6, 1, false);
-}
-
-/**
- * Um chifre: cone de 8 lados, encurvado. A curva é uma parábola no eixo da
- * altura — ponta puxada para FORA e para TRÁS, como na referência, e não um
- * espeto reto.
- *
- * ── E ELE É CONSTRUÍDO UMA VEZ SÓ ────────────────────────────────────────────
- * A primeira versão criava os dois cones DENTRO de `buildDiabreteRig`. A bancada
- * de custo entregou na hora: as geometrias do andar pularam de 58 para 96 e o
- * quadro de 56 para 134 ms. Trinta e oito geometrias novas quer dizer dezenove
- * construções de rig — o rig é remontado (troca de cena, remontagem do React), e
- * cada remontagem deixava mais dois cones para trás.
- *
- * Chifre não depende de instância nenhuma: é a mesma forma sempre. Então nasce
- * no módulo, preguiçoso, e as duas instâncias do personagem dividem os mesmos
- * dois cones e o mesmo material. Quem dispõe do rig não dispõe deles.
- */
-function construirChifre(lado: number): THREE.BufferGeometry {
-    const g = new THREE.ConeGeometry(CHIFRE_RAIO, CHIFRE_ALTURA, 8, 5, false);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i);
-        // `t` = 0 na base, 1 na ponta. O cone nasce centrado na origem.
-        const t = (y + CHIFRE_ALTURA / 2) / CHIFRE_ALTURA;
-        const k = t * t;
-        pos.setX(i, pos.getX(i) + lado * CHIFRE_CURVA * k);
-        pos.setZ(i, pos.getZ(i) - CHIFRE_CURVA * 0.55 * k);
-    }
-    pos.needsUpdate = true;
-    g.computeVertexNormals();
-    return g;
-}
 
 function ss(v: number, lo: number, hi: number): number {
     const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
@@ -762,19 +612,39 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     if (!src) return null;
     const mesh = src as THREE.Mesh;
 
-    const fillGeo = mesh.geometry.clone();
+    // The GLB's head carried the old photographic decals. Keep the body/limbs
+    // for their existing seven-bone rig, but remove triangles whose painted
+    // weights belong to B.head; the sculpted head owns the whole face now.
+    // De-index first so the retained triangle index list is independent of GLB
+    // index layout and all non-position attributes remain aligned.
+    const fillGeo = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
     const { joints, weights } = paintWeights(fillGeo.attributes.position.array as Float32Array);
+    // Skin weights blend through the jaw; replacement must remove geometry, not just
+    // vertices dominated by the head bone. The collar and arms remain below this cut.
+    const isLegacyHeadVertex = (vertex: number) => fillGeo.attributes.position.getY(vertex) >= 0.61;
+    const kept: number[] = [];
+    const vertexCount = fillGeo.attributes.position.count;
+    for (let vertex = 0; vertex + 2 < vertexCount; vertex += 3) {
+        // Drop a whole triangle as soon as any corner belongs to the head;
+        // otherwise a mixed boundary triangle leaves a sliver of the legacy
+        // face poking through the procedural mask.
+        if (!isLegacyHeadVertex(vertex) && !isLegacyHeadVertex(vertex + 1)
+            && !isLegacyHeadVertex(vertex + 2)) {
+            kept.push(vertex, vertex + 1, vertex + 2);
+        }
+    }
+    fillGeo.setIndex(kept);
     fillGeo.setAttribute('skinIndex',  new THREE.Uint16BufferAttribute(joints, 4));
     fillGeo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
     fillGeo.computeVertexNormals();
 
     const srcMat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
-    // SEM `map`: a textura do GLB é ruído (ver o comentário longo em
-    // `duasCores`). A cor vem da geometria, no fragmento.
-    void srcMat;
+    // Keep the source map for the retained body triangles (gloves, shoes and
+    // tie details depend on it). The old face decals are gone with the head
+    // triangles above; dropping the entire map would erase body materials too.
     const fillMat = new THREE.MeshToonMaterial({
-        map: null,
-        color: 0xffffff,
+        map: srcMat.map ?? null,
+        color: srcMat.color?.clone() ?? new THREE.Color(0xffffff),
         gradientMap: _grad,
     });
     // ── DUAS CORES, COMO TODO VILAO DE 1930 ───────────────────────────────
@@ -796,43 +666,9 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // A injecao e guardada: se o chunk esperado nao existir (three mudou por
     // dentro), ela nao acontece e o material continua um toon normal, em vez de
     // embarcar um shader quebrado.
-    // `?semboca` desliga a boca inteira. Serve para MEDIR: com e sem, lado a
-    // lado no mesmo enquadramento, dá para ver exatamente que pedaço do rosto o
-    // remendo está cobrindo — foi assim que o nariz apareceu.
-    const semBoca = (() => {
-        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semboca'); }
-        catch { return false; }
-    })();
-    const bocaFixa = bocaDaUrl();
-    const tela = semBoca ? null : criarTelaDaBoca(bocaFixa ?? BOCA_EM_REPOUSO);
-    const aj = ajusteDaBoca();
-    const alturaCaixa = aj.l * (BOCA_ALTURA / BOCA_LARGURA);
-    const caixaDaBoca = new THREE.Vector4(-aj.l / 2, aj.y - alturaCaixa / 2, aj.l, alturaCaixa);
-
-    // `?semolhos` desliga olhos e sobrancelhas, do mesmo jeito que `?semboca`
-    // desliga a boca: é assim que se mede o que o desenho está cobrindo.
-    const semOlhos = (() => {
-        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semolhos'); }
-        catch { return false; }
-    })();
-    // ── OS OLHOS VOLTARAM, E A RAZÃO IMPORTA ─────────────────────────────────
-    // Ele tinha pedido "esquece os olhos e o resto, foca ajeitar a boca", e eu
-    // desliguei. Só que aquele pedido valia enquanto a textura de RUÍDO fazia as
-    // vezes de olho: manchas erradas, mas manchas. Com o ruído fora, desligar os
-    // olhos deixou o personagem sem cara nenhuma — um ovo com chifre. A foto
-    // seguinte dele foi só "Mn...".
-    // Agora a cara é geometria limpa e o olho desenhado é o ÚNICO olho que
-    // existe. `?semolhos` continua desligando.
-    const olhoFixo = olhoDaUrl();
-    const telaDaCara = semOlhos ? null
-        : criarTelaDaCara(olhoFixo.olho ?? OLHO_EM_REPOUSO, olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
-    const ajO = ajusteDosOlhos();
-    const caixaDosOlhos = new THREE.Vector4(
-        -ajO.l / 2, ajO.y - OLHOS_ALTURA / 2, ajO.l, OLHOS_ALTURA);
-
+    // The face is now supplied by the sculpted head; no retained GLB face
+    // triangle can carry a photographic eye or mouth decal into the render.
     const pinturas: CaixaPintada[] = [];
-    if (tela) pinturas.push({ nome: 'Boca', textura: tela.textura, caixa: caixaDaBoca });
-    if (telaDaCara) pinturas.push({ nome: 'Olhos', textura: telaDaCara.textura, caixa: caixaDosOlhos });
     fillMat.onBeforeCompile = duasCores(corteDoDiabrete(), pinturas);
     // A chave conta QUANTAS caixas o programa tem: com e sem olhos são shaders
     // diferentes, e compartilhar o programa entre eles daria uniform faltando.
@@ -858,56 +694,56 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     fill.add(bones[0]);
     fill.bind(skeleton);
 
-    // ── OS CHIFRES ENTRAM AQUI, PRESOS AO OSSO DA CABEÇA ─────────────────────
-    // Ver a nota longa em `geometriaDoChifre`. Eles são filhos do osso, então
-    // acompanham cada giro e cada tranco da cabeça sem uma linha de código a
-    // mais. As posições são relativas à posição de repouso do osso.
-    // `?semchifre` desliga TODA a geometria que eu acrescentei — os dois cones
-    // dos chifres e as seis pontas dos tufos. Serve para MEDIR: com e sem, na
-    // mesma execução, que é o único jeito honesto de saber o que custam.
-    // Comparar duas execuções mente, porque a cena para em momentos diferentes,
-    // e esta bancada já me enganou assim uma vez (56 ms viraram 137 sem nenhuma
-    // mudança que justificasse).
-    const semChifre = (() => {
-        try { return new URLSearchParams(globalThis.location?.search ?? '').has('semchifre'); }
-        catch { return false; }
-    })();
-    if (!semChifre) {
-    _chifres ??= [construirChifre(-1), construirChifre(1)];
-    _tintaChapada ??= new THREE.MeshBasicMaterial({ color: DIABRETE_ESCURO });
-    [-1, 1].forEach((lado, i) => {
-        const m = new THREE.Mesh(_chifres![i], _tintaChapada!);
-        m.position.set(lado * CHIFRE_X - BP[B.head][0],
-            CHIFRE_BASE_Y + CHIFRE_ALTURA / 2 - BP[B.head][1],
-            CHIFRE_Z - BP[B.head][2]);
-        m.frustumCulled = false;
-        bones[B.head].add(m);
-    });
-
-    // As três pontas de cada lado. O cone nasce apontando para +Y, então cada
-    // ponta é uma rotação: primeiro deitá-lo para o lado, depois inclinar.
-    _tufo ??= construirTufo();
-    for (const lado of [-1, 1]) {
-        for (const [y, dy, dz] of TUFO_PONTAS) {
-            const m = new THREE.Mesh(_tufo, _tintaChapada!);
-            const dir = new THREE.Vector3(lado, dy, dz).normalize();
-            m.position.set(
-                lado * TUFO_BASE_X - BP[B.head][0] + dir.x * TUFO_COMPRIMENTO * 0.5,
-                y - BP[B.head][1] + dir.y * TUFO_COMPRIMENTO * 0.5,
-                -0.02 - BP[B.head][2] + dir.z * TUFO_COMPRIMENTO * 0.5);
-            m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-            m.frustumCulled = false;
-            bones[B.head].add(m);
-        }
-    }
-    }
-
     // NOTE: no ink outline on the Diabrete. The inverted-hull read as torn black
     // streaks on his split-vertex GLB mesh; the toon fill + fresnel rim carry his
     // silhouette instead. (The scenery + player hands keep their own outlines via
     // cartoonToon.ts — those are clean primitives and are untouched.)
+    // The replacement face is authored in normalized head space (skull radius
+    // ~1.0); the GLB skull is ±0.205 in model space. Keep only an empty anchor
+    // under the head bone: putting renderable meshes in the skeleton hierarchy
+    // can make Three's skinning traversal unstable. The sculpt is rendered as
+    // a sibling and copied into the rig's local space immediately before draw.
+    const sculpt = createDiabreteSculpt({ neck: true });
+    const headAnchor = new THREE.Object3D();
+    headAnchor.name = 'diabrete-head-anchor';
+    bones[B.head].add(headAnchor);
     const group = new THREE.Group();
     group.add(fill);
+    group.add(sculpt.group);
+
+    const sculptScale = 0.205;
+    const parentInverse = new THREE.Matrix4();
+    const localHead = new THREE.Matrix4();
+    const localPosition = new THREE.Vector3();
+    const localQuaternion = new THREE.Quaternion();
+    const localScale = new THREE.Vector3();
+    let syncedFrame = -1;
+    const syncSculpt = (renderer?: THREE.WebGLRenderer) => {
+        // Floor3Rival/FallCutscene call definirCara before writing this frame's
+        // pose. Sync from a mesh onBeforeRender so the bone matrices are final,
+        // while avoiding any renderable child under B.head.
+        const frame = renderer?.info.render.frame ?? -1;
+        if (frame >= 0 && frame === syncedFrame) return;
+        syncedFrame = frame;
+        headAnchor.updateWorldMatrix(true, false);
+        group.updateWorldMatrix(true, false);
+        parentInverse.copy(group.matrixWorld).invert();
+        localHead.multiplyMatrices(parentInverse, headAnchor.matrixWorld);
+        localHead.decompose(localPosition, localQuaternion, localScale);
+        localScale.multiplyScalar(sculptScale);
+        sculpt.group.matrix.compose(localPosition, localQuaternion, localScale);
+        sculpt.group.matrixAutoUpdate = false;
+        // The renderer has already traversed this sibling before invoking its
+        // onBeforeRender hook, so propagate the new local matrix immediately;
+        // otherwise this frame would draw at the previous head pose.
+        sculpt.group.updateMatrixWorld(true);
+    };
+    let hooked = false;
+    sculpt.group.traverse((object) => {
+        if (hooked || !(object as THREE.Mesh).isMesh) return;
+        (object as THREE.Mesh).onBeforeRender = (renderer) => syncSculpt(renderer);
+        hooked = true;
+    });
 
     // A BOCA não é mais um objeto: ela é pintada no shader da cara (ver
     // `duasCores`). O que sobrou aqui é a textura e a caixa onde ela cai.
@@ -934,59 +770,27 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         group,
         bones,
         definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => {
-            if (!telaDaCara) return;
-            if (olhoFixo.olho || olhoFixo.cenho) {
-                // Com `?olho=`/`?cenho=` a cara fica TRAVADA. Sem isso a foto da
-                // ficha saía toda igual: o Floor3Rival reescreve a cara a cada
-                // desenho e sobrescrevia a URL em milissegundos — a mesma
-                // armadilha que me fez caçar um defeito de projeção inexistente
-                // quando fotografei as dezoito bocas.
-                telaDaCara.definir(olhoFixo.olho ?? OLHO_EM_REPOUSO,
-                    olhoFixo.cenho ?? SOBRANCELHA_EM_REPOUSO);
-                return;
-            }
+            sculpt.setExpression(olho, cenho);
             const q = quadroDaPiscada(t);
-            // DEV-ONLY: a bancada precisa da SEQUÊNCIA. Foto parada não prova
-            // piscada — prova que existe um desenho de olho fechado, que é
-            // outra coisa. O mesmo motivo de `__f3BocaLog` existir.
-            if (import.meta.env?.DEV && typeof window !== 'undefined') {
-                const marca = `${olho}/${cenho}/${q}`;
-                const w = window as unknown as { __f3CaraLog?: { t: number; tp: number; cara: string }[] };
-                const log = (w.__f3CaraLog ??= []);
-                if (log[log.length - 1]?.cara !== marca) {
-                    // `t` é o relógio de parede e `tp` é o do PERSONAGEM. Os dois
-                    // porque a bancada roda a poucos quadros por segundo e o
-                    // relógio dele soma `dt` com teto — sem gravar os dois, a
-                    // conta de "quantas piscadas era para ter" é chute.
-                    log.push({ t: +performance.now().toFixed(0), tp: +t.toFixed(2), cara: marca });
-                }
-            }
-            telaDaCara.definir(olho, cenho, q >= 0 ? olhoPiscando(OLHOS_VALIDOS[olho], q) : null);
+            sculpt.setBlink(olho === 'fechadoSorrindo'
+                ? 1
+                : q < 0 ? 0 : PISCADA[Math.min(PISCADA.length - 1, q)]);
+            // Current callers invoke this before writing the pose. If a caller
+            // moves it after the pose, this same call is already sufficient;
+            // the render hook remains a compatibility fallback for old order.
+            syncSculpt();
         },
         definirBoca: (nome: NomeDaBoca) => {
-            if (bocaFixa) return;   // ver `bocaDaUrl`
-            // DEV-ONLY: a bancada precisa da SEQUÊNCIA, não de uma pose. Uma foto
-            // mostra que a boca existe; só a sequência mostra que ela SINCRONIZA
-            // — que alterna nota a nota, que cai no acento e que volta ao
-            // repouso quando a fala acaba.
-            if (import.meta.env?.DEV && typeof window !== 'undefined' && tela && tela.atual() !== nome) {
-                const w = window as unknown as { __f3BocaLog?: { t: number; boca: string }[] };
-                (w.__f3BocaLog ??= []).push({ t: +performance.now().toFixed(0), boca: nome });
-                if (w.__f3BocaLog.length > 400) w.__f3BocaLog.shift();
-            }
-            tela?.definir(nome);
+            sculpt.setMouth(aberturaDaBoca(nome), nome);
         },
         dispose: () => {
+            sculpt.dispose();
             skeleton.dispose();
-            // Os chifres NÃO são dispostos aqui: são do módulo, e o próximo
-            // Diabrete usa os mesmos.
             fillGeo.dispose();
             fillMat.dispose();
             gravataMesh?.geometry.dispose();
             (gravataMesh?.material as THREE.Material | undefined)?.dispose();
             texGravata?.dispose();
-            tela?.dispose();
-            telaDaCara?.dispose();
         },
     };
 }
