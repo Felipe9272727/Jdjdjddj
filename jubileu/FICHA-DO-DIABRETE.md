@@ -129,11 +129,77 @@ Duas tentativas anteriores saíram TELA BRANCA e eu culpei o estado do jogo. Era
 suspensão não é pega pelo `<Suspense>` do DOM que está por fora — a árvore some
 inteira, sem erro nenhum no console. Import direto resolve.
 
-E a primeira foto entregou um problema de ENCENAÇÃO, não de cara: nas falas 0, 2
-e 4 a câmera olha o Diabrete de cima e de trás, e o que aparece é a cúpula preta
-do crânio. Essa é a cena em que ele SUPLICA — o pico emocional do andar — e o
-rosto dele mal aparece. Isso é decupagem (`f3Decupagem`), não escultura, e não
-mexi: pode ser intenção.
+### Eu li três fotos e reportei errado
+
+Do que eu escrevi no ciclo 14 — "nas falas 0, 2 e 4 a câmera olha o Diabrete de
+cima e de trás, e o que aparece é a cúpula preta do crânio" — **nada é
+verdade**. Varri as oito falas (`as-oito-suplicas.mjs`) e medi, em vez de olhar:
+o cosseno entre o rosto dele e a direção da câmera deu **+0,84, +0,86 e +0,82**
+nessas três. Elas sempre estiveram DE FRENTE para ele. O que eu tomei por cúpula
+de crânio era o par de chifres visto pequeno e de longe, e três fotos não são
+uma cena.
+
+E as duas fotos ainda tinham peça a mais: a tela de bancada nunca passava
+`fallActive`, então as MÃOS DO JOGADOR e as armadilhas apareciam nos oito
+quadros — coisas que `Floor3.tsx` desliga durante a queda. Eu estava a um passo
+de reportar "as mãos ficam na frente da cutscene" como defeito da cutscene. É a
+mesma lição de sempre, a quinta vez: **foto com peça a mais mente igual a foto
+com peça a menos.** A tela agora espelha o jogo (`Floor3Preview`).
+
+### O que a varredura das OITO achou de verdade
+
+Com a bancada honesta, dois defeitos reais, os dois medidos:
+
+**1. As falas 1 e 5 filmavam a NUCA dele.** Cosseno −0,36 e −0,58. E logo o
+plano `corpo` — o que foi inventado justamente para a atuação da súplica (as
+perninhas pedalando, a mão que solta a beirada) finalmente aparecer. Ele ficava
+em `edgeZ + 2,85`, do lado do ABISMO; ele encara o CONVÉS. A animação estava lá o
+tempo todo, do lado errado da câmera. Nenhum teste pegava isso, porque
+geometricamente o plano estava certo: fora da laje, acima do convés, vendo os
+pés. Faltava a única pergunta que importa numa cena de atuação — *dá para ver a
+cara?* Agora `cosDoRosto` é a régua, `PARA_ONDE_ELE_OLHA` é a medida, e o teste
+cobra cosseno > 0,15 de todo plano em toda a deriva.
+
+**2. A decupagem tinha UMA LENTE SÓ na tela dele.** As oito falas mediram `fov`
+66 — todas. Não é acaso: no celular em pé `quantoFalta` é 3,55, e para qualquer
+`fov` composto entre 41 e 52 a conta estoura `FOV_MAXIMO` E `RECUO_MAXIMO`. Os
+quatro planos viravam quatro cópias da mesma lente, todas 2,5× mais longe. O
+primeiríssimo plano saía a 4,3 m com a cabeça ocupando 25% da altura da tela.
+O erro era de PREMISSA: "devolver o enquadramento horizontal" só faz sentido se
+o assunto do plano for largo. Um close é um assunto VERTICAL — uma cabeça — e
+numa tela em pé ele já cabe; o que estava ao lado era o vazio, e recomprar esse
+vazio custava o plano. Agora o plano DIZ de quanta largura precisa
+(`Plano.largura`, ver `f3Enquadramento`).
+
+E o primeiro chute foi o outro extremo: `largura: 0` em tudo pôs a cabeça em
+**112% da altura da tela** — chifre cortado em cima, queixo cortado embaixo, a
+mancha preta contra a qual o próprio `f3Decupagem` já avisava uma vez. Os
+valores saíram da medida, não da opinião.
+
+| fala | plano | cos antes | cos agora | tela antes | tela agora |
+|-----:|-------|----------:|----------:|-----------:|-----------:|
+| 0 | alto  | +0,80 | +0,80 | 10,8% | 27,4% |
+| 1 | corpo | **−0,36** | **+0,56** | 12,6% | 39,4% |
+| 2 | close | +0,79 | +0,73 | 25,0% | 68,8% |
+| 3 | raso  | +0,41 | +0,37 |  2,6% |  2,4% |
+| 4 | close | +0,73 | +0,74 | 24,8% | 68,0% |
+| 5 | corpo | **−0,58** | **+0,49** | 12,6% | 39,6% |
+| 6 | close | +0,82 | +0,75 | 25,2% | 69,6% |
+| 7 | alto  | +0,82 | +0,81 | 10,8% | 27,6% |
+
+### O que fica aberto
+
+- **A fala 3 (`raso`) ainda falha o próprio propósito.** Ele ocupa 2,4% da
+  altura da tela — um ponto — e a escadaria desabando que o plano promete
+  ("embaixo aparece a escadaria inteira") NÃO está no quadro: o que se vê é
+  cinza, duas nuvens e uma laje. Aqui `largura: 1` está certo (é o único plano
+  cujo assunto é mesmo largo); o que está errado é a MIRA, e recompor isso é
+  escolha de direção, não conta.
+- **A apresentação tem o mesmo defeito de lente** e não foi tocada neste ciclo:
+  `planoDeApresentacao` tem `perto` (fov 36) e `close` (38) que na tela dele
+  também estouram para 66 com recuo 2,5. `Plano.largura` já existe para eles.
+- **Tudo sai com um dutch angle forte** (`camRoll`), igual nas oito. Pode ser
+  intenção; não mexi.
 
 ## As três câmeras, e o freio da piscada
 

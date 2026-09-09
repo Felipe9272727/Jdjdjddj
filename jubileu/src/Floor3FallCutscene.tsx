@@ -205,7 +205,13 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
 
         // camera control — set per shot (see the switch at the bottom)
         let camRoll = 0;
-        const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44 };
+        // `largura` diz a `enquadrar` de quanta abertura horizontal ESTE plano
+        // precisa numa tela em pé — ver a nota longa em `f3Enquadramento`. Os
+        // planos escritos aqui na mão são todos largos (mostram a queda, a
+        // escadaria, o sapato descendo), então ficam no padrão; quem pede outra
+        // coisa são os planos de figura da decupagem, e eles trazem o número.
+        const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44,
+            largura: undefined as number | undefined };
 
         const palco: Palco = { gx, gripY, edgeZ, hangY: HANG_Y };
 
@@ -252,7 +258,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 // beirada, e e o unico plano de onde da para ver o corpo dele.
                 const pl = plano('corpo', palco, clamp01((T - 0.5) / 0.45));
                 cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
-                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
+                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov; cam.largura = pl.largura;
             } else {
                 const k = clamp01((T - 0.95) / 0.45);
                 g.position.set(gx, HANG_Y, edgeZ);
@@ -264,7 +270,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
                 // para a passagem intro→beg nao ter um corte sem motivo.
                 const pl = planoDaSuplica(0, palco, clamp01((T - 0.95) / 2.5));
                 cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
-                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
+                cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov; cam.largura = pl.largura;
             }
             if (T >= 1.4) { phase.current = 'beg'; pt.current = 0; }
         }
@@ -311,7 +317,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
             const naFala = T - tLinha.current;
             const pl = planoDaSuplica(lineRef.current, palco, naFala / 3.2);
             cam.x = pl.x; cam.y = pl.y; cam.z = pl.z;
-            cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov;
+            cam.lx = pl.lx; cam.ly = pl.ly; cam.lz = pl.lz; cam.fov = pl.fov; cam.largura = pl.largura;
             const c = choiceRef.current;
             if (c === 'stomp') { phase.current = 'stomp'; pt.current = 0; }
             else if (c === 'save') { phase.current = 'climb'; pt.current = 0; }
@@ -479,7 +485,8 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, line, onBeg, onDone }) =>
         // planos foram compostos em 1024x640, e `fov` no three e VERTICAL. Numa
         // tela de celular em pe a abertura horizontal cai por 3,5 e o plano
         // vira close. Ver `f3Enquadramento`. Em tela larga nada muda.
-        const enq = enquadrar(cam.fov, tamanho.width / Math.max(1, tamanho.height));
+        const enq = enquadrar(cam.fov, tamanho.width / Math.max(1, tamanho.height),
+            undefined, cam.largura);
         const olho = afastar({ x: cam.x, y: cam.y, z: cam.z },
             { x: cam.lx, y: cam.ly, z: cam.lz }, enq.recuo);
         camera.position.set(olho.x, olho.y, olho.z);

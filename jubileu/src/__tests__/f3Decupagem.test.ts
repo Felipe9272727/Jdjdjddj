@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     LAJES_DA_CUTSCENE, caixaDaLaje, dentroDeAlgumaLaje,
     plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves, veOCorpoInteiro,
+    cosDoRosto, PARA_ONDE_ELE_OLHA,
     planoDeApresentacao, planoDaApresentacao, alturaEnquadrada, ALTURA_DO_DIABRETE,
     DECUPAGEM_DA_APRESENTACAO, PALCO_DA_APRESENTACAO, foraDoPoco, type NomeDaApresentacao,
     DECUPAGEM_DA_SUPLICA, type Palco, type NomeDoPlano,
@@ -120,6 +121,48 @@ describe('f3Decupagem — a decupagem da súplica', () => {
     // Um plano que não olha para ele é um plano do cenário. O alvo tem de ficar
     // perto da cabeça, e a câmera a uma distância que caiba na história: um
     // primeiro plano é primeiro plano, um plano aberto é aberto.
+    // ── NINGUÉM FILMA A NUCA DELE ───────────────────────────────────────
+    //
+    // A varredura das oito falas (`as-oito-suplicas.mjs`) mediu, quadro a
+    // quadro, o cosseno entre o rosto dele e a direção da câmera. As falas 1 e
+    // 5 — o plano `corpo`, inventado justamente para a atuação da súplica
+    // aparecer — deram -0,36 e -0,58: filmavam o cocuruto. E o defeito era
+    // INVISÍVEL para todos os outros testes, porque geometricamente o plano
+    // estava certo (fora da laje, acima do convés, vendo os pés). Faltava a
+    // única pergunta que importa numa cena de atuação: dá para ver a cara?
+    //
+    // O limiar é 0,15, que é onde o perfil acaba e o três quartos começa. Um
+    // plano de perfil legítimo pode existir um dia; um plano de costas não.
+    it('nenhum plano da súplica filma a nuca dele', () => {
+        for (const p of palcos) {
+            for (let linha = 0; linha < DECUPAGEM_DA_SUPLICA.length; linha++) {
+                for (let d = 0; d <= 1.0001; d += 0.25) {
+                    const c = cosDoRosto(p, planoDaSuplica(linha, p, d));
+                    expect(c, `fala ${linha} (${DECUPAGEM_DA_SUPLICA[linha]}) d=${d.toFixed(2)}`
+                        + ` está atrás da cabeça: cos=${c.toFixed(3)}`).toBeGreaterThan(0.15);
+                }
+            }
+        }
+    });
+
+    it('cosDoRosto reprova de verdade quem está atrás dele', () => {
+        const p = palcos[0];
+        // Exatamente ATRÁS da cabeça, na direção oposta à que ele encara.
+        const atras = {
+            x: p.gx - PARA_ONDE_ELE_OLHA[0] * 3,
+            y: alturaDaCabeca(p) - PARA_ONDE_ELE_OLHA[1] * 3,
+            z: p.edgeZ - PARA_ONDE_ELE_OLHA[2] * 3,
+            lx: p.gx, ly: alturaDaCabeca(p), lz: p.edgeZ, fov: 45,
+        };
+        expect(cosDoRosto(p, atras)).toBeCloseTo(-1, 5);
+        // E o plano `corpo` velho, que é o que de fato entrou na foto.
+        const oVelhoCorpo = {
+            x: p.gx + 2.35, y: p.gripY + 1.95, z: p.edgeZ + 2.85,
+            lx: p.gx, ly: p.gripY - 0.95, lz: p.edgeZ, fov: 41,
+        };
+        expect(cosDoRosto(p, oVelhoCorpo)).toBeLessThan(0);
+    });
+
     it('todo plano olha para ele, e a distância combina com o nome', () => {
         const faixa: Record<NomeDoPlano, [number, number]> = {
             alto:   [2.0, 5.0],

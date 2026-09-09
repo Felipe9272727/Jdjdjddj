@@ -21,10 +21,14 @@ import { useThree } from '@react-three/fiber';
 
 /** DEV-ONLY: expõe a cena para a sonda da bancada poder inspecionar material. */
 function Expor() {
-    const { scene, gl } = useThree();
-    const w = window as unknown as { __cena?: unknown; __gl?: unknown };
+    const { scene, gl, camera } = useThree();
+    const w = window as unknown as { __cena?: unknown; __gl?: unknown; __cam?: unknown };
     w.__cena = scene;
     w.__gl = gl;
+    // A CÂMERA também: sem ela a bancada sabe para onde o Diabrete está virado
+    // mas não sabe QUANTO DA TELA ele ocupa — e um primeiro plano que virou
+    // plano geral acerta o ângulo e erra tudo. Ver `as-oito-suplicas.mjs`.
+    w.__cam = camera;
     return null;
 }
 
@@ -246,6 +250,13 @@ export default function Floor3Preview() {
     // usa. Para vê-lo dentro do jogo seria preciso atravessar a intro e a
     // apresentação do Diabrete, o que nesta caixa passa de oito minutos.
     const grito = new URLSearchParams(window.location.search).get('grito');
+    // ── A BANCADA TEM DE MENTIR MENOS QUE ISSO ──────────────────────────────
+    // A primeira varredura das oito falas da súplica saiu com AS MÃOS DO JOGADOR
+    // em todos os oito quadros, grandes e brancas no rodapé — e eu quase reportei
+    // isso como defeito da cutscene. Não é: no jogo `Floor3.tsx` desliga as mãos
+    // e as armadilhas quando `fallActive`, e esta tela nunca passava esse sinal.
+    // Uma foto com peça a mais é tão mentirosa quanto uma com peça a menos.
+    const queda = new URLSearchParams(window.location.search).has('queda');
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             {grito && <Floor3Grito texto={grito} serie={1} />}
@@ -270,7 +281,7 @@ export default function Floor3Preview() {
                 <QuedaEncenada />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
-                        : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
+                        : <Floor3Environment elevator={false} hands={!panorama && !queda} gloves={!panorama && !diabo && !queda} fallActive={queda} />}
                 </Suspense>
                 {!fphands && <OrbitControls target={alvoLivre ? alvoLivre : debug ? [0, 0, 0] : armadilha ? [0, 1.2, 12] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (
