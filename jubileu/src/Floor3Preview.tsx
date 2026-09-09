@@ -66,8 +66,9 @@ import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
 import Floor3Grito from './Floor3Grito';
-import { hazards, hazardBox, registerJump, resetHazards, f3Progress } from './f3Hazards';
+import { hazards, hazardBox, registerJump, resetHazards, f3Progress, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { MOMENTOS_DA_CARA } from './f3Boca';
+import Floor3FallCutscene from './Floor3FallCutscene';
 import { platforms as f3Platforms } from './f3Parkour';
 
 /**
@@ -119,6 +120,39 @@ function Esculpida() {
                 mouth={q.get('boca') ?? 'sorrisoIronico'}
             />
         </group>
+    );
+}
+
+/**
+ * DEV-ONLY: `?f3preview&queda=2` encena a CUTSCENE DA QUEDA, parada na fala 2.
+ *
+ * Ela era o único pedaço do andar que nunca tinha entrado numa foto, e não por
+ * desleixo: para vê-la no jogo é preciso atravessar a intro, a apresentação e
+ * perder os três pincéis, o que nesta caixa passa de dez minutos.
+ *
+ * A PRIMEIRA TENTATIVA saiu tela branca e eu culpei o estado do jogo. Era
+ * `lazy()`: um componente lazy SUSPENDE, e dentro do Canvas do
+ * react-three-fiber a suspensão não é pega pelo `<Suspense>` do DOM que está por
+ * fora — a árvore some inteira, sem erro, sem exceção, sem nada no console. O
+ * sintoma parece "o modelo não carregou". Import direto, então.
+ *
+ * `line` escolhe o plano: a decupagem em `f3Decupagem` troca de câmera a cada
+ * fala da súplica. E o estado que a cena espera da perseguição — onde o Diabrete
+ * estava quando caiu — é plantado na mão, que é o que "encenar" quer dizer.
+ */
+function QuedaEncenada() {
+    const bruto = new URLSearchParams(window.location.search).get('queda');
+    if (bruto === null) return null;
+    f3DevilPos.current.set(0.66, 1.0, 14);
+    f3DevilPosValid.current = true;
+    const linha = Number(bruto);
+    return (
+        <Floor3FallCutscene
+            choice="none"
+            line={Number.isFinite(linha) ? linha : 0}
+            onBeg={() => {}}
+            onDone={() => {}}
+        />
     );
 }
 
@@ -233,6 +267,7 @@ export default function Floor3Preview() {
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
                 <PublicarMomentos />
+                <QuedaEncenada />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
                         : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}

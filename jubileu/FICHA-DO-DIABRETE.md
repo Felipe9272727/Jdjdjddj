@@ -118,6 +118,23 @@ melhor que a foto:
   agora que a cara é geometria. Duas classes novas (`wide` para gargalhada,
   `narrow` para fala miúda) devolvem o contraste.
 
+## A cutscene da queda, enfim fotografada — e o que ela mostrou
+
+`?f3preview&queda=N` encena a cutscene da queda parada na fala N (a decupagem
+troca de câmera a cada fala). Ela era o único pedaço do andar que nunca tinha
+entrado numa foto.
+
+Duas tentativas anteriores saíram TELA BRANCA e eu culpei o estado do jogo. Era
+`lazy()`: um componente lazy suspende, e dentro do Canvas do react-three-fiber a
+suspensão não é pega pelo `<Suspense>` do DOM que está por fora — a árvore some
+inteira, sem erro nenhum no console. Import direto resolve.
+
+E a primeira foto entregou um problema de ENCENAÇÃO, não de cara: nas falas 0, 2
+e 4 a câmera olha o Diabrete de cima e de trás, e o que aparece é a cúpula preta
+do crânio. Essa é a cena em que ele SUPLICA — o pico emocional do andar — e o
+rosto dele mal aparece. Isso é decupagem (`f3Decupagem`), não escultura, e não
+mexi: pode ser intenção.
+
 ## As três câmeras, e o freio da piscada
 
 Foto de cara SEMPRE nos três ângulos, e SEMPRE com `&sempiscar`:
