@@ -103,6 +103,21 @@ A poda não mudou um pixel em nenhum dos três ângulos, e foi em dois lugares:
 
 Ainda sobra o que podar se precisar: os `tufts` são seis cones de 12x10.
 
+## O que a cabeça esculpida cobre, conferido na tabela
+
+Lido em `setExpression`/`setMouth`, não fotografado — para isto a tabela responde
+melhor que a foto:
+
+- os 12 OLHOS de `f3Olhos`: todos cobertos;
+- as 8 SOBRANCELHAS: todas cobertas, mas `raiva` e `bravaComRuga` eram
+  desenhadas idênticas. A ruga em V entre elas foi acrescentada, que é o que a
+  ficha usa para separar as duas;
+- as 27 BOCAS caíam em 5 classes, e 13 delas viravam o MESMO sorriso padrão —
+  incluindo OITO dos doze quadros do ciclo de fala. Ou seja a queixa original
+  dele, "a boca dele se mexe muito pouco", voltava inteira pela porta dos fundos
+  agora que a cara é geometria. Duas classes novas (`wide` para gargalhada,
+  `narrow` para fala miúda) devolvem o contraste.
+
 ## As três câmeras, e o freio da piscada
 
 Foto de cara SEMPRE nos três ângulos, e SEMPRE com `&sempiscar`:
@@ -114,6 +129,13 @@ Foto de cara SEMPRE nos três ângulos, e SEMPRE com `&sempiscar`:
 `?parado` congela pose, marcha e molas — mas NÃO a piscada, que tem relógio
 próprio de propósito. Sem `?sempiscar`, duas fotos do mesmo olho saem diferentes
 e eu quase "consertei" uma pálpebra que estava certa.
+
+E `?boca=` / `?olho=` / `?cenho=` travam a expressão — sem isso `Floor3Rival`
+reescreve a cara a cada quadro e as fotos saem todas iguais. Essa trava vivia no
+pincel de canvas e ficou MORTA quando a cara virou geometria: a flag continuava
+de pé sem fazer nada, e eu tirei seis fotos de bocas diferentes que saíram
+idênticas. Agora ela mora em `definirBoca`/`definirCara`, que é por onde toda
+cara passa. Flag morta é pior que flag ausente — ela responde.
 
 ## Como conferir sem abrir o jogo
 

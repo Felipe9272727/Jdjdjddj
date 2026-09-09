@@ -211,6 +211,13 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     add(stroke([[side * 0.34, -0.26], [side * 0.58, 0.13]], 0.02, 0.052), line),
   ]);
   for (const mesh of dizzyMeshes) mesh.visible = false;
+  // ── A RUGA ───────────────────────────────────────────────────────────────
+  // `bravaComRuga` e `raiva` eram desenhadas EXATAMENTE igual — duas das oito
+  // sobrancelhas da ficha dele indistinguíveis. O que separa as duas, na ficha,
+  // é o V entre elas. São dois riscos e mais nada.
+  const rugaMeshes = [-1, 1].map(side => add(
+    stroke([[side * 0.05, 0.42], [side * 0.10, 0.30], [side * 0.13, 0.19]], 0.011, 0.040), line));
+  for (const mesh of rugaMeshes) mesh.visible = false;
   const eyeBases = assets.eyes.map(g => Float32Array.from(g.getAttribute('position').array));
   const neutralEyes = eyeBases.map(a => Float32Array.from(a));
   const browBases = assets.brows.map(g => Float32Array.from(g.getAttribute('position').array));
@@ -227,6 +234,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     expressionBlink = look === 'fechadoSorrindo' ? 1 : look === 'semicerrado' ? 0.48 : look === 'malicia' || look === 'baixoMalicioso' ? 0.22 : 0;
     for (const mesh of eyeMeshes) mesh.visible = look !== 'tonto';
     for (const mesh of dizzyMeshes) mesh.visible = look === 'tonto';
+    for (const mesh of rugaMeshes) mesh.visible = brow === 'bravaComRuga';
     for (let j = 0; j < eyeBases.length; j++) {
       const side = j === 0 ? -1 : 1;
       for (let i = 0; i < eyeBases[j].length; i += 3) {
@@ -294,6 +302,21 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     const sad = ['triste', 'desanimado', 'confuso'].includes(pose);
     const angry = ['bravo', 'irritado', 'zangado'].includes(pose);
     const closedPose = ['neutra', 'pensativo', 'fechadoSatisfeito', 'fechadoSarcastico'].includes(pose);
+    // ── DEZ BOCAS ERAM A MESMA BOCA ──────────────────────────────────────────
+    //
+    // As classes acima cobriam 14 das 27 formas de `f3Boca`. As outras 13 caíam
+    // todas no mesmo sorriso padrão, variando só pela ABERTURA. E o estrago
+    // aparecia onde mais importa: dos doze quadros do ciclo de fala, OITO eram a
+    // mesma forma. Ou seja a queixa original dele — "a boca dele se mexe muito
+    // pouco" — voltava inteira pela porta dos fundos, agora que a cara é
+    // geometria em vez de canvas.
+    //
+    // Duas classes novas resolvem a maior parte, porque é onde as formas da
+    // ficha dele mais se afastam do sorriso de repouso: a gargalhada (abre muito,
+    // mostra a fileira inteira) e a fala miúda (estreita e curta, a boca de quem
+    // está no meio de uma sílaba).
+    const wide = ['risadaIronica', 'empolgado', 'feliz', 'dentesDebochados'].includes(pose);
+    const narrow = ['falando1', 'falando3', 'falando5', 'sorriso'].includes(pose);
     roundMouth.visible = round;
     for (const mesh of mouthMeshes) mesh.visible = !round;
     for (let j = 0; j < mouthGeometries.length; j++) {
@@ -315,6 +338,16 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
           y = upper + (originalY - upper) * 0.2;
         } else if (['grinhoLateral', 'deboche', 'provocando'].includes(pose)) {
           x = 0.3 + (originalX - 0.2) * 0.8;
+        } else if (wide) {
+          // Gargalhada: cresce nos dois eixos em volta do meio da boca (-0,575),
+          // que é o pivô que as outras classes já usam.
+          x = 0.18 + (originalX - 0.18) * 1.10;
+          y = -0.575 + (originalY + 0.575) * 1.34;
+        } else if (narrow) {
+          // Fala miúda: encolhe. É o contraste com a de cima que faz o ciclo de
+          // doze quadros voltar a ter movimento.
+          x = 0.24 + (originalX - 0.24) * 0.70;
+          y = -0.575 + (originalY + 0.575) * 0.74;
         }
         const lift = base[i * 3 + 2] - front(originalX, originalY, 0);
         a.setXYZ(i, x, y, front(x, y, lift));

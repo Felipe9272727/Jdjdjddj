@@ -22,13 +22,14 @@
 import * as THREE from 'three';
 import { criarTelaDaGravata } from './f3BocaTextura';
 import {
-    PISCADA, quadroDaPiscada,
+    OLHOS, PISCADA, quadroDaPiscada,
     type NomeDoOlho,
 } from './f3Olhos';
 import {
+    SOBRANCELHAS,
     type NomeDaSobrancelha,
 } from './f3Sobrancelha';
-import { aberturaDaBoca, type NomeDaBoca } from './f3Boca';
+import { BOCAS, aberturaDaBoca, type NomeDaBoca } from './f3Boca';
 import { createDiabreteSculpt } from './DiabreteSculptedHead';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
@@ -68,6 +69,27 @@ export function corteDoDiabrete(): number {
 function semPiscar(): boolean {
     try { return new URLSearchParams(globalThis.location?.search ?? '').has('sempiscar'); }
     catch { return false; }
+}
+
+/**
+ * ── AS TRAVAS DE URL PRECISAM MORAR ONDE A CARA MORA ─────────────────────────
+ *
+ * `?boca=`, `?olho=` e `?cenho=` existem para a bancada poder fotografar UMA
+ * forma. E "fixar" quer dizer fixar: `Floor3Rival` reescreve a cara a cada
+ * quadro, então sem trava a URL é sobrescrita em milissegundos e as fotos saem
+ * todas iguais.
+ *
+ * Isso já estava resolvido — mas a trava vivia no PINCEL de canvas, e o pincel
+ * deixou de dirigir a cara quando ela virou geometria esculpida. A flag ficou de
+ * pé, sem fazer nada, e eu tirei seis fotos de bocas diferentes que saíram
+ * idênticas e quase concluí que as formas não funcionavam. Flag morta é pior que
+ * flag ausente: ela responde.
+ *
+ * Agora a trava mora aqui, que é por onde toda cara passa.
+ */
+function daUrlDaCara(chave: string): string | null {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').get(chave); }
+    catch { return null; }
 }
 
 // ── Bone indices ──────────────────────────────────────────────────────────────
@@ -787,6 +809,10 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         group,
         bones,
         definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => {
+            const travaOlho = daUrlDaCara('olho');
+            const travaCenho = daUrlDaCara('cenho');
+            if (travaOlho && travaOlho in OLHOS) olho = travaOlho as NomeDoOlho;
+            if (travaCenho && travaCenho in SOBRANCELHAS) cenho = travaCenho as NomeDaSobrancelha;
             sculpt.setExpression(olho, cenho);
             const q = semPiscar() ? -1 : quadroDaPiscada(t);
             sculpt.setBlink(olho === 'fechadoSorrindo'
@@ -798,7 +824,9 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             syncSculpt();
         },
         definirBoca: (nome: NomeDaBoca) => {
-            sculpt.setMouth(aberturaDaBoca(nome), nome);
+            const travada = daUrlDaCara('boca');
+            const usar = (travada && travada in BOCAS ? travada : nome) as NomeDaBoca;
+            sculpt.setMouth(aberturaDaBoca(usar), usar);
         },
         dispose: () => {
             sculpt.dispose();
