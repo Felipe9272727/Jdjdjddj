@@ -1,3 +1,12 @@
+async function verifyConversationRuntime(page) {
+  await page.evaluate(async () => {
+    for (const path of ['/wllama-relaxed/index.js?import', '/wllama-espec/index.js?import']) {
+      const runtime = await import(path);
+      if (typeof runtime.Wllama !== 'function') throw new Error(`Invalid conversation runtime: ${path}`);
+    }
+  });
+}
+
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 const out=process.env.FLOOR10_QA_DIR || '../floor10-qa';
@@ -19,6 +28,7 @@ async function teleport(x,z){await page.evaluate(([x,z])=>window.__f10teleport(x
 async function clickHelp(text){const b=page.locator('[data-floor10-help]').filter({hasText:text});await until(async()=>await b.count()>0&&await b.isEnabled(),'cooperation button');await b.click();}
 try{
   await page.goto(process.env.FLOOR10_URL || 'http://127.0.0.1:5173/floor10.html',{waitUntil:'domcontentloaded'});
+  await verifyConversationRuntime(page);
   await page.locator('[data-floor10-workshop]').waitFor();
   await until(()=>page.evaluate(()=>typeof window.__f10teleport==='function'),'player ready',30000);
   await page.screenshot({path:`${out}/desktop.png`});
@@ -48,6 +58,7 @@ try{
   if((await read()).locks.some(l=>l.solved))throw Error('Reset retained solved locks');
   phase='production-preview';
   await page.goto(process.env.FLOOR10_PREVIEW_URL || 'http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+  await verifyConversationRuntime(page);
   await page.locator('[data-floor10-workshop]').waitFor();
   await page.screenshot({path:`${out}/production-mobile.png`});
   if(forbidden.length)throw Error('Standalone loaded host game: '+forbidden.join(','));

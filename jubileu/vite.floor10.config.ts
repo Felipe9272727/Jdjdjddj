@@ -34,11 +34,12 @@ export default defineConfig({
   plugins: [floor10RuntimeAssets, react()],
   // Keep the module graph independent, but preserve optional Nilo runtime
   // files (wllama wasm/worker and externally hosted GGUF models) when present.
-  publicDir: false,
+  publicDir: 'public',
   resolve: {
     alias: { '@': root },
   },
   build: {
+    copyPublicDir: false,
     outDir: path.resolve(root, 'dist-floor10'),
     emptyOutDir: true,
     assetsInlineLimit: Number.MAX_SAFE_INTEGER,
