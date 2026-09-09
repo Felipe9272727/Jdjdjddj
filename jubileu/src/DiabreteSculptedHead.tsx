@@ -318,10 +318,25 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   // -0,94 — ainda no creme. A primeira tentativa, centrada em (-0,02, -0,80)
   // com raio 0,175, ia até -0,975: caía do queixo e se misturava com a tinta do
   // pescoço.
-  linguaShape.absellipse(-0.13, -0.700, 0.118, 0.150, 0, Math.PI * 2, false, 0);
+  //
+  // ── E ELA NÃO LIA ─────────────────────────────────────────────────────────
+  //
+  // Fotografada de perto contra um controle (`?boca=sorrisoIronico`), ela
+  // aparecia — e aparecia como um CALOMBO no canto do lábio, não como uma
+  // língua. O motivo é que o sorriso ALARGOU num ciclo posterior a ela, e estes
+  // números foram calculados contra o lábio antigo: centrada em -0,700, com o
+  // lábio de baixo passando por -0,715, só um terço do disco ficava para fora
+  // da boca. Peça desenhada contra medida velha — a mesma classe de erro que
+  // este arquivo já teve com o cenho.
+  //
+  // Descer o centro põe DOIS terços para fora, que é o que faz o desenho ler
+  // como língua pendurada. O piso continua sendo a máscara do rosto, que acaba
+  // em -0,965: com raio 0,168 e centro -0,762 ela vai até -0,930, e a folga de
+  // creme continua existindo.
+  linguaShape.absellipse(-0.15, -0.762, 0.132, 0.168, 0, Math.PI * 2, false, 0);
   const lingua = add(curvedShape(linguaShape, 0.052, 3), line);
   const vincoDaLingua = add(
-    stroke([[-0.135, -0.615], [-0.13, -0.70], [-0.124, -0.792]], 0.015, 0.064), cream);
+    stroke([[-0.155, -0.668], [-0.15, -0.762], [-0.144, -0.858]], 0.016, 0.064), cream);
   lingua.visible = false; vincoDaLingua.visible = false;
 
   let lastMouth = -1;

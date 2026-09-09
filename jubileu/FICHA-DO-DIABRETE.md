@@ -396,3 +396,72 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o
       modelo já tinha, de malha.
 - [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
+
+
+## Ciclo 17 — a cara que o andar inteiro nunca mostrou
+
+### A folha das dezesseis, revista depois da língua, da boca redonda e da poda
+
+`as-dezesseis-caras.mjs 3` (todos os pincéis roubados). Quinze das dezesseis
+leem: `roubou`/`suplica` dão a boca redonda de susto (e ela deixou de ser lida
+como um segundo nariz), `perdeuOPrimeiro` mostra a ruga entre as sobrancelhas,
+`tonto` tem os X nos olhos, `vitorioso` fecha os olhos no sorriso, `perdeuOUltimo`
+despenca. `provoca`, `desenhou` e `espetou` saem iguais — e saem iguais porque
+com três pincéis roubados os três resolvem para `irritado`, que é a tabela
+funcionando, não um defeito.
+
+A décima sexta era a `ocioso`, e é onde estava o problema.
+
+### A língua estava desenhada contra uma boca que já não existe
+
+`ocioso` resolve para a boca `provocando`, que é a "LÍNGUA" da ficha do Felipe —
+e ela é também o visema de TODO L e TODO N que ele fala, ou seja aparece o tempo
+todo no meio das frases. Na folha ela parecia ausente. Fotografada de perto
+contra um controle (`?boca=sorrisoIronico`), estava lá: **como um calombo no
+canto do lábio, não como uma língua.**
+
+O motivo é datado. Os números da língua foram calculados contra o lábio de baixo
+do sorriso ANTIGO; num ciclo posterior eu alarguei o sorriso, e o centro dela
+(-0,700) ficou quase em cima da nova linha do lábio (-0,715) — só um terço do
+disco sobrava para fora da boca. Peça desenhada contra medida velha, que é a
+mesma classe de erro que o cenho já teve neste rosto.
+
+Descida para -0,762 e engordada para (0,132, 0,168), dois terços ficam de fora e
+ela lê. O piso continua sendo a máscara do rosto (-0,965): com raio 0,168 ela
+chega a -0,930 e a folga de creme continua existindo — o erro que a versão em
+canvas cometeu (a língua caindo do queixo e se misturando com a tinta do
+pescoço) não voltou. Conferido nas três câmeras.
+
+### E o achado grande: ele usava UMA cara no andar inteiro
+
+Varri quais dos dezesseis momentos o jogo de fato escolhe. `Floor3Rival` — que é
+o Diabrete durante toda a escalada, o personagem que mais aparece no andar —
+tinha isto escrito em dois lugares:
+
+    const momento = isDizzy() ? 'tonto' : 'provoca';
+
+Ou seja: **`provoca` do começo ao fim.** `f3Boca` tem expressão pronta para
+`desenhou`, `espetou`, `roubou` e `caiu`, cada uma variando com quantos pincéis
+ele já perdeu; `f3Olhos` e `f3Sobrancelha` idem. Tudo desenhado, tudo testado,
+tudo na folha de contato — e nada ligado. Ele dizia *"N-não… esse não… sem ele eu
+não sou NADA aqui…"* com a mesma cara de deboche com que tinha rabiscado os
+espinhos.
+
+E o sistema de falas SABIA qual era o evento. O campo `evento` já esteve em
+`f3Fala` e foi REMOVIDO, com um comentário correto pelo motivo errado — "campo
+escrito, tipado, e morto". Estava morto mesmo; morto porque **cortaram o fio, não
+o campo.** Agora o fio existe: enquanto o balão está no ar a cara é a do evento
+que o pôs lá, e quando a fala sai do ar ele volta a `provoca`, que é o repouso do
+personagem. Dois testes cobram — que o evento fique publicado, e que os eventos
+tenham de fato caras diferentes (senão publicar não muda nada).
+
+Custo: zero. É uma leitura de campo por quadro; nenhuma geometria nova, nenhum
+material novo, nenhum draw call.
+
+### Momentos que continuam sem gatilho nenhum
+
+Desenhados, testados, fotografados — e nunca escolhidos por código de jogo:
+`ocioso`, `quaseLaEmCima`, `perdeuOPrimeiro`, `pensando`, `derrotado`. Não mexi:
+cada um deles precisa de uma decisão de quando dispara (o `ocioso`, por exemplo,
+quer "o jogador está longe" — que o andar hoje não pergunta), e isso é escolha de
+design, não conserto.
