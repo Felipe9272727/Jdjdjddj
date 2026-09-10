@@ -49,6 +49,29 @@ export const tempoDaPose = (t: number) => Math.floor(t * POSE_HZ) / POSE_HZ;
 /** Braço em repouso, herdado do rig em T. */
 export const ARM_REST = 0.95;
 
+// ── ATÉ ONDE DÁ PARA VIRAR A CARA DELE ───────────────────────────────────────
+//
+// MEDIDO, com uma varredura de sete ângulos na mesma rodada
+// (`bancada-navegador/a-cara-por-angulo.mjs`): até 45 graus de guinada a cara lê
+// limpa, aos 55 ainda lê, aos 65 o creme já é uma faixa estreita com a boca
+// escorçada, e aos 74 a MÁSCARA ACABA — não por defeito, por construção: o
+// contorno dela chega a x 0,97 e no elipsoide do crânio (RX 1,04, RZ 0,91) isso
+// é 74,4 graus. Passou disso, o que se vê é a lateral de tinta.
+//
+// Isto não é um limite de gosto, é onde o desenho deixa de existir. Está aqui
+// como número para que a encenação seja COBRADA por ele: o teste confere que as
+// viradas do rival cabem dentro, e o dia em que alguém girar o boneco 80 graus
+// num beat novo a suíte diz por que a cara sumiu.
+export const CARA_LE_ATE = 1.05;          // radianos — 60 graus, com folga sobre os 65
+
+/** A virada de três quartos quando ele para para PINTAR: o assunto do plano é o
+ *  traço, então ele tem de mostrar o braço e a cara ao mesmo tempo. */
+export const VIRADA_AO_PINTAR = Math.PI * 0.28;
+
+/** O bamboleio de quem levou uma pancada. Vai para os dois lados, então o que
+ *  vale é a amplitude. */
+export const BAMBOLEIO_TONTO = 0.3;
+
 // ── ANTECIPAÇÃO ──────────────────────────────────────────────────────────────
 //
 // Desenho de 1930 PREPARA todo golpe: antes de apontar, o braço vai para trás;

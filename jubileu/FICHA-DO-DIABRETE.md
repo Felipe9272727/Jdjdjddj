@@ -521,3 +521,73 @@ um COMENTÁRIO meu que escrevia o nome da função com parênteses vazios. A gua
 estava certa em ser textual; o `*` do padrão é que aceitava lista vazia. Virou
 `+`: chamada sem argumento nenhum o compilador já barra, então exigir ao menos um
 argumento não tira dente nenhum — `dizer('espetou')` continua sendo pego.
+
+
+## Ciclo 19 — o CORPO, medido pela primeira vez
+
+Quatro ciclos de câmera e rosto depois, o corpo dele nunca tinha entrado numa
+régua nem numa foto de costas. `o-turnaround.mjs` tira os quatro lados na MESMA
+rodada, com a pose congelada, e `medir-o-corpo.mjs` mede o que está NA TELA — não
+o GLB, porque o rig deforma a malha e a cabeça esculpida substitui o rosto
+inteiro; o asset cru e o personagem renderizado não são a mesma coisa.
+
+### As proporções
+
+    corpo (com chifre)   larg 2,575   alt 2,457   fund 1,117
+    crânio (só ele)      larg 0,973   alt 0,834   fund 0,856
+    altura sem chifre    2,70 cabeças
+    altura com chifre    2,95 cabeças
+    queixo ao chão       1,70 cabeças
+    crânio fund/larg     0,879   (1 = redondo)
+
+Duas coisas que a ficha registrava como defeito e que a escultura RESOLVEU, e
+agora com número: o crânio é redondo (0,879, não chapado) e **os chifres são
+cones de verdade** — 0,278 de largura por 0,250 de profundidade, ou seja 0,90.
+A tabela dos dez defeitos do Felipe dizia "chifres e tufos são placas chatas
+(0,18)"; aquilo era medida do GLB, e o GLB não é mais quem desenha a cabeça.
+
+Nas fatias, o que um model sheet quer: a cintura tem 0,429 de largura contra
+0,973 do crânio — **44% da largura da cabeça**. É a cintura pinçada de
+rubber-hose, e está certa.
+
+### As costas: não há defeito
+
+Vale registrar porque a suspeita era grande. **Ele encara +Z e corre para +Z, e o
+jogador vem atrás** — ou seja, a vista que o jogador mais vê no andar é a nuca
+dele, e ela nunca tinha sido fotografada. Fotografada com a PELÍCULA DO JOGO (não
+com `nopost`, que é o que serve para julgar geometria e não leitura), a silhueta
+lê: chifres, tufos dos dois lados, laço espetando ao lado do pescoço, rabo, luvas
+e polainas brancas. A 6 m, que é a distância de corrida, ainda lê. Um diabrete de
+1930 visto de trás É uma mancha preta; esta tem a forma certa.
+
+### Até que ângulo a cara lê — e o conserto que eu quase fiz
+
+O perfil mostrou a máscara acabando numa aresta reta com a boca correndo para
+fora dela. Varri sete ângulos (`a-cara-por-angulo.mjs`):
+
+| guinada | o que se vê |
+|--------:|-------------|
+| 0–45 | lê limpo |
+| 55 | ainda lê — e é onde o jogo mais o vira (`paint` gira 50,4°) |
+| 65 | escorça, o creme vira faixa estreita |
+| 74 | a máscara ACABA |
+| 90 | tinta, com uma tira de creme na frente do crânio |
+
+E eu **escrevi o conserto errado**. Diagnostiquei "a máscara é mais larga que a
+cabeça: na altura da boca o contorno chega a x 0,87 e o raio da seção ali é
+0,832, então `front()` satura e os vértices boiam fora do crânio". Implementei o
+recolhimento radial para a casca, refotografei os sete ângulos — e as fotos
+saíram **idênticas**. A aritmética disse por quê: amostrando o contorno em 400
+pontos, o mais afastado dá r² = 0,932. Nada sai da casca. Eu tinha lido os
+PONTOS DE CONTROLE do bezier como se fossem pontos da curva.
+
+Revertido. A aresta reta aos 90° não é defeito: é onde a máscara termina por
+construção — o contorno chega a x 0,97, e no elipsoide (RX 1,04, RZ 0,91) isso é
+74,4° de guinada. **E o jogo inteiro fica dentro da fronteira**: `paint` vira
+50,4°, o bamboleio de tonto é ±17°, e as cutscenes medidas nos ciclos 15 e 16
+ficam entre 0° e 43°.
+
+Sexta vez neste loop que medir salvou um conserto errado, e a primeira em que eu
+já tinha escrito o código. O que ficou é o número: `CARA_LE_ATE` em `f3Pose`, com
+`VIRADA_AO_PINTAR` e `BAMBOLEIO_TONTO` cobrados contra ele por teste. Guardar a
+fronteira é mais barato do que redescobri-la.
