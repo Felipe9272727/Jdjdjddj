@@ -24,16 +24,19 @@ import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, bocaNoInstante, vulneravel, VIDA_MAXIMA, LIMIAR_DA_VIRADA, BOCA_ALVO,
-    ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO,
+    ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, ESCALA_DA_CABECA,
 } from './f12Boss';
 
 /**
- * O RAIO dela, em unidades de mundo. Ela tem de ler como colossal contra um
- * avião de 2,35 de envergadura, sem engolir a tela: 7,8 põe o crânio em 57,5%
- * da largura do quadro, medido com a câmera de verdade. Ver a nota de
- * composição em `f12Boss`.
+ * O RAIO dela, em unidades de mundo.
+ *
+ * Vem de `f12Boss` e não é escrito aqui, porque a COMPOSIÇÃO depende dele: a
+ * distância em que a cabeça flutua é calculada a partir do tamanho que ela tem
+ * de ter na tela, e esse tamanho é este número. Dois números separados seriam
+ * duas verdades sobre o mesmo crânio, e a que decide o enquadramento não é a
+ * que desenha.
  */
-export const ESCALA = 7.8;
+export const ESCALA = ESCALA_DA_CABECA;
 
 const CORES = {
     pele: '#8d7f9c',        // um cinza-lilás de gesso velho: parede de hotel

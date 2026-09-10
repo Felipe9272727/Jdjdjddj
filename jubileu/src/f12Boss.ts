@@ -57,6 +57,16 @@
 export const ALTURA_DA_CABECA = 29;
 
 /**
+ * O RAIO da cabeça, em unidades de mundo.
+ *
+ * Ele mora neste módulo, e não só em `Floor12Cabeca`, porque a COMPOSIÇÃO
+ * precisa dele: a distância da cabeça sai do tamanho que ela tem de ter na
+ * tela, e esse tamanho é este número. O componente que a desenha importa
+ * daqui, para os dois não poderem discordar.
+ */
+export const ESCALA_DA_CABECA = 7.8;
+
+/**
  * A arena.
  *
  * `x` NÃO é congelado, e é o único número deste arquivo que não é: numa tela
@@ -108,8 +118,8 @@ export const ARENA_X_COMPOSTA = ARENA.x;
  * composição acima é idêntica no celular em pé e num monitor deitado. O que
  * muda com o aspecto é só a largura, e é só ela que `ajustarAoAspecto` mexe.
  */
-export const ENQUADRAMENTO = Object.freeze({
-    /** O aspecto em que este andar foi composto — a tela do dono do jogo. */
+export const ENQUADRAMENTO = {
+    /** O aspecto para o qual a câmera está resolvida AGORA. */
     aspecto: 412 / 915,
     /** `fov` VERTICAL da câmera. */
     fov: 62,
@@ -130,29 +140,180 @@ export const ENQUADRAMENTO = Object.freeze({
      * e cabem três naves e meia de folga na arena.
      */
     envergadura: 2.35,
+};
+
+/** A composição de referência, para o teste e para o reinício. */
+export const COMPOSICAO_BASE = Object.freeze({ ...ENQUADRAMENTO });
+
+/**
+ * ── A COMPOSIÇÃO SE RESOLVE PARA A TELA, E ISSO NÃO É LUXO ───────────────────
+ *
+ * A primeira versão deste andar foi composta para UMA tela: o celular em pé, em
+ * 412 x 915. Eu escrevi que telas largas ficariam "aceitáveis" e entreguei
+ * assim. O dono do jogo abriu no celular DEITADO e disse "os aviões estão muito
+ * pequenos" e "pras proporções de um celular, tanto na vertical quanto na
+ * horizontal, está muito estranha". A conta explica os dois de uma vez:
+ *
+ *   em pé      quadro de 8,4 de largura  ->  o avião (2,35) ocupa 28% dela
+ *   deitado    quadro de 41,4            ->  o avião ocupa 5,7%
+ *
+ * O mesmo avião, no mesmo aparelho, com metade do tamanho na tela. A causa é
+ * que `fov`, no three, é VERTICAL: girar o aparelho não muda a abertura
+ * vertical, então a mesma cena passa a ser espremida numa tela baixa e sobra
+ * largura por todo lado.
+ *
+ * ── O QUE É FIXO E O QUE SE RESOLVE ──────────────────────────────────────────
+ *
+ * FIXO: o mundo. A cabeça fica em `ALTURA_DA_CABECA`, a boca em `BOCA_ALVO`, os
+ * ataques saem de lá. Mundo que muda de forma com a orientação da tela viraria
+ * dois jogos com um nome só, e nenhum dos dois teria sido escolhido.
+ *
+ * RESOLVIDO: a câmera e o tamanho da caixa de voo. O alvo é sempre o mesmo, e é
+ * dito em fração de tela — o avião com um quarto da MENOR dimensão da tela (é a
+ * menor que manda: é ela que decide se uma coisa é pequena), a caixa de voo com
+ * 45% da altura e 90% da largura, o avião a 25% e a boca a 71%.
+ *
+ * Assim a composição medida no fim é a MESMA em pé e deitada, que é o que
+ * "proporção certa" quer dizer.
+ */
+
+/** Meia-abertura vertical, em tangente. */
+const meiaV = (): number => Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
+
+/** O que a composição persegue, seja qual for a tela. */
+export const ALVOS_DE_TELA = Object.freeze({
+    /**
+     * Envergadura do avião, em fração da LARGURA da tela.
+     *
+     * ── A PRIMEIRA MEDIDA FOI CONTRA A DIMENSÃO ERRADA ───────────────────
+     *
+     * Eu mirei "um quarto da MENOR dimensão da tela", com o argumento de que é
+     * a menor que decide se uma coisa parece pequena. O argumento vale para um
+     * objeto quadrado; um avião visto de trás é LARGO, e a envergadura dele cai
+     * na horizontal. No celular deitado, "25% da altura" virava 11% da largura
+     * — 103 px de 915 — e ele continuava parecendo pequeno, que foi exatamente
+     * a reclamação. Medir contra a largura mede o que se vê.
+     *
+     * A fração cai um pouco em telas largas (a arena precisa de espaço para o
+     * desvio existir), mas não abaixo de 17%, que é o piso em que o avião ainda
+     * é uma silhueta e não um borrão.
+     */
+    naveNaLargura: (aspecto: number): number =>
+        Math.max(0.17, Math.min(0.30, 0.28 * (COMPOSICAO_BASE.aspecto / aspecto) ** 0.45)),
+    /** Altura da caixa de voo, em fração da altura da tela. */
+    caixaAltura: 0.50,
+    /** Largura da caixa de voo, em fração da largura da tela. */
+    caixaLargura: 0.90,
+    /** Onde o avião em repouso fica, em fração da altura (0 = base). */
+    naveNaTela: 0.25,
+    /**
+     * Onde a boca fica, em fração da altura.
+     *
+     * 0,66 e não 0,71: a boca é o ponto de mira, mas o CRÂNIO continua subindo
+     * quase quinze por cento de tela acima dela. A 0,71 o alto da cabeça batia
+     * em 96% e entrava embaixo da barra de vida do HUD — na foto do celular
+     * deitado ela aparecia decapitada. O alvo da boca tem de deixar o resto da
+     * cabeça caber.
+     */
+    bocaNaTela: 0.66,
+    /** Altura da cabeça, em fração da altura da tela. */
+    cabecaAltura: 0.28,
+    /** Largura da cabeça, em fração da largura da tela. */
+    cabecaLargura: 0.60,
 });
 
 /**
- * Alarga a arena quando a tela é mais larga que a que compôs o andar.
- *
- * Chamado uma vez, na entrada do andar. Sem isto, num monitor 16:9 a arena
- * ocupa 22,8% da largura: o jogo inteiro vira uma tirinha vertical no meio de
- * um mar de céu. Com isto ela volta a ocupar a mesma fatia de sempre.
- *
- * O TETO existe porque tudo neste andar é escrito em função de `ARENA.x` — um
- * leque que abre até a borda de uma arena de 15 unidades é um leque que o
- * jogador não atravessa nunca, porque a nave não anda tão depressa assim.
+ * Tetos, porque tudo neste andar é escrito em função de `ARENA.x` e da altura da
+ * caixa: uma arena de 15 unidades é uma arena que a nave não atravessa a tempo
+ * de desviar de nada, e um leque que abre até a borda dela nunca ameaça.
  */
-export const ARENA_X_MAXIMA = 6.4;
+export const ARENA_X_MAXIMA = 7.2;
+export const ARENA_ALTURA_MINIMA = 3.0;
 
+/**
+ * Resolve a câmera e a caixa de voo para um aspecto de tela. Chamado uma vez, na
+ * entrada do andar, e de novo se o aparelho girar.
+ */
 export function ajustarAoAspecto(aspecto: number): void {
-    const quadro = larguraDoQuadro(ENQUADRAMENTO.recuo, aspecto);
-    const querida = (quadro * 0.90) / 2;
-    ARENA.x = Math.max(ARENA_X_COMPOSTA, Math.min(ARENA_X_MAXIMA, querida));
+    const a = Number.isFinite(aspecto) && aspecto > 0.05 ? aspecto : COMPOSICAO_BASE.aspecto;
+    ENQUADRAMENTO.aspecto = a;
+
+    // 1. O RECUO sai do tamanho que o avião tem de ter NA LARGURA da tela.
+    //    quadroLargura(d) = 2*d*meiaV*a  ->  d = envergadura / (fracao * 2*meiaV*a)
+    const larguraPorDistancia = 2 * meiaV() * a;
+    ENQUADRAMENTO.recuo = ENQUADRAMENTO.envergadura
+        / (ALVOS_DE_TELA.naveNaLargura(a) * larguraPorDistancia);
+
+    // 2. A CABEÇA TAMBÉM SE APROXIMA, e é isto que faltava.
+    //
+    //    Ela estava numa distância FIXA (`zCabeca = -33`) enquanto a câmera se
+    //    aproximava para deixar o avião maior. No celular deitado o avião ficou
+    //    a 5,2 da câmera e a cabeça continuou a 38: o chefe virou um borrão
+    //    escuro de 15% da largura no alto do quadro, e o desenho do andar —
+    //    "uma cabeça COLOSSAL" — deixou de ser verdade por acidente.
+    //
+    //    A distância dela sai do tamanho que ela tem de ter, e o teto é o mais
+    //    exigente dos dois: alta demais numa tela baixa não cabe, larga demais
+    //    numa tela estreita também não. Em pé manda a largura; deitado, a
+    //    altura.
+    const alturaDaCabeca = 2 * ESCALA_DA_CABECA * 0.86;   // o crânio é achatado em Y
+    const larguraDaCabeca = 2 * ESCALA_DA_CABECA;
+    const distanciaDaCabeca = Math.max(
+        alturaDaCabeca / (ALVOS_DE_TELA.cabecaAltura * 2 * meiaV()),
+        larguraDaCabeca / (ALVOS_DE_TELA.cabecaLargura * 2 * meiaV() * a),
+    );
+    ARENA.zCabeca = -(distanciaDaCabeca - ENQUADRAMENTO.recuo);
+
+    // 3. A CAIXA DE VOO passa a ser uma fatia da tela, e não um número fixo.
+    const alt = alturaDoQuadro(ENQUADRAMENTO.recuo);
+    const larg = alt * a;
+    const altura = Math.max(ARENA_ALTURA_MINIMA, alt * ALVOS_DE_TELA.caixaAltura);
+    ARENA.x = Math.min(ARENA_X_MAXIMA, (larg * ALVOS_DE_TELA.caixaLargura) / 2);
+    ARENA.yBaixo = 1.4;
+    ARENA.yAlto = ARENA.yBaixo + altura;
+
+    // 4. A CÂMERA: achar `camY` e `miraY` que põem o avião e a boca onde os
+    //    alvos mandam. São duas incógnitas e duas equações, e a projeção não é
+    //    linear — então isto é uma busca, grosseira e depois fina. Custa ~1200
+    //    contas de três linhas, uma vez, na entrada do andar.
+    const meio = (ARENA.yBaixo + ARENA.yAlto) / 2;
+    const erro = (camY: number, miraY: number): number => {
+        ENQUADRAMENTO.camY = camY; ENQUADRAMENTO.miraY = miraY;
+        const nave = fracaoNaTela(0, meio, ARENA.zNave);
+        const boca = fracaoNaTela(BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca);
+        if (!Number.isFinite(nave) || !Number.isFinite(boca)) return 1e6;
+        return (nave - ALVOS_DE_TELA.naveNaTela) ** 2 + (boca - ALVOS_DE_TELA.bocaNaTela) ** 2;
+    };
+    let melhorC = meio + 2, melhorM = meio + 6, melhor = Infinity;
+    let c0 = meio - 4, c1 = meio + 16, m0 = meio - 2, m1 = meio + 40;
+    for (let passe = 0; passe < 4; passe++) {
+        for (let i = 0; i <= 20; i++) for (let j = 0; j <= 20; j++) {
+            const c = c0 + ((c1 - c0) * i) / 20, m = m0 + ((m1 - m0) * j) / 20;
+            const e = erro(c, m);
+            if (e < melhor) { melhor = e; melhorC = c; melhorM = m; }
+        }
+        const dc = (c1 - c0) / 10, dm = (m1 - m0) / 10;
+        c0 = melhorC - dc; c1 = melhorC + dc; m0 = melhorM - dm; m1 = melhorM + dm;
+    }
+    ENQUADRAMENTO.camY = melhorC;
+    ENQUADRAMENTO.miraY = melhorM;
+    // O alvo em Z fica entre o avião e o chefe; ele não entra na busca porque
+    // mover os dois juntos é redundante — o par (camY, miraY) já dá o ângulo.
+    ENQUADRAMENTO.miraZ = COMPOSICAO_BASE.miraZ;
 }
 
-/** Volta a arena à largura composta. Serve ao teste e ao reinício. */
-export function reporArena(): void { ARENA.x = ARENA_X_COMPOSTA; }
+/**
+ * Volta tudo à tela de referência — o celular em pé do dono do jogo.
+ *
+ * Ela RESOLVE de novo em vez de copiar números guardados, e isso é de propósito:
+ * dois caminhos para o mesmo estado é como um deles fica velho. Aqui só existe
+ * um jeito de a composição existir, que é `ajustarAoAspecto`.
+ */
+export function reporArena(): void {
+    ENQUADRAMENTO.fov = COMPOSICAO_BASE.fov;
+    ENQUADRAMENTO.envergadura = COMPOSICAO_BASE.envergadura;
+    ajustarAoAspecto(COMPOSICAO_BASE.aspecto);
+}
 
 /** Quantas unidades de mundo cabem na LARGURA da tela, à distância `d`. */
 export function larguraDoQuadro(d: number, aspecto = ENQUADRAMENTO.aspecto): number {
@@ -496,7 +657,29 @@ export const LEQUE = Object.freeze({
      * versão indesviável da primeira montagem; a foto de um leque aberto
      * pareceria certa.
      */
-    abrePorSegundo: 1.33,
+    /**
+     * ── A ABERTURA SAI DA ARENA, E TEM DE SAIR ───────────────────────────
+     *
+     * Era um número fixo (1,33), afinado para a arena de 3,7 do celular em pé.
+     * Com a caixa de voo agora resolvida por tela, a arena deitada tem 7,2 — e
+     * o mesmo 1,33 abria o leque até 3,30 numa arena de 7,2: ele cobria 46% do
+     * mundo jogável e o jogador simplesmente CONTORNAVA por fora. O ataque
+     * deixava de ser um ataque, sem nada na tela dizendo por quê.
+     *
+     * Derivado, o leque abre sempre até 89% da borda, em qualquer tela.
+     *
+     * A amarra que ele tem é a de sempre, e continua valendo: as cinco unidades
+     * ficam em `lado * fora` com `lado` em -1, -0,5, 0, +0,5, +1, então o VÃO
+     * ENTRE VIZINHAS é metade do que a de fora andou. Vão preciso para a nave
+     * passar = 2 * (NAVE.raio + LEQUE.raio) = 1,44; o vão entregue é
+     * 0,445 * ARENA.x, ou seja 1,65 na arena estreita e 3,20 na larga. Arena
+     * mais larga dá vãos mais largos — nunca o contrário. O teste cobra os dois
+     * lados em todas as telas.
+     */
+    get abrePorSegundo(): number {
+        const tempo = Math.abs(ARENA.zNave - (ARENA.zCabeca + 2.2)) / LEQUE.velocidadeZ;
+        return (ARENA.x * 0.89 - LEQUE.largura0) / tempo;
+    },
     velocidadeZ: 14.9,
     raio: 0.36,
 });
@@ -642,8 +825,14 @@ export function nascerNaves(): Projetil[] {
 // reflexo — que é o contraste com o leque e o teleguiado.
 export const MARE = Object.freeze({
     velocidadeZ: 7.2,
-    /** Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo. */
-    fresta: 1.85,
+    /**
+     * Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo.
+     *
+     * Ela cresce um pouco com a arena, mas não proporcionalmente: numa arena
+     * larga uma fresta proporcional seria enorme e a onda deixaria de exigir
+     * posicionamento. O piso (1,5) é o que garante que o avião passe.
+     */
+    get fresta(): number { return Math.max(1.5, ARENA.x * 0.42); },
     /**
      * A fresta passeia por X neste seno.
      *
@@ -656,8 +845,11 @@ export const MARE = Object.freeze({
      * para 3,7: 2,75 + 2,05 dava 4,80 numa arena de 3,7, ou seja a fresta
      * passeava quase uma unidade e meia para fora do mundo jogável. O teste
      * pegou; a foto de uma onda com uma fresta pareceria certa.
+     *
+     * Derivado, ele nunca mais pode estourar: o passeio é o que SOBRA da arena
+     * depois da fresta, com 8% de margem.
      */
-    passeioAmp: 1.7,
+    get passeioAmp(): number { return Math.max(0, (ARENA.x - MARE.fresta) * 0.92); },
     passeioHz: 0.24,
     raio: 0.9,          // espessura da onda, para a colisão em Z
 });
@@ -800,16 +992,70 @@ export function saiuDeCena(p: Projetil): boolean {
 }
 
 // ── O TIRO DO JOGADOR ────────────────────────────────────────────────────────
+/**
+ * ── A ARMA ATIRA EM RAJADA, COM PAUSA ────────────────────────────────────────
+ *
+ * Ela era um jato contínuo: um tiro a cada 0,16 s, para sempre. O dono do jogo
+ * pediu "um intervalo entre tiros, para a cabeça não morrer tão rápido", e ele
+ * tinha duas razões, uma delas culpa minha.
+ *
+ * A culpa: o arrasto estava quebrado (ver `Nave.dono`), então o avião ficava
+ * PARADO no meio da arena — exatamente alinhado com a boca — e acertava cada
+ * tiro do começo ao fim da luta. Consertado o controle, quem quer machucar tem
+ * de voltar ao meio, e o meio é o lugar mais perigoso para ficar.
+ *
+ * A razão que continua de pé mesmo assim: um jato contínuo não tem forma. Toda
+ * a atenção do jogador vira posicionamento e nada mais, porque a arma não pede
+ * nada dele. Em rajada, a arma tem ritmo — três tiros e uma pausa —, e a pausa
+ * é o instante em que dá para pensar no desvio sem sentir que se está perdendo
+ * dano. O ritmo da arma e o ritmo da boca passam a conversar.
+ */
 export const TIRO = Object.freeze({
     velocidade: 34,
     raio: 0.36,
-    /** Segundos entre tiros. */
-    cadencia: 0.16,
-    dano: 1.0,
+    /** Segundos entre tiros DENTRO de uma rajada. */
+    cadencia: 0.14,
+    /** Quantos tiros saem por rajada. */
+    rajada: 3,
+    /** Segundos de pausa entre uma rajada e a seguinte. */
+    pausa: 0.55,
+    /**
+     * O tiro ficou mais FORTE junto com a rajada, e isso não é desfazer o
+     * pedido: a rajada existe para a arma ter ritmo, não para a luta virar uma
+     * maratona. Medido, a rajada sozinha (dano 1,0) punha a luta em 180 s — o
+     * dobro de um chefe de celular. A 1,25 ela fica em 115 s no bot que volta
+     * ao meio agressivamente — e um humano, que passa mais tempo fora do meio
+     * desviando, vai levar mais que isso. É a folga certa para o lado do
+     * pedido: o chefe não morre depressa.
+     */
+    dano: 1.25,
     /** O irmão atira mais devagar e mais fraco: ele é ala, não protagonista. */
     cadenciaIrmao: 0.34,
+    rajadaIrmao: 2,
+    pausaIrmao: 1.15,
     danoIrmao: 0.6,
 });
+
+/**
+ * A nave pode atirar agora? Se puder, cobra o tiro (recarga e contador da
+ * rajada) e devolve `true`.
+ *
+ * O ritmo mora AQUI, e não na cena, pelo mesmo motivo que o bamboleio das
+ * camareiras mora no módulo: a simulação que mede a dificuldade tem de disparar
+ * exatamente como o jogo dispara, senão ela mede outro jogo.
+ */
+export function tentarAtirar(n: Nave, irmao = false): boolean {
+    if (n.recarga > 0) return false;
+    const porRajada = irmao ? TIRO.rajadaIrmao : TIRO.rajada;
+    n.naRajada += 1;
+    if (n.naRajada >= porRajada) {
+        n.naRajada = 0;
+        n.recarga = irmao ? TIRO.pausaIrmao : TIRO.pausa;
+    } else {
+        n.recarga = irmao ? TIRO.cadenciaIrmao : TIRO.cadencia;
+    }
+    return true;
+}
 
 /**
  * ── O TIRO SAI DA PONTA DA ASA, E ISSO NÃO É ENFEITE ─────────────────────────
@@ -915,6 +1161,33 @@ export interface Nave {
     vidas: number;
     /** Tempo até o próximo tiro sair. */
     recarga: number;
+    /** Quantos tiros já saíram na rajada atual. Ver `tentarAtirar`. */
+    naRajada: number;
+    /**
+     * QUEM está no comando: o dedo ou a tecla.
+     *
+     * ── ISTO É UM CAMPO PORQUE A FALTA DELE DEIXOU O ANDAR INJOGÁVEL ─────
+     *
+     * O dono do jogo disse "mesmo eu tocando, eu não consigo mexer o avião", e
+     * ele estava certo: o avião NUNCA saía do lugar, em nenhuma orientação de
+     * tela. Os dois controles escreviam no MESMO par de campos (`alvoX`,
+     * `alvoY`) e o do teclado rodava todo quadro, com ou sem tecla apertada:
+     *
+     *     onPointerMove   ->  arrastarNave()      põe o alvo onde o dedo está
+     *     quadro seguinte ->  conduzirNave(0, 0)  "sem comando: assenta o alvo
+     *                                              onde a nave está"
+     *
+     * O ramo de assentar existe por um bom motivo — sem ele a nave continuaria
+     * deslizando rumo a um alvo velho depois de o jogador soltar a tecla —, mas
+     * ele apagava, a 60 Hz, o alvo que o dedo tinha acabado de pôr. A nave
+     * perseguia um alvo que era zerado antes de ela andar um centímetro.
+     *
+     * Nenhum teste pegou porque cada função, sozinha, está certa: o defeito
+     * mora na ORDEM em que a cena as chama, e a cena não era testada. Pôr o
+     * dono aqui, no módulo, é o que torna a regra testável — e é o que impede
+     * que a próxima pessoa que ligar um controle novo repita a mesma colisão.
+     */
+    dono: 'dedo' | 'tecla';
 }
 
 export const NAVE = Object.freeze({
@@ -942,27 +1215,45 @@ export const NAVE = Object.freeze({
 });
 
 export function novaNave(x: number, y: number, vidas = VIDAS_DO_JOGADOR): Nave {
-    return { x, y, alvoX: x, alvoY: y, vx: 0, vy: 0, rolagem: 0, piscando: 0, vidas, recarga: 0 };
+    return {
+        x, y, alvoX: x, alvoY: y, vx: 0, vy: 0, rolagem: 0, piscando: 0, vidas,
+        recarga: 0, naRajada: 0, dono: 'tecla',
+    };
 }
 
-/** O dedo arrastou: mexe o ALVO por um delta de mundo, preso na arena. */
+/**
+ * O dedo arrastou: mexe o ALVO por um delta de mundo, preso na arena.
+ *
+ * Assumir o comando faz parte do arrasto, e não é um passo separado que a cena
+ * possa esquecer de dar — foi esquecê-lo que deixou o andar injogável.
+ */
 export function arrastarNave(n: Nave, dx: number, dy: number): void {
+    n.dono = 'dedo';
     const p = dentroDaArena(n.alvoX + dx, n.alvoY + dy);
     n.alvoX = p.x; n.alvoY = p.y;
 }
 
-/** Comando de TECLA: o alvo corre na direção apertada. */
+/**
+ * Comando de TECLA: o alvo corre na direção apertada.
+ *
+ * Com tecla apertada ela toma o comando. SEM tecla, ela não faz nada se quem
+ * está no comando for o dedo — é essa linha que faltava, e a falta dela apagava
+ * o alvo do dedo sessenta vezes por segundo. Ver a nota em `Nave.dono`.
+ */
 export function conduzirNave(n: Nave, mx: number, my: number, dt: number): void {
     const d = Math.min(dt, 0.05);
     const m = Math.hypot(mx, my);
     if (m > 1e-4) {
+        n.dono = 'tecla';
         const k = (NAVE.velocidadeDoAlvo * d) / Math.max(1, m);
-        arrastarNave(n, mx * k, my * k);
-    } else {
-        // Sem comando, o alvo assenta onde a nave está — senão ela continuaria
-        // andando sozinha rumo a um alvo velho depois de soltar a tecla.
-        n.alvoX = n.x; n.alvoY = n.y;
+        const p = dentroDaArena(n.alvoX + mx * k, n.alvoY + my * k);
+        n.alvoX = p.x; n.alvoY = p.y;
+        return;
     }
+    if (n.dono === 'dedo') return;
+    // Teclado no comando e sem tecla apertada: o alvo assenta onde a nave está,
+    // senão ela continuaria andando sozinha rumo a um alvo velho.
+    n.alvoX = n.x; n.alvoY = n.y;
 }
 
 /** Um passo da nave: ela persegue o alvo. */

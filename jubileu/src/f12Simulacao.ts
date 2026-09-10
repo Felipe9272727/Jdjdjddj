@@ -27,7 +27,7 @@ import {
     VIDA_MAXIMA, ataqueDaVez, LIMIAR_DA_VIRADA,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, NAVE, MARE, frestaDaMare,
-    novaNave, passoDaNave, arrastarNave, tomarToque,
+    novaNave, passoDaNave, arrastarNave, tomarToque, tentarAtirar,
     passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     type Nave, type Projetil, type NomeDoAtaque,
 } from './f12Boss';
@@ -159,13 +159,28 @@ export function simular(politica: Partial<Politica> = {}): Resultado {
         arrastarNave(n, quer.x - n.alvoX, quer.y - n.alvoY);
         passoDaNave(n, dt);
 
-        // o irmão fica de ala, sem inteligência nenhuma
-        arrastarNave(irmao, (n.x - 3 - irmao.alvoX) * 0.4, (n.y + 1 - irmao.alvoY) * 0.4);
+        // o irmão fica de ala, sem inteligência nenhuma. A formatura sai da
+        // arena, como no jogo: um deslocamento fixo o grudaria na parede numa
+        // tela estreita.
+        arrastarNave(irmao, (n.x - ARENA.x * 0.5 - irmao.alvoX) * 0.4, (n.y + 1 - irmao.alvoY) * 0.4);
         passoDaNave(irmao, dt);
 
-        // TIRO AUTOMÁTICO — é como o andar passou a funcionar
-        if (n.recarga <= 0) { n.recarga = TIRO.cadencia; ladoJ = ladoJ === 1 ? -1 : 1; projeteis.push(nascerTiro(n.x, n.y, 'jogador', ladoJ)); }
-        if (irmao.recarga <= 0) { irmao.recarga = TIRO.cadenciaIrmao; ladoI = ladoI === 1 ? -1 : 1; projeteis.push(nascerTiro(irmao.x, irmao.y, 'irmao', ladoI)); }
+        // ── O TIRO PASSA PELA MESMA PORTA QUE O DO JOGO ──────────────────
+        //
+        // Estas duas linhas eram uma CÓPIA do ritmo da arma, escrita à mão aqui
+        // dentro. Enquanto foi só `recarga = cadencia` ninguém notou; no dia em
+        // que a arma virou rajada-com-pausa, a simulação continuaria medindo o
+        // jato contínuo — ou seja, mediria um jogo que não existe mais, e diria
+        // que a luta é mais curta do que é. Uma régua que mede outro programa é
+        // pior do que régua nenhuma, porque dá confiança.
+        //
+        // E o irmão aqui atirava SEMPRE, enquanto no jogo ele só atira com a
+        // boca aberta ou com camareiras no ar. A simulação creditava ao jogador
+        // um dano de ala que o jogo não entrega.
+        if (tentarAtirar(n)) { ladoJ = ladoJ === 1 ? -1 : 1; projeteis.push(nascerTiro(n.x, n.y, 'jogador', ladoJ)); }
+        if ((vulneravel(b) || projeteis.some((p) => p.tipo === 'naves')) && tentarAtirar(irmao, true)) {
+            ladoI = ladoI === 1 ? -1 : 1; projeteis.push(nascerTiro(irmao.x, irmao.y, 'irmao', ladoI));
+        }
 
         for (const p of projeteis) passoDoProjetil(p, n.x, n.y, dt);
 

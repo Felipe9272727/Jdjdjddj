@@ -20,7 +20,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
-    f12, ARENA, MARE, frestaDaMare, LEQUE, ELEVADORES,
+    f12, ARENA, MARE, frestaDaMare, LEQUE, ELEVADORES, ENQUADRAMENTO,
     type Projetil, type NomeDoAtaque,
 } from './f12Boss';
 
@@ -139,8 +139,11 @@ export const Floor12Projeteis: React.FC = () => {
                 const bala = new THREE.Mesh(balaGeo, M.tiro);
                 bala.rotation.x = Math.PI / 2;
                 bala.name = 'bala';
-                const rastro = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.2), M.tiro);
-                rastro.position.z = 2.3;       // atrás dela (a bala vai para -z)
+                // COMPRIMENTO 1, e a escala de verdade vem por quadro em
+                // `desenhar`: o rastro tem de encolher quando a câmera se
+                // aproxima. Ver a nota lá.
+                const rastro = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 1), M.tiro);
+                rastro.position.z = 0.5;       // atrás dela (a bala vai para -z)
                 rastro.name = 'rastro';
                 g.add(bala, rastro);
                 return g;
@@ -179,17 +182,43 @@ export const Floor12Projeteis: React.FC = () => {
 };
 
 /** Põe um objeto do pool no lugar do projétil, e dá a ele o gesto do seu tipo. */
+/** Reaproveitado por quadro: alocar um Vector3 por bala por quadro é lixo. */
+const MIRA = new THREE.Vector3();
+
 function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, THREE.Material>): void {
     o.position.set(p.x, p.y, p.z);
 
     if (p.tipo === 'tiro') {
         const m = p.de === 'irmao' ? M.tiroIrmao : M.tiro;
+
+        // ── O RASTRO SEGUE A BALA, E ENCOLHE COM A CÂMERA ────────────────
+        //
+        // Ele era uma caixa de 4,2 fixa ao longo de +Z, e as duas coisas
+        // estavam erradas:
+        //
+        // 1. O TIRO PASSOU A SUBIR (`subidaDoTiro`): a bala vai na diagonal e o
+        //    rastro continuava deitado no eixo Z, ou seja apontando para um
+        //    lugar por onde ela não passou.
+        // 2. +Z É A DIREÇÃO DA CÂMERA. Um bastão de 4,2 apontado quase para a
+        //    lente atravessa a tela inteira quando a câmera está perto — e no
+        //    celular DEITADO a câmera fica a 5,2 em vez de 15,5. Na foto os
+        //    tiros viraram feixes de sabre de luz cruzando o quadro.
+        //
+        // Agora ele aponta pela VELOCIDADE e o comprimento é uma fração do
+        // recuo, então ele ocupa a mesma fatia de tela em qualquer aparelho.
+        const comprimento = ENQUADRAMENTO.recuo * 0.27 * (p.de === 'irmao' ? 0.55 : 1);
+        const v = Math.hypot(p.vx, p.vy, p.vz) || 1;
         for (const filho of (o as THREE.Group).children) {
             (filho as THREE.Mesh).material = m;
-            // o rastro do irmão é mais curto: a arma dele é menor, e isso tem de
-            // dar para ver sem ler o HUD
-            if (filho.name === 'rastro') filho.scale.z = p.de === 'irmao' ? 0.55 : 1;
+            if (filho.name === 'rastro') {
+                filho.scale.z = comprimento;
+                filho.position.z = comprimento / 2;
+            }
         }
+        // o grupo inteiro olha para onde a bala VAI (o -Z local segue a
+        // velocidade), então a bala e o rastro ficam na mesma reta
+        MIRA.set(p.x - p.vx / v, p.y - p.vy / v, p.z - p.vz / v);
+        o.lookAt(MIRA);
         return;
     }
 

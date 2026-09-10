@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
     ARENA, meioY, dentroDaArena,
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
@@ -10,9 +10,10 @@ import {
     MARE, nascerMare, frestaDaMare, mareAcerta,
     ELEVADORES, nascerElevadores, xDaFaixa,
     TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, BOCA_SAIDA, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, PONTA_DA_ASA,
-    NAVE, novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque,
+    NAVE, novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, tentarAtirar,
     encostou, reiniciarIds, passoDoProjetil, saiuDeCena,
-    ENQUADRAMENTO, larguraDoQuadro, composicaoNaTela, ajustarAoAspecto, reporArena, ARENA_X_MAXIMA,
+    ENQUADRAMENTO, larguraDoQuadro, alturaDoQuadro, composicaoNaTela, ajustarAoAspecto,
+    reporArena, ARENA_X_MAXIMA, ALVOS_DE_TELA,
     type Projetil, type NomeDoAtaque,
 } from '../f12Boss';
 
@@ -759,29 +760,32 @@ describe('f12 — a composição da tela', () => {
         expect(c.arenaAlto, 'o teto do voo alcança a boca').toBeLessThan(c.boca - 0.15);
     });
 
-    // ── O VERTICAL NÃO PODE DEPENDER DO ASPECTO ──────────────────────────
-    // É o que torna esta composição portátil: um monitor deitado mostra mais
-    // CÉU dos lados, e não outro enquadramento. Se algum dia alguém puser o
-    // aspecto na conta vertical, o andar passa a ter uma composição por
-    // aparelho e nenhuma delas terá sido escolhida.
-    it('a mesma composição vale no celular em pé e no monitor deitado', () => {
-        const antes = composicaoNaTela();
-        ajustarAoAspecto(16 / 9);
-        const depois = composicaoNaTela();
+    // ── A COMPOSIÇÃO SE RESOLVE, E O RESULTADO É O MESMO EM TODA TELA ────
+    //
+    // Este teste já cobrou o contrário: que os números fossem IDÊNTICOS entre
+    // aspectos, o que era verdade quando só a largura da arena mudava. Era uma
+    // igualdade vazia — o avião ficava com metade do tamanho no celular
+    // deitado e o teste passava, porque fração vertical não depende de aspecto.
+    // O que importa é a composição CHEGAR NO ALVO em toda tela, e é isso que a
+    // suíte 'o andar vale em qualquer tela' cobra agora.
+    it('a composição de referência é a do celular em pé, e ela bate no alvo', () => {
         reporArena();
-        expect(depois.nave).toBeCloseTo(antes.nave, 10);
-        expect(depois.boca).toBeCloseTo(antes.boca, 10);
+        const c = composicaoNaTela();
+        expect(c.nave).toBeCloseTo(ALVOS_DE_TELA.naveNaTela, 2);
+        expect(c.boca).toBeCloseTo(ALVOS_DE_TELA.bocaNaTela, 2);
     });
 
     it('numa tela larga a arena alarga, em vez de virar uma tirinha no meio', () => {
+        reporArena();
         const estreita = ARENA.x;
         ajustarAoAspecto(16 / 9);
         expect(ARENA.x, 'a arena não acompanhou a tela').toBeGreaterThan(estreita);
         expect(ARENA.x, 'a arena virou grande demais para a nave atravessar')
             .toBeLessThanOrEqual(ARENA_X_MAXIMA);
         reporArena();
-        expect(ARENA.x).toBe(estreita);
+        expect(ARENA.x).toBeCloseTo(estreita, 10);
     });
+
 });
 
 // ── O TIRO SAI DE ONDE A ASA ESTÁ ────────────────────────────────────────────
@@ -804,5 +808,196 @@ describe('f12 — a arma está onde a asa está', () => {
         expect(e.x).toBeLessThan(0);
         expect(d.x).toBeGreaterThan(0);
         expect(Math.abs(e.x)).toBeCloseTo(Math.abs(d.x), 10);
+    });
+});
+
+// ── O DEDO E A TECLA NÃO PODEM BRIGAR PELO MESMO CAMPO ───────────────────────
+//
+// O andar foi entregue INJOGÁVEL: "mesmo eu tocando, eu não consigo mexer o
+// avião". Os dois controles escreviam em `alvoX`/`alvoY` e a cena chamava o do
+// teclado TODO QUADRO, com ou sem tecla — e o ramo "sem comando" dele assenta o
+// alvo em cima da nave. O alvo que o dedo punha era apagado a 60 Hz, antes de a
+// nave andar um centímetro.
+//
+// Cada função, sozinha, estava certa; o defeito morava na ORDEM em que a cena as
+// chamava, e a cena não era testada. Estes testes são a ordem.
+describe('f12 — quem está no comando da nave', () => {
+    it('o teclado ocioso NÃO apaga o alvo que o dedo acabou de pôr', () => {
+        const n = novaNave(0, meioY());
+        arrastarNave(n, 2.0, 1.0);
+        const alvoX = n.alvoX, alvoY = n.alvoY;
+        // é isto que a cena faz todo quadro quando ninguém aperta tecla
+        for (let i = 0; i < 30; i++) conduzirNave(n, 0, 0, 1 / 60);
+        expect(n.alvoX, 'o teclado ocioso apagou o alvo do dedo').toBeCloseTo(alvoX, 10);
+        expect(n.alvoY, 'o teclado ocioso apagou o alvo do dedo').toBeCloseTo(alvoY, 10);
+    });
+
+    it('e a nave de fato CHEGA lá, com a cena chamando os dois todo quadro', () => {
+        const n = novaNave(0, meioY());
+        arrastarNave(n, 2.0, 1.0);
+        for (let i = 0; i < 120; i++) { conduzirNave(n, 0, 0, 1 / 60); passoDaNave(n, 1 / 60); }
+        expect(Math.hypot(n.x - n.alvoX, n.y - n.alvoY), 'a nave não alcançou o alvo').toBeLessThan(0.05);
+        expect(n.x, 'a nave não saiu do lugar').toBeGreaterThan(1.5);
+    });
+
+    it('mas a tecla RETOMA o comando quando alguém aperta', () => {
+        const n = novaNave(0, meioY());
+        arrastarNave(n, 2.0, 0);
+        expect(n.dono).toBe('dedo');
+        conduzirNave(n, -1, 0, 1 / 60);
+        expect(n.dono).toBe('tecla');
+        // e a partir daí o ramo de assentar volta a valer
+        for (let i = 0; i < 5; i++) { passoDaNave(n, 1 / 60); conduzirNave(n, 0, 0, 1 / 60); }
+        expect(n.alvoX).toBeCloseTo(n.x, 10);
+    });
+
+    it('o arrasto continua preso à arena', () => {
+        const n = novaNave(0, meioY());
+        arrastarNave(n, 999, 999);
+        expect(n.alvoX).toBe(ARENA.x);
+        expect(n.alvoY).toBe(ARENA.yAlto);
+    });
+});
+
+// ── AS REGRAS TÊM DE VALER EM TODA TELA ──────────────────────────────────────
+//
+// O andar foi composto para UMA tela — o celular em pé — e entregue assim, com
+// uma nota minha dizendo que telas largas ficariam "aceitáveis". O dono do jogo
+// abriu no celular DEITADO: os aviões saíram com metade do tamanho e a caixa de
+// voo virou uma tirinha. Pior do que feio, calado: com a arena resolvida por
+// tela, um leque de abertura FIXA passa a cobrir 46% de uma arena larga, e o
+// ataque deixa de ameaçar sem nada dizer por quê.
+//
+// Toda regra deste andar é escrita em função de `ARENA.x`. Isto cobra que seja
+// verdade — em pé, deitado, tablet e monitor.
+describe('f12 — o andar vale em qualquer tela', () => {
+    const TELAS: [string, number][] = [
+        ['celular em pé', 412 / 915],
+        ['celular deitado', 915 / 412],
+        ['tablet', 820 / 1180],
+        ['monitor 16:9', 16 / 9],
+        ['tela quadrada', 1],
+    ];
+    afterEach(() => reporArena());
+
+    it('a composição medida é a MESMA em todas elas', () => {
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            const c = composicaoNaTela();
+            expect(c.nave, `${nome}: o avião saiu do terço de baixo`).toBeCloseTo(ALVOS_DE_TELA.naveNaTela, 2);
+            expect(c.boca, `${nome}: a boca saiu do alto`).toBeCloseTo(ALVOS_DE_TELA.bocaNaTela, 2);
+        }
+    });
+
+    it('e o avião nunca fica pequeno demais NA LARGURA, que é onde ele é largo', () => {
+        // A primeira medida foi contra a MENOR dimensão, e passava: "25% da
+        // altura" no celular deitado é 11% da largura, e o avião continuava
+        // parecendo pequeno — que era a reclamação. Um avião visto de trás é um
+        // objeto largo; medir a envergadura contra a altura mede outra coisa.
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            const larg = larguraDoQuadro(ENQUADRAMENTO.recuo, a);
+            const fatia = ENQUADRAMENTO.envergadura / larg;
+            expect(fatia, `${nome}: o avião ficou de outro tamanho`)
+                .toBeCloseTo(ALVOS_DE_TELA.naveNaLargura(a), 3);
+            expect(fatia, `${nome}: o avião virou um borrão`).toBeGreaterThanOrEqual(0.17 - 1e-9);
+            expect(fatia, `${nome}: o avião não deixa espaço para desviar`).toBeLessThanOrEqual(0.30 + 1e-9);
+        }
+    });
+
+    it('o leque continua desviável POR DENTRO e ameaçador ATÉ A BORDA', () => {
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            const tempo = Math.abs(ARENA.zNave - (ARENA.zCabeca + 2.2)) / LEQUE.velocidadeZ;
+            const fora = LEQUE.largura0 + LEQUE.abrePorSegundo * tempo;
+            const vao = fora / 2;                       // ver a nota em LEQUE
+            const preciso = 2 * (NAVE.raio + LEQUE.raio);
+            expect(vao, `${nome}: leque indesviável por dentro`).toBeGreaterThan(preciso);
+            expect(fora, `${nome}: dá para contornar o leque por fora`).toBeGreaterThan(ARENA.x * 0.75);
+            expect(fora, `${nome}: o leque sai da arena`).toBeLessThanOrEqual(ARENA.x);
+        }
+    });
+
+    it('a fresta da maré é alcançável e nunca sai da arena', () => {
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            expect(MARE.passeioAmp + MARE.fresta, `${nome}`).toBeLessThanOrEqual(ARENA.x + 1e-9);
+            expect(MARE.fresta, `${nome}: a fresta não cabe o avião`).toBeGreaterThan(NAVE.raio * 2);
+            const m = nascerMare(0.7);
+            for (let i = 0; i < 600; i++) {
+                m.t += 1 / 60;
+                expect(Math.abs(frestaDaMare(m)), `${nome}: a fresta passeou para fora`)
+                    .toBeLessThanOrEqual(ARENA.x - MARE.fresta + 1e-6);
+            }
+        }
+    });
+
+    it('as faixas da espinha cabem, com vão para a nave passar', () => {
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            const vao = Math.abs(xDaFaixa(1) - xDaFaixa(0));
+            expect(vao, `${nome}: espinha indesviável por dentro`)
+                .toBeGreaterThan(2 * (NAVE.raio + ELEVADORES.raio));
+            for (let i = 0; i < ELEVADORES.faixas; i++) {
+                expect(Math.abs(xDaFaixa(i)), `${nome}`).toBeLessThanOrEqual(ARENA.x);
+            }
+        }
+    });
+
+    it('e a boca continua acima da caixa de voo em todas elas', () => {
+        for (const [nome, a] of TELAS) {
+            ajustarAoAspecto(a);
+            expect(BOCA_ALVO.y, `${nome}: a boca voltou para dentro do voo`).toBeGreaterThan(ARENA.yAlto);
+        }
+    });
+});
+
+// ── A ARMA TEM RITMO, E O RITMO MORA NO MÓDULO ───────────────────────────────
+//
+// O dono do jogo pediu "um intervalo entre tiros, para a cabeça não morrer tão
+// rápido". Parte disso era culpa do arrasto quebrado (o avião ficava parado no
+// meio, alinhado com a boca, acertando tudo); a outra parte é que um jato
+// contínuo não tem forma.
+//
+// O ritmo mora em `tentarAtirar` e não na cena porque a simulação que mede a
+// dificuldade dispara pela MESMA função. Ela já teve uma cópia do ritmo escrita
+// à mão dentro dela, e no dia em que a arma virasse rajada a régua continuaria
+// medindo o jato contínuo — dizendo que a luta é mais curta do que é.
+describe('f12 — a arma atira em rajada, com pausa', () => {
+    it('saem exatamente `rajada` tiros e depois vem a pausa', () => {
+        const n = novaNave(0, meioY());
+        const intervalos: number[] = [];
+        let t = 0, ultimo = -1;
+        for (let i = 0; i < 4000; i++) {
+            if (tentarAtirar(n)) { if (ultimo >= 0) intervalos.push(t - ultimo); ultimo = t; }
+            n.recarga = Math.max(0, n.recarga - 1 / 240); t += 1 / 240;
+        }
+        // O PADRÃO, e não a contagem: contar curtos e longos numa janela que
+        // corta no meio de uma rajada dá uma razão que não fecha, e o teste
+        // reprovaria um ritmo perfeitamente certo. Aqui a forma é conferida
+        // ciclo a ciclo — `rajada - 1` intervalos de cadência e um de pausa.
+        expect(intervalos.length).toBeGreaterThan(TIRO.rajada * 4);
+        const ciclos = Math.floor(intervalos.length / TIRO.rajada);
+        for (let c = 0; c < ciclos; c++) {
+            for (let i = 0; i < TIRO.rajada - 1; i++) {
+                expect(intervalos[c * TIRO.rajada + i], `rajada ${c}, tiro ${i}`)
+                    .toBeLessThan(TIRO.cadencia * 1.2);
+            }
+            expect(intervalos[c * TIRO.rajada + TIRO.rajada - 1], `pausa ${c}`)
+                .toBeGreaterThan(TIRO.pausa * 0.9);
+        }
+    });
+
+    it('a pausa é mesmo mais longa que a cadência — senão não é pausa', () => {
+        expect(TIRO.pausa).toBeGreaterThan(TIRO.cadencia * 2);
+        expect(TIRO.pausaIrmao).toBeGreaterThan(TIRO.cadenciaIrmao);
+    });
+
+    it('e o irmão continua atirando menos que o jogador: ele é ala', () => {
+        const porSegundo = (rajada: number, cad: number, pausa: number) =>
+            rajada / ((rajada - 1) * cad + pausa);
+        const jogador = porSegundo(TIRO.rajada, TIRO.cadencia, TIRO.pausa) * TIRO.dano;
+        const irmao = porSegundo(TIRO.rajadaIrmao, TIRO.cadenciaIrmao, TIRO.pausaIrmao) * TIRO.danoIrmao;
+        expect(irmao, 'o ala virou o protagonista').toBeLessThan(jogador * 0.5);
     });
 });

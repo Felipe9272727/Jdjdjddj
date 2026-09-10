@@ -32,7 +32,7 @@ import {
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
-    nascerTiro, TIRO, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
+    nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
     type Nave, type NomeDoAtaque, type F12Linha,
 } from './f12Boss';
@@ -110,6 +110,41 @@ const CabineDeDentro: React.FC<{ portaRef: React.MutableRefObject<number>; sumin
                         <meshLambertMaterial color="#ffd54f" emissive="#ffd54f" emissiveIntensity={0.6} flatShading />
                     </mesh>
                 ))}
+                {/* ── O QUE FAZ ISTO PARECER UM ELEVADOR ──
+                    A cabine tinha paredes, teto, chão e portas, e mesmo assim a
+                    introdução saía como "um retângulo cinza e depois céu". O
+                    motivo é de lente e está resolvido em `CameraDaLuta` (o `fov`
+                    abre para 92 na primeira pessoa), mas lente sozinha não
+                    basta: o que diz "elevador" não é a caixa, é o mostrador de
+                    andar em cima da porta e o corrimão. Sem eles a caixa podia
+                    ser um armário. */}
+                <mesh position={[0, 1.05, -1.72]}>
+                    <boxGeometry args={[1.5, 0.42, 0.12]} />
+                    <meshLambertMaterial color="#2b2f38" flatShading />
+                </mesh>
+                <mesh position={[0, 1.05, -1.65]}>
+                    <boxGeometry args={[0.34, 0.26, 0.04]} />
+                    <meshLambertMaterial color="#ffb648" emissive="#ffb648" emissiveIntensity={0.9} flatShading />
+                </mesh>
+                {/* a seta de subida, acesa: o elevador chegou vindo de baixo */}
+                <mesh position={[-0.52, 1.05, -1.65]} rotation={[0, 0, Math.PI / 4]}>
+                    <boxGeometry args={[0.16, 0.16, 0.04]} />
+                    <meshLambertMaterial color="#7de08a" emissive="#7de08a" emissiveIntensity={0.8} flatShading />
+                </mesh>
+                {/* corrimão nas três paredes */}
+                {[[-1.62, 0, 0, 0, 0, Math.PI / 2], [1.62, 0, 0, 0, 0, Math.PI / 2], [0, 0, 1.72, 0, 0, 0]].map((v, i) => (
+                    <mesh key={i} position={[v[0], -0.28, v[2]]} rotation={[v[3], v[5] ? Math.PI / 2 : 0, 0]}>
+                        <boxGeometry args={[i === 2 ? 3.2 : 3.4, 0.09, 0.09]} />
+                        <meshLambertMaterial color="#d9a441" flatShading />
+                    </mesh>
+                ))}
+                {/* a luz do teto: sem ela o teto é um vulto preto no alto do
+                    quadro, que foi como ele saiu na foto da introdução */}
+                <mesh position={[0, 1.42, 0]}>
+                    <boxGeometry args={[1.5, 0.08, 1.5]} />
+                    <meshLambertMaterial color="#fff6d8" emissive="#fff6d8" emissiveIntensity={0.75} flatShading />
+                </mesh>
+
                 {/* as portas */}
                 <mesh ref={esq} position={[-0.62, 0, -1.79]}>
                     <boxGeometry args={[1.24, 2.7, 0.1]} />
@@ -206,6 +241,11 @@ const DiretorDaIntro: React.FC<{
  * câmera para trás sem mover o alvo faria o mundo inteiro girar em volta do
  * jogador, que é o efeito errado — aqui é a câmera que anda, não o mundo.
  */
+/**
+ * A abertura vertical de dentro da cabine. Ver a nota em `CameraDaLuta`.
+ */
+const FOV_DE_DENTRO = 92;
+
 const CameraDaLuta: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
     camRef: React.MutableRefObject<number>;
@@ -263,6 +303,25 @@ const CameraDaLuta: React.FC<{
             alvo.current.y += (Math.random() - 0.5) * s * 1.2;
         }
         camera.lookAt(alvo.current);
+
+        // ── A LENTE ABRE NA PRIMEIRA PESSOA ──────────────────────────────
+        //
+        // `fov`, no three, é VERTICAL: numa tela em pé a abertura horizontal é
+        // menos da metade dela. Com os 62 da composição, o cone que a câmera vê
+        // dentro da cabine tem 64 cm de largura no plano da porta — ou seja, de
+        // dentro do elevador o jogador NÃO VÊ as paredes do elevador. A
+        // introdução saía como "um retângulo cinza, e depois céu", e o dono do
+        // jogo a chamou de simples e meio bugada. Não era cenário faltando:
+        // era lente.
+        //
+        // 92 na primeira pessoa põe 1,7 m de largura no plano da porta — a
+        // cabine inteira —, e a lente fecha até a composta conforme a câmera
+        // sai. Fechar a lente enquanto se recua é, por acaso, um travelling
+        // contra-zoom: o fundo se aproxima enquanto o avião encolhe, o que dá à
+        // saída um empurrão que uma câmera que só anda não tem.
+        const fovAlvo = THREE.MathUtils.lerp(FOV_DE_DENTRO, ENQUADRAMENTO.fov, suave);
+        const cam = camera as THREE.PerspectiveCamera;
+        if (Math.abs(cam.fov - fovAlvo) > 0.01) { cam.fov = fovAlvo; cam.updateProjectionMatrix(); }
     });
     return null;
 };
@@ -368,8 +427,10 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // um arrasta a nave e o outro... segura um botão para fazer a única
         // coisa que a nave sempre quer fazer. Todo shmup de celular atira
         // sozinho, e o motivo é este.
-        if (n.recarga <= 0) {
-            n.recarga = TIRO.cadencia;
+        // O RITMO da arma mora em `tentarAtirar`, no módulo puro — a simulação
+        // que mede a dificuldade dispara pela mesma função, senão ela mediria
+        // outro jogo. Aqui só sobra o efeito: som e a ponta de asa da vez.
+        if (tentarAtirar(n)) {
             // Alterna a ponta de asa: dois rastros paralelos em vez de uma fila
             // escondida atrás da fuselagem. Ver a nota em `nascerTiro`.
             ladoDoTiro.current = ladoDoTiro.current === 1 ? -1 : 1;
@@ -378,8 +439,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         }
         // O irmão atira sozinho, e só quando há o que acertar: um ala que
         // metralha o céu vazio vira ruído.
-        if (ir.recarga <= 0 && (vulneravel(b) || f12.projeteis.some((p) => p.tipo === 'naves'))) {
-            ir.recarga = TIRO.cadenciaIrmao;
+        if ((vulneravel(b) || f12.projeteis.some((p) => p.tipo === 'naves')) && tentarAtirar(ir, true)) {
             ladoDoIrmao.current = ladoDoIrmao.current === 1 ? -1 : 1;
             f12.projeteis.push(nascerTiro(ir.x, ir.y, 'irmao', ladoDoIrmao.current));
             tocarTiroIrmao();
@@ -546,6 +606,11 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     if (import.meta.env?.DEV && typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
         w.__f12fase = fase; w.__f12abertura = abertura.current;
+        // A NAVE, para a bancada poder responder "o arrasto move o avião?".
+        // Sem isto, a única prova de que o controle funciona é a foto — e uma
+        // foto de um avião parado no meio da tela é indistinguível de um jogo
+        // em que ninguém está tocando.
+        w.__f12nave = nave.current; w.__f12arena = ARENA;
         // A bancada precisa contar PROJÉTEIS. "Não vi bala nenhuma na foto" é
         // uma frase sobre a foto, não sobre o jogo — e este andar já me fez
         // consertar coisa que não estava quebrada por causa disso.
