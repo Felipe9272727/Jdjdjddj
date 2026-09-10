@@ -27,16 +27,16 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
     f12, f12Reset, f12AoMudar, f12Bump, ARENA, meioY, ENQUADRAMENTO, BOCA_ALVO,
-    novaNave, passoDaNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
+    novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
-    nascerTiro, TIRO, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
+    nascerTiro, TIRO, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
     type Nave, type NomeDoAtaque, type F12Linha,
 } from './f12Boss';
 import { Floor12Ceu } from './Floor12Ceu';
-import { Floor12Cabeca } from './Floor12Cabeca';
+import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao, CascoDoElevador } from './Floor12Avioes';
 import {
@@ -237,7 +237,6 @@ interface Ferramentas {
     nave: React.MutableRefObject<Nave>;
     irmao: React.MutableRefObject<Nave>;
     entrada: React.MutableRefObject<{ x: number; y: number }>;
-    atirando: React.MutableRefObject<boolean>;
     flash: React.MutableRefObject<number>;
     sacode: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
@@ -254,6 +253,8 @@ interface Ferramentas {
  * depois colidir, depois recolher. Nesta ordem, sempre.
  */
 const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
+    const ladoDoTiro = useRef<-1 | 1>(1);
+    const ladoDoIrmao = useRef<-1 | 1>(1);
     const proxAtaque = useRef(0);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
@@ -266,8 +267,12 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const n = F.nave.current, ir = F.irmao.current;
 
         // ── AS NAVES ─────────────────────────────────────────────────────
+        // O ALVO já foi movido por quem toca a tela (arrasto) ou pelo teclado.
+        // Aqui a nave só persegue. É um caminho só para dedo e tecla — ver a
+        // nota longa em `f12Boss`.
         const e = F.entrada.current;
-        passoDaNave(n, lutando ? e.x : 0, lutando ? e.y : 0, dt);
+        if (lutando) conduzirNave(n, e.x, e.y, dt);
+        passoDaNave(n, dt);
         // O irmão é um ALA: ele acompanha o jogador com atraso e desvia do que
         // estiver mais perto dele. Não é uma IA esperta — é uma presença.
         if (lutando) {
@@ -281,12 +286,11 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 const d2 = dx * dx + dy * dy;
                 if (d2 < 9 && d2 > 1e-4) { fugaX += dx / d2 * 3; fugaY += dy / d2 * 3; }
             }
-            passoDaNave(ir,
+            conduzirNave(ir,
                 THREE.MathUtils.clamp((querX - ir.x) * 0.55 + fugaX, -1, 1),
                 THREE.MathUtils.clamp((querY - ir.y) * 0.55 + fugaY, -1, 1), dt);
-        } else {
-            passoDaNave(ir, 0, 0, dt);
         }
+        passoDaNave(ir, dt);
 
         if (!lutando) return;
 
@@ -315,16 +319,25 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         }
 
         // ── AS ARMAS ─────────────────────────────────────────────────────
-        if (F.atirando.current && n.recarga <= 0) {
+        // TIRO AUTOMÁTICO. Havia um botão de segurar, e ele custava o polegar
+        // direito inteiro num jogo em que os dois polegares já têm serviço:
+        // um arrasta a nave e o outro... segura um botão para fazer a única
+        // coisa que a nave sempre quer fazer. Todo shmup de celular atira
+        // sozinho, e o motivo é este.
+        if (n.recarga <= 0) {
             n.recarga = TIRO.cadencia;
-            f12.projeteis.push(nascerTiro(n.x, n.y, 'jogador'));
+            // Alterna a ponta de asa: dois rastros paralelos em vez de uma fila
+            // escondida atrás da fuselagem. Ver a nota em `nascerTiro`.
+            ladoDoTiro.current = ladoDoTiro.current === 1 ? -1 : 1;
+            f12.projeteis.push(nascerTiro(n.x, n.y, 'jogador', ladoDoTiro.current));
             tocarTiro();
         }
         // O irmão atira sozinho, e só quando há o que acertar: um ala que
         // metralha o céu vazio vira ruído.
         if (ir.recarga <= 0 && (vulneravel(b) || f12.projeteis.some((p) => p.tipo === 'naves'))) {
             ir.recarga = TIRO.cadenciaIrmao;
-            f12.projeteis.push(nascerTiro(ir.x, ir.y, 'irmao'));
+            ladoDoIrmao.current = ladoDoIrmao.current === 1 ? -1 : 1;
+            f12.projeteis.push(nascerTiro(ir.x, ir.y, 'irmao', ladoDoIrmao.current));
             tocarTiroIrmao();
         }
 
@@ -457,7 +470,6 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const nave = useRef<Nave>(novaNave(0, meioY()));
     const irmao = useRef<Nave>(novaNave(-4, meioY() + 1.2, 3));
     const entrada = useRef({ x: 0, y: 0 });
-    const atirando = useRef(false);
     const flash = useRef(0);
     const sacode = useRef(0);
     const gritoRef = useRef('');
@@ -486,6 +498,10 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     if (import.meta.env?.DEV && typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
         w.__f12fase = fase; w.__f12abertura = abertura.current;
+        // A bancada precisa contar PROJÉTEIS. "Não vi bala nenhuma na foto" é
+        // uma frase sobre a foto, não sobre o jogo — e este andar já me fez
+        // consertar coisa que não estava quebrada por causa disso.
+        w.__f12estado = { fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current };
     }
     const roteiro = roteiroDaFase(fase);
     const linha = roteiro[Math.min(f12.linhaDoDialogo, roteiro.length - 1)] ?? null;
@@ -520,41 +536,46 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         f12Bump();
     }, [onExit]);
 
-    // ── controles ────────────────────────────────────────────────────────
-    const padRef = useRef<HTMLDivElement>(null);
-    const knobRef = useRef<HTMLDivElement>(null);
-    const toqueId = useRef<number | null>(null);
+    // ── CONTROLE: ARRASTAR A TELA INTEIRA ────────────────────────────────
+    //
+    // Havia um joystick fixo no canto e um botão de tiro no outro. Os dois
+    // estavam errados pelo mesmo motivo: num shmup de celular a nave tem de ir
+    // ONDE O DEDO ESTÁ, e não para onde um manivelinha aponta. Com joystick o
+    // jogador olha para o polegar em vez de olhar para a tela, e cada desvio
+    // passa por uma tradução (ângulo → direção → aceleração) que atrasa a mão.
+    //
+    // Aqui o dedo arrasta em qualquer lugar da tela e a nave vai junto, UM PARA
+    // UM: o pixel que o dedo anda é o pixel que a nave anda. O botão de tiro
+    // sumiu porque o tiro é automático.
+    //
+    // A conversão de pixel para mundo sai do enquadramento: a largura do quadro
+    // no plano do avião dividida pela largura da tela. Sem isso o arrasto teria
+    // um "ganho" arbitrário que mudaria de celular para celular.
+    const arrasto = useRef<{ id: number; x: number; y: number } | null>(null);
 
-    const mover = (cx: number, cy: number) => {
-        const el = padRef.current; if (!el) return;
-        const r = el.getBoundingClientRect();
-        const dx = cx - (r.left + r.width / 2), dy = cy - (r.top + r.height / 2);
-        const raio = r.width / 2;
-        const d = Math.min(1, Math.hypot(dx, dy) / raio);
-        const a = Math.atan2(dy, dx);
-        entrada.current.x = Math.cos(a) * d;
-        entrada.current.y = -Math.sin(a) * d;      // tela cresce para baixo
-        if (knobRef.current) {
-            knobRef.current.style.transform =
-                `translate(${Math.cos(a) * d * raio * 0.55}px, ${Math.sin(a) * d * raio * 0.55}px)`;
-        }
-    };
-    const soltar = () => {
-        toqueId.current = null;
-        entrada.current.x = 0; entrada.current.y = 0;
-        if (knobRef.current) knobRef.current.style.transform = 'translate(0px, 0px)';
-    };
-    const padHandlers = {
+    const pixelParaMundo = useCallback(() => {
+        const meiaV = Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
+        const larguraDoMundo = 2 * ENQUADRAMENTO.recuo * meiaV * ENQUADRAMENTO.aspecto;
+        const larguraDaTela = Math.max(1, window.innerWidth);
+        return larguraDoMundo / larguraDaTela;
+    }, []);
+
+    const arrastoHandlers = {
         onPointerDown: (e: React.PointerEvent) => {
-            e.preventDefault(); toqueId.current = e.pointerId;
-            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-            mover(e.clientX, e.clientY);
+            if (f12.fase !== 'luta') return;
+            arrasto.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+            (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         },
         onPointerMove: (e: React.PointerEvent) => {
-            if (toqueId.current !== e.pointerId) return;
-            mover(e.clientX, e.clientY);
+            const a = arrasto.current;
+            if (!a || a.id !== e.pointerId || f12.fase !== 'luta') return;
+            const k = pixelParaMundo();
+            // Y da tela cresce para baixo; o do mundo, para cima.
+            arrastarNave(nave.current, (e.clientX - a.x) * k, -(e.clientY - a.y) * k);
+            a.x = e.clientX; a.y = e.clientY;
         },
-        onPointerUp: soltar, onPointerCancel: soltar,
+        onPointerUp: () => { arrasto.current = null; },
+        onPointerCancel: () => { arrasto.current = null; },
     };
 
     // teclado, para quem joga no computador
@@ -564,7 +585,6 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const x = (teclas.has('d') || teclas.has('arrowright') ? 1 : 0) - (teclas.has('a') || teclas.has('arrowleft') ? 1 : 0);
             const y = (teclas.has('w') || teclas.has('arrowup') ? 1 : 0) - (teclas.has('s') || teclas.has('arrowdown') ? 1 : 0);
             entrada.current.x = x; entrada.current.y = y;
-            atirando.current = teclas.has(' ') || teclas.has('j');
         };
         const baixo = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase();
@@ -603,14 +623,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             >
                 <Floor12Ceu />
                 <Floor12Cabeca flashRef={flash} />
+                <AnelDaBoca />
                 <Floor12Projeteis />
+                <Mira naveRef={nave} />
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
                 {fase !== 'intro' && fase !== 'virando' && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} avisar={() => { visivel.current = true; avisar(); }} />
                 <CameraDaLuta naveRef={nave} camRef={cam} sacodeRef={sacode} />
-                <DiretorDaLuta nave={nave} irmao={irmao} entrada={entrada} atirando={atirando}
+                <DiretorDaLuta nave={nave} irmao={irmao} entrada={entrada}
                     flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
@@ -619,7 +641,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {fase === 'luta' && (
                 <>
                     {/* a vida da cabeça */}
-                    <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: '8%', right: '8%' }}>
+                    <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: '8%', right: '8%', zIndex: 3, pointerEvents: 'none' }}>
                         <div style={{ ...t64, fontSize: 12, marginBottom: 3, textAlign: 'center' }}>A CABEÇA</div>
                         <div style={{ height: 16, background: 'rgba(0,0,0,0.5)', border: '3px solid #11131a', borderRadius: 9, overflow: 'hidden' }}>
                             <div style={{
@@ -632,19 +654,20 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         </div>
                     </div>
                     {/* as vidas do jogador */}
-                    <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 14, fontSize: 20 }}>
+                    <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 14, fontSize: 20, zIndex: 3, pointerEvents: 'none' }}>
                         {'✈'.repeat(Math.max(0, nave.current.vidas))}
                         <span style={{ opacity: 0.25 }}>{'✈'.repeat(Math.max(0, VIDAS_DO_JOGADOR - nave.current.vidas))}</span>
                     </div>
                     {/* o grito do ataque: o telegrafo escrito */}
                     <GritoDoAtaque gritoRef={gritoRef} />
+                    <AvisoDeJanela />
                 </>
             )}
 
             {/* ── balão de fala ── */}
             {linha && (
                 <div onPointerDown={avancarFala}
-                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 14px calc(env(safe-area-inset-bottom) + 16px)', cursor: 'pointer' }}>
+                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, padding: '0 14px calc(env(safe-area-inset-bottom) + 16px)', cursor: 'pointer' }}>
                     <div style={{
                         maxWidth: 680, margin: '0 auto', background: '#fffef2',
                         border: `4px solid ${linha.quem === 'jogador' ? '#3b6fb0' : '#11131a'}`,
@@ -675,33 +698,17 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 </div>
             )}
 
-            {/* ── controles ── */}
+            {/* ── A SUPERFÍCIE DE ARRASTO ──
+                A tela inteira é o controle. Fica ATRÁS do balão de fala e do
+                HUD (z-index menor), para um toque no ▶ não sair pilotando. */}
             {mostrarControles && (
-                <>
-                    <div ref={padRef} {...padHandlers} style={{
-                        position: 'absolute', left: 'calc(env(safe-area-inset-left) + 22px)', bottom: 'calc(env(safe-area-inset-bottom) + 22px)',
-                        width: 124, height: 124, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.85)',
-                        background: 'rgba(17,19,26,0.4)', touchAction: 'none',
-                    }}>
-                        <div ref={knobRef} style={{
-                            position: 'absolute', left: 38, top: 38, width: 46, height: 46, borderRadius: '50%',
-                            background: 'linear-gradient(180deg,#f2e9d8,#cabfa8)', border: '3px solid #11131a', pointerEvents: 'none',
-                        }} />
-                    </div>
-                    <div
-                        onPointerDown={(e) => { e.preventDefault(); atirando.current = true; }}
-                        onPointerUp={() => { atirando.current = false; }}
-                        onPointerLeave={() => { atirando.current = false; }}
-                        onPointerCancel={() => { atirando.current = false; }}
-                        style={{
-                            position: 'absolute', right: 'calc(env(safe-area-inset-right) + 22px)', bottom: 'calc(env(safe-area-inset-bottom) + 26px)',
-                            width: 92, height: 92, borderRadius: '50%', border: '3px solid #11131a',
-                            background: 'linear-gradient(180deg,#e8503a,#b03426)', color: '#fff',
-                            fontSize: 30, lineHeight: '86px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 900,
-                            userSelect: 'none', touchAction: 'none', boxShadow: '0 5px 0 #11131a',
-                        }}>●</div>
-                </>
+                <div {...arrastoHandlers} style={{
+                    position: 'absolute', inset: 0, zIndex: 1, touchAction: 'none',
+                }} />
             )}
+            {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
+                alguém tem de dizer que a tela é o joystick. */}
+            {mostrarControles && <DicaDeControle />}
 
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
@@ -714,6 +721,66 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     );
 };
 
+/**
+ * A MIRA.
+ *
+ * Os tiros saem retos para -Z a partir de onde o avião está, então acertar a
+ * boca é uma questão de ALINHAR o avião com ela. Isso é simples de entender e
+ * impossível de ver: no meio de cinco padrões voando, ninguém acompanha uma
+ * bala de 0,7 s até o fundo da tela para saber se estava alinhado.
+ *
+ * Este traço mostra a linha de tiro antes de o tiro sair, e fica VERDE quando a
+ * linha cruza a boca. É a diferença entre "atirei e não sei o que aconteceu" e
+ * "estou mirado".
+ */
+const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) => {
+    const traco = useRef<THREE.Mesh>(null);
+    useFrame(() => {
+        const m = traco.current; if (!m) return;
+        const n = naveRef.current;
+        const ligada = f12.fase === 'luta';
+        m.visible = ligada;
+        if (!ligada) return;
+        m.position.set(n.x, n.y, (ARENA.zNave + ARENA.zCabeca) / 2);
+        const alinhado = Math.hypot(n.x - BOCA_ALVO.x, n.y - BOCA_ALVO.y) < BOCA_ALVO.raio;
+        const mat = m.material as THREE.MeshBasicMaterial;
+        mat.color.set(alinhado ? '#b6ff4a' : '#ffffff');
+        mat.opacity = alinhado ? 0.5 : 0.16;
+    });
+    return (
+        <mesh ref={traco} visible={false}>
+            <boxGeometry args={[0.1, 0.1, Math.abs(ARENA.zCabeca - ARENA.zNave)]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.16} depthWrite={false} fog={false} />
+        </mesh>
+    );
+};
+
+/**
+ * A DICA DE CONTROLE.
+ *
+ * Sem joystick na tela, alguém tem de dizer que a tela É o joystick. Ela some
+ * sozinha depois de seis segundos: um aviso que fica para sempre vira sujeira
+ * em cima de um jogo que já tem muita coisa acontecendo.
+ */
+const DicaDeControle: React.FC = () => {
+    const [visivel, setVisivel] = useState(true);
+    useEffect(() => {
+        const id = window.setTimeout(() => setVisivel(false), 6000);
+        return () => window.clearTimeout(id);
+    }, []);
+    if (!visivel) return null;
+    return (
+        <div style={{
+            ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 30px)',
+            left: 0, right: 0, textAlign: 'center', fontSize: 15, zIndex: 3, pointerEvents: 'none',
+            opacity: 0.92,
+        }}>
+            ARRASTE EM QUALQUER LUGAR PARA VOAR<br />
+            <span style={{ fontSize: 12 }}>O TIRO É AUTOMÁTICO · MIRE NA BOCA ABERTA</span>
+        </div>
+    );
+};
+
 /** Mostra o avião quando a câmera já saiu de dentro do hóspede. */
 const RevelarAviao: React.FC<{
     camRef: React.MutableRefObject<number>;
@@ -721,6 +788,34 @@ const RevelarAviao: React.FC<{
 }> = ({ camRef, visivelRef }) => {
     useFrame(() => { if (camRef.current > 0.12) visivelRef.current = true; });
     return null;
+};
+
+/**
+ * "ATIRE!" enquanto a boca está aberta.
+ *
+ * A janela de dano é a única regra do chefe, e ela é invisível: o jogador pode
+ * passar a luta inteira atirando na hora errada sem nunca descobrir por que
+ * nada acontece. O anel na boca diz isso em 3D; esta linha diz em palavras,
+ * para quem estiver olhando para o próprio avião.
+ */
+const AvisoDeJanela: React.FC = () => {
+    const [aberta, setAberta] = useState(false);
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            setAberta(vulneravel(bocaNoInstante(f12.bocaT)) && f12.fase === 'luta');
+        }, 90);
+        return () => window.clearInterval(id);
+    }, []);
+    if (!aberta) return null;
+    return (
+        <div style={{
+            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 96px)',
+            left: 0, right: 0, textAlign: 'center', fontSize: 20, color: '#b6ff4a',
+            zIndex: 3, pointerEvents: 'none', animation: 'f12pisca 0.45s infinite',
+        }}>
+            ATIRE NA BOCA!
+        </div>
+    );
 };
 
 /** O nome do ataque, piscando quando a boca abre. DOM, fora do Canvas. */

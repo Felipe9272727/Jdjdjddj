@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, bocaNoInstante, vulneravel, VIDA_MAXIMA, LIMIAR_DA_VIRADA, BOCA_ALVO,
-    ALTURA_DA_CABECA,
+    ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO,
 } from './f12Boss';
 
 /**
@@ -174,21 +174,26 @@ export const Floor12Cabeca: React.FC<{
             {/* ── A BOCA ──
                 O interior fica FIXO e a mandíbula gira na frente dele: assim a
                 garganta já está lá quando a boca abre, em vez de nascer junto. */}
-            <group position={[0, -1.25, R * 0.42]}>
-                <mesh material={M.interior} position={[0, -0.7, 0]}>
+            {/* A altura vem de `BOCA_ABAIXO_DO_CENTRO`, o MESMO número de que a
+                hitbox sai. O grupo fica onde a cavidade tem de ficar, e a
+                cavidade dentro dele em zero — assim não há dois deslocamentos
+                somando por acaso, que foi como o anel de mira acabou em cima do
+                nariz na primeira montagem. */}
+            <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.42]}>
+                <mesh material={M.interior} position={[0, 0, 0]}>
                     <boxGeometry args={[4.6, 2.6, 2.2]} />
                 </mesh>
-                <mesh ref={garganta} material={M.brasa} position={[0, -0.9, -0.5]}>
+                <mesh ref={garganta} material={M.brasa} position={[0, -0.2, -0.5]}>
                     <sphereGeometry args={[1.25, 14, 10]} />
                 </mesh>
                 {/* dentes de cima, presos ao crânio */}
                 {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                    <mesh key={i} material={M.dente} position={[x, 0.18, 1.0]}>
+                    <mesh key={i} material={M.dente} position={[x, 0.88, 1.0]}>
                         <boxGeometry args={[0.55, 0.7, 0.42]} />
                     </mesh>
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
-                <group ref={mandibula} position={[0, -0.2, -0.9]}>
+                <group ref={mandibula} position={[0, 0.5, -0.9]}>
                     <mesh material={M.pele} position={[0, -0.75, 1.15]}>
                         <boxGeometry args={[4.8, 1.5, 2.6]} />
                     </mesh>
@@ -208,6 +213,43 @@ export const Floor12Cabeca: React.FC<{
                 </mesh>
             ))}
         </group>
+    );
+};
+
+/**
+ * O ANEL DA BOCA — o convite para atirar.
+ *
+ * `vulneravel()` é uma regra invisível: a cabeça só apanha de boca aberta, e o
+ * jogador não tem como descobrir isso sozinho. A mandíbula descer já ajuda, mas
+ * ela desce também quando a boca vai CUSPIR, então "aberta" sozinha não separa
+ * "cuidado" de "atire agora".
+ *
+ * Este anel só aparece na janela em que o tiro conta, ele pulsa, e ele fica
+ * exatamente do tamanho da hitbox de verdade (`BOCA_ALVO.raio`) — não de um
+ * tamanho decorativo. É a regra do jogo desenhada na tela.
+ */
+export const AnelDaBoca: React.FC = () => {
+    const anel = useRef<THREE.Mesh>(null);
+    useFrame((state) => {
+        const a = anel.current; if (!a) return;
+        const b = bocaNoInstante(f12.bocaT);
+        const pode = vulneravel(b) && f12.fase === 'luta';
+        a.visible = pode;
+        if (!pode) return;
+        const pulso = 1 + Math.sin(state.clock.elapsedTime * 7) * 0.07;
+        a.scale.setScalar(pulso);
+        const m = a.material as THREE.MeshBasicMaterial;
+        m.opacity = 0.55 + Math.sin(state.clock.elapsedTime * 7) * 0.2;
+    });
+    return (
+        // Z À FRENTE DA CARA, e isto é conta, não gosto: na altura da boca o
+        // crânio tem raio 6,75 em Z, ou seja a frente dele está em -19,25. Em
+        // -21 (a primeira tentativa) o anel nascia DENTRO da cabeça e o próprio
+        // chefe o escondia — a única pista visual da regra do jogo, invisível.
+        <mesh ref={anel} position={[BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} visible={false}>
+            <ringGeometry args={[BOCA_ALVO.raio * 0.82, BOCA_ALVO.raio, 28]} />
+            <meshBasicMaterial color="#b6ff4a" transparent opacity={0.6} side={THREE.DoubleSide} fog={false} />
+        </mesh>
     );
 };
 

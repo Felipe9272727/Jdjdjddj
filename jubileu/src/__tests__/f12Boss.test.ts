@@ -9,8 +9,8 @@ import {
     NAVES, nascerNaves,
     MARE, nascerMare, frestaDaMare, mareAcerta,
     ELEVADORES, nascerElevadores, xDaFaixa,
-    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO,
-    NAVE, novaNave, passoDaNave, tomarToque,
+    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO,
+    NAVE, novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque,
     encostou, reiniciarIds, passoDoProjetil, saiuDeCena,
     ENQUADRAMENTO, larguraDoQuadro,
     type Projetil, type NomeDoAtaque,
@@ -305,7 +305,7 @@ describe('f12 — a maré do 2º: uma parede com uma fresta', () => {
         // Velocidade máxima da fresta contra a da nave. Se a fresta corre mais
         // que a nave, o ataque é indesviável por construção.
         const vFresta = MARE.passeioAmp * MARE.passeioHz * Math.PI * 2;
-        expect(vFresta).toBeLessThan(NAVE.velocidadeMaxima * 0.6);
+        expect(vFresta).toBeLessThan(NAVE.velocidadeDoAlvo * 0.6);
     });
 });
 
@@ -370,12 +370,21 @@ describe('f12 — atirar na boca', () => {
         expect(TIRO.danoIrmao).toBeLessThan(TIRO.dano);
     });
 
-    it('a luta não dura nem rápido nem eterno demais', () => {
-        // Só com o jogador atirando a janela inteira, em quantas aberturas ela cai?
+    // ── ESTE TESTE FOI REBAIXADO, E DE PROPÓSITO ─────────────────────────
+    //
+    // Ele estimava a duração da luta supondo que o jogador atira a janela
+    // INTEIRA, sempre mirado, sem nunca desviar de nada. Isso não é um jogador,
+    // é um teto teórico — e afinar a dificuldade por ele foi parte do que fez o
+    // andar sair ruim. Quem mede a duração de verdade agora é `f12Simulacao`,
+    // que joga a luta inteira com um piloto que desvia, erra e apanha.
+    //
+    // O que sobra aqui é uma guarda de sanidade: o chefe não pode ser
+    // matável em duas janelas nem ser praticamente imortal.
+    it('o chefe não é matável num piscar nem é imortal (guarda grosseira)', () => {
         const porJanela = (BOCA.aberta / TIRO.cadencia) * TIRO.dano;
         const janelas = VIDA_MAXIMA / porJanela;
-        expect(janelas).toBeGreaterThan(2.5);
-        expect(janelas).toBeLessThan(12);
+        expect(janelas).toBeGreaterThan(4);
+        expect(janelas).toBeLessThan(45);
     });
 });
 
@@ -410,56 +419,83 @@ describe('f12 — a vida da cabeça e a virada da metade', () => {
 
 // ── A NAVE ───────────────────────────────────────────────────────────────────
 describe('f12 — a nave do jogador', () => {
-    it('acelera, e o atrito a segura abaixo do teto', () => {
-        const n = novaNave(0, meioY());
-        for (let i = 0; i < 600; i++) passoDaNave(n, 1, 0, 1 / 60);
-        expect(Math.hypot(n.vx, n.vy)).toBeLessThanOrEqual(NAVE.velocidadeMaxima + 1e-6);
+    // ── O DEFEITO QUE MOTIVOU A REESCRITA ────────────────────────────────
+    // O modelo antigo era aceleração + atrito, e a velocidade terminal de um
+    // modelo assim é `a / atrito` — 46 / 7,2 = 6,39, contra um teto declarado
+    // de 11,5 que nunca era alcançado. Pior: a 6,39 a travessia da arena levava
+    // 1,53 s e o leque atravessava em 1,6 s. O jogo pedia um desvio que ele
+    // mesmo tornava impossível. Este teste é a régua disso.
+    it('atravessa a arena MUITO mais rápido do que o ataque atravessa a tela', () => {
+        const n = novaNave(-ARENA.x, meioY());
+        let t = 0;
+        const dt = 1 / 60;
+        while (n.x < ARENA.x - 0.1 && t < 5) {
+            conduzirNave(n, 1, 0, dt); passoDaNave(n, dt); t += dt;
+        }
+        const doAtaque = Math.abs(ARENA.zCabeca - ARENA.zNave) / LEQUE.velocidadeZ;
+        expect(t, 'travessia lenta demais para desviar').toBeLessThan(doAtaque * 0.6);
     });
 
-    it('inverter o comando FREIA — é o que faz o desvio ser preciso', () => {
+    it('o dedo e a nave são a mesma coisa: ela alcança o alvo depressa', () => {
         const n = novaNave(0, meioY());
-        for (let i = 0; i < 30; i++) passoDaNave(n, 1, 0, 1 / 60);
-        const correndo = n.vx;
-        for (let i = 0; i < 10; i++) passoDaNave(n, -1, 0, 1 / 60);
-        expect(n.vx).toBeLessThan(correndo);
+        arrastarNave(n, 3, 0);
+        for (let i = 0; i < 12; i++) passoDaNave(n, 1 / 60);   // 200 ms
+        expect(Math.abs(n.x - n.alvoX), 'a nave ficou para trás do dedo').toBeLessThan(0.25);
+    });
+
+    it('soltar o comando PARA a nave, em vez de deixá-la deslizando', () => {
+        const n = novaNave(0, meioY());
+        for (let i = 0; i < 30; i++) { conduzirNave(n, 1, 0, 1 / 60); passoDaNave(n, 1 / 60); }
+        const onde = n.x;
+        for (let i = 0; i < 20; i++) { conduzirNave(n, 0, 0, 1 / 60); passoDaNave(n, 1 / 60); }
+        expect(Math.abs(n.x - onde), 'continuou patinando depois de soltar').toBeLessThan(0.2);
     });
 
     it('nunca sai da arena, nem no comando máximo por muito tempo', () => {
         const n = novaNave(0, meioY());
         for (let i = 0; i < 1200; i++) {
-            passoDaNave(n, i % 200 < 100 ? 1 : -1, i % 120 < 60 ? 1 : -1, 1 / 60);
+            conduzirNave(n, i % 200 < 100 ? 1 : -1, i % 120 < 60 ? 1 : -1, 1 / 60);
+            passoDaNave(n, 1 / 60);
             expect(Math.abs(n.x)).toBeLessThanOrEqual(ARENA.x + 1e-6);
             expect(n.y).toBeGreaterThanOrEqual(ARENA.yBaixo - 1e-6);
             expect(n.y).toBeLessThanOrEqual(ARENA.yAlto + 1e-6);
         }
     });
 
+    it('o arrasto do dedo também respeita as bordas', () => {
+        const n = novaNave(0, meioY());
+        arrastarNave(n, 999, 999);
+        expect(n.alvoX).toBe(ARENA.x);
+        expect(n.alvoY).toBe(ARENA.yAlto);
+    });
+
     it('a rolagem segue a velocidade e fica no limite', () => {
         const n = novaNave(0, meioY());
-        for (let i = 0; i < 120; i++) passoDaNave(n, 1, 0, 1 / 60);
+        for (let i = 0; i < 120; i++) { conduzirNave(n, 1, 0, 1 / 60); passoDaNave(n, 1 / 60); }
         expect(Math.abs(n.rolagem)).toBeLessThanOrEqual(NAVE.rolagemMaxima + 1e-6);
         expect(n.rolagem).toBeLessThan(0);       // indo para a direita, inclina
     });
 
     it('dt grande não teleporta a nave (a aba volta do segundo plano)', () => {
         const n = novaNave(0, meioY());
-        passoDaNave(n, 1, 1, 5);
+        conduzirNave(n, 1, 1, 5); passoDaNave(n, 5);
         expect(Math.abs(n.x)).toBeLessThanOrEqual(ARENA.x);
         expect(Number.isFinite(n.x) && Number.isFinite(n.y)).toBe(true);
     });
 
     // ── A PISCADA ────────────────────────────────────────────────────────
-    // Sem invencibilidade depois do toque, uma parede de leque tira as quatro
-    // vidas num quadro só e o jogador nem vê o que aconteceu.
+    // Sem invencibilidade depois do toque, uma parede de leque tira as vidas
+    // todas num quadro só e o jogador nem vê o que aconteceu.
     it('um toque tira uma vida e dá invencibilidade; o segundo colado não conta', () => {
         const n = novaNave(0, meioY());
+        const v0 = n.vidas;
         expect(tomarToque(n)).toBe(true);
-        expect(n.vidas).toBe(4 - 1);
+        expect(n.vidas).toBe(v0 - 1);
         expect(tomarToque(n)).toBe(false);
-        expect(n.vidas).toBe(4 - 1);
-        for (let i = 0; i < 60 * 2; i++) passoDaNave(n, 0, 0, 1 / 60);
+        expect(n.vidas).toBe(v0 - 1);
+        for (let i = 0; i < 60 * 3; i++) passoDaNave(n, 1 / 60);
         expect(tomarToque(n)).toBe(true);
-        expect(n.vidas).toBe(4 - 2);
+        expect(n.vidas).toBe(v0 - 2);
     });
 });
 
@@ -581,14 +617,18 @@ describe('f12 — a arena cabe na tela em pé, e o desenho bate com a regra', ()
         expect(quadro).toBeLessThan(ARENA.x * 2 * 1.6);
     });
 
-    it('o avião desenhado é da ordem da caixa que colide', () => {
-        // Num jogo de nave o desenho costuma ser um pouco maior que a hitbox
-        // (é o que faz o jogo parecer generoso), mas "um pouco" tem limite:
-        // cinco vezes é o jogador levando dano do vazio.
+    it('a caixa de colisão é bem MENOR que o desenho — e isso é o certo', () => {
+        // Este teste já teve a premissa invertida. Ele exigia que o desenho e a
+        // caixa fossem parecidos, "senão o jogador leva dano do vazio". Num
+        // shmup é o contrário: a caixa tem de ser um ponto no meio da nave, e as
+        // pontas das asas NÃO machucam — é isso que faz passar raspando ser
+        // emocionante em vez de injusto. O que não pode é a caixa ser MAIOR que
+        // o desenho, aí sim o dano vem do nada.
         const caixa = NAVE.raio * 2;
-        expect(ENQUADRAMENTO.envergadura).toBeGreaterThan(caixa);
-        expect(ENQUADRAMENTO.envergadura / caixa,
-            'o desenho e a colisão discordam demais').toBeLessThan(3.2);
+        expect(caixa).toBeLessThan(ENQUADRAMENTO.envergadura);
+        const razao = ENQUADRAMENTO.envergadura / caixa;
+        expect(razao, 'a caixa é grande demais para um shmup').toBeGreaterThan(3);
+        expect(razao, 'a caixa sumiu: nada mais acerta o jogador').toBeLessThan(7);
     });
 
     it('o avião ocupa uma fatia sensata da tela: dá para ver o piloto e dá para desviar', () => {
@@ -606,5 +646,26 @@ describe('f12 — a arena cabe na tela em pé, e o desenho bate com a regra', ()
         const fora = LEQUE.largura0 + LEQUE.abrePorSegundo * tempo;
         expect(fora, 'o leque sai da arena e deixa de ameaçar').toBeLessThan(ARENA.x);
         expect(fora, 'o leque nem chega perto das bordas').toBeGreaterThan(ARENA.x * 0.7);
+    });
+});
+
+// ── A MIRA TEM DE ESTAR ONDE A BOCA ESTÁ ─────────────────────────────────────
+//
+// O anel de mira nasceu 1,4 acima da cavidade e ficou em cima do NARIZ. O
+// jogador seria ensinado a mirar onde a boca não está — e não teria como
+// descobrir sozinho, porque a regra "só de boca aberta" é invisível.
+describe('f12 — a hitbox da boca coincide com a boca', () => {
+    it('o alvo sai da altura da cabeça pelo mesmo deslocamento que a malha usa', () => {
+        expect(BOCA_ALVO.y).toBeCloseTo(ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, 6);
+    });
+
+    it('a boca fica dentro da arena, para o jogador poder chegar nela', () => {
+        expect(BOCA_ALVO.y).toBeGreaterThan(ARENA.yBaixo);
+        expect(BOCA_ALVO.y).toBeLessThan(ARENA.yAlto);
+    });
+
+    it('e o alvo não é tão grande que qualquer tiro conte', () => {
+        // Um alvo do tamanho da arena tira a mira do jogo.
+        expect(BOCA_ALVO.raio * 2).toBeLessThan(ARENA.x * 1.4);
     });
 });

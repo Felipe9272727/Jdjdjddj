@@ -117,11 +117,22 @@ export type F12Fase =
     | 'despedida';   // o jogador escolheu o elevador
 
 // ── A CABEÇA ─────────────────────────────────────────────────────────────────
-export const VIDA_MAXIMA = 100;
+/**
+ * A vida da cabeça — e este número saiu de uma SIMULAÇÃO, não do dedo.
+ *
+ * Com 100 a luta durava 24 segundos e a boca abria cinco vezes: dois dos cinco
+ * ataques nunca chegavam a aparecer, porque a virada acontecia antes. Não era
+ * um chefe, era uma cutscene com botão. Com 240 ela dura uns 95 s e a boca abre
+ * umas vinte vezes — cada padrão aparece quatro ou cinco vezes, que é o mínimo
+ * para o jogador APRENDER a luta em vez de só sobreviver a ela.
+ *
+ * Quem mede isso é `f12Simulacao`, e o teste cobra a faixa.
+ */
+export const VIDA_MAXIMA = 240;
 /** Abaixo disto ela desbloqueia os dois ataques novos. */
 export const LIMIAR_DA_VIRADA = VIDA_MAXIMA / 2;
 
-export const VIDAS_DO_JOGADOR = 4;
+export const VIDAS_DO_JOGADOR = 5;
 
 /**
  * O COMPASSO DA BOCA, em segundos. É o relógio da luta inteira.
@@ -136,8 +147,8 @@ export const VIDAS_DO_JOGADOR = 4;
  * jogo de nave do hotel, não o último.
  */
 export const BOCA = Object.freeze({
-    fechada: 1.15,
-    abrindo: 0.55,
+    fechada: 1.95,
+    abrindo: 0.70,
     aberta: 2.10,
     fechando: 0.45,
 });
@@ -298,8 +309,8 @@ export const LEQUE = Object.freeze({
      * ainda encosta na borda, que é o que impede o jogador de simplesmente
      * contornar o ataque por fora em vez de usar um vão.
      */
-    abrePorSegundo: 2.5,
-    velocidadeZ: 15.5,
+    abrePorSegundo: 2.0,
+    velocidadeZ: 12.0,
     raio: 0.46,
 });
 
@@ -325,9 +336,9 @@ export function nascerLeque(alvoX: number, alvoY: number): Projetil[] {
 // despistável é o raio de curva — ele vira devagar, então quem passa perto e
 // vira na hora certa faz ele desperdiçar a curva e sair longo.
 export const TELEGUIADO = Object.freeze({
-    velocidade: 9.0,
+    velocidade: 8.0,
     /** Radianos por segundo de correção. Este número É a dificuldade. */
-    curvaPorSegundo: 2.15,
+    curvaPorSegundo: 1.45,
     raio: 0.42,
     /** Depois disto ele desiste e segue reto (senão ele orbita para sempre). */
     combustivel: 7.5,
@@ -376,7 +387,7 @@ export function guiarTeleguiado(m: Projetil, alvoX: number, alvoY: number, dt: n
 // e é onde o irmão de ala mais serve, porque duas armas limpam a tela.
 export const NAVES = Object.freeze({
     quantas: 4,
-    velocidadeZ: 5.2,
+    velocidadeZ: 4.3,
     /** Bamboleio lateral, para elas não virem em linha reta. */
     ondaAmp: 1.6,
     ondaHz: 0.55,
@@ -408,9 +419,9 @@ export function nascerNaves(): Projetil[] {
 // fresta se move num seno lento, então o desvio é de posicionamento e não de
 // reflexo — que é o contraste com o leque e o teleguiado.
 export const MARE = Object.freeze({
-    velocidadeZ: 7.5,
+    velocidadeZ: 5.8,
     /** Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo. */
-    fresta: 1.55,
+    fresta: 2.05,
     /**
      * A fresta passeia por X neste seno.
      *
@@ -419,7 +430,7 @@ export const MARE = Object.freeze({
      * a onda chegaria com a única passagem num lugar onde o avião não pode
      * estar. É por isso que o teste cobra esta relação e não o número solto.
      */
-    passeioAmp: 3.1,
+    passeioAmp: 2.75,
     passeioHz: 0.24,
     raio: 0.9,          // espessura da onda, para a colisão em Z
 });
@@ -451,7 +462,7 @@ export function mareAcerta(m: Projetil, x: number): boolean {
 // pedem.
 export const ELEVADORES = Object.freeze({
     faixas: 5,
-    velocidadeZ: 6.4,
+    velocidadeZ: 5.2,
     /** Quanto cada cabine desce por segundo enquanto avança. */
     quedaPorSegundo: 2.4,
     raio: 0.85,
@@ -514,28 +525,76 @@ export function saiuDeCena(p: Projetil): boolean {
 // ── O TIRO DO JOGADOR ────────────────────────────────────────────────────────
 export const TIRO = Object.freeze({
     velocidade: 34,
-    raio: 0.30,
+    raio: 0.36,
     /** Segundos entre tiros. */
-    cadencia: 0.14,
-    dano: 1.6,
+    cadencia: 0.16,
+    dano: 1.0,
     /** O irmão atira mais devagar e mais fraco: ele é ala, não protagonista. */
     cadenciaIrmao: 0.34,
-    danoIrmao: 1.0,
+    danoIrmao: 0.6,
 });
 
-export function nascerTiro(x: number, y: number, de: 'jogador' | 'irmao'): Projetil {
+/**
+ * ── O TIRO SAI DA PONTA DA ASA, E ISSO NÃO É ENFEITE ─────────────────────────
+ *
+ * A primeira versão nascia no CENTRO da nave e voava reto pelo eixo da câmera.
+ * Contadas na página, as balas existiam — quatro em voo — e mesmo assim não
+ * apareciam em foto nenhuma: de trás, uma bala que sai do meio do avião e se
+ * afasta pelo eixo fica ESCONDIDA ATRÁS DO PRÓPRIO AVIÃO e depois vira um ponto
+ * no ponto de fuga. O dono do jogo disse que o tiro estava ruim; parte disso era
+ * literalmente não dar para ver o tiro.
+ *
+ * Saindo das pontas (`lado` = -1 ou +1), as balas formam dois rastros paralelos
+ * de cada lado da fuselagem. É por isso que todo jogo de nave em terceira pessoa
+ * atira das asas — não por realismo, por leitura.
+ *
+ * O desvio é pequeno perto do raio do alvo da boca (3,0), então a mira continua
+ * sendo "alinhar o avião com a boca": nada muda na regra, só na visão.
+ */
+export const PONTA_DA_ASA = 1.35;
+
+export function nascerTiro(
+    x: number, y: number, de: 'jogador' | 'irmao', lado: -1 | 1 = 1,
+): Projetil {
     return {
-        id: novoId(), tipo: 'tiro', x, y, z: ARENA.zNave - 0.6,
+        id: novoId(), tipo: 'tiro',
+        x: x + lado * PONTA_DA_ASA * (de === 'irmao' ? 0.7 : 1), y: y - 0.12,
+        z: ARENA.zNave - 0.6,
         vx: 0, vy: 0, vz: -TIRO.velocidade,
-        r: TIRO.raio, t: 0, de,
+        r: TIRO.raio, t: 0, de, p: lado,
     };
 }
 
-// ── A NAVE (a mesma física para o jogador e para o irmão) ─────────────────────
+// ── A NAVE ───────────────────────────────────────────────────────────────────
+//
+// ── POR QUE ELA DEIXOU DE TER ACELERAÇÃO ─────────────────────────────────────
+//
+// A primeira versão era aceleração + atrito, como um carro. Estava errada de
+// duas maneiras, e as duas se provam com uma conta:
+//
+//   1. A velocidade terminal de um modelo assim é `aceleracao / atrito` — aqui,
+//      46 / 7,2 = 6,39. O teto declarado era 11,5. Ou seja: o teto NUNCA era
+//      alcançado, e metade do número existia só para enganar quem lesse.
+//   2. A 6,39 u/s, atravessar a arena (9,8 de largura) leva 1,53 s. O leque
+//      atravessa a arena em ~1,6 s. Não dava tempo de sair da frente: o jogo
+//      pedia um desvio que ele mesmo tornava impossível.
+//
+// Agora a nave PERSEGUE UM ALVO. O jogador não empurra a nave — ele diz onde
+// ela deve estar, e ela chega lá depressa. É como todo shmup de toque funciona,
+// e é o que faz o dedo e a nave parecerem a mesma coisa:
+//
+//   • no toque, o alvo anda junto com o dedo, 1 para 1;
+//   • no teclado, o alvo corre a `velocidadeDoAlvo` na direção apertada.
+//
+// Um caminho só para os dois, então o jogo tem o MESMO tato no celular e no
+// computador — e é esse caminho que o teste mede.
 export interface Nave {
     x: number; y: number;
+    /** Onde o jogador MANDOU a nave estar. Ela persegue isto. */
+    alvoX: number; alvoY: number;
+    /** Velocidade observada. Serve para o visual (rolagem) e para o teste. */
     vx: number; vy: number;
-    /** Inclinação visual, em radianos: ela SEGUE a velocidade, não o comando. */
+    /** Inclinação visual, em radianos. */
     rolagem: number;
     /** Segundos de invencibilidade depois de levar um toque. */
     piscando: number;
@@ -545,47 +604,65 @@ export interface Nave {
 }
 
 export const NAVE = Object.freeze({
-    aceleracao: 46,
-    /** Atrito seco: sem isso a nave patina e o desvio fica impreciso. */
-    atrito: 7.2,
-    velocidadeMaxima: 11.5,
-    raio: 0.62,
+    /**
+     * Quão depressa a nave alcança o alvo, em "por segundo" de um exponencial.
+     * 22 quer dizer que ela cobre 63% da distância que falta a cada 45 ms — o
+     * dedo e a nave parecem a mesma coisa, mas ainda há peso.
+     */
+    resposta: 22,
+    /** Velocidade do alvo quando o comando vem de TECLA (o dedo dita a sua). */
+    velocidadeDoAlvo: 13.5,
+    /**
+     * ── A CAIXA DE COLISÃO É PEQUENA DE PROPÓSITO ────────────────────────
+     * Ela era 0,62 num avião de 3,6 de envergadura: um terço do desenho. Todo
+     * shmup que se joga com o polegar usa uma caixa MUITO menor que a nave —
+     * é o que faz passar raspando ser emocionante em vez de injusto. 0,42 é
+     * 23% da envergadura: o bico e as pontas das asas não machucam.
+     */
+    raio: 0.42,
     /** Depois de um toque, este tanto de segundos sem poder levar outro. */
-    invencivel: 1.6,
+    invencivel: 2.0,
     rolagemMaxima: 0.85,
 });
 
 export function novaNave(x: number, y: number, vidas = VIDAS_DO_JOGADOR): Nave {
-    return { x, y, vx: 0, vy: 0, rolagem: 0, piscando: 0, vidas, recarga: 0 };
+    return { x, y, alvoX: x, alvoY: y, vx: 0, vy: 0, rolagem: 0, piscando: 0, vidas, recarga: 0 };
 }
 
-/**
- * Um passo da nave.
- *
- * `mx`/`my` são o comando, de -1 a 1. O atrito é aplicado de forma
- * INDEPENDENTE do comando, e não como "se não há comando, freia": assim
- * inverter a direção freia de verdade, que é o que faz uma nave de bullet-hell
- * parecer precisa em vez de escorregadia.
- */
-export function passoDaNave(n: Nave, mx: number, my: number, dt: number): void {
+/** O dedo arrastou: mexe o ALVO por um delta de mundo, preso na arena. */
+export function arrastarNave(n: Nave, dx: number, dy: number): void {
+    const p = dentroDaArena(n.alvoX + dx, n.alvoY + dy);
+    n.alvoX = p.x; n.alvoY = p.y;
+}
+
+/** Comando de TECLA: o alvo corre na direção apertada. */
+export function conduzirNave(n: Nave, mx: number, my: number, dt: number): void {
     const d = Math.min(dt, 0.05);
-    n.vx += mx * NAVE.aceleracao * d;
-    n.vy += my * NAVE.aceleracao * d;
-    const k = Math.max(0, 1 - NAVE.atrito * d);
-    n.vx *= k; n.vy *= k;
-    const v = Math.hypot(n.vx, n.vy);
-    if (v > NAVE.velocidadeMaxima) {
-        n.vx = (n.vx / v) * NAVE.velocidadeMaxima;
-        n.vy = (n.vy / v) * NAVE.velocidadeMaxima;
+    const m = Math.hypot(mx, my);
+    if (m > 1e-4) {
+        const k = (NAVE.velocidadeDoAlvo * d) / Math.max(1, m);
+        arrastarNave(n, mx * k, my * k);
+    } else {
+        // Sem comando, o alvo assenta onde a nave está — senão ela continuaria
+        // andando sozinha rumo a um alvo velho depois de soltar a tecla.
+        n.alvoX = n.x; n.alvoY = n.y;
     }
-    n.x += n.vx * d; n.y += n.vy * d;
+}
+
+/** Um passo da nave: ela persegue o alvo. */
+export function passoDaNave(n: Nave, dt: number): void {
+    const d = Math.min(dt, 0.05);
+    const k = 1 - Math.exp(-NAVE.resposta * d);
+    const antesX = n.x, antesY = n.y;
+    n.x += (n.alvoX - n.x) * k;
+    n.y += (n.alvoY - n.y) * k;
     const preso = dentroDaArena(n.x, n.y);
-    if (preso.x !== n.x) n.vx = 0;
-    if (preso.y !== n.y) n.vy = 0;
     n.x = preso.x; n.y = preso.y;
+    n.vx = d > 0 ? (n.x - antesX) / d : 0;
+    n.vy = d > 0 ? (n.y - antesY) / d : 0;
     // A rolagem segue a velocidade lateral, com atraso — é o que dá peso.
-    const alvo = Math.max(-1, Math.min(1, -n.vx / NAVE.velocidadeMaxima)) * NAVE.rolagemMaxima;
-    n.rolagem += (alvo - n.rolagem) * Math.min(1, d * 9);
+    const alvo = Math.max(-1, Math.min(1, -n.vx / NAVE.velocidadeDoAlvo)) * NAVE.rolagemMaxima;
+    n.rolagem += (alvo - n.rolagem) * Math.min(1, d * 12);
     if (n.piscando > 0) n.piscando = Math.max(0, n.piscando - d);
     if (n.recarga > 0) n.recarga = Math.max(0, n.recarga - d);
 }
@@ -611,13 +688,19 @@ export function encostou(p: Projetil, x: number, y: number, raio: number): boole
 /**
  * Um tiro acertou a boca aberta? A boca é um alvo generoso.
  *
- * O Y SAI DA CABEÇA, e não é um número solto: a boca fica 2,5 abaixo do centro
- * dela (o grupo da boca está em -1,25 local, com escala 2). Escrever o 5,1 na
- * mão era o jeito garantido de mover a cabeça um dia e deixar a hitbox para
- * trás — e uma hitbox que não está onde a boca está é a pior coisa que um chefe
- * pode ter, porque o jogador não tem como descobrir.
+ * O Y SAI DA CABEÇA, e o DESLOCAMENTO é o mesmo que a malha usa.
+ *
+ * A primeira versão pôs 2,5, que é onde está o GRUPO da boca — mas a cavidade
+ * de verdade está mais 1,4 abaixo, dentro dele. Fotografado, o anel de mira
+ * ficava em cima do NARIZ, e o jogador seria ensinado a mirar num lugar onde a
+ * boca não está. Uma hitbox que não coincide com o que se vê é a pior coisa que
+ * um chefe pode ter, porque não há como o jogador descobrir sozinho.
+ *
+ * `Floor12Cabeca` posiciona a cavidade a partir DESTE número, então as duas não
+ * podem mais discordar — e o teste confere.
  */
-export const BOCA_ALVO = Object.freeze({ x: 0, y: ALTURA_DA_CABECA - 2.5, raio: 3.0 });
+export const BOCA_ABAIXO_DO_CENTRO = 3.9;
+export const BOCA_ALVO = Object.freeze({ x: 0, y: ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, raio: 3.0 });
 
 export function tiroNaBoca(p: Projetil): boolean {
     if (p.tipo !== 'tiro') return false;

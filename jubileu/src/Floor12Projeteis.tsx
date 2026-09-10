@@ -34,7 +34,7 @@ const CORES = {
     mareEsc: '#1d6e94',
     elevadores: '#c9b28a',   // a espinha: a mesma cabine creme do elevador
     elevadoresEsc: '#6f6350',
-    tiro: '#9dff6b',
+    tiro: '#b6ff4a',
     tiroIrmao: '#ff9d5a',
 };
 
@@ -122,7 +122,12 @@ export const Floor12Projeteis: React.FC = () => {
             return { grupo, itens };
         };
         const esferaLeque = new THREE.SphereGeometry(LEQUE.raio, 10, 8);
-        const balaGeo = new THREE.CapsuleGeometry(0.11, 0.5, 3, 6);
+        // ── A BALA PRECISA SER VISTA ─────────────────────────────────────
+        // Ela era uma cápsula de 0,11 de raio voando a 34 u/s numa tela de 412
+        // px: três pixels de verde por 0,7 s. O dono do jogo disse que o tiro
+        // estava ruim, e uma das razões é essa — não dá para saber se você
+        // atirou. Agora ela é grossa, longa e acesa, com um rastro atrás.
+        const balaGeo = new THREE.CapsuleGeometry(0.2, 1.1, 4, 8);
         return {
             leque: cria(TETO.leque, () => new THREE.Mesh(esferaLeque, M.leque)),
             teleguiado: cria(TETO.teleguiado, () => fazerMissil(M as never)),
@@ -130,9 +135,15 @@ export const Floor12Projeteis: React.FC = () => {
             mare: cria(TETO.mare, () => fazerOnda(M as never)),
             elevadores: cria(TETO.elevadores, () => fazerCabine(M as never)),
             tiro: cria(TETO.tiro, () => {
-                const m = new THREE.Mesh(balaGeo, M.tiro);
-                m.rotation.x = Math.PI / 2;
-                return m;
+                const g = new THREE.Group();
+                const bala = new THREE.Mesh(balaGeo, M.tiro);
+                bala.rotation.x = Math.PI / 2;
+                bala.name = 'bala';
+                const rastro = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.2), M.tiro);
+                rastro.position.z = 2.3;       // atrás dela (a bala vai para -z)
+                rastro.name = 'rastro';
+                g.add(bala, rastro);
+                return g;
             }),
         };
     }, [M]);
@@ -172,7 +183,13 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
     o.position.set(p.x, p.y, p.z);
 
     if (p.tipo === 'tiro') {
-        (o as THREE.Mesh).material = p.de === 'irmao' ? M.tiroIrmao : M.tiro;
+        const m = p.de === 'irmao' ? M.tiroIrmao : M.tiro;
+        for (const filho of (o as THREE.Group).children) {
+            (filho as THREE.Mesh).material = m;
+            // o rastro do irmão é mais curto: a arma dele é menor, e isso tem de
+            // dar para ver sem ler o HUD
+            if (filho.name === 'rastro') filho.scale.z = p.de === 'irmao' ? 0.55 : 1;
+        }
         return;
     }
 

@@ -47,13 +47,15 @@ for (let i = 0; i < FOTOS; i++) {
     await new Promise(r => setTimeout(r, INTERVALO));
     // Depois que a luta começa, segura o tiro e mexe o manche, senão a foto é
     // sempre um avião parado no meio da tela.
-    if (i > 3) {
-        await p.evaluate((k) => {
-            const ev = (t, key) => window.dispatchEvent(new KeyboardEvent(t, { key }));
-            ev('keydown', ' ');
-            ev(k % 2 ? 'keydown' : 'keyup', 'a');
-            ev(k % 2 ? 'keyup' : 'keydown', 'd');
-        }, i).catch(() => {});
+    // O controle agora é ARRASTO de dedo, não joystick: a bancada tem de
+    // arrastar de verdade, senão a nave fica parada no meio da tela e a foto
+    // mostra um jogo que ninguém está jogando.
+    if (process.env.LUTAR && i > 0) {
+        const lado = i % 2 ? 120 : 292;
+        await p.mouse.move(206, 620);
+        await p.mouse.down();
+        await p.mouse.move(lado, 520 + (i % 3) * 60, { steps: 6 });
+        await p.mouse.up();
     }
     const f = `/tmp/f12-${String(i).padStart(2, '0')}.png`;
     await p.screenshot({ path: f });

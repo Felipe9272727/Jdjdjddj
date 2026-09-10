@@ -84,6 +84,7 @@ export const CascoDoElevador: React.FC<{
         ferro: mat64(CORES.ferro), ferroEsc: mat64(CORES.ferroEsc),
         vidro: mat64(CORES.vidro), helice: mat64(CORES.helice),
         botao: mat64(CORES.botao, CORES.botao, 0.6), latao: mat64(CORES.latao),
+        fogo: mat64('#ffb347', '#ff7a2a', 1.1),
     }), []);
 
     useFrame((_, rawDt) => {
@@ -130,21 +131,41 @@ export const CascoDoElevador: React.FC<{
                 </group>
             </group>
 
-            {/* asas — giram para fora a partir da parede lateral */}
-            <group ref={asaE} position={[-0.55, 0, 0.1]}>
-                <B args={[1.9, 0.12, 0.8]} p={[-0.95, 0, 0]} m={M.metal} />
-                <B args={[0.5, 0.1, 0.3]} p={[-1.85, -0.08, 0.3]} m={M.metalEsc} />
+            {/* ── ASAS ──
+                VISTO DE TRÁS, que é como o jogador passa o andar inteiro
+                olhando, a primeira versão destas asas era uma LINHA: chapas de
+                0,12 de espessura, de canto para a câmera. Um avião que de trás
+                não parece um avião.
+                Agora elas são grossas, têm DIEDRO (sobem para fora, como toda
+                asa de verdade) e ponta marcada — três coisas que dão silhueta em
+                vez de traço. */}
+            <group ref={asaE} position={[-0.5, -0.05, 0.1]} rotation={[0, 0, 0.16]}>
+                <B args={[1.9, 0.24, 0.9]} p={[-0.95, 0, 0]} m={M.metal} />
+                <B args={[0.42, 0.5, 0.5]} p={[-1.9, 0.14, 0.12]} m={M.metalEsc} />
+                <B args={[0.3, 0.16, 0.7]} p={[-1.15, -0.2, -0.1]} m={M.ferroEsc} />
             </group>
-            <group ref={asaD} position={[0.55, 0, 0.1]}>
-                <B args={[1.9, 0.12, 0.8]} p={[0.95, 0, 0]} m={M.metal} />
-                <B args={[0.5, 0.1, 0.3]} p={[1.85, -0.08, 0.3]} m={M.metalEsc} />
+            <group ref={asaD} position={[0.5, -0.05, 0.1]} rotation={[0, 0, -0.16]}>
+                <B args={[1.9, 0.24, 0.9]} p={[0.95, 0, 0]} m={M.metal} />
+                <B args={[0.42, 0.5, 0.5]} p={[1.9, 0.14, 0.12]} m={M.metalEsc} />
+                <B args={[0.3, 0.16, 0.7]} p={[1.15, -0.2, -0.1]} m={M.ferroEsc} />
             </group>
 
-            {/* cauda — sai do teto */}
+            {/* ── CAUDA ──
+                Ela sai do teto e é ALTA de propósito: de trás, a deriva é a
+                única peça que quebra a linha horizontal das asas, e é ela que
+                faz o olho ler "avião" num vulto de trinta pixels. */}
             <group ref={cauda} position={[0, 0.12, 0.9]}>
-                <B args={[0.1, 0.85, 0.6]} p={[0, 0.42, 0]} m={M.metal} />
-                <B args={[1.1, 0.08, 0.35]} p={[0, 0.05, 0.1]} m={M.metalEsc} />
+                <B args={[0.16, 1.25, 0.62]} p={[0, 0.62, 0]} m={M.metal} />
+                <B args={[0.2, 0.38, 0.3]} p={[0, 1.22, 0.06]} m={M.metalEsc} />
+                <B args={[1.25, 0.14, 0.4]} p={[0, 0.1, 0.08]} m={M.metalEsc} />
             </group>
+
+            {/* ── O ESCAPE ──
+                Duas chamas atrás. Elas dizem para que lado o avião aponta, o que
+                de trás não é óbvio, e ancoram a nave no quadro quando tudo o
+                mais está voando. */}
+            <B args={[0.26, 0.26, 0.5]} p={[-0.32, -0.1, 1.05]} m={M.fogo} />
+            <B args={[0.26, 0.26, 0.5]} p={[0.32, -0.1, 1.05]} m={M.fogo} />
         </group>
     );
 };
