@@ -355,7 +355,9 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       parte do contorno do olho"). Quatro ciclos eu a encurtei, afinei, empurrei
       e aparei sem resolver, porque o número que a posicionava não tinha relação
       com a forma que ela devia acompanhar.
-- [ ] a boca precisa dos dentes só de UM lado (nº 8)
+- [x] ~~a boca precisa dos dentes só de UM lado (nº 8)~~ — feito na escultura:
+      a fileira vai de x -0,30 a 0,63 numa boca que vai de -0,46 a 0,66, ou seja
+      só o lado que SOBE. Conferido no ciclo 21.
 - [x] ~~CHIFRES são placas planas~~ — ciclo 5: dois cones curvos de tinta
       chapada, presos ao osso da cabeça, um pouco maiores que as placas. Como
       tudo é posterizado em duas cores, preto sobre preto não tem emenda.
@@ -376,26 +378,31 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       soltos na lateral. Era redundante — quem mantém a nuca preta é `p.z > 0`,
       que é posição. E o `p.z` subiu para 0,075 para o creme parar ANTES da
       franja, em vez de contornar a cabeça e aparecer entre os espetos.
-- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada.
-      TENTATIVA NO CICLO 8, e falhou: montei uma rota `?f3preview&queda=N` e ela
-      desenha tela branca, mesmo plantando `f3DevilPos`/`f3DevilPosValid` na mão.
-      Sem erro de página e sem exceção — só dois avisos de textura do WebGL
-      (`glTexStorage2D: Invalid internal format 0x1907`). A cena depende de mais
-      estado do jogo do que eu identifiquei. A rota foi REVERTIDA em vez de ficar
-      no repo quebrada.
+- [x] ~~conferir a cara na cutscene da QUEDA, que nunca foi fotografada~~ —
+      FEITO nos ciclos 14 e 15, e a causa que eu tinha registrado aqui era FALSA.
+      Não era "a cena depende de mais estado do jogo": era `lazy()`. Um
+      componente lazy SUSPENDE, e dentro do Canvas do react-three-fiber a
+      suspensão não é pega pelo `<Suspense>` do DOM que está por fora — a árvore
+      some inteira, sem erro no console. Com import direto a rota `?queda=N`
+      renderiza de primeira, e as OITO falas da súplica foram varridas.
       O que já está coberto, e é o motivo de isto não ser urgente: a CARA daquela
       cena sai de `olhoDoDiabrete`/`sobrancelhaDoDiabrete`/`expressaoDoDiabrete`
       nos momentos `roubou`, `suplica`, `perdeuOUltimo` e `vitorioso`, e os quatro
       aparecem na folha do rosto montado toda vez que ela roda. O ENQUADRAMENTO
       dela passa por `f3Enquadramento`, que é testado contra a lista de planos
       real. Falta a foto, não a verificação.
-- [ ] o PERFIL continua limitado pela malha: a franja lateral passa na frente da
-      bochecha e recorta o creme. Isso é remodelagem, não ajuste.
+- [x] ~~o PERFIL continua limitado pela malha: a franja lateral passa na frente
+      da bochecha e recorta o creme~~ — VENCIDO. Isso era a cara PINTADA sobre o
+      GLB, e a escultura substituiu o rosto inteiro. O ciclo 19 varreu sete
+      ângulos e mediu a fronteira de verdade: a cara lê limpa até 55 graus e a
+      máscara acaba em 74,4 por CONSTRUÇÃO (o contorno chega a x 0,97, e no
+      elipsoide isso é 74,4). Não é a franja recortando nada — é onde o desenho
+      termina. E o jogo inteiro fica dentro: `paint` vira 50,4, o tonto ±17, as
+      cutscenes entre 0 e 43.
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
       cor por geometria (uma cunha em coordenada local, de graça). É ele que faz
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o
       modelo já tinha, de malha.
-- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
 
 
 ## Ciclo 17 — a cara que o andar inteiro nunca mostrou
@@ -645,3 +652,62 @@ A laje debaixo dele BALANÇA, e entre um carregamento de página e outro ela est
 em fase diferente. Isso faz o boneco inteiro subir e descer na folha por um
 motivo que não é a passada, e torna o quicar do quadril (8,5 cm) ilegível ali. O
 número vem do teste; a folha serve para as pernas e os braços.
+
+
+## Ciclo 21 — o balanço dos dez defeitos
+
+Sete ciclos mexeram neste personagem. Este é o fechamento do arco, item por item
+da lista que o Felipe mandou, **com a evidência ao lado**. Onde não há evidência,
+está escrito que não há.
+
+Aviso de honestidade: isto confere contra a TRANSCRIÇÃO da lista dele que está
+neste arquivo, não contra as imagens originais — elas não estão à mão nesta
+sessão. Se algum item foi transcrito torto, o balanço herda o erro.
+
+E o balanço foi RECONFERIDO depois do commit `79417d5b` do próprio Felipe
+("connected neck, lively introduction, jump poses and refined facial animation"),
+que chegou no meio deste ciclo e mexeu na cabeça esculpida, no rival e no rig.
+As medidas de proporção não se moveram: 2,70 cabeças, crânio fund/larg 0,88,
+queixo a 1,70 cabeças do chão. O que mudou na sonda foi a caixa do GRUPO da
+cabeça (de 1,241 para 1,040 de altura), porque o pescoço saiu dela e virou peça
+própria em `diabreteNeck.ts` — o crânio em si está idêntico. A suíte das duas
+mãos juntas passa: 2081 testes.
+
+| nº | o defeito dele | hoje | a evidência |
+|---:|---|---|---|
+| 1 | cabeça chapada | **resolvido** | crânio fund/larg **0,879**, chifre **0,90** (ciclo 19, medido na tela) |
+| 2 | silhueta errada | **resolvido** | bico de viúva (c3), tufos em cone (c6), escultura (c14+); turnaround do c19 |
+| 3 | chifres finos e retos | **resolvido** | cones curvos (c5), custo emparelhado 2,5 ms; 0,90 de fundura (c19) |
+| 4 | tufos laterais incorretos | **resolvido** | três cones por lado (c6), só as pontas marcadas |
+| 5 | olhos com proporção errada | **resolvido** | pálpebra passou a acompanhar o eixo do olho (c2) |
+| 6 | sobrancelhas mal posicionadas | **resolvido** | virou arco concêntrico com a amêndoa (c5) — âncora, não número |
+| 7 | nariz pequeno e mal encaixado | **resolvido** | 0,015 → 0,019 (c4) |
+| 8 | boca sem o sorriso irônico | **resolvido** | `sorrisoIronico` aberto e `TORTO` 0,10→0,13 (c6); dentes só de um lado (c21) |
+| 9 | falta de separação de cores | **resolvido** | máscara por elipse local (c4) + N8AO fora do Andar 3 (c14: o creme media 241..255 onde tinha de ser chapado) |
+| 10 | expressão sem carisma | **resolvido, e não como eu esperava** | as 16 caras leem (c17) — mas o que mudou o carisma foi o FIO: ele usava `provoca` o andar inteiro (c17/c18) |
+
+Da folha de modelagem dele, os dois detalhes que mudam o desenho: "sobrancelha é
+parte do contorno do olho" foi o que destravou o item 6 depois de quatro ciclos
+de números; "dentes apenas de um lado" está cumprido.
+
+### O que continua aberto — e é decisão DELE, não conserto meu
+
+- **Fala 3 da súplica (`raso`)**: ele ocupa 2,4% da altura da tela e a escadaria
+  desabando que o plano promete não está no quadro. A lente ali está certa; a
+  MIRA é que é escolha de direção.
+- **Fala 8 da apresentação (a arrancada)**: no meio da fala não há ninguém no
+  quadro — ele já rocketou para 54 m. Pode ser intenção; a fala é dele e o
+  quadro está vazio.
+- **Cinco momentos de cara sem gatilho**: `ocioso`, `quaseLaEmCima`,
+  `perdeuOPrimeiro`, `pensando`, `derrotado`. Dos cinco, só o `ocioso` acrescenta
+  algo — e o gatilho que ele quer ("sem ninguém por perto") não existe neste
+  andar, porque `Floor3Rival` persegue `f3PlayerZ + 14` e nunca fica sozinho.
+- **O dutch angle constante** nas oito falas da súplica.
+
+### E a poda dos tufos, que não vou fazer
+
+Ficou anotada desde o ciclo 14. A conta decide sem precisar de bancada: `tapered`
+com `rings=12, sides=10` dá 12×10×2 = **240 triângulos por tufo**, seis tufos =
+**1.440** — 3,9% dos 36.453 da cabeça. Cortar pela metade pouparia menos de 2%, e
+os tufos são um item que o Felipe listou como defeito e que custou um ciclo
+inteiro para ficar certo. Não paga o risco. Fica escrito para não voltar à mesa.
