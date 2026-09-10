@@ -59,6 +59,33 @@ const PARADO = (() => {
     catch { return false; }
 })();
 
+/**
+ * DEV-ONLY: `?fase=0.25` trava a passada NUM PONTO DO CICLO (0 a 1 = uma volta).
+ *
+ * ── POR QUE NÃO DÁ PARA FOTOGRAFAR ISSO EM RAJADA ────────────────────────────
+ *
+ * A pergunta é se o ciclo de corrida tem as quatro poses que um ciclo precisa
+ * ter — contato, baixo, passagem, alto — ou se ele é um boneco deslizando. O
+ * jeito óbvio seria tirar doze fotos seguidas. Não funciona: o navegador da
+ * bancada anda a ~2 fps no SwiftShader, e a passada corre a 12 Hz. Cada foto
+ * cairia num ponto aleatório do ciclo, e doze pontos aleatórios não são um
+ * ciclo — são doze poses soltas que não dá para ordenar.
+ *
+ * Travar a FASE resolve pelo outro lado: em vez de amostrar o tempo, escolhe-se
+ * o ponto do ciclo e ele fica parado ali. Doze URLs dão as doze poses NA ORDEM,
+ * e a folha vira uma tira de animação de verdade.
+ *
+ * `?parado` não serve para isso: ele trava em φ = 0 e mais nada.
+ */
+const FASE_TRAVADA = (() => {
+    try {
+        const v = new URLSearchParams(globalThis.location?.search ?? '').get('fase');
+        if (v === null) return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    } catch { return null; }
+})();
+
 const Floor3Rival: React.FC = () => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const acting = useMemo(() => createF3ActingLayer(), []);
@@ -413,13 +440,22 @@ const Floor3Rival: React.FC = () => {
         // atrasada e que o fervilhar salte em degraus.
         const air = !onGnd.current;
         if (!air) phase.current += safeDt * PASSOS_POR_SEGUNDO * Math.PI * 2;
-        const φ = PARADO ? 0 : phase.current;
-        const pose = passada(φ, PARADO ? false : air, PARADO ? 3 : t);
+        const travada = FASE_TRAVADA !== null;
+        const φ = travada ? FASE_TRAVADA * Math.PI * 2 : PARADO ? 0 : phase.current;
+        // Com a fase travada o `t` do fervilhar também para: senão a folha das
+        // doze poses teria um tremor diferente em cada quadro e eu leria como
+        // diferença de POSE o que é só o fervilhar.
+        const pose = passada(φ, travada ? false : PARADO ? false : air, (travada || PARADO) ? 3 : t);
 
         // As molas continuam mandando na inclinação e no quicar do quadril: elas
         // é que dão PESO, e peso não sai de uma fórmula por quadro.
-        bones[B.body].position.y = PARADO ? pose.corpoY : sBob.current.tick(pose.corpoY, safeDt);
-        bones[B.body].rotation.set(PARADO ? pose.corpoIncl : sLean.current.tick(pose.corpoIncl, safeDt),
+        // AS MOLAS SÃO O QUE A FOLHA DE FASES NÃO PODE TER. Elas integram no
+        // tempo, então com a fase travada elas continuariam correndo atrás do
+        // alvo e cada foto pegaria a mola num ponto diferente do assentamento —
+        // eu leria isso como diferença de pose. Travada a fase, o valor é o alvo.
+        const congelado = PARADO || travada;
+        bones[B.body].position.y = congelado ? pose.corpoY : sBob.current.tick(pose.corpoY, safeDt);
+        bones[B.body].rotation.set(congelado ? pose.corpoIncl : sLean.current.tick(pose.corpoIncl, safeDt),
             pose.corpoGiro, pose.corpoTorc);
         bones[B.head].rotation.set(pose.cabecaIncl, 0, pose.cabecaTorc);
         // `?parado`: CABEÇA NIVELADA, para foto de boca comparável.
@@ -433,11 +469,14 @@ const Floor3Rival: React.FC = () => {
         if (PARADO) bones[B.head].rotation.set(0, 0, 0);
         bones[B.l_leg].rotation.set(pose.pernaE, 0, 0);
         bones[B.r_leg].rotation.set(pose.pernaD, 0, 0);
-        bones[B.l_arm].rotation.set(pose.bracoE, 0,  (air ? 1.3 : ARM_DROP));
-        bones[B.r_arm].rotation.set(pose.bracoD, 0, -(air ? 1.3 : ARM_DROP));
+        bones[B.l_arm].rotation.set(pose.bracoE, 0,  (travada ? ARM_DROP : (air ? 1.3 : ARM_DROP)));
+        bones[B.r_arm].rotation.set(pose.bracoD, 0, -(travada ? ARM_DROP : (air ? 1.3 : ARM_DROP)));
 
-        let strY = air && !PARADO ? 1 + Math.abs(velY.current) * 0.011 : pose.esticaY;
-        if (!PARADO) strY *= 1 - 0.26 * landImpact.current;   // cartoon landing squash
+        // O ESTICA-E-ENCOLHE também é do tempo, não da fase: com a fase travada
+        // ele tem de vir da passada e mais nada, senão a folha mistura a pose do
+        // ciclo com o quanto ele estava caindo naquele instante.
+        let strY = (air && !PARADO && !travada) ? 1 + Math.abs(velY.current) * 0.011 : pose.esticaY;
+        if (!congelado) strY *= 1 - 0.26 * landImpact.current;   // cartoon landing squash
         const strX = 1 / Math.sqrt(Math.max(0.5, strY));
         rig.group.scale.set(strX, strY, strX);
 

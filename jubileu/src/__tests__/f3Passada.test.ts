@@ -160,3 +160,48 @@ describe('a corrida, sem quem a segure, desliza', () => {
         expect(Math.abs(a.pernaE - b.pernaE)).toBeGreaterThan(1e-6);
     });
 });
+
+// ── O CICLO NÃO PODE EMAGRECER CALADO ────────────────────────────────────────
+//
+// A folha das doze poses (`a-passada-em-doze.mjs`, ciclo 20) foi a primeira vez
+// que esta passada foi vista EM SEQUÊNCIA em vez de num quadro congelado — e a
+// primeira leitura foi "o braço quase não anda". Medindo em vez de olhar: o
+// braço varre 2,50 rad (143°), MAIS que a perna (1,84 rad, 105°). O que enganava
+// era o tamanho da figura na folha, não a animação.
+//
+// Ficam as amplitudes medidas. Um ciclo de corrida perde a vida por encolhimento
+// lento — alguém aparando um número aqui, outro ali — e encolhimento lento é
+// exatamente o que nenhuma foto pega.
+describe('f3Passada — o ciclo tem amplitude de desenho animado', () => {
+    const varredura = () => {
+        const campos = ['pernaE', 'pernaD', 'bracoE', 'bracoD', 'corpoTorc',
+            'cabecaIncl', 'cabecaTorc', 'corpoY', 'esticaY'] as const;
+        const min: Record<string, number> = {}, max: Record<string, number> = {};
+        for (let k = 0; k < 720; k++) {
+            const p = passada((k / 720) * Math.PI * 2, false, 3) as unknown as Record<string, number>;
+            for (const c of campos) {
+                min[c] = Math.min(min[c] ?? Infinity, p[c]);
+                max[c] = Math.max(max[c] ?? -Infinity, p[c]);
+            }
+        }
+        const amp: Record<string, number> = {};
+        for (const c of campos) amp[c] = max[c] - min[c];
+        return amp;
+    };
+
+    it('perna e braço varrem ângulos grandes, e o braço não fica para trás', () => {
+        const a = varredura();
+        expect(a.pernaE, 'a perna esquerda parou de andar').toBeGreaterThan(1.4);
+        expect(a.pernaD, 'a perna direita parou de andar').toBeGreaterThan(1.4);
+        expect(a.bracoE, 'o braço esquerdo virou enfeite').toBeGreaterThan(1.8);
+        expect(a.bracoD, 'o braço direito virou enfeite').toBeGreaterThan(1.8);
+    });
+
+    it('o corpo participa: torção, aceno da cabeça, quicar do quadril e estica', () => {
+        const a = varredura();
+        expect(a.corpoTorc, 'o tronco parou de torcer').toBeGreaterThan(0.08);
+        expect(a.cabecaIncl, 'a cabeça parou de acenar').toBeGreaterThan(0.08);
+        expect(a.corpoY, 'o quadril parou de quicar').toBeGreaterThan(0.04);
+        expect(a.esticaY, 'o estica-e-encolhe sumiu').toBeGreaterThan(0.05);
+    });
+});

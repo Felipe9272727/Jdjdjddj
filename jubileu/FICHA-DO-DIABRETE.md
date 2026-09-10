@@ -591,3 +591,57 @@ Sexta vez neste loop que medir salvou um conserto errado, e a primeira em que eu
 já tinha escrito o código. O que ficou é o número: `CARA_LE_ATE` em `f3Pose`, com
 `VIRADA_AO_PINTAR` e `BAMBOLEIO_TONTO` cobrados contra ele por teste. Guardar a
 fronteira é mais barato do que redescobri-la.
+
+
+## Ciclo 20 — a passada, vista em sequência pela primeira vez
+
+Todas as fotos dos ciclos 15 a 19 são de POSE PARADA (`?parado`). Mas metade do
+que faz um rubber-hose funcionar é TIMING, e timing não aparece num quadro
+congelado.
+
+### Rajada não serve, e o motivo é da bancada
+
+O jeito óbvio seria tirar doze fotos seguidas. Não funciona, e não por preguiça:
+o navegador da bancada anda a **~2 fps** no SwiftShader e a passada corre a
+**12 Hz**. Cada foto cairia num ponto aleatório do ciclo, e doze pontos
+aleatórios não são um ciclo — são doze poses soltas que não dá para ordenar.
+
+`?fase=0.25` resolve pelo outro lado: em vez de amostrar o TEMPO, escolhe-se o
+ponto do ciclo. Doze URLs dão as doze poses NA ORDEM
+(`a-passada-em-doze.mjs`), e a folha vira uma tira de animação de verdade.
+
+A trava congela mais do que a fase, e cada peça tem motivo: as MOLAS (`sBob`,
+`sLean`) integram no tempo, então com a fase parada elas continuariam correndo
+atrás do alvo e cada foto pegaria a mola num ponto diferente do assentamento — eu
+leria isso como diferença de pose. O `t` do fervilhar idem. E o estica-e-encolhe
+do pulo, que é do tempo e não da fase.
+
+### O ciclo é saudável
+
+As doze poses mostram contato, passagem e passada, pernas em oposição, a volta
+fechando. Nada desliza.
+
+E aqui quase entrou mais um diagnóstico errado: a primeira leitura da folha foi
+"o braço quase não anda". Medido sobre 720 amostras de uma volta:
+
+    braço     2,500 rad (143°)     ← MAIS que a perna
+    perna     1,840 rad (105°)
+    torção do tronco   0,160
+    aceno da cabeça    0,180
+    quicar do quadril  0,085 m
+    estica-e-encolhe   0,100
+
+O braço varre mais que a perna. O que enganava era o TAMANHO DA FIGURA na folha
+(380 px de largura), não a animação. Sétima vez neste loop que medir desmente o
+olho — e a segunda seguida em que o erro era meu, não do jogo.
+
+As amplitudes ficaram fixadas em teste. Um ciclo de corrida perde a vida por
+encolhimento lento (alguém aparando um número aqui, outro ali), e encolhimento
+lento é exatamente o que foto nenhuma pega.
+
+### Limitação da folha, registrada
+
+A laje debaixo dele BALANÇA, e entre um carregamento de página e outro ela está
+em fase diferente. Isso faz o boneco inteiro subir e descer na folha por um
+motivo que não é a passada, e torna o quicar do quadril (8,5 cm) ilegível ali. O
+número vem do teste; a folha serve para as pernas e os braços.
