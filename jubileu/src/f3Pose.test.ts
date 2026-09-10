@@ -11,7 +11,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { poseDoGesto, distanciaDaPose, tempoDaPose, quadroDaPose, POSE_HZ,
-         golpe, DURACAO_DO_PREPARO, QUADROS_DE_EXCESSO } from './f3Pose';
+         golpe, DURACAO_DO_PREPARO, QUADROS_DE_EXCESSO,
+         CARA_LE_ATE, VIRADA_AO_PINTAR, BAMBOLEIO_TONTO } from './f3Pose';
 import { Mola } from './f3Mola';
 import { BOIL_HZ } from './f3Tinta';
 import { DIABRETE_SCRIPT, type Gesture } from './diabreteScript';
@@ -156,5 +157,34 @@ describe('a sobra: o corpo lidera, as pontas chegam atrasadas', () => {
     });
     it('mas a cabeça chega — sobra não é membro solto', () => {
         expect(quantoLeva(13)).toBeLessThan(30);   // menos de 2,5 s a 12 Hz
+    });
+});
+
+// ── A CARA TEM DE CONTINUAR NO QUADRO QUANDO ELE VIRA ────────────────────────
+//
+// Varredura de sete ângulos na bancada (`a-cara-por-angulo.mjs`): a cara lê
+// limpa até 45 graus de guinada, ainda lê aos 55, escorça aos 65, e aos 74 a
+// máscara ACABA — por construção, não por defeito: o contorno dela chega a
+// x 0,97 e no elipsoide do crânio isso é 74,4 graus.
+//
+// Os dois giros que o rival faz com a cara no quadro ficam dentro. Isto não é
+// zelo abstrato: eu cheguei a escrever um conserto de geometria para uma
+// "máscara mais larga que a cabeça" que NÃO EXISTE — tinha lido os pontos de
+// controle do bezier como se fossem pontos da curva. Foto e aritmética
+// desmentiram, e o que ficou foi este número. Guardá-lo é mais barato do que
+// redescobrir a fronteira.
+describe('f3Pose — virar o boneco sem perder a cara', () => {
+    it('a virada de pintar cabe no cone em que a cara lê', () => {
+        expect(VIRADA_AO_PINTAR).toBeLessThanOrEqual(CARA_LE_ATE);
+    });
+
+    it('o bamboleio de tonto cabe, contando os dois lados', () => {
+        expect(Math.abs(BAMBOLEIO_TONTO)).toBeLessThanOrEqual(CARA_LE_ATE);
+    });
+
+    // E a guarda não pode ser frouxa a ponto de aprovar qualquer coisa: 90 graus
+    // é o perfil puro, em que a bancada fotografou a cara sumindo.
+    it('o limite reprova o perfil puro, que é onde a cara some', () => {
+        expect(Math.PI / 2).toBeGreaterThan(CARA_LE_ATE);
     });
 });

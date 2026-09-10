@@ -31,7 +31,7 @@ import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, gritandoNoInstante, qu
     type NomeDaBoca, type MomentoDoDiabrete, type MomentoExtra } from './f3Boca';
 import { olhoDoDiabrete, olhoNoGrito } from './f3Olhos';
 import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
-import { quadroDaPose } from './f3Pose';
+import { quadroDaPose, VIRADA_AO_PINTAR, BAMBOLEIO_TONTO } from './f3Pose';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 import { diabreteModel } from './assets/textureImports';
 import { passada, PASSOS_POR_SEGUNDO } from './f3Passada';
@@ -273,6 +273,16 @@ const Floor3Rival: React.FC = () => {
             return;
         }
         groupRef.current.visible = true;
+        // DEV/BANCADA: o grupo dele, para a sonda de PROPORÇÕES medir o que está
+        // NA TELA. Medir o GLB não serve — o rig deforma a malha e a cabeça
+        // esculpida substitui o rosto inteiro, então o asset cru e o personagem
+        // renderizado não são a mesma coisa.
+        // (A primeira versão disto ficou dentro do ramo da DERROTA, que só roda
+        //  quando ele já caiu — e nesse ramo a linha seguinte esconde o boneco.
+        //  Publicar de dentro do único ramo em que ele é invisível.)
+        if (import.meta.env?.DEV && typeof window !== 'undefined') {
+            (window as unknown as { __f3Rival?: unknown }).__f3Rival = groupRef.current;
+        }
 
         // ── Target & ground ─────────────────────────────────────────────────
         const dazed = isDizzy();
@@ -353,7 +363,7 @@ const Floor3Rival: React.FC = () => {
             // He stays planted where he was zapped (no movement) — the player
             // closes in on him during the stun. On recovery he sprints to retake
             // the lead (catchUp), then resumes normal speed.
-            groupRef.current.rotation.set(0, Math.sin(t * 1.5) * 0.3, Math.sin(t * 2.5) * 0.18);  // teetering
+            groupRef.current.rotation.set(0, Math.sin(t * 1.5) * BAMBOLEIO_TONTO, Math.sin(t * 2.5) * 0.18);  // teetering
             bones[B.body].position.y = 0.46 - 0.08;                 // knees buckle → slump
             bones[B.body].rotation.set(sLean.current.tick(0.05, safeDt), 0, Math.sin(t * 3) * 0.12);
             bones[B.head].rotation.set(-0.32 + Math.sin(t * 3) * 0.12, 0, Math.sin(t * 4) * 0.42); // lolling
@@ -377,7 +387,7 @@ const Floor3Rival: React.FC = () => {
         // ── PAINT — sweep the giant brush; the spikes ink in beneath it ─────
         if (painting) {
             if (brushRef.current) brushRef.current.visible = true;
-            groupRef.current.rotation.set(0, Math.PI * 0.28, 0);    // 3/4 turn so the strokes read
+            groupRef.current.rotation.set(0, VIRADA_AO_PINTAR, 0);   // 3/4 turn so the strokes read
             const sweep = Math.sin(t * 9);
             bones[B.body].position.y = 0.46;
             bones[B.body].rotation.set(sLean.current.tick(0.42, safeDt), 0, 0);   // hunch over the work
