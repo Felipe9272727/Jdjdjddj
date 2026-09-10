@@ -21,10 +21,14 @@ import { useThree } from '@react-three/fiber';
 
 /** DEV-ONLY: expõe a cena para a sonda da bancada poder inspecionar material. */
 function Expor() {
-    const { scene, gl } = useThree();
-    const w = window as unknown as { __cena?: unknown; __gl?: unknown };
+    const { scene, gl, camera } = useThree();
+    const w = window as unknown as { __cena?: unknown; __gl?: unknown; __cam?: unknown };
     w.__cena = scene;
     w.__gl = gl;
+    // A CÂMERA também: sem ela a bancada sabe para onde o Diabrete está virado
+    // mas não sabe QUANTO DA TELA ele ocupa — e um primeiro plano que virou
+    // plano geral acerta o ângulo e erra tudo. Ver `as-oito-suplicas.mjs`.
+    w.__cam = camera;
     return null;
 }
 
@@ -66,7 +70,15 @@ import FpHands from './Floor3Hands';
 import { glovesModel } from './assets/textureImports';
 import { GRADE_F3 } from './floor3Grade';
 import Floor3Grito from './Floor3Grito';
-import { hazards, hazardBox, registerJump, resetHazards, f3Progress } from './f3Hazards';
+import { hazards, hazardBox, registerJump, resetHazards, f3Progress, f3DevilPos, f3DevilPosValid } from './f3Hazards';
+import { MOMENTOS_DA_CARA } from './f3Boca';
+import { dizer, f3Fala, type EventoDoDiabrete } from './f3Falas';
+import Floor3FallCutscene from './Floor3FallCutscene';
+// Import DIRETO, como o da queda: `lazy()` dentro do Canvas do r3f suspende, o
+// `<Suspense>` do DOM lá fora não pega, e a árvore some inteira sem erro nenhum
+// no console. Já custou três telas.
+import Floor3Cutscene from './Floor3Cutscene';
+import * as THREE from 'three';
 import { platforms as f3Platforms } from './f3Parkour';
 
 /**
@@ -83,6 +95,151 @@ function vetorDaUrl(chave: string): [number, number, number] | null {
     const n = bruto.split(',').map(Number);
     if (n.length !== 3 || n.some((v) => !Number.isFinite(v))) return null;
     return [n[0], n[1], n[2]];
+}
+
+/**
+ * DEV-ONLY: `?f3preview&esculpida` mostra a CABEÇA ESCULPIDA sozinha.
+ *
+ * Ela chegou no repo pelo commit "sculpted Diabrete (sources only)" e não estava
+ * ligada em lugar nenhum — nada a importava. Antes de decidir o que fazer com
+ * ela é preciso VER o que ela desenha, e ver de três ângulos, que é a lição que
+ * o ciclo 7 cobrou caro: sete voltas de foto de frente esconderam uma máscara
+ * que caía aos pedaços de perfil.
+ *
+ * Diferente da cutscene da queda, esta não depende de estado nenhum do jogo —
+ * é um componente fechado, o que faz dela uma tela de bancada barata.
+ *
+ * ── E O IMPORT É DIRETO, NÃO `lazy` ─────────────────────────────────────────
+ * A primeira versão usava `lazy()`, e a página inteira saía BRANCA — sem erro,
+ * sem exceção, sem nada no console. Um componente `lazy` SUSPENDE, e dentro do
+ * Canvas do react-three-fiber a suspensão não é pega pelo `<Suspense>` do DOM
+ * que está por fora: a árvore some inteira. A mesma coisa tinha derrubado a
+ * tentativa de encenar a cutscene da queda, e eu tinha culpado o estado do jogo.
+ * Numa tela de bancada não há o que ganhar com divisão de código.
+ */
+import CabecaEsculpida from './DiabreteSculptedHead';
+
+function Esculpida() {
+    if (!new URLSearchParams(window.location.search).has('esculpida')) return null;
+    const q = new URLSearchParams(window.location.search);
+    return (
+        <group position={[0.66, 1.9, 14]} scale={0.22}>
+            <CabecaEsculpida
+                look={q.get('olho') ?? 'malicia'}
+                brow={q.get('cenho') ?? 'ironia'}
+                mouth={q.get('boca') ?? 'sorrisoIronico'}
+            />
+        </group>
+    );
+}
+
+/**
+ * DEV-ONLY: `?f3preview&queda=2` encena a CUTSCENE DA QUEDA, parada na fala 2.
+ *
+ * Ela era o único pedaço do andar que nunca tinha entrado numa foto, e não por
+ * desleixo: para vê-la no jogo é preciso atravessar a intro, a apresentação e
+ * perder os três pincéis, o que nesta caixa passa de dez minutos.
+ *
+ * A PRIMEIRA TENTATIVA saiu tela branca e eu culpei o estado do jogo. Era
+ * `lazy()`: um componente lazy SUSPENDE, e dentro do Canvas do
+ * react-three-fiber a suspensão não é pega pelo `<Suspense>` do DOM que está por
+ * fora — a árvore some inteira, sem erro, sem exceção, sem nada no console. O
+ * sintoma parece "o modelo não carregou". Import direto, então.
+ *
+ * `line` escolhe o plano: a decupagem em `f3Decupagem` troca de câmera a cada
+ * fala da súplica. E o estado que a cena espera da perseguição — onde o Diabrete
+ * estava quando caiu — é plantado na mão, que é o que "encenar" quer dizer.
+ */
+function QuedaEncenada() {
+    const bruto = new URLSearchParams(window.location.search).get('queda');
+    if (bruto === null) return null;
+    f3DevilPos.current.set(0.66, 1.0, 14);
+    f3DevilPosValid.current = true;
+    const linha = Number(bruto);
+    return (
+        <Floor3FallCutscene
+            choice="none"
+            line={Number.isFinite(linha) ? linha : 0}
+            onBeg={() => {}}
+            onDone={() => {}}
+        />
+    );
+}
+
+/**
+ * DEV-ONLY: `?f3preview&fala=3` encena a APRESENTAÇÃO, travada na fala 3.
+ *
+ * A queda recebe a fala como prop; a apresentação não — ela se dirige por um
+ * relógio interno (`lineAt`), então o único jeito de ver a fala 7 era esperar a
+ * cena inteira chegar lá, e numa bancada a ~2 fps isso é o mesmo que nunca ver.
+ * `travarNaFala` prende o relógio do roteiro num instante da fala pedida.
+ *
+ * `&instante=0.8` escolhe onde DENTRO da fala parar (padrão: o meio). Importa
+ * porque todo plano tem uma deriva, e um plano pode caber no começo da fala e
+ * cortar o gesto no fim dela.
+ */
+function ApresentacaoEncenada() {
+    const q = new URLSearchParams(window.location.search);
+    const bruto = q.get('fala');
+    const alvo = useRef(new THREE.Vector3());
+    if (bruto === null) return null;
+    const linha = Number(bruto);
+    const inst = Number(q.get('instante'));
+    return (
+        <Floor3Cutscene
+            targetRef={alvo}
+            onLine={() => {}}
+            onDone={() => {}}
+            travarNaFala={Number.isFinite(linha) ? linha : 0}
+            fracaoDaFala={Number.isFinite(inst) ? inst : undefined}
+        />
+    );
+}
+
+/**
+ * DEV-ONLY: expõe a lista dos momentos para a bancada.
+ *
+ * `as-dezesseis-caras.mjs` precisa saber quais são os dezesseis, e havia dois
+ * jeitos ruins: importar `f3Boca.ts` do Node (não dá — os imports internos são
+ * sem extensão) ou COPIAR a lista para a bancada. Copiar é o que já cobrou caro
+ * duas vezes neste rosto: tabela copiada envelhece calada.
+ *
+ * Então a página publica a lista e a bancada lê dali. Uma fonte só.
+ */
+function PublicarMomentos() {
+    (window as unknown as { __f3Momentos?: readonly string[] }).__f3Momentos = MOMENTOS_DA_CARA;
+    return null;
+}
+
+/**
+ * DEV-ONLY: `?f3preview&diabo&evento=roubou` põe uma FALA no ar e a mantém lá.
+ *
+ * ── POR QUE ISTO NÃO PODE SER SIMULADO ───────────────────────────────────────
+ *
+ * A cara do Diabrete da escalada passou a seguir o evento que causou a fala. Há
+ * teste puro cobrando a tabela e cobrando que `f3Fala.evento` fique publicado —
+ * e teste puro NÃO prova que `Floor3Rival` chegou a ler. Essa distinção já
+ * cobrou caro neste andar: `?boca=` foi flag morta por vários ciclos, seis
+ * bocas "diferentes" saíram idênticas na foto, e o teste passava o tempo todo
+ * porque testava o outro lado do fio.
+ *
+ * Por isso aqui chama a MESMA função que `f3Hazards` e `Player` chamam, em vez
+ * de escrever em `f3Fala` na mão. Escrever na mão testaria a bancada.
+ *
+ * E REEMITE: uma fala dura ~3 s e a bancada fotografa aos 12. Sem renovar, a
+ * foto pegaria o repouso e eu concluiria que o fio não anda.
+ */
+function ForcarFala() {
+    const q = new URLSearchParams(window.location.search);
+    const evento = q.get('evento');
+    const roubados = Number(q.get('pinceis')) || 0;
+    useFrame(() => {
+        if (!evento) return;
+        const agora = performance.now();
+        if (agora < f3Fala.ate - 400) return;
+        dizer(evento as EventoDoDiabrete, { roubados });
+    });
+    return null;
 }
 
 /**
@@ -160,6 +317,19 @@ export default function Floor3Preview() {
     // usa. Para vê-lo dentro do jogo seria preciso atravessar a intro e a
     // apresentação do Diabrete, o que nesta caixa passa de oito minutos.
     const grito = new URLSearchParams(window.location.search).get('grito');
+    // ── A BANCADA TEM DE MENTIR MENOS QUE ISSO ──────────────────────────────
+    // A primeira varredura das oito falas da súplica saiu com AS MÃOS DO JOGADOR
+    // em todos os oito quadros, grandes e brancas no rodapé — e eu quase reportei
+    // isso como defeito da cutscene. Não é: no jogo `Floor3.tsx` desliga as mãos
+    // e as armadilhas quando `fallActive`, e esta tela nunca passava esse sinal.
+    // Uma foto com peça a mais é tão mentirosa quanto uma com peça a menos.
+    const queda = new URLSearchParams(window.location.search).has('queda');
+    // A APRESENTAÇÃO desliga as DUAS coisas no jogo: `App.tsx` passa
+    // `floor3Hands={!cartoonIntro && !cartoonCutscene}` e as luvas idem. Uma
+    // foto da apresentação com mão de jogador dentro é foto errada, não jogo
+    // errado — foi assim que a varredura da queda quase virou um relatório de
+    // defeito que não existia.
+    const apresentacao = new URLSearchParams(window.location.search).has('fala');
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             {grito && <Floor3Grito texto={grito} serie={1} />}
@@ -180,9 +350,16 @@ export default function Floor3Preview() {
                 <Expor />
                 {(armadilha || search.includes('forcar')) && <ForcarArmadilhas />}
                 <ForcarPinceis />
+                <ForcarFala />
+                <PublicarMomentos />
+                <QuedaEncenada />
+                <ApresentacaoEncenada />
                 <Suspense fallback={null}>
                     {fphands ? <FpHandsPreview /> : debug ? <HandsDebug />
-                        : <Floor3Environment elevator={false} hands={!panorama} gloves={!panorama && !diabo} />}
+                        : <Floor3Environment elevator={false}
+                            hands={!panorama && !queda && !apresentacao}
+                            gloves={!panorama && !diabo && !queda && !apresentacao}
+                            fallActive={queda} />}
                 </Suspense>
                 {!fphands && <OrbitControls target={alvoLivre ? alvoLivre : debug ? [0, 0, 0] : armadilha ? [0, 1.2, 12] : diabo ? [0.66, 1.8, 14] : panorama ? [0, 2, 14] : [0, 1.5, 4]} />}
                 {!debug && !fphands && !search.includes('nopost') && (

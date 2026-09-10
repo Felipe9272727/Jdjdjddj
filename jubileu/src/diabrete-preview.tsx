@@ -18,6 +18,10 @@ function actingQuery(): {
   phaseTime: number;
   line: number;
   speaking: boolean;
+  jumpProgress?: number;
+  landingTime?: number;
+  headPitch: number;
+  headRoll: number;
 } {
   const q = new URLSearchParams(location.search);
   const raw = q.get('scene');
@@ -26,6 +30,10 @@ function actingQuery(): {
     const v = Number(q.get(key));
     return Number.isFinite(v) ? v : fallback;
   };
+  const optional = (key: string) => {
+    const v = Number(q.get(key));
+    return q.has(key) && Number.isFinite(v) ? v : undefined;
+  };
   return {
     scene,
     phase: q.get('phase') || 'idle',
@@ -33,6 +41,12 @@ function actingQuery(): {
     phaseTime: n('phaseTime', n('time', 0)),
     line: n('line', -1),
     speaking: q.get('speaking') === '1',
+    jumpProgress: optional('jumpProgress'),
+    landingTime: optional('landingTime'),
+    // These are additive samples on the head bone. The neck's two anchors
+    // follow that bone in the rig, so the preview exposes the actual joint.
+    headPitch: n('headPitch', 0),
+    headRoll: n('headRoll', 0),
   };
 }
 
@@ -88,7 +102,12 @@ function FullRig({ speaking }: { speaking: boolean }) {
       const cue = acting.apply(rig.bones, {
         scene: query.scene, phase: query.phase, time: t, phaseTime,
         line: query.line, speaking: query.speaking,
+        jumpProgress: query.jumpProgress, landingTime: query.landingTime,
       });
+      // Keep the head sample after the helper so pitch/roll can be inspected
+      // together with the articulated neck while preserving the authored pose.
+      rig.bones[B.head].rotation.x += query.headPitch;
+      rig.bones[B.head].rotation.z += query.headRoll;
       if (cue.eye || cue.brow) rig.definirCara(cue.eye ?? 'neutro', cue.brow ?? 'ironia', t);
       const values = rig.bones.flatMap((bone) => [
         bone.position.x, bone.position.y, bone.position.z,
@@ -101,6 +120,9 @@ function FullRig({ speaking }: { speaking: boolean }) {
       document.documentElement.dataset.f3Acting = 'ready';
       document.documentElement.dataset.f3ActingFinite = String(finiteBoneTransforms(rig.bones));
       document.documentElement.dataset.f3ActingDrift = String(actingFrames.maxDrift);
+      // A compact machine-readable snapshot lets the visual smoke compare
+      // deterministic takeoff/apex/landing and neck pitch/roll samples.
+      document.documentElement.dataset.f3ActingPose = values.map((v) => v.toFixed(7)).join(',');
       document.documentElement.dataset.f3ActingCue = `${query.scene}:${query.phase}:${t}`;
     } else {
       rig.bones[2].rotation.y = speaking ? Math.sin(t * 1.3) * 0.3 : 0;

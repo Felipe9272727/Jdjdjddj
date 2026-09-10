@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 
-vi.mock('../diabreteRig', () => ({ B: { body: 1, head: 2, r_arm: 3, l_arm: 4 } }));
+vi.mock('../diabreteRig', () => ({ B: { root: 0, body: 1, head: 2, r_arm: 3, l_arm: 4, r_leg: 5, l_leg: 6 } }));
 import { createF3ActingLayer } from '../f3Acting';
 
 const transforms = (bones: THREE.Bone[]) => bones.flatMap(b => [
@@ -15,6 +15,22 @@ const rig = () => Array.from({ length: 7 }, (_, i) => {
 });
 
 describe('secondary cutscene acting', () => {
+  it('changes the flight silhouette while preserving the authored jump path', () => {
+    const bones = rig(), layer = createF3ActingLayer();
+    const rootPosition = bones[0].position.clone();
+    const samples: number[][] = [];
+    for (const progress of [0, .5, 1]) {
+      layer.begin();
+      layer.apply(bones, { scene: 'rival', phase: 'run', time: progress, jumpProgress: progress });
+      expect(bones[0].position.equals(rootPosition)).toBe(true);
+      expect(bones[5].scale.y).toBeGreaterThan(.8);
+      expect(bones[6].scale.y).toBeGreaterThan(.8);
+      samples.push(transforms(bones));
+    }
+    expect(samples[0]).not.toEqual(samples[1]);
+    expect(samples[1]).not.toEqual(samples[2]);
+    layer.dispose();
+  });
   it('restores authored transforms before held poses are sampled again', () => {
     const bones = rig(), layer = createF3ActingLayer();
     const base = transforms(bones);

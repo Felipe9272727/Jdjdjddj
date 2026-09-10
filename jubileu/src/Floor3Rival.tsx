@@ -27,7 +27,8 @@ import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabret
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { f3Fala } from './f3Falas';
 import { vozDoDiabrete } from './f3Voz';
-import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, gritandoNoInstante, quadroDaBoca, type NomeDaBoca } from './f3Boca';
+import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, gritandoNoInstante, quadroDaBoca,
+    type NomeDaBoca, type MomentoDoDiabrete, type MomentoExtra } from './f3Boca';
 import { olhoDoDiabrete, olhoNoGrito } from './f3Olhos';
 import { sobrancelhaDoDiabrete } from './f3Sobrancelha';
 import { quadroDaPose } from './f3Pose';
@@ -107,6 +108,12 @@ const Floor3Rival: React.FC = () => {
     const sBob  = useRef(new Spring(24, 8));
     const sLean = useRef(new Spring(14, 5));
     const landImpact = useRef(0);   // 0→1 squash spike on touchdown, decays fast
+    // The rival owns a separate ballistic hop from the player. Keep its phase
+    // here so the acting layer can draw takeoff/apex/landing from the real path.
+    const jumpElapsed = useRef(0);
+    const jumpDuration = useRef(0.86);
+    const jumpProgress = useRef<number | undefined>(undefined);
+    const landingElapsed = useRef(Number.POSITIVE_INFINITY);
 
     // The acting layer is deliberately kept outside React state: it is driven
     // at render cadence and must not add reconciliation work on mobile.
@@ -175,13 +182,41 @@ const Floor3Rival: React.FC = () => {
 
         // Keep the existing face score as the fallback; the acting layer may
         // replace either eye or brow for a beat without taking over the mouth.
+        // ── QUE MOMENTO A CARA DELE ESTÁ VIVENDO ─────────────────────────────
+        //
+        // Isto era `isDizzy() ? 'tonto' : 'provoca'`, escrito em DOIS lugares —
+        // e `provoca` era a única cara que o andar inteiro via. `f3Boca` tem
+        // expressão pronta para `desenhou`, `espetou`, `roubou` e `caiu`, cada
+        // uma variando com quantos pincéis ele já perdeu; `f3Olhos` e
+        // `f3Sobrancelha` idem. Tudo desenhado, tudo testado, nada ligado: o
+        // sistema de falas SABIA qual era o evento e não contava para a cara.
+        // Ele dizia "sem ele eu não sou NADA aqui" com a mesma cara de deboche
+        // com que tinha rabiscado os espinhos.
+        //
+        // Enquanto o balão dele está no ar, a cara é a do evento que o pôs lá.
+        // Quando a fala sai do ar ele volta a `provoca`, que é o repouso do
+        // personagem — a piada aterrissa e ele se recompõe.
+        const momentoAgora = (): MomentoDoDiabrete | MomentoExtra => {
+            if (isDizzy()) return 'tonto';
+            const desdeAFala = t - t0DaFala.current;
+            const noAr = duraDaFala.current > 0 && desdeAFala >= 0
+                && desdeAFala < duraDaFala.current;
+            return noAr ? f3Fala.evento : 'provoca';
+        };
+
         const applyActing = (phase: 'run' | 'paint' | 'dizzy' | 'fall') => {
+            // Jump cues belong to the running pass only. Paint/dizzy/fall have
+            // their own authored staging and must never inherit stale flight.
+            const isRun = phase === 'run';
             const face = acting.apply(bones, {
                 scene: 'rival', phase, time: t,
                 speaking: !!vozDaFala.current,
+                jumpProgress: isRun ? jumpProgress.current : undefined,
+                landingTime: isRun && Number.isFinite(landingElapsed.current)
+                    && landingElapsed.current < 0.46 ? landingElapsed.current : undefined,
             });
             if (!face.eye && !face.brow) return;
-            const momento = isDizzy() ? 'tonto' : 'provoca';
+            const momento = momentoAgora();
             const grita = !!vozDaFala.current
                 && gritandoNoInstante(vozDaFala.current, t - t0DaFala.current);
             rig.definirCara(
@@ -208,7 +243,7 @@ const Floor3Rival: React.FC = () => {
             // `brushes` do chão, da voz e da trilha).
             const base: NomeDaBoca = isDizzy()
                 ? 'surpreso'
-                : expressaoDoDiabrete('provoca', f3Progress.brushes);
+                : expressaoDoDiabrete(momentoAgora(), f3Progress.brushes);
             // O RESPIRO. Sem ele a boca só se mexia com balão no ar, e balão no
             // ar é a minoria do tempo em que ele aparece — era metade do "a boca
             // dele se mexe muito pouco".
@@ -221,7 +256,7 @@ const Floor3Rival: React.FC = () => {
             // A CARA. Mesmo momento e mesmo `roubados` da boca — um número, um
             // dono. A piscada não entra aqui: ela tem relógio próprio e o rig
             // resolve sozinho a partir de `t`.
-            const momento = isDizzy() ? 'tonto' : 'provoca';
+            const momento = momentoAgora();
             // O OLHO LÊ A MESMA PARTITURA QUE A BOCA: no acento da frase ele
             // arregala junto. Sem isso a cara fica dividida — a boca soletrando
             // a frase inteira e o olho parado olhando.
@@ -233,6 +268,9 @@ const Floor3Rival: React.FC = () => {
         }
         // Landing squash decays fast back to neutral (set on touchdown below).
         landImpact.current = Math.max(0, landImpact.current - safeDt / 0.16);
+        // Age the landing cue even while a paint/dizzy branch owns the pose, so
+        // a stale touchdown can never fire when run resumes.
+        if (Number.isFinite(landingElapsed.current)) landingElapsed.current += safeDt;
 
         // ── Defeated — hand off to the dedicated fall cutscene
         //    (Floor3FallCutscene), which owns its own cinematic camera + staging
@@ -265,6 +303,9 @@ const Floor3Rival: React.FC = () => {
             const g0 = nearestPlatform(leadZ);
             posRef.current.x = g0.x; posRef.current.y = g0.topY;
             velY.current = 0; onGnd.current = true;
+            jumpElapsed.current = 0;
+            jumpProgress.current = undefined;
+            landingElapsed.current = Number.POSITIVE_INFINITY;
         }
 
         // Trigger a paint set-piece when a new obstacle is inked.
@@ -299,14 +340,30 @@ const Floor3Rival: React.FC = () => {
         // (his Y is held, so he never floats even if the climb scrolls under him).
         if (!dazed) {
             const yDiff = groundY - posRef.current.y;
-            if (onGnd.current && yDiff > 0.28 && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
+            if (onGnd.current && yDiff > 0.28 && !painting) {
+                const launchV = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05;
+                velY.current = launchV;
+                jumpElapsed.current = 0;
+                const disc = Math.max(0, launchV * launchV - 2 * GRAVITY * yDiff);
+                jumpDuration.current = Math.max(0.18, (launchV + Math.sqrt(disc)) / GRAVITY);
+                jumpProgress.current = 0;
+                landingElapsed.current = Number.POSITIVE_INFINITY;
+                onGnd.current = false;
+            }
             if (!onGnd.current) {
                 velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
                 if (posRef.current.y <= groundY && velY.current <= 0) {
                     landImpact.current = Math.min(1, Math.abs(velY.current) / 9);   // squash scaled by impact speed
                     posRef.current.y = groundY; velY.current = 0; onGnd.current = true;
+                    jumpProgress.current = undefined;
+                    landingElapsed.current = 0;
                 }
             } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
+            if (!onGnd.current) {
+                jumpElapsed.current += safeDt;
+                jumpProgress.current = Math.min(1, jumpElapsed.current / jumpDuration.current);
+                landingElapsed.current = Number.POSITIVE_INFINITY;
+            }
         }
         groupRef.current.position.copy(posRef.current);
         groupRef.current.scale.setScalar(DIABRETE_SCALE);

@@ -1,0 +1,35 @@
+name: Diabrete sculpt validation
+on:
+  push:
+    branches: [diabrete/floor3-head]
+concurrency:
+  group: diabrete-sculpt-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jubileu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: jubileu/package-lock.json
+      - run: npm ci
+      - run: npm run lint:types
+      - run: npx vitest run src/__tests__/diabreteRig.test.ts src/__tests__/f3Acting.test.ts src/__tests__/diabreteNeck.test.ts
+      - name: Start model studio
+        run: npx vite --host 0.0.0.0 --port 5173 > /tmp/diabrete-vite.log 2>&1 &
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/diabrete-visual-smoke.mjs
+        timeout-minutes: 4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diabrete-visual-verification
+          path: diabrete-qa

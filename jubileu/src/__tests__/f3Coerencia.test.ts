@@ -118,7 +118,13 @@ describe('f3 — o último pincel dá tempo da fala caber', () => {
             if (!(f.endsWith('.ts') || f.endsWith('.tsx')) || f.endsWith('.test.ts')) continue;
             if (f === 'f3Falas.ts') continue;                       // a casa das falas
             const src = readFileSync(join(raiz, f), 'utf8');
-            for (const m of src.matchAll(/\b(?:f3Dizer|dizer)\(([^)]*)\)/g)) {
+            // `[^)]+`, não `[^)]*`: com `*` a varredura pegava a menção em
+            // PROSA — um comentário que escreve o nome da função seguido de
+            // parênteses vazios virava uma fala pelada que não existe. Chamada
+            // sem argumento nenhum o compilador já barra (o evento é
+            // obrigatório), então exigir ao menos um argumento não tira dente
+            // nenhum desta guarda: `dizer('espetou')` continua sendo pego.
+            for (const m of src.matchAll(/\b(?:f3Dizer|dizer)\(([^)]+)\)/g)) {
                 if (!m[1].includes('roubados')) pelados.push(`${f}: dizer(${m[1]})`);
             }
         }

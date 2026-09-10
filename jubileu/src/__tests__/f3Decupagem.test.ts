@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
     LAJES_DA_CUTSCENE, caixaDaLaje, dentroDeAlgumaLaje,
     plano, planoDaSuplica, alturaDaCabeca, FUNDO_DA_BORDA, acimaDoConves, veOCorpoInteiro,
+    cosDoRosto, PARA_ONDE_ELE_OLHA,
     planoDeApresentacao, planoDaApresentacao, alturaEnquadrada, ALTURA_DO_DIABRETE,
     DECUPAGEM_DA_APRESENTACAO, PALCO_DA_APRESENTACAO, foraDoPoco, type NomeDaApresentacao,
+    fracaoNaTela, ASPECTO_DO_CELULAR,
     DECUPAGEM_DA_SUPLICA, type Palco, type NomeDoPlano,
 } from '../f3Decupagem';
 
@@ -120,6 +122,48 @@ describe('f3Decupagem — a decupagem da súplica', () => {
     // Um plano que não olha para ele é um plano do cenário. O alvo tem de ficar
     // perto da cabeça, e a câmera a uma distância que caiba na história: um
     // primeiro plano é primeiro plano, um plano aberto é aberto.
+    // ── NINGUÉM FILMA A NUCA DELE ───────────────────────────────────────
+    //
+    // A varredura das oito falas (`as-oito-suplicas.mjs`) mediu, quadro a
+    // quadro, o cosseno entre o rosto dele e a direção da câmera. As falas 1 e
+    // 5 — o plano `corpo`, inventado justamente para a atuação da súplica
+    // aparecer — deram -0,36 e -0,58: filmavam o cocuruto. E o defeito era
+    // INVISÍVEL para todos os outros testes, porque geometricamente o plano
+    // estava certo (fora da laje, acima do convés, vendo os pés). Faltava a
+    // única pergunta que importa numa cena de atuação: dá para ver a cara?
+    //
+    // O limiar é 0,15, que é onde o perfil acaba e o três quartos começa. Um
+    // plano de perfil legítimo pode existir um dia; um plano de costas não.
+    it('nenhum plano da súplica filma a nuca dele', () => {
+        for (const p of palcos) {
+            for (let linha = 0; linha < DECUPAGEM_DA_SUPLICA.length; linha++) {
+                for (let d = 0; d <= 1.0001; d += 0.25) {
+                    const c = cosDoRosto(p, planoDaSuplica(linha, p, d));
+                    expect(c, `fala ${linha} (${DECUPAGEM_DA_SUPLICA[linha]}) d=${d.toFixed(2)}`
+                        + ` está atrás da cabeça: cos=${c.toFixed(3)}`).toBeGreaterThan(0.15);
+                }
+            }
+        }
+    });
+
+    it('cosDoRosto reprova de verdade quem está atrás dele', () => {
+        const p = palcos[0];
+        // Exatamente ATRÁS da cabeça, na direção oposta à que ele encara.
+        const atras = {
+            x: p.gx - PARA_ONDE_ELE_OLHA[0] * 3,
+            y: alturaDaCabeca(p) - PARA_ONDE_ELE_OLHA[1] * 3,
+            z: p.edgeZ - PARA_ONDE_ELE_OLHA[2] * 3,
+            lx: p.gx, ly: alturaDaCabeca(p), lz: p.edgeZ, fov: 45,
+        };
+        expect(cosDoRosto(p, atras)).toBeCloseTo(-1, 5);
+        // E o plano `corpo` velho, que é o que de fato entrou na foto.
+        const oVelhoCorpo = {
+            x: p.gx + 2.35, y: p.gripY + 1.95, z: p.edgeZ + 2.85,
+            lx: p.gx, ly: p.gripY - 0.95, lz: p.edgeZ, fov: 41,
+        };
+        expect(cosDoRosto(p, oVelhoCorpo)).toBeLessThan(0);
+    });
+
     it('todo plano olha para ele, e a distância combina com o nome', () => {
         const faixa: Record<NomeDoPlano, [number, number]> = {
             alto:   [2.0, 5.0],
@@ -237,6 +281,62 @@ describe('f3Decupagem — a apresentação do Diabrete', () => {
     // dos dois lados. O plano da escadaria saía 3,9 m para o lado sem sair para
     // a frente, e entrava no poço: quatro quadros de marrom chapado no meio da
     // fala mais importante da cena — a que diz que a escadaria é dele.
+    // ── E AGORA NA TELA EM QUE O JOGO É JOGADO ──────────────────────────
+    //
+    // Os dois testes acima usam `alturaEnquadrada`, que lê o `fov` e a distância
+    // COMPOSTOS — sem passar por `enquadrar()`. Ou seja: eles respondem sobre a
+    // tela larga da bancada e são CEGOS para a do Felipe. Enquanto os dois
+    // passavam, a varredura das nove falas mediu `fov` 66 em todas (as cinco
+    // lentes achatadas numa só, cada plano 2,5x mais longe) e o Diabrete
+    // ocupando 20% da altura do quadro numa cena cujo assunto declarado é a
+    // atuação do corpo inteiro dele.
+    //
+    // É o mesmo formato de defeito de sempre neste andar: o instrumento
+    // respondendo sobre outra coisa. Estes cobram o que o jogador vê.
+    const CORPO: NomeDaApresentacao[] = ['apresenta', 'medio', 'escadaria'];
+    const ROSTO: NomeDaApresentacao[] = ['perto', 'pincel'];
+
+    it('no celular em pé, os planos de corpo mostram o Diabrete grande', () => {
+        for (const nome of CORPO) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                const f = fracaoNaTela(planoDeApresentacao(nome, PALCO_DA_APRESENTACAO, d),
+                    ASPECTO_DO_CELULAR);
+                expect(f, `${nome} d=${d.toFixed(2)} deixa ele com ${(f * 100).toFixed(1)}% da tela`)
+                    .toBeGreaterThan(0.38);
+                // E não pode estourar: um plano de corpo que corta os pés não é
+                // plano de corpo, é close por acidente.
+                expect(f, `${nome} d=${d.toFixed(2)} corta o corpo (${(f * 100).toFixed(1)}%)`)
+                    .toBeLessThan(0.85);
+            }
+        }
+    });
+
+    it('no celular em pé, os planos de rosto são mais fechados que os de corpo', () => {
+        // O maior plano de CORPO ao longo da deriva inteira — não só parado.
+        // Comparar com o valor de d=0 deixaria passar um plano de rosto que
+        // afrouxa no fim da fala e vira mais largo que o de corpo.
+        let maiorCorpo = 0;
+        for (const n of CORPO) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                maiorCorpo = Math.max(maiorCorpo, fracaoNaTela(
+                    planoDeApresentacao(n, PALCO_DA_APRESENTACAO, d), ASPECTO_DO_CELULAR));
+            }
+        }
+        for (const nome of ROSTO) {
+            for (let d = 0; d <= 1.0001; d += 0.25) {
+                const f = fracaoNaTela(planoDeApresentacao(nome, PALCO_DA_APRESENTACAO, d),
+                    ASPECTO_DO_CELULAR);
+                expect(f, `${nome} d=${d.toFixed(2)} não é mais fechado que o maior plano de corpo`)
+                    .toBeGreaterThan(maiorCorpo);
+                // O TETO É A LIÇÃO DA SÚPLICA. Lá, `largura: 0` pôs a cabeça em
+                // 112% da altura da tela: chifre cortado em cima, queixo cortado
+                // embaixo, uma mancha preta. Um close ainda tem de caber.
+                expect(f, `${nome} d=${d.toFixed(2)} estourou o quadro (${(f * 100).toFixed(1)}%)`)
+                    .toBeLessThan(1.6);
+            }
+        }
+    });
+
     it('nenhum plano entra no poço do elevador', () => {
         for (const nome of NOMES_AP) {
             for (let d = 0; d <= 1.0001; d += 0.25) {

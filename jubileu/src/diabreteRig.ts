@@ -22,14 +22,19 @@
 import * as THREE from 'three';
 import { criarTelaDaGravata } from './f3BocaTextura';
 import {
-    PISCADA, quadroDaPiscada,
+    OLHOS, PISCADA, olhoDoDiabrete, quadroDaPiscada,
     type NomeDoOlho,
 } from './f3Olhos';
 import {
+    SOBRANCELHAS, sobrancelhaDoDiabrete,
     type NomeDaSobrancelha,
 } from './f3Sobrancelha';
-import { aberturaDaBoca, type NomeDaBoca } from './f3Boca';
+import {
+    BOCAS, MOMENTOS_DA_CARA, aberturaDaBoca, expressaoDoDiabrete,
+    type MomentoDoDiabrete, type MomentoExtra, type NomeDaBoca,
+} from './f3Boca';
 import { createDiabreteSculpt } from './DiabreteSculptedHead';
+import { createDiabreteNeck } from './diabreteNeck';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
 // doll on the platforms (and barely filled the cutscene frame). Bumped so the
@@ -51,6 +56,69 @@ export function corteDoDiabrete(): number {
         const v = q.has('dc') ? parseFloat(q.get('dc')!) : NaN;
         return Number.isFinite(v) ? v : DIABRETE_CORTE;
     } catch { return DIABRETE_CORTE; }
+}
+
+/**
+ * `?sempiscar` trava a piscada. SEM ISTO, TODA FOTO DA CARA É UM CHUTE.
+ *
+ * `?parado` congela a pose, a marcha e as molas — mas não a piscada, que tem
+ * relógio próprio de propósito (ver `f3Olhos`). Resultado: duas fotos do MESMO
+ * olho `malicia`, com um minuto de diferença, saíram uma como fresta e a outra
+ * como olho FECHADO, e eu estava a um passo de "consertar" uma pálpebra que não
+ * tinha nada de errado — era uma piscada apanhada no meio.
+ *
+ * É a terceira vez neste rosto que medir o momento errado quase virou conserto
+ * errado. Com o freio, foto de cara passa a ser reproduzível.
+ */
+function semPiscar(): boolean {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').has('sempiscar'); }
+    catch { return false; }
+}
+
+/**
+ * ── AS TRAVAS DE URL PRECISAM MORAR ONDE A CARA MORA ─────────────────────────
+ *
+ * `?boca=`, `?olho=` e `?cenho=` existem para a bancada poder fotografar UMA
+ * forma. E "fixar" quer dizer fixar: `Floor3Rival` reescreve a cara a cada
+ * quadro, então sem trava a URL é sobrescrita em milissegundos e as fotos saem
+ * todas iguais.
+ *
+ * Isso já estava resolvido — mas a trava vivia no PINCEL de canvas, e o pincel
+ * deixou de dirigir a cara quando ela virou geometria esculpida. A flag ficou de
+ * pé, sem fazer nada, e eu tirei seis fotos de bocas diferentes que saíram
+ * idênticas e quase concluí que as formas não funcionavam. Flag morta é pior que
+ * flag ausente: ela responde.
+ *
+ * Agora a trava mora aqui, que é por onde toda cara passa.
+ */
+function daUrlDaCara(chave: string): string | null {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').get(chave); }
+    catch { return null; }
+}
+
+/**
+ * `?momento=roubou` trava a cara no MOMENTO do andar, não em três nomes soltos.
+ *
+ * As travas de `?boca=`/`?olho=`/`?cenho=` servem para olhar uma peça. Mas a
+ * pergunta que importa é outra: "que cara ele faz quando rouba o pincel?" — e
+ * essa cara é uma TRIPLA, decidida por `expressaoDoDiabrete`, `olhoDoDiabrete` e
+ * `sobrancelhaDoDiabrete` a partir do momento e de quantos pincéis já foram.
+ *
+ * Sem isto, montar uma folha de contato dos dezesseis momentos obrigava a bancada
+ * a copiar essa tabela — e tabela copiada envelhece calada, que é exatamente o
+ * defeito que já cobrou caro duas vezes neste rosto (a folha do rosto montado, e
+ * a trava de URL que morreu quando a cara virou geometria).
+ *
+ * `?pinceis=N` continua valendo: é ele que muda a cara do mesmo momento.
+ */
+function pinceisDaUrl(): number {
+    const n = Number(daUrlDaCara('pinceis'));
+    return Number.isFinite(n) ? Math.max(0, Math.min(3, Math.floor(n))) : 0;
+}
+
+function momentoDaUrl(): MomentoDoDiabrete | MomentoExtra | null {
+    const v = daUrlDaCara('momento');
+    return (v && MOMENTOS_DA_CARA.includes(v as MomentoDoDiabrete)) ? (v as MomentoDoDiabrete) : null;
 }
 
 // ── Bone indices ──────────────────────────────────────────────────────────────
@@ -257,63 +325,6 @@ const OLHOS_CENTRO_Y = 0.826;
 // conversão para o texto do shader é feita na hora de montar.
 // Régua 0,509 (entre os olhos e a boca) e raio de ~17% da largura do rosto, que
 // é a proporção da bola na ficha de referência que ele mandou.
-// O nariz desceu e encolheu para MEIO RAIO. Na ficha ele é uma bolinha que
-// cabe na fresta entre os dois olhos — e a fresta, com os olhos no tamanho
-// certo, tem 0,0186 de meia-largura. Raio 0,015 passa por ela com folga; o
-// 0,030 antigo não passava, e era ele que empurrava olho e boca para longe um
-// do outro e deixava a cara espalhada.
-// Fica logo abaixo da órbita: o pé do olho está em Y 0,7693.
-/**
- * ── NÚMERO PARA DENTRO DE GLSL TEM QUE TER PONTO ─────────────────────────────
- *
- * Isto existe por causa de um personagem que SUMIU da tela inteiro. Eu tinha
- * ajustado a abertura do bico de viúva de 2,2 para 2,0 e o Diabrete
- * desapareceu, sobrando só a gravata.
- *
- * A causa: em JavaScript `${2.0}` vira a string "2", não "2.0". No shader isso
- * escreve `2 * (p.y - 0.885)`, que é INTEIRO vezes float — erro de tipo em GLSL
- * ES. O programa não compila, o material vai junto, e a malha não desenha.
- *
- * O sintoma é cruel porque não parece erro de número: parece que o modelo não
- * carregou. É primo do outro que já mordeu este arquivo — crase dentro de
- * comentário de GLSL fecha o template literal.
- *
- * Então nenhum número entra em GLSL sem passar por aqui.
- */
-export const emGlsl = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
-
-// ── A MÁSCARA DO ROSTO ───────────────────────────────────────────────────────
-// A elipse de creme, em coordenada local. Ver a nota longa no shader: ela
-// substituiu o teste por normal, que dava borda recortada e mutável.
-const MASCARA_CY = 0.782;
-const MASCARA_RX = 0.196;
-const MASCARA_RY = 0.170;
-
-// ── O BICO DE VIÚVA ──────────────────────────────────────────────────────────
-// A ponta do V do cabelo, e o quanto ele abre subindo. Ver a nota no shader.
-const BICO_Y = 0.885;
-const BICO_ABERTURA = 2.0;
-
-const NARIZ_CENTRO_Y = 0.754;
-// E voltou a crescer: 0,015 era a metade certa do 0,030 antigo, mas a lista
-// dele diz "NARIZ PEQUENO E MAL ENCAIXADO". Eu tinha passado do ponto para o
-// outro lado. 0,019 é a bolinha da referência sem voltar a comer a fresta
-// entre os olhos, que tem 0,0178 de meia-largura.
-const NARIZ_RAIO = 0.019;
-
-/**
- * As caixas do rosto, num objeto só, para a bancada poder CONFERIR a folha
- * `o-rosto-inteiro.html` — que copia estes números (importar este módulo lá
- * arrastaria o three inteiro). Ver `o-rosto-confere.test.ts`: sem ele a folha
- * envelhece calada, e uma régua desatualizada é pior que régua nenhuma. Foi
- * exatamente assim que as duas fichas ficaram desenhando num canvas de 156 px
- * depois que a testa cresceu para 172.
- */
-export const CAIXAS_DO_ROSTO = Object.freeze({
-    boca: Object.freeze({ cy: BOCA_CENTRO_Y, larg: BOCA_LARGURA, alt: BOCA_ALTURA }),
-    olhos: Object.freeze({ cy: OLHOS_CENTRO_Y, larg: OLHOS_LARGURA, alt: OLHOS_ALTURA }),
-    nariz: Object.freeze({ cy: NARIZ_CENTRO_Y, r: NARIZ_RAIO }),
-});
 
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
@@ -409,6 +420,15 @@ const _grad = (() => {
  */
 interface CaixaPintada { nome: string; textura: THREE.Texture; caixa: THREE.Vector4 }
 
+// ── NÚMERO QUE ENTRA EM GLSL TEM QUE TER PONTO ───────────────────────────────
+// Aviso para quem for acrescentar valor no shader daqui de baixo. Em JavaScript
+// `${2.0}` vira a string "2", e no GLSL isso escreve `2 * algo` — INTEIRO vezes
+// float, erro de tipo em GLSL ES. O programa não compila, o material vai junto e
+// a malha não desenha: o Diabrete SUMIU da tela inteiro por causa disso, sobrando
+// só a gravata, e o sintoma parece "o modelo não carregou".
+// Hoje não há número interpolado aqui — as constantes que havia saíram com a
+// cara pintada. Se voltar a haver, escreva `(2).toFixed(1)` ou o literal com
+// ponto na string.
 function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
     return (shader: THREE.WebGLProgramParametersWithUniforms) => {
         if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
@@ -500,66 +520,25 @@ function duasCores(corte: number, pinturas: CaixaPintada[] = []) {
         // mostrando uma coisa que não existe. Agora a geometria pinta sempre, e
         // `?semboca&semolhos` mostra o rosto liso de verdade.
         let decl = 'float _claroPorForma(vec3 p, vec3 n) {\n'
-            + '  vec3 h = (p - vec3(0.0, 0.775, 0.0)) / vec3(0.205, 0.215, 0.205);\n'
-            // ── A MÁSCARA DEIXA DE SER "ONDE A NORMAL APONTA PARA FRENTE" ────
+            // ── A CARA PINTADA SAIU DAQUI ────────────────────────────────
             //
-            // Defeito nº 9 da lista dele: "não há separação clara entre a face
-            // creme e a cabeça preta, o que prejudica a leitura das formas". E
-            // o nº 2: "a face deveria ser mais arredondada e bem definida".
+            // Moravam aqui a máscara de creme, o nariz e o bico de viúva,
+            // decididos por posição no fragmento. Eles construíram o rosto
+            // durante sete ciclos, e a foto de 3/4 mostrou o limite do método:
+            // uma máscara decidida por posição na malha do GLB não tem como
+            // acompanhar o crânio, então de qualquer ângulo que não fosse de
+            // frente a borda se desfazia.
             //
-            // A causa era o teste: `n.z > 0.30` decide pela NORMAL do vértice,
-            // então a borda do creme acompanhava a curvatura da malha e saía
-            // recortada e irregular — em cada ângulo de câmera ela mudava de
-            // formato. Máscara de personagem de desenho não é assim: é uma
-            // FORMA, com recorte limpo, igual em todo quadro.
+            // A cabeça esculpida (`DiabreteSculptedHead`) substituiu os três, e
+            // com vantagem — ela é geometria curvada SOBRE o crânio. Os que
+            // ficavam aqui passaram a ser desenhados escondidos por baixo dela:
+            // custo de fragmento em algo que ninguém vê, mais três constantes e
+            // um teste guardando uma peça invisível.
             //
-            // Agora é uma elipse em coordenada local, que é o que a referência
-            // mostra. `n.z > 0.0` fica só para a nuca não acender.
-            + `  vec2 _m = (p.xy - vec2(0.0, ${emGlsl(MASCARA_CY)})) / vec2(${emGlsl(MASCARA_RX)}, ${emGlsl(MASCARA_RY)});\n`
-            // ── E A NORMAL SAIU DE VEZ ───────────────────────────────────
-            // Sobrou um `n.z > 0.0` do teste antigo, "para a nuca não acender".
-            // De frente ele não fazia diferença. De 3/4 e de PERFIL — que eu
-            // nunca tinha fotografado — ele desmontava a cara: perto da
-            // silhueta a normal interpolada oscila de triângulo em triângulo,
-            // então a borda do creme saía serrilhada e apareciam retalhos
-            // soltos de creme na lateral da cabeça.
-            //
-            // E ele era redundante: quem mantém a nuca preta é `p.z > 0`, que é
-            // POSIÇÃO e não muda com o facetamento da malha. Sem a normal, a
-            // máscara é uma forma pura — mesma borda limpa em todo ângulo.
-            + '  if (dot(h, h) < 1.06 && dot(_m, _m) < 1.0 && p.z > 0.075) {\n'
-            // ── O NARIZ, E POR QUE ELE MORA AQUI E NÃO NUM CANVAS ────────
-            //
-            // "aí ele perde a nareba". "ainda está cobrindo o nariz". "a bola
-            // preta inteira é o nariz". Três vezes ele reclamou do mesmo nariz,
-            // e eu passei o tempo todo tentando NÃO COBRIR uma bola que não
-            // existia: a bola era uma mancha da textura de ruído do GLB. Tirado
-            // o ruído, a foto da cara pelada é um ovo liso — sem nariz nenhum.
-            //
-            // Então o nariz passa a ser desenhado, e desenhado AQUI, na cor por
-            // geometria, antes de qualquer pintura. Duas consequências, e as
-            // duas são o conserto:
-            //   • é a primeira coisa a entrar, então nenhuma boca futura o
-            //     apaga por acidente — só o apaga quem pintar tinta em cima de
-            //     propósito;
-            //   • não custa textura, canvas nem draw call: é uma elipse em
-            //     coordenada local, tatuada na pele em pose de descanso.
-            + `    vec2 _n = (p.xy - vec2(0.0, ${emGlsl(NARIZ_CENTRO_Y)})) / vec2(${emGlsl(NARIZ_RAIO)});\n`
-            + '    if (dot(_n, _n) < 1.0) return 0.0;\n'
-            // ── O BICO DE VIÚVA ──────────────────────────────────────────
-            //
-            // Na ficha dele o creme do rosto NÃO é um óvalo liso: o cabelo
-            // desce num V no meio da testa, e é esse V que faz a cara ter
-            // formato de coração em vez de ovo. Sem ele a cúpula do crânio
-            // ficava creme até entre os chifres e o personagem lia como um
-            // boneco de neve com chifre.
-            //
-            // É uma cunha em coordenada local, e portanto de graça: preta
-            // acima de `BICO_Y`, com a meia-largura crescendo `BICO_ABERTURA`
-            // por unidade de altura. A ponta encosta na régua 0,90 do rosto,
-            // que é logo acima do olho.
-            + `    if (p.y > ${emGlsl(BICO_Y)} && abs(p.x) < ${emGlsl(BICO_ABERTURA)} * (p.y - ${emGlsl(BICO_Y)})) return 0.0;\n`
-            + '    return 1.0;\n  }\n'
+            // Sem eles a cabeça do GLB fica preta inteira, que é melhor do que
+            // parece: se em algum ângulo ela escapar por trás da escultura, um
+            // pedaço de TINTA lê como cabelo, enquanto um pedaço de creme leria
+            // como buraco na cara.
             // AS MÃOS e o punho.
             + '  if (abs(p.x) > 0.325 && p.y > 0.40 && p.y < 0.64) return 1.0;\n'
             // O ANEL DO TORNOZELO, que é o que separa a perna do sapato.
@@ -703,13 +682,14 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // under the head bone: putting renderable meshes in the skeleton hierarchy
     // can make Three's skinning traversal unstable. The sculpt is rendered as
     // a sibling and copied into the rig's local space immediately before draw.
-    const sculpt = createDiabreteSculpt({ neck: true });
+    const sculpt = createDiabreteSculpt();
     const headAnchor = new THREE.Object3D();
     headAnchor.name = 'diabrete-head-anchor';
     bones[B.head].add(headAnchor);
     const group = new THREE.Group();
     group.add(fill);
     group.add(sculpt.group);
+    const neck = createDiabreteNeck(group, bones[B.body], bones[B.head]);
 
     const sculptScale = 0.205;
     const parentInverse = new THREE.Matrix4();
@@ -737,6 +717,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         // onBeforeRender hook, so propagate the new local matrix immediately;
         // otherwise this frame would draw at the previous head pose.
         sculpt.group.updateMatrixWorld(true);
+        neck.sync();
     };
     let hooked = false;
     sculpt.group.traverse((object) => {
@@ -770,8 +751,13 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         group,
         bones,
         definirCara: (olho: NomeDoOlho, cenho: NomeDaSobrancelha, t: number) => {
+            const m = momentoDaUrl();
+            const travaOlho = m ? olhoDoDiabrete(m, pinceisDaUrl()) : daUrlDaCara('olho');
+            const travaCenho = m ? sobrancelhaDoDiabrete(m, pinceisDaUrl()) : daUrlDaCara('cenho');
+            if (travaOlho && travaOlho in OLHOS) olho = travaOlho as NomeDoOlho;
+            if (travaCenho && travaCenho in SOBRANCELHAS) cenho = travaCenho as NomeDaSobrancelha;
             sculpt.setExpression(olho, cenho);
-            const q = quadroDaPiscada(t);
+            const q = semPiscar() ? -1 : quadroDaPiscada(t);
             sculpt.setBlink(olho === 'fechadoSorrindo'
                 ? 1
                 : q < 0 ? 0 : PISCADA[Math.min(PISCADA.length - 1, q)]);
@@ -781,9 +767,13 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             syncSculpt();
         },
         definirBoca: (nome: NomeDaBoca) => {
-            sculpt.setMouth(aberturaDaBoca(nome), nome);
+            const m = momentoDaUrl();
+            const travada = m ? expressaoDoDiabrete(m, pinceisDaUrl()) : daUrlDaCara('boca');
+            const usar = (travada && travada in BOCAS ? travada : nome) as NomeDaBoca;
+            sculpt.setMouth(aberturaDaBoca(usar), usar);
         },
         dispose: () => {
+            neck.dispose();
             sculpt.dispose();
             skeleton.dispose();
             fillGeo.dispose();

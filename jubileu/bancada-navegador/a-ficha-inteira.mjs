@@ -4,10 +4,17 @@
 import { chromium } from 'playwright';
 const SAIDA = process.argv[2] ?? '/tmp/ficha-de-bocas.png';
 /**
- * Qual folha: `cara` (olhos e sobrancelhas), `rosto` (as peças MONTADAS, que é
- * onde se vê encaixe) ou nada, que dá a das bocas.
+ * Qual folha: `cara` (olhos e sobrancelhas) ou nada, que dá a das bocas.
+ *
+ * `rosto` saiu. Ela apontava para `o-rosto-inteiro.html`, que montava o rosto
+ * com os PINCÉIS de canvas — e o rosto deixou de ser desenhado em canvas quando
+ * virou geometria esculpida. A folha continuava desenhando bonito uma cara que
+ * o jogo não tem mais, que é a pior espécie de bancada.
+ * A substituta é `as-dezesseis-caras.mjs`, e a diferença de método é o ponto:
+ * ela FOTOGRAFA O JOGO em vez de redesenhar o rosto por conta própria, então
+ * não tem como divergir dele.
  */
-const QUAL = { cara: 'ficha-da-cara', rosto: 'o-rosto-inteiro' }[process.argv[3]] ?? 'ficha-de-bocas';
+const QUAL = { cara: 'ficha-da-cara' }[process.argv[3]] ?? 'ficha-de-bocas';
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const p = await b.newPage({ viewport: { width: 1300, height: 900 } });

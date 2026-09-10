@@ -1,3 +1,4 @@
+import { f3IntroBlocking } from './f3IntroBlocking';
 /**
  * Floor3Cutscene.tsx — the Diabrete's PERFORMANCE during the meet-the-rival
  * dialogue that plays the instant the Floor 3 doors open.
@@ -20,7 +21,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
-import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
+import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, inicioDaFala, type Gesture } from './diabreteScript';
 import { playFloor3Voice } from './floor3Sfx';
 import { vozDoDiabrete } from './f3Voz';
 import { bocaNoInstante, bocaOciosa, expressaoDoDiabrete, gritandoNoInstante, quadroDaBoca, type NomeDaBoca } from './f3Boca';
@@ -43,9 +44,19 @@ interface Props {
     targetRef: React.MutableRefObject<THREE.Vector3>;   // camera look-at (feet)
     onLine: (i: number) => void;
     onDone: () => void;
+    /**
+     * DEV/BANCADA: prende o relógio da cena dentro de uma fala, em vez de deixar
+     * a cena andar. É o que a queda tem de graça (ela recebe a fala como prop) e
+     * a apresentação não tinha: aqui o relógio é interno, então fotografar a
+     * fala 7 significava esperar a cena inteira chegar lá — a ~2 fps numa
+     * bancada, ou seja nunca. Não é usado pelo jogo.
+     */
+    travarNaFala?: number;
+    /** Onde DENTRO da fala travada parar, de 0 a 1. O padrão é o meio dela. */
+    fracaoDaFala?: number;
 }
 
-const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
+const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone, travarNaFala, fracaoDaFala }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const { camera, size: tamanho } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
@@ -107,6 +118,15 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         const safeDt = Math.min(dt, 0.05);
         const bones = rig.bones;
         clock.current += safeDt;
+        // A TRAVA DA BANCADA: em vez de deixar o relógio andar, prende-o num
+        // instante da fala pedida. Só o relógio do ROTEIRO congela — as molas e
+        // a camada de atuação continuam integrando, que é o que faz a foto
+        // mostrar uma pose de verdade e não um boneco em T.
+        if (travarNaFala !== undefined && Number.isFinite(travarNaFala)) {
+            const i = Math.max(0, Math.min(DIABRETE_SCRIPT.length - 1, Math.floor(travarNaFala)));
+            const f = Number.isFinite(fracaoDaFala as number) ? Math.max(0, Math.min(1, fracaoDaFala as number)) : 0.5;
+            clock.current = inicioDaFala(i) + DIABRETE_SCRIPT[i].dur * f;
+        }
         const t = clock.current;
 
         const li = lineAt(t);
@@ -199,8 +219,13 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
             groupRef.current.position.copy(dashPos.current);
             groupRef.current.rotation.y = 0;                 // face +Z (running off)
         } else {
-            groupRef.current.position.set(STAND.x, STAND.y + hop, STAND.z);
-            groupRef.current.rotation.y = Math.PI + 0.16;    // ≈ face the player (-Z), slight 3/4
+            const mark = f3IntroBlocking(li, tl);
+            groupRef.current.position.set(
+                STAND.x + mark.x,
+                STAND.y + poseRef.current.hop + mark.y,
+                STAND.z + mark.z,
+            );
+            groupRef.current.rotation.y = Math.PI + 0.16 + mark.turn;
         }
 
         // ── A CÂMERA É DESTA CENA, e não mais a de diálogo ────────────────
@@ -256,7 +281,11 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone }) => {
         // `f3Enquadramento`: abre a lente até um teto e anda para trás o resto.
         // Em tela larga isto é um `if` e nada mais.
         const alvo = { x: pl.lx, y: pl.ly, z: pl.lz };
-        const enq = enquadrar(pl.fov, tamanho.width / Math.max(1, tamanho.height));
+        // `pl.largura` diz de quanta abertura horizontal ESTE plano precisa numa
+        // tela em pé — ver a nota longa em `f3Enquadramento`. Sem passar isso,
+        // as cinco lentes da cena viravam uma só (fov 66 nas nove falas).
+        const enq = enquadrar(pl.fov, tamanho.width / Math.max(1, tamanho.height),
+            undefined, pl.largura);
         const olho = afastar({ x: pl.x, y: pl.y, z: pl.z }, alvo, enq.recuo);
         camera.position.set(olho.x, olho.y, olho.z);
         camera.up.set(0, 1, 0);

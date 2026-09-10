@@ -57,24 +57,237 @@ A última linha é a que me pegou três vezes: a régua chama de 1,0 o pixel de
 creme mais alto da FOTO, que é o alto da cúpula do crânio, lá no meio. Em cima
 do olho o cabelo desce e o creme acaba bem antes.
 
-## Os valores de agora
+## A CARA MUDOU DE TECNOLOGIA — leia isto antes do resto
 
-    caixa dos olhos ... cy 0,826   0,30 x 0,168     (canvas 256 x 143)
-      órbita no canvas   cy 78,5   92,2 x 113,0     testa 22 px
-    nariz ............. cy 0,754   raio 0,015
-    bico de viúva ..... ponta em Y 0,885, abrindo 2,0 por unidade de altura
-    caixa da boca ..... cy 0,716   0,29 x 0,19      (canvas 192 x 128)
+Tudo o que este arquivo descreve abaixo desta seção sobre CAIXAS, régua do rosto
+e pincéis de canvas vale para a cara PINTADA NO SHADER, que era como eu vinha
+construindo o rosto: máscara, nariz e bico de viúva decididos por posição no
+fragmento, mais olhos e boca desenhados em canvas e projetados por caixa.
 
-`o-rosto-confere.test.ts` quebra se a folha da bancada
-(`bancada-navegador/o-rosto-inteiro.html`) deixar de bater com estes.
+Ela foi SUBSTITUÍDA. O dono do jogo trouxe `src/DiabreteSculptedHead.tsx` — uma
+cabeça inteira de geometria, feita de formas bezier projetadas num elipsoide
+(RX 1,04 / RY 1 / RZ 0,91): máscara, olhos, pálpebras, sobrancelhas, chifres,
+tufos, nariz, sorriso, dentes e as divisões entre eles. `diabreteRig.ts` a monta
+e `definirCara`/`definirBoca` a dirigem pelo MESMO vocabulário dos módulos puros
+(`malicia`, `ironia`, `sorrisoIronico`).
 
-## Como conferir sem abrir o jogo
+E ela é melhor, sem meio termo. O motivo é estrutural, não de gosto: ela é
+geometria curvada SOBRE o crânio, então se sustenta de 3/4 e de perfil. A minha
+máscara pintada era uma decisão por posição no espaço local — de frente ficava
+boa, e em qualquer outro ângulo a borda se desfazia. Sete ciclos de foto de
+frente esconderam isso.
 
-    node bancada-navegador/a-ficha-inteira.mjs /tmp/o-rosto-inteiro.png rosto
+O que sobrou de útil do trabalho antigo, e continua valendo:
+- os módulos PUROS (`f3Boca`, `f3Olhos`, `f3Sobrancelha`) — o vocabulário de
+  expressões, os ciclos de fala, os visemas e a tabela momento→cara. A cabeça
+  esculpida consome tudo isso;
+- `f3Enquadramento`, que conserta o plano das cutscenes em tela de celular;
+- a lição das três câmeras, e `?sempiscar`.
 
-Monta o rosto em 2D com a mesma aritmética do fragmento: as 16 expressões do
-andar (com 0 e com 3 pincéis), o ciclo de fala, as 27 bocas e os 12 olhos, tudo
-numa foto. É a folha que achou a língua-rosquinha e o sorriso pequeno.
+## O custo dela, e o que já foi devolvido
+
+A cabeça esculpida é geometria, então custa triângulo onde a cara pintada custava
+textura. Medido no andar inteiro com três pincéis e falando:
+
+    cara pintada (antes) ....... 22.600 triângulos
+    esculpida, como chegou ..... 52.817
+    esculpida, depois de podar . 36.132
+
+A poda não mudou um pixel em nenhum dos três ângulos, e foi em dois lugares:
+- `curvedShape` subdivide 4^n vezes; a máscara usava n=4, ou seja 256 triângulos
+  por triângulo de origem. Com n=3 são 64. A máscara é a maior forma da cabeça, e
+  perto do centro — onde ela é grande — é quase plana, então a subdivisão extra
+  não estava comprando curvatura nenhuma;
+- o crânio era uma esfera 56x40 (4.480 triângulos) chapada de tinta; 40x28 dá
+  2.240 e o contorno na tela continua liso.
+
+Ainda sobra o que podar se precisar: os `tufts` são seis cones de 12x10.
+
+## O que a cabeça esculpida cobre, conferido na tabela
+
+Lido em `setExpression`/`setMouth`, não fotografado — para isto a tabela responde
+melhor que a foto:
+
+- os 12 OLHOS de `f3Olhos`: todos cobertos;
+- as 8 SOBRANCELHAS: todas cobertas, mas `raiva` e `bravaComRuga` eram
+  desenhadas idênticas. A ruga em V entre elas foi acrescentada, que é o que a
+  ficha usa para separar as duas;
+- as 27 BOCAS caíam em 5 classes, e 13 delas viravam o MESMO sorriso padrão —
+  incluindo OITO dos doze quadros do ciclo de fala. Ou seja a queixa original
+  dele, "a boca dele se mexe muito pouco", voltava inteira pela porta dos fundos
+  agora que a cara é geometria. Duas classes novas (`wide` para gargalhada,
+  `narrow` para fala miúda) devolvem o contraste.
+
+## A cutscene da queda, enfim fotografada — e o que ela mostrou
+
+`?f3preview&queda=N` encena a cutscene da queda parada na fala N (a decupagem
+troca de câmera a cada fala). Ela era o único pedaço do andar que nunca tinha
+entrado numa foto.
+
+Duas tentativas anteriores saíram TELA BRANCA e eu culpei o estado do jogo. Era
+`lazy()`: um componente lazy suspende, e dentro do Canvas do react-three-fiber a
+suspensão não é pega pelo `<Suspense>` do DOM que está por fora — a árvore some
+inteira, sem erro nenhum no console. Import direto resolve.
+
+### Eu li três fotos e reportei errado
+
+Do que eu escrevi no ciclo 14 — "nas falas 0, 2 e 4 a câmera olha o Diabrete de
+cima e de trás, e o que aparece é a cúpula preta do crânio" — **nada é
+verdade**. Varri as oito falas (`as-oito-suplicas.mjs`) e medi, em vez de olhar:
+o cosseno entre o rosto dele e a direção da câmera deu **+0,84, +0,86 e +0,82**
+nessas três. Elas sempre estiveram DE FRENTE para ele. O que eu tomei por cúpula
+de crânio era o par de chifres visto pequeno e de longe, e três fotos não são
+uma cena.
+
+E as duas fotos ainda tinham peça a mais: a tela de bancada nunca passava
+`fallActive`, então as MÃOS DO JOGADOR e as armadilhas apareciam nos oito
+quadros — coisas que `Floor3.tsx` desliga durante a queda. Eu estava a um passo
+de reportar "as mãos ficam na frente da cutscene" como defeito da cutscene. É a
+mesma lição de sempre, a quinta vez: **foto com peça a mais mente igual a foto
+com peça a menos.** A tela agora espelha o jogo (`Floor3Preview`).
+
+### O que a varredura das OITO achou de verdade
+
+Com a bancada honesta, dois defeitos reais, os dois medidos:
+
+**1. As falas 1 e 5 filmavam a NUCA dele.** Cosseno −0,36 e −0,58. E logo o
+plano `corpo` — o que foi inventado justamente para a atuação da súplica (as
+perninhas pedalando, a mão que solta a beirada) finalmente aparecer. Ele ficava
+em `edgeZ + 2,85`, do lado do ABISMO; ele encara o CONVÉS. A animação estava lá o
+tempo todo, do lado errado da câmera. Nenhum teste pegava isso, porque
+geometricamente o plano estava certo: fora da laje, acima do convés, vendo os
+pés. Faltava a única pergunta que importa numa cena de atuação — *dá para ver a
+cara?* Agora `cosDoRosto` é a régua, `PARA_ONDE_ELE_OLHA` é a medida, e o teste
+cobra cosseno > 0,15 de todo plano em toda a deriva.
+
+**2. A decupagem tinha UMA LENTE SÓ na tela dele.** As oito falas mediram `fov`
+66 — todas. Não é acaso: no celular em pé `quantoFalta` é 3,55, e para qualquer
+`fov` composto entre 41 e 52 a conta estoura `FOV_MAXIMO` E `RECUO_MAXIMO`. Os
+quatro planos viravam quatro cópias da mesma lente, todas 2,5× mais longe. O
+primeiríssimo plano saía a 4,3 m com a cabeça ocupando 25% da altura da tela.
+O erro era de PREMISSA: "devolver o enquadramento horizontal" só faz sentido se
+o assunto do plano for largo. Um close é um assunto VERTICAL — uma cabeça — e
+numa tela em pé ele já cabe; o que estava ao lado era o vazio, e recomprar esse
+vazio custava o plano. Agora o plano DIZ de quanta largura precisa
+(`Plano.largura`, ver `f3Enquadramento`).
+
+E o primeiro chute foi o outro extremo: `largura: 0` em tudo pôs a cabeça em
+**112% da altura da tela** — chifre cortado em cima, queixo cortado embaixo, a
+mancha preta contra a qual o próprio `f3Decupagem` já avisava uma vez. Os
+valores saíram da medida, não da opinião.
+
+| fala | plano | cos antes | cos agora | tela antes | tela agora |
+|-----:|-------|----------:|----------:|-----------:|-----------:|
+| 0 | alto  | +0,80 | +0,80 | 10,8% | 27,4% |
+| 1 | corpo | **−0,36** | **+0,56** | 12,6% | 39,4% |
+| 2 | close | +0,79 | +0,73 | 25,0% | 68,8% |
+| 3 | raso  | +0,41 | +0,37 |  2,6% |  2,4% |
+| 4 | close | +0,73 | +0,74 | 24,8% | 68,0% |
+| 5 | corpo | **−0,58** | **+0,49** | 12,6% | 39,6% |
+| 6 | close | +0,82 | +0,75 | 25,2% | 69,6% |
+| 7 | alto  | +0,82 | +0,81 | 10,8% | 27,6% |
+
+### A régua estava errada sobre si mesma (e por isso os números acima mudaram)
+
+Nos ciclos 15 e 16 a sonda calculava a fração de tela assim: projetava o centro
+da cabeça e um ponto um RAIO acima, e multiplicava o delta de NDC por 200. Mas
+NDC vai de −1 a +1 na altura INTEIRA da tela, então o delta de um raio já é a
+fração do DIÂMETRO — o 200 conta duas vezes. **Os "69% da altura" que eu reportei
+no close da súplica eram 34%.**
+
+As comparações antes/depois continuam de pé (o erro é o mesmo fator dos dois
+lados), e as fotos nunca mentiram. O que estava errado era o número absoluto — e
+foi o suficiente para eu escolher as cinco larguras da apresentação por conta de
+cabeça e errar as cinco: a constante que tirei da foto discordava do modelo puro
+por 2,7 vezes. Quinta vez que o instrumento responde sobre outra coisa neste
+andar; primeira vez que o instrumento é meu.
+
+## A apresentação — mesmo defeito de lente, conserto DIFERENTE
+
+`?f3preview&fala=N` trava o relógio do roteiro numa fala (`travarNaFala` em
+`Floor3Cutscene`). A queda recebia a fala como prop; a apresentação se dirige por
+relógio interno, então até aqui a única forma de ver a fala 7 era esperar a cena
+inteira chegar lá — numa bancada a ~2 fps, ou seja nunca.
+
+Medido: **`fov` 66 nas nove falas.** As cinco lentes compostas (55, 46, 58, 38,
+36) achatadas numa só, cada plano 2,5× mais longe. E ele centrado no quadro, mas
+minúsculo — o crânio ocupando 6% a 9% da altura da tela em cinco das nove falas,
+numa cena cujo assunto declarado é "em rubber-hose a atuação está no corpo
+inteiro".
+
+**E o conserto NÃO é o da súplica.** Lá os planos de rosto queriam `largura`
+baixa (0,27); aqui `perto` e `pincel` foram compostos como lentes LONGAS a
+distância curta (fov 36 a 1,35 m), já apertadíssimos no eixo vertical — que é
+justamente o que a tela em pé preserva. Copiar o valor da súplica teria estourado
+os dois. Cada plano tem a sua conta, e a conta sai da varredura:
+
+| plano | largura | corpo na tela | crânio: antes → agora |
+|-------|--------:|--------------:|----------------------:|
+| apresenta | 0,05 |  41–44% | 6,6% → 20,5% |
+| escadaria | 0,10 |  49–54% | 8,1% → 18,3% |
+| medio     | 0,10 |  54–58% | 8,7% → 27,4% |
+| pincel    | 0,20 |  73–77% | 14,2% → 34,9% |
+| perto     | 0,20 | 108–123% | 21,5% → 55,3% |
+
+A escada é monotônica de propósito: plano de rosto tem de ser mais fechado que
+qualquer plano de corpo, senão o corte de `medio` para `pincel` AFASTA em vez de
+aproximar e o nome do plano passa a mentir. É o que o teste novo cobra.
+
+### O teste que era cego para a tela dele
+
+`alturaEnquadrada` lê o `fov` e a distância COMPOSTOS, sem passar por
+`enquadrar()`. Os dois testes que dependiam dela ("os planos de corpo abraçam o
+Diabrete inteiro", "os closes são mesmo closes") **passavam** enquanto no celular
+dele o Diabrete ocupava 20% do quadro. `fracaoNaTela` mede o que o jogador vê, e
+os dois testes novos cobram na tela em pé (`ASPECTO_DO_CELULAR`).
+
+### O que fica aberto
+
+- **A fala 3 (`raso`) ainda falha o próprio propósito.** Ele ocupa 2,4% da
+  altura da tela — um ponto — e a escadaria desabando que o plano promete
+  ("embaixo aparece a escadaria inteira") NÃO está no quadro: o que se vê é
+  cinza, duas nuvens e uma laje. Aqui `largura: 1` está certo (é o único plano
+  cujo assunto é mesmo largo); o que está errado é a MIRA, e recompor isso é
+  escolha de direção, não conta.
+- **A fala 8 da apresentação (a arrancada) não tem ninguém no quadro** no meio
+  da fala: ele já rocketou para 54 m e ocupa 1,6% da tela. Pode ser intenção (é
+  o "WHOOSH"), mas a fala é dele e o quadro está vazio.
+- **Tudo sai com um dutch angle forte** (`camRoll`), igual nas oito. Pode ser
+  intenção; não mexi.
+
+## As três câmeras, e o freio da piscada
+
+Foto de cara SEMPRE nos três ângulos, e SEMPRE com `&sempiscar`:
+
+    frente  CAM='&cam=0.66,1.94,15.35&alvo=0.66,1.91,14'
+    3/4     CAM='&cam=1.53,1.94,15.03&alvo=0.66,1.91,14'
+    perfil  CAM='&cam=2.02,1.93,14.05&alvo=0.66,1.91,14'
+
+`?parado` congela pose, marcha e molas — mas NÃO a piscada, que tem relógio
+próprio de propósito. Sem `?sempiscar`, duas fotos do mesmo olho saem diferentes
+e eu quase "consertei" uma pálpebra que estava certa.
+
+E `?boca=` / `?olho=` / `?cenho=` travam a expressão — sem isso `Floor3Rival`
+reescreve a cara a cada quadro e as fotos saem todas iguais. Essa trava vivia no
+pincel de canvas e ficou MORTA quando a cara virou geometria: a flag continuava
+de pé sem fazer nada, e eu tirei seis fotos de bocas diferentes que saíram
+idênticas. Agora ela mora em `definirBoca`/`definirCara`, que é por onde toda
+cara passa. Flag morta é pior que flag ausente — ela responde.
+
+## Como ver as dezesseis caras
+
+    node bancada-navegador/as-dezesseis-caras.mjs 0 /tmp/caras-0.png
+    node bancada-navegador/as-dezesseis-caras.mjs 3 /tmp/caras-3.png
+
+Fotografa o JOGO em cada um dos dezesseis momentos, com 0 e com 3 pincéis
+roubados, e monta a folha de contato. A trava é `?momento=`, que resolve a tripla
+(boca, olho, sobrancelha) DENTRO do rig — a bancada não copia essa tabela, e a
+lista de momentos ela lê da própria página.
+
+Isso substitui `o-rosto-inteiro.html`, que foi aposentado: aquela folha
+REDESENHAVA o rosto com os pincéis de canvas, e o rosto deixou de ser desenhado
+em canvas quando virou escultura. Ela seguia desenhando bonito uma cara que o
+jogo não tem mais. A nova fotografa o jogo, então não tem como divergir dele.
 
 Para julgar no modelo de verdade (silhueta, cabelo, chifre):
 
@@ -163,7 +376,19 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       soltos na lateral. Era redundante — quem mantém a nuca preta é `p.z > 0`,
       que é posição. E o `p.z` subiu para 0,075 para o creme parar ANTES da
       franja, em vez de contornar a cabeça e aparecer entre os espetos.
-- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
+- [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada.
+      TENTATIVA NO CICLO 8, e falhou: montei uma rota `?f3preview&queda=N` e ela
+      desenha tela branca, mesmo plantando `f3DevilPos`/`f3DevilPosValid` na mão.
+      Sem erro de página e sem exceção — só dois avisos de textura do WebGL
+      (`glTexStorage2D: Invalid internal format 0x1907`). A cena depende de mais
+      estado do jogo do que eu identifiquei. A rota foi REVERTIDA em vez de ficar
+      no repo quebrada.
+      O que já está coberto, e é o motivo de isto não ser urgente: a CARA daquela
+      cena sai de `olhoDoDiabrete`/`sobrancelhaDoDiabrete`/`expressaoDoDiabrete`
+      nos momentos `roubou`, `suplica`, `perdeuOUltimo` e `vitorioso`, e os quatro
+      aparecem na folha do rosto montado toda vez que ela roda. O ENQUADRAMENTO
+      dela passa por `f3Enquadramento`, que é testado contra a lista de planos
+      real. Falta a foto, não a verificação.
 - [ ] o PERFIL continua limitado pela malha: a franja lateral passa na frente da
       bochecha e recorta o creme. Isso é remodelagem, não ajuste.
 - [x] ~~o rosto do modelo é um óvalo liso~~ — ciclo 3: o BICO DE VIÚVA entrou na
@@ -171,3 +396,128 @@ Lista viva — cada volta risca uma e acrescenta o que a foto nova mostrar.
       a cara ter formato de coração em vez de ovo. Os tufos pontudos dos lados o
       modelo já tinha, de malha.
 - [ ] conferir a cara na cutscene da QUEDA, que nunca foi fotografada
+
+
+## Ciclo 17 — a cara que o andar inteiro nunca mostrou
+
+### A folha das dezesseis, revista depois da língua, da boca redonda e da poda
+
+`as-dezesseis-caras.mjs 3` (todos os pincéis roubados). Quinze das dezesseis
+leem: `roubou`/`suplica` dão a boca redonda de susto (e ela deixou de ser lida
+como um segundo nariz), `perdeuOPrimeiro` mostra a ruga entre as sobrancelhas,
+`tonto` tem os X nos olhos, `vitorioso` fecha os olhos no sorriso, `perdeuOUltimo`
+despenca. `provoca`, `desenhou` e `espetou` saem iguais — e saem iguais porque
+com três pincéis roubados os três resolvem para `irritado`, que é a tabela
+funcionando, não um defeito.
+
+A décima sexta era a `ocioso`, e é onde estava o problema.
+
+### A língua estava desenhada contra uma boca que já não existe
+
+`ocioso` resolve para a boca `provocando`, que é a "LÍNGUA" da ficha do Felipe —
+e ela é também o visema de TODO L e TODO N que ele fala, ou seja aparece o tempo
+todo no meio das frases. Na folha ela parecia ausente. Fotografada de perto
+contra um controle (`?boca=sorrisoIronico`), estava lá: **como um calombo no
+canto do lábio, não como uma língua.**
+
+O motivo é datado. Os números da língua foram calculados contra o lábio de baixo
+do sorriso ANTIGO; num ciclo posterior eu alarguei o sorriso, e o centro dela
+(-0,700) ficou quase em cima da nova linha do lábio (-0,715) — só um terço do
+disco sobrava para fora da boca. Peça desenhada contra medida velha, que é a
+mesma classe de erro que o cenho já teve neste rosto.
+
+Descida para -0,762 e engordada para (0,132, 0,168), dois terços ficam de fora e
+ela lê. O piso continua sendo a máscara do rosto (-0,965): com raio 0,168 ela
+chega a -0,930 e a folga de creme continua existindo — o erro que a versão em
+canvas cometeu (a língua caindo do queixo e se misturando com a tinta do
+pescoço) não voltou. Conferido nas três câmeras.
+
+### E o achado grande: ele usava UMA cara no andar inteiro
+
+Varri quais dos dezesseis momentos o jogo de fato escolhe. `Floor3Rival` — que é
+o Diabrete durante toda a escalada, o personagem que mais aparece no andar —
+tinha isto escrito em dois lugares:
+
+    const momento = isDizzy() ? 'tonto' : 'provoca';
+
+Ou seja: **`provoca` do começo ao fim.** `f3Boca` tem expressão pronta para
+`desenhou`, `espetou`, `roubou` e `caiu`, cada uma variando com quantos pincéis
+ele já perdeu; `f3Olhos` e `f3Sobrancelha` idem. Tudo desenhado, tudo testado,
+tudo na folha de contato — e nada ligado. Ele dizia *"N-não… esse não… sem ele eu
+não sou NADA aqui…"* com a mesma cara de deboche com que tinha rabiscado os
+espinhos.
+
+E o sistema de falas SABIA qual era o evento. O campo `evento` já esteve em
+`f3Fala` e foi REMOVIDO, com um comentário correto pelo motivo errado — "campo
+escrito, tipado, e morto". Estava morto mesmo; morto porque **cortaram o fio, não
+o campo.** Agora o fio existe: enquanto o balão está no ar a cara é a do evento
+que o pôs lá, e quando a fala sai do ar ele volta a `provoca`, que é o repouso do
+personagem. Dois testes cobram — que o evento fique publicado, e que os eventos
+tenham de fato caras diferentes (senão publicar não muda nada).
+
+Custo: zero. É uma leitura de campo por quadro; nenhuma geometria nova, nenhum
+material novo, nenhum draw call.
+
+### Momentos que continuam sem gatilho nenhum
+
+Desenhados, testados, fotografados — e nunca escolhidos por código de jogo:
+`ocioso`, `quaseLaEmCima`, `perdeuOPrimeiro`, `pensando`, `derrotado`. Não mexi:
+cada um deles precisa de uma decisão de quando dispara (o `ocioso`, por exemplo,
+quer "o jogador está longe" — que o andar hoje não pergunta), e isso é escolha de
+design, não conserto.
+
+
+## Ciclo 18 — o fio da cara, provado em foto
+
+O ciclo 17 ligou a cara do Diabrete da escalada ao evento que causa cada fala, e
+entregou isso com teste puro. Teste puro prova a TABELA; não prova que
+`Floor3Rival` chegou a ler. A distinção não é acadêmica: `?boca=` foi flag morta
+por vários ciclos neste mesmo rosto, seis bocas "diferentes" saíram idênticas na
+foto, e o teste passava o tempo todo — porque testava o outro lado do fio.
+
+`?f3preview&diabo&evento=roubou&pinceis=3` põe uma fala no ar e a RENOVA (uma
+fala dura ~3 s, a bancada fotografa aos 12). Ela chama a mesma função que
+`f3Hazards` e `Player` chamam, e não escreve em `f3Fala` na mão — escrever na mão
+testaria a bancada.
+
+Quatro fotos da tela de verdade, e as quatro caras são diferentes:
+
+| o que está no ar | cara | como lê |
+|---|---|---|
+| nada (repouso) | `provoca` → sorriso irônico | olho estreito e malicioso |
+| `roubou`, 3 pincéis | `assustado` | olho ARREGALADO, sobrancelha alta |
+| `espetou` | `feliz` | olho fechado em arco, sorrisão |
+| `caiu` | `empolgado` | olho fechado, boca aberta |
+
+O fio anda. (`espetou` e `caiu` ficam parecidos com zero pincéis roubados —
+`feliz` e `empolgado` são primos. É a tabela, não o fio.)
+
+### O gatilho que o `ocioso` quer NÃO EXISTE neste andar
+
+A ficha listava cinco momentos sem gatilho, e o plano era ligar o `ocioso`, cujo
+comentário diz o que ele quer: *"língua de fora, sem ninguém por perto"*. Fui
+ver, e não dá — não por dificuldade, por geometria de design.
+
+`Floor3Rival` persegue `f3PlayerZ.current + LEAD_Z`, com `LEAD_Z = 14`. Ele é um
+lebre amarrada ao jogador: o alvo dele é SEMPRE catorze metros à frente de onde o
+jogador está. "Sem ninguém por perto" não é um estado que este andar tenha —
+ligar o `ocioso` a distância seria inventar uma condição que a encenação removeu
+de propósito. Não liguei, e o motivo fica aqui para o próximo ciclo não tentar de
+novo.
+
+Os outros quatro, revistos com a mesma régua: `quaseLaEmCima` resolve para
+`sorrisoIronico`, que é a MESMA cara de `provoca` com zero pincéis — ligá-lo não
+mudaria um pixel. `perdeuOPrimeiro` (`zangado`) tem cara própria, mas o gatilho
+dele é o roubo do primeiro pincel, que `roubou` já cobre. Ou seja: dos cinco
+"desligados", só o `ocioso` tinha algo a acrescentar, e é justamente o que não
+tem onde ser ligado.
+
+### A guarda de coerência mordeu a mão certa pelo motivo certo
+
+`f3Coerencia` varre o código atrás de `dizer(...)` sem `roubados` — porque a voz
+dele envelhece a cada pincel perdido e uma fala pelada faz o sujeito voltar a
+soar seguro de si depois de ter perdido tudo. Ela reprovou o commit por causa de
+um COMENTÁRIO meu que escrevia o nome da função com parênteses vazios. A guarda
+estava certa em ser textual; o `*` do padrão é que aceitava lista vazia. Virou
+`+`: chamada sem argumento nenhum o compilador já barra, então exigir ao menos um
+argumento não tira dente nenhum — `dizer('espetou')` continua sendo pego.

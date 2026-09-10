@@ -53,6 +53,30 @@ export const FOV_MAXIMO = 66;
  */
 export const RECUO_MAXIMO = 2.5;
 
+/**
+ * ── E ISSO, SOZINHO, DEIXOU A DECUPAGEM COM UMA LENTE SÓ ─────────────────────
+ *
+ * A varredura das oito falas da súplica mediu `fov` 66 nas OITO. E não é acaso:
+ * na tela dele `quantoFalta` é 3,55, e para qualquer `fov` composto entre 41 e
+ * 52 a conta estoura o teto — todo plano bate em `FOV_MAXIMO` E em
+ * `RECUO_MAXIMO`. Os quatro planos da cena (41, 42, 48, 52 graus) viravam quatro
+ * cópias da mesma lente, todas 2,5 vezes mais longe. O primeiríssimo plano saía
+ * a 4,3 m com a cabeça dele ocupando 25% da altura da tela; a decupagem inteira
+ * ficava variando só distância.
+ *
+ * O erro estava na PREMISSA, não na conta: "devolver o enquadramento horizontal"
+ * só faz sentido quando o que importa no plano é largo. Um close é um assunto
+ * VERTICAL — uma cabeça — e numa tela em pé ele já cabe; o que estava ao lado
+ * dele era o vazio. Comprar de volta esse vazio custou o plano.
+ *
+ * Então o plano passa a DIZER de quanta largura ele precisa. `largura` é a
+ * fração do que se perdeu que vale a pena recomprar: 1 é o comportamento de
+ * sempre (plano largo — a escadaria, o gesto do braço), 0 devolve o plano
+ * composto intacto (plano de figura só — cabeça, corpo pendurado). O padrão é 1,
+ * então nada que não peça muda.
+ */
+export const LARGURA_PADRAO = 1;
+
 export interface Enquadrado {
     /** O `fov` vertical a usar, em graus. */
     fov: number;
@@ -78,6 +102,7 @@ export function enquadrar(
     fov: number,
     aspecto: number,
     aspectoDeProjeto = ASPECTO_DE_PROJETO,
+    largura = LARGURA_PADRAO,
 ): Enquadrado {
     // Entrada suja não pode virar câmera com NaN: uma câmera com NaN não fica
     // torta, ela some, e o andar inteiro fica preto. Aspecto zero acontece de
@@ -88,7 +113,13 @@ export function enquadrar(
         return { fov, recuo: 1 };
     }
 
-    const quantoFalta = aspectoDeProjeto / aspecto;
+    const bruto = aspectoDeProjeto / aspecto;
+    if (bruto <= 1) return { fov, recuo: 1 };
+
+    // Quanto da largura perdida este plano quer de volta. Fora de [0, 1] é
+    // entrada suja, e entrada suja aqui vira câmera errada em silêncio.
+    const quanto = Number.isFinite(largura) ? Math.max(0, Math.min(1, largura)) : LARGURA_PADRAO;
+    const quantoFalta = 1 + (bruto - 1) * quanto;
     if (quantoFalta <= 1) return { fov, recuo: 1 };
 
     // Quanto de abertura horizontal o plano original tinha, em tangente.

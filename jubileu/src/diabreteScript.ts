@@ -41,6 +41,21 @@ export function lineAt(t: number): number {
     return DIABRETE_SCRIPT.length - 1;
 }
 
+/**
+ * Onde a fala `i` começa, em segundos desde o início da cena.
+ *
+ * Existe para a BANCADA poder parar a cutscene numa fala e fotografá-la. A
+ * apresentação se dirige por relógio interno (ao contrário da queda, que recebe
+ * a fala como prop), então sem isto o único jeito de ver a fala 7 era esperar a
+ * cena inteira chegar lá — num navegador de bancada a ~2 fps, o que na prática
+ * significa nunca ver. Ver `?f3preview&fala=N`.
+ */
+export function inicioDaFala(i: number): number {
+    let acc = 0;
+    for (let k = 0; k < Math.min(i, DIABRETE_SCRIPT.length); k++) acc += DIABRETE_SCRIPT[k].dur;
+    return acc;
+}
+
 /** Seconds into the current line (for per-line ease-in animation). */
 export function timeInLine(t: number): number {
     let acc = 0;

@@ -3,11 +3,47 @@ import {
     dizer, escolherFala, falaViva, limparFalas, f3Fala, aoFalar,
     type EventoDoDiabrete,
 } from '../f3Falas';
+import { expressaoDoDiabrete } from '../f3Boca';
+import { olhoDoDiabrete } from '../f3Olhos';
+import { sobrancelhaDoDiabrete } from '../f3Sobrancelha';
 
 const EVENTOS: EventoDoDiabrete[] = ['desenhou', 'espetou', 'roubou', 'caiu', 'provoca'];
 
 describe('f3Falas — a voz do Diabrete durante a escalada', () => {
     beforeEach(() => { limparFalas(); aoFalar(null); });
+
+    // ── O FIO ENTRE A FALA E A CARA ─────────────────────────────────────
+    //
+    // O evento já esteve neste módulo e foi REMOVIDO por estar morto — e ele
+    // estava morto porque ninguém tinha ligado a cara nele. `Floor3Rival` usava
+    // `'provoca'` do começo ao fim do andar, então o Diabrete dizia "N-não…
+    // esse não… sem ele eu não sou NADA aqui…" com a mesma cara de deboche com
+    // que tinha rabiscado os espinhos. Cortaram o fio, não o campo.
+    //
+    // Estes dois cobram o fio: que o evento fique publicado, e que cada um
+    // deles tenha de fato uma cara própria para valer a pena ser publicado.
+    it('a fala no ar publica o evento que a causou', () => {
+        for (const e of EVENTOS) {
+            dizer(e, { roubados: 1 });
+            expect(f3Fala.evento, e).toBe(e);
+        }
+        limparFalas();
+        expect(f3Fala.evento).toBe('provoca');
+    });
+
+    it('cada evento tem uma cara sua — senão publicar o evento não muda nada', () => {
+        for (let roubados = 0; roubados <= 3; roubados++) {
+            const caras = new Set(EVENTOS.map((e) => [
+                expressaoDoDiabrete(e, roubados),
+                olhoDoDiabrete(e, roubados),
+                sobrancelhaDoDiabrete(e, roubados),
+            ].join('|')));
+            // Cinco eventos não precisam de cinco caras diferentes (bravo é
+            // bravo), mas se todos caírem na MESMA a ligação é decorativa.
+            expect(caras.size, `com ${roubados} pincéis roubados todos os eventos`
+                + ` têm a mesma cara: ${[...caras][0]}`).toBeGreaterThan(2);
+        }
+    });
 
     it('todo evento do andar tem resposta dele', () => {
         for (const e of EVENTOS) {

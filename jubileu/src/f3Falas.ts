@@ -150,6 +150,20 @@ export const f3Fala = {
     ate: 0,        // performance.now() em que ela sai do ar
     dura: 0,       // segundos que ela fica no ar — a BOCA precisa disto, não o HUD
     serie: 0,      // sobe a cada fala nova (o HUD compara isto, não a string)
+    /**
+     * POR QUE O EVENTO VOLTOU.
+     *
+     * Ele já esteve aqui e saiu, com o comentário certo pelo motivo errado:
+     * "campo escrito, tipado, e morto". Estava morto mesmo — e a razão de estar
+     * morto era um defeito, não uma limpeza. `expressaoDoDiabrete` tem cara
+     * pronta para `desenhou`, `espetou`, `roubou` e `caiu`, desenhada e testada,
+     * e o Diabrete da escalada usava `provoca` do começo ao fim do andar. Ele
+     * dizia "N-não… esse não… sem ele eu não sou NADA aqui…" com a mesma cara de
+     * deboche com que tinha desenhado os espinhos.
+     *
+     * Cortaram o FIO, não o campo. Agora o fio existe: quem lê é `Floor3Rival`.
+     */
+    evento: 'provoca' as EventoDoDiabrete,
 };
 
 /**
@@ -187,6 +201,7 @@ export function dizer(evento: EventoDoDiabrete, ctx: Contexto = {}): Fala {
     f3Fala.ate = agora() + f.dura * 1000;
     f3Fala.dura = f.dura;
     f3Fala.serie += 1;
+    f3Fala.evento = evento;
     _avisar?.({ ...f, roubados: Math.max(0, Math.floor(ctx.roubados ?? 0) || 0) });
     return f;
 }
@@ -198,6 +213,7 @@ export function falaViva(t = agora()): string {
 
 export function limparFalas(): void {
     f3Fala.texto = ''; f3Fala.ate = 0; f3Fala.dura = 0; f3Fala.serie = 0;
+    f3Fala.evento = 'provoca';
     for (const k of Object.keys(cursor) as EventoDoDiabrete[]) cursor[k] = 0;
 }
 

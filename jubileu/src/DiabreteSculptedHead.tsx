@@ -43,6 +43,14 @@ function curvedShape(shape: THREE.Shape, lift = 0.015, subdivisions = 2) {
   return geometry;
 }
 
+// ── O CUSTO DA MÁSCARA ───────────────────────────────────────────────────────
+// `curvedShape` subdivide cada triângulo 4^n vezes para a forma acompanhar a
+// curvatura do crânio. Com n=4 são 256 triângulos por triângulo de origem, e a
+// máscara é a maior forma da cabeça: só ela respondia por boa parte dos 52 mil
+// triângulos que a bancada mediu no andar (a cara pintada antiga custava 22 mil).
+// A regra número um do dono do jogo é velocidade no celular dele.
+// Com n=3 são 64 — quatro vezes menos — e a foto de frente, de 3/4 e de perfil
+// não muda: a máscara é quase plana perto do centro, que é onde ela é grande.
 function faceMask() {
   const s = new THREE.Shape();
   s.moveTo(0, -0.035);
@@ -55,7 +63,7 @@ function faceMask() {
   s.bezierCurveTo(0.85, 0.43, 0.72, 0.69, 0.51, 0.69);
   s.bezierCurveTo(0.31, 0.7, 0.15, 0.19, 0, -0.035);
   s.closePath();
-  return curvedShape(s, 0.026, 4);
+  return curvedShape(s, 0.026, 3);
 }
 
 function eye(side: number) {
@@ -106,23 +114,44 @@ function tapered(points: number[][], radius: number, rings = 20, sides = 14) {
 }
 
 function mouth() {
+  // ── O CANTO ESQUERDO MAL EXISTIA ──────────────────────────────────────────
+  // O sorriso ia de x -0,24 a +0,66: dois terços da cara, todo do lado que
+  // sobe. Na foto de repouso ele lia como um sorriso torto CORTADO, não como um
+  // sorriso torto. Na referência ele atravessa o rosto e SOBE de um lado — a
+  // torção vem da inclinação, não de faltar boca do outro lado.
+  // Estendido para -0,46, mantendo a subida e a ponta direita onde estavam.
   const s = new THREE.Shape();
-  s.moveTo(-0.24, -0.62);
-  s.bezierCurveTo(0.03, -0.62, 0.38, -0.51, 0.66, -0.34);
-  s.bezierCurveTo(0.59, -0.62, 0.25, -0.79, -0.05, -0.69);
-  s.bezierCurveTo(-0.13, -0.67, -0.2, -0.64, -0.24, -0.62);
+  s.moveTo(-0.46, -0.60);
+  s.bezierCurveTo(-0.10, -0.635, 0.32, -0.52, 0.66, -0.34);
+  s.bezierCurveTo(0.59, -0.62, 0.22, -0.80, -0.14, -0.715);
+  s.bezierCurveTo(-0.27, -0.685, -0.39, -0.64, -0.46, -0.60);
   return curvedShape(s, 0.04, 2);
 }
 
 function sculptAssets() {
     const mask = faceMask(), eyes = [-1, 1].map(eye);
-    const brows = [-1, 1].map(side => stroke([[side * 0.29, 0.47], [side * 0.41, 0.59], [side * 0.54, 0.61], [side * 0.64, 0.51]], 0.010, 0.039));
+    // As sobrancelhas desceram (0,47..0,61 -> 0,41..0,53) e engrossaram um fio.
+    // Com a piscada travada (`?sempiscar`) dá para ver o repouso, e nele elas
+    // flutuavam perto da linha do cabelo, longe do olho, que acaba em 0,38 — a
+    // ficha de modelagem dele diz que a sobrancelha é PARTE DO CONTORNO DO OLHO.
+    const brows = [-1, 1].map(side => stroke([[side * 0.29, 0.41], [side * 0.41, 0.51], [side * 0.54, 0.53], [side * 0.64, 0.44]], 0.012, 0.039));
     const lids = [-1, 1].map(side => stroke([[side * 0.24, -0.035], [side * 0.42, -0.065], [side * 0.62, -0.055], [side * 0.72, 0.002]], 0.013));
     const horns = [-1, 1].map(side => tapered([[side * 0.67, 0.65, -0.04], [side * 0.86, 0.92, -0.035], [side * 0.91, 1.2, -0.015], [side * 0.86, 1.52, 0]], 0.27));
+    // ── OS TUFOS FORAM PARA TRÁS ─────────────────────────────────────────────
+    // Eles moravam em z -0,10..-0,03, ou seja quase no plano central do crânio
+    // (RZ 0,91). De frente e de 3/4 não faz diferença; de PERFIL eles cruzavam a
+    // silhueta da cabeça num ângulo rasante e o sombreado os revelava como
+    // vincos escuros no meio do crânio — parecia a cabeça rachada, não cabelo.
+    // Recuados para z -0,38..-0,30 eles ficam ATRÁS da parte mais larga da
+    // cabeça, que é onde a referência os põe: cabelo do lado e de trás, não em
+    // cima da bochecha.
     const tufts = [-1, 1].flatMap(side => [0, 1, 2].map(i => tapered(
-      [[side * 0.86, 0.02 - i * 0.21, -0.10], [side * 1.08, -0.02 - i * 0.2, -0.06], [side * (1.19 - i * 0.045), 0.15 - i * 0.22, -0.03]], 0.19 - i * 0.02, 12, 10)));
+      [[side * 0.86, 0.02 - i * 0.21, -0.38], [side * 1.08, -0.02 - i * 0.2, -0.34], [side * (1.19 - i * 0.045), 0.15 - i * 0.22, -0.30]], 0.19 - i * 0.02, 12, 10)));
     const grin = mouth();
-    const teeth = stroke([[-0.20, -0.624], [0.08, -0.61], [0.39, -0.50], [0.63, -0.37]], 0.008, 0.056);
+    // A fileira de dentes acompanha a boca nova, mas continua só no lado que
+    // SOBE — "dentes apenas de um lado" é o que a folha de modelagem dele pede,
+    // e é o que faz o sorriso ser debochado em vez de simpático.
+    const teeth = stroke([[-0.30, -0.617], [0.04, -0.614], [0.36, -0.51], [0.63, -0.37]], 0.008, 0.056);
     const divisions = [
       [[-0.06, -0.626], [-0.04, -0.686]], [[0.10, -0.60], [0.13, -0.708]],
       [[0.28, -0.55], [0.31, -0.668]], [[0.44, -0.47], [0.46, -0.593]],
@@ -150,7 +179,10 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
     group.add(mesh);
     return mesh;
   }
-  const skull = add(new THREE.SphereGeometry(1, 56, 40), ink);
+  // 56x40 dá 4.480 triângulos numa bola que é lisa e chapada de tinta; 40x28 dá
+// 2.240 e a silhueta não muda — o contorno de uma esfera desse tamanho na tela
+// já está liso com bem menos.
+const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   skull.scale.set(RX, RY, RZ);
   if (neck) {
     const collar = add(new THREE.CylinderGeometry(0.2, 0.23, 0.5, 20), ink);
@@ -179,6 +211,13 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
     add(stroke([[side * 0.34, -0.26], [side * 0.58, 0.13]], 0.02, 0.052), line),
   ]);
   for (const mesh of dizzyMeshes) mesh.visible = false;
+  // ── A RUGA ───────────────────────────────────────────────────────────────
+  // `bravaComRuga` e `raiva` eram desenhadas EXATAMENTE igual — duas das oito
+  // sobrancelhas da ficha dele indistinguíveis. O que separa as duas, na ficha,
+  // é o V entre elas. São dois riscos e mais nada.
+  const rugaMeshes = [-1, 1].map(side => add(
+    stroke([[side * 0.05, 0.42], [side * 0.10, 0.30], [side * 0.13, 0.19]], 0.011, 0.040), line));
+  for (const mesh of rugaMeshes) mesh.visible = false;
   const eyeBases = assets.eyes.map(g => Float32Array.from(g.getAttribute('position').array));
   const neutralEyes = eyeBases.map(a => Float32Array.from(a));
   const browBases = assets.brows.map(g => Float32Array.from(g.getAttribute('position').array));
@@ -186,23 +225,35 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
   let expressionBlink = 0;
   let expressionKey = '';
   let lastBlink = -1;
+  let expressionUpdatedAt = 0;
+  let expressionSettled = false;
   function setExpression(look: string, brow: string) {
     const key = `${look}:${brow}`;
-    if (expressionKey === key) return;
+    const now = performance.now();
+    const blend = expressionUpdatedAt === 0 ? 1 : 1 - Math.exp(-28 * Math.min(.05, Math.max(.001, (now - expressionUpdatedAt) / 1000)));
+    expressionUpdatedAt = now;
+    if (expressionKey === key && expressionSettled) return;
     expressionKey = key;
+    expressionSettled = true;
+    const approach = (from: number, to: number) => {
+      if (Math.abs(from - to) < .0005) return to;
+      expressionSettled = false;
+      return THREE.MathUtils.lerp(from, to, blend);
+    };
     const shiftX = look === 'esquerda' ? -0.045 : look === 'direita' ? 0.045 : 0;
     const shiftY = look === 'cima' ? 0.035 : look === 'baixoMalicioso' ? -0.035 : 0;
-    expressionBlink = look === 'fechadoSorrindo' ? 1 : look === 'semicerrado' ? 0.48 : look === 'malicia' || look === 'baixoMalicioso' ? 0.22 : 0;
+    expressionBlink = approach(expressionBlink, look === 'fechadoSorrindo' ? 1 : look === 'semicerrado' ? 0.48 : look === 'malicia' || look === 'baixoMalicioso' ? 0.22 : 0);
     for (const mesh of eyeMeshes) mesh.visible = look !== 'tonto';
     for (const mesh of dizzyMeshes) mesh.visible = look === 'tonto';
+    for (const mesh of rugaMeshes) mesh.visible = brow === 'bravaComRuga';
     for (let j = 0; j < eyeBases.length; j++) {
       const side = j === 0 ? -1 : 1;
       for (let i = 0; i < eyeBases[j].length; i += 3) {
         const x = neutralEyes[j][i];
         const width = look === 'arregalado' ? 1.06 : 1;
         const yScale = look === 'triste' ? 0.84 : look === 'bravo' ? 0.9 : 1;
-        eyeBases[j][i] = side * 0.46 + (x - side * 0.46) * width + shiftX;
-        eyeBases[j][i + 1] = -0.06 + (neutralEyes[j][i + 1] + 0.06) * yScale + shiftY;
+        eyeBases[j][i] = approach(eyeBases[j][i], side * 0.46 + (x - side * 0.46) * width + shiftX);
+        eyeBases[j][i + 1] = approach(eyeBases[j][i + 1], -0.06 + (neutralEyes[j][i + 1] + 0.06) * yScale + shiftY);
       }
       for (const [geometry, baseline, isLid] of [[assets.brows[j], browBases[j], false], [assets.lids[j], lidBases[j], true]] as const) {
         const attr = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -217,7 +268,7 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
           else if (brow === 'ironia') change = side > 0 ? 0.035 : -0.055;
           else if (brow === 'desconfiada') change = side > 0 ? 0.02 : -0.075;
           else if (brow === 'pensativa') change = side > 0 ? -outward * 0.25 : -0.045;
-          const y = y0 + change;
+          const y = approach(attr.getY(i), y0 + change);
           const lift = baseline[i * 3 + 2] - front(x, y0, 0);
           attr.setXYZ(i, x, y, front(x, y, lift));
         }
@@ -231,13 +282,14 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
     const closed = THREE.MathUtils.clamp(Math.max(amount, expressionBlink), 0, 1);
     if (Math.abs(closed - lastBlink) < 0.001) return;
     lastBlink = closed;
+    for (const mesh of eyeMeshes) mesh.visible = closed < .998 && !expressionKey.startsWith('tonto:');
     for (let j = 0; j < assets.eyes.length; j++) {
       const a = assets.eyes[j].getAttribute('position') as THREE.BufferAttribute;
       const base = eyeBases[j];
       const normals = assets.eyes[j].getAttribute('normal') as THREE.BufferAttribute;
       const normal = new THREE.Vector3();
       for (let i = 0; i < a.count; i++) {
-        const x = base[i * 3], y = -0.06 + (base[i * 3 + 1] + 0.06) * (1 - closed * 0.98);
+        const x = base[i * 3], y = -0.06 + (base[i * 3 + 1] + 0.06) * (1 - closed);
         a.setXYZ(i, x, y, front(x, y, 0.043));
         normal.set(x / (RX * RX), y / (RY * RY), front(x, y, 0) / (RZ * RZ)).normalize();
         normals.setXYZ(i, normal.x, normal.y, normal.z);
@@ -249,20 +301,109 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
   const mouthBases = mouthGeometries.map(g => Float32Array.from(g.getAttribute('position').array));
   const mouthMeshes = group.children.filter(child => child instanceof THREE.Mesh && mouthGeometries.includes(child.geometry));
   const roundShape = new THREE.Shape();
-  roundShape.absellipse(0, -0.68, 0.12, 0.13, 0, Math.PI * 2, false, 0);
+  // ── A BOCA REDONDA ERA UM SEGUNDO NARIZ ────────────────────────────────────
+  // Com 0,12 x 0,13 logo abaixo de um nariz de 0,126 x 0,077, o "O" de susto
+  // saía do mesmo tamanho e no mesmo eixo que a bola do nariz — na folha das
+  // dezesseis caras, `roubou` lia como se ele tivesse duas nareba, uma em cima
+  // da outra. Boca de susto de desenho animado é GRANDE, e desloca para o lado
+  // que o sorriso torto já levanta. Mas 0,19 x 0,215 em -0,71 passou do outro
+  // lado: encostava no queixo e virava um borrão. 0,163 x 0,178 em -0,655.
+  roundShape.absellipse(0.07, -0.655, 0.163, 0.178, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
+  // ── A LÍNGUA ──────────────────────────────────────────────────────────────
+  //
+  // `provocando` não tinha língua na escultura, e não é uma pose rara: além do
+  // `ocioso`, ela é o visema de TODO L e TODO N que ele fala (ver `f3Boca`), ou
+  // seja aparece o tempo todo no meio das frases. Sem ela, "provocando" e
+  // "sorrindo" eram a mesma cara.
+  //
+  // Duas peças, e a segunda é o que a faz ler: a massa de TINTA pendurada no
+  // lábio de baixo, e um VINCO de creme no meio dela. Sem o vinco, sobre um
+  // rosto que já é claro, ela vira um pingo — foi exatamente esse o erro na
+  // versão em canvas, onde a língua saía creme com contorno e desenhava uma
+  // rosquinha.
+  const linguaShape = new THREE.Shape();
+  // Onde ela cabe, e isso é conta: a máscara do rosto acaba em y -0,965, e o
+  // lábio de baixo do sorriso passa por -0,715 perto de x -0,14. Centrada em
+  // (-0,14, -0,795) com raio 0,145 ela nasce DENTRO da boca e pendura até
+  // -0,94 — ainda no creme. A primeira tentativa, centrada em (-0,02, -0,80)
+  // com raio 0,175, ia até -0,975: caía do queixo e se misturava com a tinta do
+  // pescoço.
+  //
+  // ── E ELA NÃO LIA ─────────────────────────────────────────────────────────
+  //
+  // Fotografada de perto contra um controle (`?boca=sorrisoIronico`), ela
+  // aparecia — e aparecia como um CALOMBO no canto do lábio, não como uma
+  // língua. O motivo é que o sorriso ALARGOU num ciclo posterior a ela, e estes
+  // números foram calculados contra o lábio antigo: centrada em -0,700, com o
+  // lábio de baixo passando por -0,715, só um terço do disco ficava para fora
+  // da boca. Peça desenhada contra medida velha — a mesma classe de erro que
+  // este arquivo já teve com o cenho.
+  //
+  // Descer o centro põe DOIS terços para fora, que é o que faz o desenho ler
+  // como língua pendurada. O piso continua sendo a máscara do rosto, que acaba
+  // em -0,965: com raio 0,168 e centro -0,762 ela vai até -0,930, e a folga de
+  // creme continua existindo.
+  linguaShape.absellipse(-0.15, -0.762, 0.132, 0.168, 0, Math.PI * 2, false, 0);
+  const lingua = add(curvedShape(linguaShape, 0.052, 3), line);
+  const vincoDaLingua = add(
+    stroke([[-0.155, -0.668], [-0.15, -0.762], [-0.144, -0.858]], 0.016, 0.064), cream);
+  lingua.visible = false; vincoDaLingua.visible = false;
+
   let lastMouth = -1;
   let lastPose = '';
+  let mouthUpdatedAt = 0;
+  let mouthSettled = false;
+  const roundBase = Float32Array.from(roundMouth.geometry.getAttribute('position').array);
   function setMouth(amount: number, pose = 'sorrisoIronico') {
     const open = THREE.MathUtils.clamp(amount, 0, 1);
-    if (Math.abs(open - lastMouth) < 0.001 && pose === lastPose) return;
+    const now = performance.now();
+    const blend = mouthUpdatedAt === 0 ? 1 : 1 - Math.exp(-36 * Math.min(.05, Math.max(.001, (now - mouthUpdatedAt) / 1000)));
+    mouthUpdatedAt = now;
+    if (Math.abs(open - lastMouth) < 0.001 && pose === lastPose && mouthSettled) return;
+    mouthSettled = true;
+    const approach = (from: number, to: number) => {
+      if (Math.abs(from - to) < .0005) return to;
+      mouthSettled = false;
+      return THREE.MathUtils.lerp(from, to, blend);
+    };
     lastMouth = open; lastPose = pose;
     const round = ['surpreso', 'assustado', 'falando4', 'falando6'].includes(pose);
     const sad = ['triste', 'desanimado', 'confuso'].includes(pose);
     const angry = ['bravo', 'irritado', 'zangado'].includes(pose);
     const closedPose = ['neutra', 'pensativo', 'fechadoSatisfeito', 'fechadoSarcastico'].includes(pose);
+    // ── DEZ BOCAS ERAM A MESMA BOCA ──────────────────────────────────────────
+    //
+    // As classes acima cobriam 14 das 27 formas de `f3Boca`. As outras 13 caíam
+    // todas no mesmo sorriso padrão, variando só pela ABERTURA. E o estrago
+    // aparecia onde mais importa: dos doze quadros do ciclo de fala, OITO eram a
+    // mesma forma. Ou seja a queixa original dele — "a boca dele se mexe muito
+    // pouco" — voltava inteira pela porta dos fundos, agora que a cara é
+    // geometria em vez de canvas.
+    //
+    // Duas classes novas resolvem a maior parte, porque é onde as formas da
+    // ficha dele mais se afastam do sorriso de repouso: a gargalhada (abre muito,
+    // mostra a fileira inteira) e a fala miúda (estreita e curta, a boca de quem
+    // está no meio de uma sílaba).
+    const wide = ['risadaIronica', 'empolgado', 'feliz', 'dentesDebochados'].includes(pose);
+    const narrow = ['falando1', 'falando3', 'falando5', 'sorriso'].includes(pose);
     roundMouth.visible = round;
+    if (round) {
+      const attr = roundMouth.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const phoneme = pose === 'falando4' || pose === 'falando6';
+      const sx = pose === 'falando6' ? .78 : 1;
+      const sy = phoneme ? .70 + open * .55 : 1;
+      for (let i = 0; i < attr.count; i++) {
+        const x = approach(attr.getX(i), .07 + (roundBase[i * 3] - .07) * sx);
+        const y = approach(attr.getY(i), -.655 + (roundBase[i * 3 + 1] + .655) * sy);
+        attr.setXYZ(i, x, y, front(x, y, .051));
+      }
+      attr.needsUpdate = true;
+      roundMouth.geometry.computeVertexNormals();
+    }
+    const comLingua = pose === 'provocando';
+    lingua.visible = comLingua; vincoDaLingua.visible = comLingua;
     for (const mesh of mouthMeshes) mesh.visible = !round;
     for (let j = 0; j < mouthGeometries.length; j++) {
       const a = mouthGeometries[j].getAttribute('position') as THREE.BufferAttribute;
@@ -273,7 +414,7 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
         const originalX = base[i * 3], originalY = base[i * 3 + 1];
         let x = originalX;
         const lowerLip = THREE.MathUtils.clamp((-originalY - 0.48) / 0.24, 0, 1);
-        let y = originalY - open * lowerLip * (j === 0 ? 0.13 : 0.01);
+        let y = originalY;
         if (angry || sad) {
           x = (originalX - 0.2) * (sad ? 0.72 : 0.9);
           y = -1.22 - (originalY - 0.31 * (originalX - 0.2));
@@ -283,7 +424,24 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
           y = upper + (originalY - upper) * 0.2;
         } else if (['grinhoLateral', 'deboche', 'provocando'].includes(pose)) {
           x = 0.3 + (originalX - 0.2) * 0.8;
+        } else if (wide) {
+          // Gargalhada: cresce nos dois eixos em volta do meio da boca (-0,575),
+          // que é o pivô que as outras classes já usam.
+          x = 0.18 + (originalX - 0.18) * 1.10;
+          y = -0.575 + (originalY + 0.575) * 1.34;
+        } else if (narrow) {
+          // Fala miúda: encolhe. É o contraste com a de cima que faz o ciclo de
+          // doze quadros voltar a ter movimento.
+          x = 0.24 + (originalX - 0.24) * 0.70;
+          y = -0.575 + (originalY + 0.575) * 0.74;
         }
+        // Outline, tooth seams and inset follow the same jaw deformation.
+        // Applying it after the expression also keeps wide/narrow speech alive.
+        if (!closedPose) y -= open * lowerLip * .12;
+        const edge = RY * Math.sqrt(Math.max(.01, 1 - (x / RX) ** 2)) * .95;
+        y = THREE.MathUtils.clamp(y, -edge, edge);
+        x = approach(a.getX(i), x);
+        y = approach(a.getY(i), y);
         const lift = base[i * 3 + 2] - front(originalX, originalY, 0);
         a.setXYZ(i, x, y, front(x, y, lift));
         if (j < 2) {
