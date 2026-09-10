@@ -59,7 +59,9 @@ import { Floor7Environment, Floor7Overlay, useFloor7Handle } from './Floor7';
 import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
 import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
+import Floor12 from './Floor12';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
+import { configureFloor12Sfx, clearFloor12Sfx } from './floor12Sfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
@@ -1132,6 +1134,7 @@ export default function App() {
   useEffect(() => {
     if (currentLevel !== 5 || !audioCtx) return;
     configureFloor5RaceSfx(audioCtx, cartoonBusRef.current);
+    configureFloor12Sfx(audioCtx, cartoonBusRef.current);
     return () => clearFloor5RaceSfx();
   }, [currentLevel, audioCtx]);
   // ── Floor 6 audio + fresh escape-room state on every arrival.
@@ -1502,6 +1505,18 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+      } else if (startLevel === 12) {
+        // Andar 12 — A CABEÇA. Igual ao andar 5: as portas ficam ABERTAS e o
+        // overlay monta com a introdução dele (o elevador se desdobrando em
+        // avião). Com as portas fechadas o overlay nem monta, e a tela ficaria
+        // no poço do elevador para sempre.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       } else if (startLevel === 6) {
         // Andar 6 — a Suíte 612 (escape room). First person, fresh state,
         // spawn just outside the doors so the BANG beat fires on the walk-in.
@@ -1734,6 +1749,26 @@ export default function App() {
 
   // ── Leave Floor 5 (the podium's ELEVADOR button): still going UP — the
   // ride continues to Floor 6, the fresh baseplate waiting to become a floor.
+  /**
+   * Saída do ANDAR 12. Ele é o último andar escrito até aqui, então o elevador
+   * volta ao SAGUÃO em vez de subir para um 13 que não existe — mandar o
+   * jogador para um andar vazio é pior do que fechar o ciclo.
+   */
+  const handleFloor12Exit = useCallback(() => {
+    clearFloor12Sfx();
+    setGameState('outdoor');
+    setNightMode(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    setNextElevatorDestination(0);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+
   const handleFloor5RaceExit = useCallback(() => {
     setGameState('outdoor');
     setNightMode(false);
@@ -2781,6 +2816,9 @@ export default function App() {
           then arrives inside the 2D elevator, whose doors slide open. */}
       {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
       {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
+      {/* Andar 12 — a luta aérea. Overlay próprio, como o andar 5: ele tem
+          Canvas, câmera e controles dele, e o mundo do hotel fica por baixo. */}
+      {currentLevel === 12 && !doorsClosed && <Floor12 onExit={handleFloor12Exit} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}

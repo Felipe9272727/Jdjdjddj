@@ -191,6 +191,15 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-12-cabeca',
+    level: 12,
+    name: 'Andar 12 — A Cabeça',
+    label: 'Andar 12',
+    description: 'O elevador vira avião. Luta aérea contra uma cabeça gigante que cospe a lore do hotel pela boca — com o irmão mal-humorado do TROCO-64 de ala.',
+    color: 'from-sky-500 via-indigo-400 to-rose-400',
+    icon: <span aria-hidden="true">✈</span>,
+  },
+  {
     id: 'floor-11-agent',
     level: 11,
     name: 'Andar 11 — companheiro',

@@ -55,6 +55,10 @@ void enableCpuThreadsFallback();
 // DEV-ONLY: isolated visual previews at `?f3preview` / `?f2preview`. Never hit
 // in normal play; lets a scene be screenshotted/tuned without the full game.
 const Floor3Preview = lazy(() => import('./Floor3Preview.tsx'));
+// DEV-ONLY: `?f12` abre o ANDAR 12 direto, sem atravessar onze andares de
+// elevador. `lazy` aqui é seguro — este é o topo do DOM, fora de qualquer
+// Canvas do react-three-fiber (dentro do Canvas a suspensão derruba a árvore).
+const Floor12Dev = lazy(() => import('./floor12-dev.tsx'));
 const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
 // `?bancada` abre a bancada do cérebro do Nilo: cota do navegador, cronômetro
 // por etapa e erros na tela, sem o jogo em volta. Precisa estar AQUI porque o
@@ -93,6 +97,7 @@ const Floor10PipelineSala = lazy(() => import('./Floor10PipelineSala.tsx'));
 const Floor10VelocidadeSala = lazy(() => import('./Floor10VelocidadeSala.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
+const isF12 = search.includes('f12');
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
 const isComparacao = search.includes('comparacao');
@@ -140,6 +145,8 @@ createRoot(document.getElementById('root')!).render(
       <Suspense fallback={null}><Floor2Preview /></Suspense>
     ) : isF3Preview ? (
       <Suspense fallback={null}><Floor3Preview /></Suspense>
+    ) : isF12 ? (
+      <Suspense fallback={null}><Floor12Dev /></Suspense>
     ) : (
       <SettingsProvider>
         <App />
