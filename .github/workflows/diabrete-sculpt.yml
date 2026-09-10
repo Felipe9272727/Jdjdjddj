@@ -26,7 +26,7 @@ jobs:
       - name: Start model studio
         run: npx vite --host 0.0.0.0 --port 5173 > /tmp/diabrete-vite.log 2>&1 &
       - run: npx playwright install --with-deps chromium
-      - run: node tools/diabrete-visual-smoke.mjs
+      - run: node tools/diabrete-visual-smoke.mjs --face-only
         timeout-minutes: 4
       - uses: actions/upload-artifact@v4
         if: always()

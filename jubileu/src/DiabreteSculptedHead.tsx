@@ -63,7 +63,7 @@ function faceMask() {
   s.bezierCurveTo(0.85, 0.43, 0.72, 0.69, 0.51, 0.69);
   s.bezierCurveTo(0.31, 0.7, 0.15, 0.19, 0, -0.035);
   s.closePath();
-  return curvedShape(s, 0.026, 3);
+  return curvedShape(s, 0.026, 4);
 }
 
 function eye(side: number) {
@@ -300,6 +300,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   const mouthGeometries = [assets.grin, inside, assets.teeth, ...assets.divisions, assets.corners];
   const mouthBases = mouthGeometries.map(g => Float32Array.from(g.getAttribute('position').array));
   const mouthMeshes = group.children.filter(child => child instanceof THREE.Mesh && mouthGeometries.includes(child.geometry));
+
   const roundShape = new THREE.Shape();
   // ── A BOCA REDONDA ERA UM SEGUNDO NARIZ ────────────────────────────────────
   // Com 0,12 x 0,13 logo abaixo de um nariz de 0,126 x 0,077, o "O" de susto
@@ -308,7 +309,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   // da outra. Boca de susto de desenho animado é GRANDE, e desloca para o lado
   // que o sorriso torto já levanta. Mas 0,19 x 0,215 em -0,71 passou do outro
   // lado: encostava no queixo e virava um borrão. 0,163 x 0,178 em -0,655.
-  roundShape.absellipse(0.07, -0.655, 0.163, 0.178, 0, Math.PI * 2, false, 0);
+  roundShape.absellipse(0.07, -0.70, 0.14, 0.14, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
   // ── A LÍNGUA ──────────────────────────────────────────────────────────────
@@ -396,7 +397,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
       const sy = phoneme ? .70 + open * .55 : 1;
       for (let i = 0; i < attr.count; i++) {
         const x = approach(attr.getX(i), .07 + (roundBase[i * 3] - .07) * sx);
-        const y = approach(attr.getY(i), -.655 + (roundBase[i * 3 + 1] + .655) * sy);
+        const y = approach(attr.getY(i), -.70 + (roundBase[i * 3 + 1] + .70) * sy);
         attr.setXYZ(i, x, y, front(x, y, .051));
       }
       attr.needsUpdate = true;
