@@ -4183,3 +4183,72 @@ fonte + index.html + version.json juntos e remove o próprio workflow da árvore
 - Toda leitura, análise ou pesquisa do repositório deve ser delegada ao subagente **GPT-5.6-Luna**; a sessão principal fica responsável por aplicar e executar as mudanças autorizadas.
 - A integração do mapa10 deve preservar o target `6757d48721fe7e3af98628ccf2547633217f1a48` e sua árvore completa `83c0aafb72884af2a848a4c86128313ec0d0e679`.
 - Os sete commits do target (35064209, dccc09ee, 7d8e7f94, 05b0c3e0, b1b16c01, 8b80f8fa, 6757d487) formam a sequência Floor3 a preservar durante a integração da Sala 03:17 cooperativa.
+
+---
+
+## 2026-09-10 — Andar 12: a composição estava errada, e um teste verde a segurava
+
+O dono do jogo entrou no andar e disse "está péssimo". Estava, e era **um** defeito
+grande — não uma lista de retoques. Projetada a tela com a câmera de verdade:
+
+| | antes | agora |
+|---|---|---|
+| nave em repouso | 48,5% da altura | 27,6% |
+| BOCA do chefe | 50,7% | 70,2% |
+| vão de tela entre as duas | **2,2%** | **42,6%** |
+| arena desenhada sobre a cara dela | 19,7% da tela | 0,0% |
+
+Dois por cento de tela entre o jogador e o ponto fraco do chefe: o avião era desenhado
+**dentro da boca**, os ataques nasciam em cima do jogador porque não havia de onde
+virem, e 68% da tela era céu vazio.
+
+### A lição que vale além deste andar
+
+**A causa estava num teste verde.** `'a boca fica dentro da arena, para o jogador poder
+chegar nela'` EXIGIA a sobreposição — e exigia com razão, dado o resto: o tiro saía com
+`vy = 0`, voava reto pelo eixo da câmera, e a única forma de acertar a boca era o avião
+estar na altura dela. **A regra do tiro obrigava a composição.** Duas revisões anteriores
+mexeram nas alturas para consertar o enquadramento e as duas foram puxadas de volta,
+porque um teste verde parece uma amarra e não um erro.
+
+Quando um conserto óbvio "não pode" ser feito, vale conferir se o que o proíbe é uma
+regra do jogo ou um teste que fossilizou um defeito.
+
+### O que mudou
+
+- **O tiro tem elevação** (`subidaDoTiro`): a bala sobe da ponta da asa até a altura da
+  boca. O jogador mira em **X** (`vx` é zero de propósito) — e como a boca fica no meio
+  da arena, a luta virou "volto ao meio para machucar, saio do meio para desviar".
+- **A composição é resolvida, não escolhida**: `fracaoNaTela` / `composicaoNaTela` vivem
+  em `f12Boss.ts` (não numa bancada) e conferem com a `PerspectiveCamera` do three até a
+  15ª casa. O vertical **não depende do aspecto**; só a largura, e `ajustarAoAspecto`
+  alarga a arena em tela larga.
+- **Os cinco ataques passaram a sair da boca.** Todos nasciam na altura da arena e só o Z
+  vinha da cabeça — a premissa do andar era encenação, não geometria.
+- **Introdução reordenada.** O desdobramento começava aos 3,0 s e o casco só ficava
+  visível aos 4,62, com `abertura` já em 0,74: três quartos da transformação corriam
+  invisíveis. Agora a câmera sai primeiro, a cabine aparece **fechada**, e só então abre
+  asas à vista.
+
+### Defeitos que apareceram junto (todos pegos por teste ou pela foto)
+
+- `saiuDeCena` tinha teto em `ARENA.yAlto + 14` = 23 e os ataques passaram a nascer a
+  24,2: **criados e recolhidos no mesmo quadro**. A luta ficou sem ataque nenhum — e quem
+  contou foi o bot da simulação vencendo sem desviar e sem levar um toque.
+- fresta da maré passeava 4,80 numa arena de 3,7 (a saída ficava fora do mundo);
+- as cinco faixas da espinha ficavam a 1,52 e a nave pede 1,96 → quatro faixas;
+- `PONTA_DA_ASA` 1,35 num avião de 1,175 de meia-envergadura: a bala nascia fora da asa;
+- o bot descansava em `BOCA_ALVO.y - 0.8` → um `min()` o grudava no teto da arena.
+
+**Velocidades reescaladas** junto com a distância (a travessia cresceu 24%): manter as
+antigas teria afrouxado a luta por efeito colateral de uma decisão de enquadramento.
+Medido: quem não desvia **perde** (chefe ainda em 40/240); quem desvia vence com 4 de 5
+vidas, 102 s, 20 aberturas da boca.
+
+**Visual:** o avião era uma prancha (razão envergadura/fuselagem 2,8; caça de trás fica
+entre 1,2 e 1,6), a cabeça era um ovo com olhos colados, e o irmão era uma mancha preta
+presa na parede (`n.x - 3.2` numa arena de 3,7). Refeitos os três — e a coroa de portas
+de elevador virou chifre na primeira tentativa, por eu tê-la posto num **círculo** de
+raio R num crânio que é **elipsoide**.
+
+2163 testes passando.
