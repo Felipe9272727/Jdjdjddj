@@ -111,7 +111,15 @@ function decidir(n: Nave, ps: Projetil[], reflexo: number): { x: number; y: numb
     }
 
     // 3. Nada ameaçando: volta para debaixo da boca, que é de onde se acerta.
-    return { x: BOCA_ALVO.x, y: Math.min(ARENA.yAlto, BOCA_ALVO.y - 0.8) };
+    //
+    // O Y NÃO SEGUE MAIS A BOCA. Ele era `BOCA_ALVO.y - 0.8`, o que fazia
+    // sentido enquanto a bala voava reto e acertar queria dizer estar na altura
+    // da boca. Com a boca a 24,2 e o teto do voo a 9,0, aquilo virava um
+    // `min()` que grudava o bot no TETO da arena — o canto onde as cabines de
+    // elevador chegam — e ele passava a luta inteira lá em cima. Hoje a bala
+    // sobe sozinha: o que a mira pede é o X, e o Y de descanso é o meio da
+    // arena, que é de onde dá para desviar para os dois lados.
+    return { x: BOCA_ALVO.x, y: meioY() };
 }
 
 /** Roda a luta inteira e devolve o placar. */

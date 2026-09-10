@@ -28,10 +28,12 @@ import {
 } from './f12Boss';
 
 /**
- * A escala dela. A cabeça tem de LER como colossal contra um avião de 1,6 —
- * então ela é da altura da arena inteira, e o jogador voa na frente do queixo.
+ * O RAIO dela, em unidades de mundo. Ela tem de ler como colossal contra um
+ * avião de 2,35 de envergadura, sem engolir a tela: 7,8 põe o crânio em 57,5%
+ * da largura do quadro, medido com a câmera de verdade. Ver a nota de
+ * composição em `f12Boss`.
  */
-export const ESCALA = 7.2;
+export const ESCALA = 7.8;
 
 const CORES = {
     pele: '#8d7f9c',        // um cinza-lilás de gesso velho: parede de hotel
@@ -41,6 +43,8 @@ const CORES = {
     olho: '#f4f1e4',
     pupila: '#1a1520',
     dente: '#e9e3d2',
+    orbita: '#3b3146',     // a sombra da órbita: é ela que dá o olhar
+    latao: '#c9a24a',      // as portas de elevador da coroa
     ferida: '#c8443a',
 };
 
@@ -64,6 +68,8 @@ export const Floor12Cabeca: React.FC<{
         olho: mat64(CORES.olho),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
+        orbita: mat64(CORES.orbita),
+        latao: mat64(CORES.latao),
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
     }), []);
 
@@ -142,64 +148,134 @@ export const Floor12Cabeca: React.FC<{
 
     return (
         <group ref={raiz} name="cabeca" scale={ESCALA / R} position={[0, ALTURA_DA_CABECA, ARENA.zCabeca]}>
-            {/* ── O CRÂNIO ── */}
-            <mesh material={M.pele}>
-                <sphereGeometry args={[R, 20, 14]} />
+            {/* ── O CRÂNIO ──
+                ACHATADO EM Y, e isso é a diferença entre uma cabeça e um ovo. A
+                versão anterior era uma esfera perfeita com uma SEGUNDA esfera
+                colada em cima das têmporas, e o resultado na foto era um ovo
+                lilás com dois olhos — a peça de cima só alongava o topo. Uma
+                cabeça é mais larga que alta e mais alta que funda; esta é
+                1,00 x 0,86 x 0,92, e a silhueta passa a ser de crânio. */}
+            <mesh material={M.pele} scale={[1, 0.86, 0.92]}>
+                <sphereGeometry args={[R, 22, 16]} />
             </mesh>
-            {/* têmporas achatadas, para não ser uma bola perfeita */}
-            <mesh material={M.peleEsc} position={[0, R * 0.55, -R * 0.25]}>
-                <sphereGeometry args={[R * 0.86, 16, 10]} />
+            {/* a MANDÍBULA do crânio: a caixa da cara, mais estreita que o topo.
+                Ela dá o queixo, que é o que faz o rosto ter fim. */}
+            <mesh material={M.pele} position={[0, -R * 0.42, R * 0.16]} scale={[0.82, 0.62, 0.78]}>
+                <sphereGeometry args={[R, 18, 12]} />
             </mesh>
 
-            {/* ── OS OLHOS ── */}
-            {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
-                <React.Fragment key={lado}>
-                    <group ref={ro} position={[lado * 1.55, 1.15, R * 0.79]}>
-                        <mesh material={M.olho}><sphereGeometry args={[0.78, 14, 10]} /></mesh>
-                        <mesh material={M.pupila} position={[lado * 0.12, -0.05, 0.6]}>
-                            <sphereGeometry args={[0.34, 12, 8]} />
+            {/* ── A COROA DO HOTEL ──
+                Uma faixa de portas de elevador em volta da testa. É o único
+                lugar do andar que diz de QUEM é esta cabeça: sem ela, ela podia
+                ser o chefe de qualquer jogo.
+
+                A PRIMEIRA TENTATIVA VIROU CHIFRE. Eu pus os painéis num círculo
+                de raio `R * 0,93`, que é onde a superfície estaria se o crânio
+                fosse uma esfera — mas ele é achatado (escala 1 x 0,86 x 0,92), e
+                na altura da testa a superfície de verdade está a `R * 0,81` em X
+                e `R * 0,75` em Z. Trinta por cento fora da cabeça: na foto eram
+                doze velas espetadas no alto do crânio.
+
+                Agora eles seguem a ELIPSE do crânio, e afundam 6% para dentro,
+                que é o que faz um adereço parecer preso e não pousado. */}
+            {Array.from({ length: 12 }, (_, i) => {
+                const a = (i / 12) * Math.PI * 2;
+                // A superfície do elipsoide na altura da coroa (ver a nota).
+                const alturaRel = 0.50;
+                const corte = Math.sqrt(Math.max(0, 1 - (alturaRel / 0.86) ** 2));
+                const rx = R * corte * 0.94, rz = R * corte * 0.92 * 0.94;
+                return (
+                    <group key={i}
+                        position={[Math.sin(a) * rx, R * alturaRel, Math.cos(a) * rz]}
+                        rotation={[0, a, 0]}>
+                        <mesh material={M.latao}><boxGeometry args={[0.5, 0.6, 0.22]} /></mesh>
+                        <mesh material={M.peleEsc} position={[0, 0, 0.12]}>
+                            <boxGeometry args={[0.06, 0.48, 0.05]} />
                         </mesh>
                     </group>
-                    <mesh ref={rs} material={M.peleEsc} position={[lado * 1.6, 2.15, R * 0.8]}>
-                        <boxGeometry args={[1.7, 0.34, 0.3]} />
+                );
+            })}
+
+            {/* ── OS OLHOS ──
+                Fundos numa órbita escura. A versão anterior eram duas bolas
+                brancas coladas na frente da esfera, e de longe elas liam como
+                olhos de brinquedo em vez de olhos de chefe. A órbita é o que dá
+                a sombra que faz o olhar. */}
+            {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
+                <React.Fragment key={lado}>
+                    <mesh material={M.orbita} position={[lado * 1.62, 0.95, R * 0.66]}>
+                        <sphereGeometry args={[1.05, 14, 10]} />
+                    </mesh>
+                    {/* O GLOBO SAI DA ÓRBITA, senão a órbita engole o olho e a
+                        cara fica com dois buracos pretos em vez de um olhar. */}
+                    <group ref={ro} position={[lado * 1.62, 0.95, R * 0.84]}>
+                        <mesh material={M.olho}><sphereGeometry args={[0.8, 14, 10]} /></mesh>
+                        <mesh material={M.pupila} position={[lado * 0.1, -0.04, 0.52]}>
+                            <sphereGeometry args={[0.33, 12, 8]} />
+                        </mesh>
+                        {/* o brilho: um ponto claro que faz o olho parecer vivo */}
+                        <mesh material={M.olho} position={[lado * 0.24, 0.2, 0.62]}>
+                            <sphereGeometry args={[0.1, 8, 6]} />
+                        </mesh>
+                    </group>
+                    {/* SOBRANCELHA como bloco de testa, não como palito. Antes
+                        eram barras de 1,7 x 0,34 espetadas para fora da cara, e
+                        na foto pareciam duas antenas. */}
+                    <mesh ref={rs} material={M.peleEsc} position={[lado * 1.66, 2.02, R * 0.66]}>
+                        <boxGeometry args={[1.9, 0.62, 0.66]} />
                     </mesh>
                 </React.Fragment>
             ))}
 
             {/* ── O NARIZ ── */}
-            <mesh material={M.peleEsc} position={[0, 0.2, R * 0.9]}>
-                <boxGeometry args={[0.8, 0.9, 0.7]} />
+            <mesh material={M.peleEsc} position={[0, -0.05, R * 0.86]}>
+                <boxGeometry args={[0.9, 1.0, 0.8]} />
             </mesh>
 
             {/* ── A BOCA ──
                 O interior fica FIXO e a mandíbula gira na frente dele: assim a
-                garganta já está lá quando a boca abre, em vez de nascer junto. */}
-            {/* A altura vem de `BOCA_ABAIXO_DO_CENTRO`, o MESMO número de que a
+                garganta já está lá quando a boca abre, em vez de nascer junto.
+
+                A CAVIDADE ENCOLHEU E ENTROU NA CARA. Ela era uma caixa de 4,6 x
+                2,6 x 2,2 pendurada abaixo do queixo, e na foto lia como um
+                caixote preto preso na cabeça — não como uma boca. Agora ela é
+                mais estreita que o crânio e fica embutida na massa do rosto, com
+                o lábio de cima marcado por cima dela.
+
+                A altura vem de `BOCA_ABAIXO_DO_CENTRO`, o MESMO número de que a
                 hitbox sai. O grupo fica onde a cavidade tem de ficar, e a
                 cavidade dentro dele em zero — assim não há dois deslocamentos
                 somando por acaso, que foi como o anel de mira acabou em cima do
                 nariz na primeira montagem. */}
-            <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.42]}>
-                <mesh material={M.interior} position={[0, 0, 0]}>
-                    <boxGeometry args={[4.6, 2.6, 2.2]} />
+            <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.44]}>
+                <mesh material={M.interior}>
+                    <boxGeometry args={[3.9, 2.3, 1.6]} />
                 </mesh>
-                <mesh ref={garganta} material={M.brasa} position={[0, -0.2, -0.5]}>
-                    <sphereGeometry args={[1.25, 14, 10]} />
+                <mesh ref={garganta} material={M.brasa} position={[0, -0.15, -0.35]}>
+                    <sphereGeometry args={[1.0, 14, 10]} />
+                </mesh>
+                {/* o lábio de cima: a borda de carne que fecha a cavidade */}
+                <mesh material={M.peleEsc} position={[0, 1.22, 0.42]}>
+                    <boxGeometry args={[4.2, 0.5, 0.9]} />
                 </mesh>
                 {/* dentes de cima, presos ao crânio */}
-                {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                    <mesh key={i} material={M.dente} position={[x, 0.88, 1.0]}>
-                        <boxGeometry args={[0.55, 0.7, 0.42]} />
+                {[-1.5, -0.9, -0.3, 0.3, 0.9, 1.5].map((x, i) => (
+                    <mesh key={i} material={M.dente} position={[x, 0.82, 0.62]}>
+                        <boxGeometry args={[0.44, 0.6, 0.4]} />
                     </mesh>
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
-                <group ref={mandibula} position={[0, 0.5, -0.9]}>
-                    <mesh material={M.pele} position={[0, -0.75, 1.15]}>
-                        <boxGeometry args={[4.8, 1.5, 2.6]} />
+                <group ref={mandibula} position={[0, 0.35, -0.7]}>
+                    <mesh material={M.pele} position={[0, -0.7, 0.95]}>
+                        <boxGeometry args={[4.0, 1.35, 2.0]} />
                     </mesh>
-                    {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                        <mesh key={i} material={M.dente} position={[x, -0.05, 2.1]}>
-                            <boxGeometry args={[0.55, 0.66, 0.42]} />
+                    {/* o queixo, arredondado por baixo */}
+                    <mesh material={M.pele} position={[0, -1.2, 0.8]} scale={[1, 0.5, 0.7]}>
+                        <sphereGeometry args={[1.75, 14, 10]} />
+                    </mesh>
+                    {[-1.5, -0.9, -0.3, 0.3, 0.9, 1.5].map((x, i) => (
+                        <mesh key={i} material={M.dente} position={[x, -0.12, 1.72]}>
+                            <boxGeometry args={[0.44, 0.56, 0.4]} />
                         </mesh>
                     ))}
                 </group>

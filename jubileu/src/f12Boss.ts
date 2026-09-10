@@ -28,43 +28,85 @@
 /**
  * A altura em que a cabeça flutua.
  *
- * ── ELA SUBIU, E O MOTIVO É DE COMPOSIÇÃO ────────────────────────────────────
+ * ── ELA SUBIU DE VEZ, E O MOTIVO FOI MEDIDO ──────────────────────────────────
  *
- * Na primeira montagem a cabeça estava em 4,4 e a arena ia de 0,6 a 9,4 — ou
- * seja, o avião voava BEM NO MEIO DA CARA DELA. Na foto o jogador simplesmente
- * sumia: um aviãozinho creme sobre um crânio lilás do mesmo valor de cinza, no
- * mesmo ponto da tela. Um jogo de nave em que não dá para achar a própria nave.
+ * Duas montagens seguidas puseram o avião DENTRO da boca dela, e as duas
+ * tinham um comentário explicando que o problema estava resolvido. Projetadas
+ * com a câmera de verdade, as contas da montagem anterior diziam:
  *
- * Levantando a cabeça e baixando a arena, a luta acontece contra o CÉU, e o
- * jogador sobe até a boca só quando quer atirar nela — que é justamente o
- * movimento que a luta pede.
+ *     nave em repouso ....... 48,5% da altura da tela
+ *     BOCA .................. 50,7%
+ *     vão entre as duas .....  2,2%
+ *     arena sobre a cara .... 19,7% da tela
+ *
+ * Dois por cento de tela entre o jogador e o ponto fraco do chefe. Não havia
+ * de onde os ataques virem, não havia distância para lê-los, e o aviãozinho
+ * era desenhado por cima do queixo dela. Não era um enquadramento ruim: era o
+ * jogo inteiro acontecendo dentro de uma caixa do tamanho de uma boca.
+ *
+ * A CAUSA ESTAVA NUM TESTE, e é por isso que ela sobreviveu a duas correções:
+ * `'a boca fica dentro da arena, para o jogador poder chegar nela'` EXIGIA a
+ * sobreposição. E exigia com razão, dado o resto: o tiro saía com `vy = 0`, ou
+ * seja voava reto pelo eixo da câmera, então a única forma de acertar a boca
+ * era o avião estar na altura dela. A regra do tiro obrigava a composição.
+ *
+ * Agora o tiro SOBE (ver `nascerTiro`), a boca ficou no alto do quadro e a
+ * arena no terço de baixo. O teste que cobrava a sobreposição foi invertido:
+ * hoje ele cobra a SEPARAÇÃO.
  */
-export const ALTURA_DA_CABECA = 7.6;
-
-export const ARENA = Object.freeze({
-    x: 4.9,          // meia-largura
-    yBaixo: 0.4,     // teto de nuvem baixa
-    yAlto: 7.6,      // teto de cima
-    zNave: 0,        // o plano em que os aviões voam
-    zCabeca: -26,    // onde a cabeça flutua
-});
+export const ALTURA_DA_CABECA = 29;
 
 /**
- * ── A ARENA É ESTREITA PORQUE A TELA DELE É ESTREITA ─────────────────────────
+ * A arena.
  *
- * O jogo é jogado num celular EM PÉ: 412 x 915, aspecto 0,45. E `fov`, no three,
- * é VERTICAL — a abertura horizontal sai de `tan(fov/2) * aspecto`, ou seja
- * numa tela em pé ela é menos da metade. A primeira versão deste andar não
- * respeitou isso e a sonda mediu o estrago: a largura do quadro no plano do
- * avião dava 4,00 unidades e o avião tinha 5,30 de envergadura. Ele era MAIS
- * LARGO QUE A TELA.
+ * `x` NÃO é congelado, e é o único número deste arquivo que não é: numa tela
+ * larga o mesmo enquadramento sobra muita largura, e uma arena fixa viraria
+ * uma tirinha no meio do monitor. `ajustarAoAspecto` a alarga uma vez, na
+ * entrada do andar. Tudo o mais é escrito EM FUNÇÃO de `ARENA.x` — os leques,
+ * as faixas dos elevadores, o passeio da maré — então alargar aqui alarga o
+ * andar inteiro junto, e é por isso que alargar aqui é seguro.
+ */
+export const ARENA = {
+    x: 3.7,          // meia-largura (ver `ajustarAoAspecto`)
+    yBaixo: 1.4,     // o chão do voo
+    yAlto: 9.0,      // o teto do voo — bem ABAIXO do queixo dela
+    zNave: 0,        // o plano em que os aviões voam
+    zCabeca: -33,    // onde a cabeça flutua
+};
+
+/** A meia-largura composta, antes de qualquer alargamento por aspecto. */
+export const ARENA_X_COMPOSTA = ARENA.x;
+
+/**
+ * ── O ENQUADRAMENTO É UMA COMPOSIÇÃO, NÃO UM PUNHADO DE GOSTOS ───────────────
  *
- * Pior do que feio: o desenho e a colisão discordavam por cinco vezes (a caixa
- * de colisão é `NAVE.raio`, 1,04 de diâmetro). O jogador levaria dano de coisas
- * que visivelmente passaram longe.
+ * O jogo é jogado num celular EM PÉ: 412 x 915, aspecto 0,45. E `fov`, no
+ * three, é VERTICAL — a abertura horizontal sai de `tan(fov/2) * aspecto`, ou
+ * seja numa tela em pé ela é menos da metade.
  *
- * Estes três números andam juntos e por isso estão no mesmo lugar. Mexer em um
- * sem os outros é o que desalinha o desenho da regra outra vez.
+ * Estes números não foram escolhidos no olho. Eles saíram de uma busca contra
+ * a câmera de verdade do three, projetando os pontos que importam e cobrando
+ * a FRAÇÃO DE TELA de cada um. O que a composição entrega, medido:
+ *
+ *     nave em repouso ......... 27,6% da altura da tela (terço de baixo)
+ *     envergadura da nave ..... 28,6% da largura  (dá para ver o piloto)
+ *     arena ................... de 5,9% a 48,3% da altura, 89,9% da largura
+ *     BOCA .................... 70,2% da altura   (no alto, longe)
+ *     cabeça .................. de 65,2% a 90,3%, 57,5% da largura
+ *     vão de tela boca<->nave . 42,6%             (era 2,2%)
+ *     sobreposição arena/cara .  0,0%             (era 19,7%)
+ *
+ * Quarenta e dois por cento de tela entre a boca e o avião é o andar: é a
+ * distância que um ataque percorre à vista antes de chegar, e é o que separa
+ * "desviei" de "fui atingido por uma coisa que nasceu em cima de mim".
+ *
+ * ── O VERTICAL NÃO DEPENDE DO ASPECTO ────────────────────────────────────────
+ *
+ * Vale registrar porque não é óbvio e porque é o que torna este andar portátil:
+ * a fração VERTICAL de tela de um ponto depende só do `fov` vertical, de onde a
+ * câmera está e para onde ela olha — o aspecto não entra na conta. Então a
+ * composição acima é idêntica no celular em pé e num monitor deitado. O que
+ * muda com o aspecto é só a largura, e é só ela que `ajustarAoAspecto` mexe.
  */
 export const ENQUADRAMENTO = Object.freeze({
     /** O aspecto em que este andar foi composto — a tela do dono do jogo. */
@@ -72,27 +114,110 @@ export const ENQUADRAMENTO = Object.freeze({
     /** `fov` VERTICAL da câmera. */
     fov: 62,
     /** Distância da câmera até o plano dos aviões. */
-    recuo: 19.0,
+    recuo: 15.5,
+    /** Altura da câmera. Ela fica ACIMA do avião e olha para CIMA, na cabeça. */
+    camY: 8.0,
+    /** Para onde ela olha (o Z é adiante, entre o avião e o chefe). */
+    miraY: 10.5,
+    miraZ: -14,
     /**
      * Envergadura DESENHADA do avião do jogador, depois da escala.
      *
-     * A primeira conta pôs isto em 2,9 — cabia na tela, e o piloto virava um
-     * borrão de vinte pixels. O pedido do andar é terceira pessoa COM o avatar
-     * do andar 5 na cabine; se não dá para ver quem está pilotando, o
-     * reaproveitamento do modelo não serviu para nada. A 3,6 ele ocupa 35% da
-     * largura do quadro e o boneco lê.
-     *
-     * O preço é que a arena teve de encolher junto (4,9 de meia-largura) e a
-     * caixa de colisão teve de crescer (0,62): a folga entre o desenho e a
-     * regra tem teto, e o teste cobra os três de uma vez.
+     * A primeira conta pôs isto em 2,9 e o piloto virava um borrão; a segunda
+     * pôs 3,6, e aí o avião ocupava 35% da largura numa arena de 9,8 — cabiam
+     * duas naves e meia na tela inteira, ou seja não havia para onde desviar.
+     * 2,35 dá 28,6% da largura: o boneco do andar 5 continua legível na cabine
+     * e cabem três naves e meia de folga na arena.
      */
-    envergadura: 3.6,
+    envergadura: 2.35,
 });
 
+/**
+ * Alarga a arena quando a tela é mais larga que a que compôs o andar.
+ *
+ * Chamado uma vez, na entrada do andar. Sem isto, num monitor 16:9 a arena
+ * ocupa 22,8% da largura: o jogo inteiro vira uma tirinha vertical no meio de
+ * um mar de céu. Com isto ela volta a ocupar a mesma fatia de sempre.
+ *
+ * O TETO existe porque tudo neste andar é escrito em função de `ARENA.x` — um
+ * leque que abre até a borda de uma arena de 15 unidades é um leque que o
+ * jogador não atravessa nunca, porque a nave não anda tão depressa assim.
+ */
+export const ARENA_X_MAXIMA = 6.4;
+
+export function ajustarAoAspecto(aspecto: number): void {
+    const quadro = larguraDoQuadro(ENQUADRAMENTO.recuo, aspecto);
+    const querida = (quadro * 0.90) / 2;
+    ARENA.x = Math.max(ARENA_X_COMPOSTA, Math.min(ARENA_X_MAXIMA, querida));
+}
+
+/** Volta a arena à largura composta. Serve ao teste e ao reinício. */
+export function reporArena(): void { ARENA.x = ARENA_X_COMPOSTA; }
+
 /** Quantas unidades de mundo cabem na LARGURA da tela, à distância `d`. */
-export function larguraDoQuadro(d: number): number {
+export function larguraDoQuadro(d: number, aspecto = ENQUADRAMENTO.aspecto): number {
     const meiaV = Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
-    return 2 * d * meiaV * ENQUADRAMENTO.aspecto;
+    return 2 * d * meiaV * aspecto;
+}
+
+/** Quantas unidades de mundo cabem na ALTURA da tela, à distância `d`. */
+export function alturaDoQuadro(d: number): number {
+    return 2 * d * Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
+}
+
+/**
+ * ── A SONDA DE COMPOSIÇÃO ────────────────────────────────────────────────────
+ *
+ * Onde um ponto do mundo cai na tela, em fração de altura (0 = base, 1 = topo),
+ * com a câmera da luta. É a régua com que este andar foi composto, e ela mora
+ * aqui — junto dos números — em vez de num script de bancada, por um motivo
+ * medido: as duas revisões anteriores mexeram nas alturas "no olho", cada uma
+ * escreveu no comentário que o enquadramento estava resolvido, e as duas
+ * puseram o avião dentro da boca do chefe. Enquadramento sem régua é opinião.
+ *
+ * A conta é a projeção de perspectiva na mão: nada de three aqui, porque este
+ * módulo não importa three de propósito — é o que permite testá-lo.
+ *
+ * Note que o ASPECTO NÃO ENTRA. A fração vertical depende só do `fov` vertical,
+ * de onde a câmera está e para onde ela olha. É por isso que a composição deste
+ * andar é a mesma no celular em pé e no monitor deitado, e é por isso que
+ * `ajustarAoAspecto` só precisa mexer na largura.
+ */
+export function fracaoNaTela(x: number, y: number, z: number): number {
+    const E = ENQUADRAMENTO;
+    // A câmera está em (0, camY, recuo) e olha para (0, miraY, miraZ). Como os
+    // dois estão no plano x = 0, a base da câmera não tem rolagem e o problema
+    // cai para duas dimensões: Y e Z.
+    const fy = E.miraY - E.camY, fz = E.miraZ - E.recuo;
+    const fn = Math.hypot(fy, fz);
+    const frenteY = fy / fn, frenteZ = fz / fn;
+    // "cima" da câmera é a frente girada 90 graus no plano YZ.
+    const cimaY = -frenteZ, cimaZ = frenteY;
+
+    const vy = y - E.camY, vz = z - E.recuo;
+    const profundidade = vy * frenteY + vz * frenteZ;   // ao longo da mira
+    if (profundidade <= 1e-6) return Number.NaN;        // atrás da câmera
+    const altura = vy * cimaY + vz * cimaZ;             // acima do eixo
+    const meiaTela = Math.tan((E.fov * Math.PI) / 180 / 2) * profundidade;
+    // `x` não muda a fração VERTICAL — ele só afasta o ponto do eixo, e num
+    // frustum de perspectiva isso não mexe na altura projetada.
+    return 0.5 + altura / (2 * meiaTela);
+}
+
+/** Onde as coisas que importam caem na tela. A composição, em números. */
+export function composicaoNaTela(): {
+    nave: number; arenaBaixo: number; arenaAlto: number;
+    boca: number; vaoBocaNave: number;
+} {
+    const nave = fracaoNaTela(0, meioY(), ARENA.zNave);
+    const boca = fracaoNaTela(BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca);
+    return {
+        nave,
+        arenaBaixo: fracaoNaTela(0, ARENA.yBaixo, ARENA.zNave),
+        arenaAlto: fracaoNaTela(0, ARENA.yAlto, ARENA.zNave),
+        boca,
+        vaoBocaNave: boca - nave,
+    };
 }
 
 export const meioY = (): number => (ARENA.yBaixo + ARENA.yAlto) / 2;
@@ -272,12 +397,72 @@ export interface Projetil {
     p?: number;
     /** X de repouso, para os que bamboleiam em volta de uma linha. */
     base?: number;
+    /**
+     * Segundos que o projétil leva para ABRIR da boca até a sua faixa.
+     *
+     * Só as camareiras usam. Elas saem todas do mesmo ponto — a cavidade — e se
+     * espalham enquanto vêm; sem isto elas apareceriam já espalhadas, o que na
+     * tela lê como quatro naves que estavam ali o tempo todo em vez de quatro
+     * naves que ela acabou de cuspir.
+     */
+    abre?: number;
 }
 
 let proximoId = 1;
 export const novoId = (): number => proximoId++;
 /** Só para o teste: torna os ids determinísticos. */
 export function reiniciarIds(): void { proximoId = 1; }
+
+// ── AS VELOCIDADES FORAM REESCALADAS JUNTO COM A DISTÂNCIA ───────────────────
+//
+// A cabeça foi de 26 para 33 unidades de distância, e o ponto de saída de
+// `zCabeca + 1.2` para `zCabeca + 2.2`: a travessia passou de 24,8 para 30,8
+// unidades, 24% mais longa. Mantidas as velocidades antigas, cada ataque
+// ganharia 24% a mais de tempo de reação — a luta inteira ficaria mais fácil
+// por efeito colateral de uma decisão de ENQUADRAMENTO, o que é a pior forma de
+// uma dificuldade mudar, porque ninguém a escolheu.
+//
+// Então elas foram multiplicadas para preservar o TEMPO DE VOO, que é o número
+// que o jogador sente:
+//
+//     leque        12,0 -> 14,9   (2,07 s, como antes)
+//     camareiras    4,3 ->  5,5   (5,60 s)
+//     maré          5,8 ->  7,2   (4,28 s)
+//     elevadores    5,2 ->  6,46  (4,77 s)
+//
+// O teleguiado ficou em 8,0: ele não tem tempo de voo fixo — persegue — e o
+// combustível dele (7,5 s) é que manda.
+//
+// ── DE ONDE OS ATAQUES SAEM ──────────────────────────────────────────────────
+//
+// Da BOCA. Escrito assim parece óbvio, e não era: até esta revisão TODOS os
+// cinco padrões nasciam na altura da ARENA — `meioY()`, ou o `y` do jogador —
+// e só o Z vinha da cabeça. Com a arena colada na cara dela isso não aparecia
+// na foto; com a boca a 42% de tela de distância apareceria na hora, porque os
+// projéteis se materializariam no ar, no meio do quadro, sem sair de lugar
+// nenhum. A premissa do andar inteiro — "quando ela abre a boca, ela cospe" —
+// era encenação e não geometria.
+//
+// Agora eles saem da cavidade e DESCEM enquanto avançam, e a descida é uma
+// conta: `descidaAte` devolve o `vy` que põe o projétil na altura pedida
+// exatamente quando ele cruza o plano dos aviões. É o mesmo raciocínio da
+// elevação do tiro do jogador, do outro lado da luta.
+export const BOCA_SAIDA = Object.freeze({
+    x: 0,
+    get y() { return BOCA_ALVO.y; },
+    /** Um pouco à frente da cara, para o projétil não nascer dentro dela. */
+    get z() { return ARENA.zCabeca + 2.2; },
+});
+
+/** Segundos que um projétil a `velocidadeZ` leva da boca até o plano dos aviões. */
+export function tempoDeVoo(velocidadeZ: number): number {
+    return Math.abs(ARENA.zNave - BOCA_SAIDA.z) / velocidadeZ;
+}
+
+/** O `vy` que leva de `BOCA_SAIDA.y` até `yAlvo` no tempo de voo. */
+export function descidaAte(yAlvo: number, velocidadeZ: number): number {
+    return (yAlvo - BOCA_SAIDA.y) / tempoDeVoo(velocidadeZ);
+}
 
 // ── ATAQUE 1: O LEQUE ────────────────────────────────────────────────────────
 //
@@ -295,34 +480,45 @@ export const LEQUE = Object.freeze({
     /**
      * Quanto cada unidade se afasta por segundo (a de fora anda mais).
      *
-     * ESTE NÚMERO É O ATAQUE. A 1,85 o vão final dava 1,77 — e a nave com o
-     * projétil pede 2,04 para passar. Ou seja: o leque estava INDESVIÁVEL pelos
-     * vãos, e a única saída era contornar por fora, que não é o desenho do
-     * ataque. Foi o teste que pegou; a foto de um leque aberto pareceria certa.
-     * O leque tem uma amarra que não é óbvia: o de FORA anda exatamente o dobro
-     * do vão entre vizinhos. Então "abrir o suficiente para a nave passar" e
-     * "não sair da arena" são a MESMA conta, e ela é apertada — o vão precisa
-     * de pelo menos 2,16 (nave 0,62 + projétil 0,46, vezes dois), o que põe o
-     * de fora em 4,32 no mínimo, contra uma arena de 4,9.
+     * ESTE NÚMERO É O ATAQUE, e ele tem uma amarra que não é nada óbvia. As
+     * cinco unidades ficam em `lado * fora` com `lado` em -1, -0,5, 0, +0,5, +1,
+     * então o VÃO ENTRE VIZINHAS é exatamente metade do que a de fora andou.
+     * Ou seja "abrir o suficiente para a nave passar" e "não sair da arena" são
+     * a MESMA conta, e ela é apertada:
      *
-     * A 2,5 o vão final dá 2,37 e o de fora 4,74: passa a nave com folga e
-     * ainda encosta na borda, que é o que impede o jogador de simplesmente
-     * contornar o ataque por fora em vez de usar um vão.
+     *     vão preciso = 2 * (NAVE.raio + LEQUE.raio) = 2 * (0,42 + 0,36) = 1,56
+     *     logo o de fora precisa de >= 3,12
+     *     e a arena (3,7) é o teto, senão dá para contornar por fora
+     *
+     * Com o tempo de voo de hoje (30,8 unidades a 14,9/s = 2,07 s) isto põe o
+     * de fora em 3,30 e o vão em 1,65 — 15% de folga sobre o mínimo, e
+     * encostando na borda da arena (89% dela). Foi um teste que pegou a
+     * versão indesviável da primeira montagem; a foto de um leque aberto
+     * pareceria certa.
      */
-    abrePorSegundo: 2.0,
-    velocidadeZ: 12.0,
-    raio: 0.46,
+    abrePorSegundo: 1.33,
+    velocidadeZ: 14.9,
+    raio: 0.36,
 });
 
+/**
+ * Nasce na BOCA, grudado, e vai se abrindo enquanto desce até o jogador.
+ *
+ * `alvoX`/`alvoY` é onde o jogador estava quando ela cuspiu: o leque é mirado,
+ * então ficar parado não salva. O que salva é ler qual vão vai passar por você.
+ */
 export function nascerLeque(alvoX: number, alvoY: number): Projetil[] {
     const fora: Projetil[] = [];
     const meio = (LEQUE.quantos - 1) / 2;
+    const t = tempoDeVoo(LEQUE.velocidadeZ);
+    const derivaX = (alvoX - BOCA_SAIDA.x) / t;
+    const vy = descidaAte(alvoY, LEQUE.velocidadeZ);
     for (let i = 0; i < LEQUE.quantos; i++) {
         const lado = (i - meio) / meio;               // -1 .. +1
         fora.push({
             id: novoId(), tipo: 'leque',
-            x: alvoX + lado * LEQUE.largura0, y: alvoY, z: ARENA.zCabeca + 1.2,
-            vx: lado * LEQUE.abrePorSegundo, vy: 0, vz: LEQUE.velocidadeZ,
+            x: BOCA_SAIDA.x + lado * LEQUE.largura0, y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
+            vx: lado * LEQUE.abrePorSegundo + derivaX, vy, vz: LEQUE.velocidadeZ,
             r: LEQUE.raio, t: 0, p: lado,
         });
     }
@@ -344,11 +540,21 @@ export const TELEGUIADO = Object.freeze({
     combustivel: 7.5,
 });
 
+/**
+ * Ele sai da BOCA já mergulhando.
+ *
+ * O `vy` inicial não é enfeite: `guiarTeleguiado` gira a velocidade LATERAL
+ * existente, e um míssil nascido com `vx = vy = 0` não tem direção lateral
+ * nenhuma para girar — `atan2(0, 0)` é zero, ou seja ele começaria apontado
+ * para a DIREITA por acidente de aritmética e só depois se corrigiria. Nascendo
+ * com a proa para baixo, ele sai da cara dela em direção ao jogador desde o
+ * primeiro quadro, que é o que o ataque tem de mostrar.
+ */
 export function nascerTeleguiado(): Projetil {
     return {
         id: novoId(), tipo: 'teleguiado',
-        x: 0, y: meioY(), z: ARENA.zCabeca + 1.2,
-        vx: 0, vy: 0, vz: TELEGUIADO.velocidade,
+        x: BOCA_SAIDA.x, y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
+        vx: 0, vy: -TELEGUIADO.velocidade * 0.55, vz: TELEGUIADO.velocidade,
         r: TELEGUIADO.raio, t: 0,
     };
 }
@@ -387,7 +593,12 @@ export function guiarTeleguiado(m: Projetil, alvoX: number, alvoY: number, dt: n
 // e é onde o irmão de ala mais serve, porque duas armas limpam a tela.
 export const NAVES = Object.freeze({
     quantas: 4,
-    velocidadeZ: 4.3,
+    /**
+     * Subiu de 4,3 porque a cabeça ficou 9 unidades mais longe: no valor antigo
+     * a travessia levava 8,2 s e as camareiras viravam decoração parada no
+     * meio da tela. A 5,5 ela leva 6,4 s, que é o mesmo tempo de antes.
+     */
+    velocidadeZ: 5.5,
     /** Bamboleio lateral, para elas não virem em linha reta. */
     ondaAmp: 1.6,
     ondaHz: 0.55,
@@ -395,18 +606,29 @@ export const NAVES = Object.freeze({
     hp: 2,
 });
 
+/**
+ * Elas saem da boca em leque e DESCEM até a altura do voo, cada uma para a sua
+ * faixa. O `base` (a linha em torno da qual a camareira bamboleia) continua
+ * sendo o dono do X — ver a nota em `passoDoProjetil`.
+ */
 export function nascerNaves(): Projetil[] {
     const fora: Projetil[] = [];
+    const t = tempoDeVoo(NAVES.velocidadeZ);
     for (let i = 0; i < NAVES.quantas; i++) {
         const lado = (i / (NAVES.quantas - 1)) * 2 - 1;      // -1 .. +1
         const base = lado * ARENA.x * 0.7;
+        const chegada = meioY() + (i % 2 ? 1.6 : -1.6);
         fora.push({
             id: novoId(), tipo: 'naves', base,
-            x: base,
-            y: meioY() + (i % 2 ? 1.6 : -1.6),
-            z: ARENA.zCabeca + 2,
-            vx: 0, vy: 0, vz: NAVES.velocidadeZ,
+            // Elas nascem juntas na boca e ABREM para as faixas enquanto vêm: o
+            // `base` interpola de 0 até a faixa no próprio `passoDoProjetil`,
+            // então aqui só o ponto de partida é a boca.
+            x: BOCA_SAIDA.x,
+            y: BOCA_SAIDA.y,
+            z: BOCA_SAIDA.z,
+            vx: 0, vy: descidaAte(chegada, NAVES.velocidadeZ), vz: NAVES.velocidadeZ,
             r: NAVES.raio, t: 0, hp: NAVES.hp, p: i * 0.7,
+            abre: t,
         });
     }
     return fora;
@@ -419,27 +641,40 @@ export function nascerNaves(): Projetil[] {
 // fresta se move num seno lento, então o desvio é de posicionamento e não de
 // reflexo — que é o contraste com o leque e o teleguiado.
 export const MARE = Object.freeze({
-    velocidadeZ: 5.8,
+    velocidadeZ: 7.2,
     /** Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo. */
-    fresta: 2.05,
+    fresta: 1.85,
     /**
      * A fresta passeia por X neste seno.
      *
-     * O teto é `ARENA.x - fresta` (3,65 com os números de hoje): passar disso
+     * O teto é `ARENA.x - fresta` (1,85 com os números de hoje): passar disso
      * põe a saída FORA da arena, e o ataque vira indesviável sem aviso nenhum —
      * a onda chegaria com a única passagem num lugar onde o avião não pode
      * estar. É por isso que o teste cobra esta relação e não o número solto.
+     *
+     * Este par já estourou uma vez, na revisão que estreitou a arena de 4,9
+     * para 3,7: 2,75 + 2,05 dava 4,80 numa arena de 3,7, ou seja a fresta
+     * passeava quase uma unidade e meia para fora do mundo jogável. O teste
+     * pegou; a foto de uma onda com uma fresta pareceria certa.
      */
-    passeioAmp: 2.75,
+    passeioAmp: 1.7,
     passeioHz: 0.24,
     raio: 0.9,          // espessura da onda, para a colisão em Z
 });
 
+/**
+ * A parede desce da boca até a altura do voo.
+ *
+ * O `y` dela não entra em `mareAcerta` — uma onda que atravessa a arena inteira
+ * pega quem não está na fresta, seja qual for a altura. Ele existe para o
+ * DESENHO: sem descer, a onda apareceria de repente na frente do jogador em vez
+ * de ser vista saindo da boca dela, que é o aviso do ataque.
+ */
 export function nascerMare(faseDoPasseio: number): Projetil {
     return {
         id: novoId(), tipo: 'mare',
-        x: 0, y: meioY(), z: ARENA.zCabeca + 1.0,
-        vx: 0, vy: 0, vz: MARE.velocidadeZ,
+        x: 0, y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
+        vx: 0, vy: descidaAte(meioY(), MARE.velocidadeZ), vz: MARE.velocidadeZ,
         r: MARE.raio, t: 0, p: faseDoPasseio,
     };
 }
@@ -461,15 +696,32 @@ export function mareAcerta(m: Projetil, x: number): boolean {
 // que não veio. E é vertical, então mexe o eixo que os outros quatro quase não
 // pedem.
 export const ELEVADORES = Object.freeze({
-    faixas: 5,
-    velocidadeZ: 5.2,
-    /** Quanto cada cabine desce por segundo enquanto avança. */
-    quedaPorSegundo: 2.4,
-    raio: 0.85,
+    /**
+     * QUATRO, e não cinco.
+     *
+     * Com a arena em 3,7 as cinco faixas ficavam a 1,52 uma da outra, e a nave
+     * mais a cabine pedem 2 * (0,36 + 0,62) = 1,96 para passar entre duas. Ou
+     * seja: a espinha ficaria indesviável POR DENTRO, e a única saída seria a
+     * faixa vazia estar bem onde o jogador já está. Com quatro faixas o vão dá
+     * 2,34 — 19% de folga — e o ataque continua sendo "ache a coluna que não
+     * veio", que é o desenho dele.
+     */
+    faixas: 4,
+    velocidadeZ: 6.46,
+    /**
+     * Quanto cada cabine desce por segundo enquanto avança.
+     *
+     * Sai de uma conta, não do olho: elas nascem na altura da BOCA e têm de
+     * chegar ao meio da arena quando cruzam o plano dos aviões. A cabeça subiu
+     * 21 unidades nesta revisão, então o 2,4 de antes as faria chegar bem acima
+     * do jogador — cairiam a fase inteira sem nunca ameaçar ninguém.
+     */
+    get quedaPorSegundo() { return -descidaAte(meioY(), ELEVADORES.velocidadeZ); },
+    raio: 0.62,
 });
 
 export const xDaFaixa = (i: number): number =>
-    (-1 + (2 * i) / (ELEVADORES.faixas - 1)) * ARENA.x * 0.82;
+    (-1 + (2 * i) / (ELEVADORES.faixas - 1)) * ARENA.x * 0.95;
 
 export function nascerElevadores(faixaVazia: number): Projetil[] {
     const vazia = ((Math.floor(faixaVazia) % ELEVADORES.faixas) + ELEVADORES.faixas) % ELEVADORES.faixas;
@@ -478,7 +730,7 @@ export function nascerElevadores(faixaVazia: number): Projetil[] {
         if (i === vazia) continue;
         fora.push({
             id: novoId(), tipo: 'elevadores',
-            x: xDaFaixa(i), y: ARENA.yAlto + 1.2, z: ARENA.zCabeca + 2,
+            x: xDaFaixa(i), y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
             vx: 0, vy: -ELEVADORES.quedaPorSegundo, vz: ELEVADORES.velocidadeZ,
             r: ELEVADORES.raio, t: 0, p: i,
         });
@@ -506,19 +758,44 @@ export function passoDoProjetil(
         // O bamboleio É a posição, não um enfeite por cima dela. E `vx` sai da
         // diferença, para quem desenha poder inclinar a nave pela velocidade
         // REAL em vez de recalcular um seno paralelo que discordaria dela.
+        //
+        // `abre` faz a linha de repouso sair da BOCA e caminhar até a faixa: as
+        // quatro camareiras nascem no mesmo ponto e se espalham enquanto vêm.
+        // A conta mora AQUI, junto do resto do movimento, e não no componente
+        // que desenha — este arquivo já pagou uma vez por um bamboleio que
+        // morava no desenho, e o dano vinha noventa centímetros ao lado do que
+        // o jogador via.
         const antes = p.x;
-        p.x = p.base + Math.sin(p.t * NAVES.ondaHz * Math.PI * 2 + (p.p ?? 0)) * NAVES.ondaAmp;
+        const linha = p.abre && p.abre > 0
+            ? BOCA_SAIDA.x + (p.base - BOCA_SAIDA.x) * Math.min(1, p.t / p.abre)
+            : p.base;
+        const espalhou = p.abre && p.abre > 0 ? Math.min(1, p.t / p.abre) : 1;
+        p.x = linha + Math.sin(p.t * NAVES.ondaHz * Math.PI * 2 + (p.p ?? 0)) * NAVES.ondaAmp * espalhou;
         p.vx = d > 0 ? (p.x - antes) / d : 0;
     } else {
         p.x += p.vx * d;
     }
 }
 
-/** O projétil já passou do jogador e pode ser recolhido? */
+/**
+ * O projétil já passou do jogador e pode ser recolhido?
+ *
+ * ── O TETO ERA A ARENA, E OS ATAQUES PASSARAM A NASCER ACIMA DELE ───────────
+ *
+ * O limite de cima era `ARENA.yAlto + 14` — 23 com os números antigos, uma
+ * folga generosa quando tudo nascia na altura do voo. Com os ataques saindo da
+ * BOCA, a 24,2, todos eles passaram a nascer JÁ FORA DE CENA: eram criados e
+ * recolhidos no mesmo quadro. A luta ficou literalmente sem ataque nenhum, e o
+ * jeito como isso apareceu foi o bot da simulação vencer sem desviar de nada e
+ * sem levar um toque sequer — que é exatamente para isso que a simulação existe.
+ *
+ * O teto agora é a BOCA, que é de onde as coisas saem, e não a arena, que é
+ * onde elas chegam.
+ */
 export function saiuDeCena(p: Projetil): boolean {
     if (p.tipo === 'tiro') return p.z < ARENA.zCabeca - 3;
     if (p.z > ARENA.zNave + 14) return true;
-    if (p.y < ARENA.yBaixo - 8 || p.y > ARENA.yAlto + 14) return true;
+    if (p.y < ARENA.yBaixo - 8 || p.y > BOCA_SAIDA.y + 6) return true;
     return Math.abs(p.x) > ARENA.x + 16;
 }
 
@@ -541,26 +818,63 @@ export const TIRO = Object.freeze({
  * Contadas na página, as balas existiam — quatro em voo — e mesmo assim não
  * apareciam em foto nenhuma: de trás, uma bala que sai do meio do avião e se
  * afasta pelo eixo fica ESCONDIDA ATRÁS DO PRÓPRIO AVIÃO e depois vira um ponto
- * no ponto de fuga. O dono do jogo disse que o tiro estava ruim; parte disso era
- * literalmente não dar para ver o tiro.
+ * no ponto de fuga. Saindo das pontas, as balas formam dois rastros paralelos
+ * de cada lado da fuselagem — é por isso que todo jogo de nave em terceira
+ * pessoa atira das asas: leitura, não realismo.
  *
- * Saindo das pontas (`lado` = -1 ou +1), as balas formam dois rastros paralelos
- * de cada lado da fuselagem. É por isso que todo jogo de nave em terceira pessoa
- * atira das asas — não por realismo, por leitura.
+ * ── E AGORA ELE SOBE, QUE É O QUE DESTRAVOU O ANDAR ──────────────────────────
  *
- * O desvio é pequeno perto do raio do alvo da boca (3,0), então a mira continua
- * sendo "alinhar o avião com a boca": nada muda na regra, só na visão.
+ * O tiro saía com `vy = 0`. Parece um detalhe e era a amarra que segurava a
+ * composição inteira: uma bala que voa reto pelo eixo só acerta a boca se o
+ * AVIÃO estiver na altura da boca. Ou seja, a regra do tiro obrigava o jogador
+ * a voar dentro da cara do chefe, e foi por isso que duas montagens seguidas
+ * puseram a arena em cima do queixo dela — havia até um teste EXIGINDO isso.
+ *
+ * A elevação resolve pelo lado certo. As armas do avião apontam para o alto: a
+ * bala nasce na ponta da asa e sobe o quanto for preciso para cruzar o plano da
+ * cabeça na altura da boca. O jogador não mira mais em Y.
+ *
+ * O QUE ELE MIRA É X, e isso é de propósito. `vx` é ZERO: a bala guarda o X de
+ * onde saiu. Para machucar, o avião tem de estar alinhado com a boca — que fica
+ * no meio da arena, que é justamente o lugar mais perigoso para ficar parado.
+ * A luta passa a ser "volto ao meio para atirar, saio do meio para desviar", e
+ * essa troca é o andar. Se a bala também se corrigisse em X, todo tiro acertaria
+ * e a mira sairia do jogo.
  */
-export const PONTA_DA_ASA = 1.35;
+/**
+ * Onde, na largura do avião, a bala nasce.
+ *
+ * SAI DA ENVERGADURA, e não de um número solto. Estava em 1,35 num avião cuja
+ * meia-envergadura desenhada é 1,175: as balas nasciam FORA das asas, no ar, a
+ * 17 centímetros da ponta. É a mesma classe de defeito que pôs o anel de mira
+ * em cima do nariz do chefe — desenho e regra saindo de dois números que
+ * ninguém prometeu manter iguais. 0,90 da meia-envergadura põe a bala em cima
+ * da luz de navegação da ponta, que é onde o desenho diz que a arma está.
+ */
+export const PONTA_DA_ASA = (ENQUADRAMENTO.envergadura / 2) * 0.90;
+
+/** Onde a bala nasce em Z, à frente da nave. */
+export const TIRO_Z0 = ARENA.zNave - 0.6;
+
+/**
+ * Quanto a bala sobe por segundo para cruzar o plano da cabeça na altura da
+ * boca, saindo de `y`. É a elevação da arma, e ela é uma conta — não um número
+ * escolhido —, senão a bala e o alvo discordam e o jogador não descobre por quê.
+ */
+export function subidaDoTiro(y: number): number {
+    const tempo = Math.abs(ARENA.zCabeca - TIRO_Z0) / TIRO.velocidade;
+    return (BOCA_ALVO.y - y) / tempo;
+}
 
 export function nascerTiro(
     x: number, y: number, de: 'jogador' | 'irmao', lado: -1 | 1 = 1,
 ): Projetil {
+    const y0 = y - 0.12;
     return {
         id: novoId(), tipo: 'tiro',
-        x: x + lado * PONTA_DA_ASA * (de === 'irmao' ? 0.7 : 1), y: y - 0.12,
-        z: ARENA.zNave - 0.6,
-        vx: 0, vy: 0, vz: -TIRO.velocidade,
+        x: x + lado * PONTA_DA_ASA * (de === 'irmao' ? 0.7 : 1), y: y0,
+        z: TIRO_Z0,
+        vx: 0, vy: subidaDoTiro(y0), vz: -TIRO.velocidade,
         r: TIRO.raio, t: 0, de, p: lado,
     };
 }
@@ -616,10 +930,12 @@ export const NAVE = Object.freeze({
      * ── A CAIXA DE COLISÃO É PEQUENA DE PROPÓSITO ────────────────────────
      * Ela era 0,62 num avião de 3,6 de envergadura: um terço do desenho. Todo
      * shmup que se joga com o polegar usa uma caixa MUITO menor que a nave —
-     * é o que faz passar raspando ser emocionante em vez de injusto. 0,42 é
-     * 23% da envergadura: o bico e as pontas das asas não machucam.
+     * é o que faz passar raspando ser emocionante em vez de injusto. Com a
+     * envergadura composta em 2,35, 0,36 deixa a caixa em 31% do desenho: o
+     * bico e as pontas das asas não machucam, e a razão desenho/caixa fica em
+     * 3,3 — dentro da faixa que o teste cobra.
      */
-    raio: 0.42,
+    raio: 0.36,
     /** Depois de um toque, este tanto de segundos sem poder levar outro. */
     invencivel: 2.0,
     rolagemMaxima: 0.85,
@@ -699,12 +1015,27 @@ export function encostou(p: Projetil, x: number, y: number, raio: number): boole
  * `Floor12Cabeca` posiciona a cavidade a partir DESTE número, então as duas não
  * podem mais discordar — e o teste confere.
  */
-export const BOCA_ABAIXO_DO_CENTRO = 3.9;
-export const BOCA_ALVO = Object.freeze({ x: 0, y: ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, raio: 3.0 });
+export const BOCA_ABAIXO_DO_CENTRO = 4.8;
+/**
+ * O alvo encolheu de 3,0 para 2,0, e o motivo é que ele passou a ser A MIRA.
+ *
+ * Enquanto o tiro voava reto, acertar a boca queria dizer estar na ALTURA dela
+ * — o Y era o desafio e o raio generoso compensava um alvo difícil. Agora a
+ * bala sobe sozinha e quem decide é o X, então este raio é literalmente a
+ * largura da mira. A 3,0 numa arena de 3,7 ele cobria 81% do mundo jogável:
+ * qualquer tiro contaria, de qualquer lugar, e a mira sairia do jogo. A 2,0 o
+ * jogador tem de voltar ao meio da arena para machucar — que é o lugar mais
+ * perigoso para ficar parado, e é essa troca que faz a luta.
+ */
+export const BOCA_ALVO = Object.freeze({ x: 0, y: ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, raio: 2.0 });
 
 export function tiroNaBoca(p: Projetil): boolean {
     if (p.tipo !== 'tiro') return false;
     if (p.z > ARENA.zCabeca + 1.6) return false;
+    // O Y continua sendo conferido, e não é redundante: a elevação leva a bala
+    // à altura da boca, mas o irmão atira de qualquer lugar e um tiro nascido
+    // rente ao chão da arena ainda pode chegar curto. O que decide na prática é
+    // o X, que é o que o jogador controla.
     return Math.hypot(p.x - BOCA_ALVO.x, p.y - BOCA_ALVO.y) < BOCA_ALVO.raio;
 }
 

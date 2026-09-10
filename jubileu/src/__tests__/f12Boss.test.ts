@@ -9,10 +9,10 @@ import {
     NAVES, nascerNaves,
     MARE, nascerMare, frestaDaMare, mareAcerta,
     ELEVADORES, nascerElevadores, xDaFaixa,
-    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO,
+    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, BOCA_SAIDA, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, PONTA_DA_ASA,
     NAVE, novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque,
     encostou, reiniciarIds, passoDoProjetil, saiuDeCena,
-    ENQUADRAMENTO, larguraDoQuadro,
+    ENQUADRAMENTO, larguraDoQuadro, composicaoNaTela, ajustarAoAspecto, reporArena, ARENA_X_MAXIMA,
     type Projetil, type NomeDoAtaque,
 } from '../f12Boss';
 
@@ -257,14 +257,28 @@ describe('f12 — o teleguiado: persegue, mas dá para despistar', () => {
 
 // ── ATAQUE 3: AS CAMAREIRAS ──────────────────────────────────────────────────
 describe('f12 — as mini naves aliadas da cabeça', () => {
-    it('nascem espalhadas, dentro da arena, e morrem de tiro', () => {
+    it('nascem JUNTAS na boca, abrem para as faixas, e morrem de tiro', () => {
         const n = nascerNaves();
         expect(n).toHaveLength(NAVES.quantas);
+        // Saem todas do mesmo ponto: a cavidade. Antes elas nasciam já
+        // espalhadas na altura do voo, o que na tela lê como quatro naves que
+        // sempre estiveram ali em vez de quatro naves que ela acabou de cuspir.
         for (const q of n) {
-            expect(Math.abs(q.x)).toBeLessThanOrEqual(ARENA.x);
+            expect(q.x).toBeCloseTo(BOCA_SAIDA.x, 6);
+            expect(q.y).toBeCloseTo(BOCA_SAIDA.y, 6);
             expect(q.hp).toBeGreaterThan(0);
         }
-        expect(new Set(n.map((q) => q.x)).size).toBeGreaterThan(1);
+        // e ABREM: depois do tempo de abertura elas estão em faixas distintas,
+        // todas dentro da arena.
+        //
+        // Aqui tem de ser `passoDoProjetil`, e não o `passo` cru desta folha: a
+        // abertura e o bamboleio moram no movimento de verdade, e um integrador
+        // que só soma `vx` deixaria as quatro paradas em cima da boca — que foi
+        // exatamente como este teste falhou da primeira vez.
+        const t = n[0].abre as number;
+        for (const q of n) { for (let i = 0; i < Math.ceil(t * 120) + 4; i++) passoDoProjetil(q, 0, meioY(), 1 / 120); }
+        expect(new Set(n.map((q) => Math.round(q.x * 10))).size).toBeGreaterThan(1);
+        for (const q of n) expect(Math.abs(q.x)).toBeLessThanOrEqual(ARENA.x);
     });
 
     it('é o único padrão que se resolve ATIRANDO — os outros são desvio', () => {
@@ -533,10 +547,16 @@ describe('f12 — colisão', () => {
 // defeito com justificativa: a nave que o jogador vê não seria a que o jogo
 // testa, e o dano viria de noventa centímetros ao lado. Movimento tem um dono.
 describe('f12 — o movimento mora no módulo, não no desenho', () => {
-    it('a camareira bamboleia na POSIÇÃO, e a velocidade lateral acompanha', () => {
+    it('a camareira bamboleia na POSIÇÃO (depois de abrir), e a velocidade lateral acompanha', () => {
         const n = nascerNaves()[0];
         const base = n.base as number;
         expect(base).toBeDefined();
+        // A ABERTURA primeiro: enquanto ela sai da boca para a faixa, a linha de
+        // repouso ainda está caminhando, e medir o bamboleio contra `base` nesse
+        // trecho mediria a abertura somada ao bamboleio.
+        const abre = n.abre as number;
+        expect(abre).toBeGreaterThan(0);
+        for (let i = 0; i < Math.ceil(abre * 60) + 2; i++) passoDoProjetil(n, 0, meioY(), 1 / 60);
         let maisLonge = 0, vxMax = 0;
         for (let i = 0; i < 60 * 4; i++) {
             passoDoProjetil(n, 0, meioY(), 1 / 60);
@@ -659,13 +679,130 @@ describe('f12 — a hitbox da boca coincide com a boca', () => {
         expect(BOCA_ALVO.y).toBeCloseTo(ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, 6);
     });
 
-    it('a boca fica dentro da arena, para o jogador poder chegar nela', () => {
-        expect(BOCA_ALVO.y).toBeGreaterThan(ARENA.yBaixo);
-        expect(BOCA_ALVO.y).toBeLessThan(ARENA.yAlto);
+    // ── ESTE TESTE ESTAVA INVERTIDO, E FOI ELE QUE SEGUROU O DEFEITO ──────
+    //
+    // Ele exigia `ARENA.yBaixo < BOCA_ALVO.y < ARENA.yAlto`: a boca DENTRO da
+    // caixa de voo. Passava, e a coisa que ele garantia era o avião do jogador
+    // ser desenhado dentro da boca do chefe — 2,2% de tela entre os dois, a
+    // arena 19,7% por cima da cara dela. Duas revisões seguidas mexeram nas
+    // alturas para consertar o enquadramento e as duas foram puxadas de volta
+    // para cá, porque um teste verde parece uma amarra e não um erro.
+    //
+    // Ele não era irracional: com o tiro voando reto, a única forma de acertar
+    // a boca era estar na altura dela. O erro estava no tiro. Hoje a bala sobe
+    // (`subidaDoTiro`) e o que este teste cobra é o contrário — a SEPARAÇÃO.
+    it('a boca fica bem ACIMA da arena: o jogador não voa dentro da cara dela', () => {
+        expect(BOCA_ALVO.y, 'a boca voltou para dentro da caixa de voo')
+            .toBeGreaterThan(ARENA.yAlto);
+        // e a separação tem de ser grande o bastante para o ataque ser visto
+        // vindo — não basta não encostar.
+        const vao = BOCA_ALVO.y - ARENA.yAlto;
+        expect(vao, 'a boca está encostada no teto do voo').toBeGreaterThan(ARENA.yAlto - ARENA.yBaixo);
+    });
+
+    it('e o tiro do jogador alcança a boca de qualquer altura da arena', () => {
+        // Se a bala não subisse o bastante saindo do CHÃO da arena, o andar
+        // teria um lugar de onde é impossível machucar o chefe — e o jogador
+        // não teria como descobrir por quê.
+        for (const y of [ARENA.yBaixo, meioY(), ARENA.yAlto]) {
+            const t = nascerTiro(BOCA_ALVO.x, y, 'jogador');
+            let g = 0;
+            while (t.z > ARENA.zCabeca && g++ < 4000) passo(t, 1 / 240);
+            expect(Math.abs(t.y - BOCA_ALVO.y), `saindo de y=${y}`).toBeLessThan(0.3);
+            expect(tiroNaBoca(t), `saindo de y=${y}`).toBe(true);
+        }
     });
 
     it('e o alvo não é tão grande que qualquer tiro conte', () => {
         // Um alvo do tamanho da arena tira a mira do jogo.
         expect(BOCA_ALVO.raio * 2).toBeLessThan(ARENA.x * 1.4);
+    });
+});
+
+// ── A COMPOSIÇÃO, EM NÚMERO ──────────────────────────────────────────────────
+//
+// O defeito que o dono do jogo chamou de "péssimo" era este, e ele sobreviveu a
+// duas correções porque nenhuma delas tinha régua: o avião era desenhado DENTRO
+// da boca do chefe, com 2,2% de tela entre os dois, e a caixa de voo cobria a
+// cara dele em 19,7% da tela. Cada revisão mexeu nas alturas no olho e escreveu
+// no comentário que estava resolvido.
+//
+// Estes testes são a régua. Eles não julgam se está bonito — julgam se o
+// jogador e o ponto fraco do chefe estão em lugares diferentes da tela, e se
+// existe distância entre os dois para um ataque ser visto vindo.
+describe('f12 — a composição da tela', () => {
+    it('o avião fica no terço de baixo, e a boca no alto', () => {
+        const c = composicaoNaTela();
+        expect(c.nave, 'o avião subiu para o meio da tela').toBeLessThan(0.36);
+        expect(c.nave, 'o avião saiu pela base da tela').toBeGreaterThan(0.12);
+        expect(c.boca, 'a boca desceu para o meio da tela').toBeGreaterThan(0.60);
+        expect(c.boca, 'a boca saiu pelo topo da tela').toBeLessThan(0.92);
+    });
+
+    it('e existe TELA entre os dois — é por onde o ataque vem', () => {
+        // 2,2% era o número do defeito. Menos de um terço de tela entre a boca e
+        // o avião quer dizer um ataque que nasce praticamente em cima do
+        // jogador, e nenhuma velocidade de nave conserta isso.
+        const c = composicaoNaTela();
+        expect(c.vaoBocaNave, 'a boca voltou a ficar em cima do avião').toBeGreaterThan(0.33);
+    });
+
+    it('a caixa de voo inteira cabe na tela, com margem em cima e embaixo', () => {
+        const c = composicaoNaTela();
+        expect(c.arenaBaixo, 'o chão do voo saiu pela base').toBeGreaterThan(0.02);
+        expect(c.arenaAlto, 'o teto do voo invadiu a metade de cima').toBeLessThan(0.56);
+        expect(c.arenaAlto).toBeGreaterThan(c.arenaBaixo);
+    });
+
+    it('e a arena inteira fica ABAIXO da boca, sem encostar nela', () => {
+        const c = composicaoNaTela();
+        expect(c.arenaAlto, 'o teto do voo alcança a boca').toBeLessThan(c.boca - 0.15);
+    });
+
+    // ── O VERTICAL NÃO PODE DEPENDER DO ASPECTO ──────────────────────────
+    // É o que torna esta composição portátil: um monitor deitado mostra mais
+    // CÉU dos lados, e não outro enquadramento. Se algum dia alguém puser o
+    // aspecto na conta vertical, o andar passa a ter uma composição por
+    // aparelho e nenhuma delas terá sido escolhida.
+    it('a mesma composição vale no celular em pé e no monitor deitado', () => {
+        const antes = composicaoNaTela();
+        ajustarAoAspecto(16 / 9);
+        const depois = composicaoNaTela();
+        reporArena();
+        expect(depois.nave).toBeCloseTo(antes.nave, 10);
+        expect(depois.boca).toBeCloseTo(antes.boca, 10);
+    });
+
+    it('numa tela larga a arena alarga, em vez de virar uma tirinha no meio', () => {
+        const estreita = ARENA.x;
+        ajustarAoAspecto(16 / 9);
+        expect(ARENA.x, 'a arena não acompanhou a tela').toBeGreaterThan(estreita);
+        expect(ARENA.x, 'a arena virou grande demais para a nave atravessar')
+            .toBeLessThanOrEqual(ARENA_X_MAXIMA);
+        reporArena();
+        expect(ARENA.x).toBe(estreita);
+    });
+});
+
+// ── O TIRO SAI DE ONDE A ASA ESTÁ ────────────────────────────────────────────
+//
+// `PONTA_DA_ASA` era 1,35 num avião de 1,175 de meia-envergadura: a bala nascia
+// no ar, fora da asa. É a mesma classe de defeito que já pôs a hitbox da boca em
+// cima do NARIZ do chefe — o desenho e a regra saindo de dois números soltos que
+// ninguém prometeu manter iguais. Agora um sai do outro, e isto cobra.
+describe('f12 — a arma está onde a asa está', () => {
+    it('a bala nasce em cima da asa, nunca fora dela', () => {
+        const meiaAsa = ENQUADRAMENTO.envergadura / 2;
+        expect(PONTA_DA_ASA, 'a bala nasce fora da asa').toBeLessThan(meiaAsa);
+        expect(PONTA_DA_ASA, 'as duas balas saem quase do mesmo ponto: some o par de rastros')
+            .toBeGreaterThan(meiaAsa * 0.6);
+    });
+
+    it('e as duas saem de lados opostos, para virarem dois rastros', () => {
+        const e = nascerTiro(0, meioY(), 'jogador', -1);
+        const d = nascerTiro(0, meioY(), 'jogador', 1);
+        expect(e.x).toBeLessThan(0);
+        expect(d.x).toBeGreaterThan(0);
+        expect(Math.abs(e.x)).toBeCloseTo(Math.abs(d.x), 10);
     });
 });

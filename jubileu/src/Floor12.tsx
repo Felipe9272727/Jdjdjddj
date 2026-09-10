@@ -27,6 +27,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
     f12, f12Reset, f12AoMudar, f12Bump, ARENA, meioY, ENQUADRAMENTO, BOCA_ALVO,
+    larguraDoQuadro, ajustarAoAspecto,
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
@@ -152,23 +153,46 @@ const DiretorDaIntro: React.FC<{
         t.current += Math.min(rawDt, 0.05);
         const tt = t.current;
 
-        if (tt > 0.6 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
+        // ── A ORDEM DA INTRODUÇÃO FOI TROCADA, E ERA O DEFEITO ───────────
+        //
+        // O pedido do andar é "o elevador vira um avião". Na montagem anterior
+        // isso acontecia, e ACONTECIA FORA DA TELA. A conta:
+        //
+        //     3,0 s   começa o desdobramento (`abertura` 0 -> 1 em 2,2 s)
+        //     4,4 s   a câmera começa a sair de dentro do hóspede
+        //     4,62 s  o avião FICA VISÍVEL (`RevelarAviao`, camRef > 0,12)
+        //
+        // Quando o casco aparecia, `abertura` já valia 0,74: três quartos da
+        // transformação tinham corrido com o avião invisível, e o que o jogador
+        // via era um corte de "céu vazio" para "avião pronto". A piada inteira
+        // da introdução — a cabine do elevador abrindo asas — não estava na
+        // tela em nenhum quadro.
+        //
+        // Agora a câmera sai PRIMEIRO, o casco aparece ainda FECHADO (um cubo
+        // de elevador voando, que já é uma imagem), e só então ele se desdobra,
+        // inteiro, à vista, com 2,4 s para isso.
+        if (tt > 0.5 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
 
-        portaRef.current = THREE.MathUtils.clamp((tt - 1.2) / 1.4, 0, 1);
+        //  0,0 -> 1,0   as portas fechadas: o jogador ainda está no elevador
+        //  1,0 -> 2,4   elas abrem, e do outro lado não há andar: há céu
+        portaRef.current = THREE.MathUtils.clamp((tt - 1.0) / 1.4, 0, 1);
 
-        if (tt > 3.0) {
+        //  2,4 -> 4,0   a câmera sai de dentro do hóspede para trás da cabine
+        camRef.current = THREE.MathUtils.clamp((tt - 2.4) / 1.6, 0, 1);
+        //  2,4 -> 3,4   a casca de primeira pessoa some: ela e o casco são a
+        //               mesma coisa vista de dois lados, e mostrar as duas ao
+        //               mesmo tempo entregaria o truque.
+        sumindoRef.current = THREE.MathUtils.clamp((tt - 2.4) / 1.0, 0, 1);
+
+        //  4,0 -> 6,4   O DESDOBRAMENTO, agora com a câmera já lá fora
+        if (tt > 4.0) {
             if (!marcos.current.desdobrar) { marcos.current.desdobrar = true; tocarDesdobrar(); f12.fase = 'virando'; f12Bump(); }
-            aberturaRef.current = THREE.MathUtils.clamp((tt - 3.0) / 2.2, 0, 1);
+            aberturaRef.current = THREE.MathUtils.clamp((tt - 4.0) / 2.4, 0, 1);
         }
-        if (tt > 4.4 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
+        //  o motor pega quando a hélice já está montada
+        if (tt > 5.6 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
 
-        // A câmera sai de dentro do hóspede para trás do avião.
-        camRef.current = THREE.MathUtils.clamp((tt - 4.4) / 1.8, 0, 1);
-        // A cabine de dentro some junto — ela e o casco são a mesma coisa vista
-        // de dois lados, e mostrar as duas ao mesmo tempo entregaria o truque.
-        sumindoRef.current = THREE.MathUtils.clamp((tt - 4.6) / 1.2, 0, 1);
-
-        if (tt > 6.2) { f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar(); }
+        if (tt > 7.0) { f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar(); }
     });
     return null;
 };
@@ -197,25 +221,37 @@ const CameraDaLuta: React.FC<{
 
         // Dentro do hóspede: no meio da cabine, na altura dos olhos.
         const dentroY = meioY() + 0.35, dentroZ = 0.55;
-        // Atrás do avião: acompanha X e Y com atraso, para a nave "escapar" um
-        // pouco do quadro quando o jogador acelera — é o que dá velocidade.
-        const atrasX = n.x * 0.72, atrasY = n.y * 0.55 + meioY() * 0.45;
+
+        // ── A CÂMERA DA LUTA VEM DE `ENQUADRAMENTO`, INTEIRA ─────────────
+        //
+        // Antes ela era três lerps de números escolhidos no olho, e o resultado
+        // medido foi: o avião a 48,5% da altura da tela, a boca a 50,7%, e a
+        // arena desenhada 19,7% por cima da cara do chefe. Ela olhava para
+        // BAIXO (posição y 5,1, alvo y 3,91) num andar cujo assunto está no
+        // alto. Agora ela fica acima do avião e olha para CIMA, na cabeça, e os
+        // três números saem do mesmo lugar em que a composição foi resolvida.
+        //
+        // O ATRASO continua: a câmera segue o avião com folga em X e Y, para
+        // ele "escapar" um pouco do quadro quando o jogador manda — é o que dá
+        // velocidade. O que ela não faz mais é decidir o enquadramento.
+        const E = ENQUADRAMENTO;
+        const atrasX = n.x * 0.55;
+        const atrasY = E.camY + (n.y - meioY()) * 0.30;
 
         const px = THREE.MathUtils.lerp(0, atrasX, suave);
-        const py = THREE.MathUtils.lerp(dentroY, atrasY + 1.1, suave);
-        // O RECUO É MEDIDO, não escolhido no olho: ele vem de `ENQUADRAMENTO`,
-        // que é onde a largura da arena, o aspecto da tela em pé e o tamanho do
-        // avião são conciliados — ver a nota longa em `f12Boss`.
-        const pz = THREE.MathUtils.lerp(dentroZ, ENQUADRAMENTO.recuo, suave);
+        const py = THREE.MathUtils.lerp(dentroY, atrasY, suave);
+        const pz = THREE.MathUtils.lerp(dentroZ, E.recuo, suave);
         camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
 
-        // O alvo fica ENTRE o avião e a boca: a câmera de um jogo de nave tem de
-        // enquadrar os dois ao mesmo tempo, senão o jogador escolhe entre ver
-        // para onde vai e ver de onde vem o ataque.
+        // O alvo fica no eixo composto, deslocado de leve pelo avião: a câmera
+        // de um jogo de nave tem de enquadrar o jogador e a boca ao mesmo
+        // tempo, senão ele escolhe entre ver para onde vai e ver de onde vem o
+        // ataque. O deslocamento é pequeno de propósito — se o alvo seguisse o
+        // avião inteiro, o quadro balançaria e a boca sairia do lugar dela.
         alvo.current.set(
-            THREE.MathUtils.lerp(0, n.x * 0.5, suave),
-            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3, suave),
-            THREE.MathUtils.lerp(-6, -11, suave),
+            THREE.MathUtils.lerp(0, n.x * 0.28, suave),
+            THREE.MathUtils.lerp(dentroY, E.miraY + (n.y - meioY()) * 0.18, suave),
+            THREE.MathUtils.lerp(-6, E.miraZ, suave),
         );
 
         // O SACODE do dano. Ele mexe o ALVO, não a posição: sacudir a posição
@@ -276,7 +312,15 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // O irmão é um ALA: ele acompanha o jogador com atraso e desvia do que
         // estiver mais perto dele. Não é uma IA esperta — é uma presença.
         if (lutando) {
-            const querX = THREE.MathUtils.clamp(n.x - 3.2, -ARENA.x, ARENA.x);
+            // ── A FORMATURA SAI DA ARENA, NÃO DE UM NÚMERO SOLTO ─────
+            //
+            // Era `n.x - 3.2` numa arena que hoje tem 3,7 de meia-largura: o ala
+            // ficava GRUDADO na parede esquerda o tempo todo, porque o ponto que
+            // ele queria estava fora do mundo em quase toda posição do jogador,
+            // e o `clamp` o prendia na borda. Na foto ele era uma mancha escura
+            // parada no canto — não um ala. Metade da meia-largura o põe ao
+            // alcance do olho do jogador e continua sendo formatura.
+            const querX = THREE.MathUtils.clamp(n.x - ARENA.x * 0.5, -ARENA.x, ARENA.x);
             const querY = THREE.MathUtils.clamp(n.y + 1.1, ARENA.yBaixo, ARENA.yAlto);
             let fugaX = 0, fugaY = 0;
             for (const p of f12.projeteis) {
@@ -482,9 +526,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const visivel = useRef(false);
 
     useEffect(() => {
+        // A arena se alarga ANTES de qualquer nave nascer: as posições iniciais
+        // e as faixas dos ataques saem de `ARENA.x`, e alargar depois deixaria o
+        // irmão fora da arena numa tela larga.
+        ajustarAoAspecto(window.innerWidth / Math.max(1, window.innerHeight));
         f12Reset();
         nave.current = novaNave(0, meioY());
-        irmao.current = novaNave(-4, meioY() + 1.2, 3);
+        irmao.current = novaNave(-ARENA.x * 0.55, meioY() + 1.2, 3);
         f12AoMudar(avisar);
         return () => { f12AoMudar(null); pararMotor(); };
     }, [avisar]);
@@ -523,7 +571,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             // cruel do avesso: ela volta inteira e o jogador também.
             f12Reset();
             nave.current = novaNave(0, meioY());
-            irmao.current = novaNave(-4, meioY() + 1.2, 3);
+            irmao.current = novaNave(-ARENA.x * 0.55, meioY() + 1.2, 3);
             f12.fase = 'luta'; f12.bocaT = 0;
             abertura.current = 1; cam.current = 1; sumindo.current = 1; visivel.current = true;
             tocarMotor();
@@ -553,11 +601,14 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     // um "ganho" arbitrário que mudaria de celular para celular.
     const arrasto = useRef<{ id: number; x: number; y: number } | null>(null);
 
+    // O ASPECTO É O DA TELA DE VERDADE, não o da composição. Usar o composto
+    // aqui dava um arrasto certo só no celular do dono do jogo: em qualquer
+    // outra proporção o dedo e a nave andavam distâncias diferentes, e um a um
+    // que não é um a um é pior do que um ganho assumido.
     const pixelParaMundo = useCallback(() => {
-        const meiaV = Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
-        const larguraDoMundo = 2 * ENQUADRAMENTO.recuo * meiaV * ENQUADRAMENTO.aspecto;
-        const larguraDaTela = Math.max(1, window.innerWidth);
-        return larguraDoMundo / larguraDaTela;
+        const tela = Math.max(1, window.innerWidth);
+        const aspecto = tela / Math.max(1, window.innerHeight);
+        return larguraDoQuadro(ENQUADRAMENTO.recuo, aspecto) / tela;
     }, []);
 
     const arrastoHandlers = {
@@ -786,7 +837,13 @@ const RevelarAviao: React.FC<{
     camRef: React.MutableRefObject<number>;
     visivelRef: React.MutableRefObject<boolean>;
 }> = ({ camRef, visivelRef }) => {
-    useFrame(() => { if (camRef.current > 0.12) visivelRef.current = true; });
+    // 0,35 e não 0,12: abaixo disso a câmera ainda está praticamente dentro da
+    // cabine e o casco seria desenhado em volta dela. Com a saída da câmera
+    // durando 1,6 s, 0,35 cai um segundo inteiro ANTES de o desdobramento
+    // começar — que é de propósito: o jogador vê a cabine do elevador voando
+    // fechada antes de ela abrir asas, e é o contraste entre as duas imagens
+    // que faz a transformação ser lida como transformação.
+    useFrame(() => { if (camRef.current > 0.35) visivelRef.current = true; });
     return null;
 };
 
