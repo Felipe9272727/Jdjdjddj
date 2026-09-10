@@ -4252,3 +4252,69 @@ de elevador virou chifre na primeira tentativa, por eu tê-la posto num **círcu
 raio R num crânio que é **elipsoide**.
 
 2163 testes passando.
+
+---
+
+## 2026-09-10 (2) — Andar 12: o controle estava quebrado, e eu tinha fotografado isso sem ver
+
+O dono do jogo voltou com cinco coisas. Duas lições que valem além do andar.
+
+### 1. A foto não responde "isto está sendo jogado?"
+
+"Mesmo eu tocando, eu não consigo mexer o avião." Reproduzido: `dx 0,00 dy 0,00`, nas
+duas orientações. **Todas as fotos que eu tinha entregue eram de um jogo em que ninguém
+estava jogando** — a bancada arrastava e a nave ficava parada no meio da arena, que é
+exatamente o que se vê quando o controle está quebrado.
+
+A causa: dois controles escrevendo no MESMO par de campos, e a cena chamando o do
+teclado todo quadro. `conduzirNave(0,0)` assenta o alvo em cima da nave (existe por bom
+motivo), e apagava o alvo do dedo a 60 Hz. **Nenhum teste pegou porque cada função,
+sozinha, está certa: o defeito morava na ORDEM em que a cena as chamava.** Hoje a `Nave`
+tem `dono: 'dedo' | 'tecla'` e a regra mora no módulo, testada.
+
+> Bancada nova: `bancada-navegador/o-arrasto-funciona.mjs` — arrasta de verdade e
+> compara x/y antes e depois. Sempre que um andar tiver controle, ele precisa de uma
+> bancada que pergunte isso; foto não pergunta.
+
+### 2. "Aceitável em outras telas" é uma entrega pela metade
+
+Eu compus o andar para 412×915 e escrevi que telas largas ficariam "aceitáveis". Ele joga
+com o celular **DEITADO**: o avião saía com 5,7% da largura em vez de 28% — metade do
+tamanho, no mesmo aparelho. `fov` no three é VERTICAL, então girar o aparelho não muda a
+abertura vertical.
+
+Agora a composição **se resolve** para o aspecto real (`ajustarAoAspecto`): o recuo sai
+do tamanho que o avião tem de ter na largura, a caixa de voo é uma fatia da tela, e
+`camY`/`miraY` saem de uma busca contra a projeção. Medido em pé / deitado / tablet / 16:9:
+avião 25% da altura, boca 66%, vão 46% — **idêntico nas quatro**; envergadura
+115 / 156 / 189 / 326 px.
+
+Duas coisas que só apareceram depois disso:
+- **a cabeça estava a uma distância fixa** enquanto a câmera se aproximava → no deitado
+  virou um borrão de 15% da largura. A distância dela agora sai do tamanho-alvo, com o
+  teto no eixo mais exigente (em pé manda a largura, deitado a altura).
+- **as larguras dos ataques eram fixas**, afinadas para a arena de 3,7. Na arena de 6,2 o
+  leque cobria 46% do mundo e dava para contornar por fora. Leque e maré saem de `ARENA.x`.
+
+### 3. Uma régua com uma CÓPIA da regra dentro dela mede outro programa
+
+`f12Simulacao` tinha o ritmo da arma escrito à mão (`recarga = cadencia`). No dia em que a
+arma virou rajada-com-pausa, ela continuaria medindo o jato contínuo — e diria que a luta
+é mais curta do que é. Agora as duas passam por `tentarAtirar`. (Ela também deixava o
+irmão atirar sempre, enquanto no jogo ele só atira com a boca aberta.)
+
+### 4. Introdução "simples e meio bugada" era LENTE, não cenário
+
+Com `fov` 62 numa tela em pé, o cone dentro da cabine tem 64 cm de largura no plano da
+porta: **de dentro do elevador o jogador não via o elevador.** A lente abre para 92 na
+primeira pessoa e fecha até a composta enquanto a câmera sai (contra-zoom de brinde). Só
+então valeu a pena pôr mostrador de andar, corrimão e luz de teto.
+
+### 5. E os tiros viraram sabres de luz no deitado
+
+O rastro era uma caixa de 4,2 ao longo de **+Z — a direção da câmera**. Apontado para a
+lente, atravessa a tela quando a câmera está perto (5,2 no deitado contra 15,5 em pé). E
+o tiro passou a SUBIR nesta revisão, então o rastro nem seguia a bala. Hoje ele segue a
+velocidade e o comprimento é uma fração do recuo.
+
+Luta: 103 s → 118 s; quem não desvia perde com o chefe em 93 de 240. 2176 testes passando.
