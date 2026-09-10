@@ -63,7 +63,7 @@ function faceMask() {
   s.bezierCurveTo(0.85, 0.43, 0.72, 0.69, 0.51, 0.69);
   s.bezierCurveTo(0.31, 0.7, 0.15, 0.19, 0, -0.035);
   s.closePath();
-  return curvedShape(s, 0.026, 3);
+  return curvedShape(s, 0.026, 4);
 }
 
 function eye(side: number) {
@@ -225,13 +225,24 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   let expressionBlink = 0;
   let expressionKey = '';
   let lastBlink = -1;
+  let expressionUpdatedAt = 0;
+  let expressionSettled = false;
   function setExpression(look: string, brow: string) {
     const key = `${look}:${brow}`;
-    if (expressionKey === key) return;
+    const now = performance.now();
+    const blend = expressionUpdatedAt === 0 ? 1 : 1 - Math.exp(-28 * Math.min(.05, Math.max(.001, (now - expressionUpdatedAt) / 1000)));
+    expressionUpdatedAt = now;
+    if (expressionKey === key && expressionSettled) return;
     expressionKey = key;
+    expressionSettled = true;
+    const approach = (from: number, to: number) => {
+      if (Math.abs(from - to) < .0005) return to;
+      expressionSettled = false;
+      return THREE.MathUtils.lerp(from, to, blend);
+    };
     const shiftX = look === 'esquerda' ? -0.045 : look === 'direita' ? 0.045 : 0;
     const shiftY = look === 'cima' ? 0.035 : look === 'baixoMalicioso' ? -0.035 : 0;
-    expressionBlink = look === 'fechadoSorrindo' ? 1 : look === 'semicerrado' ? 0.48 : look === 'malicia' || look === 'baixoMalicioso' ? 0.22 : 0;
+    expressionBlink = approach(expressionBlink, look === 'fechadoSorrindo' ? 1 : look === 'semicerrado' ? 0.48 : look === 'malicia' || look === 'baixoMalicioso' ? 0.22 : 0);
     for (const mesh of eyeMeshes) mesh.visible = look !== 'tonto';
     for (const mesh of dizzyMeshes) mesh.visible = look === 'tonto';
     for (const mesh of rugaMeshes) mesh.visible = brow === 'bravaComRuga';
@@ -241,8 +252,8 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
         const x = neutralEyes[j][i];
         const width = look === 'arregalado' ? 1.06 : 1;
         const yScale = look === 'triste' ? 0.84 : look === 'bravo' ? 0.9 : 1;
-        eyeBases[j][i] = side * 0.46 + (x - side * 0.46) * width + shiftX;
-        eyeBases[j][i + 1] = -0.06 + (neutralEyes[j][i + 1] + 0.06) * yScale + shiftY;
+        eyeBases[j][i] = approach(eyeBases[j][i], side * 0.46 + (x - side * 0.46) * width + shiftX);
+        eyeBases[j][i + 1] = approach(eyeBases[j][i + 1], -0.06 + (neutralEyes[j][i + 1] + 0.06) * yScale + shiftY);
       }
       for (const [geometry, baseline, isLid] of [[assets.brows[j], browBases[j], false], [assets.lids[j], lidBases[j], true]] as const) {
         const attr = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -257,7 +268,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
           else if (brow === 'ironia') change = side > 0 ? 0.035 : -0.055;
           else if (brow === 'desconfiada') change = side > 0 ? 0.02 : -0.075;
           else if (brow === 'pensativa') change = side > 0 ? -outward * 0.25 : -0.045;
-          const y = y0 + change;
+          const y = approach(attr.getY(i), y0 + change);
           const lift = baseline[i * 3 + 2] - front(x, y0, 0);
           attr.setXYZ(i, x, y, front(x, y, lift));
         }
@@ -271,13 +282,14 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     const closed = THREE.MathUtils.clamp(Math.max(amount, expressionBlink), 0, 1);
     if (Math.abs(closed - lastBlink) < 0.001) return;
     lastBlink = closed;
+    for (const mesh of eyeMeshes) mesh.visible = closed < .998 && !expressionKey.startsWith('tonto:');
     for (let j = 0; j < assets.eyes.length; j++) {
       const a = assets.eyes[j].getAttribute('position') as THREE.BufferAttribute;
       const base = eyeBases[j];
       const normals = assets.eyes[j].getAttribute('normal') as THREE.BufferAttribute;
       const normal = new THREE.Vector3();
       for (let i = 0; i < a.count; i++) {
-        const x = base[i * 3], y = -0.06 + (base[i * 3 + 1] + 0.06) * (1 - closed * 0.98);
+        const x = base[i * 3], y = -0.06 + (base[i * 3 + 1] + 0.06) * (1 - closed);
         a.setXYZ(i, x, y, front(x, y, 0.043));
         normal.set(x / (RX * RX), y / (RY * RY), front(x, y, 0) / (RZ * RZ)).normalize();
         normals.setXYZ(i, normal.x, normal.y, normal.z);
@@ -288,6 +300,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   const mouthGeometries = [assets.grin, inside, assets.teeth, ...assets.divisions, assets.corners];
   const mouthBases = mouthGeometries.map(g => Float32Array.from(g.getAttribute('position').array));
   const mouthMeshes = group.children.filter(child => child instanceof THREE.Mesh && mouthGeometries.includes(child.geometry));
+
   const roundShape = new THREE.Shape();
   // ── A BOCA REDONDA ERA UM SEGUNDO NARIZ ────────────────────────────────────
   // Com 0,12 x 0,13 logo abaixo de um nariz de 0,126 x 0,077, o "O" de susto
@@ -296,7 +309,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   // da outra. Boca de susto de desenho animado é GRANDE, e desloca para o lado
   // que o sorriso torto já levanta. Mas 0,19 x 0,215 em -0,71 passou do outro
   // lado: encostava no queixo e virava um borrão. 0,163 x 0,178 em -0,655.
-  roundShape.absellipse(0.07, -0.655, 0.163, 0.178, 0, Math.PI * 2, false, 0);
+  roundShape.absellipse(0.07, -0.70, 0.14, 0.14, 0, Math.PI * 2, false, 0);
   const roundMouth = add(curvedShape(roundShape, 0.051, 3), line);
   roundMouth.visible = false;
   // ── A LÍNGUA ──────────────────────────────────────────────────────────────
@@ -341,9 +354,21 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
 
   let lastMouth = -1;
   let lastPose = '';
+  let mouthUpdatedAt = 0;
+  let mouthSettled = false;
+  const roundBase = Float32Array.from(roundMouth.geometry.getAttribute('position').array);
   function setMouth(amount: number, pose = 'sorrisoIronico') {
     const open = THREE.MathUtils.clamp(amount, 0, 1);
-    if (Math.abs(open - lastMouth) < 0.001 && pose === lastPose) return;
+    const now = performance.now();
+    const blend = mouthUpdatedAt === 0 ? 1 : 1 - Math.exp(-36 * Math.min(.05, Math.max(.001, (now - mouthUpdatedAt) / 1000)));
+    mouthUpdatedAt = now;
+    if (Math.abs(open - lastMouth) < 0.001 && pose === lastPose && mouthSettled) return;
+    mouthSettled = true;
+    const approach = (from: number, to: number) => {
+      if (Math.abs(from - to) < .0005) return to;
+      mouthSettled = false;
+      return THREE.MathUtils.lerp(from, to, blend);
+    };
     lastMouth = open; lastPose = pose;
     const round = ['surpreso', 'assustado', 'falando4', 'falando6'].includes(pose);
     const sad = ['triste', 'desanimado', 'confuso'].includes(pose);
@@ -365,6 +390,19 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     const wide = ['risadaIronica', 'empolgado', 'feliz', 'dentesDebochados'].includes(pose);
     const narrow = ['falando1', 'falando3', 'falando5', 'sorriso'].includes(pose);
     roundMouth.visible = round;
+    if (round) {
+      const attr = roundMouth.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const phoneme = pose === 'falando4' || pose === 'falando6';
+      const sx = pose === 'falando6' ? .78 : 1;
+      const sy = phoneme ? .70 + open * .55 : 1;
+      for (let i = 0; i < attr.count; i++) {
+        const x = approach(attr.getX(i), .07 + (roundBase[i * 3] - .07) * sx);
+        const y = approach(attr.getY(i), -.70 + (roundBase[i * 3 + 1] + .70) * sy);
+        attr.setXYZ(i, x, y, front(x, y, .051));
+      }
+      attr.needsUpdate = true;
+      roundMouth.geometry.computeVertexNormals();
+    }
     const comLingua = pose === 'provocando';
     lingua.visible = comLingua; vincoDaLingua.visible = comLingua;
     for (const mesh of mouthMeshes) mesh.visible = !round;
@@ -377,7 +415,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
         const originalX = base[i * 3], originalY = base[i * 3 + 1];
         let x = originalX;
         const lowerLip = THREE.MathUtils.clamp((-originalY - 0.48) / 0.24, 0, 1);
-        let y = originalY - open * lowerLip * (j === 0 ? 0.13 : 0.01);
+        let y = originalY;
         if (angry || sad) {
           x = (originalX - 0.2) * (sad ? 0.72 : 0.9);
           y = -1.22 - (originalY - 0.31 * (originalX - 0.2));
@@ -398,6 +436,13 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
           x = 0.24 + (originalX - 0.24) * 0.70;
           y = -0.575 + (originalY + 0.575) * 0.74;
         }
+        // Outline, tooth seams and inset follow the same jaw deformation.
+        // Applying it after the expression also keeps wide/narrow speech alive.
+        if (!closedPose) y -= open * lowerLip * .12;
+        const edge = RY * Math.sqrt(Math.max(.01, 1 - (x / RX) ** 2)) * .95;
+        y = THREE.MathUtils.clamp(y, -edge, edge);
+        x = approach(a.getX(i), x);
+        y = approach(a.getY(i), y);
         const lift = base[i * 3 + 2] - front(originalX, originalY, 0);
         a.setXYZ(i, x, y, front(x, y, lift));
         if (j < 2) {

@@ -1,3 +1,4 @@
+import { f3IntroBlocking } from './f3IntroBlocking';
 /**
  * Floor3Cutscene.tsx — the Diabrete's PERFORMANCE during the meet-the-rival
  * dialogue that plays the instant the Floor 3 doors open.
@@ -218,8 +219,13 @@ const Floor3Cutscene: React.FC<Props> = ({ targetRef, onLine, onDone, travarNaFa
             groupRef.current.position.copy(dashPos.current);
             groupRef.current.rotation.y = 0;                 // face +Z (running off)
         } else {
-            groupRef.current.position.set(STAND.x, STAND.y + hop, STAND.z);
-            groupRef.current.rotation.y = Math.PI + 0.16;    // ≈ face the player (-Z), slight 3/4
+            const mark = f3IntroBlocking(li, tl);
+            groupRef.current.position.set(
+                STAND.x + mark.x,
+                STAND.y + poseRef.current.hop + mark.y,
+                STAND.z + mark.z,
+            );
+            groupRef.current.rotation.y = Math.PI + 0.16 + mark.turn;
         }
 
         // ── A CÂMERA É DESTA CENA, e não mais a de diálogo ────────────────

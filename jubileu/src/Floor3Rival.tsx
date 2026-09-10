@@ -135,6 +135,12 @@ const Floor3Rival: React.FC = () => {
     const sBob  = useRef(new Spring(24, 8));
     const sLean = useRef(new Spring(14, 5));
     const landImpact = useRef(0);   // 0→1 squash spike on touchdown, decays fast
+    // The rival owns a separate ballistic hop from the player. Keep its phase
+    // here so the acting layer can draw takeoff/apex/landing from the real path.
+    const jumpElapsed = useRef(0);
+    const jumpDuration = useRef(0.86);
+    const jumpProgress = useRef<number | undefined>(undefined);
+    const landingElapsed = useRef(Number.POSITIVE_INFINITY);
 
     // The acting layer is deliberately kept outside React state: it is driven
     // at render cadence and must not add reconciliation work on mobile.
@@ -226,9 +232,15 @@ const Floor3Rival: React.FC = () => {
         };
 
         const applyActing = (phase: 'run' | 'paint' | 'dizzy' | 'fall') => {
+            // Jump cues belong to the running pass only. Paint/dizzy/fall have
+            // their own authored staging and must never inherit stale flight.
+            const isRun = phase === 'run';
             const face = acting.apply(bones, {
                 scene: 'rival', phase, time: t,
                 speaking: !!vozDaFala.current,
+                jumpProgress: isRun ? jumpProgress.current : undefined,
+                landingTime: isRun && Number.isFinite(landingElapsed.current)
+                    && landingElapsed.current < 0.46 ? landingElapsed.current : undefined,
             });
             if (!face.eye && !face.brow) return;
             const momento = momentoAgora();
@@ -283,6 +295,9 @@ const Floor3Rival: React.FC = () => {
         }
         // Landing squash decays fast back to neutral (set on touchdown below).
         landImpact.current = Math.max(0, landImpact.current - safeDt / 0.16);
+        // Age the landing cue even while a paint/dizzy branch owns the pose, so
+        // a stale touchdown can never fire when run resumes.
+        if (Number.isFinite(landingElapsed.current)) landingElapsed.current += safeDt;
 
         // ── Defeated — hand off to the dedicated fall cutscene
         //    (Floor3FallCutscene), which owns its own cinematic camera + staging
@@ -325,6 +340,9 @@ const Floor3Rival: React.FC = () => {
             const g0 = nearestPlatform(leadZ);
             posRef.current.x = g0.x; posRef.current.y = g0.topY;
             velY.current = 0; onGnd.current = true;
+            jumpElapsed.current = 0;
+            jumpProgress.current = undefined;
+            landingElapsed.current = Number.POSITIVE_INFINITY;
         }
 
         // Trigger a paint set-piece when a new obstacle is inked.
@@ -359,14 +377,30 @@ const Floor3Rival: React.FC = () => {
         // (his Y is held, so he never floats even if the climb scrolls under him).
         if (!dazed) {
             const yDiff = groundY - posRef.current.y;
-            if (onGnd.current && yDiff > 0.28 && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
+            if (onGnd.current && yDiff > 0.28 && !painting) {
+                const launchV = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05;
+                velY.current = launchV;
+                jumpElapsed.current = 0;
+                const disc = Math.max(0, launchV * launchV - 2 * GRAVITY * yDiff);
+                jumpDuration.current = Math.max(0.18, (launchV + Math.sqrt(disc)) / GRAVITY);
+                jumpProgress.current = 0;
+                landingElapsed.current = Number.POSITIVE_INFINITY;
+                onGnd.current = false;
+            }
             if (!onGnd.current) {
                 velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
                 if (posRef.current.y <= groundY && velY.current <= 0) {
                     landImpact.current = Math.min(1, Math.abs(velY.current) / 9);   // squash scaled by impact speed
                     posRef.current.y = groundY; velY.current = 0; onGnd.current = true;
+                    jumpProgress.current = undefined;
+                    landingElapsed.current = 0;
                 }
             } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
+            if (!onGnd.current) {
+                jumpElapsed.current += safeDt;
+                jumpProgress.current = Math.min(1, jumpElapsed.current / jumpDuration.current);
+                landingElapsed.current = Number.POSITIVE_INFINITY;
+            }
         }
         groupRef.current.position.copy(posRef.current);
         groupRef.current.scale.setScalar(DIABRETE_SCALE);

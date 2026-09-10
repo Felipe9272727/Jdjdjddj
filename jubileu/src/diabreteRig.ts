@@ -34,6 +34,7 @@ import {
     type MomentoDoDiabrete, type MomentoExtra, type NomeDaBoca,
 } from './f3Boca';
 import { createDiabreteSculpt } from './DiabreteSculptedHead';
+import { createDiabreteNeck } from './diabreteNeck';
 
 // Shared visual scale — the raw model is only ~1m tall, which read as a tiny
 // doll on the platforms (and barely filled the cutscene frame). Bumped so the
@@ -681,13 +682,14 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     // under the head bone: putting renderable meshes in the skeleton hierarchy
     // can make Three's skinning traversal unstable. The sculpt is rendered as
     // a sibling and copied into the rig's local space immediately before draw.
-    const sculpt = createDiabreteSculpt({ neck: true });
+    const sculpt = createDiabreteSculpt();
     const headAnchor = new THREE.Object3D();
     headAnchor.name = 'diabrete-head-anchor';
     bones[B.head].add(headAnchor);
     const group = new THREE.Group();
     group.add(fill);
     group.add(sculpt.group);
+    const neck = createDiabreteNeck(group, bones[B.body], bones[B.head]);
 
     const sculptScale = 0.205;
     const parentInverse = new THREE.Matrix4();
@@ -715,6 +717,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         // onBeforeRender hook, so propagate the new local matrix immediately;
         // otherwise this frame would draw at the previous head pose.
         sculpt.group.updateMatrixWorld(true);
+        neck.sync();
     };
     let hooked = false;
     sculpt.group.traverse((object) => {
@@ -770,6 +773,7 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
             sculpt.setMouth(aberturaDaBoca(usar), usar);
         },
         dispose: () => {
+            neck.dispose();
             sculpt.dispose();
             skeleton.dispose();
             fillGeo.dispose();
