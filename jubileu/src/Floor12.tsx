@@ -347,7 +347,11 @@ interface Ferramentas {
  * quem colide?), e num jogo de nave essa ordem É a justiça do jogo: mover,
  * depois colidir, depois recolher. Nesta ordem, sempre.
  */
+/** Só para a bancada: dá ao atalho de dano o mesmo caminho que o jogo usa. */
+const F12FERRAMENTAS: { atual: Ferramentas | null } = { atual: null };
+
 const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
+    if (import.meta.env?.DEV) F12FERRAMENTAS.atual = F;
     const ladoDoTiro = useRef<-1 | 1>(1);
     const ladoDoIrmao = useRef<-1 | 1>(1);
     const proxAtaque = useRef(0);
@@ -614,7 +618,26 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // A bancada precisa contar PROJÉTEIS. "Não vi bala nenhuma na foto" é
         // uma frase sobre a foto, não sobre o jogo — e este andar já me fez
         // consertar coisa que não estava quebrada por causa disso.
-        w.__f12estado = { fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current };
+        // A bancada precisa poder ADIANTAR a luta: metade do conteúdo deste
+        // andar mora depois de 50% da vida do chefe, e jogando de verdade
+        // ninguém chega lá. Sem isto, a virada e os dois ataques novos são
+        // invisíveis para quem está avaliando o andar.
+        // Ela tem de passar pelo MESMO caminho do jogo: `ferir` devolve "cruzou
+        // o limiar", e quem liga a virada é `abrirAVirada`. A primeira versão
+        // deste atalho ignorava o retorno, e a bancada relatou "os dois ataques
+        // novos não aparecem nem depois da virada" — quando a virada é que
+        // nunca tinha acontecido. Um atalho de bancada que desvia da regra mede
+        // outro jogo, exatamente como a cópia do ritmo da arma media.
+        w.__f12ferir = (d: number) => {
+            if (ferir(d) && F12FERRAMENTAS.atual) abrirAVirada(F12FERRAMENTAS.atual);
+            f12Bump();
+        };
+        w.__f12estado = {
+            fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current,
+            irmao: irmao.current, ataqueNoAr: f12.ataqueNoAr, relogio: f12.relogio,
+            bocaT: f12.bocaT, linhaDoDialogo: f12.linhaDoDialogo,
+            passouDaVirada: f12.passouDaVirada, vidas: nave.current.vidas,
+        };
     }
     const roteiro = roteiroDaFase(fase);
     const linha = roteiro[Math.min(f12.linhaDoDialogo, roteiro.length - 1)] ?? null;
