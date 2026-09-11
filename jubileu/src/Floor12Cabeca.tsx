@@ -136,8 +136,18 @@ export const Floor12Cabeca: React.FC<{
         // ── O PISCA DE DANO ──────────────────────────────────────────────
         if (flashRef.current > 0) flashRef.current = Math.max(0, flashRef.current - dt * 4.5);
         const brilho = flashRef.current;
-        M.pele.emissive.setRGB(brilho * 0.9, brilho * 0.35, brilho * 0.3);
-        M.peleEsc.emissive.setRGB(brilho * 0.7, brilho * 0.25, brilho * 0.22);
+        // ── DEPOIS DA VIRADA ELA ACENDE POR DENTRO ───────────────────────
+        //
+        // O céu escurece na segunda metade, e o dono do jogo reclamou que aí o
+        // chefe — roxo escuro — sumia no azul escuro. O céu já mudou de matiz
+        // para devolver contraste; isto ataca o outro lado do mesmo problema:
+        // ela passa a emitir uma brasa fraca, constante e pulsante, como se o
+        // que arde na garganta estivesse vazando pela pele. A silhueta se separa
+        // do fundo por LUZ, que é o que funciona quando as duas cores são
+        // escuras, e de quebra ela fica mais ameaçadora do que estava.
+        const febre = f12.passouDaVirada ? 0.16 + Math.sin(t * 2.2) * 0.05 : 0;
+        M.pele.emissive.setRGB(brilho * 0.9 + febre, brilho * 0.35 + febre * 0.28, brilho * 0.3 + febre * 0.3);
+        M.peleEsc.emissive.setRGB(brilho * 0.7 + febre * 0.8, brilho * 0.25 + febre * 0.2, brilho * 0.22 + febre * 0.24);
 
         // ── AS FERIDAS ───────────────────────────────────────────────────
         const perdida = 1 - f12.vida / VIDA_MAXIMA;

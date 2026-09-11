@@ -21,7 +21,70 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
-import { ARENA, f12 } from './f12Boss';
+import { ARENA, f12, xParaFracao, yParaFracao } from './f12Boss';
+
+/**
+ * ── O CÉU DEIXOU DE SER UMA COR CHAPADA ──────────────────────────────────────
+ *
+ * `scene.background` era um `THREE.Color`: um azul liso de horizonte a horizonte.
+ * Na referência que o dono do jogo mandou, o que faz o céu parecer um LUGAR é
+ * justamente o que uma cor chapada não tem — sol de um lado, o azul ficando mais
+ * fundo no alto, horizonte claro. Isso custa UMA textura de 256 px desenhada uma
+ * vez, num domo virado do avesso. Sem shader, sem postproc, sem custo por quadro.
+ *
+ * A cor do domo é multiplicada pelo material, então a virada continua sendo uma
+ * interpolação de cor — não um segundo cenário.
+ */
+const texturaDoCeu: THREE.CanvasTexture = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    const g = c.getContext('2d')!;
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0.00, '#2f6fc4');
+    grad.addColorStop(0.45, '#6fb4ea');
+    grad.addColorStop(0.78, '#b7e2f7');
+    grad.addColorStop(1.00, '#e8f6fd');
+    g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+    // O SOL: um halo quente no alto, à direita. Ele é o que dá direção à luz —
+    // e as direcionais da cena apontam do mesmo lado, senão o céu diz uma coisa
+    // e o volume dos objetos diz outra.
+    const sol = g.createRadialGradient(196, 46, 4, 196, 46, 120);
+    sol.addColorStop(0.00, 'rgba(255,250,225,0.95)');
+    sol.addColorStop(0.25, 'rgba(255,232,178,0.55)');
+    sol.addColorStop(1.00, 'rgba(255,225,170,0)');
+    g.fillStyle = sol; g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+})();
+
+const DomoDoCeu: React.FC = () => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null);
+    const cor = useRef(new THREE.Color('#ffffff'));
+    const alvo = useMemo(() => ({
+        claro: new THREE.Color('#ffffff'),
+        // Na virada o céu vai para um ÍNDIGO ESVERDEADO, e não para o azul
+        // escuro de antes. É leitura: o chefe é roxo, e roxo escuro sobre azul
+        // escuro some — o dono do jogo reclamou exatamente disso. O índigo puxa
+        // para o verde e devolve o contraste de matiz que o azul tinha comido.
+        sombrio: new THREE.Color('#5c7486'),
+    }), []);
+    useFrame((_, rawDt) => {
+        const m = mat.current; if (!m) return;
+        cor.current.lerp(f12.passouDaVirada ? alvo.sombrio : alvo.claro, Math.min(1, Math.min(rawDt, 0.05) * 0.7));
+        m.color.copy(cor.current);
+    });
+    return (
+        // BackSide, e NÃO uma escala negativa. A escala em -1 inverte o
+        // determinante da matriz e o three passa a descartar o que a gente quer
+        // ver: o domo simplesmente não aparecia, e o azul que sobrava na foto
+        // era o `background` do div do Canvas por baixo.
+        <mesh renderOrder={-1000} frustumCulled={false}>
+            <sphereGeometry args={[290, 24, 16]} />
+            <meshBasicMaterial ref={mat} map={texturaDoCeu} side={THREE.BackSide}
+                depthWrite={false} depthTest={false} fog={false} toneMapped={false} />
+        </mesh>
+    );
+};
 
 /** A nuvem N64: um borrão de bordas duras, não um algodão suave. */
 const texturaDaNuvem: THREE.CanvasTexture = (() => {
@@ -70,10 +133,23 @@ interface Camada {
  * correndo POR BAIXO da arena: elas ficam na frente em Z, mas fora do caminho
  * em Y, então dão o mesmo empurrão sem cobrir nada.
  */
+// ── O CUSTO DAS NUVENS É PREENCHIMENTO, NÃO CHAMADA DE DESENHO ───────────────
+//
+// Instanciar as camadas (uma chamada por camada em vez de uma por nuvem) quase
+// não mexeu no FPS: 53,6 -> 51,7 de mediana, dentro do ruído. O que pesa é
+// SOBREPOSIÇÃO — dezenas de quadriláteros transparentes e grandes empilhados,
+// cada pixel pintado várias vezes. A instanciação ficou porque é gratuita, mas
+// quem devolveu o quadro foi cortar nuvem grande perto da câmera.
 const CAMADAS: ReadonlyArray<Camada> = Object.freeze([
-    { n: 12, z: 8, v: 17.0, escala: 3.0, opacidade: 0.95, yDe: ARENA.yBaixo - 9, yAte: ARENA.yBaixo - 1.6 },
-    { n: 13, z: -40, v: 6.5, escala: 6.0, opacidade: 0.85, yDe: ARENA.yBaixo - 3, yAte: ARENA.yAlto + 7 },
-    { n: 10, z: -66, v: 2.6, escala: 10.0, opacidade: 0.6, yDe: ARENA.yBaixo - 6, yAte: ARENA.yAlto + 12 },
+    // O MAR DE NUVENS: denso, logo abaixo da arena. Na referência é ele que
+    // ocupa a metade de baixo do quadro e dá a altitude — sem ele o avião voa
+    // num vazio azul e podia estar a três metros do chão.
+    { n: 12, z: 6, v: 16.0, escala: 3.0, opacidade: 0.97, yDe: ARENA.yBaixo - 13, yAte: ARENA.yBaixo - 2.6 },
+    { n: 10, z: -14, v: 10.0, escala: 4.4, opacidade: 0.9, yDe: ARENA.yBaixo - 20, yAte: ARENA.yBaixo - 3.4 },
+    // as de trás continuam ATRÁS da cabeça: nuvem na frente da boca já tapou a
+    // única coisa que o jogador precisa vigiar, e não volta a tapar
+    { n: 10, z: -46, v: 6.0, escala: 7.0, opacidade: 0.85, yDe: ARENA.yBaixo - 4, yAte: ARENA.yAlto + 9 },
+    { n: 8, z: -78, v: 2.6, escala: 12.0, opacidade: 0.62, yDe: ARENA.yBaixo - 8, yAte: ARENA.yAlto + 16 },
 ]);
 
 /** Sorteio estável: o mesmo céu em toda partida, e sem `Math.random` no quadro. */
@@ -89,11 +165,22 @@ function baralho(semente: number): () => number {
 
 const LIMITE_X = 34;
 
+/**
+ * ── UMA CHAMADA DE DESENHO POR CAMADA, NÃO UMA POR NUVEM ─────────────────────
+ *
+ * Cada nuvem era um `<mesh>`. Com o céu cheio isso deu 55 chamadas só de nuvem,
+ * e somadas à cidade nova o FPS medido caiu de 60 para 39,6 de mediana. Um
+ * `InstancedMesh` desenha a camada inteira de uma vez: o custo vira escrever 18
+ * matrizes por quadro na CPU, que é nada, em vez de 18 trocas de estado na GPU.
+ *
+ * O movimento continua sendo o mesmo — as nuvens andam para +X e dão a volta —,
+ * só que agora ele mora num array em vez de na árvore da cena.
+ */
 const Nuvens: React.FC<{ camada: Camada; semente: number }> = ({ camada, semente }) => {
-    const grupo = useRef<THREE.Group>(null);
+    const malha = useRef<THREE.InstancedMesh>(null);
     const material = useMemo(() => new THREE.MeshBasicMaterial({
         map: texturaDaNuvem, transparent: true, opacity: camada.opacidade,
-        depthWrite: false, fog: false,
+        depthWrite: false, fog: true,
     }), [camada.opacidade]);
     const pontos = useMemo(() => {
         const r = baralho(semente);
@@ -103,74 +190,293 @@ const Nuvens: React.FC<{ camada: Camada; semente: number }> = ({ camada, semente
             e: camada.escala * (0.65 + r() * 0.7),
         }));
     }, [camada, semente]);
+    const aux = useMemo(() => new THREE.Object3D(), []);
 
     useFrame((_, rawDt) => {
-        const g = grupo.current; if (!g) return;
+        const m = malha.current; if (!m) return;
         const dt = Math.min(rawDt, 0.05);
-        for (const filho of g.children) {
+        for (let i = 0; i < pontos.length; i++) {
+            const q = pontos[i];
             // Andam para +X: o avião voa para -Z, então o cenário passa de lado.
-            filho.position.x += camada.v * dt;
-            if (filho.position.x > LIMITE_X) filho.position.x -= LIMITE_X * 2;
+            q.x += camada.v * dt;
+            if (q.x > LIMITE_X) q.x -= LIMITE_X * 2;
+            aux.position.set(q.x, q.y, camada.z);
+            aux.scale.set(q.e * 2, q.e, 1);
+            aux.updateMatrix();
+            m.setMatrixAt(i, aux.matrix);
         }
+        m.instanceMatrix.needsUpdate = true;
     });
 
     return (
-        <group ref={grupo}>
-            {pontos.map((p, i) => (
-                <mesh key={i} position={[p.x, p.y, camada.z]} material={material}>
-                    <planeGeometry args={[p.e * 2, p.e]} />
-                </mesh>
-            ))}
-        </group>
+        <instancedMesh ref={malha} args={[undefined as never, undefined as never, camada.n]}
+            material={material} frustumCulled={false}>
+            <planeGeometry args={[1, 1]} />
+        </instancedMesh>
     );
 };
 
 /**
- * O HOTEL, lá embaixo e muito longe.
+ * ── AS JANELAS VIRARAM TEXTURA, E O MOTIVO É O CELULAR ───────────────────────
  *
- * É a única coisa do andar 12 que amarra a luta ao resto do jogo: o jogador
- * está voando ACIMA do prédio em que passou onze andares. Uma torre magra com
- * janelas acesas, pequena o bastante para caber no fundo sem competir com a
- * cabeça.
+ * A primeira cidade desenhava cada janela como uma caixa: nove torres a ~15
+ * janelas mais o hotel a 50 davam mais de duzentas malhas só de vidro. Medido
+ * na bancada que joga, o FPS caiu de 60 para 39,6 de mediana, com mínimo de 29.
+ * Cenário que custa um terço do quadro não é cenário, é dívida — e a primeira
+ * regra deste projeto é velocidade no celular.
+ *
+ * Uma fachada pintada num canvas de 64x128, compartilhada por todas as torres,
+ * põe cada torre em QUATRO malhas (rocha, corpo, telhado, coroa) em vez de
+ * dezenove. E a janela pintada lê melhor de longe do que a janela modelada, que
+ * a essa distância tem menos de um pixel de profundidade.
  */
-const Hotel: React.FC = () => {
-    const M = useMemo(() => ({
-        parede: mat64('#4a4453'),
-        parede2: mat64('#3b3644'),
-        janela: mat64('#ffd98a', '#ffd98a', 0.7),
-        telhado: mat64('#2b2733'),
-    }), []);
-    const janelas = useMemo(() => {
-        const fora: [number, number][] = [];
-        for (let andar = 0; andar < 11; andar++) {
-            for (let col = 0; col < 3; col++) {
-                // nem toda janela acesa: um hotel cheio não seria este hotel
-                if ((andar * 3 + col) % 4 === 1) continue;
-                fora.push([(col - 1) * 1.5, andar * 1.55 + 1.2]);
-            }
+function fachada(semente: number, cols: number, linhas: number): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+    const g = c.getContext('2d')!;
+    const r = baralho(semente);
+    g.fillStyle = '#565068'; g.fillRect(0, 0, 64, 128);
+    // faixas horizontais de andar, para o prédio ter estrutura e não ser um bloco
+    g.fillStyle = '#474155';
+    for (let i = 0; i <= linhas; i++) g.fillRect(0, (i * 128) / linhas - 1, 64, 2);
+    const lw = 64 / (cols * 2 + 1), lh = 128 / (linhas * 2 + 1);
+    for (let a = 0; a < linhas; a++) {
+        for (let col = 0; col < cols; col++) {
+            const v = r();
+            if (v < 0.28) continue;                       // hotel meio vazio, como sempre
+            g.fillStyle = v < 0.55 ? '#3b3547' : (v < 0.85 ? '#ffd98a' : '#fff2c8');
+            g.fillRect(lw * (col * 2 + 1), lh * (a * 2 + 1), lw, lh * 1.25);
         }
-        return fora;
-    }, []);
-    return (
-        // Canto de baixo, à ESQUERDA, e muito longe. Nas duas primeiras
-        // montagens ele ficou plantado atrás da cabeça e os dois se misturavam
-        // num borrão roxo — a torre saía literalmente do queixo do chefe. Ele é
-        // ambientação e não pode disputar o centro do quadro.
-        <group position={[-24, -75, -160]} scale={2.2}>
-            <mesh material={M.parede} position={[0, 9, 0]}>
-                <boxGeometry args={[6, 18, 6]} />
-            </mesh>
-            <mesh material={M.parede2} position={[0, 9, 3.05]}>
-                <boxGeometry args={[5.2, 17.4, 0.2]} />
-            </mesh>
-            <mesh material={M.telhado} position={[0, 18.3, 0]}>
-                <boxGeometry args={[7, 0.8, 7]} />
-            </mesh>
-            {janelas.map(([x, y], i) => (
-                <mesh key={i} material={M.janela} position={[x, y, 3.2]}>
-                    <boxGeometry args={[0.75, 0.95, 0.1]} />
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+/** Três fachadas bastam: de longe ninguém compara duas torres. */
+const FACHADAS: THREE.CanvasTexture[] = [fachada(7, 3, 7), fachada(19, 4, 9), fachada(53, 3, 11)];
+
+// ── A CIDADE NO CÉU ──────────────────────────────────────────────────────────
+//
+// O céu tinha UMA torre magra a 160 de distância, e o dono do jogo escreveu: "o
+// céu é vazio; este é o andar de um hotel que virou céu — quero ver o hotel".
+// Ele tem razão, e a referência que ele mandou diz o que falta: não é um prédio,
+// é um ARQUIPÉLAGO — torres flutuando em vários planos, com passarelas, janelas
+// acesas e estandartes, e o hotel principal grande à esquerda.
+//
+// Tudo aqui é caixa e plano, com material compartilhado, e vive em z < -55 ou
+// bem fora do X da arena: cenário que entra no caminho da boca é cenário que
+// esconde a regra do jogo, e este arquivo já pagou por isso uma vez.
+
+/** O pano de um estandarte, com o lema do hotel. */
+function texturaDoEstandarte(linhas: string[]): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#2c3f6b'; g.fillRect(0, 0, 128, 256);
+    g.fillStyle = '#e8c97a'; g.fillRect(0, 0, 128, 8); g.fillRect(0, 214, 128, 6);
+    // o rabo de andorinha embaixo
+    g.fillStyle = '#0000'; g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.moveTo(0, 256); g.lineTo(64, 214); g.lineTo(128, 256); g.closePath(); g.fill();
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#f3e2b0'; g.textAlign = 'center'; g.font = 'bold 21px monospace';
+    linhas.forEach((t, i) => g.fillText(t, 64, 66 + i * 28));
+    // a coroa
+    g.fillStyle = '#e8c97a';
+    g.fillRect(50, 168, 28, 12);
+    for (let i = 0; i < 3; i++) g.fillRect(50 + i * 12, 158, 6, 12);
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+const Estandarte: React.FC<{ p: [number, number, number]; e: number; linhas: string[] }> =
+    ({ p, e, linhas }) => {
+        const tex = useMemo(() => texturaDoEstandarte(linhas), [linhas]);
+        const malha = useRef<THREE.Mesh>(null);
+        useFrame((state) => {
+            // balança de leve: pano parado lê como placa
+            if (malha.current) malha.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.8 + p[0]) * 0.045;
+        });
+        return (
+            <group position={p} scale={e}>
+                <mesh position={[0, 1.1, 0]}>
+                    <boxGeometry args={[2.6, 0.18, 0.18]} />
+                    <meshLambertMaterial color="#c9a24a" flatShading />
                 </mesh>
-            ))}
+                <mesh ref={malha} position={[0, -1.0, 0]}>
+                    <planeGeometry args={[2.0, 4.0]} />
+                    <meshBasicMaterial map={tex} transparent side={THREE.DoubleSide} fog={false} />
+                </mesh>
+            </group>
+        );
+    };
+
+/**
+ * Uma torre do arquipélago: a rocha, o corpo com janelas e o telhado com coroa.
+ *
+ * `semente` decide a altura, o número de janelas e quais estão acesas — assim
+ * dez torres saem diferentes de uma função só, em vez de dez blocos de JSX.
+ */
+const Torre: React.FC<{ p: [number, number, number]; e: number; semente: number; M: Record<string, THREE.Material> }> =
+    ({ p, e, semente, M }) => {
+        const { altura, temCoroa, mat } = useMemo(() => {
+            const r = baralho(semente);
+            const andares = 5 + Math.floor(r() * 7);
+            const tex = FACHADAS[Math.floor(r() * FACHADAS.length)];
+            return {
+                altura: andares * 1.5 + 1.6,
+                temCoroa: r() < 0.55,
+                // uma malha, uma fachada; o material é criado por torre mas a
+                // TEXTURA é compartilhada, que é o que custa memória
+                mat: new THREE.MeshLambertMaterial({ map: tex, flatShading: true }),
+            };
+        }, [semente]);
+        return (
+            <group position={p} scale={e}>
+                {/* a rocha pendurada embaixo: é o que faz a torre FLUTUAR em vez
+                    de estar cortada */}
+                <mesh material={M.rocha} position={[0, -1.6, 0]} scale={[1, 0.75, 1]}>
+                    <coneGeometry args={[2.6, 5.0, 7]} />
+                </mesh>
+                <mesh material={mat} position={[0, altura / 2, 0]}>
+                    <boxGeometry args={[3.6, altura, 3.6]} />
+                </mesh>
+                <mesh material={M.telhado} position={[0, altura + 0.35, 0]}>
+                    <boxGeometry args={[4.4, 0.7, 4.4]} />
+                </mesh>
+                {temCoroa && (
+                    <mesh material={M.ouro} position={[0, altura + 1.1, 0]}>
+                        <cylinderGeometry args={[0.55, 0.75, 0.9, 6]} />
+                    </mesh>
+                )}
+            </group>
+        );
+    };
+
+/** O HOTEL principal: grande, à esquerda, com letreiro. */
+const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, number, number] }> = ({ M, p }) => {
+    const letreiro = useMemo(() => {
+        const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+        const g = c.getContext('2d')!;
+        g.fillStyle = '#1a1420'; g.fillRect(0, 0, 256, 64);
+        g.fillStyle = '#ffd98a'; g.textAlign = 'center'; g.font = 'bold 40px monospace';
+        g.fillText('HOTEL', 128, 46);
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+    }, []);
+    const matFachada = useMemo(() => new THREE.MeshLambertMaterial({
+        map: fachada(0x517e1, 5, 13), flatShading: true,
+    }), []);
+    return (
+        <group position={p} scale={3.2} rotation={[0, 0.42, 0]}>
+            <mesh material={M.rocha} position={[0, -4, 0]} scale={[1.6, 0.8, 1.6]}>
+                <coneGeometry args={[7, 12, 8]} />
+            </mesh>
+            <mesh material={matFachada} position={[0, 12.5, 0]}>
+                <boxGeometry args={[11, 25, 9]} />
+            </mesh>
+            <mesh material={M.telhado} position={[0, 25.6, 0]}>
+                <boxGeometry args={[12.6, 1.2, 10.6]} />
+            </mesh>
+            {/* a coroa no topo, como na referência */}
+            <mesh material={M.ouro} position={[0, 27.2, 0]}>
+                <cylinderGeometry args={[1.5, 2.0, 2.2, 6]} />
+            </mesh>
+            {/* o letreiro */}
+            <mesh position={[0, 21.5, 4.7]}>
+                <planeGeometry args={[8.4, 2.1]} />
+                <meshBasicMaterial map={letreiro} transparent fog={false} toneMapped={false} />
+            </mesh>
+
+        </group>
+    );
+};
+
+/** Uma passarela ligando duas torres: é o que faz o arquipélago virar cidade. */
+const Passarela: React.FC<{ p: [number, number, number]; comprimento: number; e: number; M: Record<string, THREE.Material> }> =
+    ({ p, comprimento, e, M }) => (
+        <group position={p} scale={e}>
+            <mesh material={M.telhado}><boxGeometry args={[comprimento, 0.5, 1.6]} /></mesh>
+            {(() => {
+                const n = Math.max(2, Math.round(comprimento / 3));
+                return Array.from({ length: n }, (_, i) => (
+                    <mesh key={i} material={M.ouro}
+                        position={[-comprimento / 2 + (comprimento * i) / (n - 1), 0.9, 0]}>
+                        <boxGeometry args={[0.22, 1.3, 0.22]} />
+                    </mesh>
+                ));
+            })()}
+        </group>
+    );
+
+/**
+ * A CIDADE inteira. As posições são escritas à mão, e de propósito: sorteá-las
+ * poria uma torre na frente da boca uma vez a cada tantas partidas, e "às vezes
+ * o chefe fica escondido" é o tipo de defeito que ninguém consegue reproduzir.
+ */
+const CidadeNoCeu: React.FC = () => {
+    const M = useMemo(() => ({
+        parede: mat64('#565068'),
+        telhado: mat64('#2e2937'),
+        rocha: mat64('#464054'),
+        ouro: mat64('#d9a441'),
+        janela: mat64('#ffd98a', '#ffd98a', 0.85),
+    }), []);
+
+    // ── AS PEÇAS SÃO COLOCADAS POR FRAÇÃO DE TELA ────────────────────────
+    //
+    // `u` é a fração da largura (0 = borda esquerda, 1 = direita) e `v` a da
+    // altura (0 = base). O mundo sai disso, e não o contrário.
+    //
+    // A montagem anterior escrevia x e y à mão. Funcionava numa orientação e
+    // errava na outra por dezenas de unidades, porque a câmera olha para cima e
+    // a altura do eixo dela CRESCE com a profundidade: para cair a 60% da tela
+    // em z = -200 é preciso y = 93 deitado e y = 62 em pé. As torres saíram na
+    // faixa do avião, disputando o terço de baixo com o jogador.
+    //
+    // Todas ficam em v >= 0,52 de propósito: o terço de baixo é do jogador e da
+    // nuvem, como na referência. E `useMemo` sem dependência é o certo aqui — a
+    // composição é resolvida uma vez, na entrada do andar, antes deste render.
+    const pecas = useMemo(() => {
+        const torre = (u: number, v: number, z: number, e: number, semente: number) =>
+            ({ tipo: 'torre' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], e, semente });
+        const ponte = (u: number, v: number, z: number, c: number, e: number) =>
+            ({ tipo: 'ponte' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], c, e });
+        return [
+            torre(0.06, 0.62, -168, 1.8, 11),
+            torre(0.16, 0.80, -228, 2.6, 23),
+            torre(0.26, 0.56, -204, 1.9, 31),
+            torre(0.94, 0.60, -172, 1.9, 47),
+            torre(0.84, 0.78, -226, 2.5, 59),
+            torre(0.74, 0.54, -210, 1.8, 71),
+            torre(0.98, 0.86, -262, 3.0, 83),
+            // atrás da cabeça, para o chefe ter cidade por trás e não vazio
+            torre(0.38, 0.90, -276, 2.7, 97),
+            torre(0.62, 0.88, -290, 2.9, 101),
+            ponte(0.12, 0.71, -198, 20, 2.0),
+            ponte(0.88, 0.70, -196, 16, 1.8),
+        ];
+    }, []);
+
+    const estandartes = useMemo(() => ([
+        { u: 0.80, v: 0.66, z: -150, e: 5.0, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
+        { u: 0.20, v: 0.68, z: -156, e: 4.8, linhas: ['ANDAR', '12'] },
+    ].map((b) => ({ ...b, p: [xParaFracao(b.u, b.z), yParaFracao(b.v, b.z), b.z] as [number, number, number] }))), []);
+
+    const hotel = useMemo(() => {
+        const z = -210;
+        return [xParaFracao(0.10, z), yParaFracao(0.30, z), z] as [number, number, number];
+    }, []);
+
+    return (
+        <group>
+            <HotelGrande M={M} p={hotel} />
+            {pecas.map((q, i) => (q.tipo === 'torre'
+                ? <Torre key={i} p={q.p} e={q.e} semente={q.semente} M={M} />
+                : <Passarela key={i} p={q.p} comprimento={q.c} e={q.e} M={M} />))}
+            {estandartes.map((b, i) => <Estandarte key={i} p={b.p} e={b.e} linhas={b.linhas} />)}
         </group>
     );
 };
@@ -185,16 +491,18 @@ const Hotel: React.FC = () => {
 export const Floor12Ceu: React.FC = () => {
     const fundo = useRef<THREE.Color>(new THREE.Color('#7ec0ef'));
     const alvo = useMemo(() => ({
-        claro: new THREE.Color('#7ec0ef'),
-        sombrio: new THREE.Color('#3a3f66'),
+        claro: new THREE.Color('#b7e2f7'),
+        sombrio: new THREE.Color('#5c7486'),
     }), []);
 
     useFrame((state, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
-        const querSombrio = f12.passouDaVirada;
-        fundo.current.lerp(querSombrio ? alvo.sombrio : alvo.claro, Math.min(1, dt * 0.7));
+        // O FUNDO agora é o domo; o que continua sendo cor é a NÉVOA, e ela tem
+        // de acompanhar o horizonte do domo, senão a cidade ao longe se dissolve
+        // numa cor que não existe no céu atrás dela.
+        fundo.current.lerp(f12.passouDaVirada ? alvo.sombrio : alvo.claro, Math.min(1, dt * 0.7));
         const cena = state.scene;
-        if (cena.background instanceof THREE.Color) cena.background.copy(fundo.current);
+        cena.background = null;
         if (cena.fog instanceof THREE.Fog) cena.fog.color.copy(fundo.current);
     });
 
@@ -206,8 +514,9 @@ export const Floor12Ceu: React.FC = () => {
             <hemisphereLight args={['#dff0ff', '#5a5570', 1.0]} />
             <directionalLight position={[6, 14, 8]} intensity={1.25} />
             <directionalLight position={[-8, 4, -10]} intensity={0.45} />
+            <DomoDoCeu />
+            <CidadeNoCeu />
             {CAMADAS.map((c, i) => <Nuvens key={i} camada={c} semente={0x1234 + i * 7919} />)}
-            <Hotel />
         </group>
     );
 };

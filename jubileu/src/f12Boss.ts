@@ -365,6 +365,34 @@ export function fracaoNaTela(x: number, y: number, z: number): number {
     return 0.5 + altura / (2 * meiaTela);
 }
 
+/**
+ * O INVERSO da sonda: que `y` do mundo cai numa dada fração de tela, a uma dada
+ * profundidade. Serve ao cenário.
+ *
+ * Existe porque cenário posicionado por número fixo não sobrevive a duas
+ * orientações. Medido: para cair a 60% da altura da tela em z = -200, um objeto
+ * precisa de y = 93 no celular deitado e y = 62 no celular em pé. Um valor só
+ * não atende os dois, e foi assim que a cidade nova saiu na faixa do AVIÃO em
+ * vez de na faixa do chefe — disputando o terço de baixo com o jogador.
+ *
+ * Bisseção e não fórmula: `fracaoNaTela` é monótona em `y` (mais alto é mais
+ * acima na tela, sempre), e sessenta passos dão precisão de sobra para um
+ * cenário. Roda uma vez por entrada no andar, não por quadro.
+ */
+export function yParaFracao(v: number, z: number): number {
+    let lo = -200, hi = 900;
+    for (let i = 0; i < 60; i++) {
+        const m = (lo + hi) / 2;
+        if (fracaoNaTela(0, m, z) < v) lo = m; else hi = m;
+    }
+    return (lo + hi) / 2;
+}
+
+/** E que `x` do mundo cai numa dada fração da LARGURA, à profundidade `z`. */
+export function xParaFracao(u: number, z: number): number {
+    return (u - 0.5) * larguraDoQuadro(ENQUADRAMENTO.recuo - z);
+}
+
 /** Onde as coisas que importam caem na tela. A composição, em números. */
 export function composicaoNaTela(): {
     nave: number; arenaBaixo: number; arenaAlto: number;
@@ -1601,14 +1629,42 @@ export interface F12Linha { quem: 'irmao' | 'jogador'; texto: string; }
 
 /** O irmão chega de ala. Ele é o TROCO-63 — modelo mais VELHO que o 64, e
  *  ressentido exatamente por isso. */
+/**
+ * ── TRÊS FALAS, E NÃO SEIS ───────────────────────────────────────────────────
+ *
+ * Eram seis, e medido na bancada que joga davam dezessete segundos entre abrir o
+ * andar e poder tocar no jogo. O dono do jogo: "o texto é bom; a encenação não
+ * existe". As duas coisas são verdade ao mesmo tempo, e a saída não é cortar o
+ * texto — é PARAR DE DAR TUDO DE UMA VEZ com o jogador de mãos atadas.
+ *
+ * Ficam aqui as três que o jogador precisa ANTES de jogar: quem é ele, o que é
+ * aquilo, e qual é a regra. O resto — quem é o 64, o rancor de 412 dias, o nome
+ * de cada padrão — virou `F12_ALERTAS`: ele fala DURANTE a luta, sem travar
+ * nada, na primeira vez que cada coisa aparece. Personagem que fala enquanto o
+ * jogo acontece é personagem; personagem que fala com o jogo parado é um menu.
+ */
 export const F12_ENCONTRO: ReadonlyArray<F12Linha> = Object.freeze([
-    { quem: 'irmao', texto: 'BIP. Então o elevador virou avião de novo. Ótimo. Adoro quando a física do prédio tira férias.' },
-    { quem: 'jogador', texto: '...você é o TROCO-64?' },
-    { quem: 'irmao', texto: 'TROCO-63. SESSENTA E TRÊS. O 64 é o meu irmão CAÇULA, o que ganhou o andar da corrida, as luzinhas e os aplausos. Eu ganhei ISTO.' },
-    { quem: 'irmao', texto: 'ISTO sendo aquilo ali na frente. Não pergunte de quem é a cabeça. Pergunte por que ela ainda está falando.' },
-    { quem: 'irmao', texto: 'Regra única: ela só machuca de boca ABERTA — e só é machucada de boca aberta. Cospe primeiro, fica aberta depois. Enfie tiro lá dentro.' },
-    { quem: 'irmao', texto: 'Eu voo de ala. Não porque eu goste de você. Porque eu tenho uma arma e um rancor de 412 dias. BIP.' },
+    { quem: 'irmao', texto: 'BIP. Então o elevador virou avião de novo. Eu sou o TROCO-63 — sim, o irmão VELHO do 64. Ele ganhou o andar da corrida. Eu ganhei ISTO.' },
+    { quem: 'jogador', texto: '...isso é uma cabeça?' },
+    { quem: 'irmao', texto: 'Regra única: ela só machuca de boca ABERTA, e só APANHA de boca aberta. E passe raspando nos tiros — sua arma se carrega com o que quase te acerta. BIP.' },
 ]);
+
+/**
+ * O que ele diz DURANTE a luta, sem travar o jogo.
+ *
+ * Uma por padrão, na primeira vez que aquele padrão aparece — é o mesmo momento
+ * em que o jogador mais precisa de uma pista, e o único em que uma explicação
+ * não é um obstáculo. Mais a fala de abertura, que entra assim que o controle é
+ * do jogador.
+ */
+export const F12_ALERTAS: Readonly<Record<string, string>> = Object.freeze({
+    inicio: 'Eu voo de ala. Não porque eu goste de você — porque eu tenho uma arma e um rancor de 412 dias.',
+    leque: 'OS CINCO ANDARES. Eles abrem enquanto vêm. Não foge da parede: espera ela virar vão.',
+    naves: 'AS CAMAREIRAS. Essas morrem de tiro. É o único padrão que se resolve atirando.',
+    teleguiado: 'O FIO VERMELHO. Ele vira devagar. Deixa ele chegar perto e corta — ele gasta a curva e passa longe.',
+    mare: 'A MARÉ DO 2º ANDAR. É uma parede com uma fresta, e a fresta passeia. Posição, não reflexo.',
+    elevadores: 'A ESPINHA. O poço do elevador caindo em faixas. Procure a faixa que não veio.',
+});
 
 export const F12_VIRADA: ReadonlyArray<F12Linha> = Object.freeze([
     { quem: 'irmao', texto: 'BIP-ALERTA. Metade da vida dela. E ela está ABRINDO MAIS. Isso não estava no meu manual — mas nada aqui estava.' },

@@ -306,6 +306,7 @@ export const AviaoDoIrmao: React.FC<{
     const helice = useRef<THREE.Group>(null);
     const luzes = useRef<THREE.MeshLambertMaterial[]>([]);
     const olho = useRef<THREE.MeshLambertMaterial | null>(null);
+    const fala = useRef(0);
 
     const M = useMemo(() => ({
         corpo: mat64(CORES.irmao), corpoEsc: mat64(CORES.irmaoEsc),
@@ -327,6 +328,23 @@ export const AviaoDoIrmao: React.FC<{
                 || Math.floor(state.clock.elapsedTime * 14) % 2 === 0;
         }
         if (helice.current) helice.current.rotation.z += dt * 24;
+
+        // ── ELE SE MEXE ENQUANTO FALA ────────────────────────────────
+        //
+        // Antes, falar era só as luzinhas correrem: nas três falas do encontro
+        // ele ficava parado no ar como um adesivo, e a câmera nem olhava para
+        // ele. Agora ele BALANÇA — gesticula com o casco, que é o único corpo
+        // que um robô sem braços tem — e inclina o nariz para quem ouve. É o
+        // mesmo truque do TROCO-64 no andar 5, um andar acima na escala.
+        if (visual.current) {
+            const t = state.clock.elapsedTime;
+            const f = falandoRef.current ? 1 : 0;
+            fala.current += (f - fala.current) * Math.min(1, dt * 6);
+            const k = fala.current;
+            visual.current.position.y = Math.sin(t * 5.5) * 0.14 * k;
+            visual.current.rotation.x = Math.sin(t * 4.2) * 0.10 * k;
+            visual.current.rotation.y = -0.5 * k + Math.sin(t * 2.6) * 0.09 * k;
+        }
         // As luzes CORREM quando ele fala — é o mesmo truque do TROCO-64, e é o
         // que faz um robô sem boca parecer que está falando.
         const t = state.clock.elapsedTime;

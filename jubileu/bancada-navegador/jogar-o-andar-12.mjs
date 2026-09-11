@@ -21,6 +21,8 @@ const FOTOS = process.env.FOTOS === '1';
 // Mede o DANO, não a sobrevivência: sem isto a sessão acaba quando o bot morre e
 // o número principal (quanto tempo a luta dura) vira uma extrapolação de 60 s.
 const IMORTAL = process.env.IMORTAL === '1';
+/** PULAR=1 mede o caminho de quem já viu a cena e aperta o botão de pular. */
+const PULAR = process.env.PULAR === '1';
 
 const ponte = abrirPonte({ manterCache: true, registrar: () => {} });
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
@@ -137,9 +139,20 @@ while (agora() < fim) {
             await new Promise(r => setTimeout(r, 60));
         }
     } else {
-        // diálogo / introdução: clicar como um jogador clica
-        const bt = await p.$('button');
-        if (bt) { await bt.click({ timeout: 2500 }).catch(() => {}); cliques++; }
+        // diálogo / introdução: clicar como um jogador clica.
+        // O ÚLTIMO botão da página é o ▶ do balão; o primeiro virou o PULAR.
+        // Sem escolher, a bancada pula a cena toda e mede o caminho de quem já
+        // viu — que é um número legítimo, mas não é o do primeiro jogo.
+        // E nas fases SEM diálogo (a introdução) o único botão da página é o
+        // PULAR — clicar nele ali pula a cena inteira. O caminho normal espera
+        // a introdução correr e só clica quando há balão.
+        const temBalao = e.fase === 'encontro' || e.fase === 'virada'
+            || e.fase === 'vitoria' || e.fase === 'derrota' || e.fase === 'despedida';
+        if (PULAR || temBalao) {
+            const bts = await p.$$('button');
+            const bt = PULAR ? bts[0] : bts[bts.length - 1];
+            if (bt) { await bt.click({ timeout: 2500 }).catch(() => {}); cliques++; }
+        }
         await new Promise(r => setTimeout(r, 320));
     }
 

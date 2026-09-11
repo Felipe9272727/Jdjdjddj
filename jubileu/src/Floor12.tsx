@@ -34,7 +34,7 @@ import {
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
-    F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
+    F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA, F12_ALERTAS,
     type Nave, type NomeDoAtaque, type F12Linha,
 } from './f12Boss';
 import { Floor12Ceu } from './Floor12Ceu';
@@ -208,28 +208,33 @@ const DiretorDaIntro: React.FC<{
         // Agora a câmera sai PRIMEIRO, o casco aparece ainda FECHADO (um cubo
         // de elevador voando, que já é uma imagem), e só então ele se desdobra,
         // inteiro, à vista, com 2,4 s para isso.
-        if (tt > 0.5 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
+        if (tt > 0.4 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
 
         //  0,0 -> 1,0   as portas fechadas: o jogador ainda está no elevador
         //  1,0 -> 2,4   elas abrem, e do outro lado não há andar: há céu
-        portaRef.current = THREE.MathUtils.clamp((tt - 1.0) / 1.4, 0, 1);
+        portaRef.current = THREE.MathUtils.clamp((tt - 0.8) / 1.2, 0, 1);
 
-        //  2,4 -> 4,0   a câmera sai de dentro do hóspede para trás da cabine
-        camRef.current = THREE.MathUtils.clamp((tt - 2.4) / 1.6, 0, 1);
+        //  A CENA INTEIRA ENCOLHEU ~15%: medido, o caminho normal levava 17,1 s
+        //  entre abrir o andar e poder tocar no jogo. O desdobramento continua
+        //  tendo os seus dois segundos à vista (é o assunto da cena), mas cada
+        //  espera em volta dele foi apertada.
+        //
+        //  2,0 -> 3,4   a câmera sai de dentro do hóspede para trás da cabine
+        camRef.current = THREE.MathUtils.clamp((tt - 2.0) / 1.4, 0, 1);
         //  2,4 -> 3,4   a casca de primeira pessoa some: ela e o casco são a
         //               mesma coisa vista de dois lados, e mostrar as duas ao
         //               mesmo tempo entregaria o truque.
-        sumindoRef.current = THREE.MathUtils.clamp((tt - 2.4) / 1.0, 0, 1);
+        sumindoRef.current = THREE.MathUtils.clamp((tt - 2.0) / 0.9, 0, 1);
 
         //  4,0 -> 6,4   O DESDOBRAMENTO, agora com a câmera já lá fora
-        if (tt > 4.0) {
+        if (tt > 3.4) {
             if (!marcos.current.desdobrar) { marcos.current.desdobrar = true; tocarDesdobrar(); f12.fase = 'virando'; f12Bump(); }
-            aberturaRef.current = THREE.MathUtils.clamp((tt - 4.0) / 2.4, 0, 1);
+            aberturaRef.current = THREE.MathUtils.clamp((tt - 3.4) / 2.1, 0, 1);
         }
         //  o motor pega quando a hélice já está montada
-        if (tt > 5.6 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
+        if (tt > 4.9 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
 
-        if (tt > 7.0) { f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar(); }
+        if (tt > 5.9) { f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar(); }
     });
     return null;
 };
@@ -248,13 +253,17 @@ const DiretorDaIntro: React.FC<{
  */
 const FOV_DE_DENTRO = 92;
 
+const MIRA_CAM = new THREE.Vector3();
+
 const CameraDaLuta: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
+    irmaoRef: React.MutableRefObject<Nave>;
     camRef: React.MutableRefObject<number>;
     sacodeRef: React.MutableRefObject<number>;
-}> = ({ naveRef, camRef, sacodeRef }) => {
+}> = ({ naveRef, irmaoRef, camRef, sacodeRef }) => {
     const camera = useThree((s) => s.camera);
     const alvo = useRef(new THREE.Vector3());
+    const conversa = useRef(0);
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
@@ -280,10 +289,29 @@ const CameraDaLuta: React.FC<{
         const atrasX = n.x * 0.55;
         const atrasY = E.camY + (n.y - meioY()) * 0.30;
 
+        // ── NA CONVERSA, A CÂMERA OLHA QUEM FALA ─────────────────────
+        //
+        // Durante o encontro ela ficava exatamente onde fica na luta: o robô
+        // dizia três falas de perfil, do tamanho de um selo, no canto. "A
+        // encenação não existe" era isso — não faltava texto, faltava CÂMERA.
+        // Aqui ela desliza para o lado dele e se aproxima enquanto o balão está
+        // no ar, e volta sozinha quando a luta começa.
+        const conversando = f12.fase === 'encontro' || f12.fase === 'virada';
+        conversa.current += ((conversando ? 1 : 0) - conversa.current) * Math.min(1, dt * 2.2);
+        const c = conversa.current * conversa.current * (3 - 2 * conversa.current);
+
         const px = THREE.MathUtils.lerp(0, atrasX, suave);
         const py = THREE.MathUtils.lerp(dentroY, atrasY, suave);
         const pz = THREE.MathUtils.lerp(dentroZ, E.recuo, suave);
-        camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
+        // o deslocamento da conversa: para o lado do ala (ele voa à esquerda) e
+        // um pouco à frente
+        const ir = irmaoRef.current;
+        MIRA_CAM.set(
+            THREE.MathUtils.lerp(px, ir.x * 0.9 + 1.1, c),
+            THREE.MathUtils.lerp(py, ir.y + 1.0, c),
+            THREE.MathUtils.lerp(pz, ARENA.zNave + 4.6, c),
+        );
+        camera.position.lerp(MIRA_CAM, Math.min(1, dt * 7));
 
         // O alvo fica no eixo composto, deslocado de leve pelo avião: a câmera
         // de um jogo de nave tem de enquadrar o jogador e a boca ao mesmo
@@ -291,9 +319,9 @@ const CameraDaLuta: React.FC<{
         // ataque. O deslocamento é pequeno de propósito — se o alvo seguisse o
         // avião inteiro, o quadro balançaria e a boca sairia do lugar dela.
         alvo.current.set(
-            THREE.MathUtils.lerp(0, n.x * 0.28, suave),
-            THREE.MathUtils.lerp(dentroY, E.miraY + (n.y - meioY()) * 0.18, suave),
-            THREE.MathUtils.lerp(-6, E.miraZ, suave),
+            THREE.MathUtils.lerp(THREE.MathUtils.lerp(0, n.x * 0.28, suave), ir.x, c),
+            THREE.MathUtils.lerp(THREE.MathUtils.lerp(dentroY, E.miraY + (n.y - meioY()) * 0.18, suave), ir.y + 0.35, c),
+            THREE.MathUtils.lerp(THREE.MathUtils.lerp(-6, E.miraZ, suave), ARENA.zNave - 1.5, c),
         );
 
         // O SACODE do dano. Ele mexe o ALVO, não a posição: sacudir a posição
@@ -331,6 +359,10 @@ const CameraDaLuta: React.FC<{
 // ═══ O DIRETOR DA LUTA ═══════════════════════════════════════════════════════
 
 interface Ferramentas {
+    /** Legenda do ala durante a luta, sem travar nada. */
+    alertaRef: React.MutableRefObject<{ texto: string; ate: number }>;
+    /** Padrões que ele já comentou: cada um fala uma vez só. */
+    jaAvisou: React.MutableRefObject<Set<string>>;
     nave: React.MutableRefObject<Nave>;
     irmao: React.MutableRefObject<Nave>;
     entrada: React.MutableRefObject<{ x: number; y: number }>;
@@ -417,6 +449,14 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             anunciou.current = ciclo;
             const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
             F.gritoRef.current = fichaDoAtaque(qual).grito;
+            // A PRIMEIRA VEZ de cada padrão, o ala explica — sem travar nada.
+            // É o momento em que o jogador mais precisa da pista e o único em
+            // que uma explicação não é obstáculo. Ver `F12_ALERTAS`.
+            if (!F.jaAvisou.current.has(qual)) {
+                F.jaAvisou.current.add(qual);
+                F.alertaRef.current = { texto: F12_ALERTAS[qual] ?? '', ate: f12.relogio + 4.5 };
+                tocarFalaDoIrmao();
+            }
             tocarBocaAbrindo();
             F.avisar();
         }
@@ -622,6 +662,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const helice = useRef(1);
     const falando = useRef(false);
     const visivel = useRef(false);
+    const alerta = useRef({ texto: '', ate: 0 });
+    const jaAvisou = useRef(new Set<string>());
 
     useEffect(() => {
         // A arena se alarga ANTES de qualquer nave nascer: as posições iniciais
@@ -675,6 +717,20 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             passouDaVirada: f12.passouDaVirada, vidas: nave.current.vidas,
         };
     }
+    // ── PULAR ────────────────────────────────────────────────────────────
+    //
+    // O andar tinha dezessete segundos entre abrir e poder jogar, e nenhuma
+    // saída. Quem já viu a cena uma vez estava preso a ela toda vez que
+    // perdesse — e perder era comum. Um botão de pular não é conforto: é o que
+    // torna a derrota barata, e derrota barata é o que faz um chefe difícil
+    // continuar sendo divertido.
+    const pular = useCallback(() => {
+        porta.current = 1; abertura.current = 1; cam.current = 1;
+        sumindo.current = 1; visivel.current = true;
+        f12.fase = 'luta'; f12.linhaDoDialogo = 0;
+        avisar();
+    }, [avisar]);
+
     const roteiro = roteiroDaFase(fase);
     const linha = roteiro[Math.min(f12.linhaDoDialogo, roteiro.length - 1)] ?? null;
     const ultimaLinha = f12.linhaDoDialogo >= roteiro.length - 1;
@@ -688,6 +744,10 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // Fim do bloco de fala: para onde ele leva.
         if (f12.fase === 'encontro' || f12.fase === 'virada') {
             f12.fase = 'luta';
+            if (!jaAvisou.current.has('inicio')) {
+                jaAvisou.current.add('inicio');
+                alerta.current = { texto: F12_ALERTAS.inicio, ate: f12.relogio + 5 };
+            }
             f12.bocaT = 0;                 // o compasso recomeça limpo dos dois lados
             tocarMotor();
         } else if (f12.fase === 'derrota') {
@@ -779,14 +839,21 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
             <Canvas
                 dpr={0.6}
-                camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
+                camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 620, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: false }}
                 onCreated={({ gl, scene, camera }) => {
                     gl.domElement.style.imageRendering = 'pixelated';
                     scene.background = new THREE.Color('#7ec0ef');
                     // A névoa começa DEPOIS da cabeça (a 47 da câmera): com ela em 40 o
                     // chefe entrava no nevoeiro e perdia o contraste.
-                    scene.fog = new THREE.Fog('#7ec0ef', 58, 270);
+                    // ── A NÉVOA RECUOU, PORQUE AGORA HÁ CIDADE LÁ ATRÁS ──
+                    // Ela ia de 58 a 270 num cenário cujo objeto mais distante
+                    // era uma torre a 160. Com o arquipélago em z -150..-290, a
+                    // mesma névoa dissolvia a cidade inteira num borrão branco:
+                    // o céu voltava a parecer vazio, só que caro. De 120 a 560
+                    // ela continua dando perspectiva aérea (o que está longe
+                    // clareia) sem apagar o que foi posto para ser visto.
+                    scene.fog = new THREE.Fog('#b7e2f7', 120, 560);
                     // DEV: a bancada precisa MEDIR o enquadramento. Sem isto, o
                     // tamanho do avião e da cabeça na tela é opinião — e opinião
                     // sobre enquadramento já custou caro neste repositório.
@@ -806,8 +873,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 {fase !== 'intro' && fase !== 'virando' && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} avisar={() => { visivel.current = true; avisar(); }} />
-                <CameraDaLuta naveRef={nave} camRef={cam} sacodeRef={sacode} />
-                <DiretorDaLuta nave={nave} irmao={irmao} entrada={entrada}
+                <CameraDaLuta naveRef={nave} irmaoRef={irmao} camRef={cam} sacodeRef={sacode} />
+                <DiretorDaLuta alertaRef={alerta} jaAvisou={jaAvisou} nave={nave} irmao={irmao} entrada={entrada}
                     flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
@@ -884,6 +951,18 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
                 alguém tem de dizer que a tela é o joystick. */}
             {mostrarControles && <DicaDeControle />}
+            <AlertaDoAla alertaRef={alerta} />
+
+            {/* PULAR: fica no canto, discreto, e some quando a luta começa */}
+            {(fase === 'intro' || fase === 'virando' || fase === 'encontro') && (
+                <button onClick={pular} style={{
+                    ...t64, position: 'absolute', zIndex: 6,
+                    top: 'calc(env(safe-area-inset-top) + 10px)', right: 12,
+                    fontSize: 13, padding: '7px 13px', color: '#fff',
+                    background: 'rgba(17,19,26,0.62)', border: '2px solid rgba(255,255,255,0.35)',
+                    borderRadius: 10, cursor: 'pointer',
+                }}>PULAR ▸</button>
+            )}
 
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
@@ -996,7 +1075,13 @@ const AvisoDeJanela: React.FC = () => {
     if (!aberta) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 96px)',
+            // ── ELE SAIU DE CIMA DA CARA DELA ────────────────────────
+            // Estava a 96 px do topo, que é exatamente onde a cabeça está: a
+            // frase que ensina a regra do jogo era desenhada POR CIMA do alvo
+            // que ela manda acertar, e junto com o nome do ataque virava uma
+            // pilha de texto tapando o chefe. Agora ele mora na base, perto do
+            // avião — que é para onde o jogador olha enquanto pilota.
+            ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 74px)',
             left: 0, right: 0, textAlign: 'center', fontSize: 20, color: '#b6ff4a',
             zIndex: 3, pointerEvents: 'none', animation: 'f12pisca 0.45s infinite',
         }}>
@@ -1022,8 +1107,12 @@ const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({
     if (!texto || !visivel) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', top: '22%', left: 0, right: 0, textAlign: 'center',
-            fontSize: 26, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
+            // Debaixo da BARRA DE VIDA, não a 22% da altura: a 22% ele caía na
+            // testa do chefe. O nome do ataque é informação sobre ELA, então
+            // mora junto da barra dela — e some da área em que ela é desenhada.
+            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 44px)',
+            left: 0, right: 0, textAlign: 'center',
+            fontSize: 22, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
         }}>
             {texto}
             <style>{'@keyframes f12pisca { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }'}</style>
@@ -1033,3 +1122,48 @@ const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({
 
 export { configureFloor12Sfx };
 export default Floor12;
+
+/**
+ * A LEGENDA DO ALA — ele fala durante a luta, e o jogo não para.
+ *
+ * Metade do texto deste andar morava num bloco de seis caixas antes da luta, com
+ * o jogador de mãos atadas. Aqui ele fala no mesmo instante em que a coisa
+ * comentada aparece na tela, e o jogador pode estar desviando enquanto lê — que
+ * é a diferença entre um personagem e um menu.
+ */
+const AlertaDoAla: React.FC<{ alertaRef: React.MutableRefObject<{ texto: string; ate: number }> }> =
+    ({ alertaRef }) => {
+        const [txt, setTxt] = useState('');
+        useFrameFora(() => {
+            const a = alertaRef.current;
+            const vivo = a.texto && f12.relogio < a.ate;
+            setTxt((antes) => (vivo ? a.texto : '') === antes ? antes : (vivo ? a.texto : ''));
+        });
+        if (!txt) return null;
+        return (
+            <div style={{
+                position: 'absolute', zIndex: 5, left: '5%', right: '5%',
+                bottom: 'calc(env(safe-area-inset-bottom) + 108px)',
+                pointerEvents: 'none', textAlign: 'center',
+            }}>
+                <span style={{
+                    ...t64, fontSize: 13, color: '#ffd7a8', lineHeight: 1.4,
+                    background: 'rgba(17,19,26,0.66)', padding: '7px 12px', borderRadius: 9,
+                    borderLeft: '3px solid #ff6b4a', display: 'inline-block',
+                }}>
+                    <b style={{ color: '#ff6b4a' }}>TROCO-63 </b>{txt}
+                </span>
+            </div>
+        );
+    };
+
+/** Um `useFrame` que funciona FORA do Canvas (o HUD não vive na cena 3D). */
+function useFrameFora(fn: () => void): void {
+    const guardado = useRef(fn); guardado.current = fn;
+    useEffect(() => {
+        let vivo = true;
+        const laco = () => { if (!vivo) return; guardado.current(); requestAnimationFrame(laco); };
+        const id = requestAnimationFrame(laco);
+        return () => { vivo = false; cancelAnimationFrame(id); };
+    }, []);
+}
