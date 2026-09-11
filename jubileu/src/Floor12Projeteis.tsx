@@ -35,12 +35,13 @@ const CORES = {
     elevadores: '#c9b28a',   // a espinha: a mesma cabine creme do elevador
     elevadoresEsc: '#6f6350',
     tiro: '#b6ff4a',
+    carregado: '#8ff0ff',
     tiroIrmao: '#ff9d5a',
 };
 
 /** Quantos de cada tipo cabem no ar ao mesmo tempo. Generoso, mas fixo. */
 const TETO: Record<string, number> = {
-    leque: 12, teleguiado: 3, naves: 8, mare: 3, elevadores: 10, tiro: 36,
+    leque: 12, teleguiado: 3, naves: 8, mare: 3, elevadores: 10, tiro: 36, carregado: 4,
 };
 
 interface Pool {
@@ -109,6 +110,7 @@ export const Floor12Projeteis: React.FC = () => {
         mare: mat64(CORES.mare, CORES.mare, 0.15), mareEsc: mat64(CORES.mareEsc),
         elevadores: mat64(CORES.elevadores), elevadoresEsc: mat64(CORES.elevadoresEsc),
         tiro: mat64(CORES.tiro, CORES.tiro, 1.0),
+        carregado: mat64(CORES.carregado, CORES.carregado, 1.4),
         tiroIrmao: mat64(CORES.tiroIrmao, CORES.tiroIrmao, 1.0),
     }), []);
 
@@ -134,6 +136,22 @@ export const Floor12Projeteis: React.FC = () => {
             naves: cria(TETO.naves, () => fazerCamareira(M as never)),
             mare: cria(TETO.mare, () => fazerOnda(M as never)),
             elevadores: cria(TETO.elevadores, () => fazerCabine(M as never)),
+            // O TIRO CARREGADO: grande, azul e com anéis. Ele é a recompensa de
+            // ter desviado apertado cinco vezes, e uma recompensa que parece
+            // igual ao tiro comum não é recompensa nenhuma.
+            carregado: cria(TETO.carregado, () => {
+                const g = new THREE.Group();
+                const nucleo = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.5, 4, 10), M.carregado);
+                nucleo.rotation.x = Math.PI / 2;
+                g.add(nucleo);
+                for (let i = 0; i < 3; i++) {
+                    const anel = new THREE.Mesh(new THREE.TorusGeometry(0.62 + i * 0.16, 0.07, 6, 14), M.carregado);
+                    anel.position.z = 0.5 + i * 0.55;
+                    anel.name = `anel${i}`;
+                    g.add(anel);
+                }
+                return g;
+            }),
             tiro: cria(TETO.tiro, () => {
                 const g = new THREE.Group();
                 const bala = new THREE.Mesh(balaGeo, M.tiro);
@@ -154,10 +172,10 @@ export const Floor12Projeteis: React.FC = () => {
     useFrame((state) => {
         const g = raiz.current; if (!g) return;
         // Quantos de cada tipo já foram usados neste quadro.
-        const usados: Record<string, number> = { leque: 0, teleguiado: 0, naves: 0, mare: 0, elevadores: 0, tiro: 0 };
+        const usados: Record<string, number> = { leque: 0, teleguiado: 0, naves: 0, mare: 0, elevadores: 0, tiro: 0, carregado: 0 };
 
         for (const p of f12.projeteis) {
-            const chave = p.tipo === 'tiro' ? 'tiro' : (p.tipo as NomeDoAtaque);
+            const chave = (p.tipo === 'tiro' || p.tipo === 'carregado') ? p.tipo : (p.tipo as NomeDoAtaque);
             const pool = pools[chave]; if (!pool) continue;
             const i = usados[chave]; if (i >= pool.itens.length) continue;
             usados[chave] = i + 1;
@@ -187,6 +205,22 @@ const MIRA = new THREE.Vector3();
 
 function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, THREE.Material>): void {
     o.position.set(p.x, p.y, p.z);
+
+    if (p.tipo === 'carregado') {
+        // os anéis correm para trás: dá sensação de velocidade num objeto que,
+        // visto de trás, quase não muda de tamanho enquanto se afasta
+        const g = o as THREE.Group;
+        for (let i = 0; i < g.children.length; i++) {
+            const c = g.children[i];
+            if (c.name.startsWith('anel')) {
+                c.rotation.z = t * (3 + i);
+                c.scale.setScalar(1 + Math.sin(t * 9 - i) * 0.18);
+            }
+        }
+        MIRA.set(p.x - p.vx, p.y - p.vy, p.z - p.vz);
+        o.lookAt(MIRA);
+        return;
+    }
 
     if (p.tipo === 'tiro') {
         const m = p.de === 'irmao' ? M.tiroIrmao : M.tiro;

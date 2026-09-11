@@ -17,7 +17,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64, Avatar64, useAvatarRefs, type AvatarRefs } from './Floor5Player64';
-import { NAVE, ENQUADRAMENTO, type Nave } from './f12Boss';
+import { NAVE, ENQUADRAMENTO, RASPAO, type Nave } from './f12Boss';
 
 const CORES = {
     cabine: '#c9b28a',      // o creme do elevador
@@ -231,6 +231,7 @@ export const AviaoDoJogador: React.FC<{
 }> = ({ naveRef, aberturaRef, heliceRef, visivelRef }) => {
     const raiz = useRef<THREE.Group>(null);
     const visual = useRef<THREE.Group>(null);
+    const casco = useRef<THREE.Group>(null);
     const refs = useAvatarRefs();
     const sentado = useRef(false);
 
@@ -244,6 +245,22 @@ export const AviaoDoJogador: React.FC<{
             // o nariz sobe/desce com a velocidade vertical: dá peso ao avião
             visual.current.rotation.x = THREE.MathUtils.clamp(-n.vy * 0.045, -0.35, 0.35);
         }
+        // ── O BRILHO DO RASPÃO E A CARGA ─────────────────────────────
+        //
+        // O raspão é invisível por natureza: o jogador não tem como descobrir
+        // sozinho que passar perto de um projétil está carregando alguma coisa.
+        // A nave acende a cada raspão e fica acesa de vez quando a carga enche —
+        // é o que ensina a mecânica sem um tutorial, e é a única peça da tela
+        // que diz "desviar apertado é a sua arma".
+        if (casco.current) {
+            const cheia = n.carga >= RASPAO.cheia;
+            const k = cheia ? 0.55 + Math.sin(state.clock.elapsedTime * 12) * 0.25 : n.brilho / RASPAO.brilho;
+            casco.current.traverse((o) => {
+                const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
+                if (m && m.emissive) m.emissiveIntensity = 0.15 + Math.max(0, k) * 1.5;
+            });
+        }
+
         // A PISCADA da invencibilidade. Sem ela o jogador não sabe que já tomou
         // o toque e continua achando que está sendo atingido de novo.
         if (visual.current) {
@@ -256,11 +273,15 @@ export const AviaoDoJogador: React.FC<{
     return (
         <group ref={raiz} name="aviao" scale={ESCALA_DO_AVIAO}>
             <group ref={visual}>
-                <CascoDoElevador aberturaRef={aberturaRef} heliceRef={heliceRef} />
+                <group ref={casco}>
+                    <CascoDoElevador aberturaRef={aberturaRef} heliceRef={heliceRef} />
+                </group>
                 {/* o piloto, sentado, encolhido para caber na cabine */}
                 <group position={[0, -0.6, 0.1]} scale={0.44}>
                     <Avatar64 refs={refs} />
                 </group>
+                {/* o anel de raspão: mostra ONDE passar perto conta */}
+                <AnelDeRaspao naveRef={naveRef} />
             </group>
         </group>
     );
@@ -363,3 +384,38 @@ export const AviaoDoIrmao: React.FC<{
 };
 
 export { NAVE };
+
+
+/**
+ * O ANEL DE RASPÃO — a regra desenhada na nave.
+ *
+ * `RASPAO.raio` é 1,25 e a caixa de colisão é 0,36: existe um anel de quase um
+ * metro em volta da nave em que um projétil CARREGA a arma em vez de matar. Isso
+ * é a coisa mais importante da luta e é completamente invisível — nenhum
+ * jogador descobre por dedução que chegar perto é bom.
+ *
+ * O anel fica fraco o tempo todo (para não poluir) e acende quando a carga
+ * enche. Ele tem exatamente o tamanho da regra, não um tamanho decorativo: este
+ * arquivo já pagou caro por desenho que discordava da conta.
+ */
+const AnelDeRaspao: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) => {
+    const anel = useRef<THREE.Mesh>(null);
+    useFrame((state) => {
+        const a = anel.current; if (!a) return;
+        const n = naveRef.current;
+        const cheia = n.carga >= RASPAO.cheia;
+        const m = a.material as THREE.MeshBasicMaterial;
+        const t = state.clock.elapsedTime;
+        m.opacity = cheia ? 0.5 + Math.sin(t * 12) * 0.2 : 0.1 + (n.brilho / RASPAO.brilho) * 0.5;
+        m.color.set(cheia ? '#8ff0ff' : '#ffffff');
+        a.scale.setScalar(cheia ? 1 + Math.sin(t * 12) * 0.08 : 1);
+    });
+    // dividido pela escala do avião, porque ele mora dentro do grupo escalado
+    const r = RASPAO.raio / ESCALA_DO_AVIAO;
+    return (
+        <mesh ref={anel} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[r, r * 0.035, 5, 22]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.1} depthWrite={false} fog={false} />
+        </mesh>
+    );
+};

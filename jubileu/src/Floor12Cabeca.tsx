@@ -119,7 +119,11 @@ export const Floor12Cabeca: React.FC<{
         if (raiz.current) {
             const respiro = Math.sin(t * 0.55) * 0.22;
             const tranco = b.estado === 'abrindo' ? Math.sin(b.t / 0.55 * Math.PI) * 0.5 : 0;
-            raiz.current.position.set(0, ALTURA_DA_CABECA + respiro, ARENA.zCabeca - tranco);
+            // O X VEM DE `f12.bocaX`, e não de zero: a cabeça passeia, e quem
+            // decide onde ela está é o módulo puro — a hitbox da boca, a saída
+            // dos ataques e este crânio leem todos do mesmo número. Desenhar a
+            // cabeça parada enquanto a hitbox anda seria a pior versão disto.
+            raiz.current.position.set(f12.bocaX, ALTURA_DA_CABECA + respiro, ARENA.zCabeca - tranco);
             raiz.current.rotation.z = Math.sin(t * 0.31) * 0.02;
             // com pouca vida ela treme: o jogador sente o fim chegando
             const agonia = f12.vida < VIDA_MAXIMA * 0.25 ? (1 - f12.vida / (VIDA_MAXIMA * 0.25)) : 0;
@@ -315,6 +319,13 @@ export const AnelDaBoca: React.FC = () => {
         const pode = vulneravel(b) && f12.fase === 'luta';
         a.visible = pode;
         if (!pode) return;
+        // O X TEM DE SER ESCRITO POR QUADRO. Ele vinha do JSX
+        // (`position={[BOCA_ALVO.x, ...]}`), que é avaliado uma vez na
+        // montagem — com a boca parada isso funcionava; com ela passeando, o
+        // anel ficaria plantado onde a boca ESTAVA no primeiro quadro, e o
+        // jogador seria ensinado a mirar no lugar errado. É o mesmo defeito que
+        // já pôs este anel em cima do nariz dela, por outro caminho.
+        a.position.x = BOCA_ALVO.x;
         const pulso = 1 + Math.sin(state.clock.elapsedTime * 7) * 0.07;
         a.scale.setScalar(pulso);
         const m = a.material as THREE.MeshBasicMaterial;

@@ -3,7 +3,7 @@ import {
     ARENA, meioY, dentroDaArena,
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
-    ATAQUES, ataqueDaVez, fichaDoAtaque,
+    ATAQUES, ataqueDaVez, fichaDoAtaque, ENSINO_TAMANHO,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
@@ -91,55 +91,75 @@ describe('f12 — a boca é o relógio da luta', () => {
 
 // ── O RODÍZIO ────────────────────────────────────────────────────────────────
 describe('f12 — os cinco ataques e a ordem deles', () => {
-    it('são cinco, com nomes únicos, e dois só entram depois da virada', () => {
-        expect(ATAQUES).toHaveLength(5);
-        expect(new Set(ATAQUES.map((a) => a.nome)).size).toBe(5);
-        expect(ATAQUES.filter((a) => a.depoisDaVirada)).toHaveLength(2);
+    // ── ESTE BLOCO COBRAVA O DESENHO ERRADO ──────────────────────────────
+    //
+    // Ele exigia "antes da virada só rodam os três primeiros" e "depois da
+    // virada os dois novos entram". Passava, e o que ele garantia era que
+    // METADE DO CONTEÚDO DO ANDAR FICASSE INVISÍVEL: medido jogando, numa
+    // sessão de 100 s apareciam três dos cinco padrões, e a maré e a espinha
+    // moravam atrás de 50% da vida do chefe — atrás de dois minutos e meio de
+    // jogo perfeito. O dono do jogo nunca os viu.
+    //
+    // O contrato novo é o contrário: os cinco ENSINAM cedo, e depois a ordem
+    // deixa de ser adivinhável.
+    it('os cinco padrões aparecem nos cinco primeiros ciclos', () => {
+        const vistos = new Set<NomeDoAtaque>();
+        for (let i = 0; i < 5; i++) vistos.add(ataqueDaVez(i, false));
+        expect(vistos.size, 'algum padrão ficou de fora do ensino').toBe(5);
     });
 
-    it('cada ataque tem grito e uma referência de lore — é o pedido do andar', () => {
-        for (const a of ATAQUES) {
-            expect(a.grito.length, a.nome).toBeGreaterThan(3);
-            expect(a.lore.length, a.nome).toBeGreaterThan(20);
+    it('e isso põe os cinco na tela em menos de um minuto', () => {
+        // cinco ciclos de boca, e o jogador já viu o catálogo inteiro
+        expect(5 * CICLO_DA_BOCA, 'o ensino demora demais').toBeLessThan(60);
+    });
+
+    it('a ordem não é mais adivinhável por `i % k`', () => {
+        // A antiga era `ATAQUES[i % 3]`: em três ciclos o jogador parava de ler
+        // o chefe e passava a contar. Nenhum período curto pode explicar a
+        // sequência nova.
+        const seq: NomeDoAtaque[] = [];
+        for (let i = 0; i < 60; i++) seq.push(ataqueDaVez(i, false));
+        for (const k of [3, 4, 5, 6, 8]) {
+            let periodico = true;
+            for (let i = ENSINO_TAMANHO; i + k < seq.length; i++) {
+                if (seq[i] !== seq[i + k]) { periodico = false; break; }
+            }
+            expect(periodico, `a sequência se repete a cada ${k}`).toBe(false);
         }
     });
 
-    // ── NADA DE SORTEIO ──────────────────────────────────────────────────
-    // Um chefe sorteado é injusto de um jeito que o jogador sente e não
-    // consegue nomear. O rodízio deixa a luta APRENDÍVEL.
-    it('a ordem é determinística: a mesma partida dá a mesma sequência', () => {
-        const a = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, false));
-        const b = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, false));
+    it('nenhum padrão emenda consigo mesmo', () => {
+        for (const virada of [false, true]) {
+            for (let i = 0; i < 200; i++) {
+                expect(ataqueDaVez(i, virada), `i=${i} virada=${virada}`)
+                    .not.toBe(ataqueDaVez(i + 1, virada));
+            }
+        }
+    });
+
+    it('e nenhum padrão some por muito tempo', () => {
+        // Um sorteio sem saco deixaria um padrão sumir vinte ciclos. O saco
+        // garante que cada bloco de cinco contenha os cinco.
+        const ultimoVisto: Record<string, number> = {};
+        for (let i = 0; i < 200; i++) ultimoVisto[ataqueDaVez(i, false)] = i;
+        for (let i = 0; i < 200; i++) {
+            const q = ataqueDaVez(i, false);
+            ultimoVisto[q] = i;
+            if (i > 20) {
+                for (const nome of ATAQUES.map((a) => a.nome)) {
+                    expect(i - (ultimoVisto[nome] ?? -1), `${nome} sumiu`).toBeLessThan(14);
+                }
+            }
+        }
+    });
+
+    it('a sequência é determinística — a simulação e o teste precisam repeti-la', () => {
+        const a = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i, false));
+        const b = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i, false));
         expect(a).toEqual(b);
     });
-
-    it('antes da virada só rodam os três primeiros', () => {
-        const vistos = new Set<NomeDoAtaque>();
-        for (let i = 0; i < 30; i++) vistos.add(ataqueDaVez(i, false));
-        expect(vistos).toEqual(new Set(['leque', 'teleguiado', 'naves']));
-    });
-
-    it('depois da virada os cinco entram, e os dois novos vêm logo', () => {
-        const primeiros = Array.from({ length: 8 }, (_, i) => ataqueDaVez(i, true));
-        expect(primeiros[0]).toBe('mare');                      // a virada é sentida no ato
-        const vistos = new Set(Array.from({ length: 24 }, (_, i) => ataqueDaVez(i, true)));
-        expect(vistos.size).toBe(5);
-    });
-
-    it('nenhum par de ataques NOVOS cai colado — chefe que ensina, não que pune', () => {
-        const novos = new Set(ATAQUES.filter((a) => a.depoisDaVirada).map((a) => a.nome));
-        for (let i = 0; i < 40; i++) {
-            const a = ataqueDaVez(i, true), b = ataqueDaVez(i + 1, true);
-            expect(novos.has(a) && novos.has(b), `${i}: ${a} → ${b}`).toBe(false);
-        }
-    });
-
-    it('índice sujo não quebra o rodízio', () => {
-        expect(() => ataqueDaVez(-3, false)).not.toThrow();
-        expect(ATAQUES.map((a) => a.nome)).toContain(ataqueDaVez(-3, true));
-        expect(fichaDoAtaque('mare').grito).toBe('A MARÉ DO 2º');
-    });
 });
+
 
 // ── ATAQUE 1: O LEQUE ────────────────────────────────────────────────────────
 describe('f12 — o leque: cinco grudados que vão abrindo', () => {
@@ -390,7 +410,7 @@ describe('f12 — atirar na boca', () => {
     // Ele estimava a duração da luta supondo que o jogador atira a janela
     // INTEIRA, sempre mirado, sem nunca desviar de nada. Isso não é um jogador,
     // é um teto teórico — e afinar a dificuldade por ele foi parte do que fez o
-    // andar sair ruim. Quem mede a duração de verdade agora é `f12Simulacao`,
+    // andar sair ruim. Quem mede a duração de verdade é a bancada do navegador,
     // que joga a luta inteira com um piloto que desvia, erra e apanha.
     //
     // O que sobra aqui é uma guarda de sanidade: o chefe não pode ser

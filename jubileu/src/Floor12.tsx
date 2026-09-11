@@ -31,6 +31,7 @@ import {
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
+    RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
@@ -44,6 +45,7 @@ import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
+    tocarRaspao, tocarCarregado,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -404,6 +406,10 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // ── O RELÓGIO DA BOCA ────────────────────────────────────────────
         f12.relogio += dt;
         f12.bocaT += dt;
+        // A cabeça passeia. Um lugar só escreve isto, e `BOCA_ALVO`/`BOCA_SAIDA`
+        // leem daqui — assim a hitbox, o anel de mira, a saída dos ataques e o
+        // desenho do crânio não podem discordar sobre onde a boca está.
+        f12.bocaX = bocaXNoInstante(f12.relogio);
         const b = bocaNoInstante(f12.bocaT);
         const ciclo = Math.floor(f12.bocaT / CICLO_DA_BOCA);
 
@@ -434,6 +440,12 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // O RITMO da arma mora em `tentarAtirar`, no módulo puro — a simulação
         // que mede a dificuldade dispara pela mesma função, senão ela mediria
         // outro jogo. Aqui só sobra o efeito: som e a ponta de asa da vez.
+        // A carga cheia sai sozinha: pedir um botão para ela custaria o polegar
+        // que já está arrastando, e o jogador acabou de GANHAR isto desviando —
+        // fazê-lo lembrar de gastar seria punir quem jogou bem.
+        const carregado = dispararCarregado(n);
+        if (carregado) { f12.projeteis.push(carregado); tocarCarregado(); F.avisar(); }
+
         if (tentarAtirar(n)) {
             // Alterna a ponta de asa: dois rastros paralelos em vez de uma fila
             // escondida atrás da fuselagem. Ver a nota em `nascerTiro`.
@@ -457,6 +469,22 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const mortos = new Set<number>();
 
         for (const p of f12.projeteis) {
+            // ── O TIRO CARREGADO ─────────────────────────────────────
+            // Ele fere com a boca ABERTA OU FECHADA, e é isto que quebra a
+            // exclusão entre desviar e machucar. Ver a nota em `RASPAO`.
+            if (p.tipo === 'carregado') {
+                if (tiroNaBoca(p)) {
+                    mortos.add(p.id);
+                    const virou = ferir(RASPAO.dano);
+                    F.flash.current = 1.6;
+                    F.sacode.current = 0.5;
+                    tocarExplosao();
+                    if (virou) abrirAVirada(F);
+                    if (f12.vida <= 0) acabar(F, 'vitoria');
+                    F.avisar();
+                }
+                continue;
+            }
             if (p.tipo === 'tiro') {
                 // tiro × camareira
                 for (const q of f12.projeteis) {
@@ -482,6 +510,12 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 }
                 continue;
             }
+            // ── O RASPÃO ─────────────────────────────────────────────
+            // Passar perto sem ser atingido carrega a arma. Conta antes da
+            // colisão de propósito: o quadro em que o projétil encosta não é
+            // um raspão, e `contarRaspao` já rejeita distância negativa.
+            if (contarRaspao(n, p, n.x, n.y)) { tocarRaspao(); F.avisar(); }
+
             // ataque × jogador
             if (encostou(p, n.x, n.y, NAVE.raio) && tomarToque(n)) {
                 F.sacode.current = 1; tocarDano();
@@ -632,6 +666,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (ferir(d) && F12FERRAMENTAS.atual) abrirAVirada(F12FERRAMENTAS.atual);
             f12Bump();
         };
+        w.__f12bocaX = BOCA_ALVO.x;
+        w.__f12enq = { larg: larguraDoQuadro(ENQUADRAMENTO.recuo, ENQUADRAMENTO.aspecto) };
         w.__f12estado = {
             fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current,
             irmao: irmao.current, ataqueNoAr: f12.ataqueNoAr, relogio: f12.relogio,
@@ -881,7 +917,13 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
         m.visible = ligada;
         if (!ligada) return;
         m.position.set(n.x, n.y, (ARENA.zNave + ARENA.zCabeca) / 2);
-        const alinhado = Math.hypot(n.x - BOCA_ALVO.x, n.y - BOCA_ALVO.y) < BOCA_ALVO.raio;
+        // ── O ALINHAMENTO É SÓ EM X, E ESTAVA MEDINDO EM Y TAMBÉM ────────
+        // Era `hypot(n.x - BOCA_ALVO.x, n.y - BOCA_ALVO.y)`. A nave voa por
+        // volta de y=5 e a boca fica em y=24: essa distância NUNCA é menor que
+        // o raio do alvo, então a mira nunca acendia — a única peça da tela que
+        // ensina "você está mirado" estava desligada por aritmética. O tiro se
+        // eleva sozinho (ver `subidaDoTiro`); quem o jogador alinha é o X.
+        const alinhado = Math.abs(n.x - BOCA_ALVO.x) < BOCA_ALVO.raio;
         const mat = m.material as THREE.MeshBasicMaterial;
         mat.color.set(alinhado ? '#b6ff4a' : '#ffffff');
         mat.opacity = alinhado ? 0.5 : 0.16;

@@ -18,6 +18,9 @@ const MODO = process.env.MODO ?? 'toque';
 const W = Number(process.env.W ?? 915), H = Number(process.env.H ?? 412);
 const SEGUNDOS = Number(process.env.SEGUNDOS ?? 150);
 const FOTOS = process.env.FOTOS === '1';
+// Mede o DANO, não a sobrevivência: sem isto a sessão acaba quando o bot morre e
+// o número principal (quanto tempo a luta dura) vira uma extrapolação de 60 s.
+const IMORTAL = process.env.IMORTAL === '1';
 
 const ponte = abrirPonte({ manterCache: true, registrar: () => {} });
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
@@ -46,7 +49,7 @@ await p.evaluate(() => {
 
 // ── O LAÇO: joga, e anota tudo o que muda ────────────────────────────────
 let faseAnt = null, ataqueAnt = null, vidaAnt = null, vidasAnt = null, falaAnt = null, viradaAnt = false;
-let cliques = 0, quadrosAnt = 0, tAnt = agora();
+let cliques = 0, quadrosAnt = 0, tAnt = agora(), cargas = 0, cargaAnt = 0;
 const fps = [];
 let alvoX = 0.5, alvoY = 0.62, dir = 1;
 const fim = agora() + SEGUNDOS;
@@ -69,6 +72,8 @@ while (agora() < fim) {
                 .map(q => ({ x: q.x, y: q.y, z: q.z, tipo: q.tipo }))
                 .sort((a, c) => c.z - a.z)[0] ?? null,
             quadros: window.__q,
+            bocaX: window.__f12bocaX ?? 0,
+            carga: s.nave?.carga ?? 0,
         };
     }).catch(() => null);
     if (!e) { await new Promise(r => setTimeout(r, 120)); continue; }
@@ -77,6 +82,7 @@ while (agora() < fim) {
     const t = agora();
     if (t - tAnt > 1.0) { fps.push(+((e.quadros - quadrosAnt) / (t - tAnt)).toFixed(1)); quadrosAnt = e.quadros; tAnt = t; }
 
+    if (e.carga !== undefined) { if (e.carga < cargaAnt) cargas++; cargaAnt = e.carga; }
     if (e.fase !== faseAnt) { nota({ ev: 'fase', de: faseAnt, para: e.fase }); faseAnt = e.fase; }
     if (e.fala !== falaAnt) { nota({ ev: 'fala', n: e.fala, fase: e.fase }); falaAnt = e.fala; }
     if (e.ataque !== ataqueAnt && e.ataque) { nota({ ev: 'ataque', qual: e.ataque, vida: e.vida }); ataqueAnt = e.ataque; }
@@ -85,27 +91,50 @@ while (agora() < fim) {
     vidasAnt = e.vidas; vidaAnt = e.vida;
 
     // ── JOGAR ────────────────────────────────────────────────────────
+    //
+    // UMA política, dois caminhos de entrada. A primeira versão desta bancada
+    // dava políticas DIFERENTES para o dedo e para a tecla — o dedo arrastava
+    // direto até o destino, a tecla dava toquinhos de 130 ms e soltava — e
+    // depois eu reportei "o teclado causa 3x menos dano" como se fosse defeito
+    // do jogo. Pode ser; mas com dois bots diferentes o número não é sobre o
+    // jogo, é sobre os bots. Agora os dois perseguem o MESMO x desejado.
     if (e.fase === 'luta') {
-        // uma política simples de humano: fugir do que está vindo perto,
-        // senão voltar ao meio (que é de onde se acerta a boca).
-        let qx = 0.5, qy = 0.58;
-        if (e.perto && e.perto.z > -9) {
-            // desvia para o lado oposto da ameaça
-            const arena = await p.evaluate(() => window.__f12arena.x).catch(() => 4);
-            const ameacaU = 0.5 + (e.perto.x / (arena * 2));
-            qx = ameacaU > 0.5 ? 0.22 : 0.78;
+        if (IMORTAL) await p.evaluate(() => { const s = window.__f12estado; if (s?.nave) s.nave.piscando = 9999; }).catch(()=>{});
+
+        const arena = await p.evaluate(() => window.__f12arena.x).catch(() => 4);
+        // DESVIO MÍNIMO, não fuga para a borda: um humano sai do caminho e
+        // volta. Fugir para a parede também torna o raspão impossível de medir.
+        let querMundo = e.bocaX ?? 0;                       // o padrão é mirar a boca
+        if (e.perto && e.perto.z > -11) {
+            const folga = 1.5;
+            const dEsq = (e.perto.x - folga) - e.nx;        // quanto andar para ficar à esquerda
+            const dDir = (e.perto.x + folga) - e.nx;
+            const alvo = Math.abs(dEsq) < Math.abs(dDir) ? e.perto.x - folga : e.perto.x + folga;
+            querMundo = Math.max(-arena, Math.min(arena, alvo));
         }
+        const erro = querMundo - e.nx;
+
         if (MODO === 'tecla') {
-            const t1 = qx < 0.45 ? 'a' : qx > 0.55 ? 'd' : null;
-            if (t1) { await p.keyboard.down(t1); await new Promise(r => setTimeout(r, 130)); await p.keyboard.up(t1); }
-            else await new Promise(r => setTimeout(r, 110));
+            // segura a tecla enquanto faltar distância, como um humano segura
+            const tecla = erro > 0.25 ? 'd' : erro < -0.25 ? 'a' : null;
+            if (tecla) {
+                await p.keyboard.down(tecla);
+                await new Promise(r => setTimeout(r, 60));
+                await p.keyboard.up(tecla);
+            } else await new Promise(r => setTimeout(r, 60));
         } else {
-            await p.mouse.move(W * alvoX, H * alvoY);
-            await p.mouse.down();
-            await p.mouse.move(W * qx, H * qy, { steps: 3 });
+            // arrasta pelo DELTA de mundo convertido em pixels, que é o que o
+            // jogo espera (o arrasto é 1:1 com o dedo)
+            const quadro = await p.evaluate(() => {
+                const E = window.__f12enq; return E ? E.larg : null;
+            }).catch(() => null);
+            const larguraMundo = quadro ?? (arena * 2 / 0.9);
+            const px = (erro / larguraMundo) * W;
+            const x0 = W * 0.5, y0 = H * 0.6;
+            await p.mouse.move(x0, y0); await p.mouse.down();
+            await p.mouse.move(Math.max(4, Math.min(W - 4, x0 + px)), y0, { steps: 2 });
             await p.mouse.up();
-            alvoX = qx; alvoY = qy;
-            await new Promise(r => setTimeout(r, 90));
+            await new Promise(r => setTimeout(r, 60));
         }
     } else {
         // diálogo / introdução: clicar como um jogador clica
@@ -153,3 +182,16 @@ if (ataques.length > 1) {
     console.log(`  intervalo entre ataques: ${gaps.join(', ')}`);
 }
 console.log(`  danos tomados: ${linha.filter(l => l.ev === 'TOMEI-DANO').length}`);
+console.log(`  tiros carregados disparados: ${cargas}`);
+
+// ── O NÚMERO PRINCIPAL: quanto tempo esta luta dura, de verdade ──────────
+if (inicioLuta) {
+    const tLuta = (fim2 && fim2.fase === 'vitoria' ? linha.find(l=>l.ev==='FIM')?.t ?? agora() : agora()) - inicioLuta.t;
+    const dano = 240 - (fim2?.vida ?? 240);
+    const dps = dano / tLuta;
+    console.log(`\n  ── O NÚMERO ──`);
+    console.log(`  tempo lutando ....... ${tLuta.toFixed(1)}s`);
+    console.log(`  dano causado ........ ${dano.toFixed(1)} de 240`);
+    console.log(`  DANO POR SEGUNDO .... ${dps.toFixed(2)}`);
+    console.log(`  => LUTA COMPLETA .... ${dps > 0 ? (240/dps).toFixed(0)+'s (' + (240/dps/60).toFixed(1) + ' min)' : 'NUNCA'}`);
+}

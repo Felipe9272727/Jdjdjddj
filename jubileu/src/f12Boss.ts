@@ -412,7 +412,10 @@ export type F12Fase =
  * umas vinte vezes — cada padrão aparece quatro ou cinco vezes, que é o mínimo
  * para o jogador APRENDER a luta em vez de só sobreviver a ela.
  *
- * Quem mede isso é `f12Simulacao`, e o teste cobra a faixa.
+ * Quem mede isso é a bancada que JOGA (`bancada-navegador/jogar-o-andar-12.mjs`),
+ * no navegador. Ver `src/COMO-MEDIR-O-ANDAR-12.md` — houve uma simulação em
+ * memória aqui, ela relatava dano acima do teto físico do próprio jogo, e foi
+ * ela que deixou três entregas seguidas saírem quebradas.
  */
 export const VIDA_MAXIMA = 240;
 /** Abaixo disto ela desbloqueia os dois ataques novos. */
@@ -432,10 +435,27 @@ export const VIDAS_DO_JOGADOR = 5;
  * que o tempo de reação não é difícil, é injusto — e este andar é o primeiro
  * jogo de nave do hotel, não o último.
  */
+/**
+ * ── A BOCA FICA ABERTA MAIS TEMPO, E ISSO É METADE DO CONSERTO ───────────────
+ *
+ * Ela ficava aberta 2,10 s de um ciclo de 5,20 — 40% do tempo. Como o tiro
+ * normal só fere de boca aberta, esse 40% é um TETO sobre o dano do jogador que
+ * nenhuma habilidade atravessa: medido no navegador, 149 s parado no meio e
+ * invulnerável, contra 277 s jogando de verdade.
+ *
+ * Baixar a vida do chefe esconderia o defeito. Abrir a boca por mais tempo o
+ * conserta pelo lado certo — o chefe continua com a mesma vida e o mesmo
+ * relógio legível, e o jogador ganha janela para usar o que aprendeu. 2,75 de
+ * 5,40 são 51%: a luta deixa de ser "espere a boca" e passa a ser "aproveite a
+ * boca".
+ *
+ * O fechado encolheu junto (1,95 -> 1,55) para o ciclo não inchar: ciclo longo
+ * demais é tempo de tela vazia, que foi outra reclamação do dono do jogo.
+ */
 export const BOCA = Object.freeze({
-    fechada: 1.95,
-    abrindo: 0.70,
-    aberta: 2.10,
+    fechada: 1.55,
+    abrindo: 0.65,
+    aberta: 2.75,
     fechando: 0.45,
 });
 export const CICLO_DA_BOCA = BOCA.fechada + BOCA.abrindo + BOCA.aberta + BOCA.fechando;
@@ -530,20 +550,92 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  * Antes da virada rodam os três primeiros. Depois, os cinco — e os dois novos
  * entram logo na virada, para a mudança ser sentida no ato.
  */
+/**
+ * ── OS CINCO APARECEM CEDO, E A ORDEM DEIXA DE SER ADIVINHÁVEL ──────────────
+ *
+ * Isto era `ATAQUES[i % 3]` antes da virada e uma lista fixa de oito depois.
+ * Duas consequências, as duas medidas jogando:
+ *
+ * 1. Numa sessão de 100 s apareceram TRÊS dos cinco padrões. Os dois que o dono
+ *    do jogo pediu que eu inventasse — a maré e a espinha — moravam atrás de
+ *    50% da vida do chefe, ou seja atrás de dois minutos e meio de jogo
+ *    perfeito. Ninguém nunca os viu. Metade do conteúdo do andar era invisível.
+ * 2. `i % 3` é adivinhável em três ciclos. Depois disso o jogador não está mais
+ *    lendo o chefe, está contando.
+ *
+ * Agora: os cinco primeiros ciclos ENSINAM, um padrão de cada, na ordem em que
+ * eles ficam mais difíceis de ler. Isso põe os cinco na tela nos primeiros ~30 s.
+ * Daí em diante a ordem vem de um SACO EMBARALHADO: cada bloco de cinco contém
+ * os cinco padrões (nenhum some por muito tempo) e a ordem dentro do bloco é uma
+ * permutação da conta do número do bloco.
+ *
+ * Determinístico de propósito: a simulação e os testes precisam poder repetir a
+ * mesma luta, e "às vezes falha" é a pior coisa que um teste de padrão pode ter.
+ */
+const ENSINO: ReadonlyArray<NomeDoAtaque> = Object.freeze([
+    'leque',        // o mais legível: cinco coisas abrindo em leque
+    'naves',        // o único que se resolve atirando
+    'teleguiado',   // o primeiro que exige manobra, e não posição
+    'mare',         // posicionamento, com uma fresta que passeia
+    'elevadores',   // vertical, o eixo que os outros quase não pedem
+]);
+
+/** Um embaralhador determinístico e barato (hash inteiro -> 0..1). */
+function sorte(semente: number): number {
+    let x = (semente * 2654435761) >>> 0;
+    x ^= x >>> 15; x = Math.imul(x, 2246822519); x ^= x >>> 13;
+    return (x >>> 0) / 4294967296;
+}
+
+/** A permutação dos cinco padrões para um bloco. */
+function blocoEmbaralhado(bloco: number): NomeDoAtaque[] {
+    const saco = [...ENSINO];
+    for (let i = saco.length - 1; i > 0; i--) {
+        const j = Math.floor(sorte(bloco * 977 + i) * (i + 1));
+        [saco[i], saco[j]] = [saco[j], saco[i]];
+    }
+    // Nenhum padrão pode emendar consigo mesmo na virada de um bloco para o
+    // outro: dois iguais seguidos leem como o jogo travando, não como sorteio.
+    const anterior = bloco > 0 ? blocoFinal(bloco - 1) : ENSINO[ENSINO.length - 1];
+    if (saco[0] === anterior) [saco[0], saco[1]] = [saco[1], saco[0]];
+    return saco;
+}
+
+/** O último padrão de um bloco, sem recursão infinita. */
+function blocoFinal(bloco: number): NomeDoAtaque {
+    const saco = [...ENSINO];
+    for (let i = saco.length - 1; i > 0; i--) {
+        const j = Math.floor(sorte(bloco * 977 + i) * (i + 1));
+        [saco[i], saco[j]] = [saco[j], saco[i]];
+    }
+    return saco[saco.length - 1];
+}
+
+/** Quantos ciclos o chefe gasta ensinando os cinco padrões. */
+export const ENSINO_TAMANHO = ENSINO.length;
+
 export function ataqueDaVez(n: number, depoisDaVirada: boolean): NomeDoAtaque {
     const i = Math.max(0, Math.floor(n));
-    if (!depoisDaVirada) return ATAQUES[i % 3].nome;
-    // A ordem depois da virada intercala os novos com os velhos, para nenhum
-    // par de ataques novos cair colado (dois padrões desconhecidos seguidos é
-    // onde um chefe deixa de ensinar e passa a punir).
-    const ordem: NomeDoAtaque[] = ['mare', 'leque', 'elevadores', 'teleguiado', 'mare', 'naves', 'elevadores', 'leque'];
-    return ordem[i % ordem.length];
+    if (i < ENSINO.length) return ENSINO[i];
+    const k = i - ENSINO.length;
+    const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
+    // `depoisDaVirada` NÃO muda o catálogo, e isso é a decisão.
+    //
+    // A primeira tentativa de usar a virada aqui trocava o sorteio por
+    // 'elevadores' de vez em quando, e o teste pegou na hora: a troca podia cair
+    // ao lado de um 'elevadores' sorteado e emendar o padrão consigo mesmo, que
+    // lê como o jogo travando. O que muda na segunda metade é a PRESSÃO (a
+    // cabeça cospe duas vezes na mesma abertura — ver o diretor), e não o
+    // catálogo: o catálogo o jogador já viu inteiro nos primeiros trinta
+    // segundos, que é o ponto do ensino.
+    void depoisDaVirada;
+    return ordem[k % ENSINO.length];
 }
 
 // ── OS PROJÉTEIS ─────────────────────────────────────────────────────────────
 export interface Projetil {
     id: number;
-    tipo: NomeDoAtaque | 'tiro';
+    tipo: NomeDoAtaque | 'tiro' | 'carregado';
     x: number; y: number; z: number;
     vx: number; vy: number; vz: number;
     /** Raio de colisão. */
@@ -567,6 +659,8 @@ export interface Projetil {
      * naves que ela acabou de cuspir.
      */
     abre?: number;
+    /** Já contou como raspão? Ver `contarRaspao`. */
+    raspado?: boolean;
 }
 
 let proximoId = 1;
@@ -609,7 +703,7 @@ export function reiniciarIds(): void { proximoId = 1; }
 // exatamente quando ele cruza o plano dos aviões. É o mesmo raciocínio da
 // elevação do tiro do jogador, do outro lado da luta.
 export const BOCA_SAIDA = Object.freeze({
-    x: 0,
+    get x() { return BOCA_ALVO.x; },
     get y() { return BOCA_ALVO.y; },
     /** Um pouco à frente da cara, para o projétil não nascer dentro dela. */
     get z() { return ARENA.zCabeca + 2.2; },
@@ -985,7 +1079,7 @@ export function passoDoProjetil(
  * onde elas chegam.
  */
 export function saiuDeCena(p: Projetil): boolean {
-    if (p.tipo === 'tiro') return p.z < ARENA.zCabeca - 3;
+    if (p.tipo === 'tiro' || p.tipo === 'carregado') return p.z < ARENA.zCabeca - 3;
     if (p.z > ARENA.zNave + 14) return true;
     if (p.y < ARENA.yBaixo - 8 || p.y > BOCA_SAIDA.y + 6) return true;
     return Math.abs(p.x) > ARENA.x + 16;
@@ -1163,6 +1257,10 @@ export interface Nave {
     recarga: number;
     /** Quantos tiros já saíram na rajada atual. Ver `tentarAtirar`. */
     naRajada: number;
+    /** Raspões acumulados. Ver `RASPAO`. */
+    carga: number;
+    /** Segundos restantes do brilho de raspão (só visual). */
+    brilho: number;
     /**
      * QUEM está no comando: o dedo ou a tecla.
      *
@@ -1217,7 +1315,7 @@ export const NAVE = Object.freeze({
 export function novaNave(x: number, y: number, vidas = VIDAS_DO_JOGADOR): Nave {
     return {
         x, y, alvoX: x, alvoY: y, vx: 0, vy: 0, rolagem: 0, piscando: 0, vidas,
-        recarga: 0, naRajada: 0, dono: 'tecla',
+        recarga: 0, naRajada: 0, carga: 0, brilho: 0, dono: 'tecla',
     };
 }
 
@@ -1271,6 +1369,7 @@ export function passoDaNave(n: Nave, dt: number): void {
     const alvo = Math.max(-1, Math.min(1, -n.vx / NAVE.velocidadeDoAlvo)) * NAVE.rolagemMaxima;
     n.rolagem += (alvo - n.rolagem) * Math.min(1, d * 12);
     if (n.piscando > 0) n.piscando = Math.max(0, n.piscando - d);
+    if (n.brilho > 0) n.brilho = Math.max(0, n.brilho - d);
     if (n.recarga > 0) n.recarga = Math.max(0, n.recarga - d);
 }
 
@@ -1280,6 +1379,86 @@ export function tomarToque(n: Nave): boolean {
     n.vidas -= 1;
     n.piscando = NAVE.invencivel;
     return true;
+}
+
+// ── O RASPÃO: DESVIAR PASSA A SER A ARMA ─────────────────────────────────────
+//
+// O defeito de fundo desta luta não era o número da vida do chefe — era que as
+// duas coisas que o jogo pede se excluíam. A boca só é vulnerável 2,10 s de um
+// ciclo de 5,20 s E ficava no meio da arena, que é de onde se sai para desviar.
+// Todo desvio custava dano, e desviar não é opcional. Medido: teto de 149 s
+// parado no meio, contra 277 s jogando de verdade.
+//
+// Baixar a vida do chefe esconderia isso sem consertar. O raspão conserta pelo
+// lado certo: passar PERTO de um projétil sem ser atingido carrega a arma, e a
+// arma carregada acerta a boca sozinha, de qualquer lugar da arena e com a boca
+// aberta ou fechada. Desviar apertado deixa de ser só sobrevivência e vira a
+// principal fonte de dano — que é o contrato de todo shmup que se joga há trinta
+// anos, e o contrário do que este andar fazia.
+//
+// O anel é BEM maior que a caixa de colisão (1,25 contra 0,36): é a distância em
+// que o jogador sente que passou raspando. Cada projétil só conta uma vez, senão
+// um único leque encheria a carga inteira.
+export const RASPAO = Object.freeze({
+    /** Distância em que um projétil conta como raspão. */
+    raio: 1.6,
+    /** Quantos raspões enchem a carga. */
+    cheia: 3,
+    /** Dano do tiro carregado. */
+    dano: 14,
+    velocidade: 30,
+    /** Segundos de brilho na nave a cada raspão, para o jogador VER que contou. */
+    brilho: 0.35,
+});
+
+/**
+ * Este projétil raspou a nave agora? Conta uma vez só por projétil.
+ *
+ * Devolve `true` quando o raspão é novo — quem chama usa isso para o som e o
+ * brilho, que são o que ensina a mecânica sem um tutorial.
+ */
+export function contarRaspao(n: Nave, p: Projetil, x: number, y: number): boolean {
+    if (p.tipo === 'tiro' || p.tipo === 'carregado') return false;
+    if (p.raspado) return false;
+    if (Math.abs(p.z - ARENA.zNave) > p.r + 1.4) return false;
+    const d = p.tipo === 'mare'
+        ? Math.abs(x - frestaDaMare(p)) - MARE.fresta      // a maré é uma parede: o raspão é na borda da fresta
+        : Math.hypot(p.x - x, p.y - y) - p.r;
+    if (d > RASPAO.raio || d < -1e-6) return false;
+    p.raspado = true;
+    n.carga = Math.min(RASPAO.cheia, n.carga + 1);
+    n.brilho = RASPAO.brilho;
+    return true;
+}
+
+export const cargaPronta = (n: Nave): boolean => n.carga >= RASPAO.cheia;
+
+/**
+ * O TIRO CARREGADO: ele mira sozinho.
+ *
+ * É aqui que a exclusão morre. Ele sai de onde o jogador estiver, corrige em X
+ * e em Y para cruzar o plano da cabeça na boca, e fere COM A BOCA FECHADA
+ * também. O ritmo da boca continua governando a arma normal; o que o raspão
+ * compra é dano que não depende de estar no lugar certo na hora certa.
+ */
+export function nascerCarregado(x: number, y: number): Projetil {
+    const z0 = TIRO_Z0;
+    const tempo = Math.abs(ARENA.zCabeca - z0) / RASPAO.velocidade;
+    return {
+        id: novoId(), tipo: 'carregado',
+        x, y: y - 0.1, z: z0,
+        vx: (BOCA_ALVO.x - x) / tempo,
+        vy: (BOCA_ALVO.y - (y - 0.1)) / tempo,
+        vz: -RASPAO.velocidade,
+        r: 0.5, t: 0, de: 'jogador',
+    };
+}
+
+/** Gasta a carga e devolve o tiro carregado, ou `null` se ela não estiver cheia. */
+export function dispararCarregado(n: Nave): Projetil | null {
+    if (!cargaPronta(n)) return null;
+    n.carga = 0;
+    return nascerCarregado(n.x, n.y);
 }
 
 // ── COLISÃO ──────────────────────────────────────────────────────────────────
@@ -1318,10 +1497,45 @@ export const BOCA_ABAIXO_DO_CENTRO = 4.8;
  * jogador tem de voltar ao meio da arena para machucar — que é o lugar mais
  * perigoso para ficar parado, e é essa troca que faz a luta.
  */
-export const BOCA_ALVO = Object.freeze({ x: 0, y: ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO, raio: 2.0 });
+/**
+ * ── A BOCA DEIXOU DE FICAR SEMPRE NO MEIO ────────────────────────────────────
+ *
+ * Ela era `x: 0`, fixa. Isso, somado a um tiro que não se corrige em X, montava
+ * a armadilha que faz esta luta cansar: o ÚNICO lugar de onde dá para machucar
+ * era o meio da arena, e o meio da arena é justamente de onde o jogador tem de
+ * sair para desviar. Desviar e machucar se excluíam, e desviar é obrigatório —
+ * então cada desvio era dano perdido. Medido, a luta custava 4,6 minutos de
+ * jogo real contra um teto de 2,5.
+ *
+ * Agora a cabeça inteira passeia devagar (período de ~12 s). O ponto de dano
+ * anda, e às vezes o desvio leva o jogador PARA CIMA dele em vez de para longe.
+ * Não resolve a exclusão sozinho — quem resolve é o raspão —, mas tira a
+ * coincidência entre "lugar seguro" e "lugar inútil".
+ */
+/**
+ * O passeio é PEQUENO, e o número saiu de uma medição que deu errado.
+ *
+ * A primeira tentativa pôs 0,42 da arena. Medido jogando, o dano por segundo
+ * CAIU de 0,87 para 0,58: perseguir uma boca que anda custa mais tiro normal do
+ * que o raspão devolvia, e o remédio ficou pior que a doença. A 0,18 ela deixa
+ * de ser um ponto fixo — que era o objetivo, quebrar a coincidência entre
+ * "lugar seguro" e "lugar de onde dá para machucar" — sem transformar cada
+ * abertura numa perseguição.
+ */
+export const BOCA_PASSEIO = Object.freeze({ fracaoDaArena: 0.18, hz: 0.07 });
+
+export function bocaXNoInstante(t: number): number {
+    return Math.sin(t * BOCA_PASSEIO.hz * Math.PI * 2) * ARENA.x * BOCA_PASSEIO.fracaoDaArena;
+}
+
+export const BOCA_ALVO = {
+    get x(): number { return f12.bocaX; },
+    get y(): number { return ALTURA_DA_CABECA - BOCA_ABAIXO_DO_CENTRO; },
+    raio: 2.0,
+};
 
 export function tiroNaBoca(p: Projetil): boolean {
-    if (p.tipo !== 'tiro') return false;
+    if (p.tipo !== 'tiro' && p.tipo !== 'carregado') return false;
     if (p.z > ARENA.zCabeca + 1.6) return false;
     // O Y continua sendo conferido, e não é redundante: a elevação leva a bala
     // à altura da boca, mas o irmão atira de qualquer lugar e um tiro nascido
@@ -1343,6 +1557,8 @@ export interface F12State {
     /** O ataque que a boca cuspiu na abertura atual (null = ainda não cuspiu). */
     ataqueNoAr: NomeDoAtaque | null;
     passouDaVirada: boolean;
+    /** Onde a boca está agora em X. Ver `bocaXNoInstante`. */
+    bocaX: number;
     projeteis: Projetil[];
     linhaDoDialogo: number;
     versao: number;
@@ -1353,7 +1569,7 @@ export const f12: F12State = criarEstado();
 function criarEstado(): F12State {
     return {
         fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA, aberturas: 0,
-        ataqueNoAr: null, passouDaVirada: false, projeteis: [],
+        ataqueNoAr: null, passouDaVirada: false, bocaX: 0, projeteis: [],
         linhaDoDialogo: 0, versao: 0,
     };
 }

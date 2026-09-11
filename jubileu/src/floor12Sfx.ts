@@ -135,3 +135,21 @@ export function tocarVitoria(): void {
 export function tocarDerrota(): void {
     [392, 330, 262, 196].forEach((f, i) => bipe('sawtooth', f, f * 0.94, 0.3, 0.07, i * 0.17));
 }
+
+// ── O RASPÃO E A CARGA ───────────────────────────────────────────────────────
+//
+// O raspão é a mecânica que faz desviar valer dano, e ela é invisível: o
+// jogador não tem como descobrir sozinho que passar perto de um projétil está
+// carregando alguma coisa. O brilho na nave diz isso com os olhos; estes dois
+// sons dizem com o ouvido, que é o canal que sobra quando os olhos estão
+// ocupados desviando.
+//
+// Agudo e curtíssimo no raspão (ele acontece muitas vezes seguidas e não pode
+// virar barulho), e um acorde descendente e cheio quando a carga sai — este
+// pode ser grande, porque é a recompensa.
+export function tocarRaspao(): void { bipe('sine', 2100, 2600, 0.045, 0.035); }
+
+export function tocarCarregado(): void {
+    bipe('sawtooth', 260, 1400, 0.22, 0.09);
+    bipe('square', 520, 2100, 0.18, 0.05);
+}
