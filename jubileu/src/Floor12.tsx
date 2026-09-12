@@ -31,12 +31,17 @@ import {
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir,
+    // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA, F12_ALERTAS,
     type Nave, type NomeDoAtaque, type F12Linha,
 } from './f12Boss';
+import {
+    impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
+} from './f12Impacto';
+import { Faiscas } from './Floor12Faiscas';
 import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
@@ -45,7 +50,7 @@ import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
-    tocarRaspao, tocarCarregado,
+    tocarRaspao, tocarCarregado, tocarTrilha, intensificarTrilha, pararTrilha,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -259,8 +264,7 @@ const CameraDaLuta: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
     irmaoRef: React.MutableRefObject<Nave>;
     camRef: React.MutableRefObject<number>;
-    sacodeRef: React.MutableRefObject<number>;
-}> = ({ naveRef, irmaoRef, camRef, sacodeRef }) => {
+}> = ({ naveRef, irmaoRef, camRef }) => {
     const camera = useThree((s) => s.camera);
     const alvo = useRef(new THREE.Vector3());
     const conversa = useRef(0);
@@ -324,15 +328,22 @@ const CameraDaLuta: React.FC<{
             THREE.MathUtils.lerp(THREE.MathUtils.lerp(-6, E.miraZ, suave), ARENA.zNave - 1.5, c),
         );
 
-        // O SACODE do dano. Ele mexe o ALVO, não a posição: sacudir a posição
-        // de uma câmera de perseguição briga com a interpolação e sai tremido.
-        if (sacodeRef.current > 0) {
-            sacodeRef.current = Math.max(0, sacodeRef.current - dt * 3);
-            const s = sacodeRef.current;
-            alvo.current.x += (Math.random() - 0.5) * s * 1.6;
-            alvo.current.y += (Math.random() - 0.5) * s * 1.2;
-        }
+        // ── O TREMOR ─────────────────────────────────────────────────────
+        //
+        // Era `alvo += (Math.random() - 0.5) * s`, com `s` caindo em linha reta.
+        // Ruído branco tem energia em toda frequência: a câmera vibrava como
+        // tela quebrada, não como coisa pesada sendo atingida — e o decaimento
+        // linear cortava o tremor no meio da amplitude, o que o olho pega.
+        // Agora vem de `f12Impacto`: trauma ao quadrado (o fim é suave por
+        // construção) e três senos incomensuráveis (tem forma, não chia).
+        //
+        // E ele mexe o GIRO, não só o alvo. A rotação é o que dá o soco; a
+        // posição só apoia. Sacudir só o alvo de uma câmera que persegue briga
+        // com a interpolação e sai borrado.
+        const tr = deslocamentoDoTremor();
+        alvo.current.x += tr.x; alvo.current.y += tr.y;
         camera.lookAt(alvo.current);
+        camera.rotateZ(tr.giro);
 
         // ── A LENTE ABRE NA PRIMEIRA PESSOA ──────────────────────────────
         //
@@ -367,7 +378,6 @@ interface Ferramentas {
     irmao: React.MutableRefObject<Nave>;
     entrada: React.MutableRefObject<{ x: number; y: number }>;
     flash: React.MutableRefObject<number>;
-    sacode: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
 }
@@ -396,7 +406,13 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     const faseDaMare = useRef(0);
 
     useFrame((_, rawDt) => {
-        const dt = Math.min(rawDt, 0.05);
+        const dtReal = Math.min(rawDt, 0.05);
+        // ── O HITSTOP ────────────────────────────────────────────────────
+        // Ele escala o relógio do JOGO e não o da APRESENTAÇÃO: o tremor, as
+        // faíscas e o som continuam correndo no tempo real durante a pausa. Se
+        // congelassem junto não haveria pausa nenhuma — haveria um soluço.
+        passoDoImpacto(dtReal);
+        const dt = dtReal * escalaDoTempo();
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
 
@@ -536,7 +552,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     mortos.add(p.id);
                     const virou = ferir(RASPAO.dano);
                     F.flash.current = 1.6;
-                    F.sacode.current = 0.5;
+                    impacto('carregado', p.x, p.y, ARENA.zCabeca + 2);
                     tocarExplosao();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) acabar(F, 'vitoria');
@@ -562,6 +578,10 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     mortos.add(p.id);
                     const virou = ferir(p.de === 'irmao' ? TIRO.danoIrmao : TIRO.dano);
                     F.flash.current = 1;
+                    // As faíscas nascem NO PONTO do acerto. A cabeça inteira
+                    // piscando diz "algo aconteceu" e não diz ONDE — e "onde" é
+                    // a informação que ensina o jogador a mirar.
+                    impacto('tiro', p.x, p.y, ARENA.zCabeca + 2);
                     tocarAcerto();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) acabar(F, 'vitoria');
@@ -577,7 +597,8 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
             // ataque × jogador
             if (encostou(p, n.x, n.y, NAVE.raio) && tomarToque(n)) {
-                F.sacode.current = 1; tocarDano();
+                impacto('dano', n.x, n.y, ARENA.zNave);
+                tocarDano();
                 if (p.tipo !== 'mare') mortos.add(p.id);
                 if (n.vidas <= 0) acabar(F, 'derrota');
                 F.avisar();
@@ -627,6 +648,10 @@ function cuspir(
 
 function abrirAVirada(F: Ferramentas): void {
     f12.passouDaVirada = true;
+    // A trilha não TROCA na virada: entram o bumbo e a tensão por cima da mesma
+    // base. Trocar de música no meio corta a tensão que a luta levou um minuto
+    // para montar.
+    intensificarTrilha(true);
     f12.fase = 'virada';
     f12.linhaDoDialogo = 0;
     f12.projeteis = f12.projeteis.filter((p) => p.tipo === 'tiro');
@@ -639,6 +664,7 @@ function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
     f12.linhaDoDialogo = 0;
     f12.projeteis = [];
     pararMotor();
+    pararTrilha();
     if (como === 'vitoria') { tocarVitoria(); tocarExplosao(); } else tocarDerrota();
     F.avisar();
 }
@@ -672,7 +698,6 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const irmao = useRef<Nave>(novaNave(-4, meioY() + 1.2, 3));
     const entrada = useRef({ x: 0, y: 0 });
     const flash = useRef(0);
-    const sacode = useRef(0);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -689,11 +714,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // e as faixas dos ataques saem de `ARENA.x`, e alargar depois deixaria o
         // irmão fora da arena numa tela larga.
         ajustarAoAspecto(window.innerWidth / Math.max(1, window.innerHeight));
+        reiniciarImpacto();
         f12Reset();
         nave.current = novaNave(0, meioY());
         irmao.current = novaNave(-ARENA.x * 0.55, meioY() + 1.2, 3);
         f12AoMudar(avisar);
-        return () => { f12AoMudar(null); pararMotor(); };
+        return () => { f12AoMudar(null); pararMotor(); pararTrilha(); };
     }, [avisar]);
 
     // Durante a introdução o avião só aparece quando a câmera já saiu de dentro
@@ -747,6 +773,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         porta.current = 1; abertura.current = 1; cam.current = 1;
         sumindo.current = 1; visivel.current = true;
         f12.fase = 'luta'; f12.linhaDoDialogo = 0;
+        tocarTrilha();
         avisar();
     }, [avisar]);
 
@@ -763,6 +790,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // Fim do bloco de fala: para onde ele leva.
         if (f12.fase === 'encontro' || f12.fase === 'virada') {
             f12.fase = 'luta';
+            tocarTrilha();
             if (!jaAvisou.current.has('inicio')) {
                 jaAvisou.current.add('inicio');
                 alerta.current = { texto: F12_ALERTAS.inicio, ate: f12.relogio + 5 };
@@ -886,15 +914,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor12Cabeca flashRef={flash} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
+                <Faiscas />
                 <Mira naveRef={nave} />
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
                 {fase !== 'intro' && fase !== 'virando' && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} avisar={() => { visivel.current = true; avisar(); }} />
-                <CameraDaLuta naveRef={nave} irmaoRef={irmao} camRef={cam} sacodeRef={sacode} />
+                <CameraDaLuta naveRef={nave} irmaoRef={irmao} camRef={cam} />
                 <DiretorDaLuta alertaRef={alerta} jaAvisou={jaAvisou} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
+                    flash={flash} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
 
@@ -1094,14 +1123,32 @@ const RevelarAviao: React.FC<{
  * para quem estiver olhando para o próprio avião.
  */
 const AvisoDeJanela: React.FC = () => {
+    // ── ELE ERA PERMANENTE, E POR ISSO NÃO ERA DICA ──────────────────────
+    //
+    // Aparecia toda vez que a boca abria — 51% do ciclo, pelos dois minutos
+    // inteiros. Uma frase que está sempre na tela para de ser lida em trinta
+    // segundos e vira ruído: some das três coisas que o jogador processa e fica
+    // ocupando o terço de baixo, que é justamente onde o avião dele voa. Num
+    // jogo publicado a dica ensina e sai de cena.
+    //
+    // Três aberturas bastam. Se em três vezes o jogador não ligou a boca aberta
+    // ao anel verde pulsando em volta dela, o problema não é a frase.
     const [aberta, setAberta] = useState(false);
-    useEffect(() => {
-        const id = window.setInterval(() => {
-            setAberta(vulneravel(bocaNoInstante(f12.bocaT)) && f12.fase === 'luta');
-        }, 90);
-        return () => window.clearInterval(id);
-    }, []);
-    if (!aberta) return null;
+    const vistas = useRef(0);
+    const [gasto, setGasto] = useState(false);
+    // `useFrameFora` e não `setInterval`: este arquivo já tinha TRÊS mecanismos
+    // para o mesmo problema (o barramento `f12AoMudar`, um laço de quadro e dois
+    // `setInterval` com períodos diferentes). Três relógios para a mesma verdade
+    // é como duas partes da tela discordam sobre o que está acontecendo.
+    useFrameFora(() => {
+        const q = vulneravel(bocaNoInstante(f12.bocaT)) && f12.fase === 'luta';
+        setAberta((antes) => {
+            if (antes === q) return antes;
+            if (q && ++vistas.current > 3) setGasto(true);
+            return q;
+        });
+    });
+    if (!aberta || gasto) return null;
     return (
         <div style={{
             // ── ELE SAIU DE CIMA DA CARA DELA ────────────────────────
@@ -1122,10 +1169,8 @@ const AvisoDeJanela: React.FC = () => {
 /** O nome do ataque, piscando quando a boca abre. DOM, fora do Canvas. */
 const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({ gritoRef }) => {
     const [texto, setTexto] = useState('');
-    useEffect(() => {
-        const id = window.setInterval(() => setTexto(gritoRef.current), 120);
-        return () => window.clearInterval(id);
-    }, [gritoRef]);
+    // Ver a nota em `AvisoDeJanela`: um relógio só para a tela inteira.
+    useFrameFora(() => setTexto((antes) => (antes === gritoRef.current ? antes : gritoRef.current)));
     const [visivel, setVisivel] = useState(false);
     useEffect(() => {
         if (!texto) return;

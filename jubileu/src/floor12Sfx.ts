@@ -18,7 +18,7 @@ export function configureFloor12Sfx(context: AudioContext | null, destination?: 
     ctx = context;
     dest = destination ?? null;
 }
-export function clearFloor12Sfx(): void { pararMotor(); ctx = null; dest = null; }
+export function clearFloor12Sfx(): void { pararMotor(); pararTrilha(); ctx = null; dest = null; }
 
 function saida(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 
@@ -152,4 +152,140 @@ export function tocarRaspao(): void { bipe('sine', 2100, 2600, 0.045, 0.035); }
 export function tocarCarregado(): void {
     bipe('sawtooth', 260, 1400, 0.22, 0.09);
     bipe('square', 520, 2100, 0.18, 0.05);
+}
+
+// ═══ A TRILHA ════════════════════════════════════════════════════════════════
+//
+// ── NÃO HAVIA MÚSICA ─────────────────────────────────────────────────────────
+//
+// Um chefe de dois minutos com um drone de motor e bipes. Um avaliador
+// independente apontou isso como a principal razão de o andar não ter clímax, e
+// ele está certo: sem uma base que ande, não existe "a luta apertou" — existe só
+// um número de vida descendo.
+//
+// Ela é PROCEDURAL, como todo o áudio deste jogo: zero bytes de asset, e o andar
+// já carrega 82 MB. São quatro camadas construídas com osciladores e um relógio
+// próprio, e o que muda na virada é QUANTAS tocam, não a melodia — trocar de
+// música no meio corta a tensão que a luta levou um minuto para montar.
+//
+//   baixo      sempre       a pulsação; é ele que faz a luta ter andamento
+//   arpejo     sempre       o movimento; sobe e desce num modo menor
+//   tensão     na virada    uma quinta suja por cima, a cada dois compassos
+//   bumbo      na virada    marca o tempo forte e dobra a sensação de pressa
+//
+// ── POR QUE UM AGENDADOR E NÃO UM `setInterval` ──────────────────────────────
+//
+// `setInterval` no relógio do navegador derrapa: ele é a fila de tarefas, não o
+// relógio de áudio, e um engasgo de render vira uma nota atrasada que o ouvido
+// pega na hora. O agendador olha à frente (`ESPREITA`) e marca as notas no
+// `currentTime` do `AudioContext`, que é uma base de tempo de verdade. O timer
+// só precisa acordar a tempo — se ele atrasar 50 ms, as notas continuam caindo
+// no lugar certo.
+const TRILHA = Object.freeze({
+    bpm: 132,
+    /** Quanto à frente o agendador marca notas, em segundos. */
+    espreita: 0.32,
+    /** De quanto em quanto ele acorda. Bem menor que a espreita, de propósito. */
+    acorda: 90,
+    volume: 0.055,
+});
+
+/** Lá menor natural: a escala do andar. Semitons a partir de A2 (110 Hz). */
+const ESCALA = [0, 2, 3, 5, 7, 8, 10];
+const nota = (grau: number, oitava = 0): number =>
+    110 * Math.pow(2, (ESCALA[((grau % 7) + 7) % 7] + 12 * (oitava + Math.floor(grau / 7))) / 12);
+
+const trilha = {
+    tocando: false,
+    proxima: 0,
+    passo: 0,
+    timer: 0 as unknown as ReturnType<typeof setInterval>,
+    intenso: false,
+};
+
+function voz(f: number, dur: number, vol: number, tipo: OscillatorType, quando: number, corte = 2600): void {
+    const c = ctx, d = saida();
+    if (!c || !d) return;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = corte;
+    osc.type = tipo;
+    osc.frequency.setValueAtTime(f, quando);
+    g.gain.setValueAtTime(0, quando);
+    g.gain.linearRampToValueAtTime(vol, quando + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, quando + dur);
+    osc.connect(lp); lp.connect(g); g.connect(d);
+    osc.start(quando); osc.stop(quando + dur + 0.02);
+}
+
+function bumbo(quando: number, vol: number): void {
+    const c = ctx, d = saida();
+    if (!c || !d) return;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(118, quando);
+    osc.frequency.exponentialRampToValueAtTime(42, quando + 0.11);
+    g.gain.setValueAtTime(vol, quando);
+    g.gain.exponentialRampToValueAtTime(0.0001, quando + 0.16);
+    osc.connect(g); g.connect(d);
+    osc.start(quando); osc.stop(quando + 0.18);
+}
+
+/** Marca um passo de semicolcheia no instante `quando`. */
+function passoDaTrilha(n: number, quando: number): void {
+    const v = TRILHA.volume;
+    const compasso = Math.floor(n / 16);
+
+    // BAIXO: tônica no 1, quinta no 9 — a pulsação
+    if (n % 16 === 0) voz(nota(0, -1), 0.42, v * 1.5, 'triangle', quando, 700);
+    if (n % 16 === 8) voz(nota(4, -1), 0.34, v * 1.2, 'triangle', quando, 700);
+
+    // ARPEJO: sobe e desce, com o compasso escolhendo o grau de partida
+    if (n % 2 === 0) {
+        const desenho = [0, 2, 4, 6, 4, 2, 0, 2];
+        const base = compasso % 4 === 3 ? 3 : compasso % 2 === 1 ? 5 : 0;
+        voz(nota(base + desenho[(n / 2) % 8], 1), 0.16, v * 0.62, 'square', quando, 2200);
+    }
+
+    if (!trilha.intenso) return;
+
+    // ── SÓ DEPOIS DA VIRADA ──
+    // BUMBO no tempo forte e no contratempo: é o que dobra a sensação de pressa
+    // sem mudar uma nota da base.
+    if (n % 8 === 0 || n % 16 === 6) bumbo(quando, v * 4.2);
+    // TENSÃO: uma quinta suja por cima, a cada dois compassos
+    if (n % 32 === 24) voz(nota(1, 1) * 1.5, 0.9, v * 0.5, 'sawtooth', quando, 1500);
+}
+
+function agendar(): void {
+    const c = ctx;
+    if (!c || !trilha.tocando) return;
+    const passoSeg = 60 / TRILHA.bpm / 4;          // semicolcheia
+    if (trilha.proxima < c.currentTime) trilha.proxima = c.currentTime + 0.06;
+    while (trilha.proxima < c.currentTime + TRILHA.espreita) {
+        passoDaTrilha(trilha.passo, trilha.proxima);
+        trilha.passo = (trilha.passo + 1) % 1024;
+        trilha.proxima += passoSeg;
+    }
+}
+
+export function tocarTrilha(): void {
+    if (trilha.tocando || !ctx) return;
+    trilha.tocando = true;
+    trilha.passo = 0;
+    trilha.proxima = ctx.currentTime + 0.08;
+    trilha.timer = setInterval(agendar, TRILHA.acorda);
+    agendar();
+}
+
+/** A virada: entram o bumbo e a tensão. A base NÃO muda. */
+export function intensificarTrilha(sim: boolean): void { trilha.intenso = sim; }
+
+export function pararTrilha(): void {
+    if (!trilha.tocando) return;
+    trilha.tocando = false;
+    trilha.intenso = false;
+    clearInterval(trilha.timer);
 }
