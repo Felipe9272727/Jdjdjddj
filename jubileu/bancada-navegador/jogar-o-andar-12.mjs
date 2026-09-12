@@ -197,6 +197,26 @@ if (ataques.length > 1) {
 console.log(`  danos tomados: ${linha.filter(l => l.ev === 'TOMEI-DANO').length}`);
 console.log(`  tiros carregados disparados: ${cargas}`);
 
+// ── ATAQUES POR MINUTO, ANTES E DEPOIS DA VIRADA ─────────────────────────
+// É o número que prova que a virada faz alguma coisa. Ela passou três entregas
+// sem fazer nada enquanto o código dizia que fazia, e ninguém tinha um número.
+{
+    const vir = linha.find((l) => l.ev === 'VIRADA');
+    const ats = linha.filter((l) => l.ev === 'ataque');
+    const t0 = inicioLuta ? inicioLuta.t : 0;
+    const fimT = agora();
+    if (vir && ats.length) {
+        const antes = ats.filter((a) => a.t < vir.t).length;
+        const depois = ats.filter((a) => a.t >= vir.t).length;
+        const jAntes = Math.max(0.001, vir.t - t0);
+        const jDepois = Math.max(0.001, fimT - vir.t);
+        console.log(`  ataques/min ANTES da virada:  ${(antes / jAntes * 60).toFixed(1)}  (${antes} em ${jAntes.toFixed(0)}s)`);
+        console.log(`  ataques/min DEPOIS da virada: ${(depois / jDepois * 60).toFixed(1)}  (${depois} em ${jDepois.toFixed(0)}s)`);
+    } else {
+        console.log(`  (a virada não aconteceu nesta sessão: ${ats.length} ataques ao todo)`);
+    }
+}
+
 // ── O NÚMERO PRINCIPAL: quanto tempo esta luta dura, de verdade ──────────
 if (inicioLuta) {
     const tLuta = (fim2 && fim2.fase === 'vitoria' ? linha.find(l=>l.ev==='FIM')?.t ?? agora() : agora()) - inicioLuta.t;

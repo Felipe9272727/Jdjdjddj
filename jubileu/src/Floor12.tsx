@@ -30,7 +30,7 @@ import {
     larguraDoQuadro, ajustarAoAspecto,
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
-    ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
+    ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir,
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
@@ -389,6 +389,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     const ladoDoTiro = useRef<-1 | 1>(1);
     const ladoDoIrmao = useRef<-1 | 1>(1);
     const proxAtaque = useRef(0);
+    const segundo = useRef<{ ciclo: number; quando: number } | null>(null);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
     const faixaDoElevador = useRef(0);
@@ -447,7 +448,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
+            const qual = ataqueDaVez(ciclo);
             F.gritoRef.current = fichaDoAtaque(qual).grito;
             // A PRIMEIRA VEZ de cada padrão, o ala explica — sem travar nada.
             // É o momento em que o jogador mais precisa da pista e o único em
@@ -465,10 +466,28 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
+            const qual = ataqueDaVez(ciclo);
             f12.ataqueNoAr = qual;
             cuspir(qual, n, faixaDoElevador, faseDaMare);
             tocarAtaque(qual);
+            // ── A VIRADA: O SEGUNDO CUSPE ────────────────────────────
+            // Ela não fazia NADA além de pintar a barra de vermelho: metade da
+            // luta era um replay da primeira metade, e o ala gritava "dois
+            // padrões novos" por cima disso. Agora a boca cospe de novo ainda
+            // dentro da mesma janela aberta, com um padrão diferente do
+            // primeiro — dois iguais juntos leem como o jogo repetindo.
+            segundo.current = f12.passouDaVirada ? { ciclo, quando: f12.bocaT + ATRASO_DO_SEGUNDO } : null;
+        }
+
+        // o segundo cuspe, quando a hora dele chega
+        const s2 = segundo.current;
+        if (s2 && f12.bocaT >= s2.quando) {
+            segundo.current = null;
+            const qual2 = segundoAtaqueDaVez(s2.ciclo);
+            f12.ataqueNoAr = qual2;
+            cuspir(qual2, n, faixaDoElevador, faseDaMare);
+            tocarAtaque(qual2);
+            F.avisar();
         }
 
         // ── AS ARMAS ─────────────────────────────────────────────────────
@@ -897,8 +916,18 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     </div>
                     {/* as vidas do jogador */}
                     <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 14, fontSize: 20, zIndex: 3, pointerEvents: 'none' }}>
-                        {'✈'.repeat(Math.max(0, nave.current.vidas))}
-                        <span style={{ opacity: 0.25 }}>{'✈'.repeat(Math.max(0, VIDAS_DO_JOGADOR - nave.current.vidas))}</span>
+                        {/* ── AS VIDAS SÃO DESENHADAS, NÃO DIGITADAS ──
+                            Eram `'✈'.repeat(vidas)`. O glifo U+2708 não existe
+                            na fonte monoespaçada de muitos aparelhos e virava
+                            tofu: na foto o HUD mostrava `+++++`. Ícone de
+                            interface dependendo de dingbat da fonte do sistema é
+                            uma aposta que se perde em silêncio, e ela aparece no
+                            primeiro quadro do andar. Agora é um SVG: mesmo
+                            desenho em todo lugar, e do formato do avião que o
+                            jogador está pilotando. */}
+                        {Array.from({ length: VIDAS_DO_JOGADOR }, (_, i) => (
+                            <IconeDeVida key={i} cheia={i < nave.current.vidas} />
+                        ))}
                     </div>
                     {/* o grito do ataque: o telegrafo escrito */}
                     <GritoDoAtaque gritoRef={gritoRef} />
@@ -1167,3 +1196,18 @@ function useFrameFora(fn: () => void): void {
         return () => { vivo = false; cancelAnimationFrame(id); };
     }, []);
 }
+
+/**
+ * Uma vida, no formato do avião do jogador.
+ *
+ * SVG e não fonte: ver a nota no HUD. O contorno preto é o mesmo truque do
+ * `t64` — o andar é jogado contra um céu claro e um branco puro some nele.
+ */
+const IconeDeVida: React.FC<{ cheia: boolean }> = ({ cheia }) => (
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden
+        style={{ marginRight: 3, opacity: cheia ? 1 : 0.28 }}>
+        <path
+            d="M12 2.2 13.6 9l7.6 3.1v2.1L13.6 12.6l-.4 5 2.6 1.9v1.6L12 20l-3.8 1.1v-1.6l2.6-1.9-.4-5-7.6 1.6v-2.1L10.4 9 12 2.2Z"
+            fill={cheia ? '#FFD54F' : '#cfd6e4'} stroke="#11131a" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+);

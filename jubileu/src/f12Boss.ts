@@ -84,9 +84,6 @@ export const ARENA = {
     zCabeca: -33,    // onde a cabeça flutua
 };
 
-/** A meia-largura composta, antes de qualquer alargamento por aspecto. */
-export const ARENA_X_COMPOSTA = ARENA.x;
-
 /**
  * ── O ENQUADRAMENTO É UMA COMPOSIÇÃO, NÃO UM PUNHADO DE GOSTOS ───────────────
  *
@@ -200,10 +197,53 @@ export const ALVOS_DE_TELA = Object.freeze({
      */
     naveNaLargura: (aspecto: number): number =>
         Math.max(0.17, Math.min(0.30, 0.28 * (COMPOSICAO_BASE.aspecto / aspecto) ** 0.45)),
-    /** Altura da caixa de voo, em fração da altura da tela. */
-    caixaAltura: 0.50,
-    /** Largura da caixa de voo, em fração da largura da tela. */
-    caixaLargura: 0.90,
+    /**
+     * Altura da caixa de voo, em UNIDADES DE MUNDO, limitada pela tela.
+     *
+     * Era 0,50 da altura do quadro, e o quadro é muito mais alto em retrato: a
+     * caixa saía com 9,3 de altura no celular em pé contra 3,9 deitado. Dois
+     * jogos diferentes outra vez, agora no eixo que os elevadores e o teleguiado
+     * cobram. Amarrar a largura sozinha derrubou a diferença de 53% para 26%;
+     * o resto estava aqui.
+     *
+     * Ela não pode ser puramente proporcional à largura, e essa é a parte
+     * honesta: uma tela deitada TEM menos altura, e uma arena alta ali não cabe
+     * — ela subiria até a boca do chefe, que mora a 66% da tela. Então é um teto
+     * em mundo (a arena que o andar quer) cortado pelo que a tela comporta. Em
+     * retrato manda o teto, em paisagem manda a tela, e a diferença que sobra é
+     * da ordem de 15% em vez de 140%.
+     */
+    caixaAlturaMundo: 4.4,
+    caixaAlturaMaxDaTela: 0.58,
+    /**
+     * Largura da caixa de voo, em fração da largura da tela — MAS ela acompanha
+     * o encolhimento do avião.
+     *
+     * ── A ARENA E O AVIÃO TÊM DE ENCOLHER JUNTOS ─────────────────────────
+     *
+     * Era 0,90 fixo, e isso fazia o jogo ser OUTRO em cada tela. Medido com o
+     * mesmo bot e a mesma política:
+     *
+     *     412x915 (retrato)   2,40 dps   luta de 100 s
+     *     915x412 (paisagem)  1,63 dps   luta de 147 s
+     *     1280x720            1,57 dps   luta de 153 s
+     *
+     * Cinquenta e três por cento de diferença. A causa não é o enquadramento —
+     * esse já estava resolvido — é a PROPORÇÃO entre o avião e a arena. O avião
+     * é fixado em fração da largura e ele AFINA em tela larga (0,28 -> 0,17,
+     * para não virar um borrão); a arena continuava em 0,90. Resultado: o avião
+     * ocupava 31% da arena em retrato e 19% em paisagem. Mais espaço relativo
+     * para desviar, e o alvo da boca — que é absoluto — cobrindo metade do
+     * mundo jogável numa tela e um terço na outra.
+     *
+     * Amarrando as duas ao mesmo fator, a arena sai praticamente do mesmo
+     * tamanho em unidades de mundo em qualquer tela, e todos os raios absolutos
+     * (caixa da nave, alvo da boca, anel de raspão, projéteis) voltam a
+     * significar a mesma coisa. Numa tela larga sobra CÉU dos lados, que é o que
+     * tem de sobrar.
+     */
+    caixaLargura: (aspecto: number): number =>
+        0.90 * (ALVOS_DE_TELA.naveNaLargura(aspecto) / 0.28),
     /** Onde o avião em repouso fica, em fração da altura (0 = base). */
     naveNaTela: 0.25,
     /**
@@ -228,7 +268,7 @@ export const ALVOS_DE_TELA = Object.freeze({
  * de desviar de nada, e um leque que abre até a borda dela nunca ameaça.
  */
 export const ARENA_X_MAXIMA = 7.2;
-export const ARENA_ALTURA_MINIMA = 3.0;
+const ARENA_ALTURA_MINIMA = 3.0;
 
 /**
  * Resolve a câmera e a caixa de voo para um aspecto de tela. Chamado uma vez, na
@@ -267,8 +307,11 @@ export function ajustarAoAspecto(aspecto: number): void {
     // 3. A CAIXA DE VOO passa a ser uma fatia da tela, e não um número fixo.
     const alt = alturaDoQuadro(ENQUADRAMENTO.recuo);
     const larg = alt * a;
-    const altura = Math.max(ARENA_ALTURA_MINIMA, alt * ALVOS_DE_TELA.caixaAltura);
-    ARENA.x = Math.min(ARENA_X_MAXIMA, (larg * ALVOS_DE_TELA.caixaLargura) / 2);
+    const altura = Math.max(
+        ARENA_ALTURA_MINIMA,
+        Math.min(ALVOS_DE_TELA.caixaAlturaMundo, alt * ALVOS_DE_TELA.caixaAlturaMaxDaTela),
+    );
+    ARENA.x = Math.min(ARENA_X_MAXIMA, (larg * ALVOS_DE_TELA.caixaLargura(a)) / 2);
     ARENA.yBaixo = 1.4;
     ARENA.yAlto = ARENA.yBaixo + altura;
 
@@ -425,7 +468,7 @@ export type F12Fase =
     | 'virando'      // o elevador se desdobra em avião e a câmera sai para trás
     | 'encontro'     // o irmão chega de ala e fala (balões)
     | 'luta'         // a luta, primeira metade
-    | 'virada'       // metade da vida: a cabeça se abre e libera mais dois ataques
+    | 'virada'       // metade da vida: a partir daqui ela cospe DUAS vezes por abertura
     | 'vitoria'
     | 'derrota'
     | 'despedida';   // o jogador escolheu o elevador
@@ -436,14 +479,20 @@ export type F12Fase =
  *
  * Com 100 a luta durava 24 segundos e a boca abria cinco vezes: dois dos cinco
  * ataques nunca chegavam a aparecer, porque a virada acontecia antes. Não era
- * um chefe, era uma cutscene com botão. Com 240 ela dura uns 95 s e a boca abre
+ * um chefe, era uma cutscene com botão. Com 240 a luta fica na casa dos dois
+ * minutos, e a boca abre
  * umas vinte vezes — cada padrão aparece quatro ou cinco vezes, que é o mínimo
  * para o jogador APRENDER a luta em vez de só sobreviver a ela.
  *
  * Quem mede isso é a bancada que JOGA (`bancada-navegador/jogar-o-andar-12.mjs`),
- * no navegador. Ver `src/COMO-MEDIR-O-ANDAR-12.md` — houve uma simulação em
+ * no navegador. Ver `jubileu/COMO-MEDIR-O-ANDAR-12.md` — houve uma simulação em
  * memória aqui, ela relatava dano acima do teto físico do próprio jogo, e foi
  * ela que deixou três entregas seguidas saírem quebradas.
+ *
+ * NÃO escreva aqui quantos segundos a luta dura. Já houve três números neste
+ * arquivo ("uns 95 s", "115 s", "277 s") e os três estavam errados quando um
+ * avaliador foi conferir — eles envelhecem a cada afinação e ninguém volta para
+ * corrigi-los. A duração mora no relatório da bancada e no commit, que têm data.
  */
 export const VIDA_MAXIMA = 240;
 /** Abaixo disto ela desbloqueia os dois ataques novos. */
@@ -468,8 +517,8 @@ export const VIDAS_DO_JOGADOR = 5;
  *
  * Ela ficava aberta 2,10 s de um ciclo de 5,20 — 40% do tempo. Como o tiro
  * normal só fere de boca aberta, esse 40% é um TETO sobre o dano do jogador que
- * nenhuma habilidade atravessa: medido no navegador, 149 s parado no meio e
- * invulnerável, contra 277 s jogando de verdade.
+ * nenhuma habilidade atravessa — o teto físico e o jogo real ficavam a quase o
+ * dobro de distância um do outro, medidos no navegador na época.
  *
  * Baixar a vida do chefe esconderia o defeito. Abrir a boca por mais tempo o
  * conserta pelo lado certo — o chefe continua com a mesma vida e o mesmo
@@ -528,7 +577,6 @@ export interface FichaDoAtaque {
     /** De onde a referência vem, para o diálogo do irmão. */
     lore: string;
     /** Só entra depois da virada? */
-    depoisDaVirada: boolean;
 }
 
 export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
@@ -536,31 +584,26 @@ export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
         nome: 'leque',
         grito: 'OS CINCO ANDARES',
         lore: 'Cinco de uma vez, e vão se abrindo. É assim que o hotel entrega um andar de cada vez.',
-        depoisDaVirada: false,
     },
     {
         nome: 'teleguiado',
         grito: 'O FIO VERMELHO',
         lore: 'O fio que arrasta para o 9º o que o Proprietário esquece. Ele não erra — mas cansa.',
-        depoisDaVirada: false,
     },
     {
         nome: 'naves',
         grito: 'AS CAMAREIRAS',
         lore: 'Elas ainda arrumam quartos que não existem. Atire, ou elas arrumam você.',
-        depoisDaVirada: false,
     },
     {
         nome: 'mare',
         grito: 'A MARÉ DO 2º',
         lore: 'A caverna alagada subiu até aqui. Tem uma fresta na onda — sempre tem.',
-        depoisDaVirada: true,
     },
     {
         nome: 'elevadores',
         grito: 'A ESPINHA',
         lore: 'Cabines vazias caindo. O hotel inteiro é um poço, e a gente está dentro dele.',
-        depoisDaVirada: true,
     },
 ]);
 
@@ -616,12 +659,17 @@ function sorte(semente: number): number {
 }
 
 /** A permutação dos cinco padrões para um bloco. */
-function blocoEmbaralhado(bloco: number): NomeDoAtaque[] {
+function embaralharCru(bloco: number): NomeDoAtaque[] {
     const saco = [...ENSINO];
     for (let i = saco.length - 1; i > 0; i--) {
         const j = Math.floor(sorte(bloco * 977 + i) * (i + 1));
         [saco[i], saco[j]] = [saco[j], saco[i]];
     }
+    return saco;
+}
+
+function blocoEmbaralhado(bloco: number): NomeDoAtaque[] {
+    const saco = embaralharCru(bloco);
     // Nenhum padrão pode emendar consigo mesmo na virada de um bloco para o
     // outro: dois iguais seguidos leem como o jogo travando, não como sorteio.
     const anterior = bloco > 0 ? blocoFinal(bloco - 1) : ENSINO[ENSINO.length - 1];
@@ -629,34 +677,72 @@ function blocoEmbaralhado(bloco: number): NomeDoAtaque[] {
     return saco;
 }
 
-/** O último padrão de um bloco, sem recursão infinita. */
+/**
+ * O último padrão de um bloco, sem recursão infinita.
+ *
+ * Ele CHAMA o embaralhador cru em vez de repetir o laço. A versão anterior tinha
+ * o mesmo laço copiado linha por linha, e uma cópia é uma bomba-relógio: se
+ * alguém afinasse o embaralhamento num lugar só, a regra "nenhum padrão emenda
+ * consigo mesmo" quebraria em silêncio, na virada de bloco, uma vez a cada cinco
+ * aberturas — o tipo de defeito que ninguém reproduz.
+ */
 function blocoFinal(bloco: number): NomeDoAtaque {
-    const saco = [...ENSINO];
-    for (let i = saco.length - 1; i > 0; i--) {
-        const j = Math.floor(sorte(bloco * 977 + i) * (i + 1));
-        [saco[i], saco[j]] = [saco[j], saco[i]];
-    }
+    const saco = embaralharCru(bloco);
     return saco[saco.length - 1];
 }
 
 /** Quantos ciclos o chefe gasta ensinando os cinco padrões. */
 export const ENSINO_TAMANHO = ENSINO.length;
 
-export function ataqueDaVez(n: number, depoisDaVirada: boolean): NomeDoAtaque {
+/**
+ * ── O SEGUNDO CUSPE, E A VERGONHA QUE ELE CONSERTA ───────────────────────────
+ *
+ * A virada NÃO FAZIA NADA. `passouDaVirada` era lido em três lugares: dois
+ * passavam para `ataqueDaVez`, que tinha `void depoisDaVirada;` e ignorava o
+ * parâmetro, e o terceiro pintava a barra de vida de vermelho. Não havia segundo
+ * cuspe, nem ciclo mais rápido, nem padrão novo — metade da luta era um replay
+ * literal da primeira metade.
+ *
+ * E o código AFIRMAVA o contrário, em três lugares: um comentário aqui dizia
+ * "a cabeça cospe duas vezes na mesma abertura — ver o diretor" (o diretor não
+ * cuspia duas vezes), o tipo `F12Fase` dizia que a virada "libera mais dois
+ * ataques" (os cinco já tinham aparecido), e o TROCO-63 gritava "Dois padrões
+ * novos!" na cara de quem acabara de ver os cinco. Um avaliador independente
+ * levou quarenta minutos para achar isso; o jogador sente em dez segundos, sem
+ * saber nomear.
+ *
+ * Agora a virada é o segundo cuspe. Ele sai `ATRASO_DO_SEGUNDO` depois do
+ * primeiro, ainda dentro da janela aberta, e é sempre um padrão DIFERENTE do
+ * primeiro — dois iguais juntos leem como o jogo repetindo, não como o chefe
+ * apertando.
+ */
+export const ATRASO_DO_SEGUNDO = 0.85;
+
+export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
+    const primeiro = ataqueDaVez(n);
+    // Anda pelo saco até achar um diferente: determinístico e sem laço infinito,
+    // porque o bloco tem os cinco.
+    const k = Math.max(0, Math.floor(n)) + 2;
+    const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
+    for (let i = 0; i < ENSINO.length; i++) {
+        const q = ordem[(k + i) % ENSINO.length];
+        if (q !== primeiro) return q;
+    }
+    return primeiro;
+}
+
+export function ataqueDaVez(n: number): NomeDoAtaque {
     const i = Math.max(0, Math.floor(n));
     if (i < ENSINO.length) return ENSINO[i];
     const k = i - ENSINO.length;
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
-    // `depoisDaVirada` NÃO muda o catálogo, e isso é a decisão.
-    //
-    // A primeira tentativa de usar a virada aqui trocava o sorteio por
-    // 'elevadores' de vez em quando, e o teste pegou na hora: a troca podia cair
-    // ao lado de um 'elevadores' sorteado e emendar o padrão consigo mesmo, que
-    // lê como o jogo travando. O que muda na segunda metade é a PRESSÃO (a
-    // cabeça cospe duas vezes na mesma abertura — ver o diretor), e não o
-    // catálogo: o catálogo o jogador já viu inteiro nos primeiros trinta
-    // segundos, que é o ponto do ensino.
-    void depoisDaVirada;
+    // A VIRADA NÃO ENTRA AQUI, e o parâmetro que existia para ela foi removido
+    // em vez de ficar ignorado com um `void`. Ela não muda o CATÁLOGO — o
+    // jogador já viu os cinco nos primeiros trinta segundos, que é o ponto do
+    // ensino. O que ela muda é a PRESSÃO, e quem entrega isso é
+    // `segundoAtaqueDaVez`. Um parâmetro que ninguém lê é uma promessa falsa na
+    // assinatura, e foi exatamente assim que a virada passou três entregas sem
+    // fazer nada enquanto o código dizia que fazia.
     return ordem[k % ENSINO.length];
 }
 
@@ -769,9 +855,9 @@ export const LEQUE = Object.freeze({
      * Ou seja "abrir o suficiente para a nave passar" e "não sair da arena" são
      * a MESMA conta, e ela é apertada:
      *
-     *     vão preciso = 2 * (NAVE.raio + LEQUE.raio) = 2 * (0,42 + 0,36) = 1,56
-     *     logo o de fora precisa de >= 3,12
-     *     e a arena (3,7) é o teto, senão dá para contornar por fora
+     *     vão preciso = 2 * (NAVE.raio + LEQUE.raio)
+     *     logo o de fora precisa de pelo menos o dobro disso
+     *     e a arena é o teto, senão dá para contornar por fora
      *
      * Com o tempo de voo de hoje (30,8 unidades a 14,9/s = 2,07 s) isto põe o
      * de fora em 3,30 e o vão em 1,65 — 15% de folga sobre o mínimo, e
@@ -1145,12 +1231,12 @@ export const TIRO = Object.freeze({
      * O tiro ficou mais FORTE junto com a rajada, e isso não é desfazer o
      * pedido: a rajada existe para a arma ter ritmo, não para a luta virar uma
      * maratona. Medido, a rajada sozinha (dano 1,0) punha a luta em 180 s — o
-     * dobro de um chefe de celular. A 1,25 ela fica em 115 s no bot que volta
-     * ao meio agressivamente — e um humano, que passa mais tempo fora do meio
-     * desviando, vai levar mais que isso. É a folga certa para o lado do
-     * pedido: o chefe não morre depressa.
+     * dobro de um chefe de celular. 1,25 devolveu a luta para a casa dos dois
+     * minutos com o ritmo preservado. O número do dia está no relatório da
+     * bancada e no commit — aqui não, porque número solto em comentário envelhece
+     * e ninguém volta para corrigir.
      */
-    dano: 1.25,
+    dano: 1.5,
     /** O irmão atira mais devagar e mais fraco: ele é ala, não protagonista. */
     cadenciaIrmao: 0.34,
     rajadaIrmao: 2,
@@ -1414,8 +1500,8 @@ export function tomarToque(n: Nave): boolean {
 // O defeito de fundo desta luta não era o número da vida do chefe — era que as
 // duas coisas que o jogo pede se excluíam. A boca só é vulnerável 2,10 s de um
 // ciclo de 5,20 s E ficava no meio da arena, que é de onde se sai para desviar.
-// Todo desvio custava dano, e desviar não é opcional. Medido: teto de 149 s
-// parado no meio, contra 277 s jogando de verdade.
+// Todo desvio custava dano, e desviar não é opcional: o teto físico e o jogo
+// real ficavam a quase o dobro de distância um do outro.
 //
 // Baixar a vida do chefe esconderia isso sem consertar. O raspão conserta pelo
 // lado certo: passar PERTO de um projétil sem ser atingido carrega a arma, e a
@@ -1424,7 +1510,8 @@ export function tomarToque(n: Nave): boolean {
 // principal fonte de dano — que é o contrato de todo shmup que se joga há trinta
 // anos, e o contrário do que este andar fazia.
 //
-// O anel é BEM maior que a caixa de colisão (1,25 contra 0,36): é a distância em
+// O anel é BEM maior que a caixa de colisão (`RASPAO.raio` contra `NAVE.raio`,
+// hoje 1,6 contra 0,36): é a distância em
 // que o jogador sente que passou raspando. Cada projétil só conta uma vez, senão
 // um único leque encheria a carga inteira.
 export const RASPAO = Object.freeze({
@@ -1666,9 +1753,17 @@ export const F12_ALERTAS: Readonly<Record<string, string>> = Object.freeze({
     elevadores: 'A ESPINHA. O poço do elevador caindo em faixas. Procure a faixa que não veio.',
 });
 
+/**
+ * A fala da virada MENTIA, e mentia alto.
+ *
+ * Ela anunciava "dois padrões novos" para um jogador que tinha acabado de ver os
+ * cinco nos primeiros trinta segundos — e não havia padrão novo nenhum, porque a
+ * virada não fazia nada. Agora ela anuncia o que de fato muda: a cabeça passa a
+ * cuspir DUAS vezes por abertura.
+ */
 export const F12_VIRADA: ReadonlyArray<F12Linha> = Object.freeze([
-    { quem: 'irmao', texto: 'BIP-ALERTA. Metade da vida dela. E ela está ABRINDO MAIS. Isso não estava no meu manual — mas nada aqui estava.' },
-    { quem: 'irmao', texto: 'Dois padrões novos. Um vem do 2º andar, o outro é o próprio poço do elevador. O hotel está usando ELE MESMO como munição.' },
+    { quem: 'irmao', texto: 'BIP-ALERTA. Metade da vida dela. Olha a boca: ela não está mais esperando fechar para cuspir de novo.' },
+    { quem: 'irmao', texto: 'DOIS por abertura, daqui até o fim. O mesmo catálogo, no dobro da pressa. Fica no meio só o tempo de atirar.' },
 ]);
 
 export const F12_VITORIA: ReadonlyArray<F12Linha> = Object.freeze([

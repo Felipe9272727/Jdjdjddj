@@ -3,7 +3,7 @@ import {
     ARENA, meioY, dentroDaArena,
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
-    ATAQUES, ataqueDaVez, fichaDoAtaque, ENSINO_TAMANHO,
+    ATAQUES, ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, ENSINO_TAMANHO,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
@@ -81,7 +81,7 @@ describe('f12 — a boca é o relógio da luta', () => {
         expect(BOCA.aberta).toBeGreaterThan(1.2);
     });
 
-    it('a boca passa mais tempo fechada+abrindo do que aberta é largo demais', () => {
+    it('a boca passa tempo suficiente ABERTA para a luta não virar espera', () => {
         // Não pode ser um chefe permanentemente vulnerável: o descanso do
         // jogador (fechada) tem de existir de verdade.
         expect(BOCA.fechada).toBeGreaterThan(0.6);
@@ -104,7 +104,7 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     // deixa de ser adivinhável.
     it('os cinco padrões aparecem nos cinco primeiros ciclos', () => {
         const vistos = new Set<NomeDoAtaque>();
-        for (let i = 0; i < 5; i++) vistos.add(ataqueDaVez(i, false));
+        for (let i = 0; i < 5; i++) vistos.add(ataqueDaVez(i));
         expect(vistos.size, 'algum padrão ficou de fora do ensino').toBe(5);
     });
 
@@ -118,7 +118,7 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         // o chefe e passava a contar. Nenhum período curto pode explicar a
         // sequência nova.
         const seq: NomeDoAtaque[] = [];
-        for (let i = 0; i < 60; i++) seq.push(ataqueDaVez(i, false));
+        for (let i = 0; i < 60; i++) seq.push(ataqueDaVez(i));
         for (const k of [3, 4, 5, 6, 8]) {
             let periodico = true;
             for (let i = ENSINO_TAMANHO; i + k < seq.length; i++) {
@@ -131,8 +131,8 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     it('nenhum padrão emenda consigo mesmo', () => {
         for (const virada of [false, true]) {
             for (let i = 0; i < 200; i++) {
-                expect(ataqueDaVez(i, virada), `i=${i} virada=${virada}`)
-                    .not.toBe(ataqueDaVez(i + 1, virada));
+                expect(ataqueDaVez(i), `i=${i} virada=${virada}`)
+                    .not.toBe(ataqueDaVez(i + 1));
             }
         }
     });
@@ -141,9 +141,9 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         // Um sorteio sem saco deixaria um padrão sumir vinte ciclos. O saco
         // garante que cada bloco de cinco contenha os cinco.
         const ultimoVisto: Record<string, number> = {};
-        for (let i = 0; i < 200; i++) ultimoVisto[ataqueDaVez(i, false)] = i;
+        for (let i = 0; i < 200; i++) ultimoVisto[ataqueDaVez(i)] = i;
         for (let i = 0; i < 200; i++) {
-            const q = ataqueDaVez(i, false);
+            const q = ataqueDaVez(i);
             ultimoVisto[q] = i;
             if (i > 20) {
                 for (const nome of ATAQUES.map((a) => a.nome)) {
@@ -154,8 +154,8 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     });
 
     it('a sequência é determinística — a simulação e o teste precisam repeti-la', () => {
-        const a = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i, false));
-        const b = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i, false));
+        const a = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i));
+        const b = Array.from({ length: 40 }, (_, i) => ataqueDaVez(i));
         expect(a).toEqual(b);
     });
 });
@@ -440,7 +440,13 @@ describe('f12 — a vida da cabeça e a virada da metade', () => {
     });
 
     it('o limiar é mesmo a metade', () => {
-        expect(LIMIAR_DA_VIRADA).toBe(VIDA_MAXIMA / 2);
+        // (Havia aqui um `expect(LIMIAR_DA_VIRADA).toBe(VIDA_MAXIMA / 2)` contra
+        // um `export const LIMIAR_DA_VIRADA = VIDA_MAXIMA / 2`. Ele não podia
+        // falhar. Teste que não pode falhar é pior que teste ausente: ele ocupa
+        // a linha onde deveria estar um que cobra alguma coisa.)
+        expect(LIMIAR_DA_VIRADA, 'a virada tem de cair no meio da luta, não no fim')
+            .toBeGreaterThan(VIDA_MAXIMA * 0.35);
+        expect(LIMIAR_DA_VIRADA).toBeLessThan(VIDA_MAXIMA * 0.65);
     });
 
     it('o reset devolve tudo ao começo', () => {
@@ -775,9 +781,17 @@ describe('f12 — a composição da tela', () => {
         expect(c.arenaAlto).toBeGreaterThan(c.arenaBaixo);
     });
 
-    it('e a arena inteira fica ABAIXO da boca, sem encostar nela', () => {
-        const c = composicaoNaTela();
-        expect(c.arenaAlto, 'o teto do voo alcança a boca').toBeLessThan(c.boca - 0.15);
+    // EM TODA TELA, e não só na composta: a altura da caixa é limitada pelo que
+    // a tela comporta, então a tela mais baixa é a que chega mais perto da boca
+    // — e é justamente a que o teste antigo não olhava.
+    it('e a arena inteira fica ABAIXO da boca, sem encostar nela, em qualquer tela', () => {
+        for (const a of [412 / 915, 915 / 412, 16 / 9, 1, 820 / 1180]) {
+            ajustarAoAspecto(a);
+            const c = composicaoNaTela();
+            expect(c.arenaAlto, `aspecto ${a.toFixed(2)}: o teto do voo alcança a boca`)
+                .toBeLessThan(c.boca - 0.12);
+        }
+        reporArena();
     });
 
     // ── A COMPOSIÇÃO SE RESOLVE, E O RESULTADO É O MESMO EM TODA TELA ────
@@ -795,15 +809,41 @@ describe('f12 — a composição da tela', () => {
         expect(c.boca).toBeCloseTo(ALVOS_DE_TELA.bocaNaTela, 2);
     });
 
-    it('numa tela larga a arena alarga, em vez de virar uma tirinha no meio', () => {
+    // ── ESTE TESTE COBRAVA O CONTRÁRIO, E O CONTRÁRIO ERA O DEFEITO ──────
+    //
+    // Ele exigia que a arena ALARGASSE em tela larga ("em vez de virar uma
+    // tirinha no meio"). Passava — e o que ele garantia era que o jogo fosse
+    // OUTRO em cada aparelho: medido com o mesmo bot, a luta durava 100 s em
+    // retrato e 153 s em 1280x720, 53% de diferença. O avião é fixado em fração
+    // da largura e afina em tela larga; a arena não afinava junto, então sobrava
+    // espaço relativo para desviar e o alvo da boca (absoluto) cobria metade do
+    // mundo numa tela e um terço na outra.
+    //
+    // O certo é a arena ter o MESMO tamanho em unidades de mundo em toda tela.
+    // Numa tela larga sobra céu dos lados, e é isso que tem de sobrar.
+    it('a caixa de voo tem o mesmo tamanho de mundo em qualquer tela', () => {
+        const larguras: number[] = [];
+        const alturas: number[] = [];
+        for (const a of [412 / 915, 915 / 412, 16 / 9, 1, 820 / 1180]) {
+            ajustarAoAspecto(a);
+            larguras.push(ARENA.x);
+            alturas.push(ARENA.yAlto - ARENA.yBaixo);
+        }
         reporArena();
-        const estreita = ARENA.x;
-        ajustarAoAspecto(16 / 9);
-        expect(ARENA.x, 'a arena não acompanhou a tela').toBeGreaterThan(estreita);
-        expect(ARENA.x, 'a arena virou grande demais para a nave atravessar')
-            .toBeLessThanOrEqual(ARENA_X_MAXIMA);
+        const rel = (v: number[]) => Math.max(...v) / Math.min(...v);
+        expect(rel(larguras), 'a arena muda de largura conforme a tela').toBeLessThan(1.02);
+        // A altura não pode ser exatamente igual: uma tela deitada TEM menos
+        // altura, e uma arena alta ali subiria até a boca do chefe. O que ela
+        // não pode é variar como variava (2,4 vezes).
+        expect(rel(alturas), 'a arena muda demais de altura conforme a tela').toBeLessThan(1.35);
+    });
+
+    it('e ela nunca passa do teto que a nave consegue atravessar', () => {
+        for (const a of [412 / 915, 16 / 9, 1]) {
+            ajustarAoAspecto(a);
+            expect(ARENA.x).toBeLessThanOrEqual(ARENA_X_MAXIMA);
+        }
         reporArena();
-        expect(ARENA.x).toBeCloseTo(estreita, 10);
     });
 
 });
@@ -1020,4 +1060,48 @@ describe('f12 — a arma atira em rajada, com pausa', () => {
         const irmao = porSegundo(TIRO.rajadaIrmao, TIRO.cadenciaIrmao, TIRO.pausaIrmao) * TIRO.danoIrmao;
         expect(irmao, 'o ala virou o protagonista').toBeLessThan(jogador * 0.5);
     });
+});
+
+// ── A VIRADA TEM DE FAZER ALGUMA COISA ───────────────────────────────────────
+//
+// Ela não fazia NADA. `passouDaVirada` era lido em três lugares: dois passavam
+// para `ataqueDaVez`, que tinha `void depoisDaVirada;` e ignorava o parâmetro, e
+// o terceiro pintava a barra de vida de vermelho. Metade da luta era um replay
+// literal da primeira metade — e o código afirmava o contrário em três lugares
+// diferentes, incluindo uma fala do TROCO-63 gritando "dois padrões novos" na
+// cara de quem já tinha visto os cinco.
+//
+// Não havia UM teste sobre a virada. Não é coincidência que ela não fizesse
+// nada: o que ninguém cobra, ninguém entrega. Estes cobram.
+describe('f12 — a virada aperta a luta', () => {
+    it('o segundo cuspe existe e é sempre DIFERENTE do primeiro', () => {
+        for (let i = 0; i < 200; i++) {
+            expect(segundoAtaqueDaVez(i), `ciclo ${i}`).not.toBe(ataqueDaVez(i));
+        }
+    });
+
+    it('e ele cabe dentro da janela em que a boca está aberta', () => {
+        // Se ele saísse depois de a boca fechar, o ataque nasceria de uma cara
+        // fechada — e a premissa do andar é que ela cospe quando abre.
+        expect(ATRASO_DO_SEGUNDO).toBeGreaterThan(0);
+        expect(ATRASO_DO_SEGUNDO, 'o segundo cuspe sai de boca fechada').toBeLessThan(BOCA.aberta);
+    });
+
+    it('o segundo cuspe é determinístico, como o primeiro', () => {
+        const a = Array.from({ length: 40 }, (_, i) => segundoAtaqueDaVez(i));
+        const b = Array.from({ length: 40 }, (_, i) => segundoAtaqueDaVez(i));
+        expect(a).toEqual(b);
+    });
+
+    it('os dois juntos cobrem os cinco padrões', () => {
+        const vistos = new Set<NomeDoAtaque>();
+        for (let i = 0; i < 40; i++) { vistos.add(ataqueDaVez(i)); vistos.add(segundoAtaqueDaVez(i)); }
+        expect(vistos.size).toBe(5);
+    });
+
+    // NÃO existe aqui um teste do tipo `expect(2/1).toBe(2)` com os dois números
+    // escritos à mão. Eu escrevi um, no mesmo commit em que apagava outro igual,
+    // e ele não cobre nada: o "dobrar" mora no diretor da cena, que este módulo
+    // não enxerga. Quem cobra isso é a bancada que JOGA, contando ataques por
+    // minuto antes e depois da virada — e o número está no commit.
 });
