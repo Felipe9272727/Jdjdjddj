@@ -33,24 +33,52 @@
 // A regra é que o hitstop escala o relógio do JOGO e não o da APRESENTAÇÃO: o
 // tremor, a faísca e o som continuam correndo no tempo real durante a pausa. Se
 // eles congelassem junto, não haveria pausa nenhuma — haveria só um soluço.
-const stop = { restante: 0, forca: 0 };
+//
+// ── E POR QUE SÃO VÁRIAS RETENÇÕES, E NÃO UMA ────────────────────────────────
+//
+// A primeira versão guardava UM par (restante, forca) e, a cada pedido novo,
+// fazia `restante = max(...)` e `forca = min(...)`. Parece conservador e está
+// errado: um pedido LONGO e FRACO herdava a força do pedido CURTO e FORTE que
+// ainda estava correndo. Medido por um avaliador: com uma explosão (força 0,05)
+// quase expirando, um tiro comum (força 0,3) devolvia 0,05 — um congelamento
+// seis vezes mais forte do que o projetado, pelos 50 ms inteiros do tiro. Os
+// treze testes do módulo não cobriam o caso porque eu só tinha pensado no
+// inverso (o fraco encurtando o forte).
+//
+// Cada retenção agora tem o SEU relógio. A força efetiva é a mais forte entre
+// as que ainda estão vivas, e cada uma morre na hora dela — o tiro que chega no
+// fim da explosão passa a valer 0,3 assim que a explosão acaba, e não antes.
+// Quatro vagas bastam: são três tipos de acerto e nenhum dura mais de 85 ms.
+const RETENCOES = 4;
+const stop = Array.from({ length: RETENCOES }, () => ({ restante: 0, forca: 1 }));
 
 /**
  * Segura o tempo do jogo.
  *
- * `forca` é quanto do tempo sobra: 0,05 é quase parado, 0,4 é um arrasto. Um
- * pedido novo só vence o que está correndo se for mais forte — senão um tiro
- * fraco chegando no meio de uma explosão encurtaria a explosão.
+ * `forca` é quanto do tempo sobra: 0,05 é quase parado, 0,4 é um arrasto.
  */
 export function segurarOTempo(segundos: number, forca = 0.06): void {
-    if (segundos <= stop.restante && forca >= stop.forca) return;
-    stop.restante = Math.max(stop.restante, segundos);
-    stop.forca = Math.min(stop.forca || 1, forca);
+    if (segundos <= 0) return;
+    // Reaproveita a vaga morta, ou a mais fraca: com quatro vagas e retenções de
+    // dezenas de milissegundos, descartar a mais fraca é o certo — ela é a que
+    // menos muda a força efetiva.
+    let vaga = 0;
+    for (let i = 1; i < RETENCOES; i++) {
+        if (stop[i].restante <= 0) { vaga = i; break; }
+        if (stop[i].forca > stop[vaga].forca) vaga = i;
+    }
+    // Se a vaga escolhida já guarda algo mais forte E mais longo, o pedido novo
+    // não acrescenta nada.
+    if (stop[vaga].restante >= segundos && stop[vaga].forca <= forca) return;
+    stop[vaga].restante = segundos;
+    stop[vaga].forca = forca;
 }
 
-/** Quanto do tempo real o JOGO recebe neste quadro (0..1). */
+/** Quanto do tempo real o JOGO recebe neste quadro (0..1). A mais forte manda. */
 export function escalaDoTempo(): number {
-    return stop.restante > 0 ? stop.forca : 1;
+    let k = 1;
+    for (const r of stop) if (r.restante > 0 && r.forca < k) k = r.forca;
+    return k;
 }
 
 // ── O TREMOR: TRAUMA AO QUADRADO ─────────────────────────────────────────────
@@ -179,10 +207,7 @@ export function passoDasFaiscas(dtReal: number): void {
 
 /** Um passo do módulo inteiro, no tempo REAL. Chamar uma vez por quadro. */
 export function passoDoImpacto(dtReal: number): void {
-    if (stop.restante > 0) {
-        stop.restante = Math.max(0, stop.restante - dtReal);
-        if (stop.restante === 0) stop.forca = 0;
-    }
+    for (const r of stop) if (r.restante > 0) r.restante = Math.max(0, r.restante - dtReal);
     tremorEstado.t += dtReal;
     tremorEstado.trauma = Math.max(0, tremorEstado.trauma - TREMOR.queda * dtReal);
     passoDasFaiscas(dtReal);
@@ -190,7 +215,7 @@ export function passoDoImpacto(dtReal: number): void {
 
 /** Zera tudo. A entrada do andar e o reinício precisam disto. */
 export function reiniciarImpacto(): void {
-    stop.restante = 0; stop.forca = 0;
+    for (const r of stop) { r.restante = 0; r.forca = 1; }
     tremorEstado.trauma = 0; tremorEstado.t = 0;
     for (const f of faiscas) f.vida = 0;
     proxima = 0;

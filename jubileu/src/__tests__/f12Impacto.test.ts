@@ -167,3 +167,38 @@ describe('f12 — o orçamento de um impacto', () => {
         expect(Object.keys(IMPACTOS).sort()).toEqual(['carregado', 'dano', 'tiro']);
     });
 });
+
+// ── O CASO QUE OS TREZE PRIMEIROS TESTES NÃO COBRIAM ─────────────────────────
+//
+// Eu tinha pensado só no inverso — um pedido fraco encurtando uma pausa forte —
+// e escrevi o teste dele. O defeito real era o outro lado: um pedido LONGO e
+// FRACO herdava a FORÇA de um pedido curto e forte que ainda corria. Um
+// avaliador independente mediu: com uma explosão quase expirando, um tiro comum
+// devolvia 0,05 em vez de 0,3, por 50 ms inteiros — seis vezes mais forte do que
+// o projetado. Um teste que só olha uma direção da mesma regra é meio teste.
+describe('f12 — o hitstop não herda força de quem já está acabando', () => {
+    it('um tiro comum no fim de uma explosão vale a força DELE', () => {
+        segurarOTempo(0.08, 0.05);          // a explosão
+        passoDoImpacto(0.075);              // ela quase acabou
+        segurarOTempo(0.05, 0.3);           // o tiro comum chega
+        expect(escalaDoTempo(), 'ainda manda a explosão, e está certo').toBeCloseTo(0.05, 6);
+        passoDoImpacto(0.01);               // a explosão morre
+        expect(escalaDoTempo(), 'o tiro herdou a força da explosão').toBeCloseTo(0.3, 6);
+    });
+
+    it('e o forte continua mandando enquanto ele estiver vivo', () => {
+        segurarOTempo(0.05, 0.3);
+        segurarOTempo(0.08, 0.05);
+        expect(escalaDoTempo()).toBeCloseTo(0.05, 6);
+        passoDoImpacto(0.06);
+        expect(escalaDoTempo(), 'o forte morreu cedo').toBeCloseTo(0.05, 6);
+        passoDoImpacto(0.03);
+        expect(escalaDoTempo(), 'sobrou retenção').toBe(1);
+    });
+
+    it('muitas retenções seguidas não travam o jogo para sempre', () => {
+        for (let i = 0; i < 40; i++) segurarOTempo(0.05, 0.05);
+        passoDoImpacto(0.06);
+        expect(escalaDoTempo(), 'o tempo não voltou').toBe(1);
+    });
+});

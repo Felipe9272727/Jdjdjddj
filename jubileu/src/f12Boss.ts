@@ -196,7 +196,7 @@ export const ALVOS_DE_TELA = Object.freeze({
      * é uma silhueta e não um borrão.
      */
     naveNaLargura: (aspecto: number): number =>
-        Math.max(0.17, Math.min(0.30, 0.28 * (COMPOSICAO_BASE.aspecto / aspecto) ** 0.45)),
+        Math.max(0.185, Math.min(0.33, 0.31 * (COMPOSICAO_BASE.aspecto / aspecto) ** 0.45)),
     /**
      * Altura da caixa de voo, em UNIDADES DE MUNDO, limitada pela tela.
      *
@@ -213,8 +213,8 @@ export const ALVOS_DE_TELA = Object.freeze({
      * retrato manda o teto, em paisagem manda a tela, e a diferença que sobra é
      * da ordem de 15% em vez de 140%.
      */
-    caixaAlturaMundo: 4.4,
-    caixaAlturaMaxDaTela: 0.58,
+    caixaAlturaMundo: 3.6,
+    caixaAlturaMaxDaTela: 0.44,
     /**
      * Largura da caixa de voo, em fração da largura da tela — MAS ela acompanha
      * o encolhimento do avião.
@@ -245,7 +245,7 @@ export const ALVOS_DE_TELA = Object.freeze({
     caixaLargura: (aspecto: number): number =>
         0.90 * (ALVOS_DE_TELA.naveNaLargura(aspecto) / 0.28),
     /** Onde o avião em repouso fica, em fração da altura (0 = base). */
-    naveNaTela: 0.25,
+    naveNaTela: 0.27,
     /**
      * Onde a boca fica, em fração da altura.
      *
@@ -255,11 +255,22 @@ export const ALVOS_DE_TELA = Object.freeze({
      * deitado ela aparecia decapitada. O alvo da boca tem de deixar o resto da
      * cabeça caber.
      */
-    bocaNaTela: 0.66,
+    // ── O VÃO ENCOLHEU PARA TUDO CABER MAIOR ─────────────────────────────
+    //
+    // Boca a 0,66 e avião a 0,25 davam 41% de tela de vão — e um avaliador
+    // olhou as fotos e disse que 60% da tela é céu vazio. Ele está certo: eu
+    // tinha aberto esse vão para consertar o defeito oposto (o avião era
+    // desenhado DENTRO da boca, com 2,2% de separação) e passei do ponto na
+    // direção contrária.
+    //
+    // 0,59 contra 0,27 deixa 32% — ainda é quase um terço de tela para o ataque
+    // ser visto vindo, que é o trabalho do vão — e devolve os outros nove por
+    // cento para o chefe e para o avião, que é o que o jogador olha.
+    bocaNaTela: 0.62,
     /** Altura da cabeça, em fração da altura da tela. */
-    cabecaAltura: 0.28,
+    cabecaAltura: 0.36,
     /** Largura da cabeça, em fração da largura da tela. */
-    cabecaLargura: 0.60,
+    cabecaLargura: 0.68,
 });
 
 /**
@@ -268,7 +279,16 @@ export const ALVOS_DE_TELA = Object.freeze({
  * de desviar de nada, e um leque que abre até a borda dela nunca ameaça.
  */
 export const ARENA_X_MAXIMA = 7.2;
-const ARENA_ALTURA_MINIMA = 3.0;
+/**
+ * O piso da caixa de voo, em unidades de mundo.
+ *
+ * Numa tela muito deitada é ELE que manda, e não a fração — a tela simplesmente
+ * não tem altura. Baixou de 3,0 para 2,7 quando a composição apertou (chefe e
+ * avião maiores, vão menor): a 3,0 o teto do voo encostava na boca em telas de
+ * aspecto 2,2, e o jogador subiria até dentro da cara dela de novo, que é o
+ * defeito que este andar levou três revisões para tirar.
+ */
+const ARENA_ALTURA_MINIMA = 2.7;
 
 /**
  * Resolve a câmera e a caixa de voo para um aspecto de tela. Chamado uma vez, na
@@ -477,12 +497,19 @@ export type F12Fase =
 /**
  * A vida da cabeça — e este número saiu de uma SIMULAÇÃO, não do dedo.
  *
- * Com 100 a luta durava 24 segundos e a boca abria cinco vezes: dois dos cinco
- * ataques nunca chegavam a aparecer, porque a virada acontecia antes. Não era
- * um chefe, era uma cutscene com botão. Com 240 a luta fica na casa dos dois
- * minutos, e a boca abre
- * umas vinte vezes — cada padrão aparece quatro ou cinco vezes, que é o mínimo
- * para o jogador APRENDER a luta em vez de só sobreviver a ela.
+ * Com 100 a boca abria cinco vezes: dois dos cinco ataques nunca chegavam a
+ * aparecer, porque a virada acontecia antes. Não era um chefe, era uma cutscene
+ * com botão. O que este número compra é ABERTURA DE BOCA — com o valor de hoje
+ * ela abre umas vinte e cinco vezes, e cada padrão aparece quatro ou cinco
+ * vezes, que é o mínimo para o jogador APRENDER a luta em vez de só sobreviver
+ * a ela.
+ *
+ * Ele subiu de 240 para 300 quando o conserto do hitstop devolveu o relógio que
+ * um defeito estava roubando: com a pausa do acerto valendo o que foi projetada
+ * em vez de seis vezes isso, o jogo passa mais tempo CORRENDO, e a mesma arma
+ * passou a derrubar a cabeça em menos tempo. A bancada mediu 84 s e 86 s nas
+ * duas telas de celular, abaixo do piso de 90 s da faixa deste andar. O defeito
+ * de tempo era o certo a consertar; a vida é o que reabsorve o conserto.
  *
  * Quem mede isso é a bancada que JOGA (`bancada-navegador/jogar-o-andar-12.mjs`),
  * no navegador. Ver `jubileu/COMO-MEDIR-O-ANDAR-12.md` — houve uma simulação em
@@ -494,7 +521,7 @@ export type F12Fase =
  * avaliador foi conferir — eles envelhecem a cada afinação e ninguém volta para
  * corrigi-los. A duração mora no relatório da bancada e no commit, que têm data.
  */
-export const VIDA_MAXIMA = 240;
+export const VIDA_MAXIMA = 300;
 /** Abaixo disto ela desbloqueia os dois ataques novos. */
 export const LIMIAR_DA_VIRADA = VIDA_MAXIMA / 2;
 

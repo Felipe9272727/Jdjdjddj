@@ -20,7 +20,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
-    f12, ARENA, MARE, frestaDaMare, LEQUE, ELEVADORES, ENQUADRAMENTO,
+    f12, ARENA, MARE, frestaDaMare, LEQUE, ENQUADRAMENTO,
     type Projetil, type NomeDoAtaque,
 } from './f12Boss';
 

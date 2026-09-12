@@ -21,7 +21,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
-import { ARENA, f12, xParaFracao, yParaFracao } from './f12Boss';
+import { ARENA, f12, xParaFracao, yParaFracao, larguraDoQuadro, ENQUADRAMENTO } from './f12Boss';
 
 /**
  * ── O CÉU DEIXOU DE SER UMA COR CHAPADA ──────────────────────────────────────
@@ -253,20 +253,29 @@ function fachada(semente: number, cols: number, linhas: number): THREE.CanvasTex
     return t;
 }
 
-/** Três fachadas bastam: de longe ninguém compara duas torres. */
-const FACHADAS: THREE.CanvasTexture[] = [fachada(7, 3, 7), fachada(19, 4, 9), fachada(53, 3, 11)];
-
 // ── A CIDADE NO CÉU ──────────────────────────────────────────────────────────
 //
-// O céu tinha UMA torre magra a 160 de distância, e o dono do jogo escreveu: "o
-// céu é vazio; este é o andar de um hotel que virou céu — quero ver o hotel".
-// Ele tem razão, e a referência que ele mandou diz o que falta: não é um prédio,
-// é um ARQUIPÉLAGO — torres flutuando em vários planos, com passarelas, janelas
-// acesas e estandartes, e o hotel principal grande à esquerda.
+// ── POR QUE ELA É PINTADA, E NÃO CONSTRUÍDA ──────────────────────────────────
 //
-// Tudo aqui é caixa e plano, com material compartilhado, e vive em z < -55 ou
-// bem fora do X da arena: cenário que entra no caminho da boca é cenário que
-// esconde a regra do jogo, e este arquivo já pagou por isso uma vez.
+// Três tentativas com torres de verdade, e as três leram como entulho numa
+// avaliação independente. A causa só apareceu na terceira: a câmera deste andar
+// olha para CIMA, e um prédio vertical ABAIXO da linha do olho se esparrama para
+// fora do quadro em perspectiva. Isso é perspectiva correta — e é a assinatura
+// visual de destroço, não de cidade.
+//
+// E afastar não resolve. As peças são colocadas por FRAÇÃO DE TELA, então
+// mandá-las para o dobro da distância as põe ao dobro da largura: o ângulo que
+// elas ocupam, e portanto o esparramo, é exatamente o mesmo. Levei uma rodada
+// inteira para ver isso.
+//
+// Um PAINEL virado para a câmera não tem esparramo por construção. Ele custa
+// duas malhas em vez de catorze, desenha a linha do horizonte que o olho
+// procura, e num jogo de cor chapada e pixel grande ele não é menos "real" que
+// caixas — é o mesmo truque das nuvens, que ninguém nunca achou falso.
+//
+// O preço, escrito: a cidade não tem paralaxe de rotação. A câmera deste andar
+// quase não gira, então o preço é zero na prática; num andar com câmera livre,
+// não seria.
 
 /** O pano de um estandarte, com o lema do hotel. */
 function texturaDoEstandarte(linhas: string[]): THREE.CanvasTexture {
@@ -274,13 +283,11 @@ function texturaDoEstandarte(linhas: string[]): THREE.CanvasTexture {
     const g = c.getContext('2d')!;
     g.fillStyle = '#2c3f6b'; g.fillRect(0, 0, 128, 256);
     g.fillStyle = '#e8c97a'; g.fillRect(0, 0, 128, 8); g.fillRect(0, 214, 128, 6);
-    // o rabo de andorinha embaixo
-    g.fillStyle = '#0000'; g.globalCompositeOperation = 'destination-out';
+    g.globalCompositeOperation = 'destination-out';
     g.beginPath(); g.moveTo(0, 256); g.lineTo(64, 214); g.lineTo(128, 256); g.closePath(); g.fill();
     g.globalCompositeOperation = 'source-over';
     g.fillStyle = '#f3e2b0'; g.textAlign = 'center'; g.font = 'bold 21px monospace';
     linhas.forEach((t, i) => g.fillText(t, 64, 66 + i * 28));
-    // a coroa
     g.fillStyle = '#e8c97a';
     g.fillRect(50, 168, 28, 12);
     for (let i = 0; i < 3; i++) g.fillRect(50 + i * 12, 158, 6, 12);
@@ -295,7 +302,6 @@ const Estandarte: React.FC<{ p: [number, number, number]; e: number; linhas: str
         const tex = useMemo(() => texturaDoEstandarte(linhas), [linhas]);
         const malha = useRef<THREE.Mesh>(null);
         useFrame((state) => {
-            // balança de leve: pano parado lê como placa
             if (malha.current) malha.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.8 + p[0]) * 0.045;
         });
         return (
@@ -312,61 +318,105 @@ const Estandarte: React.FC<{ p: [number, number, number]; e: number; linhas: str
         );
     };
 
+/** Mistura uma cor com a bruma do céu — perspectiva aérea, em número. */
+function embrumar(hex: string, k: number): string {
+    const B = [0xb7, 0xe2, 0xf7];
+    const n = parseInt(hex.slice(1), 16);
+    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    const m = c.map((v, i) => Math.round(v + (B[i] - v) * k));
+    return `rgb(${m[0]},${m[1]},${m[2]})`;
+}
+
 /**
- * Uma torre do arquipélago: a rocha, o corpo com janelas e o telhado com coroa.
+ * Desenha uma linha de horizonte de prédios num canvas.
  *
- * `semente` decide a altura, o número de janelas e quais estão acesas — assim
- * dez torres saem diferentes de uma função só, em vez de dez blocos de JSX.
+ * `desbotar` é a perspectiva aérea: quanto mais longe a camada, mais a silhueta
+ * se aproxima da cor da bruma. Sem isso as duas camadas têm o mesmo contraste e
+ * o olho lê "prédios em cima de prédios" em vez de "prédios atrás de prédios" —
+ * foi exatamente o que a primeira versão desta cidade fez na foto.
  */
-const Torre: React.FC<{ p: [number, number, number]; e: number; semente: number; M: Record<string, THREE.Material> }> =
-    ({ p, e, semente, M }) => {
-        const { altura, temCoroa, mat } = useMemo(() => {
-            const r = baralho(semente);
-            const andares = 5 + Math.floor(r() * 7);
-            const tex = FACHADAS[Math.floor(r() * FACHADAS.length)];
-            return {
-                altura: andares * 1.5 + 1.6,
-                temCoroa: r() < 0.55,
-                // uma malha, uma fachada; o material é criado por torre mas a
-                // TEXTURA é compartilhada, que é o que custa memória
-                mat: new THREE.MeshLambertMaterial({ map: tex, flatShading: true }),
-            };
-        }, [semente]);
-        return (
-            <group position={p} scale={e}>
-                {/* ── A ÂNCORA É O TOPO, NÃO A BASE ──
-                    `yParaFracao` devolve onde o ORIGEM do grupo cai na tela, e a
-                    torre crescia para CIMA a partir dele. Então pedir "v = 0,05"
-                    punha a base lá embaixo e o prédio inteiro subia até a faixa
-                    do avião — foi assim que a cidade invadiu o espaço do jogador
-                    pela terceira vez seguida, cada vez por um motivo diferente.
-                    Descendo tudo por `altura`, o número que eu peço passa a ser
-                    o que eu vejo: o topo. */}
-                <group position={[0, -altura, 0]}>
-                {/* ERETAS. Elas herdavam a inclinação do grupo pai e saíam
-                    tortas em ângulos diferentes, o que é a assinatura visual de
-                    destroço, não de prédio. Prédio é vertical; é disso que o
-                    olho tira "isso foi construído". */}
-                {/* a rocha pendurada embaixo: é o que faz a torre FLUTUAR em vez
-                    de estar cortada */}
-                <mesh material={M.rocha} position={[0, -1.6, 0]} scale={[1, 0.75, 1]}>
-                    <coneGeometry args={[2.6, 5.0, 7]} />
-                </mesh>
-                <mesh material={mat} position={[0, altura / 2, 0]}>
-                    <boxGeometry args={[3.6, altura, 3.6]} />
-                </mesh>
-                <mesh material={M.telhado} position={[0, altura + 0.35, 0]}>
-                    <boxGeometry args={[4.4, 0.7, 4.4]} />
-                </mesh>
-                {temCoroa && (
-                    <mesh material={M.ouro} position={[0, altura + 1.1, 0]}>
-                        <cylinderGeometry args={[0.55, 0.75, 0.9, 6]} />
-                    </mesh>
-                )}
-                </group>
-            </group>
-        );
-    };
+function texturaDaCidade(semente: number, torres: number, alturaMax: number, desbotar: number): THREE.CanvasTexture {
+    const L = 2048, A = 256;
+    const c = document.createElement('canvas'); c.width = L; c.height = A;
+    const g = c.getContext('2d')!;
+    const r = baralho(semente);
+    g.clearRect(0, 0, L, A);
+    const corpo = embrumar('#3f3950', desbotar);
+    const telhado = embrumar('#2b2637', desbotar);
+    const coroa = embrumar('#c9a24a', desbotar * 0.7);
+    for (let i = 0; i < torres; i++) {
+        const w = L * (0.0055 + r() * 0.0075);
+        const x = (i / torres) * L + (r() - 0.5) * (L / torres) * 0.7;
+        const h = A * (0.30 + r() * alturaMax);
+        const y = A - h;
+        g.fillStyle = corpo;
+        g.fillRect(x, y, w, h);
+        g.fillStyle = telhado;
+        g.fillRect(x - w * 0.12, y - A * 0.018, w * 1.24, A * 0.020);
+        if (r() < 0.3) {
+            g.fillStyle = coroa;
+            g.fillRect(x + w * 0.34, y - A * 0.062, w * 0.32, A * 0.044);
+        }
+        // Janelas acesas: a camada de trás quase não as tem. Uma janela é um
+        // ponto de contraste máximo, e contraste máximo ao longe desfaz a
+        // distância que o desbotamento acabou de construir.
+        if (desbotar > 0.45) continue;
+        const cols = Math.max(1, Math.floor(w / (L * 0.0028)));
+        const linhas = Math.max(2, Math.floor(h / (A * 0.05)));
+        for (let a = 0; a < linhas; a++) {
+            for (let col = 0; col < cols; col++) {
+                if (r() < 0.62) continue;
+                g.fillStyle = embrumar(r() < 0.22 ? '#fff0c0' : '#ffd98a', desbotar + 0.25);
+                g.fillRect(x + w * 0.16 + col * (w * 0.68 / cols), y + A * 0.04 + a * (h * 0.9 / linhas),
+                    w * 0.34 / cols, A * 0.010);
+            }
+        }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+/**
+ * Uma camada da cidade: um painel virado para a câmera.
+ *
+ * ── ELA É ANCORADA PELO TOPO, E POR MEDIDA ───────────────────────────────────
+ *
+ * A versão anterior recebia a fração do CENTRO e uma altura em múltiplo da
+ * largura do quadro (`larg * 0.25`). Como a largura do quadro a −260 é enorme, a
+ * banda saía com quase metade da tela de altura e subia até a barra de vida: na
+ * foto a cidade não era horizonte, era chão — o avião parecia rasante sobre uma
+ * metrópole em vez de voar a mil metros.
+ *
+ * Agora entram as duas frações que a composição realmente quer: onde fica a
+ * LINHA DO CÉU (`topo`) e quanto da tela a banda ocupa (`altura`). O mundo é
+ * resolvido pela mesma régua do resto do andar (`yParaFracao`), então o
+ * enquadramento da cidade é verificável em vez de afinado no olho.
+ */
+const CamadaDaCidade: React.FC<{
+    semente: number; topo: number; altura: number; z: number;
+    torres: number; variacao: number; desbotar: number; opacidade: number;
+}> = ({ semente, topo, altura, z, torres, variacao, desbotar, opacidade }) => {
+    const tex = useMemo(() => texturaDaCidade(semente, torres, variacao, desbotar),
+        [semente, torres, variacao, desbotar]);
+    const { pos, larg, alt } = useMemo(() => {
+        const yTopo = yParaFracao(topo, z);
+        const yBase = yParaFracao(topo - altura, z);
+        return {
+            pos: [0, (yTopo + yBase) / 2, z] as [number, number, number],
+            larg: larguraDoQuadro(ENQUADRAMENTO.recuo - z) * 1.15,
+            alt: yTopo - yBase,
+        };
+    }, [topo, altura, z]);
+    return (
+        <mesh position={pos}>
+            <planeGeometry args={[larg, alt]} />
+            <meshBasicMaterial map={tex} transparent opacity={opacidade}
+                depthWrite={false} fog toneMapped={false} />
+        </mesh>
+    );
+};
 
 /** O HOTEL principal: grande, à esquerda, com letreiro. */
 const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, number, number] }> = ({ M, p }) => {
@@ -384,8 +434,10 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
         map: fachada(0x517e1, 5, 13), flatShading: true,
     }), []);
     return (
-        <group position={p} scale={3.2} rotation={[0, 0.42, 0]}>
-          {/* o hotel também pende do topo — ver a nota em `Torre` */}
+        // O hotel CONTINUA sendo geometria, e é o único que continua: ele é o
+        // prédio de onde o jogador veio, o jogador precisa reconhecê-lo, e uma
+        // peça só perto do centro do quadro quase não esparrama.
+        <group position={p} scale={2.6} rotation={[0, 0.42, 0]}>
           <group position={[0, -28, 0]}>
             <mesh material={M.rocha} position={[0, -4, 0]} scale={[1.6, 0.8, 1.6]}>
                 <coneGeometry args={[7, 12, 8]} />
@@ -396,11 +448,9 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
             <mesh material={M.telhado} position={[0, 25.6, 0]}>
                 <boxGeometry args={[12.6, 1.2, 10.6]} />
             </mesh>
-            {/* a coroa no topo, como na referência */}
             <mesh material={M.ouro} position={[0, 27.2, 0]}>
                 <cylinderGeometry args={[1.5, 2.0, 2.2, 6]} />
             </mesh>
-            {/* o letreiro */}
             <mesh position={[0, 21.5, 4.7]}>
                 <planeGeometry args={[8.4, 2.1]} />
                 <meshBasicMaterial map={letreiro} transparent fog={false} toneMapped={false} />
@@ -410,109 +460,30 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
     );
 };
 
-/** Uma passarela ligando duas torres: é o que faz o arquipélago virar cidade. */
-const Passarela: React.FC<{ p: [number, number, number]; comprimento: number; e: number; M: Record<string, THREE.Material> }> =
-    ({ p, comprimento, e, M }) => (
-        <group position={p} scale={e}>
-            <mesh material={M.telhado}><boxGeometry args={[comprimento, 0.5, 1.6]} /></mesh>
-            {(() => {
-                const n = Math.max(2, Math.round(comprimento / 3));
-                return Array.from({ length: n }, (_, i) => (
-                    <mesh key={i} material={M.ouro}
-                        position={[-comprimento / 2 + (comprimento * i) / (n - 1), 0.9, 0]}>
-                        <boxGeometry args={[0.22, 1.3, 0.22]} />
-                    </mesh>
-                ));
-            })()}
-        </group>
-    );
-
-/**
- * A CIDADE inteira. As posições são escritas à mão, e de propósito: sorteá-las
- * poria uma torre na frente da boca uma vez a cada tantas partidas, e "às vezes
- * o chefe fica escondido" é o tipo de defeito que ninguém consegue reproduzir.
- */
 const CidadeNoCeu: React.FC = () => {
     const M = useMemo(() => ({
-        parede: mat64('#565068'),
         telhado: mat64('#2e2937'),
         rocha: mat64('#464054'),
         ouro: mat64('#d9a441'),
-        janela: mat64('#ffd98a', '#ffd98a', 0.85),
     }), []);
-
-    // ── AS PEÇAS SÃO COLOCADAS POR FRAÇÃO DE TELA ────────────────────────
-    //
-    // `u` é a fração da largura (0 = borda esquerda, 1 = direita) e `v` a da
-    // altura (0 = base). O mundo sai disso, e não o contrário.
-    //
-    // A montagem anterior escrevia x e y à mão. Funcionava numa orientação e
-    // errava na outra por dezenas de unidades, porque a câmera olha para cima e
-    // a altura do eixo dela CRESCE com a profundidade: para cair a 60% da tela
-    // em z = -200 é preciso y = 93 deitado e y = 62 em pé. As torres saíram na
-    // faixa do avião, disputando o terço de baixo com o jogador.
-    //
-    // Todas ficam em v >= 0,52 de propósito: o terço de baixo é do jogador e da
-    // nuvem, como na referência. E `useMemo` sem dependência é o certo aqui — a
-    // composição é resolvida uma vez, na entrada do andar, antes deste render.
-    const pecas = useMemo(() => {
-        const torre = (u: number, v: number, z: number, e: number, semente: number) =>
-            ({ tipo: 'torre' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], e, semente });
-        const ponte = (u: number, v: number, z: number, c: number, e: number) =>
-            ({ tipo: 'ponte' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], c, e });
-        // ── A CIDADE DESCEU, E O MOTIVO É O QUE ELA TEM DE SER ───────────
-        //
-        // Elas ficavam em v = 0,54 a 0,90 — a faixa do chefe e acima. Um
-        // avaliador independente olhou as fotos e disse: "lê como entulho
-        // orbitando, não como cidade lá embaixo". Ele está certo, e o erro foi
-        // meu de duas vezes seguidas: primeiro pus as torres na faixa do AVIÃO
-        // (disputando com o jogador), depois corrigi para a faixa do CHEFE
-        // (disputando com o chefe). Nenhuma das duas é onde uma cidade fica.
-        //
-        // Cidade fica EMBAIXO. O andar é "o hotel virou céu": o jogador voa
-        // ACIMA do prédio, e o que dá altitude é ver o mundo lá no fundo,
-        // afundando nas nuvens. Agora elas moram em v = 0,02 a 0,30, abaixo da
-        // linha de voo e atrás do mar de nuvens, com o topo aparecendo entre as
-        // camadas — que é como uma torre distante se vê de um avião.
-        //
-        // Sobram duas bem altas e MUITO longe (v ~0,80, z -290): não são
-        // cidade, são silhueta de fundo para o chefe não flutuar contra o vazio.
-        return [
-            // Os `v` agora são o TOPO da torre, e todos ficam ABAIXO do avião
-            // (que a composição põe em 0,25): a cidade afunda nas nuvens, que é
-            // como uma torre distante se vê de um avião.
-            torre(0.04, 0.17, -150, 2.0, 11),
-            torre(0.16, 0.11, -120, 1.6, 23),
-            torre(0.28, 0.19, -198, 2.4, 31),
-            torre(0.96, 0.16, -156, 2.0, 47),
-            torre(0.84, 0.10, -126, 1.7, 59),
-            torre(0.72, 0.20, -204, 2.3, 71),
-            torre(0.45, 0.14, -244, 2.8, 83),
-            torre(0.57, 0.12, -232, 2.6, 89),
-            ponte(0.12, 0.13, -174, 20, 2.0),
-            ponte(0.88, 0.12, -172, 16, 1.8),
-        ];
-    }, []);
-
-    // Os estandartes ficam ALTOS: eles são do hotel, não da cidade, e são a
-    // única peça de texto do cenário. Embaixo, entre as nuvens, ninguém os lê.
-    const estandartes = useMemo(() => ([
-        { u: 0.86, v: 0.72, z: -138, e: 5.4, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
-        { u: 0.14, v: 0.74, z: -144, e: 5.2, linhas: ['ANDAR', '12'] },
-    ].map((b) => ({ ...b, p: [xParaFracao(b.u, b.z), yParaFracao(b.v, b.z), b.z] as [number, number, number] }))), []);
-
-    // O HOTEL é o mais baixo de todos: ele é o prédio de onde o jogador veio.
     const hotel = useMemo(() => {
-        const z = -190;
-        return [xParaFracao(0.11, z), yParaFracao(0.02, z), z] as [number, number, number];
+        const z = -230;
+        return [xParaFracao(0.13, z), yParaFracao(0.05, z), z] as [number, number, number];
     }, []);
+    const estandartes = useMemo(() => ([
+        { u: 0.07, v: 0.26, z: -190, e: 3.4, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
+        { u: 0.93, v: 0.27, z: -196, e: 3.3, linhas: ['ANDAR', '12'] },
+    ].map((b) => ({ ...b, p: [xParaFracao(b.u, b.z), yParaFracao(b.v, b.z), b.z] as [number, number, number] }))), []);
 
     return (
         <group>
+            {/* duas camadas: a de trás mais alta e mais clara (perspectiva
+                aérea), a da frente mais baixa e mais escura */}
+            <CamadaDaCidade semente={0xc1} topo={0.185} altura={0.075} z={-380}
+                torres={120} variacao={0.42} desbotar={0.62} opacidade={0.85} />
+            <CamadaDaCidade semente={0xc2} topo={0.150} altura={0.105} z={-260}
+                torres={82} variacao={0.55} desbotar={0.28} opacidade={0.97} />
             <HotelGrande M={M} p={hotel} />
-            {pecas.map((q, i) => (q.tipo === 'torre'
-                ? <Torre key={i} p={q.p} e={q.e} semente={q.semente} M={M} />
-                : <Passarela key={i} p={q.p} comprimento={q.c} e={q.e} M={M} />))}
             {estandartes.map((b, i) => <Estandarte key={i} p={b.p} e={b.e} linhas={b.linhas} />)}
         </group>
     );

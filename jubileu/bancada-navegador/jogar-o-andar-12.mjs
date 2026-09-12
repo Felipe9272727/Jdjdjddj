@@ -66,7 +66,7 @@ await p.evaluate(() => {
 
 // ── O LAÇO: joga, e anota tudo o que muda ────────────────────────────────
 let faseAnt = null, ataqueAnt = null, vidaAnt = null, vidasAnt = null, falaAnt = null, viradaAnt = false;
-let cliques = 0, quadrosAnt = 0, tAnt = agora(), cargas = 0, cargaAnt = 0;
+let cliques = 0, quadrosAnt = 0, tAnt = agora(), cargas = 0, cargaAnt = 0, menorVida = Infinity;
 const fps = [];
 let alvoX = 0.5, alvoY = 0.62, dir = 1;
 const fim = agora() + SEGUNDOS;
@@ -100,6 +100,15 @@ while (agora() < fim) {
     if (t - tAnt > 1.0) { fps.push(+((e.quadros - quadrosAnt) / (t - tAnt)).toFixed(1)); quadrosAnt = e.quadros; tAnt = t; }
 
     if (e.carga !== undefined) { if (e.carga < cargaAnt) cargas++; cargaAnt = e.carga; }
+    // A MENOR vida vista, e não a do fim.
+    //
+    // O relatório lia `fim2.vida` para calcular o dano. Quando o bot morre, o
+    // andar REINICIA e o último instantâneo é de uma luta nova com 240 de vida:
+    // a bancada imprimia `dano causado 0.0 de 240` e `LUTA COMPLETA .... NUNCA`
+    // numa sessão em que a vida do chefe tinha caído para 107,5 e a virada
+    // acontecido. Num projeto cujo documento principal é sobre régua que
+    // discorda do produto, a régua mentindo é o pior defeito possível.
+    if (e.vida !== undefined && e.fase === 'luta') menorVida = Math.min(menorVida, e.vida);
     if (e.fase !== faseAnt) { nota({ ev: 'fase', de: faseAnt, para: e.fase }); faseAnt = e.fase; }
     if (e.fala !== falaAnt) { nota({ ev: 'fala', n: e.fala, fase: e.fase }); falaAnt = e.fala; }
     if (e.ataque !== ataqueAnt && e.ataque) { nota({ ev: 'ataque', qual: e.ataque, vida: e.vida }); ataqueAnt = e.ataque; }
@@ -183,7 +192,7 @@ while (agora() < fim) {
     dir = -dir;
 }
 
-const fim2 = await p.evaluate(() => { const s = window.__f12estado; return s ? { fase: s.fase, vida: s.vida, vidas: s.vidas } : null; }).catch(() => null);
+const fim2 = await p.evaluate(() => { const s = window.__f12estado; return s ? { fase: s.fase, vida: s.vida, vidas: s.vidas, vidaMaxima: s.vidaMaxima } : null; }).catch(() => null);
 ponte.fechar(); await b.close();
 
 // ── O RELATÓRIO ──────────────────────────────────────────────────────────
@@ -248,11 +257,18 @@ console.log(`  tiros carregados disparados: ${cargas}`);
 // ── O NÚMERO PRINCIPAL: quanto tempo esta luta dura, de verdade ──────────
 if (inicioLuta) {
     const tLuta = (fim2 && fim2.fase === 'vitoria' ? linha.find(l=>l.ev==='FIM')?.t ?? agora() : agora()) - inicioLuta.t;
-    const dano = 240 - (fim2?.vida ?? 240);
-    const dps = dano / tLuta;
+    // `menorVida` e não `fim2.vida`: ver a nota onde ela é acumulada.
+    // O TETO vem do jogo, não daqui: esta bancada já teve `240` escrito à mão
+    // e continuou imprimindo números com duas casas depois que o teto virou 300.
+    // Sem teto não há número: um `?? 240` calado foi exatamente como esta
+    // bancada continuou imprimindo "de 240" depois que o teto virou 300.
+    const teto = fim2?.vidaMaxima;
+    if (!teto) { console.log('\n  [SEM TETO] a página não expôs `vidaMaxima` — número não calculado.'); }
+    const dano = teto ? teto - Math.min(menorVida, fim2?.vida ?? teto) : 0;
+    const dps = teto ? dano / tLuta : 0;
     console.log(`\n  ── O NÚMERO ──`);
     console.log(`  tempo lutando ....... ${tLuta.toFixed(1)}s`);
-    console.log(`  dano causado ........ ${dano.toFixed(1)} de 240`);
+    console.log(`  dano causado ........ ${dano.toFixed(1)} de ${teto}  (menor vida vista: ${menorVida.toFixed(1)})`);
     console.log(`  DANO POR SEGUNDO .... ${dps.toFixed(2)}`);
-    console.log(`  => LUTA COMPLETA .... ${dps > 0 ? (240/dps).toFixed(0)+'s (' + (240/dps/60).toFixed(1) + ' min)' : 'NUNCA'}`);
+    console.log(`  => LUTA COMPLETA .... ${dps > 0 ? (teto/dps).toFixed(0)+'s (' + (teto/dps/60).toFixed(1) + ' min)' : 'NUNCA'}`);
 }

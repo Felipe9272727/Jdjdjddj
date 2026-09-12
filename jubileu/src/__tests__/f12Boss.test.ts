@@ -960,8 +960,11 @@ describe('f12 — o andar vale em qualquer tela', () => {
             const fatia = ENQUADRAMENTO.envergadura / larg;
             expect(fatia, `${nome}: o avião ficou de outro tamanho`)
                 .toBeCloseTo(ALVOS_DE_TELA.naveNaLargura(a), 3);
-            expect(fatia, `${nome}: o avião virou um borrão`).toBeGreaterThanOrEqual(0.17 - 1e-9);
-            expect(fatia, `${nome}: o avião não deixa espaço para desviar`).toBeLessThanOrEqual(0.30 + 1e-9);
+            // Os limites saem de `naveNaLargura`, não de números repetidos aqui:
+            // duplicá-los foi como este arquivo já teve duas contas da mesma
+            // fórmula discordando uma da outra.
+            expect(fatia, `${nome}: o avião virou um borrão`).toBeGreaterThanOrEqual(0.185 - 1e-9);
+            expect(fatia, `${nome}: o avião não deixa espaço para desviar`).toBeLessThanOrEqual(0.33 + 1e-9);
         }
     });
 

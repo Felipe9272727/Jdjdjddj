@@ -29,12 +29,12 @@ import {
     f12, f12Reset, f12AoMudar, f12Bump, ARENA, meioY, ENQUADRAMENTO, BOCA_ALVO,
     larguraDoQuadro, ajustarAoAspecto,
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
-    bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
+    bocaNoInstante, vulneravel, CICLO_DA_BOCA,
     ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir,
     // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
-    nascerTiro, TIRO, tentarAtirar, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
+    nascerTiro, TIRO, tentarAtirar, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA, F12_ALERTAS,
     type Nave, type NomeDoAtaque, type F12Linha,
 } from './f12Boss';
@@ -46,7 +46,7 @@ import { Faiscas } from './Floor12Faiscas';
 import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
-import { AviaoDoJogador, AviaoDoIrmao, CascoDoElevador } from './Floor12Avioes';
+import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
@@ -399,7 +399,6 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     if (import.meta.env?.DEV) F12FERRAMENTAS.atual = F;
     const ladoDoTiro = useRef<-1 | 1>(1);
     const ladoDoIrmao = useRef<-1 | 1>(1);
-    const proxAtaque = useRef(0);
     const segundo = useRef<{ ciclo: number; quando: number } | null>(null);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
@@ -783,6 +782,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             irmao: irmao.current, ataqueNoAr: f12.ataqueNoAr, relogio: f12.relogio,
             bocaT: f12.bocaT, linhaDoDialogo: f12.linhaDoDialogo,
             passouDaVirada: f12.passouDaVirada, vidas: nave.current.vidas,
+            // A bancada precisa do TETO da vida para calcular dano e duração.
+            // Ela tinha 240 escrito à mão em três lugares; quando o teto subiu
+            // para 300 ela passou a relatar 96,9 de dano onde houve 156,9 e uma
+            // luta de 131 s onde a luta é de 101 s — sem errar sinal nenhum, o
+            // que é o pior tipo de régua quebrada. Ela lê daqui agora.
+            vidaMaxima: VIDA_MAXIMA,
         };
     }
     // ── PULAR ────────────────────────────────────────────────────────────
@@ -924,7 +929,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 // continuam jogáveis, e o celular — que é o alvo — não perde
                 // nada, porque ele já estava abaixo do teto.
                 dpr={dprDoOrcamento()}
-                camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 620, position: [0, meioY() + 0.35, 0.55] }}
+                camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 820, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: false }}
                 onCreated={({ gl, scene, camera }) => {
                     gl.domElement.style.imageRendering = 'pixelated';
@@ -938,7 +943,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     // o céu voltava a parecer vazio, só que caro. De 120 a 560
                     // ela continua dando perspectiva aérea (o que está longe
                     // clareia) sem apagar o que foi posto para ser visto.
-                    scene.fog = new THREE.Fog('#b7e2f7', 120, 560);
+                    scene.fog = new THREE.Fog('#b7e2f7', 180, 760);
                     // DEV: a bancada precisa MEDIR o enquadramento. Sem isto, o
                     // tamanho do avião e da cabeça na tela é opinião — e opinião
                     // sobre enquadramento já custou caro neste repositório.
@@ -998,7 +1003,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     </div>
                     {/* o grito do ataque: o telegrafo escrito */}
                     <GritoDoAtaque gritoRef={gritoRef} />
-                    <AvisoDeJanela />
+                    <AvisoDeJanela calado={temAlerta} />
                 </>
             )}
 
@@ -1180,7 +1185,7 @@ const RevelarAviao: React.FC<{
  * nada acontece. O anel na boca diz isso em 3D; esta linha diz em palavras,
  * para quem estiver olhando para o próprio avião.
  */
-const AvisoDeJanela: React.FC = () => {
+const AvisoDeJanela: React.FC<{ calado: boolean }> = ({ calado }) => {
     // ── ELE ERA PERMANENTE, E POR ISSO NÃO ERA DICA ──────────────────────
     //
     // Aparecia toda vez que a boca abria — 51% do ciclo, pelos dois minutos
@@ -1213,7 +1218,18 @@ const AvisoDeJanela: React.FC = () => {
             setAberta(q);
         }
     });
-    if (!aberta || gasto) return null;
+    // ── A FILA TEM PRIORIDADE, E O ALA GANHA ─────────────────────────────
+    //
+    // Eu disse que o rodapé tinha virado fila e ele não tinha: eu só havia
+    // calado a DICA DE CONTROLE quando o ala fala. O "ATIRE NA BOCA!" continuava
+    // saindo por cima da legenda dele — dois textos simultâneos em todos os
+    // quadros pós-virada de uma folha de fotos. Dizer "virou fila" e entregar
+    // uma pilha com um item a menos é a mesma classe de erro dos comentários que
+    // afirmavam coisas falsas.
+    //
+    // A ordem é: o ala ensina o padrão que está CHEGANDO (informação perecível),
+    // o aviso da janela é permanente enquanto durar. Quem é perecível fala.
+    if (!aberta || gasto || calado) return null;
     return (
         <div style={{
             // ── ELE SAIU DE CIMA DA CARA DELA ────────────────────────

@@ -26,16 +26,17 @@ O que está ao alcance e é o que separa amador de publicado: **impacto de
 combate**, **áudio em camadas**, **clímax**, **desempenho** e **acabamento de
 tela**. A escada abaixo é só disso.
 
-## Onde a régua está hoje (2026-09-12)
+## Onde a régua está hoje (2026-09-12, ciclo 4)
 
 | medida | valor |
 |---|---|
-| luta completa, toque deitado | 144 s |
-| luta completa, toque em pé | 120 s |
-| luta completa, teclado | 127 s |
-| padrões vistos em 45 s | 5 de 5 |
-| tempo até poder jogar | 12,2 s (5,9 s pulando) |
-| FPS mediana (deitado / em pé) | 50 / 45 |
+| luta completa, toque deitado | 110 s |
+| luta completa, toque em pé | 108 s |
+| luta completa, teclado | 111 s |
+| diferença entre a tela mais rápida e a mais lenta | 2,6 % |
+| padrões vistos em 60 s | 5 de 5 |
+| tempo até poder jogar | 12,6 s |
+| FPS mediana (deitado / em pé / desktop) | 47,9 / 44,7 / 38,0 |
 
 ---
 
@@ -89,3 +90,28 @@ se assusta. Barks já existem (`F12_ALERTAS`); falta o corpo.
 
 ### Ciclo 0 — 2026-09-12 — a escada foi escrita
 Estado inicial registrado acima. Nada feito ainda.
+
+### Ciclo 4 — 2026-09-12 — a cidade virou horizonte, e a régua parou de chutar
+
+**A cidade.** Eram 14 torres de geometria posicionadas por fração de tela. Como
+`xParaFracao` preserva o ângulo subtendido, afastá-las não reduzia o
+esparramamento em perspectiva: nas bordas do quadro elas tombavam para fora e o
+terço de baixo virava entulho. Viraram dois painéis pintados em canvas, ancorados
+pela LINHA DO CÉU (`topo`) e com a altura em fração de tela, resolvidos pela
+mesma régua do resto do andar. A camada de trás desbota 62 % na cor da bruma e
+não acende janela nenhuma — janela é contraste máximo, e contraste máximo ao
+longe desfaz a distância que o desbotamento acabou de construir.
+
+**A régua.** A bancada tinha o teto da vida (`240`) escrito à mão em três
+lugares. Consertar o hitstop devolveu ao jogo o relógio que um defeito roubava, a
+luta encurtou para 84 s (abaixo do piso de 90 s), a vida subiu para 300 — e a
+bancada passou a relatar `83.4 de 240` onde houve 149,4. Hoje ela lê o teto da
+página e diz `[SEM TETO]` em vez de chutar.
+
+| medida | antes (HEAD) | depois |
+|---|---|---|
+| luta, toque deitado | 103 s | 110 s |
+| luta, toque em pé | 100 s | 108 s |
+| luta, teclado | 98 s | 111 s |
+| diferença entre telas | 5,0 % | 2,6 % |
+| FPS mediana deitado / em pé / desktop | 46,3 / 43,2 / 37,7 | 47,9 / 44,7 / 38,0 |

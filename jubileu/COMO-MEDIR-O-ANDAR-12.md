@@ -25,6 +25,14 @@ derivando da primeira (o ritmo da arma chegou a estar escrito à mão lá dentro
 o irmão atirava por outras regras). Uma régua que discorda do produto é pior do
 que régua nenhuma, porque dá confiança.
 
+> **A bancada também já foi.** Ela tinha `240` — o teto da vida do chefe —
+> escrito à mão em três lugares. Quando o teto subiu para 300 ela continuou
+> imprimindo `dano causado 83.4 de 240` onde houve 149,4, e `LUTA COMPLETA 152s`
+> onde a luta é de 106 s: números plausíveis, com duas casas decimais, todos
+> errados, e nenhum aviso. Hoje ela lê `vidaMaxima` da página e, se a página não
+> expuser, ela diz `[SEM TETO]` e **não calcula** — régua que não sabe medir tem
+> de calar a boca, não chutar.
+
 > **Este arquivo também já foi uma mentira.** Um commit disse que ele existia e
 > ele não existia: o `git rm` antes dele falhou e cortou a cadeia `&&` antes do
 > heredoc. Um avaliador independente achou. Se você citar um arquivo num
@@ -82,6 +90,7 @@ dizendo que estava resolvido.
 | medida | faixa |
 |---|---|
 | luta completa, jogando de verdade | 90–150 s |
+| a mesma luta medida com o teto errado | não existe — ver `[SEM TETO]` |
 | diferença entre a tela mais rápida e a mais lenta | < 25% |
 | toque vs teclado, na mesma política | < 15% |
 | padrões distintos vistos em 60 s | 5 |
