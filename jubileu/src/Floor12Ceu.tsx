@@ -334,6 +334,19 @@ const Torre: React.FC<{ p: [number, number, number]; e: number; semente: number;
         }, [semente]);
         return (
             <group position={p} scale={e}>
+                {/* ── A ÂNCORA É O TOPO, NÃO A BASE ──
+                    `yParaFracao` devolve onde o ORIGEM do grupo cai na tela, e a
+                    torre crescia para CIMA a partir dele. Então pedir "v = 0,05"
+                    punha a base lá embaixo e o prédio inteiro subia até a faixa
+                    do avião — foi assim que a cidade invadiu o espaço do jogador
+                    pela terceira vez seguida, cada vez por um motivo diferente.
+                    Descendo tudo por `altura`, o número que eu peço passa a ser
+                    o que eu vejo: o topo. */}
+                <group position={[0, -altura, 0]}>
+                {/* ERETAS. Elas herdavam a inclinação do grupo pai e saíam
+                    tortas em ângulos diferentes, o que é a assinatura visual de
+                    destroço, não de prédio. Prédio é vertical; é disso que o
+                    olho tira "isso foi construído". */}
                 {/* a rocha pendurada embaixo: é o que faz a torre FLUTUAR em vez
                     de estar cortada */}
                 <mesh material={M.rocha} position={[0, -1.6, 0]} scale={[1, 0.75, 1]}>
@@ -350,6 +363,7 @@ const Torre: React.FC<{ p: [number, number, number]; e: number; semente: number;
                         <cylinderGeometry args={[0.55, 0.75, 0.9, 6]} />
                     </mesh>
                 )}
+                </group>
             </group>
         );
     };
@@ -371,6 +385,8 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
     }), []);
     return (
         <group position={p} scale={3.2} rotation={[0, 0.42, 0]}>
+          {/* o hotel também pende do topo — ver a nota em `Torre` */}
+          <group position={[0, -28, 0]}>
             <mesh material={M.rocha} position={[0, -4, 0]} scale={[1.6, 0.8, 1.6]}>
                 <coneGeometry args={[7, 12, 8]} />
             </mesh>
@@ -389,7 +405,7 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
                 <planeGeometry args={[8.4, 2.1]} />
                 <meshBasicMaterial map={letreiro} transparent fog={false} toneMapped={false} />
             </mesh>
-
+          </group>
         </group>
     );
 };
@@ -444,30 +460,51 @@ const CidadeNoCeu: React.FC = () => {
             ({ tipo: 'torre' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], e, semente });
         const ponte = (u: number, v: number, z: number, c: number, e: number) =>
             ({ tipo: 'ponte' as const, p: [xParaFracao(u, z), yParaFracao(v, z), z] as [number, number, number], c, e });
+        // ── A CIDADE DESCEU, E O MOTIVO É O QUE ELA TEM DE SER ───────────
+        //
+        // Elas ficavam em v = 0,54 a 0,90 — a faixa do chefe e acima. Um
+        // avaliador independente olhou as fotos e disse: "lê como entulho
+        // orbitando, não como cidade lá embaixo". Ele está certo, e o erro foi
+        // meu de duas vezes seguidas: primeiro pus as torres na faixa do AVIÃO
+        // (disputando com o jogador), depois corrigi para a faixa do CHEFE
+        // (disputando com o chefe). Nenhuma das duas é onde uma cidade fica.
+        //
+        // Cidade fica EMBAIXO. O andar é "o hotel virou céu": o jogador voa
+        // ACIMA do prédio, e o que dá altitude é ver o mundo lá no fundo,
+        // afundando nas nuvens. Agora elas moram em v = 0,02 a 0,30, abaixo da
+        // linha de voo e atrás do mar de nuvens, com o topo aparecendo entre as
+        // camadas — que é como uma torre distante se vê de um avião.
+        //
+        // Sobram duas bem altas e MUITO longe (v ~0,80, z -290): não são
+        // cidade, são silhueta de fundo para o chefe não flutuar contra o vazio.
         return [
-            torre(0.06, 0.62, -168, 1.8, 11),
-            torre(0.16, 0.80, -228, 2.6, 23),
-            torre(0.26, 0.56, -204, 1.9, 31),
-            torre(0.94, 0.60, -172, 1.9, 47),
-            torre(0.84, 0.78, -226, 2.5, 59),
-            torre(0.74, 0.54, -210, 1.8, 71),
-            torre(0.98, 0.86, -262, 3.0, 83),
-            // atrás da cabeça, para o chefe ter cidade por trás e não vazio
-            torre(0.38, 0.90, -276, 2.7, 97),
-            torre(0.62, 0.88, -290, 2.9, 101),
-            ponte(0.12, 0.71, -198, 20, 2.0),
-            ponte(0.88, 0.70, -196, 16, 1.8),
+            // Os `v` agora são o TOPO da torre, e todos ficam ABAIXO do avião
+            // (que a composição põe em 0,25): a cidade afunda nas nuvens, que é
+            // como uma torre distante se vê de um avião.
+            torre(0.04, 0.17, -150, 2.0, 11),
+            torre(0.16, 0.11, -120, 1.6, 23),
+            torre(0.28, 0.19, -198, 2.4, 31),
+            torre(0.96, 0.16, -156, 2.0, 47),
+            torre(0.84, 0.10, -126, 1.7, 59),
+            torre(0.72, 0.20, -204, 2.3, 71),
+            torre(0.45, 0.14, -244, 2.8, 83),
+            torre(0.57, 0.12, -232, 2.6, 89),
+            ponte(0.12, 0.13, -174, 20, 2.0),
+            ponte(0.88, 0.12, -172, 16, 1.8),
         ];
     }, []);
 
+    // Os estandartes ficam ALTOS: eles são do hotel, não da cidade, e são a
+    // única peça de texto do cenário. Embaixo, entre as nuvens, ninguém os lê.
     const estandartes = useMemo(() => ([
-        { u: 0.80, v: 0.66, z: -150, e: 5.0, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
-        { u: 0.20, v: 0.68, z: -156, e: 4.8, linhas: ['ANDAR', '12'] },
+        { u: 0.86, v: 0.72, z: -138, e: 5.4, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
+        { u: 0.14, v: 0.74, z: -144, e: 5.2, linhas: ['ANDAR', '12'] },
     ].map((b) => ({ ...b, p: [xParaFracao(b.u, b.z), yParaFracao(b.v, b.z), b.z] as [number, number, number] }))), []);
 
+    // O HOTEL é o mais baixo de todos: ele é o prédio de onde o jogador veio.
     const hotel = useMemo(() => {
-        const z = -210;
-        return [xParaFracao(0.10, z), yParaFracao(0.30, z), z] as [number, number, number];
+        const z = -190;
+        return [xParaFracao(0.11, z), yParaFracao(0.02, z), z] as [number, number, number];
     }, []);
 
     return (

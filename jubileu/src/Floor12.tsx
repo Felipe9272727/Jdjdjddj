@@ -40,6 +40,7 @@ import {
 } from './f12Boss';
 import {
     impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
+    espalharFaiscas,
 } from './f12Impacto';
 import { Faiscas } from './Floor12Faiscas';
 import { Floor12Ceu } from './Floor12Ceu';
@@ -551,7 +552,9 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 if (tiroNaBoca(p)) {
                     mortos.add(p.id);
                     const virou = ferir(RASPAO.dano);
-                    F.flash.current = 1.6;
+                    // O carregado ainda acende a cabeça: ele é o golpe grande e
+                    // o contraste com o tiro comum é a informação.
+                    F.flash.current = 1.3;
                     impacto('carregado', p.x, p.y, ARENA.zCabeca + 2);
                     tocarExplosao();
                     if (virou) abrirAVirada(F);
@@ -577,10 +580,13 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 if (podeFerir && tiroNaBoca(p)) {
                     mortos.add(p.id);
                     const virou = ferir(p.de === 'irmao' ? TIRO.danoIrmao : TIRO.dano);
-                    F.flash.current = 1;
-                    // As faíscas nascem NO PONTO do acerto. A cabeça inteira
-                    // piscando diz "algo aconteceu" e não diz ONDE — e "onde" é
-                    // a informação que ensina o jogador a mirar.
+                    // ── O FLASH DA CABEÇA INTEIRA SAIU ───────────────
+                    // Ele acendia o crânio todo, que é literalmente o defeito
+                    // que o cabeçalho de `f12Impacto` descreve: diz "algo
+                    // aconteceu" e não diz ONDE. Eu acrescentei a camada nova e
+                    // deixei viva a que estava criticando — dois sistemas para
+                    // a mesma coisa, e o pior deles por cima do melhor. Agora o
+                    // acerto do tiro comum é só a faísca, no ponto exato.
                     impacto('tiro', p.x, p.y, ARENA.zCabeca + 2);
                     tocarAcerto();
                     if (virou) abrirAVirada(F);
@@ -600,6 +606,18 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 impacto('dano', n.x, n.y, ARENA.zNave);
                 tocarDano();
                 if (p.tipo !== 'mare') mortos.add(p.id);
+                // ── O RESPIRO: o que está em volta SOME ──────────────
+                // Ver a nota em `NAVE.limpezaAoLevar`. Sem isto, o projétil
+                // seguinte da mesma salva cobra de novo enquanto o jogador
+                // ainda se recoloca, e um erro custa três vidas.
+                for (const q of f12.projeteis) {
+                    if (q.tipo === 'tiro' || q.tipo === 'carregado' || q.tipo === 'mare') continue;
+                    if (Math.abs(q.z - ARENA.zNave) > 10) continue;
+                    if (Math.hypot(q.x - n.x, q.y - n.y) < NAVE.limpezaAoLevar) {
+                        mortos.add(q.id);
+                        espalharFaiscasDoRespiro(q.x, q.y, q.z);
+                    }
+                }
                 if (n.vidas <= 0) acabar(F, 'derrota');
                 F.avisar();
             }
@@ -619,6 +637,11 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 };
 
 /** A boca cospe o padrão pedido. */
+/** Cada projétil varrido pelo respiro vira faísca: o jogador VÊ o perdão. */
+function espalharFaiscasDoRespiro(x: number, y: number, z: number): void {
+    espalharFaiscas(x, y, z, 3, 3.2, 2);
+}
+
 function cuspir(
     qual: NomeDoAtaque, alvo: Nave,
     faixa: React.MutableRefObject<number>, faseMare: React.MutableRefObject<number>,
@@ -880,12 +903,27 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     }, []);
 
     const mostrarControles = fase === 'luta';
+    // Enquanto o ala fala, a dica de controle cede o lugar: duas frases no mesmo
+    // rodapé é o mesmo que nenhuma.
+    const [temAlerta, setTemAlerta] = useState(false);
     const vidaFrac = Math.max(0, f12.vida / VIDA_MAXIMA);
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
             <Canvas
-                dpr={0.6}
+                // ── ORÇAMENTO DE PIXELS, E NÃO UM `dpr` FIXO ─────────────
+                //
+                // Era `dpr={0.6}` para todo mundo. `dpr` é um MULTIPLICADOR:
+                // com ele fixo, uma tela maior renderiza proporcionalmente mais
+                // pixels e paga proporcionalmente mais. Medido, o andar dava 46
+                // quadros a 915x412 e 27 a 1280x720 — a mesma cena, quase
+                // metade do quadro, só porque a janela é maior.
+                //
+                // Um teto de pixels faz o custo do quadro parar de depender do
+                // tamanho da janela: telas grandes ficam um pouco mais macias e
+                // continuam jogáveis, e o celular — que é o alvo — não perde
+                // nada, porque ele já estava abaixo do teto.
+                dpr={dprDoOrcamento()}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 620, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: false }}
                 onCreated={({ gl, scene, camera }) => {
@@ -1008,8 +1046,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             )}
             {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
                 alguém tem de dizer que a tela é o joystick. */}
-            {mostrarControles && <DicaDeControle />}
-            <AlertaDoAla alertaRef={alerta} />
+            {/* ── O RODAPÉ É UMA FILA, NÃO UMA PILHA ──
+                Chegaram a ficar QUATRO textos sobrepostos na faixa de baixo — a
+                legenda do ala, "ATIRE NA BOCA!", "ARRASTE..." e a linha do tiro
+                automático — bem em cima de onde o avião voa. Eu tinha tirado a
+                dica de cima da cara do chefe e empilhado tudo embaixo: troquei
+                um estorvo por outro. Agora cada faixa tem a sua altura e só uma
+                fala de cada vez, na ordem de urgência: o ala ensina o padrão que
+                está chegando, e o resto espera. */}
+            {mostrarControles && !temAlerta && <DicaDeControle naveRef={nave} />}
+            <AlertaDoAla alertaRef={alerta} aoMudar={setTemAlerta} />
 
             {/* PULAR: fica no canto, discreto, e some quando a luta começa */}
             {(fase === 'intro' || fase === 'virando' || fase === 'encontro') && (
@@ -1080,10 +1126,22 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
  * sozinha depois de seis segundos: um aviso que fica para sempre vira sujeira
  * em cima de um jogo que já tem muita coisa acontecendo.
  */
-const DicaDeControle: React.FC = () => {
+const DicaDeControle: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) => {
+    // ── ELA SOME QUANDO O JOGADOR MEXE, E NÃO NO RELÓGIO ─────────────────
+    //
+    // Eram seis segundos fixos. Quem entende em um segundo continuava lendo
+    // "ARRASTE EM QUALQUER LUGAR PARA VOAR" por mais cinco, em cima do próprio
+    // avião — e quem estava perdido também perdia a frase aos seis. Uma
+    // instrução tem um trabalho: ser obedecida. Quando ela é, acabou.
     const [visivel, setVisivel] = useState(true);
+    useFrameFora(() => {
+        if (visivel && Math.abs(naveRef.current.x) + Math.abs(naveRef.current.y - meioY()) > 0.9) {
+            setVisivel(false);
+        }
+    });
     useEffect(() => {
-        const id = window.setTimeout(() => setVisivel(false), 6000);
+        // teto de segurança para quem não mexe
+        const id = window.setTimeout(() => setVisivel(false), 9000);
         return () => window.clearTimeout(id);
     }, []);
     if (!visivel) return null;
@@ -1140,13 +1198,20 @@ const AvisoDeJanela: React.FC = () => {
     // para o mesmo problema (o barramento `f12AoMudar`, um laço de quadro e dois
     // `setInterval` com períodos diferentes). Três relógios para a mesma verdade
     // é como duas partes da tela discordam sobre o que está acontecendo.
+    // O CONTADOR NÃO PODE MORAR DENTRO DO UPDATER. Ele morava: o
+    // `++vistas.current` e o `setGasto` estavam dentro do `setAberta(antes =>
+    // ...)`. Em `StrictMode` o React invoca updaters DUAS VEZES em
+    // desenvolvimento para achar exatamente esse tipo de impureza — e o
+    // contador andava em dobro, matando a dica em duas aberturas em vez de
+    // três. Funcionava em produção, que é a pior forma de um defeito existir.
+    const eraAberta = useRef(false);
     useFrameFora(() => {
         const q = vulneravel(bocaNoInstante(f12.bocaT)) && f12.fase === 'luta';
-        setAberta((antes) => {
-            if (antes === q) return antes;
-            if (q && ++vistas.current > 3) setGasto(true);
-            return q;
-        });
+        if (q !== eraAberta.current) {
+            eraAberta.current = q;
+            if (q) { vistas.current += 1; if (vistas.current > 3) setGasto(true); }
+            setAberta(q);
+        }
     });
     if (!aberta || gasto) return null;
     return (
@@ -1205,13 +1270,24 @@ export default Floor12;
  * comentada aparece na tela, e o jogador pode estar desviando enquanto lê — que
  * é a diferença entre um personagem e um menu.
  */
-const AlertaDoAla: React.FC<{ alertaRef: React.MutableRefObject<{ texto: string; ate: number }> }> =
-    ({ alertaRef }) => {
+const AlertaDoAla: React.FC<{
+    alertaRef: React.MutableRefObject<{ texto: string; ate: number }>;
+    aoMudar: (tem: boolean) => void;
+}> = ({ alertaRef, aoMudar }) => {
         const [txt, setTxt] = useState('');
+        // O `aoMudar` NÃO vai dentro do updater. Eu já tinha acabado de
+        // consertar exatamente isto em `AvisoDeJanela` — em `StrictMode` o React
+        // invoca updaters duas vezes de propósito, para achar impureza, e um
+        // efeito colateral ali dispara em dobro. Repeti o erro na linha
+        // seguinte; o jeito de não repetir é o estado anterior morar num ref.
+        const anterior = useRef('');
         useFrameFora(() => {
             const a = alertaRef.current;
-            const vivo = a.texto && f12.relogio < a.ate;
-            setTxt((antes) => (vivo ? a.texto : '') === antes ? antes : (vivo ? a.texto : ''));
+            const quer = a.texto && f12.relogio < a.ate ? a.texto : '';
+            if (quer === anterior.current) return;
+            anterior.current = quer;
+            setTxt(quer);
+            aoMudar(!!quer);
         });
         if (!txt) return null;
         return (
@@ -1231,14 +1307,39 @@ const AlertaDoAla: React.FC<{ alertaRef: React.MutableRefObject<{ texto: string;
         );
     };
 
-/** Um `useFrame` que funciona FORA do Canvas (o HUD não vive na cena 3D). */
+/**
+ * Um `useFrame` que funciona FORA do Canvas (o HUD não vive na cena 3D).
+ *
+ * ── UM LAÇO, NÃO UM POR COMPONENTE ───────────────────────────────────────────
+ *
+ * A primeira versão abria um `requestAnimationFrame` próprio por chamador. Isso
+ * trocou dois `setInterval` por TRÊS laços de quadro independentes, contra o
+ * comentário que eu mesmo tinha escrito condenando "três relógios para a mesma
+ * verdade". Relógio duplicado é como duas partes da tela discordam sobre o que
+ * está acontecendo, e três rAF custam três vezes o agendamento por um trabalho
+ * que cabe num.
+ *
+ * Agora há um só, criado quando o primeiro assinante entra e desligado quando o
+ * último sai.
+ */
+const ASSINANTES = new Set<() => void>();
+let lacoDoHud = 0;
+
+function girarOHud(): void {
+    for (const fn of ASSINANTES) fn();
+    lacoDoHud = ASSINANTES.size ? requestAnimationFrame(girarOHud) : 0;
+}
+
 function useFrameFora(fn: () => void): void {
     const guardado = useRef(fn); guardado.current = fn;
     useEffect(() => {
-        let vivo = true;
-        const laco = () => { if (!vivo) return; guardado.current(); requestAnimationFrame(laco); };
-        const id = requestAnimationFrame(laco);
-        return () => { vivo = false; cancelAnimationFrame(id); };
+        const chamar = () => guardado.current();
+        ASSINANTES.add(chamar);
+        if (!lacoDoHud) lacoDoHud = requestAnimationFrame(girarOHud);
+        return () => {
+            ASSINANTES.delete(chamar);
+            if (!ASSINANTES.size && lacoDoHud) { cancelAnimationFrame(lacoDoHud); lacoDoHud = 0; }
+        };
     }, []);
 }
 
@@ -1256,3 +1357,21 @@ const IconeDeVida: React.FC<{ cheia: boolean }> = ({ cheia }) => (
             fill={cheia ? '#FFD54F' : '#cfd6e4'} stroke="#11131a" strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
 );
+
+
+/**
+ * O `dpr` que mantém o custo do quadro constante, seja qual for a janela.
+ *
+ * `ORCAMENTO` é em pixels de render. Ele sai da tela em que o andar foi
+ * composto (412x915 a 0,6 de dpr) — abaixo dele nada muda, acima dele a escala
+ * cai para caber. O teto de 0,62 existe porque o andar é pixelado de propósito
+ * (`imageRendering: 'pixelated'`), e subir a resolução não o deixaria mais
+ * bonito, só mais caro.
+ */
+const ORCAMENTO_DE_PIXELS = 412 * 915 * 0.6 * 0.6;
+
+function dprDoOrcamento(): number {
+    if (typeof window === 'undefined') return 0.6;
+    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+    return Math.max(0.34, Math.min(0.62, Math.sqrt(ORCAMENTO_DE_PIXELS / (w * h))));
+}

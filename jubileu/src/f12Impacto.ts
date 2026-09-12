@@ -108,8 +108,6 @@ export function deslocamentoDoTremor(): { x: number; y: number; giro: number } {
     };
 }
 
-export const traumaAgora = (): number => tremorEstado.trauma;
-
 // ── AS FAÍSCAS ───────────────────────────────────────────────────────────────
 //
 // O acerto acendia a CABEÇA INTEIRA. Isso diz "algo aconteceu" e não diz onde —
@@ -209,10 +207,17 @@ export function reiniciarImpacto(): void {
 // que nada é. O tiro comum quase não sacode; ele entrega peso pelas faíscas e
 // pela parada curtíssima.
 export const IMPACTOS = Object.freeze({
-    tiro: Object.freeze({ stop: 0.022, forcaStop: 0.35, trauma: 0.10, faiscas: 5, forca: 5.0 }),
+    // ── O HITSTOP DO TIRO COMUM ERA SUB-QUADRO ───────────────────────────
+    // Estava em 0,022 s. Medido, o andar roda entre 27 e 45 quadros por
+    // segundo, ou seja um quadro dura de 22 a 37 ms: a pausa inteira cabia
+    // DENTRO de um quadro e não existia como sensação — nem aqui, nem num
+    // celular fraco. Um efeito que não sobrevive ao pior quadro do seu alvo não
+    // é um efeito, é um número no arquivo. 0,05 atravessa dois quadros a 40 fps
+    // e continua curto o bastante para noventa por cento dos acertos do andar
+    // não virarem soluço.
+    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4 }),
     carregado: Object.freeze({ stop: 0.075, forcaStop: 0.05, trauma: 0.42, faiscas: 18, forca: 9.5 }),
     dano: Object.freeze({ stop: 0.085, forcaStop: 0.08, trauma: 0.60, faiscas: 14, forca: 7.0 }),
-    morte: Object.freeze({ stop: 0.22, forcaStop: 0.05, trauma: 1.00, faiscas: 26, forca: 13.0 }),
 });
 
 export type TipoDeImpacto = keyof typeof IMPACTOS;

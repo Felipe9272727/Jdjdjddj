@@ -1074,9 +1074,18 @@ describe('f12 — a arma atira em rajada, com pausa', () => {
 // Não havia UM teste sobre a virada. Não é coincidência que ela não fizesse
 // nada: o que ninguém cobra, ninguém entrega. Estes cobram.
 describe('f12 — a virada aperta a luta', () => {
-    it('o segundo cuspe existe e é sempre DIFERENTE do primeiro', () => {
-        for (let i = 0; i < 200; i++) {
-            expect(segundoAtaqueDaVez(i), `ciclo ${i}`).not.toBe(ataqueDaVez(i));
+    // ── A SEQUÊNCIA QUE O JOGADOR VÊ É INTERCALADA ───────────────────────
+    //
+    // O teste anterior conferia só `segundo(n) !== primeiro(n)` e passava. Mas o
+    // jogador vê primeiro(n), segundo(n), primeiro(n+1), segundo(n+1)... e
+    // ninguém olhava a emenda entre um ciclo e o outro. Medido na sequência
+    // real: oito repetições coladas em 59 pares. Um teste que olha metade das
+    // emendas garante metade da regra.
+    it('nenhum padrão emenda consigo mesmo na sequência REAL', () => {
+        const seq: NomeDoAtaque[] = [];
+        for (let i = 0; i < 200; i++) { seq.push(ataqueDaVez(i)); seq.push(segundoAtaqueDaVez(i)); }
+        for (let i = 1; i < seq.length; i++) {
+            expect(seq[i], `posição ${i} repete ${seq[i]}`).not.toBe(seq[i - 1]);
         }
     });
 

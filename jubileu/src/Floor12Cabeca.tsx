@@ -38,15 +38,29 @@ import {
  */
 export const ESCALA = ESCALA_DA_CABECA;
 
+// ── A CABEÇA ERA UM BORRÃO ROXO ──────────────────────────────────────────────
+//
+// Um avaliador independente olhou seis fotos da luta e escreveu: "com a boca
+// fechando, a cabeça não tem rosto legível — é um volume arroxeado com um anel
+// amarelo. O antagonista do andar não lê." Ele está certo, e a causa é valor,
+// não forma: a pele (#8d7f9c), a pele escura (#6c6079) e a órbita (#3b3146)
+// eram três roxos de luminosidade parecida, num céu azul claro, com iluminação
+// chapada e sem sombra. Tudo virava uma mancha só.
+//
+// A paleta agora tem AMPLITUDE: a pele clareou para um osso-lilás que separa do
+// céu, a pele escura afundou para quase preto, e a órbita foi para o fundo do
+// poço. Três degraus bem distantes fazem o relevo aparecer sem uma luz nova —
+// que é o que dá para fazer com `MeshLambertMaterial` e `flatShading`.
 const CORES = {
-    pele: '#8d7f9c',        // um cinza-lilás de gesso velho: parede de hotel
-    peleEsc: '#6c6079',
-    interior: '#2a1420',    // a garganta
+    pele: '#cfc3d8',        // osso-lilás: clareou para separar do céu
+    peleEsc: '#5a4f66',     // a sombra do rosto, agora funda de verdade
+
+    interior: '#1a0a14',    // a garganta
     brasa: '#ff7a3a',       // o que arde lá dentro
     olho: '#f4f1e4',
     pupila: '#1a1520',
-    dente: '#e9e3d2',
-    orbita: '#3b3146',     // a sombra da órbita: é ela que dá o olhar
+    dente: '#fffaf0',
+    orbita: '#241d2e',     // o fundo do poço do olho: quase preto, de propósito
     latao: '#c9a24a',      // as portas de elevador da coroa
     ferida: '#c8443a',
 };

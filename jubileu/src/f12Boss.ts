@@ -576,7 +576,6 @@ export interface FichaDoAtaque {
     grito: string;
     /** De onde a referência vem, para o diálogo do irmão. */
     lore: string;
-    /** Só entra depois da virada? */
 }
 
 export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
@@ -719,16 +718,31 @@ export const ENSINO_TAMANHO = ENSINO.length;
 export const ATRASO_DO_SEGUNDO = 0.85;
 
 export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
-    const primeiro = ataqueDaVez(n);
-    // Anda pelo saco até achar um diferente: determinístico e sem laço infinito,
-    // porque o bloco tem os cinco.
+    // ── ELE TEM DE DIFERIR DOS DOIS VIZINHOS, E NÃO SÓ DE UM ─────────────
+    //
+    // A primeira versão só evitava repetir o primeiro cuspe do MESMO ciclo. Mas
+    // a sequência que o jogador vê é intercalada — primeiro(n), segundo(n),
+    // primeiro(n+1), segundo(n+1) — e ninguém estava olhando a emenda entre o
+    // segundo de um ciclo e o primeiro do seguinte. Medido na sequência real:
+    // OITO repetições coladas em 59 pares, 14%. Dois padrões iguais seguidos
+    // leem como o jogo travando, que é exatamente o que a regra existe para
+    // evitar; ela só estava sendo aplicada em metade das emendas.
+    //
+    // (Foi também o que produziu um buraco de 10,8 s sem ataque no relatório da
+    // bancada: ela registra quando o TIPO muda, então dois iguais seguidos
+    // aparecem como um silêncio que não existe. Um defeito de jogo disfarçado de
+    // defeito de instrumento.)
+    const antes = ataqueDaVez(n);
+    const depois = ataqueDaVez(n + 1);
     const k = Math.max(0, Math.floor(n)) + 2;
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
     for (let i = 0; i < ENSINO.length; i++) {
         const q = ordem[(k + i) % ENSINO.length];
-        if (q !== primeiro) return q;
+        if (q !== antes && q !== depois) return q;
     }
-    return primeiro;
+    // Com cinco padrões e dois proibidos sempre sobram três; este retorno é só
+    // para o compilador.
+    return ordem.find((q) => q !== antes) ?? antes;
 }
 
 export function ataqueDaVez(n: number): NomeDoAtaque {
@@ -1422,7 +1436,26 @@ export const NAVE = Object.freeze({
      */
     raio: 0.36,
     /** Depois de um toque, este tanto de segundos sem poder levar outro. */
-    invencivel: 2.0,
+    invencivel: 2.2,
+    /**
+     * Raio em que os projéteis somem quando o jogador é atingido.
+     *
+     * ── O RESPIRO DEPOIS DO TOQUE ────────────────────────────────────────
+     *
+     * Medido com um bot de perícia variável, do perfeito ao desatento: TODOS
+     * perdiam as cinco vidas, e o dano vinha espalhado por todos os cinco
+     * padrões — não havia um ataque culpado, a luta inteira estava apertada
+     * demais. O bot morria em ~60 s de combate numa luta que precisa de ~106 s
+     * para ser vencida: nem o jogador perfeito chegava ao fim.
+     *
+     * A resposta certa não é enfraquecer os ataques (isso apaga o desenho
+     * deles): é o que todo shmup faz há trinta anos — quando você é atingido, o
+     * que está em volta SOME. Sem isso, o segundo projétil da mesma salva cobra
+     * de novo enquanto o jogador ainda está se recolocando, e uma morte que
+     * custou um erro passa a custar três vidas. A invencibilidade sozinha não
+     * resolve, porque ela acaba com o jogador ainda dentro da nuvem.
+     */
+    limpezaAoLevar: 4.2,
     rolagemMaxima: 0.85,
 });
 
@@ -1763,7 +1796,7 @@ export const F12_ALERTAS: Readonly<Record<string, string>> = Object.freeze({
  */
 export const F12_VIRADA: ReadonlyArray<F12Linha> = Object.freeze([
     { quem: 'irmao', texto: 'BIP-ALERTA. Metade da vida dela. Olha a boca: ela não está mais esperando fechar para cuspir de novo.' },
-    { quem: 'irmao', texto: 'DOIS por abertura, daqui até o fim. O mesmo catálogo, no dobro da pressa. Fica no meio só o tempo de atirar.' },
+    { quem: 'irmao', texto: 'DOIS por abertura, daqui até o fim. O mesmo catálogo, com metade do respiro. Fica no meio só o tempo de atirar.' },
 ]);
 
 export const F12_VITORIA: ReadonlyArray<F12Linha> = Object.freeze([

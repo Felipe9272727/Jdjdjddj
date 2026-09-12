@@ -23,6 +23,21 @@ const FOTOS = process.env.FOTOS === '1';
 const IMORTAL = process.env.IMORTAL === '1';
 /** PULAR=1 mede o caminho de quem já viu a cena e aperta o botão de pular. */
 const PULAR = process.env.PULAR === '1';
+/**
+ * PERICIA=0..1 — quão bem o bot joga.
+ *
+ * 1 é o bot que sempre existiu: ele lê a ameaça mais próxima e desvia na hora,
+ * com folga certa. Ele atravessou quatro sessões inteiras sem tomar UM dano, e
+ * isso não prova que a luta é fácil — prova que a bancada só sabia medir um
+ * jogador perfeito. Um jogo que nunca acerta ninguém não tem dificuldade
+ * medida, tem dificuldade suposta.
+ *
+ * Abaixo de 1 ele erra de três formas que um humano erra: REAGE TARDE (só vê a
+ * ameaça quando ela já está perto), desvia CURTO (a folga encolhe) e às vezes
+ * NÃO REAGE (perde o quadro de decisão). As três são multiplicativas, como na
+ * vida.
+ */
+const PERICIA = process.env.PERICIA === undefined ? 1 : Number(process.env.PERICIA);
 
 const ponte = abrirPonte({ manterCache: true, registrar: () => {} });
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', headless: true,
@@ -67,10 +82,10 @@ while (agora() < fim) {
             fase: s.fase, vida: s.vida, vidas: s.vidas, ataque: s.ataqueNoAr,
             fala: s.linhaDoDialogo, virada: s.passouDaVirada,
             nx: s.nave?.x, ny: s.nave?.y, ix: s.irmao?.x, iy: s.irmao?.y,
-            nProj: pr.filter(q => q.tipo !== 'tiro').length,
+            nProj: pr.filter(q => q.tipo !== 'tiro' && q.tipo !== 'carregado').length,
             nTiros: pr.filter(q => q.tipo === 'tiro').length,
             // a ameaça mais perto de cruzar o plano do jogador
-            perto: pr.filter(q => q.tipo !== 'tiro' && q.z > -14)
+            perto: pr.filter(q => q.tipo !== 'tiro' && q.tipo !== 'carregado' && q.z > -14)
                 .map(q => ({ x: q.x, y: q.y, z: q.z, tipo: q.tipo }))
                 .sort((a, c) => c.z - a.z)[0] ?? null,
             quadros: window.__q,
@@ -89,7 +104,12 @@ while (agora() < fim) {
     if (e.fala !== falaAnt) { nota({ ev: 'fala', n: e.fala, fase: e.fase }); falaAnt = e.fala; }
     if (e.ataque !== ataqueAnt && e.ataque) { nota({ ev: 'ataque', qual: e.ataque, vida: e.vida }); ataqueAnt = e.ataque; }
     if (e.virada && !viradaAnt) { nota({ ev: 'VIRADA', vida: e.vida }); viradaAnt = true; }
-    if (vidasAnt !== null && e.vidas < vidasAnt) nota({ ev: 'TOMEI-DANO', vidas: e.vidas });
+    // DE QUEM foi o dano. "Tomei 5" não diz o que consertar; "tomei 4 da maré"
+    // diz. A bancada sabia o tipo do projétil mais perto o tempo todo e não o
+    // estava guardando.
+    if (vidasAnt !== null && e.vidas < vidasAnt) {
+        nota({ ev: 'TOMEI-DANO', vidas: e.vidas, de: e.perto ? e.perto.tipo : (e.ataque ?? '?') });
+    }
     vidasAnt = e.vidas; vidaAnt = e.vida;
 
     // ── JOGAR ────────────────────────────────────────────────────────
@@ -107,8 +127,11 @@ while (agora() < fim) {
         // DESVIO MÍNIMO, não fuga para a borda: um humano sai do caminho e
         // volta. Fugir para a parede também torna o raspão impossível de medir.
         let querMundo = e.bocaX ?? 0;                       // o padrão é mirar a boca
-        if (e.perto && e.perto.z > -11) {
-            const folga = 1.5;
+        // quanto mais perto de 1, mais cedo ele enxerga a ameaça
+        const alcance = -11 * (0.35 + 0.65 * PERICIA);
+        const distraido = Math.random() > (0.55 + 0.45 * PERICIA);
+        if (e.perto && e.perto.z > alcance && !distraido) {
+            const folga = 1.5 * (0.45 + 0.55 * PERICIA);
             const dEsq = (e.perto.x - folga) - e.nx;        // quanto andar para ficar à esquerda
             const dDir = (e.perto.x + folga) - e.nx;
             const alvo = Math.abs(dEsq) < Math.abs(dDir) ? e.perto.x - folga : e.perto.x + folga;
@@ -194,7 +217,12 @@ if (ataques.length > 1) {
     const gaps = ataques.slice(1).map((a, i) => +(a.t - ataques[i].t).toFixed(1));
     console.log(`  intervalo entre ataques: ${gaps.join(', ')}`);
 }
-console.log(`  danos tomados: ${linha.filter(l => l.ev === 'TOMEI-DANO').length}`);
+{
+    const ds = linha.filter((l) => l.ev === 'TOMEI-DANO');
+    const porTipo = {};
+    for (const d of ds) porTipo[d.de ?? '?'] = (porTipo[d.de ?? '?'] ?? 0) + 1;
+    console.log(`  danos tomados: ${ds.length}  ${ds.length ? JSON.stringify(porTipo) : ''}`);
+}
 console.log(`  tiros carregados disparados: ${cargas}`);
 
 // ── ATAQUES POR MINUTO, ANTES E DEPOIS DA VIRADA ─────────────────────────
