@@ -53,6 +53,7 @@ for (let i = 0; i < QUADROS; i++) {
   await new Promise(r => setTimeout(r, INTERVALO));
 }
 const fim = await p.evaluate(() => window.__f12estado?.fase);
+const pAtropeladas = p.evaluate(() => window.__f12regras?.bolasAtropeladas?.() ?? -1);
 console.log('\n── A CENA ──');
 for (const m of marcos) console.log(`  ${String(m.t).padStart(5)}s  ${m.fase.padEnd(9)} morteT=${(m.mt ?? 0).toFixed(2)}`);
 const morrendo = marcos.filter(m => m.fase === 'morrendo');
@@ -61,6 +62,12 @@ console.log(`  quadros em 'morrendo': ${morrendo.length} de ${QUADROS}`);
 if (morrendo.length) {
   console.log(`  duração observada: >= ${(morrendo[morrendo.length-1].t - morrendo[0].t + INTERVALO/1000).toFixed(1)}s`);
 }
+// ── O ANEL DE BOLAS AGUENTOU? ───────────────────────────────────────────────
+// Bola viva sobrescrita por bola nova = fogo que some antes da hora, e some
+// justamente no clímax, que é onde a cena é julgada. O alvo é ZERO.
+const atropeladas = await pAtropeladas;
+console.log(`  bolas vivas atropeladas pelo anel: ${atropeladas}  ${atropeladas === 0 ? 'OK' : 'O ANEL ESTOUROU'}`);
+
 // ── O AFUNDO, EM FRAÇÃO DE TELA ──────────────────────────────────────────────
 const comY = marcos.filter(m => m.fase === 'morrendo' && typeof m.yTela === 'number');
 const antesDoGrande = comY.filter(m => m.mt <= GRANDE);

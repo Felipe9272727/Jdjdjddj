@@ -42,7 +42,7 @@ import {
 } from './f12Boss';
 import {
     impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
-    espalharFaiscas, estourar,
+    espalharFaiscas, estourar, IMPACTOS, bolasAtropeladas,
 } from './f12Impacto';
 import { Faiscas } from './Floor12Faiscas';
 import { Estouros } from './Floor12Estouros';
@@ -636,13 +636,15 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                         mortos.add(p.id);
                         if ((q.hp ?? 0) <= 0) {
                             mortos.add(q.id);
-                            // A camareira é o ÚNICO padrão que se resolve
-                            // atirando — é o momento em que a arma do jogador
-                            // resolve alguma coisa visível —, e ela morria com
-                            // um bipe e nada. Uma bola pequena: menor que a do
-                            // carregado, para não roubar o contraste dele.
-                            impacto('carregado', q.x, q.y, q.z);
-                            estourar(q.x, q.y, q.z + 1, 2.6);
+                            // A camareira morria com um bipe e nada. O tipo
+                            // `nave` existe para ela: bola e tranco menores que
+                            // os do carregado, para não roubar o contraste dele.
+                            // (Aqui estava `impacto('carregado')` MAIS um
+                            // `estourar` — duas bolas, uma delas do tamanho
+                            // cheio do carregado — sob um comentário que dizia
+                            // "menor que a do carregado". A frase era falsa na
+                            // linha seguinte a si mesma.)
+                            impacto('nave', q.x, q.y, q.z);
                             tocarEstouro(0.55);
                         }
                         else tocarAcerto();
@@ -791,11 +793,11 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             const r = ESCALA_DA_CABECA * (0.25 + Math.random() * 0.75);
             const ex = f12.bocaX + Math.cos(a) * r;
             const ey = ALTURA_DA_CABECA + Math.sin(a) * r * 0.8;
-            // `impacto` já traz a bola de fogo da tabela; aqui ela é MAIOR,
-            // porque o que está estourando é uma cabeça de quinze unidades e
-            // não um tiro. A faísca diz onde; a bola diz quanto.
-            impacto('carregado', ex, ey, ARENA.zCabeca + 2);
-            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * (0.55 + Math.random() * 0.45));
+            // A bola vem da tabela, ESCALADA: o que está estourando é uma
+            // cabeça de quinze unidades e não um tiro. A faísca diz onde; a bola
+            // diz quanto.
+            impacto('carregado', ex, ey, ARENA.zCabeca + 2,
+                (ESCALA_DA_CABECA / IMPACTOS.carregado.bola) * (0.55 + Math.random() * 0.45));
             tocarEstouro(0.75);
         }
     } else if (antes < MORTE.oGrande) {
@@ -812,8 +814,8 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             const a = (i / 6) * Math.PI * 2;
             const ex = f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.75;
             const ey = ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.65;
-            impacto('carregado', ex, ey, ARENA.zCabeca + 2);
-            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.85);   // maior que a da tabela
+            impacto('carregado', ex, ey, ARENA.zCabeca + 2,
+                (ESCALA_DA_CABECA / IMPACTOS.carregado.bola) * 0.85);
         }
         estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 4, ESCALA_DA_CABECA * 1.7);
         tocarEstouro(1.6);
@@ -859,8 +861,8 @@ function comecarAMorte(F: Ferramentas): void {
     F.alertaRef.current = { texto: '', ate: 0 };
     pararMotor();
     tocarEstouro(1.1);
-    impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 2);
-    estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.9);
+    impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 2,
+        ESCALA_DA_CABECA * 0.9 / IMPACTOS.carregado.bola);
     F.avisar();
 }
 
@@ -974,7 +976,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // regras mede um segundo jogo, e este andar já perdeu três entregas
         // exatamente assim (ver `COMO-MEDIR-O-ANDAR-12.md`).
         w.__f12regras = {
-            fracaoNaTela, ALTURA_DA_CABECA, ARENA, MORTE, quedaDaMorte,
+            fracaoNaTela, ALTURA_DA_CABECA, ARENA, MORTE, quedaDaMorte, bolasAtropeladas,
         };
         w.__f12bocaX = BOCA_ALVO.x;
         w.__f12enq = { larg: larguraDoQuadro(ENQUADRAMENTO.recuo, ENQUADRAMENTO.aspecto) };

@@ -221,6 +221,7 @@ export function reiniciarImpacto(): void {
     for (const f of faiscas) f.vida = 0;
     for (const b of bolas) b.vida = 0;
     proximaBola = 0;
+    atropeladas = 0;
     proxima = 0;
 }
 
@@ -261,20 +262,58 @@ export const IMPACTOS = Object.freeze({
     // sete vezes por segundo. Se ele estourasse, a tela seria fogo contínuo e o
     // carregado não teria com o que contrastar — e o contraste É a informação,
     // que é a frase que este arquivo inteiro defende.
-    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4, bola: 0 }),
-    carregado: Object.freeze({ stop: 0.075, forcaStop: 0.05, trauma: 0.42, faiscas: 18, forca: 9.5, bola: 3.4 }),
-    dano: Object.freeze({ stop: 0.085, forcaStop: 0.08, trauma: 0.60, faiscas: 14, forca: 7.0, bola: 2.2 }),
+    // `bola: 0` e `anel: 1,5` — ver a nota em `Bola.anel`. O tiro comum paga em
+    // FORMA, não em tamanho: um anel fino de 0,18 s, que tem área e não se
+    // confunde com a bola cheia do carregado nem por um quadro.
+    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4, bola: 0, anel: 1.5 }),
+    // A camareira morrendo. Ela tem bola — é o único padrão que se resolve
+    // atirando, e o momento em que a arma do jogador resolve algo visível — mas
+    // uma bola MENOR e um tranco menor que os do carregado. Ela existe como
+    // linha própria porque a alternativa era `impacto('carregado')` com um
+    // comentário dizendo "menor que a do carregado", que foi literalmente o que
+    // eu escrevi, e era mentira na linha seguinte.
+    nave: Object.freeze({ stop: 0.04, forcaStop: 0.4, trauma: 0.22, faiscas: 10, forca: 7.0, bola: 1.5, anel: 0 }),
+    carregado: Object.freeze({ stop: 0.075, forcaStop: 0.05, trauma: 0.42, faiscas: 18, forca: 9.5, bola: 3.4, anel: 0 }),
+    // ── O RAIO É DE MUNDO; O QUE O JOGADOR VÊ É ÂNGULO ───────────────────────
+    //
+    // `dano` estoura no plano dos AVIÕES, a ~15 unidades da câmera; `carregado`
+    // estoura na cabeça, a ~48. O mesmo raio de mundo é três vezes maior na tela
+    // aqui. Com 2,2 — o mesmo valor que na cabeça parecia uma bola — levar um
+    // tiro lavava a tela inteira de branco, e um avaliador notou o absurdo antes
+    // de mim: "o maior fogo da luta é o de levar dano". A lição é a mesma que
+    // este andar aprendeu compondo o avião e a boca: tamanho de mundo não é
+    // tamanho de tela.
+    dano: Object.freeze({ stop: 0.085, forcaStop: 0.08, trauma: 0.60, faiscas: 14, forca: 7.0, bola: 0.85, anel: 0 }),
 });
 
 export type TipoDeImpacto = keyof typeof IMPACTOS;
 
-/** Dispara as quatro camadas de um impacto de uma vez, a partir de um ponto. */
-export function impacto(tipo: TipoDeImpacto, x: number, y: number, z: number): void {
+/**
+ * Dispara as camadas de um impacto de uma vez, a partir de um ponto.
+ *
+ * `escalaDaBola` multiplica o raio do fogo — é o que a morte do chefe usa para
+ * estourar do tamanho de um crânio em vez do tamanho de um tiro.
+ *
+ * ── UMA BOLA POR EVENTO, E ESSA É A RAZÃO DE O PARÂMETRO EXISTIR ─────────────
+ *
+ * Quando a bola entrou na tabela, os pontos que já chamavam `estourar()` à mão
+ * continuaram chamando: duas bolas por evento. O estouro grande passou a
+ * disparar TREZE num quadro em vez de sete, e o anel (24) era sobrescrito com
+ * bolas ainda vivas exatamente no segundo em que a cena é julgada. Um avaliador
+ * refez a conta de margem que eu não refiz depois de mudar quem emite.
+ *
+ * Agora só `impacto()` emite. Quem quer uma bola maior pede uma ESCALA, não uma
+ * segunda bola.
+ */
+export function impacto(
+    tipo: TipoDeImpacto, x: number, y: number, z: number, escalaDaBola = 1,
+): void {
     const i = IMPACTOS[tipo];
     segurarOTempo(i.stop, i.forcaStop);
     tremer(i.trauma);
     espalharFaiscas(x, y, z, i.faiscas, i.forca, tipo === 'carregado' ? 1 : tipo === 'dano' ? 2 : 0);
-    if (i.bola > 0) estourar(x, y, z + 1, i.bola);
+    if (i.bola > 0) estourar(x, y, z + 1, i.bola * escalaDaBola);
+    if (i.anel > 0) estourar(x, y, z + 1, i.anel * escalaDaBola, true);
 }
 
 // ── AS BOLAS DE FOGO ─────────────────────────────────────────────────────────
@@ -297,21 +336,51 @@ export interface Bola {
     vida: number; total: number;
     /** Raio final, em unidades de mundo. */
     raio: number;
+    /**
+     * ANEL em vez de bola cheia.
+     *
+     * ── O TIRO COMUM PRECISAVA PAGAR, MAS NÃO COM FOGO ───────────────────────
+     *
+     * O tiro comum acerta sete vezes por segundo. Uma bola de fogo a cada acerto
+     * faria a tela ser fogo contínuo e o carregado não teria com o que
+     * contrastar — esse argumento está certo e continua valendo. Mas um
+     * avaliador contou o que sobrava para o acerto mais frequente do jogo: uma
+     * faísca de três pixels, um retorno visível em cada nove quadros.
+     *
+     * A saída não é tamanho, é FORMA. Um anel fino que abre depressa e morre em
+     * 0,18 s tem ÁREA — é isso que o olho lê como "acertou" — e não se confunde
+     * com uma bola cheia nem por um quadro. Duas linguagens, dois pesos.
+     */
+    anel: boolean;
 }
 
 const bolas: Bola[] = Array.from({ length: BOLAS_MAX }, () => ({
-    x: 0, y: 0, z: 0, vida: 0, total: 1, raio: 1,
+    x: 0, y: 0, z: 0, vida: 0, total: 1, raio: 1, anel: false,
 }));
 let proximaBola = 0;
 
 /** Quanto tempo uma bola de fogo dura. */
 export const BOLA_VIDA = 0.7;
+/** O anel do tiro comum é curto de propósito: ele não pode virar cenário. */
+export const ANEL_VIDA = 0.18;
 
-export function estourar(x: number, y: number, z: number, raio: number): void {
+/**
+ * Quantas vezes uma bola AINDA VIVA foi sobrescrita por uma nova.
+ *
+ * É a régua do tamanho do anel, e ela existe porque a conta de margem foi feita
+ * uma vez e não refeita quando a fonte das bolas mudou. Zero é o alvo; a bancada
+ * da morte confere.
+ */
+let atropeladas = 0;
+export const bolasAtropeladas = (): number => atropeladas;
+
+export function estourar(x: number, y: number, z: number, raio: number, anel = false): void {
     const b = bolas[proximaBola];
+    if (b.vida > 0) atropeladas++;
     proximaBola = (proximaBola + 1) % BOLAS_MAX;
     b.x = x; b.y = y; b.z = z;
-    b.vida = BOLA_VIDA; b.total = BOLA_VIDA; b.raio = raio;
+    b.total = anel ? ANEL_VIDA : BOLA_VIDA;
+    b.vida = b.total; b.raio = raio; b.anel = anel;
 }
 
 export function todasAsBolas(): ReadonlyArray<Bola> { return bolas; }
@@ -326,6 +395,20 @@ export function passoDasBolas(dt: number): void {
  * O núcleo cresce depressa e morre na primeira metade: uma explosão que cresce
  * em velocidade constante parece um balão inflando. `k` é quanto já passou.
  */
+/**
+ * O ANEL do tiro comum: abre depressa e desaparece.
+ *
+ * A grossura é uma proporção FIXA do raio (a geometria é um anel de furo 0,72),
+ * e não uma terceira curva. A primeira versão devolvia uma `grossura` que nada
+ * lia — um botão que ninguém aperta é código morto, e este arquivo já teve um.
+ * Como o anel cresce, a borda afina em proporção da tela de qualquer jeito.
+ */
+export function anelDoTiro(b: Bola): { raio: number; alfa: number } {
+    const k = 1 - b.vida / b.total;
+    const abre = 1 - (1 - k) ** 2;
+    return { raio: b.raio * (0.25 + abre * 1.5), alfa: Math.max(0, (1 - k) ** 1.2) };
+}
+
 export function nucleoDaBola(b: Bola): { raio: number; alfa: number } {
     const k = 1 - b.vida / b.total;
     const cresce = 1 - (1 - Math.min(1, k * 2.4)) ** 2;   // rápido e desacelerando

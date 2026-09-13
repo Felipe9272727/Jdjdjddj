@@ -30,7 +30,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { todasAsBolas, nucleoDaBola, haloDaBola, BOLAS_MAX, Bola } from './f12Impacto';
+import { todasAsBolas, nucleoDaBola, haloDaBola, anelDoTiro, BOLAS_MAX, Bola } from './f12Impacto';
 
 const ESCONDIDO = new THREE.Object3D();
 ESCONDIDO.position.set(0, -9999, 0);
@@ -42,7 +42,9 @@ const PRETO = new THREE.Color(0, 0, 0);
 const Camada: React.FC<{
     curva: (b: Bola) => { raio: number; alfa: number };
     cor: string; z: number; lados: number;
-}> = ({ curva, cor, z, lados }) => {
+    /** Esta camada desenha anéis ou bolas cheias? Uma peça, dois usos. */
+    anelEsperado?: boolean;
+}> = ({ curva, cor, z, lados, anelEsperado = false }) => {
     const malha = useRef<THREE.InstancedMesh>(null);
     const aux = useMemo(() => new THREE.Object3D(), []);
     const c = useMemo(() => new THREE.Color(), []);
@@ -66,7 +68,8 @@ const Camada: React.FC<{
         let mexeu = false;
         for (let i = 0; i < bs.length; i++) {
             const b = bs[i];
-            const { raio, alfa } = b.vida > 0 ? curva(b) : { raio: 0, alfa: 0 };
+            const { raio, alfa } = b.vida > 0 && b.anel === anelEsperado
+                ? curva(b) : { raio: 0, alfa: 0 };
             if (alfa <= 0.002) {
                 if (!eraViva.current[i]) continue;   // já escondida: nada a escrever
                 eraViva.current[i] = false;
@@ -95,7 +98,9 @@ const Camada: React.FC<{
             frustumCulled={false}>
             {/* vinte lados no halo: a dez, a borda reta do polígono se via a
                 1100 px — um avaliador leu "decágono" antes de ler "explosão" */}
-            <circleGeometry args={[1, lados]} />
+            {anelEsperado
+                ? <ringGeometry args={[0.72, 1, lados]} />
+                : <circleGeometry args={[1, lados]} />}
             <meshBasicMaterial toneMapped={false} fog={false} depthWrite={false}
                 transparent blending={THREE.AdditiveBlending} />
         </instancedMesh>
@@ -108,6 +113,9 @@ export const Estouros: React.FC = () => (
             soma que estoura no branco no centro */}
         <Camada curva={haloDaBola} cor="#ff6a1c" z={-0.4} lados={20} />
         <Camada curva={nucleoDaBola} cor="#fff0c0" z={0.4} lados={16} />
+        {/* e o anel do tiro comum, na sua própria camada e com a sua própria
+            geometria: forma diferente, e não tamanho diferente */}
+        <Camada curva={anelDoTiro} cor="#bff4ff" z={0.8} lados={22} anelEsperado />
     </>
 );
 

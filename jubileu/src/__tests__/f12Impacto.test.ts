@@ -3,7 +3,9 @@ import {
     segurarOTempo, escalaDoTempo, tremer, deslocamentoDoTremor, TREMOR,
     espalharFaiscas, todasAsFaiscas, passoDoImpacto, passoDasFaiscas,
     reiniciarImpacto, impacto, IMPACTOS, FAISCAS_MAX, FAISCA_GRAVIDADE,
+    estourar, bolasAtropeladas, BOLAS_MAX, BOLA_VIDA,
 } from '../f12Impacto';
+import { MORTE } from '../f12Boss';
 
 /**
  * ── ESTE ARQUIVO NASCEU DE UMA VERGONHA ──────────────────────────────────────
@@ -164,7 +166,21 @@ describe('f12 — o orçamento de um impacto', () => {
     it('e a tabela não tem entrada que ninguém usa', () => {
         // Ela nasceu com um `morte` que nunca foi chamado — código morto no
         // arquivo que veio junto de um commit sobre matar código morto.
-        expect(Object.keys(IMPACTOS).sort()).toEqual(['carregado', 'dano', 'tiro']);
+        //
+        // `nave` entrou depois, e entrou para matar uma MENTIRA: a camareira era
+        // `impacto('carregado')` + um `estourar` à mão, sob um comentário que
+        // prometia "uma bola menor que a do carregado". Uma linha na tabela é
+        // mais barata que um comentário que precisa ser verdade.
+        expect(Object.keys(IMPACTOS).sort()).toEqual(['carregado', 'dano', 'nave', 'tiro']);
+    });
+
+    it('e a bola da camareira é MESMO menor que a do carregado', () => {
+        // O teste que faltava para o comentário não poder mentir de novo.
+        expect(IMPACTOS.nave.bola).toBeLessThan(IMPACTOS.carregado.bola);
+        expect(IMPACTOS.nave.trauma).toBeLessThan(IMPACTOS.carregado.trauma);
+        // e o tiro comum NÃO estoura: ele acerta sete vezes por segundo, e o
+        // contraste do carregado depende disso.
+        expect(IMPACTOS.tiro.bola).toBe(0);
     });
 });
 
@@ -200,5 +216,31 @@ describe('f12 — o hitstop não herda força de quem já está acabando', () =>
         for (let i = 0; i < 40; i++) segurarOTempo(0.05, 0.05);
         passoDoImpacto(0.06);
         expect(escalaDoTempo(), 'o tempo não voltou').toBe(1);
+    });
+});
+
+// ── O ANEL DE BOLAS TEM DE CABER NO PIOR CASO ────────────────────────────────
+//
+// A conta de margem foi feita quando as bolas eram emitidas à mão, e não foi
+// refeita quando `impacto()` passou a emiti-las: cada evento da morte passou a
+// gerar DUAS, o estouro grande disparou treze num quadro em vez de sete, e o
+// anel era sobrescrito com bolas ainda vivas no segundo em que a cena é julgada.
+// `bolasAtropeladas` é a régua que faltava.
+describe('f12 — o anel de bolas de fogo', () => {
+    it('conta quando uma bola viva é atropelada', () => {
+        expect(bolasAtropeladas()).toBe(0);
+        for (let i = 0; i < BOLAS_MAX; i++) estourar(0, 0, 0, 1);
+        expect(bolasAtropeladas(), 'o anel exato ainda não deveria atropelar').toBe(0);
+        estourar(0, 0, 0, 1);
+        expect(bolasAtropeladas(), 'a volta do anel não foi contada').toBe(1);
+    });
+
+    it('o pior caso da morte cabe no anel', () => {
+        // O estouro grande: 6 da roda + 1 central, com a cadeia final ainda
+        // viva. A cadeia dispara a cada `intervaloFinal` e cada bola vive
+        // `BOLA_VIDA`, então há no máximo ceil(vida/intervalo) delas no ar.
+        const daCadeia = Math.ceil(BOLA_VIDA / MORTE.intervaloFinal);
+        expect(daCadeia + 7, 'o anel de bolas estoura no clímax')
+            .toBeLessThanOrEqual(BOLAS_MAX);
     });
 });

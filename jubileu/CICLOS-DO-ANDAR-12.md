@@ -36,9 +36,13 @@ tela**. A escada abaixo é só disso.
 | diferença entre a tela mais rápida e a mais lenta | 7,9 % |
 | padrões vistos em 60 s | 5 de 5 |
 | tempo até poder jogar | 12,4 s |
-| FPS **mediana** (deitado / em pé / desktop) | 53,6 / 43,9 / 38,7 |
-| FPS **mínima** (deitado / em pé / desktop) | 23,8 / 23,1 / 21,5 |
+| FPS **mediana** (deitado / em pé / desktop) | ~46 / ~42 / ~38 (ruído de ±10%) |
+| FPS **mínima** (deitado / em pé / desktop) | 21,4 / 22,4 / 16,7 |
 
+> Três medições seguidas no MESMO commit deram 47,3 · 44,8 · 45,9 de mediana, e
+> uma quarta deu 53,6. Ver a nota nova em `COMO-MEDIR`: abaixo de ~10% é ruído, e
+> este arquivo já anunciou ganhos de 1 a 3 fps como se fossem resultado.
+>
 > A MÍNIMA entrou nesta tabela no ciclo 7, e entrou porque faltava: um avaliador
 > mediu 17 fps de mínima e observou que o número nunca tinha sido discutido —
 > "hoje só a mediana entra na tabela". Uma tabela que só mostra a mediana esconde

@@ -95,6 +95,24 @@ dizendo que estava resolvido.
 | toque vs teclado, na mesma política | < 15% |
 | padrões distintos vistos em 60 s | 5 |
 | FPS mediana (rasterizador de software) | o mais alto possível; anotar sempre |
+| FPS MÍNIMA | anotar sempre — é ela que o jogador sente como engasgo |
+
+## O FPS DESTA BANCADA TEM RUÍDO, E ELE É MAIOR DO QUE OS GANHOS QUE EU ANDEI CANTANDO
+
+Três medições seguidas, **no mesmo commit, na mesma tela**, deram mediana 47,3 ·
+44,8 · 45,9 — e uma quarta, mais cedo no mesmo dia, deu 53,6. O rasterizador é
+software (SwiftShader) e divide a máquina com o que mais estiver rodando.
+
+Consequência prática, e ela é uma correção de conduta e não uma nota de rodapé:
+
+> **Diferença de FPS abaixo de ~10% nesta bancada é RUÍDO.** Não anuncie
+> "50,4 -> 51,7" como melhora. Rode três vezes e reporte a faixa, ou não reporte.
+
+Três commits deste andar cantaram ganhos de 1 a 3 fps como se fossem resultado.
+Não eram. O que esta bancada mede bem é o que muda por FATOR — a mínima saindo de
+17 para 22, uma cidade nova derrubando 60 para 39,6 — e o que ela mede
+**perfeitamente** é o resto: duração da luta, padrões vistos, dano por segundo,
+quem matou quem. Esses são contagens e tempos de jogo, não de renderização.
 
 ## A regra
 
