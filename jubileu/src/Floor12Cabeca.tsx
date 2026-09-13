@@ -74,7 +74,8 @@ function cranioAberto() {
 export const Floor12Cabeca: React.FC<{
     /** Sobe quando um tiro entra: a cabeça pisca de dano. */
     flashRef: React.MutableRefObject<number>;
-}> = ({ flashRef }) => {
+    naveRef?: React.MutableRefObject<{ x: number; y: number }>;
+}> = ({ flashRef, naveRef }) => {
     const raiz = useRef<THREE.Group>(null);
     const cranio = useMemo(cranioAberto, []);
     const face = useRef<THREE.Group>(null);
@@ -143,8 +144,8 @@ export const Floor12Cabeca: React.FC<{
         for (const eye of [olhoE.current, olhoD.current]) {
             const pupil = eye?.children[1];
             if (pupil) {
-                pupil.position.x = THREE.MathUtils.clamp(f12.nave.x * 0.025, -0.14, 0.14);
-                pupil.position.y = THREE.MathUtils.clamp((f12.nave.y - 5) * 0.025, -0.12, 0.1);
+                pupil.position.x = THREE.MathUtils.clamp((naveRef?.current.x ?? 0) * 0.025, -0.14, 0.14);
+                pupil.position.y = THREE.MathUtils.clamp(((naveRef?.current.y ?? 5) - 5) * 0.025, -0.12, 0.1);
             }
         }
 

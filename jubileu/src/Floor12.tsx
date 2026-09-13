@@ -236,8 +236,10 @@ const CameraDaLuta: React.FC<{
                 -11,
             );
             alvo.current.copy(alvoCinematico.lerp(alvoGameplay, handoff));
-            camera.fov = THREE.MathUtils.lerp(mark.fov, ENQUADRAMENTO.fov, handoff);
-            camera.updateProjectionMatrix();
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(mark.fov, ENQUADRAMENTO.fov, handoff);
+                camera.updateProjectionMatrix();
+            }
             camera.lookAt(alvo.current);
             return;
         }
@@ -258,8 +260,10 @@ const CameraDaLuta: React.FC<{
         // avião são conciliados — ver a nota longa em `f12Boss`.
         const pz = THREE.MathUtils.lerp(dentroZ, ENQUADRAMENTO.recuo, suave);
         camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
-        camera.fov = ENQUADRAMENTO.fov;
-        camera.updateProjectionMatrix();
+        if (camera instanceof THREE.PerspectiveCamera) {
+            camera.fov = ENQUADRAMENTO.fov;
+            camera.updateProjectionMatrix();
+        }
 
         // O alvo fica ENTRE o avião e a boca: a câmera de um jogo de nave tem de
         // enquadrar os dois ao mesmo tempo, senão o jogador escolhe entre ver
@@ -680,7 +684,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 }}
             >
                 <Floor12Ceu />
-                <Floor12Cabeca flashRef={flash} />
+                <Floor12Cabeca flashRef={flash} naveRef={nave} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
                 <Mira naveRef={nave} />

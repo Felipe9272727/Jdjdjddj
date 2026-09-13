@@ -59,16 +59,16 @@ try {
     // the fight. Clicking the visible button advances each line.
     await sleep(Math.max(0, 12_400 - (Date.now() - started)));
     await page.waitForFunction(() => window.__f12fase === "encontro", null, {
-      timeout: 5_000,
+      timeout: 60_000,
     });
     for (let i = 0; i < 6; i += 1) {
       await page.locator("button").last().click();
       await sleep(120);
     }
     await page.waitForFunction(() => window.__f12fase === "luta", null, {
-      timeout: 5_000,
+      timeout: 60_000,
     });
-    await page.waitForSelector("text=ATIRE NA BOCA!", { timeout: 8_000 });
+    await page.waitForSelector("text=ATIRE NA BOCA!", { timeout: 30_000 });
     await page.screenshot({
       path: `${outputDir}/${orientation}-combat-open-mouth.png`,
     });
