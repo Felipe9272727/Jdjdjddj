@@ -45,3 +45,8 @@ export function f12IntroCamera(progress: number) {
   const z = -1.0 + exterior * 4.8 + chase * 5.2;
   return { x, y, z, targetY: .5 + chase * .65, targetZ: -1.5 - chase * 9, fov: 57 + 5 * chase };
 }
+
+/** Wide screens can follow closer; portrait retains room for the whole arena. */
+export function f12ChaseDistance(aspect: number) {
+  return 19 - 7 * f12Ease((aspect - .65) / .65);
+}

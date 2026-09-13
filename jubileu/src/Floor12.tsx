@@ -39,7 +39,7 @@ import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
-import { f12IntroCamera } from './f12Presentation';
+import { f12IntroCamera, f12ChaseDistance } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
@@ -206,10 +206,12 @@ const CameraDaLuta: React.FC<{
     sacodeRef: React.MutableRefObject<number>;
 }> = ({ naveRef, camRef, introProgressRef, introAtivaRef, sacodeRef }) => {
     const camera = useThree((s) => s.camera);
+    const size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
+        const recuo = f12ChaseDistance(size.width / Math.max(1, size.height));
 
         // The intro camera is a separate cinematic route. Its marks are relative
         // to the aircraft, so the aircraft can already be positioned by the same
@@ -225,14 +227,14 @@ const CameraDaLuta: React.FC<{
             const cinematic = new THREE.Vector3(n.x + mark.x, n.y + mark.y, mark.z);
             const chase = new THREE.Vector3(
                 n.x * 0.72,
-                n.y * 0.55 + meioY() * 0.45 + 1.1,
-                ENQUADRAMENTO.recuo,
+                n.y + 6,
+                recuo,
             );
             camera.position.lerp(cinematic.lerp(chase, handoff), Math.min(1, dt * 7));
             const alvoCinematico = new THREE.Vector3(n.x, n.y + mark.targetY, mark.targetZ);
             const alvoGameplay = new THREE.Vector3(
                 n.x * 0.5,
-                n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3,
+                n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2,
                 -11,
             );
             alvo.current.copy(alvoCinematico.lerp(alvoGameplay, handoff));
@@ -251,14 +253,14 @@ const CameraDaLuta: React.FC<{
         const dentroY = meioY() + 0.35, dentroZ = 0.55;
         // Atrás do avião: acompanha X e Y com atraso, para a nave "escapar" um
         // pouco do quadro quando o jogador acelera — é o que dá velocidade.
-        const atrasX = n.x * 0.72, atrasY = n.y * 0.55 + meioY() * 0.45;
+        const atrasX = n.x * 0.72, atrasY = n.y;
 
         const px = THREE.MathUtils.lerp(0, atrasX, suave);
-        const py = THREE.MathUtils.lerp(dentroY, atrasY + 1.1, suave);
+        const py = THREE.MathUtils.lerp(dentroY, atrasY + 6, suave);
         // O RECUO É MEDIDO, não escolhido no olho: ele vem de `ENQUADRAMENTO`,
         // que é onde a largura da arena, o aspecto da tela em pé e o tamanho do
         // avião são conciliados — ver a nota longa em `f12Boss`.
-        const pz = THREE.MathUtils.lerp(dentroZ, ENQUADRAMENTO.recuo, suave);
+        const pz = THREE.MathUtils.lerp(dentroZ, recuo, suave);
         camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
         if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov = ENQUADRAMENTO.fov;
@@ -270,7 +272,7 @@ const CameraDaLuta: React.FC<{
         // para onde vai e ver de onde vem o ataque.
         alvo.current.set(
             THREE.MathUtils.lerp(0, n.x * 0.5, suave),
-            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3, suave),
+            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2, suave),
             THREE.MathUtils.lerp(-6, -11, suave),
         );
 
@@ -533,6 +535,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const sumindo = useRef(0);
     const cam = useRef(0);
     const introProgress = useRef(0);
+    const [legendaIntro, setLegendaIntro] = useState('ANDAR 12');
     const introAtiva = useRef(true);
     const helice = useRef(1);
     const falando = useRef(false);
@@ -550,6 +553,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     // do hóspede — antes disso o jogador estaria vendo o próprio cockpit por
     // dentro E por fora ao mesmo tempo.
     useEffect(() => { visivel.current = false; }, []);
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            if (!introAtiva.current) return;
+            const p = introProgress.current;
+            setLegendaIntro(p < .08 ? 'ANDAR 12' : p < .26 ? 'AS PORTAS SE ABREM…'
+                : p < .52 ? 'O ELEVADOR SE DESDOBRA…' : p < .70 ? 'MOTORES ACESOS.'
+                : p < .86 ? 'TROCO-63, NA SUA ALA.' : 'PRÓXIMA PARADA: O IMPOSSÍVEL.');
+        }, 120);
+        return () => window.clearInterval(id);
+    }, []);
 
     const fase = f12.fase;
     if (import.meta.env?.DEV && typeof window !== 'undefined') {
@@ -618,7 +631,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         const larguraDaTela = Math.max(1, window.innerWidth);
         const alturaDaTela = Math.max(1, window.innerHeight);
         const aspectoViewport = larguraDaTela / alturaDaTela;
-        const larguraDoMundo = 2 * ENQUADRAMENTO.recuo * meiaV * aspectoViewport;
+        const larguraDoMundo = 2 * f12ChaseDistance(aspectoViewport) * meiaV * aspectoViewport;
         return larguraDoMundo / larguraDaTela;
     }, []);
 
@@ -665,11 +678,11 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
         <Canvas
-                dpr={0.6}
+                dpr={1}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
-                gl={{ antialias: false }}
+                gl={{ antialias: true }}
                 onCreated={({ gl, scene, camera }) => {
-                    gl.domElement.style.imageRendering = 'pixelated';
+                    gl.domElement.style.imageRendering = 'auto';
                     scene.background = new THREE.Color('#7ec0ef');
                     // A névoa começa DEPOIS da cabeça (a 47 da câmera): com ela em 40 o
                     // chefe entrava no nevoeiro e perdia o contraste.
@@ -690,7 +703,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Mira naveRef={nave} />
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
-                {fase !== 'intro' && fase !== 'virando' && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
+                {(introProgress.current > .70 || (fase !== 'intro' && fase !== 'virando')) && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} introProgressRef={introProgress} introAtivaRef={introAtiva}
                     avisar={() => { visivel.current = true; avisar(); }} />
@@ -778,7 +791,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {(fase === 'intro' || fase === 'virando') && (
                 <div style={{ ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 28px)', left: 0, right: 0, textAlign: 'center', fontSize: 18 }}>
-                    {fase === 'intro' ? 'ANDAR 12' : 'O ELEVADOR ESTÁ SE ABRINDO…'}
+                    {legendaIntro}
                 </div>
             )}
         </div>
@@ -899,8 +912,8 @@ const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({
     if (!texto || !visivel) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', top: '22%', left: 0, right: 0, textAlign: 'center',
-            fontSize: 26, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
+            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 64px)', left: 0, right: 0, textAlign: 'center',
+            fontSize: 20, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
         }}>
             {texto}
             <style>{'@keyframes f12pisca { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }'}</style>
