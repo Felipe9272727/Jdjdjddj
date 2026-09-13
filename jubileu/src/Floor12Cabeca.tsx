@@ -176,8 +176,8 @@ export const Floor12Cabeca: React.FC<{
             <group ref={face}>
             <Floor12BossCrown />
             {/* têmporas achatadas, para não ser uma bola perfeita */}
-            <mesh material={M.peleEsc} position={[0, R * 0.55, -R * 0.25]}>
-                <sphereGeometry args={[R * 0.86, 16, 10]} />
+            <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
+                <sphereGeometry args={[R * 0.70, 16, 10]} />
             </mesh>
 
             {/* ── OS OLHOS ── */}

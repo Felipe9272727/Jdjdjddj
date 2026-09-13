@@ -178,7 +178,7 @@ const DiretorDaIntro: React.FC<{
         camRef.current = THREE.MathUtils.clamp((tt - 4.4) / 5.0, 0, 1);
         // A cabine de dentro some junto — ela e o casco são a mesma coisa vista
         // de dois lados, e mostrar as duas ao mesmo tempo entregaria o truque.
-        sumindoRef.current = THREE.MathUtils.clamp((tt - 6.0) / 2.4, 0, 1);
+        sumindoRef.current = THREE.MathUtils.clamp((tt - 2.2) / 2.0, 0, 1);
 
         if (tt > 12) {
             introProgressRef.current = 1;
