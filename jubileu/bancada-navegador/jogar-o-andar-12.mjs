@@ -68,6 +68,7 @@ await p.evaluate(() => {
 let faseAnt = null, ataqueAnt = null, vidaAnt = null, vidasAnt = null, falaAnt = null, viradaAnt = false;
 let cliques = 0, quadrosAnt = 0, tAnt = agora(), cargas = 0, cargaAnt = 0, menorVida = Infinity;
 const fps = [];
+const piores = [];
 let alvoX = 0.5, alvoY = 0.62, dir = 1;
 const fim = agora() + SEGUNDOS;
 let iter = 0;
@@ -97,7 +98,18 @@ while (agora() < fim) {
 
     // FPS
     const t = agora();
-    if (t - tAnt > 1.0) { fps.push(+((e.quadros - quadrosAnt) / (t - tAnt)).toFixed(1)); quadrosAnt = e.quadros; tAnt = t; }
+    if (t - tAnt > 1.0) {
+        const f = +((e.quadros - quadrosAnt) / (t - tAnt)).toFixed(1);
+        fps.push(f);
+        // ── ONDE o engasgo acontece, e não só QUE ele acontece ───────────
+        // A mínima é o pior número deste andar e ficou quatro ciclos sem sair
+        // do lugar, porque o relatório dizia "min 17" e mais nada. Um mínimo sem
+        // instante e sem contexto não dá para investigar: pode ser compilação de
+        // shader no primeiro segundo, pode ser a salva de projéteis de um padrão
+        // específico. Agora ele vem com carimbo.
+        if (f < 25) piores.push({ t: +t.toFixed(1), fps: f, proj: e.nProj, ataque: e.ataque, fase: e.fase });
+        quadrosAnt = e.quadros; tAnt = t;
+    }
 
     if (e.carga !== undefined) { if (e.carga < cargaAnt) cargas++; cargaAnt = e.carga; }
     // A MENOR vida vista, e não a do fim.
@@ -201,7 +213,14 @@ console.log(`duração da sessão: ${agora().toFixed(1)}s   estado final:`, JSON
 console.log(`cliques de diálogo: ${cliques}`);
 if (fps.length) {
     const ord = [...fps].sort((a, c) => a - c);
-    console.log(`FPS: mediana ${ord[Math.floor(ord.length / 2)]}  min ${ord[0]}  max ${ord[ord.length - 1]}  (n=${fps.length})`);
+    if (piores.length) {
+    console.log('\n── OS QUADROS RUINS (abaixo de 25 fps) ──');
+    for (const q of piores) {
+        console.log(`  ${String(q.t).padStart(5)}s  ${String(q.fps).padStart(5)} fps  projéteis=${String(q.proj).padStart(2)}  ${q.fase}  ${q.ataque ?? '-'}`);
+    }
+    console.log();
+}
+console.log(`FPS: mediana ${ord[Math.floor(ord.length / 2)]}  min ${ord[0]}  max ${ord[ord.length - 1]}  (n=${fps.length})`);
 }
 if (erros.length) { console.log(`\nERROS DE PÁGINA (${erros.length}):`); [...new Set(erros)].slice(0, 6).forEach(x => console.log('  ', x)); }
 

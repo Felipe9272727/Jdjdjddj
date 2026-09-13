@@ -249,3 +249,51 @@ estava perfeito, e atrás do chefe. Agora existe `Z_DO_ACERTO_NA_CABECA()`.
 | padrões distintos pós-virada | 5 | 6 |
 | anéis desenhados atrás do crânio | todos | 0 de 26 |
 | luta, três telas | 116 / 107 / 115 s | 116 / 106 / 107 s |
+
+### Ciclo 11 — 2026-09-13 — a primeira lição voltou a ser a primeira
+
+O nono parecer subiu para 6,5, confirmou os dois consertos do ciclo anterior de
+forma independente, e **corrigiu um erro dele próprio**: a colisão de `useRef`
+que o oitavo tinha reportado não existe (escopos diferentes). Um avaliador que
+volta atrás por conta própria vale mais do que um que só acha defeito.
+
+**O defeito novo era meu e era de uma linha.** `f12.aberturas += 1` acontecia
+imediatamente ANTES de `ataqueDaVez(f12.aberturas, …)`, então a primeira abertura
+da luta pedia `ENSINO[1]`. O LEQUE — que `f12Boss` escolhe a dedo como primeira
+lição, *"o mais legível: cinco coisas abrindo em leque"* — **nunca abria a luta**.
+Ele voltava só pelo saco embaralhado, e a legenda de primeira vez dele chegava
+perto do minuto. Medido pelo avaliador nas três telas: o primeiro ataque era
+`naves` nas três, e o leque era o nono.
+
+O contador virou `aberturaAtual` (ÍNDICE, começando em -1) e avança no topo do
+quadro, antes de qualquer leitura. `aberturas + 1` e `aberturaAtual + 1` erram de
+jeitos diferentes, e o segundo erra em voz alta.
+
+### E o pior número do andar finalmente tem endereço
+
+A mínima de FPS foi citada como o pior número deste andar em **quatro pareceres
+seguidos** — "min 17", "min 8,7" — e ninguém sabia onde acontecia, porque a
+bancada dava o valor e mais nada. Com um carimbo de instante no relatório, ela
+apareceu de primeira:
+
+```
+── OS QUADROS RUINS (abaixo de 25 fps) ──
+    6.5s   20.7 fps  projéteis= 0  intro  -
+```
+
+**Um** segundo ruim por sessão, aos 6,5 s, nas TRÊS telas, com ZERO projéteis e o
+andar ainda na introdução. Não é a luta engasgando: é o quadro em que as portas
+abrem e o céu, a cidade e o chefe entram em cena de uma vez.
+
+**Não está consertado.** Tentei `gl.compile` em dois lugares e medi os dois:
+`onCreated` piorou (20,7 → 10,7, porque a cena ainda está vazia lá) e um
+componente dentro da cena não mexeu (11,9 · 14,2). Os dois foram REMOVIDOS em vez
+de ficarem no arquivo com um comentário dizendo que ajudam. O suspeito que sobra
+é o upload das texturas de canvas da cidade.
+
+| medida | valor |
+|---|---|
+| primeiro ataque da luta | `leque` (era `naves`) |
+| giratórias em 55 s pós-virada | 4 |
+| luta, três telas | 107 / 114 / 115 s |
+| o engasgo | localizado (6,5 s, introdução), não corrigido |

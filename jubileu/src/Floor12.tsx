@@ -527,12 +527,25 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         f12.bocaX = bocaXNoInstante(f12.relogio);
         const b = bocaNoInstante(f12.bocaT);
         const ciclo = Math.floor(f12.bocaT / CICLO_DA_BOCA);
+
+        // ── O ÍNDICE DA ABERTURA AVANÇA AQUI, ANTES DE QUALQUER LEITURA ──
+        //
+        // Ele estava sendo incrementado DENTRO do bloco do anúncio, uma linha
+        // antes de ser usado como índice — e a primeira abertura da luta pedia
+        // `ENSINO[1]` em vez de `ENSINO[0]`. O leque, que é a primeira lição
+        // escolhida a dedo, nunca abria a luta.
+        //
+        // Agora ele avança no topo do quadro em que a boca começa a abrir, e
+        // TODO o resto do laço lê o mesmo valor. Um índice que muda no meio do
+        // quadro é um off-by-one esperando data — e este já veio duas vezes.
+        if (b.estado === 'abrindo' && anunciou.current !== ciclo) f12.aberturaAtual += 1;
+
         // Quantas aberturas já houve DEPOIS da virada (-1 = ela ainda não veio).
         // Uma conta só, num lugar só: ela decide o padrão em dois blocos
         // diferentes deste laço, e duas cópias dela é como este andar já perdeu
         // três entregas.
         const desdeAVirada = f12.aberturasDaVirada >= 0
-            ? f12.aberturas - f12.aberturasDaVirada : -1;
+            ? f12.aberturaAtual - f12.aberturasDaVirada : -1;
 
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
@@ -542,14 +555,9 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             // compasso recomeçar limpo. Usá-lo como cursor fazia a segunda
             // metade repetir o tutorial inteiro, na ordem fixa do ENSINO, e o
             // ataque exclusivo da segunda metade nunca era alcançado. `ciclo`
-            // serve para saber que ESTA abertura é nova; quem conta quantas já
-            // houve é `f12.aberturas`, que só sobe.
-            f12.aberturas += 1;
-            // `+1` no índice pós-virada porque `aberturas` acabou de subir e
-            // `desdeAVirada` foi calculado antes: os dois blocos deste laço têm
-            // de escolher o MESMO padrão, e é aqui que o anúncio é feito.
-            const qual = ataqueDaVez(f12.aberturas,
-                desdeAVirada >= 0 ? desdeAVirada + 1 : -1);
+            // serve para saber que ESTA abertura é nova; qual abertura ela é,
+            // quem diz é `f12.aberturaAtual`, que só sobe.
+            const qual = ataqueDaVez(f12.aberturaAtual, desdeAVirada);
             F.gritoRef.current = fichaDoAtaque(qual).grito;
             // A PRIMEIRA VEZ de cada padrão, o ala explica — sem travar nada.
             // É o momento em que o jogador mais precisa da pista e o único em
@@ -567,7 +575,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(f12.aberturas, desdeAVirada);
+            const qual = ataqueDaVez(f12.aberturaAtual, desdeAVirada);
             f12.ataqueNoAr = qual;
             cuspir(qual, n, faixaDoElevador, faseDaMare, sentidoDaPorta);
             tocarAtaque(qual);
@@ -580,7 +588,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             // guarda o ÍNDICE DO RODÍZIO, não o do compasso: quem escolhe o
             // padrão é o rodízio, e o compasso é zerado na virada.
             segundo.current = f12.passouDaVirada
-                ? { ciclo: f12.aberturas, desde: Math.max(0, desdeAVirada), quando: f12.bocaT + ATRASO_DO_SEGUNDO }
+                ? { ciclo: f12.aberturaAtual, desde: Math.max(0, desdeAVirada), quando: f12.bocaT + ATRASO_DO_SEGUNDO }
                 : null;
         }
 
@@ -785,7 +793,7 @@ function abrirAVirada(F: Ferramentas): void {
     f12.passouDaVirada = true;
     // ONDE a segunda metade começou, em aberturas. É com isto que a giratória
     // sabe que é a segunda abertura DELA, e não a centésima do jogo.
-    f12.aberturasDaVirada = f12.aberturas;
+    f12.aberturasDaVirada = f12.aberturaAtual;
     // A trilha não TROCA na virada: entram o bumbo e a tensão por cima da mesma
     // base. Trocar de música no meio corta a tensão que a luta levou um minuto
     // para montar.
@@ -1177,6 +1185,24 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 gl={{ antialias: false }}
                 onCreated={({ gl, scene, camera }) => {
                     gl.domElement.style.imageRendering = 'pixelated';
+                    // ── AQUECER OS SHADERS ANTES DE A CENA APARECER ──────
+                    //
+                    // A mínima de FPS deste andar foi citada como o pior número
+                    // dele em QUATRO pareceres seguidos — "min 17", "min 8,7" —
+                    // e ninguém sabia onde ela acontecia, porque o relatório da
+                    // bancada dava o valor e mais nada. Com um carimbo de
+                    // instante, ela apareceu: um único segundo ruim por sessão,
+                    // aos 6,5 s, NAS TRÊS TELAS, com ZERO projéteis na tela e o
+                    // andar ainda na introdução. Não é a luta engasgando — é o
+                    // primeiro quadro em que o céu, a cidade, o chefe e os dois
+                    // aviões ficam visíveis de uma vez, e o driver compila todos
+                    // os programas ao mesmo tempo.
+                    //
+                    // `compile` faz isso agora, atrás da porta fechada do
+                    // elevador, onde ninguém está olhando e onde a tela é um
+                    // retângulo escuro. É a diferença entre pagar a conta no
+                    // corte da cena e pagar antes dele.
+                    gl.compile(scene, camera);
                     scene.background = new THREE.Color('#7ec0ef');
                     // A névoa começa DEPOIS da cabeça (a 47 da câmera): com ela em 40 o
                     // chefe entrava no nevoeiro e perdia o contraste.

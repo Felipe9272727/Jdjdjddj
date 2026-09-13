@@ -717,7 +717,14 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  *    lendo o chefe, está contando.
  *
  * Agora: os cinco primeiros ciclos ENSINAM, um padrão de cada, na ordem em que
- * eles ficam mais difíceis de ler. Isso põe os cinco na tela nos primeiros ~30 s.
+ * eles ficam mais difíceis de ler — os cinco aparecem nas cinco primeiras
+ * aberturas da boca, em vez de dois deles morarem atrás de metade da vida.
+ *
+ * (Havia aqui "isso põe os cinco na tela nos primeiros ~30 s". Era duração de
+ * balanço em comentário, proibida neste mesmo arquivo três notas adiante, e
+ * estava errada: um avaliador mediu quatro em 55 s. O número de aberturas é o
+ * que esta função controla; quantos segundos elas levam é do compasso da boca,
+ * que não mora aqui.)
  * Daí em diante a ordem vem de um SACO EMBARALHADO: cada bloco de cinco contém
  * os cinco padrões (nenhum some por muito tempo) e a ordem dentro do bloco é uma
  * permutação da conta do número do bloco.
@@ -2002,7 +2009,23 @@ export interface F12State {
     bocaT: number;
     vida: number;
     /**
-     * Quantas vezes a boca já abriu. É O CURSOR DO RODÍZIO, e ele é MONOTÔNICO.
+     * O ÍNDICE da abertura atual — 0 na primeira. É o cursor do rodízio, e ele
+     * é MONOTÔNICO.
+     *
+     * ── ÍNDICE, E NÃO CONTAGEM ───────────────────────────────────────────────
+     *
+     * Ele se chamava `aberturas` e valia uma CONTAGEM: o diretor fazia
+     * `aberturas += 1` e chamava `ataqueDaVez(aberturas)` na linha seguinte. A
+     * primeira abertura da luta pedia então `ENSINO[1]`, e o LEQUE — que este
+     * arquivo escolhe de propósito como primeira lição, "o mais legível: cinco
+     * coisas abrindo em leque" — nunca abria a luta. Ele só voltava pelo saco
+     * embaralhado, e a legenda de primeira vez dele chegava perto do minuto,
+     * quando o jogador já parou de ler balões. Um avaliador mediu nas três
+     * telas: o primeiro ataque era `naves` nas três, e o leque era o nono.
+     *
+     * O nome mudou junto com o significado, e de propósito: `aberturas + 1` e
+     * `aberturaAtual + 1` erram de jeitos diferentes, e o segundo erra em voz
+     * alta. Um contador que é usado como índice é um off-by-one esperando data.
      *
      * ── POR QUE ELE NÃO PODE SAIR DO RELÓGIO DA BOCA ─────────────────────────
      *
@@ -2019,9 +2042,9 @@ export interface F12State {
      * `i` crescendo — um contador que o JOGO zera. Eles testavam a função; o
      * andar ninguém testou.
      */
-    aberturas: number;
+    aberturaAtual: number;
     /**
-     * Quanto valia `aberturas` quando a virada aconteceu.
+     * Quanto valia `aberturaAtual` quando a virada aconteceu.
      *
      * É com ela que se conta a segunda metade, e é por isso que ela existe em
      * vez de um `if` no compasso: "a segunda abertura DEPOIS da virada" é uma
@@ -2044,9 +2067,11 @@ export const f12: F12State = criarEstado();
 
 function criarEstado(): F12State {
     return {
-        fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA, aberturas: 0,
+        fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA,
         ataqueNoAr: null, passouDaVirada: false, bocaX: 0, morteT: 0, projeteis: [],
-        aberturasDaVirada: -1,
+        // -1 e não 0: a primeira abertura da luta soma 1 e vira o ÍNDICE 0, que
+        // é o leque. Ver a nota longa em `aberturaAtual`.
+        aberturaAtual: -1, aberturasDaVirada: -1,
         linhaDoDialogo: 0, versao: 0,
     };
 }

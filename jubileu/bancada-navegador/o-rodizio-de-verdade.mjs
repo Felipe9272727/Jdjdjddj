@@ -54,6 +54,25 @@ const colher = async (segundos) => {
   return vistos;
 };
 
+// ── A PRIMEIRA LIÇÃO É A PRIMEIRA? ──────────────────────────────────────────
+//
+// `ENSINO[0]` é o leque, escolhido a dedo em `f12Boss` como "o mais legível".
+// O diretor incrementava o índice da abertura uma linha ANTES de usá-lo, então a
+// luta abria com `ENSINO[1]` e o leque só voltava pelo saco embaralhado, perto
+// do minuto, com a legenda de primeira vez chegando quando o jogador já parou de
+// ler balões. Nenhum teste pegava: todos chamam `ataqueDaVez` direto, e o
+// defeito morava na ARITMÉTICA DO DIRETOR.
+const primeiro = await (async () => {
+  const ate = Date.now() + 25000;
+  while (Date.now() < ate) {
+    const a = await p.evaluate(() => window.__f12estado?.ataqueNoAr ?? null).catch(() => null);
+    if (a) return a;
+    await new Promise(r => setTimeout(r, 80));
+  }
+  return null;
+})();
+console.log(`\n  PRIMEIRO ataque da luta: ${primeiro}  ${primeiro === 'leque' ? 'OK' : 'NÃO É A PRIMEIRA LIÇÃO'}`);
+
 console.log(`\n── ANTES DA VIRADA (${SEGUNDOS}s) ──`);
 const antes = await colher(SEGUNDOS);
 console.log('  ' + antes.join(' '));
