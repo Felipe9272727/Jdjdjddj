@@ -31,7 +31,8 @@ import {
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA,
     ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir, oAlaPodeFalar,
-    MORTE, intervaloDoEstouro, aMorteAcabou, ALTURA_DA_CABECA, ESCALA_DA_CABECA,
+    MORTE, intervaloDoEstouro, aMorteAcabou, ALTURA_DA_CABECA, ESCALA_DA_CABECA, quedaDaMorte,
+    fracaoNaTela,
     // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
@@ -633,7 +634,17 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     if (Math.hypot(p.x - q.x, p.y - q.y) < q.r + p.r && Math.abs(p.z - q.z) < 1.2) {
                         q.hp = (q.hp ?? 1) - 1;
                         mortos.add(p.id);
-                        if ((q.hp ?? 0) <= 0) { mortos.add(q.id); tocarExplosao(); }
+                        if ((q.hp ?? 0) <= 0) {
+                            mortos.add(q.id);
+                            // A camareira é o ÚNICO padrão que se resolve
+                            // atirando — é o momento em que a arma do jogador
+                            // resolve alguma coisa visível —, e ela morria com
+                            // um bipe e nada. Uma bola pequena: menor que a do
+                            // carregado, para não roubar o contraste dele.
+                            impacto('carregado', q.x, q.y, q.z);
+                            estourar(q.x, q.y, q.z + 1, 2.6);
+                            tocarEstouro(0.55);
+                        }
                         else tocarAcerto();
                         break;
                     }
@@ -780,8 +791,10 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             const r = ESCALA_DA_CABECA * (0.25 + Math.random() * 0.75);
             const ex = f12.bocaX + Math.cos(a) * r;
             const ey = ALTURA_DA_CABECA + Math.sin(a) * r * 0.8;
+            // `impacto` já traz a bola de fogo da tabela; aqui ela é MAIOR,
+            // porque o que está estourando é uma cabeça de quinze unidades e
+            // não um tiro. A faísca diz onde; a bola diz quanto.
             impacto('carregado', ex, ey, ARENA.zCabeca + 2);
-            // A BOLA é o que se vê. A faísca diz onde; a bola diz quanto.
             estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * (0.55 + Math.random() * 0.45));
             tocarEstouro(0.75);
         }
@@ -800,7 +813,7 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             const ex = f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.75;
             const ey = ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.65;
             impacto('carregado', ex, ey, ARENA.zCabeca + 2);
-            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.85);
+            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.85);   // maior que a da tabela
         }
         estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 4, ESCALA_DA_CABECA * 1.7);
         tocarEstouro(1.6);
@@ -952,6 +965,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (ferir(d) && F) abrirAVirada(F);
             if (f12.vida <= 0 && F) comecarAMorte(F);
             f12Bump();
+        };
+        // ── AS REGRAS, PARA A BANCADA NÃO TER AS SUAS ────────────────
+        //
+        // A bancada da morte precisa saber ONDE a cabeça cai NA TELA, e para
+        // isso precisa da régua de composição e das curvas da morte. Ela lê daqui
+        // em vez de reimplementar: uma bancada com a sua própria cópia das
+        // regras mede um segundo jogo, e este andar já perdeu três entregas
+        // exatamente assim (ver `COMO-MEDIR-O-ANDAR-12.md`).
+        w.__f12regras = {
+            fracaoNaTela, ALTURA_DA_CABECA, ARENA, MORTE, quedaDaMorte,
         };
         w.__f12bocaX = BOCA_ALVO.x;
         w.__f12enq = { larg: larguraDoQuadro(ENQUADRAMENTO.recuo, ENQUADRAMENTO.aspecto) };

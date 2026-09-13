@@ -1777,8 +1777,14 @@ export function tiroNaBoca(p: Projetil): boolean {
 // O relógio da luta roda a 0,35x durante tudo isso. Câmera lenta aqui não é
 // estilo: é o que dá ao jogador tempo de entender que ele ganhou.
 export const MORTE = Object.freeze({
-    /** Quanto dura a cena inteira, antes do balão de vitória. */
-    duracao: 4.4,
+    /**
+     * Quanto dura a cena inteira, antes do balão de vitória.
+     *
+     * Era 4,4 e sobravam ~0,6 s de CÉU VAZIO no fim: a cabeça já tinha saído do
+     * quadro e a cena continuava rodando para ninguém. Um avaliador contou dois
+     * quadros brancos na folha. O fim de uma cena é onde ela é julgada.
+     */
+    duracao: 3.9,
     /** Até aqui são estouros em cadeia; neste instante vem o grande. */
     oGrande: 2.4,
     intervaloInicial: 0.42,
@@ -1790,7 +1796,12 @@ export const MORTE = Object.freeze({
     /** Quanto a cabeça cai, em unidades de mundo, até sumir. */
     queda: 44,
     /** Quanto ela AFUNDA durante a cadeia, antes do estouro grande. */
-    afundo: 4.5,
+    afundo: 13.0,
+    /**
+     * E quanto isso tem de valer NA TELA: fração da altura, antes do grande.
+     * Quem confere é `bancada-navegador/a-morte-do-chefe.mjs`.
+     */
+    afundoNaTela: 0.12,
 });
 
 /**
@@ -1815,10 +1826,22 @@ export function intervaloDoEstouro(t: number): number {
  * cabeça estava ESTÁTICA — mesmo tamanho, mesma posição, onze quadros iguais.
  * Setenta por cento do clímax não tinha o que ver.
  *
- * Movimento vale mais que partícula. Agora ela AFUNDA durante a cadeia —
- * `MORTE.afundo` unidades, em curva que acelera —, e a queda de verdade começa
- * de onde ela já estava, sem degrau (as duas curvas valem o mesmo no instante
- * `oGrande`, o que o teste prende).
+ * Movimento vale mais que partícula. Ela AFUNDA durante a cadeia, e a queda de
+ * verdade começa de onde ela já estava, sem degrau (as duas curvas valem o mesmo
+ * no instante `oGrande`, o que o teste prende).
+ *
+ * ── E O AFUNDO FOI MEDIDO EM PIXEL, PORQUE FOI EM PIXEL QUE ELE FALHOU ───────
+ *
+ * A primeira tentativa deu 4,5 unidades numa curva `k²`. O teste passava — ele
+ * pedia ">= 3 unidades de MUNDO" — e o olho continuava vendo uma cabeça parada:
+ * 4,5 unidades é 29% do diâmetro dela, e, ao quadrado, metade disso acontecia no
+ * último terço. Foi o segundo ciclo seguido em que eu fechei um defeito VISUAL
+ * com um teste em unidades de mundo, e um avaliador achou os dois.
+ *
+ * Agora são `afundo` unidades numa curva quase reta (expoente 1,25), e quem
+ * prende isso é uma bancada que lê o `y` de TELA da cabeça — `MORTE.afundoNaTela`
+ * é a fração mínima da altura da tela que ela tem de descer antes do estouro
+ * grande. Unidade de mundo não é o que o jogador vê.
  *
  * Depois do grande ela cai ACELERANDO: uma coisa daquele tamanho descendo em
  * velocidade constante parece um elevador, e o andar já tem elevadores demais.
@@ -1827,7 +1850,9 @@ export function quedaDaMorte(t: number): number {
     const d = t - MORTE.oGrande;
     if (d <= 0) {
         const k = Math.max(0, Math.min(1, t / MORTE.oGrande));
-        return MORTE.afundo * k * k;
+        // 1,25 e não 2: ao quadrado, metade do afundo acontecia no último terço
+        // e os primeiros dois segundos ficavam visualmente parados.
+        return MORTE.afundo * k ** 1.25;
     }
     const k = Math.min(1, d / (MORTE.duracao - MORTE.oGrande));
     return MORTE.afundo + (MORTE.queda - MORTE.afundo) * k * k;

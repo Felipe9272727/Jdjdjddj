@@ -25,6 +25,12 @@ for (let i = 0; i < 40; i++) {
   if ((await p.evaluate(() => window.__f12estado?.fase)) === 'luta') break;
 }
 await new Promise(r => setTimeout(r, 1200));
+// lidos do jogo para a bancada não ter número próprio — é assim que o teto da
+// vida ficou escrito à mão aqui e mediu um jogo que não existia mais.
+const { GRANDE, ALVO_AFUNDO } = await p.evaluate(() => ({
+  GRANDE: window.__f12regras?.MORTE?.oGrande ?? 2.4,
+  ALVO_AFUNDO: window.__f12regras?.MORTE?.afundoNaTela ?? 0.12,
+}));
 const arqs = [];
 const foto = async (nome) => { const f = `/tmp/mt-${arqs.length}.png`; await p.screenshot({ path: f }); arqs.push([f, nome]); };
 await foto('vivo');
@@ -34,7 +40,14 @@ await p.evaluate(() => window.__f12ferir(99999));
 const INTERVALO = Number(process.env.INTERVALO ?? 550), QUADROS = Number(process.env.QUADROS ?? 9);
 const marcos = [];
 for (let i = 0; i < QUADROS; i++) {
-  const e = await p.evaluate(() => { const s = window.__f12estado; return { fase: s.fase, mt: s.morteT }; });
+  // O `y` DE TELA da cabeça, e não o do mundo: o afundo dela já foi "consertado"
+  // uma vez com um teste em unidades de mundo que passava enquanto o olho via
+  // uma cabeça parada. O que o jogador vê é fração de tela.
+  const e = await p.evaluate(() => {
+    const s = window.__f12estado, r = window.__f12regras;
+    const yTela = r && s ? r.fracaoNaTela(0, r.ALTURA_DA_CABECA - (r.quedaDaMorte?.(s.morteT) ?? 0), r.ARENA.zCabeca) : null;
+    return { fase: s.fase, mt: s.morteT, yTela };
+  });
   marcos.push({ t: +((Date.now() - t0) / 1000).toFixed(2), ...e });
   await foto(`${((Date.now() - t0) / 1000).toFixed(1)}s · ${e.fase}`);
   await new Promise(r => setTimeout(r, INTERVALO));
@@ -47,6 +60,15 @@ console.log(`\n  fase final: ${fim}`);
 console.log(`  quadros em 'morrendo': ${morrendo.length} de ${QUADROS}`);
 if (morrendo.length) {
   console.log(`  duração observada: >= ${(morrendo[morrendo.length-1].t - morrendo[0].t + INTERVALO/1000).toFixed(1)}s`);
+}
+// ── O AFUNDO, EM FRAÇÃO DE TELA ──────────────────────────────────────────────
+const comY = marcos.filter(m => m.fase === 'morrendo' && typeof m.yTela === 'number');
+const antesDoGrande = comY.filter(m => m.mt <= GRANDE);
+if (antesDoGrande.length >= 2) {
+  const desceu = antesDoGrande[0].yTela - antesDoGrande[antesDoGrande.length - 1].yTela;
+  const alvo = ALVO_AFUNDO;
+  console.log(`\n  afundo antes do estouro grande: ${(desceu * 100).toFixed(1)}% da altura da tela` +
+    `  (alvo >= ${(alvo * 100).toFixed(0)}%)  ${desceu >= alvo ? 'OK' : 'ABAIXO DO ALVO'}`);
 }
 await b.close(); await ponte.fechar?.();
 // folha de contato — a mesma receita em PIL das outras bancadas (não há
@@ -73,12 +95,6 @@ console.log('📄', saida);
 
 // ── O CRITÉRIO: A CENA TEM DE TER O QUE VER ──────────────────────────────────
 //
-// A primeira versão da morte passava neste arquivo com louvor — 7 quadros em
-// `morrendo`, duração certa, fase final certa — e não tinha imagem nenhuma: os
-// "estouros" eram faíscas de 3 px. Cronômetro não é espetáculo. Um avaliador
-// propôs a régua que faltava, e ela é esta: comparar a LUMINÂNCIA média de cada
-// quadro da cena com a do quadro "vivo". Fogo é luz; se a luz não sobe, não
-// houve fogo.
 // ── A RÉGUA DA LUZ, E O QUE ELA NÃO SABE MEDIR ───────────────────────────────
 //
 // A primeira versão da morte passava nesta bancada com louvor — 7 quadros em

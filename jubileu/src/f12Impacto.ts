@@ -220,6 +220,7 @@ export function reiniciarImpacto(): void {
     tremorEstado.trauma = 0; tremorEstado.t = 0;
     for (const f of faiscas) f.vida = 0;
     for (const b of bolas) b.vida = 0;
+    proximaBola = 0;
     proxima = 0;
 }
 
@@ -242,9 +243,27 @@ export const IMPACTOS = Object.freeze({
     // é um efeito, é um número no arquivo. 0,05 atravessa dois quadros a 40 fps
     // e continua curto o bastante para noventa por cento dos acertos do andar
     // não virarem soluço.
-    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4 }),
-    carregado: Object.freeze({ stop: 0.075, forcaStop: 0.05, trauma: 0.42, faiscas: 18, forca: 9.5 }),
-    dano: Object.freeze({ stop: 0.085, forcaStop: 0.08, trauma: 0.60, faiscas: 14, forca: 7.0 }),
+    //
+    // `bola` é o RAIO da bola de fogo, em unidades de mundo — 0 é sem bola.
+    //
+    // ── A FERRAMENTA ESTAVA APONTADA PARA O LUGAR ERRADO ─────────────────────
+    //
+    // As bolas de fogo nasceram para a morte do chefe e ficaram SÓ lá: quatro
+    // chamadas, todas dentro da cena. Um avaliador contou e disse o óbvio — o
+    // sistema de impacto por área existia, e os cem segundos que o jogador passa
+    // JOGANDO continuavam pagando o acerto com uma faísca de três pixels. Ele
+    // via fogo de verdade uma vez, no fim.
+    //
+    // Agora a bola mora na TABELA, e `impacto()` a dispara. Nenhum ponto de
+    // acerto pode esquecer dela, porque nenhum ponto de acerto a chama.
+    //
+    // O tiro comum fica em ZERO de propósito, e isso não é economia: ele acerta
+    // sete vezes por segundo. Se ele estourasse, a tela seria fogo contínuo e o
+    // carregado não teria com o que contrastar — e o contraste É a informação,
+    // que é a frase que este arquivo inteiro defende.
+    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4, bola: 0 }),
+    carregado: Object.freeze({ stop: 0.075, forcaStop: 0.05, trauma: 0.42, faiscas: 18, forca: 9.5, bola: 3.4 }),
+    dano: Object.freeze({ stop: 0.085, forcaStop: 0.08, trauma: 0.60, faiscas: 14, forca: 7.0, bola: 2.2 }),
 });
 
 export type TipoDeImpacto = keyof typeof IMPACTOS;
@@ -255,6 +274,7 @@ export function impacto(tipo: TipoDeImpacto, x: number, y: number, z: number): v
     segurarOTempo(i.stop, i.forcaStop);
     tremer(i.trauma);
     espalharFaiscas(x, y, z, i.faiscas, i.forca, tipo === 'carregado' ? 1 : tipo === 'dano' ? 2 : 0);
+    if (i.bola > 0) estourar(x, y, z + 1, i.bola);
 }
 
 // ── AS BOLAS DE FOGO ─────────────────────────────────────────────────────────
@@ -270,7 +290,7 @@ export function impacto(tipo: TipoDeImpacto, x: number, y: number, z: number): v
 // dois quads: um núcleo claro que cresce rápido e some, e uma fumaça escura que
 // cresce devagar e fica. A fumaça é o que impede a cena de piscar e voltar ao
 // mesmo quadro de antes.
-export const BOLAS_MAX = 14;
+export const BOLAS_MAX = 24;
 
 export interface Bola {
     x: number; y: number; z: number;

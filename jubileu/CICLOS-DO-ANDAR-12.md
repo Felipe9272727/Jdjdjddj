@@ -30,13 +30,19 @@ tela**. A escada abaixo é só disso.
 
 | medida | valor |
 |---|---|
-| luta completa, toque deitado | 115 s |
-| luta completa, toque em pé | 110 s |
-| luta completa, teclado | 117 s |
-| diferença entre a tela mais rápida e a mais lenta | 6,1 % |
+| luta completa, toque deitado | 105 s |
+| luta completa, toque em pé | 109 s |
+| luta completa, teclado | 114 s |
+| diferença entre a tela mais rápida e a mais lenta | 7,9 % |
 | padrões vistos em 60 s | 5 de 5 |
 | tempo até poder jogar | 12,4 s |
-| FPS mediana (deitado / em pé / desktop) | 54,5 / 47,9 / 39,3 |
+| FPS **mediana** (deitado / em pé / desktop) | 53,6 / 43,9 / 38,7 |
+| FPS **mínima** (deitado / em pé / desktop) | 23,8 / 23,1 / 21,5 |
+
+> A MÍNIMA entrou nesta tabela no ciclo 7, e entrou porque faltava: um avaliador
+> mediu 17 fps de mínima e observou que o número nunca tinha sido discutido —
+> "hoje só a mediana entra na tabela". Uma tabela que só mostra a mediana esconde
+> exatamente o engasgo que o jogador sente. Alvo: mediana 52/45, **mínima 30**.
 
 ---
 
@@ -142,3 +148,28 @@ coisas. Distância de jogo não é distância de cena. Agora ela chega perto dur
 | luta, três telas | 108 / 108 / 105 s | 115 / 110 / 117 s |
 | pico de luz na morte | 100,4% do quadro vivo | 126,2% |
 | elevador virando avião, na tela | ~35 px | a cena inteira |
+
+### Ciclo 7 — 2026-09-13 — o fogo foi para a luta, e o afundo foi medido em pixel
+
+O sexto parecer deu 6,3 e o achado foi certeiro: as bolas de fogo — a melhor
+coisa do ciclo anterior — só eram chamadas em quatro lugares, **todos dentro da
+morte**. O sistema de impacto por área existia e os cem segundos que o jogador
+passa JOGANDO continuavam pagando o acerto com uma faísca de três pixels.
+
+A bola foi para a TABELA `IMPACTOS`, e quem a dispara é `impacto()`. Nenhum
+ponto de acerto pode esquecer dela porque nenhum ponto de acerto a chama. O tiro
+comum fica em ZERO de propósito: ele acerta sete vezes por segundo, e se
+estourasse o carregado não teria com o que contrastar.
+
+E o AFUNDO, que era o segundo ciclo seguido em que eu fechava um defeito visual
+com um teste em unidades de mundo: 4,5 unidades é 29% do diâmetro da cabeça, e
+ao quadrado metade disso acontecia no último terço. Agora a bancada da morte lê
+o `y` DE TELA da cabeça e exige `MORTE.afundoNaTela` de queda antes do estouro
+grande. Medido: **21,2% da altura da tela** (alvo 12%).
+
+| medida | antes | depois |
+|---|---|---|
+| FPS mínima deitado / em pé / desktop | 17 / — / 19 | 23,8 / 23,1 / 21,5 |
+| afundo da cabeça antes do grande | não medido em tela | 21,2% da altura |
+| bolas de fogo fora da cutscene | 0 | carregado, dano, camareira |
+| céu vazio no fim da morte | ~0,6 s | ~0,2 s |

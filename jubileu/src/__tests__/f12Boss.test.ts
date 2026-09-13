@@ -1211,7 +1211,13 @@ describe('f12 — a morte da cabeça', () => {
         // dos 4,4 s a cabeça não saía do lugar. Onze quadros idênticos.
         expect(quedaDaMorte(0)).toBe(0);
         expect(quedaDaMorte(MORTE.oGrande), 'a cabeça ficou parada até o estouro grande')
-            .toBeGreaterThanOrEqual(3);
+            .toBeGreaterThanOrEqual(ESCALA_DA_CABECA);
+        // e o movimento COMEÇA cedo: no primeiro terço da cadeia já andou um
+        // quinto do afundo. A versão `k²` andava 11% — passava neste teste se
+        // ele só olhasse o fim, e era o que ele fazia.
+        expect(quedaDaMorte(MORTE.oGrande / 3) / MORTE.afundo,
+            'o afundo está todo empilhado no fim; a cena começa parada')
+            .toBeGreaterThan(0.18);
         // e sem degrau na emenda: a queda começa de onde o afundo terminou
         const antes = quedaDaMorte(MORTE.oGrande - 1e-6);
         const depois = quedaDaMorte(MORTE.oGrande + 1e-6);
