@@ -623,7 +623,7 @@ export const vulneravel = (b: BocaAgora): boolean => b.estado === 'aberta';
 //
 // Cada um é uma referência à lore de um andar, porque é o hotel inteiro que
 // está cuspindo pela boca dela.
-export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores';
+export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores' | 'giratoria';
 
 export interface FichaDoAtaque {
     nome: NomeDoAtaque;
@@ -658,6 +658,11 @@ export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
         nome: 'elevadores',
         grito: 'A ESPINHA',
         lore: 'Cabines vazias caindo. O hotel inteiro é um poço, e a gente está dentro dele.',
+    },
+    {
+        nome: 'giratoria',
+        grito: 'A PORTA GIRATÓRIA',
+        lore: 'A entrada do saguão. Ela nunca parou de girar, nem depois que o saguão acabou.',
     },
 ]);
 
@@ -798,23 +803,43 @@ export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
     // bancada: ela registra quando o TIPO muda, então dois iguais seguidos
     // aparecem como um silêncio que não existe. Um defeito de jogo disfarçado de
     // defeito de instrumento.)
-    const antes = ataqueDaVez(n);
-    const depois = ataqueDaVez(n + 1);
+    // `true` nos dois: este segundo cuspe SÓ existe depois da virada, então os
+    // vizinhos de quem ele não pode repetir são os vizinhos DE LÁ — e depois da
+    // virada eles podem ser a giratória. Sem a bandeira, a regra de não repetir
+    // consultava um rodízio que não é o que está rodando.
+    const antes = ataqueDaVez(n, true);
+    const depois = ataqueDaVez(n + 1, true);
     const k = Math.max(0, Math.floor(n)) + 2;
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
-    for (let i = 0; i < ENSINO.length; i++) {
-        const q = ordem[(k + i) % ENSINO.length];
+    // a giratória entra no saque do segundo cuspe também: ela é da segunda
+    // metade, e o segundo cuspe é a segunda metade.
+    const saco: NomeDoAtaque[] = [...ordem, 'giratoria'];
+    for (let i = 0; i < saco.length; i++) {
+        const q = saco[(k + i) % saco.length];
         if (q !== antes && q !== depois) return q;
     }
-    // Com cinco padrões e dois proibidos sempre sobram três; este retorno é só
+    // Com seis padrões e dois proibidos sempre sobram quatro; este retorno é só
     // para o compilador.
-    return ordem.find((q) => q !== antes) ?? antes;
+    return saco.find((q) => q !== antes) ?? antes;
 }
 
-export function ataqueDaVez(n: number): NomeDoAtaque {
+export function ataqueDaVez(n: number, depoisDaVirada = false): NomeDoAtaque {
     const i = Math.max(0, Math.floor(n));
     if (i < ENSINO.length) return ENSINO[i];
     const k = i - ENSINO.length;
+    // ── AGORA A VIRADA MUDA O CATÁLOGO, E O PARÂMETRO É LIDO ─────────────
+    //
+    // Este parâmetro existiu antes, ignorado com um `void`, enquanto um
+    // comentário jurava que a virada fazia alguma coisa — e passou três entregas
+    // assim. Ele voltou porque agora há o que ler: a PORTA GIRATÓRIA só entra no
+    // rodízio depois da virada. O ensino continua sendo dos cinco, porque
+    // esconder conteúdo atrás de metade da vida foi o defeito que criou tudo
+    // isto; o que a segunda metade ganha é um verbo NOVO, e não os mesmos cinco
+    // mais depressa.
+    //
+    // Uma a cada três aberturas: mais que isso e ela vira o ataque da fase em
+    // vez de a surpresa dela.
+    if (depoisDaVirada && k % 3 === 2) return 'giratoria';
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
     // A VIRADA NÃO ENTRA AQUI, e o parâmetro que existia para ela foi removido
     // em vez de ficar ignorado com um `void`. Ela não muda o CATÁLOGO — o
@@ -991,6 +1016,74 @@ export function nascerLeque(alvoX: number, alvoY: number): Projetil[] {
             x: BOCA_SAIDA.x + lado * LEQUE.largura0, y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
             vx: lado * LEQUE.abrePorSegundo + derivaX, vy, vz: LEQUE.velocidadeZ,
             r: LEQUE.raio, t: 0, p: lado,
+        });
+    }
+    return fora;
+}
+
+// ── ATAQUE 6: A PORTA GIRATÓRIA (só depois da virada) ────────────────────────
+//
+// ── POR QUE FALTAVA UM SEXTO, E POR QUE ELE É DA SEGUNDA METADE ─────────────
+//
+// O pedido original do andar era: cinco ataques, e DOIS DELES aparecem quando a
+// cabeça chega à metade da vida. Foi o que se construiu — e aí a bancada mediu
+// que ninguém nunca chegava à metade, e os dois ataques que o dono do jogo pediu
+// que eu inventasse eram conteúdo invisível. Adiantei os cinco para os primeiros
+// trinta segundos, e isso resolveu a invisibilidade e ESVAZIOU A VIRADA: um
+// avaliador mediu a segunda metade e achou um padrão exclusivo, zero. Eu tinha
+// trocado um defeito por outro sem perceber que eram dois.
+//
+// A saída não é esconder de novo. É um ataque que só faz sentido DEPOIS: ele
+// exige que o jogador já saiba ler a cabeça, porque não tem uma leitura — tem
+// uma ROTAÇÃO, e ler rotação é a única coisa que os outros cinco não pedem.
+//
+//   leque       posição
+//   teleguiado  manobra
+//   camareiras  tiro
+//   maré        achar a fresta
+//   espinha     o eixo vertical
+//   GIRATÓRIA   o eixo do TEMPO: para onde a coisa vai ESTAR
+//
+// Ela cospe em espiral: cada unidade sai com a lateral girada um passo fixo em
+// relação à anterior. Ficar parado não funciona nem por acidente, porque a
+// espiral varre o círculo inteiro; e correr para a borda também não, porque ela
+// chega lá. O que funciona é andar NO MESMO SENTIDO do giro, um pouco à frente
+// dele — que é exatamente o que se faz numa porta giratória.
+export const GIRATORIA = Object.freeze({
+    quantos: 14,
+    velocidadeZ: 11.0,
+    /** Rapidez lateral de cada unidade. */
+    lateral: 3.6,
+    /** Quanto o ângulo avança de uma unidade para a seguinte, em radianos. */
+    passo: 0.85,
+    raio: 0.40,
+    /** Atraso entre uma unidade e a seguinte. */
+    intervalo: 0.085,
+});
+
+/**
+ * A espiral inteira, de uma vez — cada unidade com o seu atraso em `t`.
+ *
+ * O atraso é NEGATIVO em `t` e não um agendamento no diretor: `passoDoProjetil`
+ * já integra `t`, então uma unidade com `t = -0,17` simplesmente ainda não saiu
+ * e começa a andar sozinha quando o relógio dela cruza zero. Uma fila de
+ * `setTimeout` no diretor faria o mesmo e seria mais uma coisa para desmontar
+ * quando o jogador morre no meio.
+ */
+export function nascerGiratoria(sentido: number): Projetil[] {
+    const fora: Projetil[] = [];
+    const giro = sentido >= 0 ? 1 : -1;
+    for (let i = 0; i < GIRATORIA.quantos; i++) {
+        const a = i * GIRATORIA.passo * giro;
+        fora.push({
+            id: novoId(), tipo: 'giratoria',
+            x: BOCA_SAIDA.x, y: BOCA_SAIDA.y, z: BOCA_SAIDA.z,
+            vx: Math.cos(a) * GIRATORIA.lateral,
+            // a queda até a faixa de voo ENTRA por cima do seno: sem ela a
+            // espiral gira bonito lá em cima e nunca chega no jogador
+            vy: descidaAte(meioY(), GIRATORIA.velocidadeZ) + Math.sin(a) * GIRATORIA.lateral,
+            vz: GIRATORIA.velocidadeZ,
+            r: GIRATORIA.raio, t: -i * GIRATORIA.intervalo, p: a,
         });
     }
     return fora;
@@ -1230,6 +1323,16 @@ export function passoDoProjetil(
     p: Projetil, alvoX: number, alvoY: number, dt: number,
 ): void {
     const d = Math.min(dt, 0.05);
+    // ── UNIDADE QUE AINDA NÃO SAIU ───────────────────────────────────────
+    //
+    // A giratória nasce com a fila inteira de uma vez e escalona pelo `t`
+    // negativo de cada unidade. Enquanto ele for negativo ela existe, está na
+    // boca e NÃO ANDA — nem em Z, nem lateralmente. Sem esta guarda a espiral
+    // saía toda no mesmo quadro, que é o ataque errado com o mesmo nome.
+    if (p.t < 0) {
+        p.t += d;
+        return;
+    }
     if (p.tipo === 'teleguiado') guiarTeleguiado(p, alvoX, alvoY, d);
     p.t += d;
     p.z += p.vz * d;
@@ -1964,6 +2067,11 @@ export const F12_ALERTAS: Readonly<Record<string, string>> = Object.freeze({
     naves: 'AS CAMAREIRAS. Essas morrem de tiro. É o único padrão que se resolve atirando.',
     teleguiado: 'O FIO VERMELHO. Ele vira devagar. Deixa ele chegar perto e corta — ele gasta a curva e passa longe.',
     mare: 'A MARÉ DO 2º ANDAR. É uma parede com uma fresta, e a fresta passeia. Posição, não reflexo.',
+    // A PORTA GIRATÓRIA só aparece depois da virada, e a fala dela precisa
+    // ENSINAR o verbo novo — nenhum dos outros cinco pede para ler rotação.
+    // Sem esta linha a legenda do ataque anterior ficava na tela durante ela, e
+    // o jogador lia "A MARÉ" enquanto uma espiral de latão vinha na cara dele.
+    giratoria: 'A PORTA GIRATÓRIA. Não tem fresta parada: ela GIRA. Anda pro mesmo lado que ela, um pouco na frente.',
     elevadores: 'A ESPINHA. O poço do elevador caindo em faixas. Procure a faixa que não veio.',
 });
 

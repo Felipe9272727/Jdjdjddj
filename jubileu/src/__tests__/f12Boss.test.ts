@@ -141,17 +141,41 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     it('e nenhum padrão some por muito tempo', () => {
         // Um sorteio sem saco deixaria um padrão sumir vinte ciclos. O saco
         // garante que cada bloco de cinco contenha os cinco.
+        //
+        // A GIRATÓRIA fica de fora desta conta, e por definição: ela só existe
+        // depois da virada. O teste abaixo cobre a rotação dela.
+        const cinco = ATAQUES.map((a) => a.nome).filter((n) => n !== 'giratoria');
         const ultimoVisto: Record<string, number> = {};
         for (let i = 0; i < 200; i++) ultimoVisto[ataqueDaVez(i)] = i;
         for (let i = 0; i < 200; i++) {
             const q = ataqueDaVez(i);
             ultimoVisto[q] = i;
             if (i > 20) {
-                for (const nome of ATAQUES.map((a) => a.nome)) {
+                for (const nome of cinco) {
                     expect(i - (ultimoVisto[nome] ?? -1), `${nome} sumiu`).toBeLessThan(14);
                 }
             }
         }
+    });
+
+    it('a porta giratória NÃO existe antes da virada, e existe depois', () => {
+        // O andar já escondeu conteúdo atrás de metade da vida e ninguém nunca
+        // viu — foi o defeito que fez os cinco serem adiantados. A giratória é o
+        // caminho contrário e de propósito: os cinco são ensinados na primeira
+        // metade, e a segunda ganha um VERBO novo em vez dos mesmos cinco mais
+        // depressa. Se ela vazar para antes da virada, a virada volta a não ter
+        // o que revelar.
+        for (let i = 0; i < 200; i++) {
+            expect(ataqueDaVez(i), `a giratória vazou para o ciclo ${i}`).not.toBe('giratoria');
+        }
+        const depois = Array.from({ length: 60 }, (_, i) => ataqueDaVez(i + 5, true));
+        expect(depois).toContain('giratoria');
+        // e ela não pode virar A fase: uma a cada três aberturas, não a maioria
+        const quantas = depois.filter((q) => q === 'giratoria').length;
+        expect(quantas / depois.length, 'a giratória virou o ataque da fase')
+            .toBeLessThan(0.45);
+        expect(quantas, 'a giratória é rara demais para ser a novidade da virada')
+            .toBeGreaterThan(depois.length * 0.15);
     });
 
     it('a sequência é determinística — a simulação e o teste precisam repeti-la', () => {
@@ -1111,8 +1135,13 @@ describe('f12 — a virada aperta a luta', () => {
     // real: oito repetições coladas em 59 pares. Um teste que olha metade das
     // emendas garante metade da regra.
     it('nenhum padrão emenda consigo mesmo na sequência REAL', () => {
+        // `ataqueDaVez(i, true)`, e o `true` não é detalhe: o segundo cuspe SÓ
+        // existe depois da virada, então intercalá-lo com o rodízio de ANTES da
+        // virada montava uma sequência que o jogador nunca vê. O teste passava
+        // havia dois ciclos conferindo uma luta imaginária; quem denunciou foi
+        // ele mesmo, quebrando quando a giratória entrou só de um dos lados.
         const seq: NomeDoAtaque[] = [];
-        for (let i = 0; i < 200; i++) { seq.push(ataqueDaVez(i)); seq.push(segundoAtaqueDaVez(i)); }
+        for (let i = 0; i < 200; i++) { seq.push(ataqueDaVez(i, true)); seq.push(segundoAtaqueDaVez(i)); }
         for (let i = 1; i < seq.length; i++) {
             expect(seq[i], `posição ${i} repete ${seq[i]}`).not.toBe(seq[i - 1]);
         }
@@ -1131,10 +1160,17 @@ describe('f12 — a virada aperta a luta', () => {
         expect(a).toEqual(b);
     });
 
-    it('os dois juntos cobrem os cinco padrões', () => {
+    it('os dois juntos cobrem os SEIS padrões depois da virada', () => {
+        // Seis e não cinco: a segunda metade tem a porta giratória. E a conta
+        // tem de ser feita com a bandeira ligada nos dois, senão ela mede uma
+        // luta que não acontece — ver a nota do teste da emenda.
         const vistos = new Set<NomeDoAtaque>();
-        for (let i = 0; i < 40; i++) { vistos.add(ataqueDaVez(i)); vistos.add(segundoAtaqueDaVez(i)); }
-        expect(vistos.size).toBe(5);
+        for (let i = 0; i < 40; i++) {
+            vistos.add(ataqueDaVez(i, true));
+            vistos.add(segundoAtaqueDaVez(i));
+        }
+        expect(vistos.size).toBe(6);
+        expect(vistos.has('giratoria')).toBe(true);
     });
 
     // NÃO existe aqui um teste do tipo `expect(2/1).toBe(2)` com os dois números

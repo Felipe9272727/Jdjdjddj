@@ -33,6 +33,10 @@ const CORES = {
     mare: '#3fa9d6',         // a maré do 2º
     mareEsc: '#1d6e94',
     elevadores: '#c9b28a',   // a espinha: a mesma cabine creme do elevador
+    // a PORTA GIRATÓRIA: latão do saguão, para ela se ler como peça de hotel e
+    // não como mais um projétil colorido
+    giratoria: '#d8a13c',
+    giratoriaEsc: '#7a5a1e',
     elevadoresEsc: '#6f6350',
     tiro: '#b6ff4a',
     carregado: '#8ff0ff',
@@ -42,6 +46,9 @@ const CORES = {
 /** Quantos de cada tipo cabem no ar ao mesmo tempo. Generoso, mas fixo. */
 const TETO: Record<string, number> = {
     leque: 12, teleguiado: 3, naves: 8, mare: 3, elevadores: 10, tiro: 36, carregado: 4,
+    // a giratória sai em fila de 14, e a segunda pode começar antes de a
+    // primeira sair de cena — 16 e não 14, senão o fim da espiral some
+    giratoria: 16,
 };
 
 interface Pool {
@@ -109,6 +116,8 @@ export const Floor12Projeteis: React.FC = () => {
         naves: mat64(CORES.naves), navesLuz: mat64(CORES.navesLuz, CORES.navesLuz, 0.6),
         mare: mat64(CORES.mare, CORES.mare, 0.15), mareEsc: mat64(CORES.mareEsc),
         elevadores: mat64(CORES.elevadores), elevadoresEsc: mat64(CORES.elevadoresEsc),
+        giratoria: mat64(CORES.giratoria, CORES.giratoria, 0.45),
+        giratoriaEsc: mat64(CORES.giratoriaEsc),
         tiro: mat64(CORES.tiro, CORES.tiro, 1.0),
         carregado: mat64(CORES.carregado, CORES.carregado, 1.4),
         tiroIrmao: mat64(CORES.tiroIrmao, CORES.tiroIrmao, 1.0),
@@ -136,6 +145,18 @@ export const Floor12Projeteis: React.FC = () => {
             naves: cria(TETO.naves, () => fazerCamareira(M as never)),
             mare: cria(TETO.mare, () => fazerOnda(M as never)),
             elevadores: cria(TETO.elevadores, () => fazerCabine(M as never)),
+            // ── A FOLHA DA PORTA GIRATÓRIA ───────────────────────────
+            // Uma placa estreita e alta com moldura, e não uma esfera: a
+            // espiral só se lê como PORTA se cada unidade tiver um eixo, e
+            // uma bola não tem eixo nenhum. A folha gira em torno do próprio
+            // centro enquanto vem — ver `desenhar`.
+            giratoria: cria(TETO.giratoria, () => {
+                const g = new THREE.Group();
+                const folha = new THREE.Mesh(new THREE.BoxGeometry(0.24, 1.5, 0.6), M.giratoria);
+                const eixo = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.7, 6), M.giratoriaEsc);
+                g.add(folha, eixo);
+                return g;
+            }),
             // O TIRO CARREGADO: grande, azul e com anéis. Ele é a recompensa de
             // ter desviado apertado cinco vezes, e uma recompensa que parece
             // igual ao tiro comum não é recompensa nenhuma.
@@ -172,7 +193,10 @@ export const Floor12Projeteis: React.FC = () => {
     useFrame((state) => {
         const g = raiz.current; if (!g) return;
         // Quantos de cada tipo já foram usados neste quadro.
-        const usados: Record<string, number> = { leque: 0, teleguiado: 0, naves: 0, mare: 0, elevadores: 0, tiro: 0, carregado: 0 };
+        const usados: Record<string, number> = {
+            leque: 0, teleguiado: 0, naves: 0, mare: 0, elevadores: 0,
+            giratoria: 0, tiro: 0, carregado: 0,
+        };
 
         for (const p of f12.projeteis) {
             const chave = (p.tipo === 'tiro' || p.tipo === 'carregado') ? p.tipo : (p.tipo as NomeDoAtaque);
@@ -275,6 +299,17 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
         // velocidade lateral real — não de um seno paralelo que poderia
         // discordar dela.
         o.rotation.z = THREE.MathUtils.clamp(-p.vx * 0.25, -0.5, 0.5);
+        return;
+    }
+
+    if (p.tipo === 'giratoria') {
+        // Ela GIRA em torno do próprio eixo, no sentido em que a espiral anda —
+        // `p.p` guarda o ângulo com que ela nasceu, e o sinal dele diz o
+        // sentido. Uma folha parada seria uma placa voando; girando, é uma
+        // porta.
+        const nasceu = p.p ?? 0;
+        o.rotation.z = nasceu + t * 2.4 * Math.sign(nasceu || 1);
+        o.rotation.y = t * 1.1;
         return;
     }
 

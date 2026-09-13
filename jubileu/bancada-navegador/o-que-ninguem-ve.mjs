@@ -32,12 +32,12 @@ for (let i=0;i<5;i++){ const bt=await p.$('button'); if(bt) await bt.click({time
 // agora os dois padrões novos existem. Trava a vida e a vida do jogador, e
 // fotografa uma volta inteira da rotação.
 const vistos = new Set();
-for (let i=0;i<14;i++){
+for (let i=0;i<30;i++){
   await p.evaluate(()=>{ const s=window.__f12estado; s.nave.piscando = 9999; });
   await new Promise(r=>setTimeout(r,1500));
   const at = await p.evaluate(()=>window.__f12estado?.ataqueNoAr);
   if (at && !vistos.has(at)) { vistos.add(at); await foto(`pos-virada: ${at}`); }
-  if (vistos.has('mare') && vistos.has('elevadores')) break;
+  if (vistos.has('mare') && vistos.has('elevadores') && vistos.has('giratoria')) break;
 }
 console.log('padrões vistos depois da virada:', [...vistos].join(', '));
 ponte.fechar(); await b.close();

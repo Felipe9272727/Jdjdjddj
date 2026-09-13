@@ -35,7 +35,7 @@ import {
     fracaoNaTela,
     // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
-    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
+    nascerLeque, nascerTeleguiado, nascerGiratoria, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, tentarAtirar, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA, F12_ALERTAS,
     type Nave, type NomeDoAtaque, type F12Linha,
@@ -464,6 +464,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     const anunciou = useRef(-1);
     const faixaDoElevador = useRef(0);
     const faseDaMare = useRef(0);
+    const sentidoDaPorta = useRef(1);
 
     useFrame((_, rawDt) => {
         const dtReal = Math.min(rawDt, 0.05);
@@ -529,7 +530,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
-            const qual = ataqueDaVez(ciclo);
+            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
             F.gritoRef.current = fichaDoAtaque(qual).grito;
             // A PRIMEIRA VEZ de cada padrão, o ala explica — sem travar nada.
             // É o momento em que o jogador mais precisa da pista e o único em
@@ -547,9 +548,9 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(ciclo);
+            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
             f12.ataqueNoAr = qual;
-            cuspir(qual, n, faixaDoElevador, faseDaMare);
+            cuspir(qual, n, faixaDoElevador, faseDaMare, sentidoDaPorta);
             tocarAtaque(qual);
             // ── A VIRADA: O SEGUNDO CUSPE ────────────────────────────
             // Ela não fazia NADA além de pintar a barra de vermelho: metade da
@@ -566,7 +567,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             segundo.current = null;
             const qual2 = segundoAtaqueDaVez(s2.ciclo);
             f12.ataqueNoAr = qual2;
-            cuspir(qual2, n, faixaDoElevador, faseDaMare);
+            cuspir(qual2, n, faixaDoElevador, faseDaMare, sentidoDaPorta);
             tocarAtaque(qual2);
             F.avisar();
         }
@@ -721,6 +722,7 @@ function espalharFaiscasDoRespiro(x: number, y: number, z: number): void {
 function cuspir(
     qual: NomeDoAtaque, alvo: Nave,
     faixa: React.MutableRefObject<number>, faseMare: React.MutableRefObject<number>,
+    porta: React.MutableRefObject<number>,
 ): void {
     switch (qual) {
         case 'leque':
@@ -735,6 +737,12 @@ function cuspir(
         case 'mare':
             faseMare.current += 1.7;
             f12.projeteis.push(nascerMare(faseMare.current));
+            break;
+        case 'giratoria':
+            // o sentido alterna: a segunda giratória gira ao contrário, e quem
+            // decorou "corre para a direita" apanha uma vez.
+            porta.current *= -1;
+            f12.projeteis.push(...nascerGiratoria(porta.current));
             break;
         case 'elevadores':
             // A faixa vazia ANDA a cada vez, para o jogador não decorar um

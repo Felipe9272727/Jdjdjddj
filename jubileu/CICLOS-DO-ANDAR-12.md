@@ -177,3 +177,43 @@ grande. Medido: **21,2% da altura da tela** (alvo 12%).
 | afundo da cabeça antes do grande | não medido em tela | 21,2% da altura |
 | bolas de fogo fora da cutscene | 0 | carregado, dano, camareira |
 | céu vazio no fim da morte | ~0,6 s | ~0,2 s |
+
+### Ciclo 9 — 2026-09-13 — a segunda metade ganhou um verbo
+
+O sétimo parecer mediu a segunda metade da luta e achou **um** padrão exclusivo:
+zero. Era uma tensão que eu tinha criado sem perceber que eram dois defeitos:
+
+1. o pedido original era "dois ataques novos aos 50% de vida", e foi o que se
+   fez — até a bancada medir que ninguém chegava aos 50% e os dois ataques que o
+   dono do jogo pediu que eu inventasse eram **conteúdo invisível**;
+2. adiantei os cinco para os primeiros trinta segundos, resolvi a invisibilidade
+   e **esvaziei a virada**.
+
+A saída não é esconder de novo. É um ataque que só faz sentido depois: **A PORTA
+GIRATÓRIA**, que pede o único verbo que os outros cinco não pedem.
+
+| padrão | o que ele cobra |
+|---|---|
+| leque | posição |
+| teleguiado | manobra |
+| camareiras | tiro |
+| maré | achar a fresta |
+| espinha | o eixo vertical |
+| **giratória** | **o eixo do TEMPO: para onde a coisa vai ESTAR** |
+
+Ela cospe em espiral, uma unidade a cada 85 ms com a lateral girada um passo
+fixo. Ficar parado não funciona nem por acidente (a espiral varre o círculo) e
+correr para a borda também não (ela chega lá). O que funciona é andar no mesmo
+sentido do giro, um pouco à frente — que é o que se faz numa porta giratória. O
+sentido **alterna** a cada aparição, para quem decorou "corre pra direita"
+apanhar uma vez.
+
+E o parâmetro `depoisDaVirada` de `ataqueDaVez` voltou a existir — ele já tinha
+existido ignorado com um `void`, enquanto um comentário jurava que a virada fazia
+alguma coisa. Desta vez há o que ler.
+
+| medida | valor |
+|---|---|
+| luta, três telas | 116 / 107 / 115 s |
+| padrões pós-virada | 6 (era 5, todos da primeira metade) |
+| FPS mediana / mínima | ~46 / ~38 / ~37 · 17,6 / 22,7 / 22,0 |
