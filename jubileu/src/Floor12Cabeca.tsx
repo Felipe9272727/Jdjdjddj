@@ -14,13 +14,14 @@
  * aberta, e é aí que o tiro entra. O desenho tem de deixar isso óbvio sem HUD:
  * a mandíbula desce de verdade, o interior acende, e os olhos apertam.
  *
- * A malha é toda de caixas e esferas de baixa contagem. Nada de GLB: o andar 12
+ * O crânio tem uma cavidade real, com mandíbula e garganta independentes. Nada de GLB: o andar 12
  * carrega zero bytes de asset, e num celular isso é a diferença entre entrar no
  * andar e olhar uma tela preta esperando.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, bocaNoInstante, vulneravel, VIDA_MAXIMA, LIMIAR_DA_VIRADA, BOCA_ALVO,
@@ -34,9 +35,9 @@ import {
 export const ESCALA = 7.2;
 
 const CORES = {
-    pele: '#8d7f9c',        // um cinza-lilás de gesso velho: parede de hotel
-    peleEsc: '#6c6079',
-    interior: '#2a1420',    // a garganta
+    pele: '#b7ac91',        // um cinza-lilás de gesso velho: parede de hotel
+    peleEsc: '#605e56',
+    interior: '#140f19',    // a garganta
     brasa: '#ff7a3a',       // o que arde lá dentro
     olho: '#f4f1e4',
     pupila: '#1a1520',
@@ -44,11 +45,39 @@ const CORES = {
     ferida: '#c8443a',
 };
 
+/** A real cavity: discard the front lower skull, leaving the jaw independent. */
+function cranioAberto() {
+    const sphere = new THREE.SphereGeometry(3.6, 64, 48);
+    const flat = sphere.toNonIndexed();
+    sphere.dispose();
+    const p = flat.getAttribute('position');
+    const n = flat.getAttribute('normal');
+    const vertices: number[] = [], normals: number[] = [];
+    for (let i = 0; i < p.count; i += 3) {
+        const x = (p.getX(i) + p.getX(i+1) + p.getX(i+2)) / 3;
+        const y = (p.getY(i) + p.getY(i+1) + p.getY(i+2)) / 3;
+        const z = (p.getZ(i) + p.getZ(i+1) + p.getZ(i+2)) / 3;
+        if (z > 0.45 && y < -0.62 && Math.abs(x) < 2.48) continue;
+        for (let j = i; j < i + 3; j++) {
+            vertices.push(p.getX(j), p.getY(j), p.getZ(j));
+            normals.push(n.getX(j), n.getY(j), n.getZ(j));
+        }
+    }
+    flat.dispose();
+    const result = new THREE.BufferGeometry();
+    result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    result.computeBoundingSphere();
+    return result;
+}
+
 export const Floor12Cabeca: React.FC<{
     /** Sobe quando um tiro entra: a cabeça pisca de dano. */
     flashRef: React.MutableRefObject<number>;
 }> = ({ flashRef }) => {
     const raiz = useRef<THREE.Group>(null);
+    const cranio = useMemo(cranioAberto, []);
+    const face = useRef<THREE.Group>(null);
     const mandibula = useRef<THREE.Group>(null);
     const garganta = useRef<THREE.Mesh>(null);
     const olhoE = useRef<THREE.Group>(null);
@@ -66,6 +95,8 @@ export const Floor12Cabeca: React.FC<{
         dente: mat64(CORES.dente),
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
     }), []);
+
+    useEffect(() => () => { cranio.dispose(); Object.values(M).forEach(m => m.dispose()); }, [cranio, M]);
 
     // As feridas aparecem conforme a vida cai: a cabeça CONTA a luta no corpo,
     // e não só na barra do HUD. Um chefe cuja aparência não muda faz o jogador
@@ -103,20 +134,17 @@ export const Floor12Cabeca: React.FC<{
         if (sobrE.current) sobrE.current.rotation.z = -0.18 - franzir;
         if (sobrD.current) sobrD.current.rotation.z = 0.18 + franzir;
 
-        // ── O CORPO INTEIRO ──────────────────────────────────────────────
-        // Uma respiração lenta, e um TRANCO quando a boca escancara. Sem o
-        // tranco a cabeça parece um cenário; com ele, parece que ela empurrou
-        // o ataque para fora.
-        if (raiz.current) {
-            const respiro = Math.sin(t * 0.55) * 0.22;
-            const tranco = b.estado === 'abrindo' ? Math.sin(b.t / 0.55 * Math.PI) * 0.5 : 0;
-            raiz.current.position.set(0, ALTURA_DA_CABECA + respiro, ARENA.zCabeca - tranco);
-            raiz.current.rotation.z = Math.sin(t * 0.31) * 0.02;
-            // com pouca vida ela treme: o jogador sente o fim chegando
-            const agonia = f12.vida < VIDA_MAXIMA * 0.25 ? (1 - f12.vida / (VIDA_MAXIMA * 0.25)) : 0;
-            if (agonia > 0) {
-                raiz.current.position.x += (Math.random() - 0.5) * agonia * 0.22;
-                raiz.current.position.y += (Math.random() - 0.5) * agonia * 0.18;
+        // Mouth and collision stay anchored. The upper face breathes and recoils.
+        if (face.current) {
+            const recoil = b.estado === 'abrindo' ? Math.sin(b.t / 0.55 * Math.PI) * 0.09 : 0;
+            face.current.position.y = Math.sin(t * 0.55) * 0.035;
+            face.current.position.z = -recoil;
+        }
+        for (const eye of [olhoE.current, olhoD.current]) {
+            const pupil = eye?.children[1];
+            if (pupil) {
+                pupil.position.x = THREE.MathUtils.clamp(f12.nave.x * 0.025, -0.14, 0.14);
+                pupil.position.y = THREE.MathUtils.clamp((f12.nave.y - 5) * 0.025, -0.12, 0.1);
             }
         }
 
@@ -143,9 +171,9 @@ export const Floor12Cabeca: React.FC<{
     return (
         <group ref={raiz} name="cabeca" scale={ESCALA / R} position={[0, ALTURA_DA_CABECA, ARENA.zCabeca]}>
             {/* ── O CRÂNIO ── */}
-            <mesh material={M.pele}>
-                <sphereGeometry args={[R, 20, 14]} />
-            </mesh>
+            <mesh material={M.pele} geometry={cranio} />
+            <group ref={face}>
+            <Floor12BossCrown />
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.55, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.86, 16, 10]} />
@@ -171,6 +199,8 @@ export const Floor12Cabeca: React.FC<{
                 <boxGeometry args={[0.8, 0.9, 0.7]} />
             </mesh>
 
+            </group>
+
             {/* ── A BOCA ──
                 O interior fica FIXO e a mandíbula gira na frente dele: assim a
                 garganta já está lá quando a boca abre, em vez de nascer junto. */}
@@ -180,10 +210,13 @@ export const Floor12Cabeca: React.FC<{
                 somando por acaso, que foi como o anel de mira acabou em cima do
                 nariz na primeira montagem. */}
             <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.42]}>
-                <mesh material={M.interior} position={[0, 0, 0]}>
-                    <boxGeometry args={[4.6, 2.6, 2.2]} />
+                <mesh material={M.interior} position={[0, 0, -0.9]}>
+                    <boxGeometry args={[4.9, 3.2, 0.25]} />
                 </mesh>
-                <mesh ref={garganta} material={M.brasa} position={[0, -0.2, -0.5]}>
+                {[-1, 1].map(side => <mesh key={side} material={M.interior} position={[side * 2.35, 0, 0.25]}>
+                    <boxGeometry args={[0.25, 2.7, 2.4]} />
+                </mesh>)}
+                <mesh ref={garganta} material={M.brasa} position={[0, -0.2, 0.15]}>
                     <sphereGeometry args={[1.25, 14, 10]} />
                 </mesh>
                 {/* dentes de cima, presos ao crânio */}
@@ -248,7 +281,7 @@ export const AnelDaBoca: React.FC = () => {
         // chefe o escondia — a única pista visual da regra do jogo, invisível.
         <mesh ref={anel} position={[BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} visible={false}>
             <ringGeometry args={[BOCA_ALVO.raio * 0.82, BOCA_ALVO.raio, 28]} />
-            <meshBasicMaterial color="#b6ff4a" transparent opacity={0.6} side={THREE.DoubleSide} fog={false} />
+            <meshBasicMaterial color="#71fff0" transparent opacity={0.6} side={THREE.DoubleSide} fog={false} />
         </mesh>
     );
 };

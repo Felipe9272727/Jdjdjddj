@@ -38,7 +38,8 @@ import {
 import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
-import { AviaoDoJogador, AviaoDoIrmao, CascoDoElevador } from './Floor12Avioes';
+import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
+import { f12IntroCamera } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
@@ -143,14 +144,22 @@ const DiretorDaIntro: React.FC<{
     aberturaRef: React.MutableRefObject<number>;
     sumindoRef: React.MutableRefObject<number>;
     camRef: React.MutableRefObject<number>;
+    introProgressRef: React.MutableRefObject<number>;
+    introAtivaRef: React.MutableRefObject<boolean>;
     avisar: () => void;
-}> = ({ portaRef, aberturaRef, sumindoRef, camRef, avisar }) => {
+}> = ({ portaRef, aberturaRef, sumindoRef, camRef, introProgressRef, introAtivaRef, avisar }) => {
     const t = useRef(0);
     const marcos = useRef({ ding: false, desdobrar: false, motor: false });
     useFrame((_, rawDt) => {
-        if (f12.fase !== 'intro' && f12.fase !== 'virando') return;
+        if (f12.fase !== 'intro' && f12.fase !== 'virando') {
+            introAtivaRef.current = false;
+            return;
+        }
+        introAtivaRef.current = true;
         t.current += Math.min(rawDt, 0.05);
         const tt = t.current;
+        const progress = THREE.MathUtils.clamp(tt / 12, 0, 1);
+        introProgressRef.current = progress;
 
         if (tt > 0.6 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
 
@@ -158,17 +167,24 @@ const DiretorDaIntro: React.FC<{
 
         if (tt > 3.0) {
             if (!marcos.current.desdobrar) { marcos.current.desdobrar = true; tocarDesdobrar(); f12.fase = 'virando'; f12Bump(); }
-            aberturaRef.current = THREE.MathUtils.clamp((tt - 3.0) / 2.2, 0, 1);
+            // Keep the legacy scalar alive while the richer presentation helper
+            // is consumed by the shell. This preserves the current callback
+            // contract during the staged migration of the aircraft component.
+            aberturaRef.current = THREE.MathUtils.clamp((tt - 3.0) / 5.0, 0, 1);
         }
         if (tt > 4.4 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
 
         // A câmera sai de dentro do hóspede para trás do avião.
-        camRef.current = THREE.MathUtils.clamp((tt - 4.4) / 1.8, 0, 1);
+        camRef.current = THREE.MathUtils.clamp((tt - 4.4) / 5.0, 0, 1);
         // A cabine de dentro some junto — ela e o casco são a mesma coisa vista
         // de dois lados, e mostrar as duas ao mesmo tempo entregaria o truque.
-        sumindoRef.current = THREE.MathUtils.clamp((tt - 4.6) / 1.2, 0, 1);
+        sumindoRef.current = THREE.MathUtils.clamp((tt - 6.0) / 2.4, 0, 1);
 
-        if (tt > 6.2) { f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar(); }
+        if (tt > 12) {
+            introProgressRef.current = 1;
+            introAtivaRef.current = false;
+            f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar();
+        }
     });
     return null;
 };
@@ -185,13 +201,47 @@ const DiretorDaIntro: React.FC<{
 const CameraDaLuta: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
     camRef: React.MutableRefObject<number>;
+    introProgressRef: React.MutableRefObject<number>;
+    introAtivaRef: React.MutableRefObject<boolean>;
     sacodeRef: React.MutableRefObject<number>;
-}> = ({ naveRef, camRef, sacodeRef }) => {
+}> = ({ naveRef, camRef, introProgressRef, introAtivaRef, sacodeRef }) => {
     const camera = useThree((s) => s.camera);
     const alvo = useRef(new THREE.Vector3());
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
+
+        // The intro camera is a separate cinematic route. Its marks are relative
+        // to the aircraft, so the aircraft can already be positioned by the same
+        // Nave state that gameplay uses. At the end of the intro the normal chase
+        // camera takes over with a damped lerp instead of a hard cut.
+        if (introAtivaRef.current) {
+            const mark = f12IntroCamera(introProgressRef.current);
+            // The presentation helper's final cinematic mark is intentionally
+            // nearer than the gameplay framing. Blend to the exact chase pose
+            // during its last 18% so leaving the intro cannot jump from z=9 to
+            // ENQUADRAMENTO.recuo (19) on the first dialogue frame.
+            const handoff = THREE.MathUtils.smoothstep(introProgressRef.current, 0.82, 1);
+            const cinematic = new THREE.Vector3(n.x + mark.x, n.y + mark.y, mark.z);
+            const chase = new THREE.Vector3(
+                n.x * 0.72,
+                n.y * 0.55 + meioY() * 0.45 + 1.1,
+                ENQUADRAMENTO.recuo,
+            );
+            camera.position.lerp(cinematic.lerp(chase, handoff), Math.min(1, dt * 7));
+            const alvoCinematico = new THREE.Vector3(n.x, n.y + mark.targetY, mark.targetZ);
+            const alvoGameplay = new THREE.Vector3(
+                n.x * 0.5,
+                n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3,
+                -11,
+            );
+            alvo.current.copy(alvoCinematico.lerp(alvoGameplay, handoff));
+            camera.fov = THREE.MathUtils.lerp(mark.fov, ENQUADRAMENTO.fov, handoff);
+            camera.updateProjectionMatrix();
+            camera.lookAt(alvo.current);
+            return;
+        }
+
         const k = THREE.MathUtils.clamp(camRef.current, 0, 1);
         const suave = k * k * (3 - 2 * k);
 
@@ -208,6 +258,8 @@ const CameraDaLuta: React.FC<{
         // avião são conciliados — ver a nota longa em `f12Boss`.
         const pz = THREE.MathUtils.lerp(dentroZ, ENQUADRAMENTO.recuo, suave);
         camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
+        camera.fov = ENQUADRAMENTO.fov;
+        camera.updateProjectionMatrix();
 
         // O alvo fica ENTRE o avião e a boca: a câmera de um jogo de nave tem de
         // enquadrar os dois ao mesmo tempo, senão o jogador escolhe entre ver
@@ -255,7 +307,6 @@ interface Ferramentas {
 const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     const ladoDoTiro = useRef<-1 | 1>(1);
     const ladoDoIrmao = useRef<-1 | 1>(1);
-    const proxAtaque = useRef(0);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
     const faixaDoElevador = useRef(0);
@@ -477,6 +528,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const abertura = useRef(0);
     const sumindo = useRef(0);
     const cam = useRef(0);
+    const introProgress = useRef(0);
+    const introAtiva = useRef(true);
     const helice = useRef(1);
     const falando = useRef(false);
     const visivel = useRef(false);
@@ -555,8 +608,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     const pixelParaMundo = useCallback(() => {
         const meiaV = Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
-        const larguraDoMundo = 2 * ENQUADRAMENTO.recuo * meiaV * ENQUADRAMENTO.aspecto;
+        // R3F updates the perspective camera with the live viewport aspect;
+        // using the portrait authoring constant here made drag sensitivity wrong
+        // as soon as the player rotated the device or played on desktop.
         const larguraDaTela = Math.max(1, window.innerWidth);
+        const alturaDaTela = Math.max(1, window.innerHeight);
+        const aspectoViewport = larguraDaTela / alturaDaTela;
+        const larguraDoMundo = 2 * ENQUADRAMENTO.recuo * meiaV * aspectoViewport;
         return larguraDoMundo / larguraDaTela;
     }, []);
 
@@ -602,7 +660,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
-            <Canvas
+        <Canvas
                 dpr={0.6}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: false }}
@@ -630,8 +688,10 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
                 {fase !== 'intro' && fase !== 'virando' && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
-                    camRef={cam} avisar={() => { visivel.current = true; avisar(); }} />
-                <CameraDaLuta naveRef={nave} camRef={cam} sacodeRef={sacode} />
+                    camRef={cam} introProgressRef={introProgress} introAtivaRef={introAtiva}
+                    avisar={() => { visivel.current = true; avisar(); }} />
+                <CameraDaLuta naveRef={nave} camRef={cam} introProgressRef={introProgress}
+                    introAtivaRef={introAtiva} sacodeRef={sacode} />
                 <DiretorDaLuta nave={nave} irmao={irmao} entrada={entrada}
                     flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
