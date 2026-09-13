@@ -211,6 +211,7 @@ export function passoDoImpacto(dtReal: number): void {
     tremorEstado.t += dtReal;
     tremorEstado.trauma = Math.max(0, tremorEstado.trauma - TREMOR.queda * dtReal);
     passoDasFaiscas(dtReal);
+    passoDasBolas(dtReal);
 }
 
 /** Zera tudo. A entrada do andar e o reinício precisam disto. */
@@ -218,6 +219,7 @@ export function reiniciarImpacto(): void {
     for (const r of stop) { r.restante = 0; r.forca = 1; }
     tremorEstado.trauma = 0; tremorEstado.t = 0;
     for (const f of faiscas) f.vida = 0;
+    for (const b of bolas) b.vida = 0;
     proxima = 0;
 }
 
@@ -253,4 +255,71 @@ export function impacto(tipo: TipoDeImpacto, x: number, y: number, z: number): v
     segurarOTempo(i.stop, i.forcaStop);
     tremer(i.trauma);
     espalharFaiscas(x, y, z, i.faiscas, i.forca, tipo === 'carregado' ? 1 : tipo === 'dano' ? 2 : 0);
+}
+
+// ── AS BOLAS DE FOGO ─────────────────────────────────────────────────────────
+//
+// A morte do chefe foi entregue com "estouros em cadeia" que, na tela, eram
+// dezoito discos de três pixels a quarenta unidades da câmera. Um avaliador
+// refotografou a cena a cada 170 ms e contou: em ONZE quadros seguidos,
+// nenhum estouro visível. A cena tinha cronômetro, teste e comentário — e não
+// tinha imagem.
+//
+// A faísca é o efeito do ACERTO: pequena, precisa, ela diz ONDE. O estouro é
+// outra coisa — ele diz QUANTO, e "quanto" se lê por área, não por detalhe. São
+// dois quads: um núcleo claro que cresce rápido e some, e uma fumaça escura que
+// cresce devagar e fica. A fumaça é o que impede a cena de piscar e voltar ao
+// mesmo quadro de antes.
+export const BOLAS_MAX = 14;
+
+export interface Bola {
+    x: number; y: number; z: number;
+    vida: number; total: number;
+    /** Raio final, em unidades de mundo. */
+    raio: number;
+}
+
+const bolas: Bola[] = Array.from({ length: BOLAS_MAX }, () => ({
+    x: 0, y: 0, z: 0, vida: 0, total: 1, raio: 1,
+}));
+let proximaBola = 0;
+
+/** Quanto tempo uma bola de fogo dura. */
+export const BOLA_VIDA = 0.7;
+
+export function estourar(x: number, y: number, z: number, raio: number): void {
+    const b = bolas[proximaBola];
+    proximaBola = (proximaBola + 1) % BOLAS_MAX;
+    b.x = x; b.y = y; b.z = z;
+    b.vida = BOLA_VIDA; b.total = BOLA_VIDA; b.raio = raio;
+}
+
+export function todasAsBolas(): ReadonlyArray<Bola> { return bolas; }
+
+export function passoDasBolas(dt: number): void {
+    for (const b of bolas) if (b.vida > 0) b.vida = Math.max(0, b.vida - dt);
+}
+
+/**
+ * O raio e a opacidade do NÚCLEO no instante atual da bola.
+ *
+ * O núcleo cresce depressa e morre na primeira metade: uma explosão que cresce
+ * em velocidade constante parece um balão inflando. `k` é quanto já passou.
+ */
+export function nucleoDaBola(b: Bola): { raio: number; alfa: number } {
+    const k = 1 - b.vida / b.total;
+    const cresce = 1 - (1 - Math.min(1, k * 2.4)) ** 2;   // rápido e desacelerando
+    return { raio: b.raio * (0.25 + cresce * 0.85), alfa: Math.max(0, 1 - k * 2.2) };
+}
+
+/**
+ * E o HALO: mais largo, mais alaranjado, e ele DURA mais que o núcleo.
+ *
+ * A diferença de tempo entre os dois é o que faz a bola parecer calor
+ * esfriando. Se os dois morressem juntos, seria uma luz acendendo e apagando.
+ */
+export function haloDaBola(b: Bola): { raio: number; alfa: number } {
+    const k = 1 - b.vida / b.total;
+    const cresce = 1 - (1 - Math.min(1, k * 1.6)) ** 2;
+    return { raio: b.raio * (0.45 + cresce * 1.15), alfa: Math.max(0, (1 - k) ** 1.5) };
 }

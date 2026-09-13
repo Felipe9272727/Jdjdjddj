@@ -122,6 +122,34 @@ export function tocarDano(): void { ruido(0.32, 0.22, 900); bipe('sawtooth', 240
 export function tocarExplosao(): void { ruido(0.6, 0.28, 1200); bipe('sawtooth', 180, 40, 0.6, 0.12); }
 export function tocarFalaDoIrmao(): void { bipe('square', 300, 380, 0.05, 0.035); }
 
+/**
+ * Um estouro da MORTE do chefe — e nunca duas vezes igual.
+ *
+ * `tocarExplosao` era chamado até dez vezes seguidas na cena, com o mesmo
+ * ruído e a mesma nota. Dez cópias idênticas do mesmo som não soam como uma
+ * coisa se despedaçando: soam como um botão apertado dez vezes. Aqui cada
+ * chamada sorteia a altura e o corte do filtro; `peso` engrossa o grande.
+ */
+export function tocarEstouro(peso = 1): void {
+    const v = 0.82 + Math.random() * 0.42;
+    ruido(0.6 * peso, 0.24 * peso + 0.08, 1200 * v, 0.6);
+    bipe('sawtooth', 190 * v, 38 * v, 0.55 * peso + 0.15, 0.11 * peso);
+}
+
+/**
+ * A QUEDA: um tom que desaba enquanto a cabeça cai.
+ *
+ * A trilha parava no estouro grande e os últimos dois segundos do clímax eram
+ * SILÊNCIO — um avaliador cronometrou. Silêncio é uma escolha legítima quando é
+ * escolhido; ali era um `pararTrilha()` mal colocado. Este tom cobre a queda e
+ * termina junto com ela.
+ */
+export function tocarQueda(segundos: number): void {
+    bipe('sawtooth', 220, 34, segundos, 0.085);
+    bipe('square', 110, 21, segundos, 0.05, 0.05);
+    ruido(segundos, 0.05, 700, 0.4);
+}
+
 /** O elevador virando avião: metal se desdobrando. */
 export function tocarDesdobrar(): void {
     for (let i = 0; i < 6; i++) bipe('square', 160 + i * 55, 90 + i * 30, 0.12, 0.05, i * 0.12);

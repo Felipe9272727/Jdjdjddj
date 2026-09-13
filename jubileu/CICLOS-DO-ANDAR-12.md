@@ -30,13 +30,13 @@ tela**. A escada abaixo é só disso.
 
 | medida | valor |
 |---|---|
-| luta completa, toque deitado | 110 s |
-| luta completa, toque em pé | 108 s |
-| luta completa, teclado | 111 s |
-| diferença entre a tela mais rápida e a mais lenta | 2,6 % |
+| luta completa, toque deitado | 115 s |
+| luta completa, toque em pé | 110 s |
+| luta completa, teclado | 117 s |
+| diferença entre a tela mais rápida e a mais lenta | 6,1 % |
 | padrões vistos em 60 s | 5 de 5 |
-| tempo até poder jogar | 12,6 s |
-| FPS mediana (deitado / em pé / desktop) | 47,9 / 44,7 / 38,0 |
+| tempo até poder jogar | 12,4 s |
+| FPS mediana (deitado / em pé / desktop) | 54,5 / 47,9 / 39,3 |
 
 ---
 
@@ -119,3 +119,26 @@ página e diz `[SEM TETO]` em vez de chutar.
 | luta, teclado | 98 s | 111 s |
 | diferença entre telas | 5,0 % | 2,6 % |
 | FPS mediana deitado / em pé / desktop | 46,3 / 43,2 / 37,7 | 47,9 / 44,7 / 38,0 |
+
+### Ciclo 6 — 2026-09-13 — a cena ganhou imagem, e a câmera parou de esconder a piada
+
+O quarto parecer deu 6,0 e a frase que importa foi: a morte tinha "cronômetro,
+teste e comentário, e não tinha imagem". Ele refotografou a 170 ms e contou ONZE
+quadros seguidos sem nenhum estouro visível — porque os "estouros" eram
+`impacto('carregado')`, ou seja faíscas de três pixels a quarenta unidades da
+câmera. A faísca diz ONDE; ela não sabe dizer QUANTO, porque quanto se lê por
+ÁREA. Nasceram as BOLAS DE FOGO (`Floor12Estouros.tsx`) e o clarão de tela que o
+comentário já prometia e não existia.
+
+E a INTRODUÇÃO: o desdobramento acontecia à vista desde o ciclo 2, e mesmo assim
+ninguém via — a câmera saía da primeira pessoa direto para o `recuo` DA LUTA, que
+é a distância calculada para o avião ocupar 27% da largura enquanto desvia de
+coisas. Distância de jogo não é distância de cena. Agora ela chega perto durante
+`'virando'` e recua quando a luta começa.
+
+| medida | antes | depois |
+|---|---|---|
+| FPS mediana deitado / em pé / desktop | 51,7 / 46,2 / 39,3 | 54,5 / 47,9 / 39,3 |
+| luta, três telas | 108 / 108 / 105 s | 115 / 110 / 117 s |
+| pico de luz na morte | 100,4% do quadro vivo | 126,2% |
+| elevador virando avião, na tela | ~35 px | a cena inteira |

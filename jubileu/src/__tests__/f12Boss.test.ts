@@ -1206,9 +1206,20 @@ describe('f12 — a morte da cabeça', () => {
         expect(intervaloDoEstouro(MORTE.oGrande)).toBeCloseTo(MORTE.intervaloFinal, 6);
     });
 
-    it('a cabeça não cai antes do estouro grande, e depois cai acelerando', () => {
+    it('ela AFUNDA durante a cadeia — 70% da cena não pode ser estática', () => {
+        // Medido por um avaliador com a foto a cada 170 ms: nos primeiros 3,1
+        // dos 4,4 s a cabeça não saía do lugar. Onze quadros idênticos.
         expect(quedaDaMorte(0)).toBe(0);
-        expect(quedaDaMorte(MORTE.oGrande)).toBe(0);
+        expect(quedaDaMorte(MORTE.oGrande), 'a cabeça ficou parada até o estouro grande')
+            .toBeGreaterThanOrEqual(3);
+        // e sem degrau na emenda: a queda começa de onde o afundo terminou
+        const antes = quedaDaMorte(MORTE.oGrande - 1e-6);
+        const depois = quedaDaMorte(MORTE.oGrande + 1e-6);
+        expect(Math.abs(depois - antes), 'a cabeça deu um salto no estouro grande')
+            .toBeLessThan(0.01);
+    });
+
+    it('e depois do grande ela cai acelerando', () => {
         const meio = (MORTE.oGrande + MORTE.duracao) / 2;
         const primeiroTrecho = quedaDaMorte(meio) - quedaDaMorte(MORTE.oGrande);
         const segundoTrecho = quedaDaMorte(MORTE.duracao) - quedaDaMorte(meio);

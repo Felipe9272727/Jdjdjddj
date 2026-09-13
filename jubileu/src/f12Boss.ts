@@ -1789,6 +1789,8 @@ export const MORTE = Object.freeze({
     camera: 0.42,
     /** Quanto a cabeça cai, em unidades de mundo, até sumir. */
     queda: 44,
+    /** Quanto ela AFUNDA durante a cadeia, antes do estouro grande. */
+    afundo: 4.5,
 });
 
 /**
@@ -1806,15 +1808,29 @@ export function intervaloDoEstouro(t: number): number {
 /**
  * O quanto a cabeça já caiu, em unidades de mundo, no instante `t`.
  *
- * Antes do estouro grande ela não cai — ela só treme. Depois, cai ACELERANDO:
- * uma coisa daquele tamanho descendo em velocidade constante parece um elevador,
- * e o andar já tem elevadores demais.
+ * ── ELA AFUNDA ANTES DE CAIR ─────────────────────────────────────────────────
+ *
+ * A primeira versão devolvia ZERO até o estouro grande, e um avaliador
+ * refotografou a cena de 170 em 170 ms: nos primeiros 3,1 dos 4,4 segundos a
+ * cabeça estava ESTÁTICA — mesmo tamanho, mesma posição, onze quadros iguais.
+ * Setenta por cento do clímax não tinha o que ver.
+ *
+ * Movimento vale mais que partícula. Agora ela AFUNDA durante a cadeia —
+ * `MORTE.afundo` unidades, em curva que acelera —, e a queda de verdade começa
+ * de onde ela já estava, sem degrau (as duas curvas valem o mesmo no instante
+ * `oGrande`, o que o teste prende).
+ *
+ * Depois do grande ela cai ACELERANDO: uma coisa daquele tamanho descendo em
+ * velocidade constante parece um elevador, e o andar já tem elevadores demais.
  */
 export function quedaDaMorte(t: number): number {
     const d = t - MORTE.oGrande;
-    if (d <= 0) return 0;
+    if (d <= 0) {
+        const k = Math.max(0, Math.min(1, t / MORTE.oGrande));
+        return MORTE.afundo * k * k;
+    }
     const k = Math.min(1, d / (MORTE.duracao - MORTE.oGrande));
-    return MORTE.queda * k * k;
+    return MORTE.afundo + (MORTE.queda - MORTE.afundo) * k * k;
 }
 
 /** A cabeça tomba enquanto cai — em radianos. */

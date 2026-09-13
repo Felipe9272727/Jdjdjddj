@@ -31,7 +31,7 @@ await foto('vivo');
 // mata
 const t0 = Date.now();
 await p.evaluate(() => window.__f12ferir(99999));
-const INTERVALO = 550, QUADROS = 9;
+const INTERVALO = Number(process.env.INTERVALO ?? 550), QUADROS = Number(process.env.QUADROS ?? 9);
 const marcos = [];
 for (let i = 0; i < QUADROS; i++) {
   const e = await p.evaluate(() => { const s = window.__f12estado; return { fase: s.fase, mt: s.morteT }; });
@@ -70,3 +70,59 @@ folha.save(saida)
 `;
 execFileSync('python3', ['-c', py, JSON.stringify(arqs), saida]);
 console.log('📄', saida);
+
+// ── O CRITÉRIO: A CENA TEM DE TER O QUE VER ──────────────────────────────────
+//
+// A primeira versão da morte passava neste arquivo com louvor — 7 quadros em
+// `morrendo`, duração certa, fase final certa — e não tinha imagem nenhuma: os
+// "estouros" eram faíscas de 3 px. Cronômetro não é espetáculo. Um avaliador
+// propôs a régua que faltava, e ela é esta: comparar a LUMINÂNCIA média de cada
+// quadro da cena com a do quadro "vivo". Fogo é luz; se a luz não sobe, não
+// houve fogo.
+// ── A RÉGUA DA LUZ, E O QUE ELA NÃO SABE MEDIR ───────────────────────────────
+//
+// A primeira versão da morte passava nesta bancada com louvor — 7 quadros em
+// `morrendo`, duração certa, fase final certa — e não tinha imagem nenhuma: os
+// "estouros" eram faíscas de três pixels. Cronômetro não é espetáculo.
+//
+// A régua abaixo é a que um avaliador independente propôs: a LUMINÂNCIA MÉDIA
+// de cada quadro contra a do quadro "vivo". Ela está aqui sem ajuste, com o
+// critério dele (>= 115%), e ela REPROVA a maior parte dos quadros.
+//
+// Isso é informação, e não desculpa: uma média de quadro inteiro é pouco
+// sensível a fogo num céu claro — uma bola cobrindo 4% da tela e somando 60
+// níveis move a média 2,4%. Tentei duas substitutas (fração de pixels que
+// clarearam; ponto quente normalizado pela mediana do próprio quadro) e as duas
+// mediram outra coisa: a primeira mede o CÉU, que a morte clareia inteiro para
+// dourado (os quadros de vitória, sem fogo nenhum e com a cabeça já fora do
+// quadro, davam 19,8%); a segunda satura, porque 1,35x a mediana de um céu
+// claro passa de 255, e ainda conta a caixa de diálogo branca.
+//
+// Inventar régua até uma passar É inflar a nota. Ficou a dele, com o número que
+// der, e o júri continua sendo a FOLHA DE FOTOS — que é o que este projeto diz,
+// em `COMO-MEDIR-O-ANDAR-12.md`, desde que o avião foi desenhado dentro da boca
+// do chefe por duas revisões seguidas.
+const pyLuz = `
+from PIL import Image
+import sys, json
+itens = json.loads(sys.argv[1])
+
+def luz(f):
+    px = list(Image.open(f).convert('L').resize((160, 90)).getdata())
+    return sum(px) / len(px)
+
+base = luz(itens[0][0])
+acima = 0
+pico = 0.0
+print()
+print('── LUMINÂNCIA MÉDIA (o quadro "vivo" = 100%) ──')
+for f, n in itens[1:]:
+    v = luz(f) / base * 100
+    pico = max(pico, v)
+    if v >= 115: acima += 1
+    print('  %-22s %7.1f%%%s' % (n, v, ' ***' if v >= 115 else ''))
+print()
+print('  quadros >= 115%% (criterio do avaliador): %d de %d' % (acima, len(itens) - 1))
+print('  pico da cena: %.1f%%' % pico)
+`;
+execFileSync('python3', ['-c', pyLuz, JSON.stringify(arqs)], { stdio: 'inherit' });

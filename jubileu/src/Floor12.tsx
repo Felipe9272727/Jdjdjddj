@@ -41,9 +41,10 @@ import {
 } from './f12Boss';
 import {
     impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
-    espalharFaiscas, passoDasFaiscas,
+    espalharFaiscas, estourar,
 } from './f12Impacto';
 import { Faiscas } from './Floor12Faiscas';
+import { Estouros } from './Floor12Estouros';
 import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
@@ -53,6 +54,7 @@ import {
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
     tocarRaspao, tocarCarregado, tocarTrilha, intensificarTrilha, pararTrilha,
+    tocarEstouro, tocarQueda,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -270,6 +272,7 @@ const CameraDaLuta: React.FC<{
     const camera = useThree((s) => s.camera);
     const alvo = useRef(new THREE.Vector3());
     const conversa = useRef(0);
+    const pertoDaCena = useRef(0);
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
@@ -302,6 +305,22 @@ const CameraDaLuta: React.FC<{
         // encenação não existe" era isso — não faltava texto, faltava CÂMERA.
         // Aqui ela desliza para o lado dele e se aproxima enquanto o balão está
         // no ar, e volta sozinha quando a luta começa.
+        // ── A CÂMERA CHEGA PERTO PARA VER O ELEVADOR VIRAR AVIÃO ─────────
+        //
+        // O desdobramento acontecia à vista — isso já tinha sido consertado — e
+        // mesmo assim ninguém via: a câmera saía da primeira pessoa direto para
+        // o `recuo` DA LUTA, que é a distância calculada para o avião ocupar 27%
+        // da largura da tela enquanto se desvia de coisas. Na folha da introdução
+        // o elevador virando avião era um objeto de 35 px no meio do céu.
+        //
+        // Distância de jogo e distância de cena não são a mesma coisa. Durante
+        // `'virando'` a câmera fica perto; quando a luta chega, ela recua para a
+        // composição medida. A saída é suave, e a entrada também, senão o corte
+        // aparece — foi o que aconteceu com a câmera da morte.
+        const perto = f12.fase === 'virando' ? 1 : 0;
+        pertoDaCena.current += (perto - pertoDaCena.current) * Math.min(1, dt * 4.5);
+        const pc = pertoDaCena.current * pertoDaCena.current * (3 - 2 * pertoDaCena.current);
+
         const conversando = f12.fase === 'encontro' || f12.fase === 'virada';
         conversa.current += ((conversando ? 1 : 0) - conversa.current) * Math.min(1, dt * 2.2);
         const c = conversa.current * conversa.current * (3 - 2 * conversa.current);
@@ -328,6 +347,9 @@ const CameraDaLuta: React.FC<{
             THREE.MathUtils.lerp(py, ir.y + 1.0, c),
             THREE.MathUtils.lerp(pz, ARENA.zNave + 4.6, c),
         );
+        // a aproximação da cena, por cima do resto
+        MIRA_CAM.z = THREE.MathUtils.lerp(MIRA_CAM.z, ARENA.zNave + 3.5, pc);
+        MIRA_CAM.y = THREE.MathUtils.lerp(MIRA_CAM.y, meioY() + 0.9, pc);
         // A entrada da morte: ela sobe e avança UM POUCO.
         //
         // A primeira versão interpolava até `ARENA.zCabeca + 16`, que fica muito
@@ -337,7 +359,15 @@ const CameraDaLuta: React.FC<{
         // ele PARA antes do avião — a distância mínima é o que impede de repetir
         // o mesmo erro com outro número.
         MIRA_CAM.y += m * 1.1;
-        MIRA_CAM.z = Math.max(ARENA.zNave + 7.5, MIRA_CAM.z - m * (ENQUADRAMENTO.recuo * 0.45));
+        // A distância mínima é só da MORTE, e por isso está dentro do `if`: ela
+        // existe para a câmera não atravessar o avião ao avançar sobre a cabeça.
+        // Solta, ela virava um piso para TODA a cena — e engoliu a aproximação
+        // da introdução, que quer chegar mais perto do que isso. O elevador
+        // virando avião continuou sendo um objeto de 50 px, e eu já tinha
+        // "consertado" o enquadramento dele uma vez.
+        if (m > 0) {
+            MIRA_CAM.z = Math.max(ARENA.zNave + 7.5, MIRA_CAM.z - m * (ENQUADRAMENTO.recuo * 0.45));
+        }
         camera.position.lerp(MIRA_CAM, Math.min(1, dt * 7));
 
         // O alvo fica no eixo composto, deslocado de leve pelo avião: a câmera
@@ -352,6 +382,9 @@ const CameraDaLuta: React.FC<{
         );
         // e a mira sobe para a boca: é ela que está estourando
         alvo.current.y += m * (BOCA_ALVO.y + 1.0 - alvo.current.y);
+        // e durante a cena a mira é o próprio avião, não o eixo da luta
+        alvo.current.y = THREE.MathUtils.lerp(alvo.current.y, n.y, pc);
+        alvo.current.z = THREE.MathUtils.lerp(alvo.current.z, ARENA.zNave, pc);
 
         // ── O TREMOR ─────────────────────────────────────────────────────
         //
@@ -403,6 +436,8 @@ interface Ferramentas {
     irmao: React.MutableRefObject<Nave>;
     entrada: React.MutableRefObject<{ x: number; y: number }>;
     flash: React.MutableRefObject<number>;
+    /** O clarão de TELA CHEIA do estouro grande da morte. 1 = branco total. */
+    clarao: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
 }
@@ -743,31 +778,51 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             // empilhados na testa como pastilhas vermelhas.
             const a = Math.random() * Math.PI * 2;
             const r = ESCALA_DA_CABECA * (0.25 + Math.random() * 0.75);
-            impacto('carregado',
-                f12.bocaX + Math.cos(a) * r,
-                ALTURA_DA_CABECA + Math.sin(a) * r * 0.8,
-                ARENA.zCabeca + 2);
-            tocarExplosao();
+            const ex = f12.bocaX + Math.cos(a) * r;
+            const ey = ALTURA_DA_CABECA + Math.sin(a) * r * 0.8;
+            impacto('carregado', ex, ey, ARENA.zCabeca + 2);
+            // A BOLA é o que se vê. A faísca diz onde; a bola diz quanto.
+            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * (0.55 + Math.random() * 0.45));
+            tocarEstouro(0.75);
         }
     } else if (antes < MORTE.oGrande) {
         // O GRANDE: uma vez só. `antes < oGrande <= t` é a borda, e testá-la
         // assim (e não `t >= oGrande`) é o que impede de disparar todo quadro.
         F.flash.current = 2.4;
-        for (let i = 0; i < 5; i++) {
-            const a = (i / 5) * Math.PI * 2;
-            impacto('carregado', f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.8,
-                ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.7, ARENA.zCabeca + 2);
+        // ── O FLASH DE TELA, QUE ANTES SÓ EXISTIA NO COMENTÁRIO ──────
+        // O comentário dizia "um só, e a tela inteira", e `flash` alimentava
+        // apenas o `emissive` da pele do chefe. Não havia tela inteira nenhuma.
+        // Agora há, e ela é um `div` no overlay — mais barato e mais branco do
+        // que qualquer plano na frente da câmera.
+        F.clarao.current = 1;
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            const ex = f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.75;
+            const ey = ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.65;
+            impacto('carregado', ex, ey, ARENA.zCabeca + 2);
+            estourar(ex, ey, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.85);
         }
-        tocarExplosao();
+        estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 4, ESCALA_DA_CABECA * 1.7);
+        tocarEstouro(1.6);
+        // A trilha só para AGORA, e a queda ganha voz própria: sem isto os
+        // últimos dois segundos do clímax eram silêncio.
         pararTrilha();
+        tocarQueda(MORTE.duracao - MORTE.oGrande);
     }
 
     // o mundo continua vivo em câmera lenta: sem isto a nave congela no ar e a
     // cena vira uma foto com barulho por cima.
     const dt = dtReal * MORTE.tempo;
     passoDaNave(F.nave.current, dt);
-    passoDasFaiscas(dtReal);
-    F.flash.current = Math.max(0, F.flash.current - dtReal * 1.6);
+    // NÃO chamar `passoDasFaiscas` aqui: `passoDoImpacto`, logo acima no laço,
+    // já o chama. Eu tinha os dois, e as faíscas andavam ao DOBRO durante a
+    // cena — viviam metade do tempo, justamente na cena que existe para
+    // mostrá-las. É o defeito que `f12Impacto` descreve no próprio arquivo
+    // ("um relógio, um dono"), cometido no commit seguinte ao que o escreveu.
+    //
+    // E o `flash` também tem UM dono: quem o decai é a cabeça, que é quem o lê.
+    // O CLARÃO de tela é outro: ele é do overlay, e decai aqui.
+    F.clarao.current = Math.max(0, F.clarao.current - dtReal * 1.1);
 
     if (aMorteAcabou(t)) acabar(F, 'vitoria');
     F.avisar();
@@ -790,8 +845,9 @@ function comecarAMorte(F: Ferramentas): void {
     f12.projeteis = [];
     F.alertaRef.current = { texto: '', ate: 0 };
     pararMotor();
-    tocarExplosao();
+    tocarEstouro(1.1);
     impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 2);
+    estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 3, ESCALA_DA_CABECA * 0.9);
     F.avisar();
 }
 
@@ -802,7 +858,8 @@ function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
     F.alertaRef.current = { texto: '', ate: 0 };
     pararMotor();
     pararTrilha();
-    if (como === 'vitoria') { tocarVitoria(); tocarExplosao(); } else tocarDerrota();
+    // Sem `tocarExplosao` na vitória: a cabeça já estourou por quatro segundos.
+    if (como === 'vitoria') tocarVitoria(); else tocarDerrota();
     F.avisar();
 }
 
@@ -835,6 +892,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const irmao = useRef<Nave>(novaNave(-4, meioY() + 1.2, 3));
     const entrada = useRef({ x: 0, y: 0 });
     const flash = useRef(0);
+    const clarao = useRef(0);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -1076,6 +1134,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             >
                 <Floor12Ceu />
                 <Floor12Cabeca flashRef={flash} />
+                <Estouros />
                 <AnelDaBoca />
                 <Floor12Projeteis />
                 <Faiscas />
@@ -1087,7 +1146,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     camRef={cam} avisar={() => { visivel.current = true; avisar(); }} />
                 <CameraDaLuta naveRef={nave} irmaoRef={irmao} camRef={cam} />
                 <DiretorDaLuta alertaRef={alerta} jaAvisou={jaAvisou} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} gritoRef={gritoRef} avisar={avisar} />
+                    flash={flash} clarao={clarao} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
 
@@ -1180,8 +1239,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 um estorvo por outro. Agora cada faixa tem a sua altura e só uma
                 fala de cada vez, na ordem de urgência: o ala ensina o padrão que
                 está chegando, e o resto espera. */}
-            {mostrarControles && !temAlerta && <DicaDeControle naveRef={nave} />}
+            {mostrarControles && <DicaDeControle naveRef={nave} calado={temAlerta} />}
             <AlertaDoAla alertaRef={alerta} aoMudar={setTemAlerta} />
+            <ClaraoDeTela claraoRef={clarao} />
 
             {/* PULAR: fica no canto, discreto, e some quando a luta começa */}
             {(fase === 'intro' || fase === 'virando' || fase === 'encontro') && (
@@ -1252,7 +1312,9 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
  * sozinha depois de seis segundos: um aviso que fica para sempre vira sujeira
  * em cima de um jogo que já tem muita coisa acontecendo.
  */
-const DicaDeControle: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) => {
+const DicaDeControle: React.FC<{
+    naveRef: React.MutableRefObject<Nave>; calado: boolean;
+}> = ({ naveRef, calado }) => {
     // ── ELA SOME QUANDO O JOGADOR MEXE, E NÃO NO RELÓGIO ─────────────────
     //
     // Eram seis segundos fixos. Quem entende em um segundo continuava lendo
@@ -1270,7 +1332,14 @@ const DicaDeControle: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ n
         const id = window.setTimeout(() => setVisivel(false), 9000);
         return () => window.clearTimeout(id);
     }, []);
-    if (!visivel) return null;
+    // ── `calado`, E NÃO DESMONTAR ────────────────────────────────────────
+    //
+    // A fila do rodapé estava escrita como `!temAlerta && <DicaDeControle/>`, o
+    // que DESMONTA o componente toda vez que o ala fala. Desmontar zera o
+    // `useState` e o `setTimeout` de nove segundos: a dica renascia inteira a
+    // cada legenda, e um avaliador a fotografou ainda na tela aos 34 s de luta e
+    // depois da virada. O jeito de ceder a vez a alguém não é morrer.
+    if (!visivel || calado) return null;
     return (
         <div style={{
             ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 30px)',
@@ -1407,6 +1476,33 @@ export default Floor12;
  * comentada aparece na tela, e o jogador pode estar desviando enquanto lê — que
  * é a diferença entre um personagem e um menu.
  */
+/**
+ * O clarão de tela cheia do estouro grande.
+ *
+ * Um `div` e não um plano na frente da câmera: é mais barato (zero triângulos,
+ * zero estado de GPU), fica por cima do HUD — que é onde um clarão tem de ficar
+ * — e não depende de `tone mapping` para chegar ao branco de verdade.
+ *
+ * `pointerEvents: 'none'` porque a tela inteira é o controle do avião, e um
+ * retângulo invisível por cima dela seria a terceira vez que este andar tira o
+ * controle do jogador sem querer.
+ */
+const ClaraoDeTela: React.FC<{ claraoRef: React.MutableRefObject<number> }> = ({ claraoRef }) => {
+    const el = useRef<HTMLDivElement>(null);
+    // Escreve no ESTILO e não no estado: um `setState` por quadro durante o
+    // clarão custaria uma re-renderização do overlay inteiro a 50 fps.
+    useFrameFora(() => {
+        const d = el.current; if (!d) return;
+        const v = claraoRef.current;
+        d.style.opacity = String(v * v);
+        d.style.display = v > 0.003 ? 'block' : 'none';
+    });
+    return <div ref={el} style={{
+        position: 'absolute', inset: 0, zIndex: 9, background: '#fff',
+        pointerEvents: 'none', display: 'none', opacity: 0,
+    }} />;
+};
+
 const AlertaDoAla: React.FC<{
     alertaRef: React.MutableRefObject<{ texto: string; ate: number }>;
     aoMudar: (tem: boolean) => void;
@@ -1432,7 +1528,21 @@ const AlertaDoAla: React.FC<{
         return (
             <div style={{
                 position: 'absolute', zIndex: 5, left: '5%', right: '5%',
-                bottom: 'calc(env(safe-area-inset-bottom) + 108px)',
+                // ── ELA MORA NA BEIRA DE BAIXO ───────────────────────
+                //
+                // Era 108 px. Numa tela deitada de 412 px de altura isso é 26%
+                // do rodapé — e o avião compõe a 27%: a legenda ficava
+                // exatamente em cima do jogador e do ataque que vinha. Um
+                // avaliador fotografou. Eu tinha resolvido texto-sobre-texto e
+                // criado texto-sobre-jogo.
+                //
+                // Baixar para 12vh ainda encostava, porque a caixa tem altura
+                // própria e às vezes duas linhas. A beira de baixo é o único
+                // lugar que sobra, e ela está LIVRE: o balão de cutscene nunca
+                // coexiste com esta legenda (`oAlaPodeFalar`) e a dica de
+                // controle se cala quando ela fala (`calado`). Os três dividem
+                // a mesma faixa porque só um deles existe de cada vez.
+                bottom: 'calc(env(safe-area-inset-bottom) + 8px)',
                 pointerEvents: 'none', textAlign: 'center',
             }}>
                 <span style={{

@@ -285,19 +285,42 @@ function fachada(semente: number, cols: number, linhas: number): THREE.CanvasTex
 // não seria.
 
 /** O pano de um estandarte, com o lema do hotel. */
+/**
+ * O estandarte INTEIRO — travessa, pano e mastro — pintado num canvas só.
+ *
+ * ── GEOMETRIA FINA E VERTICAL CISALHA; TEXTURA NÃO ───────────────────────────
+ *
+ * O mastro era um cilindro de mundo. Um avaliador fotografou a introdução: o da
+ * esquerda tombava uns 40 graus, o da direita para o outro lado, cada um
+ * apontando para o seu ponto de fuga. É perspectiva correta e leitura errada —
+ * exatamente o defeito que fez as torres da cidade virarem painéis pintados, e
+ * eu o repeti numa peça nova três commits depois.
+ *
+ * Num plano virado para a câmera, o que é vertical na textura é vertical na
+ * TELA, custe o que custar a geometria. A posição ainda anda com a perspectiva;
+ * a INCLINAÇÃO não existe mais.
+ */
 function texturaDoEstandarte(linhas: string[]): THREE.CanvasTexture {
-    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    // três vezes mais alto: agora cabe o mastro embaixo do pano
+    const L = 128, A = 768;
+    const c = document.createElement('canvas'); c.width = L; c.height = A;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#2c3f6b'; g.fillRect(0, 0, 128, 256);
-    g.fillStyle = '#e8c97a'; g.fillRect(0, 0, 128, 8); g.fillRect(0, 214, 128, 6);
+    // O MASTRO, primeiro e atrás: uma faixa vertical que desce até a base.
+    g.fillStyle = '#6a6478'; g.fillRect(59, 4, 10, A - 4);
+    g.fillStyle = '#585268'; g.fillRect(66, 4, 3, A - 4);
+    // a travessa
+    g.fillStyle = '#c9a24a'; g.fillRect(18, 4, 92, 9);
+    // o pano
+    g.fillStyle = '#2c3f6b'; g.fillRect(0, 13, 128, 243);
+    g.fillStyle = '#e8c97a'; g.fillRect(0, 13, 128, 8); g.fillRect(0, 227, 128, 6);
     g.globalCompositeOperation = 'destination-out';
-    g.beginPath(); g.moveTo(0, 256); g.lineTo(64, 214); g.lineTo(128, 256); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(0, 269); g.lineTo(64, 227); g.lineTo(128, 269); g.closePath(); g.fill();
     g.globalCompositeOperation = 'source-over';
     g.fillStyle = '#f3e2b0'; g.textAlign = 'center'; g.font = 'bold 21px monospace';
-    linhas.forEach((t, i) => g.fillText(t, 64, 66 + i * 28));
+    linhas.forEach((t, i) => g.fillText(t, 64, 79 + i * 28));
     g.fillStyle = '#e8c97a';
-    g.fillRect(50, 168, 28, 12);
-    for (let i = 0; i < 3; i++) g.fillRect(50 + i * 12, 158, 6, 12);
+    g.fillRect(50, 181, 28, 12);
+    for (let i = 0; i < 3; i++) g.fillRect(50 + i * 12, 171, 6, 12);
     const t = new THREE.CanvasTexture(c);
     t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
     t.colorSpace = THREE.SRGBColorSpace;
@@ -322,21 +345,21 @@ const Estandarte: React.FC<{ p: [number, number, number]; e: number; mastro: num
     ({ p, e, mastro, linhas }) => {
         const tex = useMemo(() => texturaDoEstandarte(linhas), [linhas]);
         const malha = useRef<THREE.Mesh>(null);
+        // O balanço vira um leve vaivém em X: girar o plano inteiro devolveria a
+        // inclinação que este componente existe para não ter.
         useFrame((state) => {
-            if (malha.current) malha.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.8 + p[0]) * 0.045;
+            if (malha.current) {
+                malha.current.position.x = Math.sin(state.clock.elapsedTime * 0.8 + p[0]) * 0.06;
+            }
         });
+        // `mastro` é o comprimento total em unidades locais: o pano ocupa o topo
+        // e o resto é haste, na mesma proporção da textura.
+        const alturaDoPano = 4.0;
+        const alt = Math.max(alturaDoPano * 1.2, mastro);
         return (
             <group position={p} scale={e}>
-                <mesh position={[0, 1.1 - mastro / 2, 0]}>
-                    <cylinderGeometry args={[0.13, 0.2, mastro, 6]} />
-                    <meshLambertMaterial color="#6a6478" flatShading />
-                </mesh>
-                <mesh position={[0, 1.1, 0]}>
-                    <boxGeometry args={[2.6, 0.18, 0.18]} />
-                    <meshLambertMaterial color="#c9a24a" flatShading />
-                </mesh>
-                <mesh ref={malha} position={[0, -1.0, 0]}>
-                    <planeGeometry args={[2.0, 4.0]} />
+                <mesh ref={malha} position={[0, -alt / 2 + alturaDoPano * 0.52, 0]}>
+                    <planeGeometry args={[alt * (128 / 768) * 2.0, alt]} />
                     <meshBasicMaterial map={tex} transparent side={THREE.DoubleSide} fog={false} />
                 </mesh>
             </group>
@@ -462,7 +485,7 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
         // O hotel CONTINUA sendo geometria, e é o único que continua: ele é o
         // prédio de onde o jogador veio, o jogador precisa reconhecê-lo, e uma
         // peça só perto do centro do quadro quase não esparrama.
-        <group position={p} scale={2.6} rotation={[0, 0.22, 0]}>
+        <group position={p} scale={1.9} rotation={[0, 0.22, 0]}>
           <group position={[0, -28, 0]}>
             <mesh material={M.rocha} position={[0, -4, 0]} scale={[1.6, 0.8, 1.6]}>
                 <coneGeometry args={[7, 12, 8]} />
@@ -501,8 +524,8 @@ const CidadeNoCeu: React.FC = () => {
     const hotel = useMemo(() => {
         const z = -230;
         // topo do prédio em coordenadas do grupo: (27,2 - 28) * 2,6
-        const doTopoAteAOrigem = (27.2 - 28) * 2.6;
-        return [xParaFracao(0.19, z), yParaFracao(0.27, z) - doTopoAteAOrigem, z] as [number, number, number];
+        const doTopoAteAOrigem = (27.2 - 28) * 1.9;
+        return [xParaFracao(0.17, z), yParaFracao(0.215, z) - doTopoAteAOrigem, z] as [number, number, number];
     }, []);
     // O mastro vai do pano até MERGULHAR na linha do céu (0,12): assim ele
     // termina dentro da silhueta da cidade e não no ar.
