@@ -41,7 +41,7 @@ jobs:
           npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/floor12-vite.log 2>&1 &
           echo $! > /tmp/floor12-vite.pid
           for attempt in $(seq 1 30); do
-            curl --fail --silent http://127.0.0.1:4173/floor12-dev.html >/dev/null && exit 0
+            curl --fail --silent http://127.0.0.1:4173/index.html?f12 >/dev/null && exit 0
             sleep 1
           done
           cat /tmp/floor12-vite.log
