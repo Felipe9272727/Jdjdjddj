@@ -168,14 +168,26 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         for (let i = 0; i < 200; i++) {
             expect(ataqueDaVez(i), `a giratória vazou para o ciclo ${i}`).not.toBe('giratoria');
         }
-        const depois = Array.from({ length: 60 }, (_, i) => ataqueDaVez(i + 5, true));
+        // ── ESTA PARTE NÃO PROVA QUE O JOGADOR A VÊ ──────────────────────
+        //
+        // E é exatamente essa a lição mais cara deste andar: a giratória foi
+        // entregue com seis testes verdes e ZERO aparições no jogo, porque o
+        // cursor do rodízio saía de um relógio que o diretor zera na virada.
+        // Testes de módulo provam que a REGRA está certa; só o navegador prova
+        // que o JOGO a executa. Quem faz a segunda pergunta é
+        // `bancada-navegador/o-rodizio-de-verdade.mjs`, e ela é obrigatória
+        // sempre que se mexer neste rodízio.
+        //
+        // A frequência também mora lá. Um `expect` de que `k % 3` dá um terço é
+        // a constante conferindo a si mesma — havia um aqui, com faixa de 0,15 a
+        // 0,45 em volta de 0,333, e ele não podia falhar.
+        const depois = Array.from({ length: 60 }, (_, i) => ataqueDaVez(i + 5, i));
         expect(depois).toContain('giratoria');
-        // e ela não pode virar A fase: uma a cada três aberturas, não a maioria
-        const quantas = depois.filter((q) => q === 'giratoria').length;
-        expect(quantas / depois.length, 'a giratória virou o ataque da fase')
-            .toBeLessThan(0.45);
-        expect(quantas, 'a giratória é rara demais para ser a novidade da virada')
-            .toBeGreaterThan(depois.length * 0.15);
+        // O que se prende aqui é o que o módulo SABE: que ela não é o único
+        // ataque da segunda metade. Isso falharia de verdade se alguém trocasse
+        // a condição por `desdeAVirada >= 0`.
+        expect(new Set(depois).size, 'a segunda metade virou monotemática')
+            .toBeGreaterThanOrEqual(5);
     });
 
     it('a sequência é determinística — a simulação e o teste precisam repeti-la', () => {
@@ -1141,7 +1153,7 @@ describe('f12 — a virada aperta a luta', () => {
         // havia dois ciclos conferindo uma luta imaginária; quem denunciou foi
         // ele mesmo, quebrando quando a giratória entrou só de um dos lados.
         const seq: NomeDoAtaque[] = [];
-        for (let i = 0; i < 200; i++) { seq.push(ataqueDaVez(i, true)); seq.push(segundoAtaqueDaVez(i)); }
+        for (let i = 0; i < 200; i++) { seq.push(ataqueDaVez(i, i)); seq.push(segundoAtaqueDaVez(i, i)); }
         for (let i = 1; i < seq.length; i++) {
             expect(seq[i], `posição ${i} repete ${seq[i]}`).not.toBe(seq[i - 1]);
         }
@@ -1166,8 +1178,8 @@ describe('f12 — a virada aperta a luta', () => {
         // luta que não acontece — ver a nota do teste da emenda.
         const vistos = new Set<NomeDoAtaque>();
         for (let i = 0; i < 40; i++) {
-            vistos.add(ataqueDaVez(i, true));
-            vistos.add(segundoAtaqueDaVez(i));
+            vistos.add(ataqueDaVez(i, i));
+            vistos.add(segundoAtaqueDaVez(i, i));
         }
         expect(vistos.size).toBe(6);
         expect(vistos.has('giratoria')).toBe(true);

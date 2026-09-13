@@ -114,6 +114,17 @@ Não eram. O que esta bancada mede bem é o que muda por FATOR — a mínima sai
 **perfeitamente** é o resto: duração da luta, padrões vistos, dano por segundo,
 quem matou quem. Esses são contagens e tempos de jogo, não de renderização.
 
+## TESTE DE MÓDULO NÃO PROVA QUE O JOGO EXECUTA A REGRA
+
+A PORTA GIRATÓRIA foi entregue com seis testes verdes e **zero aparições no
+jogo**. O cursor do rodízio saía de um relógio que o diretor zera na virada; os
+testes chamavam a função pura com um contador que sobe, e a função estava certa.
+Eles testavam a REGRA. O andar ninguém testou.
+
+> Toda regra que o DIRETOR alimenta com um número precisa de uma bancada que a
+> observe no navegador. `o-rodizio-de-verdade.mjs` faz isso para o catálogo de
+> ataques, e `o-acerto-aparece.mjs` para o retorno visual do tiro.
+
 ## A regra
 
 Nenhum número de dificuldade muda sem a bancada mostrando o **antes e o depois**

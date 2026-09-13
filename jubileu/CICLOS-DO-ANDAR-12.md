@@ -217,3 +217,35 @@ alguma coisa. Desta vez há o que ler.
 | luta, três telas | 116 / 107 / 115 s |
 | padrões pós-virada | 6 (era 5, todos da primeira metade) |
 | FPS mediana / mínima | ~46 / ~38 / ~37 · 17,6 / 22,7 / 22,0 |
+
+### Ciclo 10 — 2026-09-13 — dois efeitos existiam e nenhum dos dois chegava à tela
+
+O oitavo parecer **baixou** a nota (6,6 → 6,4) e teve razão nas duas contas.
+
+**A PORTA GIRATÓRIA nunca apareceu para o jogador.** O cursor do rodízio saía de
+`Math.floor(bocaT / CICLO_DA_BOCA)`, e o diretor ZERA `bocaT` quando o balão da
+virada fecha. Depois da virada o cursor voltava a zero, o catálogo recomeçava
+pelo TUTORIAL — na ordem fixa e sem nem as legendas de primeira vez — e o ataque
+exclusivo da segunda metade ficava a oito aberturas de distância, fora do fim da
+luta. Medido pelo avaliador: zero aparições em 60 s e em 150 s pós-virada.
+
+Os seis testes passavam porque chamavam `ataqueDaVez(i, …)` com `i` crescendo —
+um contador que o JOGO zera.
+
+> **Teste de módulo prova que a REGRA está certa. Só o navegador prova que o JOGO
+> executa a regra.** Nasceu daí `bancada-navegador/o-rodizio-de-verdade.mjs`, e
+> ela é obrigatória sempre que se mexer no rodízio.
+
+**O ANEL DO TIRO COMUM era desenhado dentro do crânio.** O acerto estourava em
+`zCabeca + 2` — dois à frente do CENTRO de uma cabeça de 7,8 de raio — e o teste
+de profundidade fazia o que devia: escondia o efeito atrás da cara dela. Eu
+culpei a duração e aumentei; culpei a geometria e troquei duas vezes. O efeito
+estava perfeito, e atrás do chefe. Agora existe `Z_DO_ACERTO_NA_CABECA()`.
+
+| medida | antes | depois |
+|---|---|---|
+| giratórias em 55 s pós-virada | 0 | 2 |
+| a 2ª metade repete o tutorial | sim | não |
+| padrões distintos pós-virada | 5 | 6 |
+| anéis desenhados atrás do crânio | todos | 0 de 26 |
+| luta, três telas | 116 / 107 / 115 s | 116 / 106 / 107 s |

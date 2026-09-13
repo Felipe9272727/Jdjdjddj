@@ -32,7 +32,7 @@ import {
     bocaNoInstante, vulneravel, CICLO_DA_BOCA,
     ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir, oAlaPodeFalar,
     MORTE, intervaloDoEstouro, aMorteAcabou, ALTURA_DA_CABECA, ESCALA_DA_CABECA, quedaDaMorte,
-    fracaoNaTela,
+    fracaoNaTela, Z_DO_ACERTO_NA_CABECA,
     // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerGiratoria, nascerNaves, nascerMare, nascerElevadores,
@@ -42,7 +42,7 @@ import {
 } from './f12Boss';
 import {
     impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
-    espalharFaiscas, estourar, IMPACTOS, bolasAtropeladas,
+    espalharFaiscas, estourar, IMPACTOS, bolasAtropeladas, todasAsBolas,
 } from './f12Impacto';
 import { Faiscas } from './Floor12Faiscas';
 import { Estouros } from './Floor12Estouros';
@@ -459,7 +459,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     if (import.meta.env?.DEV) F12FERRAMENTAS.atual = F;
     const ladoDoTiro = useRef<-1 | 1>(1);
     const ladoDoIrmao = useRef<-1 | 1>(1);
-    const segundo = useRef<{ ciclo: number; quando: number } | null>(null);
+    const segundo = useRef<{ ciclo: number; desde: number; quando: number } | null>(null);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
     const faixaDoElevador = useRef(0);
@@ -527,10 +527,29 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         f12.bocaX = bocaXNoInstante(f12.relogio);
         const b = bocaNoInstante(f12.bocaT);
         const ciclo = Math.floor(f12.bocaT / CICLO_DA_BOCA);
+        // Quantas aberturas já houve DEPOIS da virada (-1 = ela ainda não veio).
+        // Uma conta só, num lugar só: ela decide o padrão em dois blocos
+        // diferentes deste laço, e duas cópias dela é como este andar já perdeu
+        // três entregas.
+        const desdeAVirada = f12.aberturasDaVirada >= 0
+            ? f12.aberturas - f12.aberturasDaVirada : -1;
 
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
+            // ── O CURSOR DO RODÍZIO NÃO É O RELÓGIO DA BOCA ──────────
+            //
+            // `ciclo` sai de `bocaT`, e `bocaT` é ZERADO na virada para o
+            // compasso recomeçar limpo. Usá-lo como cursor fazia a segunda
+            // metade repetir o tutorial inteiro, na ordem fixa do ENSINO, e o
+            // ataque exclusivo da segunda metade nunca era alcançado. `ciclo`
+            // serve para saber que ESTA abertura é nova; quem conta quantas já
+            // houve é `f12.aberturas`, que só sobe.
+            f12.aberturas += 1;
+            // `+1` no índice pós-virada porque `aberturas` acabou de subir e
+            // `desdeAVirada` foi calculado antes: os dois blocos deste laço têm
+            // de escolher o MESMO padrão, e é aqui que o anúncio é feito.
+            const qual = ataqueDaVez(f12.aberturas,
+                desdeAVirada >= 0 ? desdeAVirada + 1 : -1);
             F.gritoRef.current = fichaDoAtaque(qual).grito;
             // A PRIMEIRA VEZ de cada padrão, o ala explica — sem travar nada.
             // É o momento em que o jogador mais precisa da pista e o único em
@@ -548,7 +567,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
+            const qual = ataqueDaVez(f12.aberturas, desdeAVirada);
             f12.ataqueNoAr = qual;
             cuspir(qual, n, faixaDoElevador, faseDaMare, sentidoDaPorta);
             tocarAtaque(qual);
@@ -558,14 +577,18 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             // padrões novos" por cima disso. Agora a boca cospe de novo ainda
             // dentro da mesma janela aberta, com um padrão diferente do
             // primeiro — dois iguais juntos leem como o jogo repetindo.
-            segundo.current = f12.passouDaVirada ? { ciclo, quando: f12.bocaT + ATRASO_DO_SEGUNDO } : null;
+            // guarda o ÍNDICE DO RODÍZIO, não o do compasso: quem escolhe o
+            // padrão é o rodízio, e o compasso é zerado na virada.
+            segundo.current = f12.passouDaVirada
+                ? { ciclo: f12.aberturas, desde: Math.max(0, desdeAVirada), quando: f12.bocaT + ATRASO_DO_SEGUNDO }
+                : null;
         }
 
         // o segundo cuspe, quando a hora dele chega
         const s2 = segundo.current;
         if (s2 && f12.bocaT >= s2.quando) {
             segundo.current = null;
-            const qual2 = segundoAtaqueDaVez(s2.ciclo);
+            const qual2 = segundoAtaqueDaVez(s2.ciclo, s2.desde);
             f12.ataqueNoAr = qual2;
             cuspir(qual2, n, faixaDoElevador, faseDaMare, sentidoDaPorta);
             tocarAtaque(qual2);
@@ -620,7 +643,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     // O carregado ainda acende a cabeça: ele é o golpe grande e
                     // o contraste com o tiro comum é a informação.
                     F.flash.current = 1.3;
-                    impacto('carregado', p.x, p.y, ARENA.zCabeca + 2);
+                    impacto('carregado', p.x, p.y, Z_DO_ACERTO_NA_CABECA());
                     tocarExplosao();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) comecarAMorte(F);
@@ -664,7 +687,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     // deixei viva a que estava criticando — dois sistemas para
                     // a mesma coisa, e o pior deles por cima do melhor. Agora o
                     // acerto do tiro comum é só a faísca, no ponto exato.
-                    impacto('tiro', p.x, p.y, ARENA.zCabeca + 2);
+                    impacto('tiro', p.x, p.y, Z_DO_ACERTO_NA_CABECA());
                     tocarAcerto();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) comecarAMorte(F);
@@ -722,7 +745,12 @@ function espalharFaiscasDoRespiro(x: number, y: number, z: number): void {
 function cuspir(
     qual: NomeDoAtaque, alvo: Nave,
     faixa: React.MutableRefObject<number>, faseMare: React.MutableRefObject<number>,
-    porta: React.MutableRefObject<number>,
+    // `sentidoDaGiratoria` e não `porta`: existe outra `porta` neste arquivo —
+    // a ABERTURA das portas do elevador, 0..1 — e um avaliador leu as duas como
+    // a mesma coisa e reportou uma colisão que não existe (são escopos
+    // diferentes). Um nome que convida ao erro custa mais barato de trocar do
+    // que de explicar.
+    sentidoDaGiratoria: React.MutableRefObject<number>,
 ): void {
     switch (qual) {
         case 'leque':
@@ -741,8 +769,8 @@ function cuspir(
         case 'giratoria':
             // o sentido alterna: a segunda giratória gira ao contrário, e quem
             // decorou "corre para a direita" apanha uma vez.
-            porta.current *= -1;
-            f12.projeteis.push(...nascerGiratoria(porta.current));
+            sentidoDaGiratoria.current *= -1;
+            f12.projeteis.push(...nascerGiratoria(sentidoDaGiratoria.current));
             break;
         case 'elevadores':
             // A faixa vazia ANDA a cada vez, para o jogador não decorar um
@@ -755,6 +783,9 @@ function cuspir(
 
 function abrirAVirada(F: Ferramentas): void {
     f12.passouDaVirada = true;
+    // ONDE a segunda metade começou, em aberturas. É com isto que a giratória
+    // sabe que é a segunda abertura DELA, e não a centésima do jogo.
+    f12.aberturasDaVirada = f12.aberturas;
     // A trilha não TROCA na virada: entram o bumbo e a tensão por cima da mesma
     // base. Trocar de música no meio corta a tensão que a luta levou um minuto
     // para montar.
@@ -804,7 +835,7 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             // A bola vem da tabela, ESCALADA: o que está estourando é uma
             // cabeça de quinze unidades e não um tiro. A faísca diz onde; a bola
             // diz quanto.
-            impacto('carregado', ex, ey, ARENA.zCabeca + 2,
+            impacto('carregado', ex, ey, Z_DO_ACERTO_NA_CABECA(),
                 (ESCALA_DA_CABECA / IMPACTOS.carregado.bola) * (0.55 + Math.random() * 0.45));
             tocarEstouro(0.75);
         }
@@ -822,10 +853,10 @@ function passoDaMorte(F: Ferramentas, dtReal: number): void {
             const a = (i / 6) * Math.PI * 2;
             const ex = f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.75;
             const ey = ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.65;
-            impacto('carregado', ex, ey, ARENA.zCabeca + 2,
+            impacto('carregado', ex, ey, Z_DO_ACERTO_NA_CABECA(),
                 (ESCALA_DA_CABECA / IMPACTOS.carregado.bola) * 0.85);
         }
-        estourar(f12.bocaX, ALTURA_DA_CABECA, ARENA.zCabeca + 4, ESCALA_DA_CABECA * 1.7);
+        estourar(f12.bocaX, ALTURA_DA_CABECA, Z_DO_ACERTO_NA_CABECA() + 2, ESCALA_DA_CABECA * 1.7);
         tocarEstouro(1.6);
         // A trilha só para AGORA, e a queda ganha voz própria: sem isto os
         // últimos dois segundos do clímax eram silêncio.
@@ -869,7 +900,7 @@ function comecarAMorte(F: Ferramentas): void {
     F.alertaRef.current = { texto: '', ate: 0 };
     pararMotor();
     tocarEstouro(1.1);
-    impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 2,
+    impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, Z_DO_ACERTO_NA_CABECA(),
         ESCALA_DA_CABECA * 0.9 / IMPACTOS.carregado.bola);
     F.avisar();
 }
@@ -984,7 +1015,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // regras mede um segundo jogo, e este andar já perdeu três entregas
         // exatamente assim (ver `COMO-MEDIR-O-ANDAR-12.md`).
         w.__f12regras = {
-            fracaoNaTela, ALTURA_DA_CABECA, ARENA, MORTE, quedaDaMorte, bolasAtropeladas,
+            fracaoNaTela, Z_DO_ACERTO_NA_CABECA, ALTURA_DA_CABECA, ARENA, MORTE, quedaDaMorte, bolasAtropeladas,
+            todasAsBolas, estourar, ESCALA_DA_CABECA,
         };
         w.__f12bocaX = BOCA_ALVO.x;
         w.__f12enq = { larg: larguraDoQuadro(ENQUADRAMENTO.recuo, ENQUADRAMENTO.aspecto) };

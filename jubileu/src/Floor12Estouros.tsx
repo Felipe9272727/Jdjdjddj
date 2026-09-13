@@ -41,10 +41,20 @@ const PRETO = new THREE.Color(0, 0, 0);
 
 const Camada: React.FC<{
     curva: (b: Bola) => { raio: number; alfa: number };
-    cor: string; z: number; lados: number;
+    cor: string; z: number;
     /** Esta camada desenha anéis ou bolas cheias? Uma peça, dois usos. */
     anelEsperado?: boolean;
-}> = ({ curva, cor, z, lados, anelEsperado = false }) => {
+    /**
+     * A geometria, COMO ELEMENTO e não como `args` nem como filho condicional.
+     *
+     * Já foi `{anelEsperado ? <ringGeometry/> : <circleGeometry/>}`: o anel do
+     * tiro comum existia no estado — uma sonda contou as bolas vivas e viu
+     * `anel: true` a cada acerto — e não aparecia em foto nenhuma. E por `args`
+     * pararam de aparecer as duas camadas. Um elemento passado por propriedade e
+     * renderizado direto é o que o R3F entende sem ambiguidade.
+     */
+    geometria: React.ReactElement;
+}> = ({ curva, cor, z, geometria, anelEsperado = false }) => {
     const malha = useRef<THREE.InstancedMesh>(null);
     const aux = useMemo(() => new THREE.Object3D(), []);
     const c = useMemo(() => new THREE.Color(), []);
@@ -96,11 +106,7 @@ const Camada: React.FC<{
     return (
         <instancedMesh ref={malha} args={[undefined as never, undefined as never, BOLAS_MAX]}
             frustumCulled={false}>
-            {/* vinte lados no halo: a dez, a borda reta do polígono se via a
-                1100 px — um avaliador leu "decágono" antes de ler "explosão" */}
-            {anelEsperado
-                ? <ringGeometry args={[0.72, 1, lados]} />
-                : <circleGeometry args={[1, lados]} />}
+            {geometria}
             <meshBasicMaterial toneMapped={false} fog={false} depthWrite={false}
                 transparent blending={THREE.AdditiveBlending} />
         </instancedMesh>
@@ -111,11 +117,16 @@ export const Estouros: React.FC = () => (
     <>
         {/* o halo primeiro e mais atrás: o núcleo soma POR CIMA dele, e é essa
             soma que estoura no branco no centro */}
-        <Camada curva={haloDaBola} cor="#ff6a1c" z={-0.4} lados={20} />
-        <Camada curva={nucleoDaBola} cor="#fff0c0" z={0.4} lados={16} />
+        {/* vinte lados no halo: a dez, a borda reta do polígono se via a 1100 px
+            — um avaliador leu "decágono" antes de ler "explosão" */}
+        <Camada curva={haloDaBola} cor="#ff6a1c" z={-0.4}
+            geometria={<circleGeometry args={[1, 20]} />} />
+        <Camada curva={nucleoDaBola} cor="#fff0c0" z={0.4}
+            geometria={<circleGeometry args={[1, 16]} />} />
         {/* e o anel do tiro comum, na sua própria camada e com a sua própria
             geometria: forma diferente, e não tamanho diferente */}
-        <Camada curva={anelDoTiro} cor="#bff4ff" z={0.8} lados={22} anelEsperado />
+        <Camada curva={anelDoTiro} cor="#bff4ff" z={0.8}  anelEsperado
+            geometria={<ringGeometry args={[0.66, 1, 22]} />} />
     </>
 );
 

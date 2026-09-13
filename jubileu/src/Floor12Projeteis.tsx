@@ -20,7 +20,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
-    f12, ARENA, MARE, frestaDaMare, LEQUE, ENQUADRAMENTO,
+    f12, ARENA, MARE, frestaDaMare, LEQUE, ENQUADRAMENTO, BOCA_SAIDA,
     type Projetil, type NomeDoAtaque,
 } from './f12Boss';
 
@@ -303,13 +303,24 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
     }
 
     if (p.tipo === 'giratoria') {
-        // Ela GIRA em torno do próprio eixo, no sentido em que a espiral anda —
-        // `p.p` guarda o ângulo com que ela nasceu, e o sinal dele diz o
-        // sentido. Uma folha parada seria uma placa voando; girando, é uma
-        // porta.
-        const nasceu = p.p ?? 0;
-        o.rotation.z = nasceu + t * 2.4 * Math.sign(nasceu || 1);
-        o.rotation.y = t * 1.1;
+        // ── A FOLHA APONTA PARA FORA, E É ISSO QUE FAZ SER UMA PORTA ─────
+        //
+        // A primeira versão girava a folha em DOIS eixos com o relógio livre
+        // (`t * 2,4` e `t * 1,1`), sem relação nenhuma com a espiral. Um
+        // avaliador olhou a foto e leu "estilhaço dourado espalhado", não
+        // "porta girando" — e estava certo: catorze coisas girando cada uma no
+        // seu ritmo é estilhaço por definição.
+        //
+        // O que faz uma porta giratória ser legível é que as folhas são RAIOS
+        // de um mesmo eixo. Aqui a folha é alinhada com a direção em que ela
+        // está indo — que é o raio dela — e o conjunto passa a abrir como um
+        // leque que roda.
+        //
+        // E o sentido alternado, que é a piada do padrão, era INVISÍVEL:
+        // `Math.sign(nasceu || 1)` com `nasceu = 0` na primeira folha dava
+        // sempre +1, e o resto seguia o relógio. Agora o sentido está na
+        // própria posição das folhas, que é onde ele sempre esteve.
+        o.rotation.z = Math.atan2(p.y - BOCA_SAIDA.y, p.x - BOCA_SAIDA.x) + Math.PI / 2;
         return;
     }
 

@@ -163,11 +163,17 @@ describe('f12 — o orçamento de um impacto', () => {
             .toBe(IMPACTOS.carregado.faiscas);
     });
 
-    it('e a tabela não tem entrada que ninguém usa', () => {
+    it('a tabela lista exatamente os quatro tipos que o andar dispara', () => {
         // Ela nasceu com um `morte` que nunca foi chamado — código morto no
         // arquivo que veio junto de um commit sobre matar código morto.
         //
-        // `nave` entrou depois, e entrou para matar uma MENTIRA: a camareira era
+        // O nome antigo deste teste era "a tabela não tem entrada que ninguém
+        // usa", e ele não detectava isso: detectava que alguém editou a lista.
+        // O nome novo diz o que ele faz. Quem garante que cada tipo é DISPARADO
+        // é o `grep` de `impacto('` no andar, e o teste abaixo, que cobra a
+        // relação entre eles.
+        //
+        // `nave` entrou para matar uma MENTIRA: a camareira era
         // `impacto('carregado')` + um `estourar` à mão, sob um comentário que
         // prometia "uma bola menor que a do carregado". Uma linha na tabela é
         // mais barata que um comentário que precisa ser verdade.

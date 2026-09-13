@@ -262,10 +262,12 @@ export const IMPACTOS = Object.freeze({
     // sete vezes por segundo. Se ele estourasse, a tela seria fogo contínuo e o
     // carregado não teria com o que contrastar — e o contraste É a informação,
     // que é a frase que este arquivo inteiro defende.
-    // `bola: 0` e `anel: 1,5` — ver a nota em `Bola.anel`. O tiro comum paga em
-    // FORMA, não em tamanho: um anel fino de 0,18 s, que tem área e não se
-    // confunde com a bola cheia do carregado nem por um quadro.
-    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4, bola: 0, anel: 1.5 }),
+    // `bola: 0` e um ANEL — ver a nota em `Bola.anel`. O tiro comum paga em
+    // FORMA, não em tamanho: um anel fino que abre e some, com área suficiente
+    // para o olho registrar e sem se confundir com a bola cheia do carregado
+    // nem por um quadro. (O raio e a duração moram nas constantes, e não nesta
+    // frase: os dois já mudaram três vezes e o comentário não acompanhou.)
+    tiro: Object.freeze({ stop: 0.05, forcaStop: 0.3, trauma: 0.13, faiscas: 6, forca: 5.4, bola: 0, anel: 1.8 }),
     // A camareira morrendo. Ela tem bola — é o único padrão que se resolve
     // atirando, e o momento em que a arma do jogador resolve algo visível — mas
     // uma bola MENOR e um tranco menor que os do carregado. Ela existe como
@@ -361,8 +363,20 @@ let proximaBola = 0;
 
 /** Quanto tempo uma bola de fogo dura. */
 export const BOLA_VIDA = 0.7;
-/** O anel do tiro comum é curto de propósito: ele não pode virar cenário. */
-export const ANEL_VIDA = 0.18;
+/**
+ * Quanto dura o anel do tiro comum.
+ *
+ * Era 0,18 s "de propósito, para não virar cenário". Um avaliador disparou uma
+ * foto no quadro seguinte a cada um de OITO acertos e achou o anel em ZERO
+ * delas — o acerto mais frequente do jogo continuava sem retorno fotografável,
+ * que é a mesma medida que reprovou a morte do chefe dois ciclos antes.
+ *
+ * 0,28 s ainda é curto (o tiro sai a cada 0,14 s, então no máximo dois anéis
+ * coexistem) e sobrevive a um quadro ruim de 30 fps com folga de oito quadros.
+ * "Curto o bastante para não poluir" e "curto demais para existir" são coisas
+ * diferentes, e a régua entre as duas é a foto.
+ */
+export const ANEL_VIDA = 0.28;
 
 /**
  * Quantas vezes uma bola AINDA VIVA foi sobrescrita por uma nova.
@@ -390,12 +404,6 @@ export function passoDasBolas(dt: number): void {
 }
 
 /**
- * O raio e a opacidade do NÚCLEO no instante atual da bola.
- *
- * O núcleo cresce depressa e morre na primeira metade: uma explosão que cresce
- * em velocidade constante parece um balão inflando. `k` é quanto já passou.
- */
-/**
  * O ANEL do tiro comum: abre depressa e desaparece.
  *
  * A grossura é uma proporção FIXA do raio (a geometria é um anel de furo 0,72),
@@ -406,9 +414,22 @@ export function passoDasBolas(dt: number): void {
 export function anelDoTiro(b: Bola): { raio: number; alfa: number } {
     const k = 1 - b.vida / b.total;
     const abre = 1 - (1 - k) ** 2;
-    return { raio: b.raio * (0.25 + abre * 1.5), alfa: Math.max(0, (1 - k) ** 1.2) };
+    // `** 0,8` e não `** 1,2`: com expoente acima de 1 a alfa despenca no
+    // primeiro terço e o anel passa a maior parte da vida quase invisível.
+    // Abaixo de 1 ela segura, e o anel existe pelo tempo que ele dura.
+    return { raio: b.raio * (0.25 + abre * 1.5), alfa: Math.max(0, (1 - k) ** 0.8) };
 }
 
+/**
+ * O raio e a opacidade do NÚCLEO no instante atual da bola.
+ *
+ * Ele cresce depressa e morre na primeira metade: uma explosão que cresce em
+ * velocidade constante parece um balão inflando. `k` é quanto já passou.
+ *
+ * (Este bloco estava órfão umas linhas acima, colado em `anelDoTiro`, que já
+ * tinha o seu — sobra de um bloco inserido no lugar errado. Documentação que
+ * descreve a função de baixo é pior que nenhuma.)
+ */
 export function nucleoDaBola(b: Bola): { raio: number; alfa: number } {
     const k = 1 - b.vida / b.total;
     const cresce = 1 - (1 - Math.min(1, k * 2.4)) ** 2;   // rápido e desacelerando

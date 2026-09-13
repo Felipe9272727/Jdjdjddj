@@ -67,6 +67,25 @@ export const ALTURA_DA_CABECA = 29;
 export const ESCALA_DA_CABECA = 7.8;
 
 /**
+ * O Z em que um acerto NA CABEÇA deve estourar.
+ *
+ * ── O EFEITO ESTAVA SENDO DESENHADO DENTRO DO CRÂNIO ─────────────────────────
+ *
+ * Os acertos estouravam em `zCabeca + 2` — dois na frente do CENTRO da cabeça, e
+ * a cabeça tem 7,8 de raio. O teste de profundidade fazia o que devia: a
+ * superfície do crânio está na frente, então o fogo ficava ATRÁS dela e não
+ * aparecia. As bolas da morte escapavam porque nascem espalhadas até a borda do
+ * crânio, e metade delas caía fora da silhueta.
+ *
+ * Isso custou caro: um avaliador fotografou oito acertos e achou zero anéis, eu
+ * culpei a DURAÇÃO do efeito e fui aumentá-la, e depois culpei a geometria e a
+ * troquei duas vezes. O efeito estava perfeito e escondido atrás da cara dela.
+ *
+ * O acerto acontece na SUPERFÍCIE, e é onde ele tem de ser desenhado.
+ */
+export const Z_DO_ACERTO_NA_CABECA = (): number => ARENA.zCabeca + ESCALA_DA_CABECA * 0.95;
+
+/**
  * A arena.
  *
  * `x` NÃO é congelado, e é o único número deste arquivo que não é: numa tela
@@ -788,7 +807,7 @@ export const ENSINO_TAMANHO = ENSINO.length;
  */
 export const ATRASO_DO_SEGUNDO = 0.85;
 
-export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
+export function segundoAtaqueDaVez(n: number, desdeAVirada = 0): NomeDoAtaque {
     // ── ELE TEM DE DIFERIR DOS DOIS VIZINHOS, E NÃO SÓ DE UM ─────────────
     //
     // A primeira versão só evitava repetir o primeiro cuspe do MESMO ciclo. Mas
@@ -807,8 +826,13 @@ export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
     // vizinhos de quem ele não pode repetir são os vizinhos DE LÁ — e depois da
     // virada eles podem ser a giratória. Sem a bandeira, a regra de não repetir
     // consultava um rodízio que não é o que está rodando.
-    const antes = ataqueDaVez(n, true);
-    const depois = ataqueDaVez(n + 1, true);
+    // Os vizinhos são calculados com o ÍNDICE REAL da segunda metade, e não com
+    // dois valores fixos: a giratória entra em posições específicas do rodízio
+    // pós-virada, então "quem vem antes e depois de mim" muda conforme onde eu
+    // estou. Com índices chutados, a regra de não repetir consultava vizinhos
+    // que não eram os do jogo — e a sequência real emendava `naves` com `naves`.
+    const antes = ataqueDaVez(n, desdeAVirada);
+    const depois = ataqueDaVez(n + 1, desdeAVirada + 1);
     const k = Math.max(0, Math.floor(n)) + 2;
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
     // a giratória entra no saque do segundo cuspe também: ela é da segunda
@@ -823,31 +847,29 @@ export function segundoAtaqueDaVez(n: number): NomeDoAtaque {
     return saco.find((q) => q !== antes) ?? antes;
 }
 
-export function ataqueDaVez(n: number, depoisDaVirada = false): NomeDoAtaque {
+export function ataqueDaVez(n: number, desdeAVirada = -1): NomeDoAtaque {
     const i = Math.max(0, Math.floor(n));
+    // ── A GIRATÓRIA ENTRA CEDO NA SEGUNDA METADE ─────────────────────────
+    //
+    // O gate era `k % 3 === 2` sobre o cursor GERAL, e com o cursor consertado
+    // isso poria a primeira giratória na oitava abertura depois da virada —
+    // 43 s, numa segunda metade que dura uns 45. Ela entrava uma vez, no fim, e
+    // sumia se o jogador atirasse um pouco melhor. O parecer fez essa conta
+    // antes de mim.
+    //
+    // Agora ela conta as aberturas DA SEGUNDA METADE e entra na segunda delas,
+    // depois a cada três. A primeira abertura pós-virada continua sendo um dos
+    // cinco de propósito: o jogador acabou de ler um balão, e a novidade chega
+    // no compasso seguinte, quando ele já voltou a jogar.
+    if (desdeAVirada >= 0 && desdeAVirada % 3 === 1) return 'giratoria';
     if (i < ENSINO.length) return ENSINO[i];
     const k = i - ENSINO.length;
-    // ── AGORA A VIRADA MUDA O CATÁLOGO, E O PARÂMETRO É LIDO ─────────────
-    //
-    // Este parâmetro existiu antes, ignorado com um `void`, enquanto um
-    // comentário jurava que a virada fazia alguma coisa — e passou três entregas
-    // assim. Ele voltou porque agora há o que ler: a PORTA GIRATÓRIA só entra no
-    // rodízio depois da virada. O ensino continua sendo dos cinco, porque
-    // esconder conteúdo atrás de metade da vida foi o defeito que criou tudo
-    // isto; o que a segunda metade ganha é um verbo NOVO, e não os mesmos cinco
-    // mais depressa.
-    //
-    // Uma a cada três aberturas: mais que isso e ela vira o ataque da fase em
-    // vez de a surpresa dela.
-    if (depoisDaVirada && k % 3 === 2) return 'giratoria';
+    // (Havia aqui um parágrafo jurando que "A VIRADA NÃO ENTRA AQUI" e que o
+    // parâmetro dela tinha sido removido. Ele sobreviveu ao commit que pôs a
+    // virada exatamente aqui, oito linhas acima, e passou a contradizer o código
+    // que o cercava — o mesmo defeito que esse commit celebrava ter matado em
+    // outro arquivo. Um comentário sobre uma decisão morre com a decisão.)
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
-    // A VIRADA NÃO ENTRA AQUI, e o parâmetro que existia para ela foi removido
-    // em vez de ficar ignorado com um `void`. Ela não muda o CATÁLOGO — o
-    // jogador já viu os cinco nos primeiros trinta segundos, que é o ponto do
-    // ensino. O que ela muda é a PRESSÃO, e quem entrega isso é
-    // `segundoAtaqueDaVez`. Um parâmetro que ninguém lê é uma promessa falsa na
-    // assinatura, e foi exatamente assim que a virada passou três entregas sem
-    // fazer nada enquanto o código dizia que fazia.
     return ordem[k % ENSINO.length];
 }
 
@@ -887,25 +909,22 @@ export const novoId = (): number => proximoId++;
 /** Só para o teste: torna os ids determinísticos. */
 export function reiniciarIds(): void { proximoId = 1; }
 
-// ── AS VELOCIDADES FORAM REESCALADAS JUNTO COM A DISTÂNCIA ───────────────────
+// ── AS VELOCIDADES SÃO REESCALADAS JUNTO COM A DISTÂNCIA ─────────────────────
 //
-// A cabeça foi de 26 para 33 unidades de distância, e o ponto de saída de
-// `zCabeca + 1.2` para `zCabeca + 2.2`: a travessia passou de 24,8 para 30,8
-// unidades, 24% mais longa. Mantidas as velocidades antigas, cada ataque
-// ganharia 24% a mais de tempo de reação — a luta inteira ficaria mais fácil
-// por efeito colateral de uma decisão de ENQUADRAMENTO, o que é a pior forma de
-// uma dificuldade mudar, porque ninguém a escolheu.
+// Quando a cabeça se afasta, a travessia até o jogador fica mais longa, e com as
+// mesmas velocidades cada ataque ganharia tempo de reação de graça: a luta
+// inteira ficaria mais fácil por efeito colateral de uma decisão de
+// ENQUADRAMENTO. É a pior forma de uma dificuldade mudar, porque ninguém a
+// escolheu.
 //
-// Então elas foram multiplicadas para preservar o TEMPO DE VOO, que é o número
-// que o jogador sente:
+// O que se preserva é o TEMPO DE VOO, que é o número que o jogador sente.
 //
-//     leque        12,0 -> 14,9   (2,07 s, como antes)
-//     camareiras    4,3 ->  5,5   (5,60 s)
-//     maré          5,8 ->  7,2   (4,28 s)
-//     elevadores    5,2 ->  6,46  (4,77 s)
-//
-// O teleguiado ficou em 8,0: ele não tem tempo de voo fixo — persegue — e o
-// combustível dele (7,5 s) é que manda.
+// (Havia aqui a tabela com as distâncias e os tempos de cada padrão em segundos.
+// `ARENA.zCabeca` é RESOLVIDO por aspecto desde que a composição virou conta, e
+// os números da tabela ficaram 24-35% acima da travessia real sem que ninguém
+// percebesse — um avaliador mediu na página. Duração em comentário envelhece a
+// cada afinação e este arquivo proíbe isso em outras três notas. Quem quer o
+// tempo de voo de hoje chama `tempoDeVoo`, que o calcula.)
 //
 // ── DE ONDE OS ATAQUES SAEM ──────────────────────────────────────────────────
 //
@@ -1982,8 +2001,33 @@ export interface F12State {
     /** Relógio da boca — separado, porque a virada o reinicia. */
     bocaT: number;
     vida: number;
-    /** Quantas vezes a boca já abriu (é o cursor do rodízio). */
+    /**
+     * Quantas vezes a boca já abriu. É O CURSOR DO RODÍZIO, e ele é MONOTÔNICO.
+     *
+     * ── POR QUE ELE NÃO PODE SAIR DO RELÓGIO DA BOCA ─────────────────────────
+     *
+     * O cursor era `Math.floor(f12.bocaT / CICLO_DA_BOCA)`, calculado no
+     * diretor. E o diretor ZERA `bocaT` quando o balão da virada fecha, para o
+     * compasso recomeçar limpo — o que é certo para o compasso e é veneno para o
+     * rodízio: depois da virada o cursor voltava a 0, `ataqueDaVez` caía de novo
+     * no ramo do ENSINO e a segunda metade REPETIA O TUTORIAL, na mesma ordem
+     * fixa e sem nem as legendas de primeira vez. O ataque que existe só depois
+     * da virada nunca era alcançado.
+     *
+     * Um avaliador mediu: zero aparições dele em 60 s e em 150 s de luta
+     * pós-virada. Os testes passavam porque chamavam `ataqueDaVez(i, true)` com
+     * `i` crescendo — um contador que o JOGO zera. Eles testavam a função; o
+     * andar ninguém testou.
+     */
     aberturas: number;
+    /**
+     * Quanto valia `aberturas` quando a virada aconteceu.
+     *
+     * É com ela que se conta a segunda metade, e é por isso que ela existe em
+     * vez de um `if` no compasso: "a segunda abertura DEPOIS da virada" é uma
+     * frase sobre o rodízio, e o rodízio não conhece relógio nenhum.
+     */
+    aberturasDaVirada: number;
     /** O ataque que a boca cuspiu na abertura atual (null = ainda não cuspiu). */
     ataqueNoAr: NomeDoAtaque | null;
     passouDaVirada: boolean;
@@ -2002,6 +2046,7 @@ function criarEstado(): F12State {
     return {
         fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA, aberturas: 0,
         ataqueNoAr: null, passouDaVirada: false, bocaX: 0, morteT: 0, projeteis: [],
+        aberturasDaVirada: -1,
         linhaDoDialogo: 0, versao: 0,
     };
 }
