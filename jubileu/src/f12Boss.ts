@@ -221,14 +221,18 @@ export const ALVOS_DE_TELA = Object.freeze({
      *
      * ── A ARENA E O AVIÃO TÊM DE ENCOLHER JUNTOS ─────────────────────────
      *
-     * Era 0,90 fixo, e isso fazia o jogo ser OUTRO em cada tela. Medido com o
-     * mesmo bot e a mesma política:
+     * Era 0,90 fixo, e isso fazia o jogo ser OUTRO em cada tela: medido com o
+     * mesmo bot e a mesma política, a luta era CINQUENTA E TRÊS POR CENTO mais
+     * longa numa tela do que na outra.
      *
-     *     412x915 (retrato)   2,40 dps   luta de 100 s
-     *     915x412 (paisagem)  1,63 dps   luta de 147 s
-     *     1280x720            1,57 dps   luta de 153 s
+     * (Havia aqui a tabela de dps e de durações das três telas. Os números
+     * envelheceram em dois ciclos e passaram a mentir — e este arquivo proíbe
+     * escrever duração em comentário, numa nota que eu mesmo escrevi vinte
+     * linhas adiante. A RAZÃO entre as telas é o defeito e não envelhece; os
+     * valores absolutos moram no relatório da bancada e no commit, que têm
+     * data.)
      *
-     * Cinquenta e três por cento de diferença. A causa não é o enquadramento —
+     * A causa não é o enquadramento —
      * esse já estava resolvido — é a PROPORÇÃO entre o avião e a arena. O avião
      * é fixado em fração da largura e ele AFINA em tela larga (0,28 -> 0,17,
      * para não virar um borrão); a arena continuava em 0,90. Resultado: o avião
@@ -483,12 +487,36 @@ export function dentroDaArena(x: number, y: number): { x: number; y: number } {
 }
 
 // ── AS FASES ─────────────────────────────────────────────────────────────────
+/**
+ * O ala pode falar agora?
+ *
+ * ── O RODAPÉ É UMA FILA, E O BALÃO ESTAVA FORA DELA ──────────────────────────
+ *
+ * A fila do rodapé foi escrita para resolver quatro textos sobrepostos, e
+ * resolveu — entre a dica de controle e a legenda do ala. O BALÃO DE CUTSCENE
+ * nunca entrou nela: ele mora noutra camada (`zIndex` 4) e aparece por fase, não
+ * por urgência. Resultado medido por um avaliador, em foto: na VIRADA — o
+ * instante mais dramático da luta — a legenda do ala era desenhada por cima do
+ * balão da virada, letra sobre letra, ilegíveis as duas. E o comentário da fila,
+ * a três linhas dali, garantia "só uma fala de cada vez".
+ *
+ * A regra que faltava é esta, e ela é de FASE: só na luta o rodapé é do ala. Em
+ * qualquer fase com balão, o balão manda — ele é a cena, a legenda é apoio.
+ *
+ * Ela mora aqui, e não dentro do componente, porque é regra: tem de ser
+ * testável sem uma tela.
+ */
+export function oAlaPodeFalar(fase: F12Fase): boolean {
+    return fase === 'luta';
+}
+
 export type F12Fase =
     | 'intro'        // primeira pessoa no elevador; as portas abrem para o céu
     | 'virando'      // o elevador se desdobra em avião e a câmera sai para trás
     | 'encontro'     // o irmão chega de ala e fala (balões)
     | 'luta'         // a luta, primeira metade
     | 'virada'       // metade da vida: a partir daqui ela cospe DUAS vezes por abertura
+    | 'morrendo'     // a vida chegou a zero e a cabeça MORRE EM CENA
     | 'vitoria'
     | 'derrota'
     | 'despedida';   // o jogador escolheu o elevador
@@ -644,8 +672,12 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  * combo impossível. Isto é um RODÍZIO — a mesma partida dá a mesma ordem, e o
  * jogador pode aprender a luta, que é a única coisa que torna um chefe justo.
  *
- * Antes da virada rodam os três primeiros. Depois, os cinco — e os dois novos
- * entram logo na virada, para a mudança ser sentida no ato.
+ * (Aqui havia mais uma frase: "antes da virada rodam os três primeiros, depois
+ * os cinco". Ela descrevia a versão ANTERIOR desta função, e ficou no arquivo
+ * contradizendo o bloco logo abaixo — que explica, com medida, por que os cinco
+ * passaram a aparecer desde a primeira abertura. Dois comentários vizinhos
+ * dizendo o contrário um do outro é pior do que nenhum: quem lê acredita no
+ * primeiro.)
  */
 /**
  * ── OS CINCO APARECEM CEDO, E A ORDEM DEIXA DE SER ADIVINHÁVEL ──────────────
@@ -718,6 +750,13 @@ function blocoFinal(bloco: number): NomeDoAtaque {
 }
 
 /** Quantos ciclos o chefe gasta ensinando os cinco padrões. */
+/**
+ * Quantas aberturas o ensino ocupa antes de o saco embaralhado assumir.
+ *
+ * Exportado para o teste que verifica que nenhum padrão se repete na emenda
+ * entre um bloco e o seguinte — ele precisa saber onde o ensino acaba, e cravar
+ * `5` lá dentro faria o teste passar a testar a constante em vez da regra.
+ */
 export const ENSINO_TAMANHO = ENSINO.length;
 
 /**
@@ -1719,6 +1758,78 @@ export function tiroNaBoca(p: Projetil): boolean {
     return Math.hypot(p.x - BOCA_ALVO.x, p.y - BOCA_ALVO.y) < BOCA_ALVO.raio;
 }
 
+// ── A MORTE DA CABEÇA ────────────────────────────────────────────────────────
+//
+// Ela chegava a zero de vida e aparecia uma caixa de texto. Um avaliador
+// independente pôs isso como o defeito NÚMERO UM do andar, com a frase exata:
+// "nenhum jogador chama isso de AAA". Ele tem razão — a morte do chefe é o
+// pagamento de dois minutos de luta, e o andar não pagava.
+//
+// A sequência tem três tempos, e eles são desiguais de propósito: o ouvido e o
+// olho leem RITMO, e três batidas iguais soam como um defeito de laço.
+//
+//   0,0 → 2,4 s   ESTOUROS EM CADEIA. O intervalo encurta de 0,42 s para 0,10 s:
+//                 acelerar é o que faz a plateia saber que o fim está vindo sem
+//                 que ninguém escreva "o fim está vindo".
+//   2,4 s         O ESTOURO GRANDE. Um só, e a tela inteira.
+//   2,4 → 4,4 s   A QUEDA. A cabeça tomba e some por baixo do quadro.
+//
+// O relógio da luta roda a 0,35x durante tudo isso. Câmera lenta aqui não é
+// estilo: é o que dá ao jogador tempo de entender que ele ganhou.
+export const MORTE = Object.freeze({
+    /** Quanto dura a cena inteira, antes do balão de vitória. */
+    duracao: 4.4,
+    /** Até aqui são estouros em cadeia; neste instante vem o grande. */
+    oGrande: 2.4,
+    intervaloInicial: 0.42,
+    intervaloFinal: 0.10,
+    /** Escala do relógio do jogo durante a morte. */
+    tempo: 0.35,
+    /** Quanto a câmera avança em direção à cabeça (0 = nada, 1 = encosta). */
+    camera: 0.42,
+    /** Quanto a cabeça cai, em unidades de mundo, até sumir. */
+    queda: 44,
+});
+
+/**
+ * O intervalo até o PRÓXIMO estouro da cadeia, no instante `t` da morte.
+ *
+ * Encurta em curva e não em reta: em reta, a aceleração é constante e o ouvido
+ * a lê como um metrônomo mudando de andamento. Ao quadrado, ela desaba no fim,
+ * que é como uma coisa de verdade se despedaça.
+ */
+export function intervaloDoEstouro(t: number): number {
+    const k = Math.max(0, Math.min(1, t / MORTE.oGrande));
+    return MORTE.intervaloInicial + (MORTE.intervaloFinal - MORTE.intervaloInicial) * (k * k);
+}
+
+/**
+ * O quanto a cabeça já caiu, em unidades de mundo, no instante `t`.
+ *
+ * Antes do estouro grande ela não cai — ela só treme. Depois, cai ACELERANDO:
+ * uma coisa daquele tamanho descendo em velocidade constante parece um elevador,
+ * e o andar já tem elevadores demais.
+ */
+export function quedaDaMorte(t: number): number {
+    const d = t - MORTE.oGrande;
+    if (d <= 0) return 0;
+    const k = Math.min(1, d / (MORTE.duracao - MORTE.oGrande));
+    return MORTE.queda * k * k;
+}
+
+/** A cabeça tomba enquanto cai — em radianos. */
+export function tombamentoDaMorte(t: number): number {
+    const d = t - MORTE.oGrande;
+    if (d <= 0) return 0;
+    const k = Math.min(1, d / (MORTE.duracao - MORTE.oGrande));
+    return k * k * 0.9;
+}
+
+/** A cena acabou e é hora do balão? */
+export function aMorteAcabou(t: number): boolean {
+    return t >= MORTE.duracao;
+}
+
 // ── O ESTADO VIVO ────────────────────────────────────────────────────────────
 export interface F12State {
     fase: F12Fase;
@@ -1734,6 +1845,8 @@ export interface F12State {
     passouDaVirada: boolean;
     /** Onde a boca está agora em X. Ver `bocaXNoInstante`. */
     bocaX: number;
+    /** Relógio da MORTE da cabeça, em segundos desde que a vida zerou. */
+    morteT: number;
     projeteis: Projetil[];
     linhaDoDialogo: number;
     versao: number;
@@ -1744,7 +1857,7 @@ export const f12: F12State = criarEstado();
 function criarEstado(): F12State {
     return {
         fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA, aberturas: 0,
-        ataqueNoAr: null, passouDaVirada: false, bocaX: 0, projeteis: [],
+        ataqueNoAr: null, passouDaVirada: false, bocaX: 0, morteT: 0, projeteis: [],
         linhaDoDialogo: 0, versao: 0,
     };
 }

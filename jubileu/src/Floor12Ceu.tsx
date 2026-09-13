@@ -67,10 +67,17 @@ const DomoDoCeu: React.FC = () => {
         // escuro some — o dono do jogo reclamou exatamente disso. O índigo puxa
         // para o verde e devolve o contraste de matiz que o azul tinha comido.
         sombrio: new THREE.Color('#5c7486'),
+        vitoria: new THREE.Color('#ffe9c4'),
     }), []);
     useFrame((_, rawDt) => {
         const m = mat.current; if (!m) return;
-        cor.current.lerp(f12.passouDaVirada ? alvo.sombrio : alvo.claro, Math.min(1, Math.min(rawDt, 0.05) * 0.7));
+        // O DOMO tem de clarear junto com a névoa na morte. A primeira versão
+        // só clareou a névoa: na folha de fotos da morte o céu ficava mais
+        // ESCURO — a névoa clara contra um domo que continuava sombrio — e o
+        // clímax parecia um anoitecer. O fundo é o domo; ele é que manda.
+        const morrendo = f12.fase === 'morrendo' || f12.fase === 'vitoria';
+        const ondeIr = morrendo ? alvo.vitoria : (f12.passouDaVirada ? alvo.sombrio : alvo.claro);
+        cor.current.lerp(ondeIr, Math.min(1, Math.min(rawDt, 0.05) * (morrendo ? 2.2 : 0.7)));
         m.color.copy(cor.current);
     });
     return (
@@ -297,8 +304,22 @@ function texturaDoEstandarte(linhas: string[]): THREE.CanvasTexture {
     return t;
 }
 
-const Estandarte: React.FC<{ p: [number, number, number]; e: number; linhas: string[] }> =
-    ({ p, e, linhas }) => {
+/**
+ * Um estandarte — e o MASTRO é metade do trabalho dele.
+ *
+ * ── UMA COISA OPACA BOIANDO NO CÉU NÃO É CENÁRIO, É ARTEFATO ────────────────
+ *
+ * Eles eram uma travessa e um pano, pendurados no nada a 26% da altura da tela.
+ * Um avaliador, olhando a foto, leu exatamente isso: "retângulos azuis pendurados
+ * no nada, sem mastro nem prédio". E ele tinha razão — o olho aceita qualquer
+ * coisa flutuando desde que saiba POR QUÊ, e não havia porquê nenhum.
+ *
+ * O mastro desce até abaixo da linha do céu, onde a silhueta da cidade o come.
+ * Não é decoração: é a explicação de por que o pano está lá em cima, e custa um
+ * cilindro.
+ */
+const Estandarte: React.FC<{ p: [number, number, number]; e: number; mastro: number; linhas: string[] }> =
+    ({ p, e, mastro, linhas }) => {
         const tex = useMemo(() => texturaDoEstandarte(linhas), [linhas]);
         const malha = useRef<THREE.Mesh>(null);
         useFrame((state) => {
@@ -306,6 +327,10 @@ const Estandarte: React.FC<{ p: [number, number, number]; e: number; linhas: str
         });
         return (
             <group position={p} scale={e}>
+                <mesh position={[0, 1.1 - mastro / 2, 0]}>
+                    <cylinderGeometry args={[0.13, 0.2, mastro, 6]} />
+                    <meshLambertMaterial color="#6a6478" flatShading />
+                </mesh>
                 <mesh position={[0, 1.1, 0]}>
                     <boxGeometry args={[2.6, 0.18, 0.18]} />
                     <meshLambertMaterial color="#c9a24a" flatShading />
@@ -357,7 +382,7 @@ function texturaDaCidade(semente: number, torres: number, alturaMax: number, des
             g.fillStyle = coroa;
             g.fillRect(x + w * 0.34, y - A * 0.062, w * 0.32, A * 0.044);
         }
-        // Janelas acesas: a camada de trás quase não as tem. Uma janela é um
+        // Janelas acesas: a camada de trás não acende NENHUMA. Uma janela é um
         // ponto de contraste máximo, e contraste máximo ao longe desfaz a
         // distância que o desbotamento acabou de construir.
         if (desbotar > 0.45) continue;
@@ -437,7 +462,7 @@ const HotelGrande: React.FC<{ M: Record<string, THREE.Material>; p: [number, num
         // O hotel CONTINUA sendo geometria, e é o único que continua: ele é o
         // prédio de onde o jogador veio, o jogador precisa reconhecê-lo, e uma
         // peça só perto do centro do quadro quase não esparrama.
-        <group position={p} scale={2.6} rotation={[0, 0.42, 0]}>
+        <group position={p} scale={2.6} rotation={[0, 0.22, 0]}>
           <group position={[0, -28, 0]}>
             <mesh material={M.rocha} position={[0, -4, 0]} scale={[1.6, 0.8, 1.6]}>
                 <coneGeometry args={[7, 12, 8]} />
@@ -466,14 +491,33 @@ const CidadeNoCeu: React.FC = () => {
         rocha: mat64('#464054'),
         ouro: mat64('#d9a441'),
     }), []);
+    // O hotel ancorado pelo TOPO, como as camadas da cidade.
+    //
+    // Ele estava posicionado pela ORIGEM do grupo em 5% da altura — e o grupo
+    // interno desce 28 unidades antes de o prédio começar a subir, então o
+    // prédio inteiro caía para fora do quadro e sobrava um naco marrom cortado
+    // no canto. `TOPO_DO_HOTEL` é a única fração que interessa: onde a ponta do
+    // pináculo encosta na tela.
     const hotel = useMemo(() => {
         const z = -230;
-        return [xParaFracao(0.13, z), yParaFracao(0.05, z), z] as [number, number, number];
+        // topo do prédio em coordenadas do grupo: (27,2 - 28) * 2,6
+        const doTopoAteAOrigem = (27.2 - 28) * 2.6;
+        return [xParaFracao(0.19, z), yParaFracao(0.27, z) - doTopoAteAOrigem, z] as [number, number, number];
     }, []);
+    // O mastro vai do pano até MERGULHAR na linha do céu (0,12): assim ele
+    // termina dentro da silhueta da cidade e não no ar.
     const estandartes = useMemo(() => ([
-        { u: 0.07, v: 0.26, z: -190, e: 3.4, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
-        { u: 0.93, v: 0.27, z: -196, e: 3.3, linhas: ['ANDAR', '12'] },
-    ].map((b) => ({ ...b, p: [xParaFracao(b.u, b.z), yParaFracao(b.v, b.z), b.z] as [number, number, number] }))), []);
+        { u: 0.07, v: 0.28, z: -190, e: 3.4, linhas: ['MAIS', 'ALTO', 'É', 'MELHOR'] },
+        { u: 0.93, v: 0.29, z: -196, e: 3.3, linhas: ['ANDAR', '12'] },
+    ].map((b) => {
+        const y = yParaFracao(b.v, b.z);
+        return {
+            ...b,
+            p: [xParaFracao(b.u, b.z), y, b.z] as [number, number, number],
+            // em unidades LOCAIS do grupo, que já está escalado por `e`
+            mastro: Math.max(2, (y - yParaFracao(0.12, b.z)) / b.e + 1.1),
+        };
+    })), []);
 
     return (
         <group>
@@ -484,7 +528,7 @@ const CidadeNoCeu: React.FC = () => {
             <CamadaDaCidade semente={0xc2} topo={0.150} altura={0.105} z={-260}
                 torres={82} variacao={0.55} desbotar={0.28} opacidade={0.97} />
             <HotelGrande M={M} p={hotel} />
-            {estandartes.map((b, i) => <Estandarte key={i} p={b.p} e={b.e} linhas={b.linhas} />)}
+            {estandartes.map((b, i) => <Estandarte key={i} p={b.p} e={b.e} mastro={b.mastro} linhas={b.linhas} />)}
         </group>
     );
 };
@@ -501,6 +545,7 @@ export const Floor12Ceu: React.FC = () => {
     const alvo = useMemo(() => ({
         claro: new THREE.Color('#b7e2f7'),
         sombrio: new THREE.Color('#5c7486'),
+        vitoria: new THREE.Color('#ffe9c4'),
     }), []);
 
     useFrame((state, rawDt) => {
@@ -508,7 +553,13 @@ export const Floor12Ceu: React.FC = () => {
         // O FUNDO agora é o domo; o que continua sendo cor é a NÉVOA, e ela tem
         // de acompanhar o horizonte do domo, senão a cidade ao longe se dissolve
         // numa cor que não existe no céu atrás dela.
-        fundo.current.lerp(f12.passouDaVirada ? alvo.sombrio : alvo.claro, Math.min(1, dt * 0.7));
+        // Na MORTE o céu clareia — e depressa. O andar escureceu na virada para
+        // dizer "isto ficou sério"; clarear na morte é a mesma frase ao
+        // contrário, e é de graça: uma interpolação de cor, nenhum cenário novo.
+        const morrendo = f12.fase === 'morrendo' || f12.fase === 'vitoria';
+        fundo.current.lerp(
+            morrendo ? alvo.vitoria : (f12.passouDaVirada ? alvo.sombrio : alvo.claro),
+            Math.min(1, dt * (morrendo ? 2.2 : 0.7)));
         const cena = state.scene;
         cena.background = null;
         if (cena.fog instanceof THREE.Fog) cena.fog.color.copy(fundo.current);

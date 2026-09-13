@@ -25,6 +25,7 @@ import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, bocaNoInstante, vulneravel, VIDA_MAXIMA, LIMIAR_DA_VIRADA, BOCA_ALVO,
     ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, ESCALA_DA_CABECA,
+    MORTE, quedaDaMorte, tombamentoDaMorte,
 } from './f12Boss';
 
 /**
@@ -144,6 +145,29 @@ export const Floor12Cabeca: React.FC<{
             if (agonia > 0) {
                 raiz.current.position.x += (Math.random() - 0.5) * agonia * 0.22;
                 raiz.current.position.y += (Math.random() - 0.5) * agonia * 0.18;
+            }
+            // ── E ENTÃO ELA MORRE ────────────────────────────────────────
+            //
+            // Até o estouro grande ela só treme com força; depois, TOMBA e cai
+            // acelerando para fora do quadro. As duas curvas moram em `f12Boss`
+            // (`quedaDaMorte`, `tombamentoDaMorte`) porque são regra: a cena
+            // dura o que a tabela diz que dura, e isso tem de ser conferível sem
+            // ninguém cronometrar a olho.
+            // A VITÓRIA conta como morte consumada, e não como "a luta acabou".
+            //
+            // O gate era só `'morrendo'`: quando a fase virava `'vitoria'`, a
+            // queda e o tombamento voltavam a zero e a cabeça RESSUSCITAVA,
+            // inteira e boiando, atrás do balão de vitória — visto na folha de
+            // fotos da morte. Matar o chefe e vê-lo reaparecer no quadro
+            // seguinte é pior do que não ter cena nenhuma.
+            if (f12.fase === 'morrendo' || f12.fase === 'vitoria') {
+                const mt = f12.fase === 'vitoria' ? MORTE.duracao : f12.morteT;
+                const espasmo = mt < MORTE.oGrande ? 1 - mt / MORTE.oGrande : 0;
+                raiz.current.position.x += (Math.random() - 0.5) * (0.35 + espasmo * 0.9);
+                raiz.current.position.y += (Math.random() - 0.5) * (0.3 + espasmo * 0.8)
+                    - quedaDaMorte(mt);
+                raiz.current.rotation.z += tombamentoDaMorte(mt);
+                raiz.current.rotation.x = tombamentoDaMorte(mt) * 0.45;
             }
         }
 

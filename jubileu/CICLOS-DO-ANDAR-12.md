@@ -52,11 +52,15 @@ publicado, acertar é a coisa mais gostosa que existe.
 - acerto do tiro CARREGADO tem de ser um acontecimento
 **Como medir:** contar eventos de feedback por acerto na bancada; FPS não pode cair.
 
-### 2. O CLÍMAX — ABERTO
-Hoje a vida chega a zero e aparece uma caixa de texto. Chefe de jogo publicado
-MORRE em cena: explosões em cadeia, câmera que muda, tempo que desacelera, o
-céu que reage.
-**Como medir:** foto da sequência; duração da morte entre 3 e 6 s.
+### 2. O CLÍMAX — FEITO (ciclo 5)
+A cabeça morre em cena: estouros em cadeia que ACELERAM (0,42 s -> 0,10 s), um
+estouro grande aos 2,4 s, e então ela tomba e cai acelerando para fora do
+quadro. O céu clareia para dourado (domo E névoa), a câmera avança e sobe, e o
+jogo inteiro roda a 0,35x. 4,4 s até o balão.
+**Medido:** `bancada-navegador/a-morte-do-chefe.mjs` — 7 quadros em `morrendo`,
+duração observada 4,9 s ponta a ponta, fase final `vitoria`. Seis testes em
+`f12Boss.test.ts` prendem a faixa de 3-6 s, a ordem estouro-antes-da-queda, a
+aceleração da cadeia, e que a queda tira a cabeça INTEIRA do quadro.
 
 ### 3. ÁUDIO EM CAMADAS — ABERTO
 Tudo são bipes procedurais soltos. Falta: motor contínuo que muda com a

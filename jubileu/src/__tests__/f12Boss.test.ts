@@ -4,12 +4,13 @@ import {
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
     ATAQUES, ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, ENSINO_TAMANHO,
+    oAlaPodeFalar, MORTE, intervaloDoEstouro, quedaDaMorte, tombamentoDaMorte, aMorteAcabou,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
     MARE, nascerMare, frestaDaMare, mareAcerta,
     ELEVADORES, nascerElevadores, xDaFaixa,
-    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, BOCA_SAIDA, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, PONTA_DA_ASA,
+    TIRO, nascerTiro, tiroNaBoca, BOCA_ALVO, BOCA_SAIDA, ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, PONTA_DA_ASA, ESCALA_DA_CABECA,
     NAVE, novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, tentarAtirar,
     encostou, reiniciarIds, passoDoProjetil, saiuDeCena,
     ENQUADRAMENTO, larguraDoQuadro, alturaDoQuadro, composicaoNaTela, ajustarAoAspecto,
@@ -218,12 +219,31 @@ describe('f12 — o leque: cinco grudados que vão abrindo', () => {
 
 // ── ATAQUE 2: O TELEGUIADO ───────────────────────────────────────────────────
 describe('f12 — o teleguiado: persegue, mas dá para despistar', () => {
-    it('vira na direção do alvo', () => {
+    it('vira na direção do alvo, e conserva a velocidade ao virar', () => {
         const m = nascerTeleguiado();
         m.vx = 0; m.vy = -1;                    // apontado para baixo
-        for (let i = 0; i < 30; i++) guiarTeleguiado(m, 5, m.y + 5, 1 / 60);
-        expect(m.vx).toBeGreaterThan(0);        // virou para a direita/cima
-        expect(m.vy).toBeGreaterThan(-1);
+        const rapidez = Math.hypot(m.vx, m.vy);
+        const alvoX = m.x + 5, alvoY = m.y + 5;
+        // 150 quadros e não 30: com a curva limitada em `curvaPorSegundo`, meio
+        // segundo não dá para girar os 135° deste caso. Trinta quadros foi o que
+        // fez a versão anterior deste teste se contentar com `vy > -1`.
+        for (let i = 0; i < 150; i++) guiarTeleguiado(m, alvoX, alvoY, 1 / 60);
+
+        // O `expect(m.vy).toBeGreaterThan(-1)` que morava aqui passaria com
+        // qualquer implementação que mexesse UM POUCO no vetor — um avaliador
+        // apontou, e estava certo. O que importa é o ÂNGULO: depois de meio
+        // segundo de correção ele tem de estar apontando para o alvo, e não
+        // apenas "não mais exatamente para baixo".
+        const paraOAlvo = Math.atan2(alvoY - m.y, alvoX - m.x);
+        let erro = Math.atan2(m.vy, m.vx) - paraOAlvo;
+        while (erro > Math.PI) erro -= Math.PI * 2;
+        while (erro < -Math.PI) erro += Math.PI * 2;
+        expect(Math.abs(erro), 'não convergiu para a direção do alvo').toBeLessThan(0.2);
+
+        // E virar não pode ACELERAR: um míssil que ganha rapidez a cada curva
+        // fica impossível de despistar sem que nenhum número da tabela mude.
+        expect(Math.hypot(m.vx, m.vy), 'o míssil ganhou velocidade virando')
+            .toBeCloseTo(rapidez, 6);
     });
 
     // ── E NÃO PODE SER PERFEITO ──────────────────────────────────────────
@@ -268,11 +288,17 @@ describe('f12 — o teleguiado: persegue, mas dá para despistar', () => {
         expect(m.vx).toBe(vx); expect(m.vy).toBe(vy);
     });
 
-    it('alvo em cima dele não gera NaN', () => {
+    it('alvo em cima dele: segue reto em vez de virar NaN', () => {
+        // `atan2(0, 0)` é 0, não NaN — então um teste que só pede `isFinite`
+        // passaria mesmo sem a guarda de `dist < 1e-4`, e deixaria o míssil dar
+        // um giro brusco para o leste toda vez que o avião encostasse nele.
         const m = nascerTeleguiado();
+        m.vx = 0; m.vy = -3;
         guiarTeleguiado(m, m.x, m.y, 1 / 60);
         expect(Number.isFinite(m.vx)).toBe(true);
         expect(Number.isFinite(m.vy)).toBe(true);
+        expect(m.vx, 'o míssil chutou para o lado ao encostar no alvo').toBe(0);
+        expect(m.vy).toBe(-3);
     });
 });
 
@@ -1116,4 +1142,94 @@ describe('f12 — a virada aperta a luta', () => {
     // e ele não cobre nada: o "dobrar" mora no diretor da cena, que este módulo
     // não enxerga. Quem cobra isso é a bancada que JOGA, contando ataques por
     // minuto antes e depois da virada — e o número está no commit.
+});
+
+// ── O RODAPÉ TEM UM DONO POR VEZ ─────────────────────────────────────────────
+//
+// A fila do rodapé resolvia a dica de controle contra a legenda do ala, e o
+// comentário dela garantia "só uma fala de cada vez". O BALÃO DE CUTSCENE estava
+// fora da fila: um avaliador fotografou a VIRADA — o instante mais dramático da
+// luta — com a legenda do ala escrita POR CIMA do balão, letra sobre letra.
+describe('f12 — quem fala no rodapé', () => {
+    it('na luta o rodapé é do ala', () => {
+        expect(oAlaPodeFalar('luta')).toBe(true);
+    });
+
+    it('em TODA fase com balão, o ala cala', () => {
+        // Enumerada de propósito, e não `!== 'luta'`: se amanhã nascer uma fase
+        // nova, este teste tem de ser lido por alguém, não passar sozinho.
+        for (const fase of ['intro', 'virando', 'encontro', 'virada',
+            'vitoria', 'derrota', 'despedida'] as const) {
+            expect(oAlaPodeFalar(fase), `o ala falou por cima do balão em "${fase}"`).toBe(false);
+        }
+    });
+});
+
+// ── A MORTE DA CABEÇA ────────────────────────────────────────────────────────
+//
+// O andar zerava a vida e abria uma caixa de texto. Um avaliador independente
+// chamou isso de defeito número um: "o chefe morre numa caixa de texto; nenhum
+// jogador chama isso de AAA". A cena existe agora, e ela tem duração — que é
+// justamente o tipo de coisa que se afina no olho e depois ninguém sabe dizer
+// por que ficou estranha.
+describe('f12 — a morte da cabeça', () => {
+    it('dura entre 3 e 6 segundos', () => {
+        // A faixa não é minha: é a que a escada do andar escreveu antes de a
+        // cena existir, em `CICLOS-DO-ANDAR-12.md`, item 2.
+        expect(MORTE.duracao).toBeGreaterThanOrEqual(3);
+        expect(MORTE.duracao).toBeLessThanOrEqual(6);
+        expect(aMorteAcabou(MORTE.duracao - 0.01)).toBe(false);
+        expect(aMorteAcabou(MORTE.duracao)).toBe(true);
+    });
+
+    it('o estouro grande cai ANTES da queda, e sobra queda para ver', () => {
+        // Se o grande fosse no fim, a cabeça cairia inteira e intacta e só
+        // explodiria ao sumir — a ordem é o que faz a cena ser uma morte e não
+        // um desaparecimento.
+        expect(MORTE.oGrande).toBeLessThan(MORTE.duracao);
+        expect(MORTE.duracao - MORTE.oGrande, 'a queda não tem tempo de ser vista')
+            .toBeGreaterThan(1);
+    });
+
+    it('a cadeia ACELERA, e nunca para', () => {
+        let anterior = intervaloDoEstouro(0);
+        expect(anterior).toBeCloseTo(MORTE.intervaloInicial, 6);
+        for (let t = 0.1; t <= MORTE.oGrande; t += 0.1) {
+            const agora = intervaloDoEstouro(t);
+            expect(agora, `o intervalo cresceu em t=${t.toFixed(1)}`).toBeLessThanOrEqual(anterior + 1e-9);
+            expect(agora, 'intervalo zero: a cadeia viraria um laço infinito num quadro')
+                .toBeGreaterThan(0);
+            anterior = agora;
+        }
+        // no instante do estouro grande ele chegou ao mínimo (o laço acima para
+        // um passo antes, por acumulação de ponto flutuante)
+        expect(intervaloDoEstouro(MORTE.oGrande)).toBeCloseTo(MORTE.intervaloFinal, 6);
+    });
+
+    it('a cabeça não cai antes do estouro grande, e depois cai acelerando', () => {
+        expect(quedaDaMorte(0)).toBe(0);
+        expect(quedaDaMorte(MORTE.oGrande)).toBe(0);
+        const meio = (MORTE.oGrande + MORTE.duracao) / 2;
+        const primeiroTrecho = quedaDaMorte(meio) - quedaDaMorte(MORTE.oGrande);
+        const segundoTrecho = quedaDaMorte(MORTE.duracao) - quedaDaMorte(meio);
+        expect(segundoTrecho, 'a queda é linear: parece um elevador descendo')
+            .toBeGreaterThan(primeiroTrecho);
+        expect(quedaDaMorte(MORTE.duracao)).toBeCloseTo(MORTE.queda, 6);
+    });
+
+    it('e ela some de verdade: a queda tira a cabeça inteira do quadro', () => {
+        // `ESCALA_DA_CABECA` é o raio dela em unidades de mundo. Se a queda
+        // fosse menor que a altura dela mais a altura da arena, sobraria um
+        // naco de crânio parado no rodapé durante o balão de vitória.
+        expect(MORTE.queda).toBeGreaterThan(ALTURA_DA_CABECA + ESCALA_DA_CABECA);
+    });
+
+    it('o tombamento acompanha a queda e não gira sem parar', () => {
+        expect(tombamentoDaMorte(0)).toBe(0);
+        expect(tombamentoDaMorte(MORTE.oGrande)).toBe(0);
+        expect(tombamentoDaMorte(MORTE.duracao)).toBeGreaterThan(0.3);
+        // meia volta já seria uma cabeça de ponta-cabeça: leitura de bug, não de
+        // morte.
+        expect(tombamentoDaMorte(MORTE.duracao * 3)).toBeLessThan(Math.PI / 2);
+    });
 });

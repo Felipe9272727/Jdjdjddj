@@ -30,7 +30,8 @@ import {
     larguraDoQuadro, ajustarAoAspecto,
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA,
-    ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir,
+    ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, VIDA_MAXIMA, ferir, oAlaPodeFalar,
+    MORTE, intervaloDoEstouro, aMorteAcabou, ALTURA_DA_CABECA, ESCALA_DA_CABECA,
     // o impacto: hitstop, tremor e faíscas, num módulo puro e testável
     RASPAO, contarRaspao, dispararCarregado, bocaXNoInstante,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
@@ -40,7 +41,7 @@ import {
 } from './f12Boss';
 import {
     impacto, passoDoImpacto, escalaDoTempo, deslocamentoDoTremor, reiniciarImpacto,
-    espalharFaiscas,
+    espalharFaiscas, passoDasFaiscas,
 } from './f12Impacto';
 import { Faiscas } from './Floor12Faiscas';
 import { Floor12Ceu } from './Floor12Ceu';
@@ -305,6 +306,17 @@ const CameraDaLuta: React.FC<{
         conversa.current += ((conversando ? 1 : 0) - conversa.current) * Math.min(1, dt * 2.2);
         const c = conversa.current * conversa.current * (3 - 2 * conversa.current);
 
+        // ── A CÂMERA ENTRA NA MORTE ──────────────────────────────────────
+        //
+        // Ela avança em direção à cabeça enquanto a cadeia de estouros corre, e
+        // para de avançar quando a cabeça cai — seguir a queda tiraria o chefe
+        // do centro do quadro justamente no quadro em que ele morre. `MORTE.
+        // camera` diz quanto ela anda; a curva é a mesma suavização da conversa,
+        // e por isso a transição entre as duas não tem degrau.
+        const morrendo = f12.fase === 'morrendo'
+            ? Math.min(1, f12.morteT / MORTE.oGrande) : 0;
+        const m = morrendo * morrendo * (3 - 2 * morrendo) * MORTE.camera;
+
         const px = THREE.MathUtils.lerp(0, atrasX, suave);
         const py = THREE.MathUtils.lerp(dentroY, atrasY, suave);
         const pz = THREE.MathUtils.lerp(dentroZ, E.recuo, suave);
@@ -316,6 +328,16 @@ const CameraDaLuta: React.FC<{
             THREE.MathUtils.lerp(py, ir.y + 1.0, c),
             THREE.MathUtils.lerp(pz, ARENA.zNave + 4.6, c),
         );
+        // A entrada da morte: ela sobe e avança UM POUCO.
+        //
+        // A primeira versão interpolava até `ARENA.zCabeca + 16`, que fica muito
+        // atrás do plano dos aviões: a câmera atravessava o avião do jogador e a
+        // cena inteira virava uma asa cinza em tela cheia. Foi visto na folha de
+        // fotos da morte, não no código. Agora o avanço é uma fração do recuo, e
+        // ele PARA antes do avião — a distância mínima é o que impede de repetir
+        // o mesmo erro com outro número.
+        MIRA_CAM.y += m * 1.1;
+        MIRA_CAM.z = Math.max(ARENA.zNave + 7.5, MIRA_CAM.z - m * (ENQUADRAMENTO.recuo * 0.45));
         camera.position.lerp(MIRA_CAM, Math.min(1, dt * 7));
 
         // O alvo fica no eixo composto, deslocado de leve pelo avião: a câmera
@@ -328,6 +350,8 @@ const CameraDaLuta: React.FC<{
             THREE.MathUtils.lerp(THREE.MathUtils.lerp(dentroY, E.miraY + (n.y - meioY()) * 0.18, suave), ir.y + 0.35, c),
             THREE.MathUtils.lerp(THREE.MathUtils.lerp(-6, E.miraZ, suave), ARENA.zNave - 1.5, c),
         );
+        // e a mira sobe para a boca: é ela que está estourando
+        alvo.current.y += m * (BOCA_ALVO.y + 1.0 - alvo.current.y);
 
         // ── O TREMOR ─────────────────────────────────────────────────────
         //
@@ -412,6 +436,11 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // faíscas e o som continuam correndo no tempo real durante a pausa. Se
         // congelassem junto não haveria pausa nenhuma — haveria um soluço.
         passoDoImpacto(dtReal);
+        // ── A MORTE DA CABEÇA ────────────────────────────────────────────
+        //
+        // Ela roda no tempo REAL e escala o resto: durante a cena o jogo inteiro
+        // passa a 0,35x, que é o que dá ao jogador tempo de entender que ganhou.
+        if (f12.fase === 'morrendo') { passoDaMorte(F, dtReal); return; }
         const dt = dtReal * escalaDoTempo();
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
@@ -557,7 +586,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     impacto('carregado', p.x, p.y, ARENA.zCabeca + 2);
                     tocarExplosao();
                     if (virou) abrirAVirada(F);
-                    if (f12.vida <= 0) acabar(F, 'vitoria');
+                    if (f12.vida <= 0) comecarAMorte(F);
                     F.avisar();
                 }
                 continue;
@@ -589,7 +618,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     impacto('tiro', p.x, p.y, ARENA.zCabeca + 2);
                     tocarAcerto();
                     if (virou) abrirAVirada(F);
-                    if (f12.vida <= 0) acabar(F, 'vitoria');
+                    if (f12.vida <= 0) comecarAMorte(F);
                     F.avisar();
                 }
                 continue;
@@ -677,7 +706,92 @@ function abrirAVirada(F: Ferramentas): void {
     f12.fase = 'virada';
     f12.linhaDoDialogo = 0;
     f12.projeteis = f12.projeteis.filter((p) => p.tipo === 'tiro');
+    // A legenda do ala morre AQUI e não quando o relógio dela vence: senão ela
+    // volta sozinha assim que o balão fecha, falando de um padrão que já passou.
+    F.alertaRef.current = { texto: '', ate: 0 };
     tocarExplosao(); tocarFalaDoIrmao();
+    F.avisar();
+}
+
+/**
+ * Quanto falta para o próximo estouro da cadeia.
+ *
+ * Módulo e não `useRef`: `passoDaMorte` é uma função do diretor, fora do
+ * componente, como `abrirAVirada` e `acabar`. Ela é zerada em `comecarAMorte`.
+ */
+const proximoEstouro = { current: 0 };
+
+/**
+ * Um quadro da morte da cabeça.
+ *
+ * Os estouros nascem em pontos SORTEADOS da cabeça, e não no centro dela: um
+ * chefe que estoura sempre no mesmo pixel parece um sprite piscando. A cadência
+ * vem de `intervaloDoEstouro`, que acelera — ver a nota lá.
+ */
+function passoDaMorte(F: Ferramentas, dtReal: number): void {
+    const antes = f12.morteT;
+    f12.morteT += dtReal;
+    const t = f12.morteT;
+
+    // os estouros em cadeia, até o grande
+    if (t < MORTE.oGrande) {
+        proximoEstouro.current -= dtReal;
+        if (proximoEstouro.current <= 0) {
+            proximoEstouro.current = intervaloDoEstouro(t);
+            // espalhados pelo CRÂNIO inteiro (raio `ESCALA_DA_CABECA`), e não
+            // num raio de duas unidades em volta da boca: assim eles ficavam
+            // empilhados na testa como pastilhas vermelhas.
+            const a = Math.random() * Math.PI * 2;
+            const r = ESCALA_DA_CABECA * (0.25 + Math.random() * 0.75);
+            impacto('carregado',
+                f12.bocaX + Math.cos(a) * r,
+                ALTURA_DA_CABECA + Math.sin(a) * r * 0.8,
+                ARENA.zCabeca + 2);
+            tocarExplosao();
+        }
+    } else if (antes < MORTE.oGrande) {
+        // O GRANDE: uma vez só. `antes < oGrande <= t` é a borda, e testá-la
+        // assim (e não `t >= oGrande`) é o que impede de disparar todo quadro.
+        F.flash.current = 2.4;
+        for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2;
+            impacto('carregado', f12.bocaX + Math.cos(a) * ESCALA_DA_CABECA * 0.8,
+                ALTURA_DA_CABECA + Math.sin(a) * ESCALA_DA_CABECA * 0.7, ARENA.zCabeca + 2);
+        }
+        tocarExplosao();
+        pararTrilha();
+    }
+
+    // o mundo continua vivo em câmera lenta: sem isto a nave congela no ar e a
+    // cena vira uma foto com barulho por cima.
+    const dt = dtReal * MORTE.tempo;
+    passoDaNave(F.nave.current, dt);
+    passoDasFaiscas(dtReal);
+    F.flash.current = Math.max(0, F.flash.current - dtReal * 1.6);
+
+    if (aMorteAcabou(t)) acabar(F, 'vitoria');
+    F.avisar();
+}
+
+/**
+ * A vida chegou a zero. A cabeça MORRE EM CENA — ver `MORTE` em `f12Boss`.
+ *
+ * Antes isto era `acabar(F, 'vitoria')` direto: um som, os projéteis zerados e
+ * uma caixa de texto. Dois minutos de luta pagos com um balão.
+ */
+function comecarAMorte(F: Ferramentas): void {
+    if (f12.fase === 'morrendo') return;
+    f12.fase = 'morrendo';
+    f12.morteT = 0;
+    proximoEstouro.current = 0;
+    f12.ataqueNoAr = null;
+    // Some tudo o que ainda está no ar: um míssil acertando o jogador DURANTE a
+    // morte do chefe tiraria dele a única coisa que a cena existe para dar.
+    f12.projeteis = [];
+    F.alertaRef.current = { texto: '', ate: 0 };
+    pararMotor();
+    tocarExplosao();
+    impacto('carregado', BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 2);
     F.avisar();
 }
 
@@ -685,6 +799,7 @@ function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
     f12.fase = como;
     f12.linhaDoDialogo = 0;
     f12.projeteis = [];
+    F.alertaRef.current = { texto: '', ate: 0 };
     pararMotor();
     pararTrilha();
     if (como === 'vitoria') { tocarVitoria(); tocarExplosao(); } else tocarDerrota();
@@ -771,8 +886,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // novos não aparecem nem depois da virada" — quando a virada é que
         // nunca tinha acontecido. Um atalho de bancada que desvia da regra mede
         // outro jogo, exatamente como a cópia do ritmo da arma media.
+        // (E a morte é o mesmo caso: o atalho zerava a vida e não acontecia
+        // NADA, porque quem começa a cena é o laço de colisão. A bancada que
+        // fotografa a morte via a `virada` e concluía que a cena não existia.)
         w.__f12ferir = (d: number) => {
-            if (ferir(d) && F12FERRAMENTAS.atual) abrirAVirada(F12FERRAMENTAS.atual);
+            const F = F12FERRAMENTAS.atual;
+            if (ferir(d) && F) abrirAVirada(F);
+            if (f12.vida <= 0 && F) comecarAMorte(F);
             f12Bump();
         };
         w.__f12bocaX = BOCA_ALVO.x;
@@ -781,12 +901,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current,
             irmao: irmao.current, ataqueNoAr: f12.ataqueNoAr, relogio: f12.relogio,
             bocaT: f12.bocaT, linhaDoDialogo: f12.linhaDoDialogo,
-            passouDaVirada: f12.passouDaVirada, vidas: nave.current.vidas,
+            passouDaVirada: f12.passouDaVirada, vidas: nave.current.vidas, morteT: f12.morteT,
             // A bancada precisa do TETO da vida para calcular dano e duração.
-            // Ela tinha 240 escrito à mão em três lugares; quando o teto subiu
-            // para 300 ela passou a relatar 96,9 de dano onde houve 156,9 e uma
-            // luta de 131 s onde a luta é de 101 s — sem errar sinal nenhum, o
-            // que é o pior tipo de régua quebrada. Ela lê daqui agora.
+            // Ela tinha o teto escrito à mão em três lugares; quando ele subiu,
+            // ela continuou medindo contra o valor velho e relatou um dano e uma
+            // duração plausíveis, detalhados e errados, sem um aviso. Ela lê
+            // daqui agora. (Os números daquele episódio moram no commit, que tem
+            // data — este arquivo não escreve duração de luta em comentário.)
             vidaMaxima: VIDA_MAXIMA,
         };
     }
@@ -1299,7 +1420,9 @@ const AlertaDoAla: React.FC<{
         const anterior = useRef('');
         useFrameFora(() => {
             const a = alertaRef.current;
-            const quer = a.texto && f12.relogio < a.ate ? a.texto : '';
+            // `oAlaPodeFalar` e não só o relógio: em fase de balão o rodapé é
+            // do balão. Ver a regra em `f12Boss`.
+            const quer = a.texto && f12.relogio < a.ate && oAlaPodeFalar(f12.fase) ? a.texto : '';
             if (quer === anterior.current) return;
             anterior.current = quer;
             setTxt(quer);
