@@ -128,6 +128,8 @@ export const Floor12Projeteis: React.FC = () => {
         naves: mat64(CORES.naves), navesLuz: mat64(CORES.navesLuz, CORES.navesLuz, 0.6),
         mare: mat64(CORES.mare, CORES.mare, 0.15), mareEsc: mat64(CORES.mareEsc),
         elevadores: mat64(CORES.elevadores), elevadoresEsc: mat64(CORES.elevadoresEsc),
+        missil: mat64('#d7b465'),
+        missilLuz: mat64('#ffc768', '#ffb94d', 1.0),
         core: new THREE.MeshBasicMaterial({ color: '#efffff', toneMapped: false }),
         tiro: mat64(CORES.tiro, CORES.tiro, 1.0),
         tiroIrmao: mat64(CORES.tiroIrmao, CORES.tiroIrmao, 1.0),
@@ -171,7 +173,16 @@ export const Floor12Projeteis: React.FC = () => {
                 rastro.name = 'rastro';
                 const core = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M.core);
                 core.name = 'core'; core.scale.z = 2.8;
-                g.add(bala, rastro, core);
+                const missile = new THREE.Group(); missile.name = 'missile';
+                const body = new THREE.Mesh(new THREE.CapsuleGeometry(.20, 1.05, 4, 10), M.missil);
+                body.rotation.x = Math.PI / 2; missile.add(body);
+                const nose = new THREE.Mesh(new THREE.ConeGeometry(.21, .45, 10), M.core);
+                nose.rotation.x = -Math.PI / 2; nose.position.z = -.76; missile.add(nose);
+                for (let j = 0; j < 2; j++) {
+                    const fin = new THREE.Mesh(new THREE.BoxGeometry(.8, .07, .38), M.missil);
+                    fin.rotation.z = j * Math.PI / 2; fin.position.z = .43; missile.add(fin);
+                }
+                g.add(bala, rastro, core, missile);
                 return g;
             }),
         };
@@ -223,10 +234,12 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
     if (p.tipo === 'tiro') {
         const m = p.de === 'irmao' ? M.tiroIrmao : M.tiro;
         for (const filho of (o as THREE.Group).children) {
-            (filho as THREE.Mesh).material = filho.name === 'core' ? M.core : m;
+            if (filho.name === 'missile') { filho.visible = !!p.carregado; continue; }
+            filho.visible = !p.carregado || filho.name === 'rastro';
+            (filho as THREE.Mesh).material = filho.name === 'core' ? M.core : p.carregado ? M.missilLuz : m;
             // o rastro do irmão é mais curto: a arma dele é menor, e isso tem de
             // dar para ver sem ler o HUD
-            if (filho.name === 'rastro') filho.scale.z = p.de === 'irmao' ? 0.55 : 1;
+            if (filho.name === 'rastro') filho.scale.set(p.carregado ? 1.8 : 1, p.carregado ? 1.8 : 1, p.carregado ? 1.2 : p.de === 'irmao' ? .55 : 1);
         }
         return;
     }

@@ -67,20 +67,21 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
 
   let state = await readState(page);
   assert(state?.fase === "luta", `${orientation}: touch contract did not start in luta`);
-  const initial = state;
 
   // Contact without movement banks stationary charge through the real overlay.
   await dispatchTouch(client, "touchStart", [first]);
   await page.waitForFunction(
-    () => (window.__f12estado?.arma?.charge ?? 0) > 0.15,
+    () => (window.__f12estado?.arma?.charge ?? 0) >= 3.999,
     null,
-    { timeout: 5_000 },
+    { timeout: 30_000 },
   );
   state = await readState(page);
   diagnostics.push({ step: "touch-stationary", state });
+  await page.waitForSelector('[data-testid="f12-charge"][aria-valuenow="100"]', { timeout: 5000 });
+  await page.screenshot({ path: `${outputDir}/${orientation}-full-charge.png` });
   assert(state?.arma?.active === true, `${orientation}: touchStart did not activate arma`);
   assert(
-    state.arma.charge > (initial.arma?.charge ?? 0) + 0.15,
+    state.arma.charge >= 3.999,
     `${orientation}: stationary touch did not grow charge`,
   );
 
@@ -112,6 +113,7 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
     `${orientation}: touch drag did not move nave`,
   );
   assert(state.arma.active === true, `${orientation}: second touch stole active contact`);
+  assert(state.arma.missilesEmitted > beforeSecondMove.arma.missilesEmitted, `${orientation}: full charge did not launch a missile`);
   assert(state.arma.emitted > beforeSecondMove.arma.emitted || state.arma.remaining > 0,
     `${orientation}: resuming movement did not release charged volley`);
 
@@ -127,17 +129,7 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
     `${orientation}: keyboard overwrote active touch target`,
   );
 
-  // End the ignored second contact first; the captured first contact must keep
-  // firing until it is released. Then verify touchEnd silences immediately.
-  await dispatchTouch(client, "touchEnd", [movedFirst]);
-  await page.waitForFunction(
-    () => window.__f12estado?.arma?.active === true,
-    null,
-    { timeout: 2_000 },
-  );
-  state = await readState(page);
-  assert(state.arma.active === true, `${orientation}: ignored second touch ended first contact`);
-  const emittedBeforeRelease = state.arma.emitted;
+  // Release every contact; CDP touchEnd requires an empty touch list.
   await dispatchTouch(client, "touchEnd", []);
   await page.waitForFunction(
     () => window.__f12estado?.arma?.active === false,
@@ -149,7 +141,7 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
   assert(afterRelease.arma.active === false, `${orientation}: touchEnd did not silence arma`);
   await sleep(180);
   const afterReleaseWait = await readState(page);
-  assert(afterReleaseWait.arma.emitted === emittedBeforeRelease,
+  assert(afterReleaseWait.arma.emitted === afterRelease.arma.emitted,
     `${orientation}: player projectiles spawned after touchEnd`);
 
   // Exercise touchCancel separately, including the phase-independent cleanup.
@@ -160,7 +152,6 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
     null,
     { timeout: 2_000 },
   );
-  const beforeCancel = await readState(page);
   await dispatchTouch(client, "touchCancel", []);
   await page.waitForFunction(
     () => window.__f12estado?.arma?.active === false,
@@ -172,7 +163,7 @@ async function runTouchContract(page, orientation, viewport, diagnostics) {
   assert(afterCancel.arma.active === false, `${orientation}: touchCancel did not silence arma`);
   await sleep(180);
   const afterCancelWait = await readState(page);
-  assert(afterCancelWait.arma.emitted === beforeCancel.arma.emitted,
+  assert(afterCancelWait.arma.emitted === afterCancel.arma.emitted,
     `${orientation}: player projectiles spawned after touchCancel`);
 }
 
@@ -271,6 +262,14 @@ try {
       // F12_ENCONTRO has six lines. Click the real dialogue button six times,
       // including the last click that transitions into the fight.
       for (let i = 0; i < 6; i += 1) {
+        await page.waitForTimeout(250);
+        const layout = await page.evaluate(() => {
+          const text = document.querySelector('[data-testid="f12-dialogue"]')?.getBoundingClientRect();
+          const scene = document.querySelector('canvas')?.getBoundingClientRect();
+          return text && scene ? { sceneBottom: scene.bottom, textTop: text.top, sceneHeight: scene.height } : null;
+        });
+        assert(layout && layout.sceneHeight > viewport.height * .45 && layout.sceneBottom <= layout.textTop + 1,
+          orientation + ': dialogue overlaps the 3D cutscene');
         const dialogueButton = page.locator("button").last();
         await dialogueButton.waitFor({ state: "visible", timeout: 10_000 });
         await dialogueButton.tap();

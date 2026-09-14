@@ -1,3 +1,4 @@
+import { nascerTiro, nascerMissilCarregado, danoDoTiro, MISSEL_CARREGADO } from '../f12Boss';
 import { describe, expect, it } from 'vitest';
 import { newFlightWeapon, stepFlightWeapon } from '../f12FlightWeapon';
 
@@ -33,5 +34,40 @@ describe('contact-controlled flight gun', () => {
       return shots;
     });
     expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('full-charge missile', () => {
+  it('launches exactly once on movement and never without contact', () => {
+    const gun = newFlightWeapon();
+    for (let i = 0; i < 300; i++) {
+      stepFlightWeapon(gun, 1 / 60, false, false);
+      expect(gun.missile).toBe(false);
+    }
+    stepFlightWeapon(gun, 1 / 60, true, true);
+    expect(gun.missile).toBe(true);
+    expect(gun.missilesEmitted).toBe(1);
+    for (let i = 0; i < 100; i++) {
+      stepFlightWeapon(gun, 1 / 60, true, true);
+      expect(gun.missile).toBe(false);
+    }
+    expect(gun.missilesEmitted).toBe(1);
+  });
+  it('keeps partial charges as ordinary volleys', () => {
+    const gun = newFlightWeapon();
+    for (let i = 0; i < 120; i++) stepFlightWeapon(gun, 1 / 60, false, false);
+    stepFlightWeapon(gun, 1 / 60, true, true);
+    expect(gun.remaining).toBeGreaterThan(0);
+    expect(gun.missile).toBe(false);
+    expect(gun.missilesEmitted).toBe(0);
+  });
+  it('uses a centered projectile with eight times the regular damage', () => {
+    const rocket = nascerMissilCarregado(2, 4);
+    expect(rocket.tipo).toBe('tiro');
+    expect(rocket.carregado).toBe(true);
+    expect(rocket.x).toBe(2);
+    expect(rocket.vz).toBe(-MISSEL_CARREGADO.velocidade);
+    expect(danoDoTiro(rocket)).toBe(danoDoTiro(nascerTiro(2, 4, 'jogador')) * 8);
+    expect(danoDoTiro(nascerTiro(2, 4, 'irmao'))).toBe(.6);
   });
 });

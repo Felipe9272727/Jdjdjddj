@@ -266,6 +266,8 @@ export interface Projetil {
     t: number;
     /** De quem é (só para o tiro). */
     de?: 'jogador' | 'irmao';
+    /** Fully charged player rocket, drawn and damaged independently of ordinary rounds. */
+    carregado?: boolean;
     /** Vida, para os que morrem de tiro (as naves). */
     hp?: number;
     /** Parâmetro livre por ataque (fase da onda, faixa do elevador, etc). */
@@ -563,6 +565,17 @@ export function nascerTiro(
         vx: 0, vy: 0, vz: -TIRO.velocidade,
         r: TIRO.raio, t: 0, de, p: lado,
     };
+}
+
+export const MISSEL_CARREGADO = Object.freeze({ dano: 8, velocidade: 28, raio: .48 });
+
+export function nascerMissilCarregado(x: number, y: number): Projetil {
+    return { ...nascerTiro(x, y, 'jogador'), x, y: y - .08, z: ARENA.zNave - 1.2,
+        vz: -MISSEL_CARREGADO.velocidade, r: MISSEL_CARREGADO.raio, carregado: true };
+}
+
+export function danoDoTiro(p: Projetil): number {
+    return p.carregado ? MISSEL_CARREGADO.dano : p.de === 'irmao' ? TIRO.danoIrmao : TIRO.dano;
 }
 
 // ── A NAVE ───────────────────────────────────────────────────────────────────

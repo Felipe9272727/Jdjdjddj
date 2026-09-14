@@ -1,4 +1,5 @@
-import { Floor12FlightFeedback } from './Floor12FlightFeedback';
+import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
+import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
 /**
  * Floor12.tsx — ANDAR 12: "A CABEÇA".
  *
@@ -401,6 +402,10 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // ── AS ARMAS ─────────────────────────────────────────────────────
         const moving = Math.hypot(n.vx, n.vy) > .12;
         const shots = stepFlightWeapon(F.arma.current, dt, F.touchAtivo.current || F.gatilho.current, moving);
+        if (F.arma.current.missile) {
+            f12.projeteis.push(nascerMissilCarregado(n.x, n.y));
+            tocarExplosao();
+        }
         for (let i = 0; i < shots; i++) {
             ladoDoTiro.current = ladoDoTiro.current === 1 ? -1 : 1;
             f12.projeteis.push(nascerTiro(n.x, n.y, 'jogador', ladoDoTiro.current));
@@ -428,7 +433,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 for (const q of f12.projeteis) {
                     if (q.tipo !== 'naves' || mortos.has(q.id)) continue;
                     if (Math.hypot(p.x - q.x, p.y - q.y) < q.r + p.r && Math.abs(p.z - q.z) < 1.2) {
-                        q.hp = (q.hp ?? 1) - 1;
+                        q.hp = (q.hp ?? 1) - (p.carregado ? danoDoTiro(p) : 1);
                         mortos.add(p.id);
                         if ((q.hp ?? 0) <= 0) { mortos.add(q.id); tocarExplosao(); }
                         else tocarAcerto();
@@ -439,9 +444,9 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                 // tiro × boca
                 if (podeFerir && tiroNaBoca(p)) {
                     mortos.add(p.id);
-                    const virou = ferir(p.de === 'irmao' ? TIRO.danoIrmao : TIRO.dano);
+                    const virou = ferir(danoDoTiro(p));
                     F.flash.current = 1;
-                    tocarAcerto();
+                    if (p.carregado) { F.sacode.current = .25; tocarExplosao(); } else tocarAcerto();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) acabar(F, 'vitoria');
                     F.avisar();
@@ -544,6 +549,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const nave = useRef<Nave>(novaNave(0, meioY()));
     const irmao = useRef<Nave>(novaNave(-4, meioY() + 1.2, 3));
     const entrada = useRef({ x: 0, y: 0 });
+    const teclasPressionadas = useRef(new Set<string>());
     const touchAtivo = useRef(false);
     const gatilho = useRef(false);
     const arma = useRef(newFlightWeapon());
@@ -562,10 +568,10 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const visivel = useRef(false);
 
     useEffect(() => {
+        f12AoMudar(avisar);
         f12Reset();
         nave.current = novaNave(0, meioY());
         irmao.current = novaNave(-4, meioY() + 1.2, 3);
-        f12AoMudar(avisar);
         return () => { f12AoMudar(null); pararMotor(); };
     }, [avisar]);
 
@@ -692,7 +698,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     };
 
     useEffect(() => {
-        if (fase !== 'luta') { touchAtivo.current = false; gatilho.current = false; arrasto.current = null; }
+        if (fase !== 'luta') { touchAtivo.current = false; gatilho.current = false; arrasto.current = null; entrada.current = {x: 0, y: 0}; teclasPressionadas.current.clear(); }
     }, [fase]);
     useEffect(() => {
         const clear = () => { touchAtivo.current = false; gatilho.current = false; arrasto.current = null; entrada.current = {x: 0, y: 0}; };
@@ -704,7 +710,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     // teclado, para quem joga no computador
     useEffect(() => {
-        const teclas = new Set<string>();
+        const teclas = teclasPressionadas.current;
         const aplicar = () => {
             const x = (teclas.has('d') || teclas.has('arrowright') ? 1 : 0) - (teclas.has('a') || teclas.has('arrowleft') ? 1 : 0);
             const y = (teclas.has('w') || teclas.has('arrowup') ? 1 : 0) - (teclas.has('s') || teclas.has('arrowdown') ? 1 : 0);
@@ -714,6 +720,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         const baixo = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase();
             if ([' ', 'w', 'a', 's', 'd', 'j', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+            if (f12.fase !== 'luta' || (e.repeat && !teclas.has(k))) return;
             teclas.add(k); aplicar();
         };
         const cima = (e: KeyboardEvent) => { teclas.delete(e.key.toLowerCase()); aplicar(); };
@@ -728,8 +735,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const vidaFrac = Math.max(0, f12.vida / VIDA_MAXIMA);
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0d2029', touchAction: 'none', display: 'flex', flexDirection: 'column' }}>
         <Canvas
+                style={{ flex: '1 1 0', height: 0, minHeight: 0, width: '100%' }}
                 dpr={1}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: true }}
@@ -796,34 +804,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
             {/* ── balão de fala ── */}
             {linha && (
-                <div onPointerDown={avancarFala}
-                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, padding: '0 14px calc(env(safe-area-inset-bottom) + 16px)', cursor: 'pointer' }}>
-                    <div style={{
-                        maxWidth: 680, margin: '0 auto', background: '#fffef2',
-                        border: `4px solid ${linha.quem === 'jogador' ? '#3b6fb0' : '#11131a'}`,
-                        borderRadius: 16, boxShadow: '0 6px 0 rgba(0,0,0,0.45)', padding: '12px 16px 14px',
-                    }}>
-                        <div style={{ ...t64, fontSize: 13, color: linha.quem === 'jogador' ? '#3b6fb0' : '#ff6b4a', textShadow: 'none', marginBottom: 4 }}>
+                <div data-testid="f12-dialogue" style={{ position: 'relative', flex: '0 0 auto', maxHeight: '42%', overflowY: 'auto', boxSizing: 'border-box', zIndex: 4, padding: '8px 12px calc(env(safe-area-inset-bottom) + 10px)' }}>
+                    <div style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr auto', gap: '5px 12px', alignItems: 'center', background: '#142b34', border: '1px solid #597278', borderRadius: 12, padding: '10px 14px' }}>
+                        <div style={{ ...t64, gridColumn: 1, fontSize: 12, color: linha.quem === 'jogador' ? '#8cceff' : '#ffd78b', textShadow: 'none' }}>
                             {linha.quem === 'jogador' ? '▶ VOCÊ' : '● TROCO-63'}
                         </div>
-                        <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 17, lineHeight: 1.45, color: '#1c2433', minHeight: 52 }}>
-                            {linha.texto}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
-                            <button style={{
-                                ...btn64,
-                                background: ultimaLinha && fase === 'derrota' ? 'linear-gradient(180deg,#e8503a,#b03426)'
-                                    : ultimaLinha && fase === 'despedida' ? 'linear-gradient(180deg,#555,#333)'
-                                        : ultimaLinha ? 'linear-gradient(180deg,#58b84d,#3f9638)' : btn64.background,
-                            }} onPointerDown={(e) => { e.stopPropagation(); avancarFala(); }}>
-                                {!ultimaLinha ? '▶'
-                                    : fase === 'encontro' ? 'BORA! ✈'
-                                        : fase === 'virada' ? 'DE NOVO! ✈'
-                                            : fase === 'derrota' ? 'TENTAR OUTRA VEZ'
-                                                : fase === 'vitoria' ? '▶'
-                                                    : 'SUBIR ⬆'}
-                            </button>
-                        </div>
+                        <div style={{ gridColumn: 1, fontFamily: 'monospace', fontWeight: 600, fontSize: 'clamp(13px, 2.7vh, 17px)', lineHeight: 1.35, color: '#f1ecdc' }}>{linha.texto}</div>
+                        <button style={{ ...btn64, gridColumn: 2, gridRow: '1 / 3', fontSize: 13, padding: '10px 14px', minWidth: 46, background: ultimaLinha ? '#3d805b' : '#36545f' }}
+                            onPointerDown={(e) => { e.stopPropagation(); avancarFala(); }}>
+                            {!ultimaLinha ? '▶' : fase === 'encontro' ? 'VOAR ✈' : fase === 'derrota' ? 'REPETIR' : fase === 'despedida' ? 'SUBIR ⬆' : 'CONTINUAR'}
+                        </button>
                     </div>
                 </div>
             )}
@@ -839,6 +829,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
                 alguém tem de dizer que a tela é o joystick. */}
             {mostrarControles && <DicaDeControle />}
+            {mostrarControles && <Floor12ChargeMeter arma={arma} />}
 
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
