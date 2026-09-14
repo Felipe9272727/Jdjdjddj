@@ -60,6 +60,13 @@ async function dispatchTouch(client, type, points) {
 
 
 async function assertCaptionLayout(page, selector, viewport) {
+  await page.locator(selector).waitFor({ state: "visible", timeout: 5000 });
+  // The phase changes before React commits and R3F resizes its canvas.
+  await page.waitForFunction(({ selector, height }) => {
+    const c = document.querySelector("canvas")?.getBoundingClientRect();
+    const d = document.querySelector(selector)?.getBoundingClientRect();
+    return c && d && c.bottom <= d.top + 1 && c.height > height * .45;
+  }, { selector, height: viewport.height }, { timeout: 5000 });
   const box = await page.evaluate((selector) => {
     const c = document.querySelector("canvas")?.getBoundingClientRect();
     const d = document.querySelector(selector)?.getBoundingClientRect();

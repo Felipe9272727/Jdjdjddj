@@ -1,70 +1,79 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { bocaNoInstante, f12 } from './f12Boss';
-import { F12_PALETTE as P } from './f12Presentation';
 
-/** The concierge's porcelain mask is held together by the hotel's machinery. */
+/** One continuous porcelain faceplate: the cheekbones flow into the brow. */
 export function Floor12Facework() {
-  const gears = useRef<THREE.Group>(null);
-  const M = useMemo(() => ({
-    ivory: new THREE.MeshStandardMaterial({ color: '#e1d5b5', roughness: .66, metalness: .15 }),
-    brass: new THREE.MeshStandardMaterial({ color: P.brass, roughness: .32, metalness: .65 }),
-    dark: new THREE.MeshStandardMaterial({ color: '#152e38', roughness: .58, metalness: .48 }),
-    light: new THREE.MeshBasicMaterial({ color: P.friendly, toneMapped: false }),
-  }), []);
-  const cheek = useMemo(() => {
-    const s = new THREE.Shape();
-    s.moveTo(2.25, .50); s.lineTo(3.00, .14); s.lineTo(3.12, -.90);
-    s.lineTo(2.70, -2.65); s.lineTo(2.45, -2.40); s.lineTo(2.55, -.46);
-    s.closePath();
-    return new THREE.ExtrudeGeometry(s, { depth: .25, bevelEnabled: true, bevelSegments: 1, steps: 1, bevelSize: .10, bevelThickness: .08 });
-  }, []);
-  useEffect(() => () => { cheek.dispose(); Object.values(M).forEach(m => m.dispose()); }, [cheek, M]);
-  useFrame((_, dt) => {
-    const b = bocaNoInstante(f12.bocaT);
-    if (gears.current) gears.current.children.forEach((gear, i) => {
-      gear.rotation.z += Math.min(dt, .05) * (i ? -1 : 1) * (.15 + b.abertura * 1.8);
+  const assets = useMemo(() => {
+    const mask = new THREE.Shape();
+    mask.moveTo(0, 3.55);
+    mask.bezierCurveTo(1.8, 3.55, 3.18, 2.6, 3.13, 1.25);
+    mask.bezierCurveTo(3.1, -.4, 2.8, -2.45, 2.45, -2.7);
+    mask.lineTo(2.30, -.8); mask.quadraticCurveTo(1.2, -.5, 0, -.58);
+    mask.quadraticCurveTo(-1.2, -.5, -2.30, -.8); mask.lineTo(-2.45, -2.7);
+    mask.bezierCurveTo(-2.8, -2.45, -3.1, -.4, -3.13, 1.25);
+    mask.bezierCurveTo(-3.18, 2.6, -1.8, 3.55, 0, 3.55);
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Path();
+      eye.absellipse(side * 1.55, 1.15, .95, .64, 0, Math.PI * 2, true, 0);
+      mask.holes.push(eye);
+    }
+    const plate = new THREE.ExtrudeGeometry(mask, {
+      depth: .20, bevelEnabled: true, bevelSegments: 3, steps: 1,
+      bevelSize: .09, bevelThickness: .11, curveSegments: 16,
     });
-    M.light.color.set(b.estado === 'abrindo' ? P.danger : f12.passouDaVirada ? P.ritual : P.friendly);
-  });
+    // Sloping bridge and rounded tip, deliberately replacing the old cube nose.
+    const nose = new THREE.BufferGeometry();
+    nose.setAttribute('position', new THREE.Float32BufferAttribute([
+      -.24, 1.58, 3.18, .24, 1.58, 3.18, -.45, -.12, 3.52,
+      .24, 1.58, 3.18, .45, -.12, 3.52, -.45, -.12, 3.52,
+      -.24, 1.58, 3.18, -.45, -.12, 3.52, 0, .03, 4.07,
+      .24, 1.58, 3.18, 0, .03, 4.07, .45, -.12, 3.52,
+      -.24, 1.58, 3.18, 0, .03, 4.07, .24, 1.58, 3.18,
+      -.45, -.12, 3.52, .45, -.12, 3.52, 0, .03, 4.07,
+    ], 3));
+    nose.computeVertexNormals();
+    const lip = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-2.4, -.76, 3.2), new THREE.Vector3(-1.2, -.60, 3.48),
+      new THREE.Vector3(0, -.67, 3.59), new THREE.Vector3(1.2, -.60, 3.48),
+      new THREE.Vector3(2.4, -.76, 3.2),
+    ]), 28, .105, 6, false);
+    return { plate, nose, lip };
+  }, []);
+  useEffect(() => () => Object.values(assets).forEach(g => g.dispose()), [assets]);
   return <group name="mascara-do-concierge">
-    {[-1, 1].map(side => <group key={side}>
-      <mesh geometry={cheek} material={M.ivory} position={[0, 0, 2.30]} scale={[side, 1, 1]} />
-      <mesh material={M.dark} position={[side * 1.55, 1.15, 2.86]} scale={[1.12, .89, 1]}>
-        <torusGeometry args={[.79, .16, 8, 24]} />
-      </mesh>
-      <mesh material={M.brass} position={[side * 1.55, 1.15, 2.94]} scale={[1.12, .89, 1]}>
-        <torusGeometry args={[.91, .045, 6, 28]} />
-      </mesh>
-      {[0, 1, 2].map(i => <mesh key={i} material={M.brass} position={[side * (2.75 - i * .055), -.52 - i * .58, 2.68]}>
-        <sphereGeometry args={[.09, 8, 6]} />
-      </mesh>)}
-      <mesh material={M.dark} position={[side * 3.03, -.5, .76]}>
-        <boxGeometry args={[.38, 2.4, .72]} />
-      </mesh>
-      {[0, 1, 2, 3].map(i => <mesh key={i} material={M.brass} position={[side * 3.08, .25 - i * .42, 1.15]}>
-        <boxGeometry args={[.46, .11, .09]} />
-      </mesh>)}
-      <mesh material={M.brass} position={[side * .72, -.30, 3.52]} rotation={[0, 0, side * .12]}>
-        <torusGeometry args={[.64, .13, 8, 20, Math.PI * .86]} />
-      </mesh>
-    </group>)}
-    <mesh material={M.brass} position={[0, -.62, 3.50]}>
-      <boxGeometry args={[4.92, .18, .30]} />
+    <mesh geometry={assets.plate} position={[0, 0, 2.97]}>
+      <meshStandardMaterial color="#e9ddbd" roughness={.37} metalness={.12} />
     </mesh>
-    <group ref={gears}>
-      {[-1, 1].map(side => <group key={side} position={[side * 3.12, -.6, 1.58]}>
-        <mesh material={M.dark} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.48, .48, .18, 16]} /></mesh>
-        <mesh material={M.brass}><torusGeometry args={[.43, .09, 6, 20]} /></mesh>
-        {Array.from({ length: 10 }, (_, i) => {
-          const a = i * Math.PI / 5;
-          return <mesh key={i} material={M.brass} position={[Math.cos(a) * .49, Math.sin(a) * .49, 0]} rotation={[0, 0, a]}>
-            <boxGeometry args={[.17, .12, .14]} />
-          </mesh>;
-        })}
-        <mesh material={M.light}><sphereGeometry args={[.16, 10, 8]} /></mesh>
-      </group>)}
-    </group>
+    <mesh geometry={assets.nose}>
+      <meshStandardMaterial color="#e9ddbd" roughness={.4} metalness={.1} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh geometry={assets.lip}>
+      <meshStandardMaterial color="#a97738" roughness={.3} metalness={.75} />
+    </mesh>
+    {[-1, 1].map(side => <group key={side}>
+      {/* Recessed almond sockets, with a single brass eyelid seam. */}
+      <mesh position={[side * 1.55, 1.15, 3.04]} scale={[1.10, .75, .24]}>
+        <sphereGeometry args={[1, 24, 16]} />
+        <meshStandardMaterial color="#12313a" roughness={.5} />
+      </mesh>
+      <mesh position={[side * 1.55, 1.15, 3.20]} scale={[1.12, .75, 1]}>
+        <torusGeometry args={[.82, .045, 6, 32]} />
+        <meshStandardMaterial color="#bd934e" metalness={.8} roughness={.28} />
+      </mesh>
+      {/* Temple hinge and vent follow the same uniform/cap palette. */}
+      <mesh position={[side * 3.04, -.48, 1.86]} rotation={[0, 0, side * -.10]}>
+        <capsuleGeometry args={[.27, 1.42, 4, 12]} />
+        <meshStandardMaterial color="#173e48" metalness={.55} roughness={.4} />
+      </mesh>
+      <mesh position={[side * 2.85, -1.22, 2.70]}>
+        <sphereGeometry args={[.15, 12, 8]} />
+        <meshStandardMaterial color="#d5aa56" metalness={.8} roughness={.3} />
+      </mesh>
+      {[0, 1, 2].map(i => <mesh key={i} position={[side * (2.79 - i * .04), -.1 - i * .28, 3.02]}
+        rotation={[0, 0, side * -.22]}>
+        <capsuleGeometry args={[.035, .30, 2, 6]} />
+        <meshStandardMaterial color="#b9955d" metalness={.6} roughness={.4} />
+      </mesh>)}
+    </group>)}
   </group>;
 }

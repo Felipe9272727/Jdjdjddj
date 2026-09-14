@@ -37,8 +37,8 @@ import {
 export const ESCALA = 7.2;
 
 const CORES = {
-    pele: '#b7ac91',        // um cinza-lilás de gesso velho: parede de hotel
-    peleEsc: '#605e56',
+    pele: '#233f46',        // um cinza-lilás de gesso velho: parede de hotel
+    peleEsc: '#12313a',
     interior: '#140f19',    // a garganta
     brasa: '#ff7a3a',       // o que arde lá dentro
     olho: '#f4f1e4',
@@ -61,7 +61,9 @@ function cranioAberto() {
         const z = (p.getZ(i) + p.getZ(i+1) + p.getZ(i+2)) / 3;
         if (z > 0.45 && y < -0.62 && Math.abs(x) < 2.48) continue;
         for (let j = i; j < i + 3; j++) {
-            vertices.push(p.getX(j), p.getY(j), p.getZ(j));
+            const vy = p.getY(j);
+            const taper = .86 + .16 * THREE.MathUtils.smoothstep(vy, -2.6, .8);
+            vertices.push(p.getX(j) * taper, vy * 1.015, p.getZ(j) * .88);
             normals.push(n.getX(j), n.getY(j), n.getZ(j));
         }
     }
@@ -69,6 +71,7 @@ function cranioAberto() {
     const result = new THREE.BufferGeometry();
     result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    result.computeVertexNormals();
     result.computeBoundingSphere();
     return result;
 }
@@ -81,6 +84,24 @@ export const Floor12Cabeca: React.FC<{
 }> = ({ flashRef, naveRef, cinemaClock }) => {
     const raiz = useRef<THREE.Group>(null);
     const cranio = useMemo(cranioAberto, []);
+    const jaw = useMemo(() => {
+        const s = new THREE.Shape();
+        s.moveTo(-2.35, .65); s.lineTo(2.35, .65);
+        s.quadraticCurveTo(2.5, -.45, 1.78, -.86);
+        s.quadraticCurveTo(0, -1.1, -1.78, -.86);
+        s.quadraticCurveTo(-2.5, -.45, -2.35, .65);
+        const g = new THREE.ExtrudeGeometry(s, { depth: 2.2, bevelEnabled: true,
+            bevelSize: .14, bevelThickness: .13, bevelSegments: 3, curveSegments: 12 });
+        g.translate(0, 0, -1.1); return g;
+    }, []);
+    const brow = useMemo(() => {
+        const s = new THREE.Shape();
+        s.moveTo(-.9, -.12); s.quadraticCurveTo(0, .4, .9, .08);
+        s.lineTo(.85, -.12); s.quadraticCurveTo(0, .06, -.9, -.28);
+        s.closePath();
+        return new THREE.ExtrudeGeometry(s, { depth: .18, bevelEnabled: true,
+            bevelSize: .05, bevelThickness: .04, bevelSegments: 2 });
+    }, []);
     const face = useRef<THREE.Group>(null);
     const mandibula = useRef<THREE.Group>(null);
     const garganta = useRef<THREE.Mesh>(null);
@@ -91,7 +112,9 @@ export const Floor12Cabeca: React.FC<{
     const sobrD = useRef<THREE.Mesh>(null);
 
     const M = useMemo(() => ({
-        pele: mat64(CORES.pele),
+        pele: new THREE.MeshStandardMaterial({ color: CORES.pele, roughness: .43, metalness: .28 }),
+        porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .38, metalness: .12 }),
+        brilhoOlho: new THREE.MeshBasicMaterial({ color: '#a0fff1', toneMapped: false }),
         peleEsc: mat64(CORES.peleEsc),
         interior: mat64(CORES.interior),
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
@@ -101,7 +124,7 @@ export const Floor12Cabeca: React.FC<{
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
     }), []);
 
-    useEffect(() => () => { cranio.dispose(); Object.values(M).forEach(m => m.dispose()); }, [cranio, M]);
+    useEffect(() => () => { cranio.dispose(); jaw.dispose(); brow.dispose(); Object.values(M).forEach(m => m.dispose()); }, [cranio, jaw, brow, M]);
 
     // As feridas aparecem conforme a vida cai: a cabeça CONTA a luta no corpo,
     // e não só na barra do HUD. Um chefe cuja aparência não muda faz o jogador
@@ -147,7 +170,8 @@ export const Floor12Cabeca: React.FC<{
         // ── OS OLHOS ─────────────────────────────────────────────────────
         // Apertam quando a boca abre. É o telegrafo redundante: quem estiver
         // olhando para os olhos e não para a boca também vê o ataque vir.
-        const aperto = dying ? Math.max(.04, 1 - beat.rupture) : 1 - b.abertura * 0.55;
+        const blink = !dying && b.abertura < .1 && t % 5.7 < .12 ? .15 : 1;
+        const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
         const franzir = b.abertura * 0.4;
         if (sobrE.current) sobrE.current.rotation.z = -0.18 - franzir;
@@ -202,25 +226,20 @@ export const Floor12Cabeca: React.FC<{
             {/* ── OS OLHOS ── */}
             {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
                 <React.Fragment key={lado}>
-                    <group ref={ro} position={[lado * 1.55, 1.15, R * 0.79]}>
-                        <mesh material={M.olho}><sphereGeometry args={[0.78, 14, 10]} /></mesh>
-                        <mesh material={M.pupila} position={[lado * 0.12, -0.05, 0.6]}>
+                    <group ref={ro} position={[lado * 1.55, 1.15, 3.27]}>
+                        <mesh material={M.olho} scale={[1, .67, .38]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
+                        <mesh material={M.pupila} position={[lado * 0.12, -0.05, .30]} scale={[.82, 1, .35]}>
                             <sphereGeometry args={[0.31, 16, 10]} />
                         </mesh>
-                        <mesh material={M.brasa} position={[0, -.05, .86]}>
-                            <sphereGeometry args={[.085, 10, 8]} />
+                        <mesh material={M.brilhoOlho} position={[.07, .02, .43]}>
+                            <sphereGeometry args={[.055, 10, 8]} />
                         </mesh>
                     </group>
-                    <mesh ref={rs} material={M.peleEsc} position={[lado * 1.6, 2.15, R * 0.8]}>
-                        <boxGeometry args={[1.7, 0.34, 0.3]} />
-                    </mesh>
+                    <mesh ref={rs} geometry={brow} material={M.peleEsc} position={[lado * 1.6, 2.03, 3.28]} />
                 </React.Fragment>
             ))}
 
-            {/* ── O NARIZ ── */}
-            <mesh material={M.peleEsc} position={[0, 0.2, R * 0.9]}>
-                <boxGeometry args={[0.8, 0.9, 0.7]} />
-            </mesh>
+
 
             </group>
 
@@ -260,8 +279,9 @@ export const Floor12Cabeca: React.FC<{
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
-                    <mesh material={M.pele} position={[0, -0.75, 1.15]}>
-                        <boxGeometry args={[4.8, 1.5, 2.6]} />
+                    <mesh geometry={jaw} material={M.porcelana} position={[0, -.75, 1.15]} />
+                    <mesh position={[0, -1.05, 2.38]} scale={[1, .28, .22]} material={M.peleEsc}>
+                        <sphereGeometry args={[1.72, 24, 12]} />
                     </mesh>
                     {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
                         <mesh key={i} material={M.dente} position={[x, -0.05, 2.1]}>
