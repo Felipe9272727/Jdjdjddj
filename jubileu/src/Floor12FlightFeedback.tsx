@@ -24,7 +24,7 @@ export function Floor12FlightFeedback({ nave, arma }: {
     root.current.visible = f12.fase === 'luta';
     root.current.position.set(n.x, n.y, 0);
     const ratio = Math.min(1, gun.charge / FLIGHT_WEAPON.chargeLimit);
-    const full = ratio > .999;
+    const full = gun.charge >= FLIGHT_WEAPON.chargeLimit - 1e-6;
     M.charge.color.set(full ? '#ffd575' : '#71fff0');
     M.aura.color.copy(M.charge.color);
     M.aura.opacity = .13 + ratio * .3 + (full ? Math.sin(clock.elapsedTime * 9) * .12 : 0);
@@ -77,7 +77,7 @@ export function Floor12FlightFeedback({ nave, arma }: {
 export function Floor12ChargeMeter({ arma }: { arma: MutableRefObject<FlightWeapon> }) {
   const [percent, setPercent] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setPercent(Math.min(100, Math.round(arma.current.charge / FLIGHT_WEAPON.chargeLimit * 100))), 100);
+    const id = window.setInterval(() => setPercent(Math.min(100, Math.floor((arma.current.charge + 1e-6) / FLIGHT_WEAPON.chargeLimit * 100))), 100);
     return () => window.clearInterval(id);
   }, [arma]);
   if (percent < 2) return null;
