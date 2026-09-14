@@ -1,3 +1,5 @@
+import { F12_CINEMA, cinemaEase, victoryBeat } from './f12Cinema';
+import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
 /**
@@ -161,7 +163,7 @@ const DiretorDaIntro: React.FC<{
         introAtivaRef.current = true;
         t.current += Math.min(rawDt, 0.05);
         const tt = t.current;
-        const progress = THREE.MathUtils.clamp(tt / 12, 0, 1);
+        const progress = THREE.MathUtils.clamp(tt / F12_CINEMA.intro, 0, 1);
         introProgressRef.current = progress;
 
         if (tt > 0.6 && !marcos.current.ding) { marcos.current.ding = true; tocarDing(); }
@@ -178,12 +180,12 @@ const DiretorDaIntro: React.FC<{
         if (tt > 4.4 && !marcos.current.motor) { marcos.current.motor = true; tocarMotor(); }
 
         // A câmera sai de dentro do hóspede para trás do avião.
-        camRef.current = THREE.MathUtils.clamp((tt - 4.4) / 5.0, 0, 1);
+        camRef.current = THREE.MathUtils.clamp((tt - 2.8) / 4.8, 0, 1);
         // A cabine de dentro some junto — ela e o casco são a mesma coisa vista
         // de dois lados, e mostrar as duas ao mesmo tempo entregaria o truque.
-        sumindoRef.current = THREE.MathUtils.clamp((tt - 2.2) / 2.0, 0, 1);
+        sumindoRef.current = THREE.MathUtils.clamp((tt - 3.1) / 1.2, 0, 1);
 
-        if (tt > 12) {
+        if (tt > F12_CINEMA.intro) {
             introProgressRef.current = 1;
             introAtivaRef.current = false;
             f12.fase = 'encontro'; f12.linhaDoDialogo = 0; tocarFalaDoIrmao(); avisar();
@@ -208,7 +210,8 @@ const CameraDaLuta: React.FC<{
     introProgressRef: React.MutableRefObject<number>;
     introAtivaRef: React.MutableRefObject<boolean>;
     sacodeRef: React.MutableRefObject<number>;
-}> = ({ naveRef, irmaoRef, camRef, introProgressRef, introAtivaRef, sacodeRef }) => {
+    cinemaClock: React.MutableRefObject<number>;
+}> = ({ naveRef, irmaoRef, camRef, introProgressRef, introAtivaRef, sacodeRef, cinemaClock }) => {
     const camera = useThree((s) => s.camera);
     const size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
@@ -216,6 +219,28 @@ const CameraDaLuta: React.FC<{
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
         const recuo = f12ChaseDistance(size.width / Math.max(1, size.height));
+
+        if (f12.fase === 'queda' || f12.fase === 'vitoria' || f12.fase === 'despedida') {
+            const t = cinemaClock.current;
+            const b = victoryBeat(t);
+            const escort = cinemaEase((t - 6) / 2.4);
+            const portrait = Math.max(0, 1 - size.width / Math.max(1, size.height));
+            const shock = Math.max(0, 1 - Math.abs(t - F12_CINEMA.rupture) / .45);
+            const bossShot = new THREE.Vector3(3 + Math.sin(t * .3) * 2,
+                BOCA_ALVO.y + 3 - b.fall * 5, ARENA.zCabeca + 21 + portrait * 16);
+            const escortShot = new THREE.Vector3(n.x + 3, n.y + 3, 12 + portrait * 10);
+            camera.position.lerp(bossShot.lerp(escortShot, escort), 1 - Math.exp(-dt * 3));
+            camera.position.x += Math.sin(t * 61) * shock * .10;
+            const focus = new THREE.Vector3(0, BOCA_ALVO.y - b.fall * 10, ARENA.zCabeca);
+            focus.lerp(new THREE.Vector3(n.x - 1, n.y + .5, -2), escort);
+            alvo.current.lerp(focus, 1 - Math.exp(-dt * 4));
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, 52, 1 - Math.exp(-dt * 3));
+                camera.updateProjectionMatrix();
+            }
+            camera.lookAt(alvo.current);
+            return;
+        }
 
         // The intro camera is a separate cinematic route. Its marks are relative
         // to the aircraft, so the aircraft can already be positioned by the same
@@ -253,10 +278,10 @@ const CameraDaLuta: React.FC<{
         // A three-quarter front shot lets the older brother actually perform.
         if (f12.fase === 'encontro' && f12.linhaDoDialogo < 3) {
             const ir = irmaoRef.current;
-            camera.position.lerp(new THREE.Vector3(ir.x + 2.5, ir.y + 1.6, -3.8), 1 - Math.exp(-dt * 3.2));
+            camera.position.lerp(new THREE.Vector3(ir.x + (f12.linhaDoDialogo === 1 ? 1.8 : 2.7), ir.y + 1.6, f12.linhaDoDialogo === 2 ? -5.6 : -4.2), 1 - Math.exp(-dt * 3.2));
             alvo.current.lerp(new THREE.Vector3(ir.x, ir.y + .9, .4), 1 - Math.exp(-dt * 4));
             if (camera instanceof THREE.PerspectiveCamera) {
-                camera.fov = THREE.MathUtils.lerp(camera.fov, 46, 1 - Math.exp(-dt * 3));
+                camera.fov = THREE.MathUtils.lerp(camera.fov, f12.linhaDoDialogo === 1 ? 42 : 48, 1 - Math.exp(-dt * 3));
                 camera.updateProjectionMatrix();
             }
             camera.lookAt(alvo.current);
@@ -319,6 +344,7 @@ interface Ferramentas {
     sacode: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
+    cinemaClock: React.MutableRefObject<number>;
 }
 
 /**
@@ -342,6 +368,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const dt = Math.min(rawDt, 0.05);
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
+        if (['queda', 'vitoria', 'despedida'].includes(f12.fase)) return;
 
         // ── AS NAVES ─────────────────────────────────────────────────────
         // O ALVO já foi movido por quem toca a tela (arrasto) ou pelo teclado.
@@ -448,7 +475,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     F.flash.current = 1;
                     if (p.carregado) { F.sacode.current = .25; tocarExplosao(); } else tocarAcerto();
                     if (virou) abrirAVirada(F);
-                    if (f12.vida <= 0) acabar(F, 'vitoria');
+                    if (f12.vida <= 0) { acabar(F, 'vitoria'); return; }
                     F.avisar();
                 }
                 continue;
@@ -457,7 +484,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             if (encostou(p, n.x, n.y, NAVE.raio) && tomarToque(n)) {
                 F.sacode.current = 1; tocarDano();
                 if (p.tipo !== 'mare') mortos.add(p.id);
-                if (n.vidas <= 0) acabar(F, 'derrota');
+                if (n.vidas <= 0) { acabar(F, 'derrota'); return; }
                 F.avisar();
             }
             // ataque × irmão (ele perde vidas, mas nunca morre: some e volta)
@@ -513,13 +540,61 @@ function abrirAVirada(F: Ferramentas): void {
 }
 
 function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
-    f12.fase = como;
+    f12.fase = como === 'vitoria' ? 'queda' : como;
+    F.cinemaClock.current = 0;
+    F.touchAtivo.current = false; F.gatilho.current = false;
+    F.arma.current.active = false; F.arma.current.flash = 0;
     f12.linhaDoDialogo = 0;
     f12.projeteis = [];
-    pararMotor();
-    if (como === 'vitoria') { tocarVitoria(); tocarExplosao(); } else tocarDerrota();
+    if (como === 'derrota') { pararMotor(); tocarDerrota(); }
+    else tocarBocaAbrindo();
     F.avisar();
 }
+
+
+const DiretorDaVitoria: React.FC<{
+    clock: React.MutableRefObject<number>; nave: React.MutableRefObject<Nave>;
+    irmao: React.MutableRefObject<Nave>; avisar: () => void;
+}> = ({ clock, nave, irmao, avisar }) => {
+    const exploded = useRef(false);
+    const origin = useRef<{ x: number; y: number; ix: number; iy: number } | null>(null);
+    useFrame((_, rawDt) => {
+        if (f12.fase !== 'queda') { exploded.current = false; origin.current = null; return; }
+        const n = nave.current, ir = irmao.current;
+        if (!origin.current) origin.current = { x: n.x, y: n.y, ix: ir.x, iy: ir.y };
+        clock.current = Math.min(F12_CINEMA.victory, clock.current + Math.min(rawDt, .05));
+        const t = clock.current, b = victoryBeat(t), o = origin.current;
+        if (t >= F12_CINEMA.rupture && !exploded.current) { exploded.current = true; tocarExplosao(); }
+        const join = cinemaEase(t / 2.8);
+        n.x = THREE.MathUtils.lerp(o.x, 1.6, b.escape);
+        n.y = THREE.MathUtils.lerp(o.y, meioY() + .5, b.escape);
+        n.alvoX = n.x; n.alvoY = n.y; n.rolagem = Math.sin(b.escape * Math.PI) * -.35;
+        ir.x = THREE.MathUtils.lerp(o.ix, n.x - 2.8, join);
+        ir.y = THREE.MathUtils.lerp(o.iy, n.y + 1.1, join);
+        ir.alvoX = ir.x; ir.alvoY = ir.y; ir.rolagem = Math.sin(b.escape * Math.PI) * -.45;
+        n.piscando = 0; ir.piscando = 0;
+        if (b.finished) {
+            f12.fase = 'vitoria'; f12.linhaDoDialogo = 0;
+            tocarVitoria(); tocarFalaDoIrmao(); avisar();
+        }
+    });
+    return null;
+};
+
+const LegendaDaVitoria: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
+    const [beat, setBeat] = useState(0);
+    useEffect(() => {
+        const id = window.setInterval(() => setBeat(clock.current < 3.2 ? 0 : clock.current < 7 ? 1 : 2), 100);
+        return () => window.clearInterval(id);
+    }, [clock]);
+    return <div data-testid="f12-victory-caption" style={{ flex: '0 0 auto', background: '#10242d',
+        color: '#ffe0a0', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)',
+        textAlign: 'center', font: '600 clamp(12px, 2.5vh, 16px) monospace' }}>
+        {['TROCO-63: Ih. Esse barulho não é de vitória. Afasta!',
+          'TROCO-63: Agora sim. Sem cabeça… e sem reembolso.',
+          'TROCO-63: Cola na minha asa. Vou tirar você daqui.'][beat]}
+    </div>;
+};
 
 // ═══ O OVERLAY ═══════════════════════════════════════════════════════════════
 
@@ -553,6 +628,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const touchAtivo = useRef(false);
     const gatilho = useRef(false);
     const arma = useRef(newFlightWeapon());
+    const cinemaClock = useRef(0);
     const flash = useRef(0);
     const sacode = useRef(0);
     const gritoRef = useRef('');
@@ -601,6 +677,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             get fase() { return f12.fase; }, get vida() { return f12.vida; },
             get projeteis() { return f12.projeteis; }, get nave() { return nave.current; },
             get arma() { return arma.current; },
+            get cinema() { return cinemaClock.current; },
+            get intro() { return introProgress.current; },
         };
     }
     const roteiro = roteiroDaFase(fase);
@@ -757,11 +835,14 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 }}
             >
                 <Floor12Ceu />
-                <Floor12Cabeca flashRef={flash} naveRef={nave} />
+                <Floor12Cabeca flashRef={flash} naveRef={nave} cinemaClock={cinemaClock} />
+                <Floor12CinemaEffects active={fase === 'queda'} clock={cinemaClock}
+                    position={[0, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} />
+                <DiretorDaVitoria clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
-                <Mira naveRef={nave} />
-                <Floor12FlightFeedback nave={nave} arma={arma} />
+                {fase === 'luta' && <><Mira naveRef={nave} />
+                <Floor12FlightFeedback nave={nave} arma={arma} /></>}
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
                 <AviaoDoIrmao naveRef={irmao} falandoRef={falando} introRef={introProgress} />
@@ -769,9 +850,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     camRef={cam} introProgressRef={introProgress} introAtivaRef={introAtiva}
                     avisar={() => { visivel.current = true; avisar(); }} />
                 <CameraDaLuta irmaoRef={irmao} naveRef={nave} camRef={cam} introProgressRef={introProgress}
-                    introAtivaRef={introAtiva} sacodeRef={sacode} />
+                    introAtivaRef={introAtiva} sacodeRef={sacode} cinemaClock={cinemaClock} />
                 <DiretorDaLuta touchAtivo={touchAtivo} gatilho={gatilho} arma={arma} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
+                    flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
 
@@ -833,8 +914,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
+            {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
-                <div style={{ ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 28px)', left: 0, right: 0, textAlign: 'center', fontSize: 18 }}>
+                <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
                     {legendaIntro}
                 </div>
             )}

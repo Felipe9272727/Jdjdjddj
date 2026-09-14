@@ -21,6 +21,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { victoryBeat } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
@@ -76,7 +77,8 @@ export const Floor12Cabeca: React.FC<{
     /** Sobe quando um tiro entra: a cabeça pisca de dano. */
     flashRef: React.MutableRefObject<number>;
     naveRef?: React.MutableRefObject<{ x: number; y: number }>;
-}> = ({ flashRef, naveRef }) => {
+    cinemaClock?: React.MutableRefObject<number>;
+}> = ({ flashRef, naveRef, cinemaClock }) => {
     const raiz = useRef<THREE.Group>(null);
     const cranio = useMemo(cranioAberto, []);
     const face = useRef<THREE.Group>(null);
@@ -114,6 +116,18 @@ export const Floor12Cabeca: React.FC<{
         const dt = Math.min(rawDt, 0.05);
         const b = bocaNoInstante(f12.bocaT);
         const t = state.clock.elapsedTime;
+        const dying = f12.fase === 'queda';
+        const gone = f12.fase === 'vitoria' || f12.fase === 'despedida';
+        const ct = cinemaClock?.current ?? 0;
+        const beat = victoryBeat(ct);
+        if (dying) b.abertura = .4 + beat.tremor * .6;
+        if (raiz.current) {
+            raiz.current.visible = !gone && (!dying || beat.fall < .995);
+            raiz.current.position.set(dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0,
+                ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0), ARENA.zCabeca - (dying ? beat.fall * 7 : 0));
+            raiz.current.rotation.set(dying ? beat.fall * .9 : 0, dying ? beat.fall * -.35 : 0,
+                dying ? Math.sin(ct * 23) * .018 * beat.tremor + beat.fall * .65 : 0);
+        }
 
         // ── A MANDÍBULA ──────────────────────────────────────────────────
         // Ela GIRA num pivô atrás do queixo, não desliza para baixo: mandíbula
@@ -124,16 +138,16 @@ export const Floor12Cabeca: React.FC<{
         // em vez de um buraco.
         if (garganta.current) {
             const m = garganta.current.material as THREE.MeshLambertMaterial;
-            m.emissiveIntensity = 0.25 + b.abertura * 1.5;
+            m.emissiveIntensity = dying ? (1 - beat.rupture) * (2 + beat.tremor * 5) : 0.25 + b.abertura * 1.5;
             garganta.current.scale.setScalar(0.85 + b.abertura * 0.3);
         }
 
-        if (reator.current) reator.current.rotation.z += dt * (.18 + b.abertura * 1.6);
+        if (reator.current) reator.current.rotation.z += dt * (dying ? 2 + beat.tremor * 12 : .18 + b.abertura * 1.6);
 
         // ── OS OLHOS ─────────────────────────────────────────────────────
         // Apertam quando a boca abre. É o telegrafo redundante: quem estiver
         // olhando para os olhos e não para a boca também vê o ataque vir.
-        const aperto = 1 - b.abertura * 0.55;
+        const aperto = dying ? Math.max(.04, 1 - beat.rupture) : 1 - b.abertura * 0.55;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
         const franzir = b.abertura * 0.4;
         if (sobrE.current) sobrE.current.rotation.z = -0.18 - franzir;

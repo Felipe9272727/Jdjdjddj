@@ -112,6 +112,7 @@ export type F12Fase =
     | 'encontro'     // o irmão chega de ala e fala (balões)
     | 'luta'         // a luta, primeira metade
     | 'virada'       // metade da vida: a cabeça se abre e libera mais dois ataques
+    | 'queda'        // reactor rupture, fall and wingman escort
     | 'vitoria'
     | 'derrota'
     | 'despedida';   // o jogador escolheu o elevador

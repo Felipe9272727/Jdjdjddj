@@ -36,17 +36,22 @@ export const F12_PALETTE = {
 
 /** Cinematic marks relative to the plane. The last mark is the gameplay
  * chase camera, so taking control does not require a hard camera cut. */
+/** Hold the cabin reveal, orbit the unfolding wings, then follow the wingman. */
 export function f12IntroCamera(progress: number) {
   const p = clamp(progress);
-  const exterior = stage(p, .10, .43);
-  const chase = stage(p, .49, .92);
-  const x = (3.8 * Math.sin(exterior * Math.PI * .72)) * (1 - chase);
-  const y = 1.15 + exterior * 1.3 + chase * .75;
-  const z = -1.0 + exterior * 4.8 + chase * 5.2;
-  return { x, y, z, targetY: .5 + chase * .65, targetZ: -1.5 - chase * 9, fov: 57 + 5 * chase };
+  const exterior = stage(p, .22, .48);
+  const orbit = stage(p, .48, .69);
+  const formation = stage(p, .69, .91);
+  return {
+    x: 5.6 * exterior - 9.1 * orbit + 3.5 * formation,
+    y: .35 + 1.9 * exterior + .6 * orbit,
+    z: .55 + 5.8 * exterior + 3.8 * orbit + .8 * formation,
+    targetY: .35 + .45 * exterior,
+    targetZ: -4 + 3.4 * exterior - 6 * formation,
+    fov: 57 + 7 * exterior - 4 * formation,
+  };
 }
 
-/** Wide screens can follow closer; portrait retains room for the whole arena. */
 export function f12ChaseDistance(aspect: number) {
   return 19 - 7 * f12Ease((aspect - .65) / .65);
 }

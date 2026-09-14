@@ -215,9 +215,12 @@ export const AviaoDoJogador: React.FC<{
         g.position.set(n.x, n.y, 0);
         g.visible = visivelRef ? visivelRef.current : true;
         if (visual.current) {
-            visual.current.rotation.z = n.rolagem;
+            const unfolding = f12.fase === 'virando';
+            const lift = unfolding ? Math.sin(Math.PI * aberturaRef.current) : 0;
+            g.position.y -= lift * .35;
+            visual.current.rotation.z = n.rolagem + Math.sin(aberturaRef.current * Math.PI * 3) * lift * .10;
             // o nariz sobe/desce com a velocidade vertical: dá peso ao avião
-            visual.current.rotation.x = THREE.MathUtils.clamp(-n.vy * 0.045, -0.35, 0.35);
+            visual.current.rotation.x = THREE.MathUtils.clamp(-n.vy * 0.045, -0.35, 0.35) + lift * .12;
         }
         // A PISCADA da invencibilidade. Sem ela o jogador não sabe que já tomou
         // o toque e continua achando que está sendo atingido de novo.
@@ -303,7 +306,7 @@ export const AviaoDoIrmao: React.FC<{
             });
         } else bracos63.current.forEach(arm => { if (arm) arm.rotation.set(0, 0, 0); });
         if (visual.current) {
-            visual.current.rotation.z = n.rolagem * 0.8 - arc * .80;
+            visual.current.rotation.z = n.rolagem * 0.8 - arc * .35 - (1 - entry) * Math.PI * 2;
             visual.current.rotation.x = arc * .20;
             visual.current.visible = n.piscando <= 0
                 || Math.floor(state.clock.elapsedTime * 14) % 2 === 0;
