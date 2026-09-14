@@ -764,12 +764,12 @@ export interface F12Linha { quem: 'irmao' | 'jogador'; texto: string; }
 /** O irmão chega de ala. Ele é o TROCO-63 — modelo mais VELHO que o 64, e
  *  ressentido exatamente por isso. */
 export const F12_ENCONTRO: ReadonlyArray<F12Linha> = Object.freeze([
-    { quem: 'irmao', texto: 'BIP. Então o elevador virou avião de novo. Ótimo. Adoro quando a física do prédio tira férias.' },
-    { quem: 'jogador', texto: '...você é o TROCO-64?' },
-    { quem: 'irmao', texto: 'TROCO-63. SESSENTA E TRÊS. O 64 é o meu irmão CAÇULA, o que ganhou o andar da corrida, as luzinhas e os aplausos. Eu ganhei ISTO.' },
-    { quem: 'irmao', texto: 'ISTO sendo aquilo ali na frente. Não pergunte de quem é a cabeça. Pergunte por que ela ainda está falando.' },
-    { quem: 'irmao', texto: 'Regra única: ela só machuca de boca ABERTA — e só é machucada de boca aberta. Cospe primeiro, fica aberta depois. Enfie tiro lá dentro.' },
-    { quem: 'irmao', texto: 'Eu voo de ala. Não porque eu goste de você. Porque eu tenho uma arma e um rancor de 412 dias. BIP.' },
+    { quem: 'irmao', texto: 'Ei! Asa pra ESQUERDA! ...Tá. Você ainda está inteiro. Já é mais do que eu esperava. BIP.' },
+    { quem: 'jogador', texto: '...TROCO-64?' },
+    { quem: 'irmao', texto: 'Sessenta e TRÊS. O 64 é meu irmão caçula. Ele ganhou uma pista de corrida. Eu, um expediente que não acaba.' },
+    { quem: 'irmao', texto: 'Vê aquela cara? Não pergunta de quem é. A boca abre, ela cospe. Desvia e devolve o favor enquanto estiver aberta.' },
+    { quem: 'irmao', texto: 'Encosta e arrasta pra voar e atirar. Soltou o dedo, cessou fogo. Ficar parado guarda carga; voltou a se mexer, sai uma rajada.' },
+    { quem: 'irmao', texto: 'Eu cubro sua ala. Tenho uma arma, 412 dias de rancor e nenhuma vontade de preencher seu atestado. Bora. BIP.' },
 ]);
 
 export const F12_VIRADA: ReadonlyArray<F12Linha> = Object.freeze([

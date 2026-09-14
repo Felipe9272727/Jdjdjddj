@@ -19,7 +19,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64, Avatar64, useAvatarRefs, type AvatarRefs } from './Floor5Player64';
-import { NAVE, ENQUADRAMENTO, type Nave } from './f12Boss';
+import { f12, NAVE, ENQUADRAMENTO, type Nave } from './f12Boss';
 
 const CORES = {
     cabine: '#c9b28a',      // o creme do elevador
@@ -254,11 +254,15 @@ export const AviaoDoIrmao: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
     /** Sobe quando ele fala: as luzes correm. */
     falandoRef: React.MutableRefObject<boolean>;
-}> = ({ naveRef, falandoRef }) => {
+    introRef?: React.MutableRefObject<number>;
+}> = ({ naveRef, falandoRef, introRef }) => {
     const raiz = useRef<THREE.Group>(null);
     const visual = useRef<THREE.Group>(null);
     const helice = useRef<THREE.Group>(null);
     const cabeca63 = useRef<THREE.Group>(null);
+    const bracos63 = useRef<(THREE.Group | null)[]>([]);
+    const falaT = useRef(0);
+    const ultimoTexto = useRef(-1);
     const luzes = useRef<THREE.MeshLambertMaterial[]>([]);
     const olho = useRef<THREE.MeshLambertMaterial | null>(null);
 
@@ -278,9 +282,29 @@ export const AviaoDoIrmao: React.FC<{
         const g = raiz.current; if (!g) return;
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
-        g.position.set(n.x, n.y, 0.4);
+        const introducing = f12.fase === 'intro' || f12.fase === 'virando';
+        const rawEntry = introducing ? THREE.MathUtils.clamp(((introRef?.current ?? 0) - .67) / .22, 0, 1) : 1;
+        const entry = rawEntry * rawEntry * (3 - 2 * rawEntry);
+        g.visible = !introducing || rawEntry > 0;
+        const arc = Math.sin(entry * Math.PI);
+        g.position.set(n.x + 18 * (1 - entry), n.y + arc * 2.4 + (1 - entry) * 1.5, .4 + (1 - entry) * 8);
+        g.rotation.y = -(1 - entry) * .45;
+        if (ultimoTexto.current !== f12.linhaDoDialogo) { ultimoTexto.current = f12.linhaDoDialogo; falaT.current = 0; }
+        falaT.current += dt;
+        const gesture = Math.sin(Math.PI * Math.min(1, falaT.current / 1.4));
+        if (f12.fase === 'encontro') {
+            g.position.y += Math.sin(state.clock.elapsedTime * 1.8) * .12;
+            bracos63.current.forEach((arm, i) => {
+                if (!arm) return;
+                const speaking = falandoRef.current;
+                const point = f12.linhaDoDialogo >= 3 && i === 1 && falaT.current < 2.3;
+                arm.rotation.x = point ? -1.05 : speaking ? -.85 * gesture : 0;
+                arm.rotation.z = speaking ? (i ? -1 : 1) * .55 * gesture : 0;
+            });
+        } else bracos63.current.forEach(arm => { if (arm) arm.rotation.set(0, 0, 0); });
         if (visual.current) {
-            visual.current.rotation.z = n.rolagem * 0.8;
+            visual.current.rotation.z = n.rolagem * 0.8 - arc * .80;
+            visual.current.rotation.x = arc * .20;
             visual.current.visible = n.piscando <= 0
                 || Math.floor(state.clock.elapsedTime * 14) % 2 === 0;
         }
@@ -304,7 +328,7 @@ export const AviaoDoIrmao: React.FC<{
     });
 
     return (
-        <group ref={raiz}>
+        <group ref={raiz} name="troco-63-aviao">
             <group ref={visual} scale={ESCALA_DO_AVIAO * 0.92}>
                 {/* carrinho de serviço: chassi baixo e comprido */}
                 <B args={[1.0, 0.7, 1.7]} m={M.corpo} />
@@ -327,11 +351,13 @@ export const AviaoDoIrmao: React.FC<{
                         <boxGeometry args={[.10, .085, .03]} />
                     </mesh>)}
                     {[-1, 1].map(side => <group key={side}>
-                        <mesh position={[side * .39, .32, 0]} material={M.metalEsc}>
+                        <group position={[side * .39, .32, 0]} ref={g => { bracos63.current[side === -1 ? 0 : 1] = g; }}>
+                        <mesh material={M.metalEsc}>
                             <sphereGeometry args={[.105, 8, 6]} />
                         </mesh>
-                        <B args={[.17, .35, .19]} p={[side * .40, .15, -.12]} r={[-.60, 0, side * .12]} m={M.corpo} />
-                        <B args={[.20, .14, .19]} p={[side * .40, .02, -.28]} m={M.metalEsc} />
+                        <B args={[.17, .35, .19]} p={[side * .01, -.17, -.12]} r={[-.60, 0, side * .12]} m={M.corpo} />
+                        <B args={[.20, .14, .19]} p={[side * .01, -.30, -.28]} m={M.metalEsc} />
+                        </group>
                         <B args={[.21, .15, .36]} p={[side * .19, -.16, -.13]} m={M.corpo} />
                         <B args={[.25, .13, .29]} p={[side * .19, -.23, -.38]} m={M.metalEsc} />
                     </group>)}

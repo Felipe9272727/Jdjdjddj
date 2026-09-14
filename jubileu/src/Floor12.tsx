@@ -1,3 +1,4 @@
+import { Floor12FlightFeedback } from './Floor12FlightFeedback';
 /**
  * Floor12.tsx — ANDAR 12: "A CABEÇA".
  *
@@ -39,6 +40,7 @@ import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
+import { newFlightWeapon, stepFlightWeapon, type FlightWeapon } from './f12FlightWeapon';
 import { f12IntroCamera, f12ChaseDistance } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
@@ -200,11 +202,12 @@ const DiretorDaIntro: React.FC<{
  */
 const CameraDaLuta: React.FC<{
     naveRef: React.MutableRefObject<Nave>;
+    irmaoRef: React.MutableRefObject<Nave>;
     camRef: React.MutableRefObject<number>;
     introProgressRef: React.MutableRefObject<number>;
     introAtivaRef: React.MutableRefObject<boolean>;
     sacodeRef: React.MutableRefObject<number>;
-}> = ({ naveRef, camRef, introProgressRef, introAtivaRef, sacodeRef }) => {
+}> = ({ naveRef, irmaoRef, camRef, introProgressRef, introAtivaRef, sacodeRef }) => {
     const camera = useThree((s) => s.camera);
     const size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
@@ -240,6 +243,19 @@ const CameraDaLuta: React.FC<{
             alvo.current.copy(alvoCinematico.lerp(alvoGameplay, handoff));
             if (camera instanceof THREE.PerspectiveCamera) {
                 camera.fov = THREE.MathUtils.lerp(mark.fov, ENQUADRAMENTO.fov, handoff);
+                camera.updateProjectionMatrix();
+            }
+            camera.lookAt(alvo.current);
+            return;
+        }
+
+        // A three-quarter front shot lets the older brother actually perform.
+        if (f12.fase === 'encontro' && f12.linhaDoDialogo < 3) {
+            const ir = irmaoRef.current;
+            camera.position.lerp(new THREE.Vector3(ir.x + 2.5, ir.y + 1.6, -3.8), 1 - Math.exp(-dt * 3.2));
+            alvo.current.lerp(new THREE.Vector3(ir.x, ir.y + .9, .4), 1 - Math.exp(-dt * 4));
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, 46, 1 - Math.exp(-dt * 3));
                 camera.updateProjectionMatrix();
             }
             camera.lookAt(alvo.current);
@@ -292,6 +308,9 @@ const CameraDaLuta: React.FC<{
 // ═══ O DIRETOR DA LUTA ═══════════════════════════════════════════════════════
 
 interface Ferramentas {
+    touchAtivo: React.MutableRefObject<boolean>;
+    gatilho: React.MutableRefObject<boolean>;
+    arma: React.MutableRefObject<FlightWeapon>;
     nave: React.MutableRefObject<Nave>;
     irmao: React.MutableRefObject<Nave>;
     entrada: React.MutableRefObject<{ x: number; y: number }>;
@@ -328,7 +347,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // Aqui a nave só persegue. É um caminho só para dedo e tecla — ver a
         // nota longa em `f12Boss`.
         const e = F.entrada.current;
-        if (lutando) conduzirNave(n, e.x, e.y, dt);
+        if (lutando && !F.touchAtivo.current) conduzirNave(n, e.x, e.y, dt);
         passoDaNave(n, dt);
         // O irmão é um ALA: ele acompanha o jogador com atraso e desvia do que
         // estiver mais perto dele. Não é uma IA esperta — é uma presença.
@@ -349,7 +368,11 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         }
         passoDaNave(ir, dt);
 
-        if (!lutando) return;
+        if (!lutando) {
+            anunciou.current = -1; cuspiu.current = -1;
+            F.arma.current.active = false;
+            return;
+        }
 
         // ── O RELÓGIO DA BOCA ────────────────────────────────────────────
         f12.relogio += dt;
@@ -376,19 +399,13 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         }
 
         // ── AS ARMAS ─────────────────────────────────────────────────────
-        // TIRO AUTOMÁTICO. Havia um botão de segurar, e ele custava o polegar
-        // direito inteiro num jogo em que os dois polegares já têm serviço:
-        // um arrasta a nave e o outro... segura um botão para fazer a única
-        // coisa que a nave sempre quer fazer. Todo shmup de celular atira
-        // sozinho, e o motivo é este.
-        if (n.recarga <= 0) {
-            n.recarga = TIRO.cadencia;
-            // Alterna a ponta de asa: dois rastros paralelos em vez de uma fila
-            // escondida atrás da fuselagem. Ver a nota em `nascerTiro`.
+        const moving = Math.hypot(n.vx, n.vy) > .12;
+        const shots = stepFlightWeapon(F.arma.current, dt, F.touchAtivo.current || F.gatilho.current, moving);
+        for (let i = 0; i < shots; i++) {
             ladoDoTiro.current = ladoDoTiro.current === 1 ? -1 : 1;
             f12.projeteis.push(nascerTiro(n.x, n.y, 'jogador', ladoDoTiro.current));
-            tocarTiro();
         }
+        if (shots > 0) tocarTiro();
         // O irmão atira sozinho, e só quando há o que acertar: um ala que
         // metralha o céu vazio vira ruído.
         if (ir.recarga <= 0 && (vulneravel(b) || f12.projeteis.some((p) => p.tipo === 'naves'))) {
@@ -527,6 +544,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const nave = useRef<Nave>(novaNave(0, meioY()));
     const irmao = useRef<Nave>(novaNave(-4, meioY() + 1.2, 3));
     const entrada = useRef({ x: 0, y: 0 });
+    const touchAtivo = useRef(false);
+    const gatilho = useRef(false);
+    const arma = useRef(newFlightWeapon());
     const flash = useRef(0);
     const sacode = useRef(0);
     const gritoRef = useRef('');
@@ -571,12 +591,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // A bancada precisa contar PROJÉTEIS. "Não vi bala nenhuma na foto" é
         // uma frase sobre a foto, não sobre o jogo — e este andar já me fez
         // consertar coisa que não estava quebrada por causa disso.
-        w.__f12estado = { fase, vida: f12.vida, projeteis: f12.projeteis, nave: nave.current };
+        w.__f12estado = {
+            get fase() { return f12.fase; }, get vida() { return f12.vida; },
+            get projeteis() { return f12.projeteis; }, get nave() { return nave.current; },
+            get arma() { return arma.current; },
+        };
     }
     const roteiro = roteiroDaFase(fase);
     const linha = roteiro[Math.min(f12.linhaDoDialogo, roteiro.length - 1)] ?? null;
     const ultimaLinha = f12.linhaDoDialogo >= roteiro.length - 1;
-    falando.current = !!linha;
+    falando.current = linha?.quem === 'irmao';
 
     const avancarFala = useCallback(() => {
         const r = roteiroDaFase(f12.fase);
@@ -592,6 +616,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             // Recomeça a luta, mas mantendo o que a cabeça já perdeu seria
             // cruel do avesso: ela volta inteira e o jogador também.
             f12Reset();
+            arma.current = newFlightWeapon();
+            touchAtivo.current = false; gatilho.current = false;
             nave.current = novaNave(0, meioY());
             irmao.current = novaNave(-4, meioY() + 1.2, 3);
             f12.fase = 'luta'; f12.bocaT = 0;
@@ -616,7 +642,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     //
     // Aqui o dedo arrasta em qualquer lugar da tela e a nave vai junto, UM PARA
     // UM: o pixel que o dedo anda é o pixel que a nave anda. O botão de tiro
-    // sumiu porque o tiro é automático.
+    // acompanha o contato: soltar o dedo corta o tiro, parar acumula a rajada.
     //
     // A conversão de pixel para mundo sai do enquadramento: a largura do quadro
     // no plano do avião dividida pela largura da tela. Sem isso o arrasto teria
@@ -637,7 +663,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     const arrastoHandlers = {
         onPointerDown: (e: React.PointerEvent) => {
-            if (f12.fase !== 'luta') return;
+            if (f12.fase !== 'luta' || arrasto.current || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            e.preventDefault();
+            touchAtivo.current = true;
             arrasto.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
             (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         },
@@ -649,9 +677,30 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             arrastarNave(nave.current, (e.clientX - a.x) * k, -(e.clientY - a.y) * k);
             a.x = e.clientX; a.y = e.clientY;
         },
-        onPointerUp: () => { arrasto.current = null; },
-        onPointerCancel: () => { arrasto.current = null; },
+        onPointerUp: (e: React.PointerEvent) => {
+            if (arrasto.current?.id !== e.pointerId) return;
+            touchAtivo.current = false; arrasto.current = null;
+        },
+        onPointerCancel: (e: React.PointerEvent) => {
+            if (arrasto.current?.id !== e.pointerId) return;
+            touchAtivo.current = false; arrasto.current = null;
+        },
+        onLostPointerCapture: (e: React.PointerEvent) => {
+            if (arrasto.current?.id !== e.pointerId) return;
+            touchAtivo.current = false; arrasto.current = null;
+        },
     };
+
+    useEffect(() => {
+        if (fase !== 'luta') { touchAtivo.current = false; gatilho.current = false; arrasto.current = null; }
+    }, [fase]);
+    useEffect(() => {
+        const clear = () => { touchAtivo.current = false; gatilho.current = false; arrasto.current = null; entrada.current = {x: 0, y: 0}; };
+        const hidden = () => { if (document.hidden) clear(); };
+        window.addEventListener('blur', clear);
+        document.addEventListener('visibilitychange', hidden);
+        return () => { clear(); window.removeEventListener('blur', clear); document.removeEventListener('visibilitychange', hidden); };
+    }, []);
 
     // teclado, para quem joga no computador
     useEffect(() => {
@@ -660,6 +709,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const x = (teclas.has('d') || teclas.has('arrowright') ? 1 : 0) - (teclas.has('a') || teclas.has('arrowleft') ? 1 : 0);
             const y = (teclas.has('w') || teclas.has('arrowup') ? 1 : 0) - (teclas.has('s') || teclas.has('arrowdown') ? 1 : 0);
             entrada.current.x = x; entrada.current.y = y;
+            gatilho.current = teclas.has(' ') || teclas.has('j');
         };
         const baixo = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase();
@@ -667,9 +717,11 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             teclas.add(k); aplicar();
         };
         const cima = (e: KeyboardEvent) => { teclas.delete(e.key.toLowerCase()); aplicar(); };
+        const limparTeclas = () => { teclas.clear(); aplicar(); };
+        window.addEventListener('blur', limparTeclas);
         window.addEventListener('keydown', baixo);
         window.addEventListener('keyup', cima);
-        return () => { window.removeEventListener('keydown', baixo); window.removeEventListener('keyup', cima); };
+        return () => { window.removeEventListener('blur', limparTeclas); window.removeEventListener('keydown', baixo); window.removeEventListener('keyup', cima); };
     }, []);
 
     const mostrarControles = fase === 'luta';
@@ -701,15 +753,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <AnelDaBoca />
                 <Floor12Projeteis />
                 <Mira naveRef={nave} />
+                <Floor12FlightFeedback nave={nave} arma={arma} />
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
-                {(introProgress.current > .70 || (fase !== 'intro' && fase !== 'virando')) && <AviaoDoIrmao naveRef={irmao} falandoRef={falando} />}
+                <AviaoDoIrmao naveRef={irmao} falandoRef={falando} introRef={introProgress} />
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} introProgressRef={introProgress} introAtivaRef={introAtiva}
                     avisar={() => { visivel.current = true; avisar(); }} />
-                <CameraDaLuta naveRef={nave} camRef={cam} introProgressRef={introProgress}
+                <CameraDaLuta irmaoRef={irmao} naveRef={nave} camRef={cam} introProgressRef={introProgress}
                     introAtivaRef={introAtiva} sacodeRef={sacode} />
-                <DiretorDaLuta nave={nave} irmao={irmao} entrada={entrada}
+                <DiretorDaLuta touchAtivo={touchAtivo} gatilho={gatilho} arma={arma} nave={nave} irmao={irmao} entrada={entrada}
                     flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
@@ -852,8 +905,8 @@ const DicaDeControle: React.FC = () => {
             left: 0, right: 0, textAlign: 'center', fontSize: 15, zIndex: 3, pointerEvents: 'none',
             opacity: 0.92,
         }}>
-            ARRASTE EM QUALQUER LUGAR PARA VOAR<br />
-            <span style={{ fontSize: 12 }}>O TIRO É AUTOMÁTICO · MIRE NA BOCA ABERTA</span>
+            TOQUE E ARRASTE PARA VOAR E ATIRAR<br />
+            <span style={{ fontSize: 12 }}>SOLTE PARA CESSAR FOGO · PARAR CARREGA A RAJADA</span>
         </div>
     );
 };

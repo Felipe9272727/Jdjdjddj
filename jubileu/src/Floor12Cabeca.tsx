@@ -21,6 +21,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Floor12Facework } from './Floor12Facework';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
 import {
@@ -40,7 +41,7 @@ const CORES = {
     interior: '#140f19',    // a garganta
     brasa: '#ff7a3a',       // o que arde lá dentro
     olho: '#f4f1e4',
-    pupila: '#1a1520',
+    pupila: '#062d32',
     dente: '#e9e3d2',
     ferida: '#c8443a',
 };
@@ -81,6 +82,7 @@ export const Floor12Cabeca: React.FC<{
     const face = useRef<THREE.Group>(null);
     const mandibula = useRef<THREE.Group>(null);
     const garganta = useRef<THREE.Mesh>(null);
+    const reator = useRef<THREE.Group>(null);
     const olhoE = useRef<THREE.Group>(null);
     const olhoD = useRef<THREE.Group>(null);
     const sobrE = useRef<THREE.Mesh>(null);
@@ -125,6 +127,8 @@ export const Floor12Cabeca: React.FC<{
             m.emissiveIntensity = 0.25 + b.abertura * 1.5;
             garganta.current.scale.setScalar(0.85 + b.abertura * 0.3);
         }
+
+        if (reator.current) reator.current.rotation.z += dt * (.18 + b.abertura * 1.6);
 
         // ── OS OLHOS ─────────────────────────────────────────────────────
         // Apertam quando a boca abre. É o telegrafo redundante: quem estiver
@@ -175,6 +179,7 @@ export const Floor12Cabeca: React.FC<{
             <mesh material={M.pele} geometry={cranio} />
             <group ref={face}>
             <Floor12BossCrown />
+            <Floor12Facework />
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.70, 16, 10]} />
@@ -186,7 +191,10 @@ export const Floor12Cabeca: React.FC<{
                     <group ref={ro} position={[lado * 1.55, 1.15, R * 0.79]}>
                         <mesh material={M.olho}><sphereGeometry args={[0.78, 14, 10]} /></mesh>
                         <mesh material={M.pupila} position={[lado * 0.12, -0.05, 0.6]}>
-                            <sphereGeometry args={[0.34, 12, 8]} />
+                            <sphereGeometry args={[0.31, 16, 10]} />
+                        </mesh>
+                        <mesh material={M.brasa} position={[0, -.05, .86]}>
+                            <sphereGeometry args={[.085, 10, 8]} />
                         </mesh>
                     </group>
                     <mesh ref={rs} material={M.peleEsc} position={[lado * 1.6, 2.15, R * 0.8]}>
@@ -218,8 +226,18 @@ export const Floor12Cabeca: React.FC<{
                     <boxGeometry args={[0.25, 2.7, 2.4]} />
                 </mesh>)}
                 <mesh ref={garganta} material={M.brasa} position={[0, -0.2, 0.15]}>
-                    <sphereGeometry args={[1.25, 14, 10]} />
+                    <sphereGeometry args={[.72, 20, 14]} />
                 </mesh>
+                <group ref={reator} position={[0, -.2, .48]}>
+                    <mesh material={M.peleEsc}><torusGeometry args={[1.23, .22, 8, 28]} /></mesh>
+                    <mesh material={M.brasa} position={[0, 0, .06]}><torusGeometry args={[1.18, .065, 6, 28]} /></mesh>
+                    {Array.from({length: 8}, (_, i) => {
+                        const a = i * Math.PI / 4;
+                        return <mesh key={i} material={M.dente} position={[Math.cos(a)*1.18, Math.sin(a)*1.18, .12]} rotation={[0, 0, a]}>
+                            <boxGeometry args={[.29, .13, .12]} />
+                        </mesh>;
+                    })}
+                </group>
                 {/* dentes de cima, presos ao crânio */}
                 {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
                     <mesh key={i} material={M.dente} position={[x, 0.88, 1.0]}>

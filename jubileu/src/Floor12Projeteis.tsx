@@ -15,7 +15,7 @@
  * pool é reposicionado a partir do estado puro e o que sobra fica invisível.
  * Zero alocação, zero remontagem — e o React não sabe que alguma coisa mudou.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
@@ -34,13 +34,13 @@ const CORES = {
     mareEsc: '#1d6e94',
     elevadores: '#c9b28a',   // a espinha: a mesma cabine creme do elevador
     elevadoresEsc: '#6f6350',
-    tiro: '#b6ff4a',
+    tiro: '#65fff0',
     tiroIrmao: '#ff9d5a',
 };
 
 /** Quantos de cada tipo cabem no ar ao mesmo tempo. Generoso, mas fixo. */
 const TETO: Record<string, number> = {
-    leque: 12, teleguiado: 3, naves: 8, mare: 3, elevadores: 10, tiro: 36,
+    leque: 12, teleguiado: 3, naves: 8, mare: 3, elevadores: 10, tiro: 64,
 };
 
 interface Pool {
@@ -74,6 +74,12 @@ function fazerCabine(M: Record<string, THREE.Material>): THREE.Group {
     const porta = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 1.2), M.elevadoresEsc);
     porta.position.set(0, 0, 0.78); porta.rotation.y = Math.PI / 2;
     g.add(corpo, teto, porta);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(.72, .20, .06), M.leque);
+    panel.position.set(0, .69, .79); g.add(panel);
+    for (const side of [-1, 1]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(.10, 2.7, .12), M.elevadoresEsc);
+        rail.position.set(side * .89, 0, 0); g.add(rail);
+    }
     return g;
 }
 
@@ -84,6 +90,12 @@ function fazerCamareira(M: Record<string, THREE.Material>): THREE.Group {
     cupula.position.set(0, 0.3, -0.1);
     const asa = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 0.4), M.naves);
     g.add(corpo, cupula, asa);
+    for (const side of [-1, 1]) {
+        const motor = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .58, 8), M.elevadoresEsc);
+        motor.rotation.x = Math.PI / 2; motor.position.set(side * .67, 0, .15); g.add(motor);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M.navesLuz);
+        lamp.position.set(side * .67, 0, .47); g.add(lamp);
+    }
     return g;
 }
 
@@ -94,7 +106,15 @@ function fazerMissil(M: Record<string, THREE.Material>): THREE.Group {
     // o FIO que ele arrasta atrás — a referência ao 9º andar
     const fio = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.2), M.fio);
     fio.position.z = -1.8;
-    g.add(corpo, fio);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(.23, .45, 10), M.teleguiado);
+    nose.rotation.x = Math.PI / 2; nose.position.z = .65;
+    g.add(corpo, fio, nose);
+    for (let i = 0; i < 4; i++) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .40), M.elevadoresEsc);
+        fin.rotation.z = i * Math.PI / 2; fin.position.z = -.35; g.add(fin);
+    }
+    const exhaust = new THREE.Mesh(new THREE.ConeGeometry(.19, .9, 8), M.tiroIrmao);
+    exhaust.rotation.x = -Math.PI / 2; exhaust.position.z = -.9; g.add(exhaust);
     return g;
 }
 
@@ -108,6 +128,7 @@ export const Floor12Projeteis: React.FC = () => {
         naves: mat64(CORES.naves), navesLuz: mat64(CORES.navesLuz, CORES.navesLuz, 0.6),
         mare: mat64(CORES.mare, CORES.mare, 0.15), mareEsc: mat64(CORES.mareEsc),
         elevadores: mat64(CORES.elevadores), elevadoresEsc: mat64(CORES.elevadoresEsc),
+        core: new THREE.MeshBasicMaterial({ color: '#efffff', toneMapped: false }),
         tiro: mat64(CORES.tiro, CORES.tiro, 1.0),
         tiroIrmao: mat64(CORES.tiroIrmao, CORES.tiroIrmao, 1.0),
     }), []);
@@ -121,15 +142,20 @@ export const Floor12Projeteis: React.FC = () => {
             }
             return { grupo, itens };
         };
-        const esferaLeque = new THREE.SphereGeometry(LEQUE.raio, 10, 8);
+        const esferaLeque = new THREE.OctahedronGeometry(LEQUE.raio, 0);
         // ── A BALA PRECISA SER VISTA ─────────────────────────────────────
         // Ela era uma cápsula de 0,11 de raio voando a 34 u/s numa tela de 412
         // px: três pixels de verde por 0,7 s. O dono do jogo disse que o tiro
         // estava ruim, e uma das razões é essa — não dá para saber se você
         // atirou. Agora ela é grossa, longa e acesa, com um rastro atrás.
-        const balaGeo = new THREE.CapsuleGeometry(0.2, 1.1, 4, 8);
+        const balaGeo = new THREE.CapsuleGeometry(.115, .72, 4, 8);
         return {
-            leque: cria(TETO.leque, () => new THREE.Mesh(esferaLeque, M.leque)),
+            leque: cria(TETO.leque, () => {
+                const g = new THREE.Group();
+                const shard = new THREE.Mesh(esferaLeque, M.leque); shard.scale.set(.72, 1.18, .72);
+                const orbit = new THREE.Mesh(new THREE.TorusGeometry(LEQUE.raio * .86, .055, 6, 16), M.elevadoresEsc);
+                g.add(shard, orbit); return g;
+            }),
             teleguiado: cria(TETO.teleguiado, () => fazerMissil(M as never)),
             naves: cria(TETO.naves, () => fazerCamareira(M as never)),
             mare: cria(TETO.mare, () => fazerOnda(M as never)),
@@ -139,14 +165,26 @@ export const Floor12Projeteis: React.FC = () => {
                 const bala = new THREE.Mesh(balaGeo, M.tiro);
                 bala.rotation.x = Math.PI / 2;
                 bala.name = 'bala';
-                const rastro = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.2), M.tiro);
-                rastro.position.z = 2.3;       // atrás dela (a bala vai para -z)
+                const rastro = new THREE.Mesh(new THREE.ConeGeometry(.12, 2.0, 6), M.tiro);
+                rastro.rotation.x = -Math.PI / 2;
+                rastro.position.z = 1.2;       // atrás dela (a bala vai para -z)
                 rastro.name = 'rastro';
-                g.add(bala, rastro);
+                const core = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M.core);
+                core.name = 'core'; core.scale.z = 2.8;
+                g.add(bala, rastro, core);
                 return g;
             }),
         };
     }, [M]);
+
+    useEffect(() => () => {
+        const geometries = new Set<THREE.BufferGeometry>();
+        Object.values(pools).forEach(pool => pool.grupo.traverse(obj => {
+            if (obj instanceof THREE.Mesh) geometries.add(obj.geometry);
+        }));
+        geometries.forEach(g => g.dispose());
+        Object.values(M).forEach(m => m.dispose());
+    }, [pools, M]);
 
     useFrame((state) => {
         const g = raiz.current; if (!g) return;
@@ -185,7 +223,7 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
     if (p.tipo === 'tiro') {
         const m = p.de === 'irmao' ? M.tiroIrmao : M.tiro;
         for (const filho of (o as THREE.Group).children) {
-            (filho as THREE.Mesh).material = m;
+            (filho as THREE.Mesh).material = filho.name === 'core' ? M.core : m;
             // o rastro do irmão é mais curto: a arma dele é menor, e isso tem de
             // dar para ver sem ler o HUD
             if (filho.name === 'rastro') filho.scale.z = p.de === 'irmao' ? 0.55 : 1;
