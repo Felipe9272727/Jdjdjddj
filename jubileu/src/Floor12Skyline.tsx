@@ -62,10 +62,12 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
   }, [bossZ]);
   const clouds = useMemo(() => Array.from({ length: 64 }, (_, i) => {
     const seed = Math.sin(i * 127.1 + 31.7) * 43758.5453;
-    const r = seed - Math.floor(seed);
-    return { x: (i % 16 - 7.5) * 9, y: -25 + Math.floor(i / 16) * 1.6 + r * 2,
-      z: bossZ + 12 - Math.floor(i / 16) * 31 - r * 12,
-      sx: 11 + r * 9, sy: 2.5 + r * 3.2, sz: 8 + r * 9 };
+    const r = seed - Math.floor(seed), side = i % 2 ? -1 : 1;
+    const layer = Math.floor(i / 16), cluster = Math.floor(i / 2) % 8;
+    return { x: side * (22 + cluster * 6.5 + r * 3),
+      y: -17 + r * 4 - layer * 1.2,
+      z: bossZ - 22 - layer * 32 - r * 14,
+      sx: 5.5 + r * 4, sy: 3.3 + r * 3.2, sz: 5 + r * 4 };
   }), [bossZ]);
   const cloudRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -83,8 +85,8 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
     <ArchitectureInstances pieces={architecture.brass} color={P.brassDark} />
     <ArchitectureInstances pieces={architecture.windows} color="#f1c777" glow />
     <instancedMesh ref={cloudRef} args={[undefined, undefined, clouds.length]}>
-      <sphereGeometry args={[1, 12, 8]} />
-      <meshStandardMaterial color="#829ba5" roughness={1} flatShading />
+      <sphereGeometry args={[1, 20, 12]} />
+      <meshStandardMaterial color="#527582" roughness={1} />
     </instancedMesh>
   </group>;
 }
@@ -109,3 +111,4 @@ export function Floor12Slipstream({ speed = 1 }: { speed?: number }) {
     <meshBasicMaterial color="#a0dce2" transparent opacity={.24} depthWrite={false} />
   </instancedMesh>;
 }
+

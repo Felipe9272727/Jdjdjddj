@@ -36,7 +36,7 @@ const readState = async (page) =>
     const s = window.__f12estado;
     if (!s) return null;
     return {
-      fase: s.fase,
+      fase: s.fase, intro: s.intro, cinema: s.cinema,
       nave: { ...s.nave },
       arma: s.arma ? { ...s.arma } : null,
       jogador: s.projeteis
@@ -381,6 +381,7 @@ try {
         diagnostics,
         events,
       });
+      console.error(JSON.stringify({orientation, state: await readState(page).catch(() => null), events}));
       throw error;
     } finally {
       // Closing the context flushes recordVideo output to the artifact dir.
@@ -392,3 +393,4 @@ try {
 }
 
 console.log(`Floor 12 touch screenshots, diagnostics, and videos written to ${outputDir}`);
+

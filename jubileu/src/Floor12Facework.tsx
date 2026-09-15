@@ -21,6 +21,16 @@ export function Floor12Facework() {
       depth: .20, bevelEnabled: true, bevelSegments: 3, steps: 1,
       bevelSize: .09, bevelThickness: .11, curveSegments: 16,
     });
+    // Bend the plate around the skull; a planar mask reads like a cardboard cutout.
+    const vertices = plate.getAttribute('position'), normals = plate.getAttribute('normal');
+    const normal = new THREE.Vector3();
+    for (let i = 0; i < vertices.count; i++) {
+      const x = vertices.getX(i), y = vertices.getY(i), nz = normals.getZ(i);
+      vertices.setZ(i, vertices.getZ(i) + .28 - .08 * x * x - .014 * (y - 1.5) ** 2);
+      normal.set(normals.getX(i) + .16 * x * nz, normals.getY(i) + .028 * (y - 1.5) * nz, nz).normalize();
+      normals.setXYZ(i, normal.x, normal.y, normal.z);
+    }
+    plate.computeBoundingSphere();
     // Sloping bridge and rounded tip, deliberately replacing the old cube nose.
     const nose = new THREE.BufferGeometry();
     nose.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -77,3 +87,4 @@ export function Floor12Facework() {
     </group>)}
   </group>;
 }
+

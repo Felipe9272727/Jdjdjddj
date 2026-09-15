@@ -161,7 +161,8 @@ const DiretorDaIntro: React.FC<{
             return;
         }
         introAtivaRef.current = true;
-        t.current += Math.min(rawDt, 0.05);
+        // Cinematic time must not run in slow motion below 20 FPS.
+        if (typeof document === 'undefined' || !document.hidden) t.current += Math.min(rawDt, .25);
         const tt = t.current;
         const progress = THREE.MathUtils.clamp(tt / F12_CINEMA.intro, 0, 1);
         introProgressRef.current = progress;
@@ -562,7 +563,8 @@ const DiretorDaVitoria: React.FC<{
         if (f12.fase !== 'queda') { exploded.current = false; origin.current = null; return; }
         const n = nave.current, ir = irmao.current;
         if (!origin.current) origin.current = { x: n.x, y: n.y, ix: ir.x, iy: ir.y };
-        clock.current = Math.min(F12_CINEMA.victory, clock.current + Math.min(rawDt, .05));
+        if (typeof document !== 'undefined' && document.hidden) return;
+        clock.current = Math.min(F12_CINEMA.victory, clock.current + Math.min(rawDt, .25));
         const t = clock.current, b = victoryBeat(t), o = origin.current;
         if (t >= F12_CINEMA.rupture && !exploded.current) { exploded.current = true; tocarExplosao(); }
         const join = cinemaEase(t / 2.8);

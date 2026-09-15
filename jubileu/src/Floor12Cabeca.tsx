@@ -64,14 +64,13 @@ function cranioAberto() {
             const vy = p.getY(j);
             const taper = .86 + .16 * THREE.MathUtils.smoothstep(vy, -2.6, .8);
             vertices.push(p.getX(j) * taper, vy * 1.015, p.getZ(j) * .88);
-            normals.push(n.getX(j), n.getY(j), n.getZ(j));
+            normals.push(n.getX(j) / taper, n.getY(j) / 1.015, n.getZ(j) / .88);
         }
     }
     flat.dispose();
     const result = new THREE.BufferGeometry();
     result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    result.computeVertexNormals();
     result.computeBoundingSphere();
     return result;
 }
@@ -118,7 +117,7 @@ export const Floor12Cabeca: React.FC<{
         peleEsc: mat64(CORES.peleEsc),
         interior: mat64(CORES.interior),
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
-        olho: mat64(CORES.olho),
+        olho: new THREE.MeshStandardMaterial({ color: CORES.olho, roughness: .24, metalness: .08 }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
