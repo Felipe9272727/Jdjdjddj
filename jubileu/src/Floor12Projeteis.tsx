@@ -76,6 +76,14 @@ function fazerCabine(M: Record<string, THREE.Material>): THREE.Group {
     g.add(corpo, teto, porta);
     const panel = new THREE.Mesh(new THREE.BoxGeometry(.72, .20, .06), M.leque);
     panel.position.set(0, .69, .79); g.add(panel);
+    const warning = new THREE.Group(); warning.name = 'aviso-descida';
+    warning.position.set(0, 1.5, .9);
+    for (const side of [-1, 1]) {
+        const arrow = new THREE.Mesh(new THREE.BoxGeometry(.48, .09, .07), M.leque);
+        arrow.position.x = side * .16; arrow.rotation.z = side * Math.PI / 4;
+        warning.add(arrow);
+    }
+    g.add(warning);
     for (const side of [-1, 1]) {
         const rail = new THREE.Mesh(new THREE.BoxGeometry(.10, 2.7, .12), M.elevadoresEsc);
         rail.position.set(side * .89, 0, 0); g.add(rail);
@@ -268,6 +276,12 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
 
     if (p.tipo === 'elevadores') {
         o.rotation.y = Math.sin(t * 1.4 + (p.p ?? 0)) * 0.12;
+        const warning = o.getObjectByName('aviso-descida');
+        if (warning) {
+            const urgency = p.z > ARENA.zNave - 8 ? 14 : 6;
+            warning.scale.setScalar(.9 + Math.sin(p.t * urgency) * .13);
+            warning.position.y = 1.5 + Math.sin(p.t * urgency) * .08;
+        }
         return;
     }
 

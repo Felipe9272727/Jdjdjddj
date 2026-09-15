@@ -669,3 +669,32 @@ describe('f12 — a hitbox da boca coincide com a boca', () => {
         expect(BOCA_ALVO.raio * 2).toBeLessThan(ARENA.x * 1.4);
     });
 });
+
+// Real trajectories, not only the spawn coordinates: hazards must reach the pilot.
+describe('f12 — attacks reach the flight plane', () => {
+    for (const fps of [20, 30, 60]) for (const y of [ARENA.yBaixo, meioY(), ARENA.yAlto]) {
+        it(`elevator hits its occupied lane at height ${y}, ${fps} FPS`, () => {
+            const cabins = nascerElevadores(2, y);
+            const hits = new Set<number>();
+            let safeHit = false;
+            for (let t = 0; t < 6; t += 1 / fps) for (const p of cabins) {
+                passoDoProjetil(p, p.x, y, 1 / fps);
+                if (encostou(p, p.x, y, NAVE.raio)) hits.add(p.id);
+                if (encostou(p, xDaFaixa(2), y, NAVE.raio)) safeHit = true;
+            }
+            expect(hits.size).toBe(cabins.length);
+            expect(safeHit).toBe(false);
+        });
+    }
+    for (const x of [-4, 0, 4]) {
+        it(`missile can intercept a stationary pilot at x=${x}`, () => {
+            const p = nascerTeleguiado();
+            let hit = false;
+            for (let t = 0; t < 4; t += 1 / 60) {
+                passoDoProjetil(p, x, meioY(), 1 / 60);
+                hit ||= encostou(p, x, meioY(), NAVE.raio);
+            }
+            expect(hit).toBe(true);
+        });
+    }
+});

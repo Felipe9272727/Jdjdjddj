@@ -526,7 +526,7 @@ function cuspir(
             // A faixa vazia ANDA a cada vez, para o jogador não decorar um
             // único canto seguro e ficar parado nele.
             faixa.current = (faixa.current + 2) % 5;
-            f12.projeteis.push(...nascerElevadores(faixa.current));
+            f12.projeteis.push(...nascerElevadores(faixa.current, alvo.y));
             break;
     }
 }

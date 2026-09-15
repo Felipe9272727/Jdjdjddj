@@ -364,12 +364,12 @@ export function nascerTeleguiado(): Projetil {
  * batido, e passar batido é o que "despistar" quer dizer.
  */
 export function guiarTeleguiado(m: Projetil, alvoX: number, alvoY: number, dt: number): void {
-    if (m.t >= TELEGUIADO.combustivel) return;            // sem combustível, segue reto
+    if (m.t >= TELEGUIADO.combustivel || m.z > ARENA.zNave + 1.4) return;
     const dx = alvoX - m.x, dy = alvoY - m.y;
     const dist = Math.hypot(dx, dy);
-    if (dist < 1e-4) return;
+    if (dist < 1e-4) { m.vx = 0; m.vy = 0; return; }
     const desejado = Math.atan2(dy, dx);
-    const atual = Math.atan2(m.vy, m.vx);
+    const atual = Math.hypot(m.vx, m.vy) > 1e-4 ? Math.atan2(m.vy, m.vx) : desejado;
     // diferença no intervalo (-π, π]
     let d = desejado - atual;
     while (d > Math.PI) d -= Math.PI * 2;
@@ -378,7 +378,10 @@ export function guiarTeleguiado(m: Projetil, alvoX: number, alvoY: number, dt: n
     const giro = Math.max(-maxima, Math.min(maxima, d));
     const novo = atual + giro;
     // A velocidade LATERAL é o que gira; o avanço em Z é constante.
-    const lateral = Math.hypot(m.vx, m.vy) || TELEGUIADO.velocidade * 0.55;
+    // Intercept at the flight plane instead of orbiting the target in XY.
+    const chegada = Math.max(.22, (ARENA.zNave - m.z) / Math.max(.1, m.vz));
+    const lateral = Math.min(Math.hypot(m.vx, m.vy) || TELEGUIADO.velocidade * .55,
+        TELEGUIADO.velocidade * .55, dist / chegada);
     m.vx = Math.cos(novo) * lateral;
     m.vy = Math.sin(novo) * lateral;
 }
@@ -466,7 +469,7 @@ export function mareAcerta(m: Projetil, x: number): boolean {
 export const ELEVADORES = Object.freeze({
     faixas: 5,
     velocidadeZ: 5.2,
-    /** Quanto cada cabine desce por segundo enquanto avança. */
+    /** Velocidade máxima da descida; o trajeto cruza a altura visada. */
     quedaPorSegundo: 2.4,
     raio: 0.85,
 });
@@ -474,15 +477,19 @@ export const ELEVADORES = Object.freeze({
 export const xDaFaixa = (i: number): number =>
     (-1 + (2 * i) / (ELEVADORES.faixas - 1)) * ARENA.x * 0.82;
 
-export function nascerElevadores(faixaVazia: number): Projetil[] {
+export function nascerElevadores(faixaVazia: number, alvoY = meioY()): Projetil[] {
     const vazia = ((Math.floor(faixaVazia) % ELEVADORES.faixas) + ELEVADORES.faixas) % ELEVADORES.faixas;
     const fora: Projetil[] = [];
+    const inicioY = ARENA.yAlto + 1.2, inicioZ = ARENA.zCabeca + 2;
+    const chegada = (ARENA.zNave - inicioZ) / ELEVADORES.velocidadeZ;
+    const altura = Math.max(ARENA.yBaixo, Math.min(ARENA.yAlto, alvoY));
+    const queda = Math.min(ELEVADORES.quedaPorSegundo, (inicioY - altura) / chegada);
     for (let i = 0; i < ELEVADORES.faixas; i++) {
         if (i === vazia) continue;
         fora.push({
             id: novoId(), tipo: 'elevadores',
-            x: xDaFaixa(i), y: ARENA.yAlto + 1.2, z: ARENA.zCabeca + 2,
-            vx: 0, vy: -ELEVADORES.quedaPorSegundo, vz: ELEVADORES.velocidadeZ,
+            x: xDaFaixa(i), y: inicioY, z: inicioZ,
+            vx: 0, vy: -queda, vz: ELEVADORES.velocidadeZ,
             r: ELEVADORES.raio, t: 0, p: i,
         });
     }
