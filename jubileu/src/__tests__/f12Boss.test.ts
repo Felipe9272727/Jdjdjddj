@@ -4,7 +4,7 @@ import {
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
     ATAQUES, ataqueDaVez, segundoAtaqueDaVez, ATRASO_DO_SEGUNDO, fichaDoAtaque, ENSINO_TAMANHO,
-    oAlaPodeFalar, MORTE, intervaloDoEstouro, quedaDaMorte, tombamentoDaMorte, aMorteAcabou,
+    oAlaPodeFalar, padroesAtivos, ABERTURA_DO_MOVESET_COMPLETO, MORTE, intervaloDoEstouro, quedaDaMorte, tombamentoDaMorte, aMorteAcabou,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
@@ -103,10 +103,42 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     //
     // O contrato novo é o contrário: os cinco ENSINAM cedo, e depois a ordem
     // deixa de ser adivinhável.
-    it('os cinco padrões aparecem nos cinco primeiros ciclos', () => {
+    // ── E O CONTRATO MUDOU DE NOVO, PORQUE "CEDO" VIROU "TUDO DE UMA VEZ" ──
+    //
+    // Mostrar um de cada nos cinco primeiros ciclos consertou a invisibilidade e
+    // criou o defeito oposto: cinco coisas novas seguidas não são um ensino, são
+    // um despejo. O contrato de hoje é uma ESCALADA — o chefe abre com UM
+    // ataque, e um padrão novo entra a cada duas aberturas até o moveset ficar
+    // completo.
+    it('o chefe começa com UM ataque, e ele se repete para poder ser aprendido', () => {
+        expect(ataqueDaVez(0)).toBe('leque');
+        expect(ataqueDaVez(1), 'o ataque primário não teve uma segunda vez').toBe('leque');
+        expect(padroesAtivos(0), 'a luta começou com mais de um padrão').toEqual(['leque']);
+    });
+
+    it('cada padrão ESTREIA na abertura em que entra', () => {
+        // Sem isto o sorteio podia adiar a estreia e a coisa nova chegaria no
+        // meio de outras — a diferença entre apresentar e despejar.
+        expect(ataqueDaVez(2)).toBe('teleguiado');
+        expect(ataqueDaVez(4)).toBe('naves');
+        expect(ataqueDaVez(6)).toBe('mare');
+        expect(ataqueDaVez(8)).toBe('elevadores');
+    });
+
+    it('nada aparece antes de ter entrado', () => {
+        for (let i = 0; i < ABERTURA_DO_MOVESET_COMPLETO; i++) {
+            const ativos = padroesAtivos(i);
+            expect(ativos, `a abertura ${i} cuspiu um padrão que ainda não entrou`)
+                .toContain(ataqueDaVez(i));
+        }
+    });
+
+    it('e o moveset dos cinco fica completo dentro da primeira metade', () => {
+        // A virada acontece perto da metade da vida; se o quinto padrão entrasse
+        // depois dela, o jogador conheceria a luta inteira só no fim.
         const vistos = new Set<NomeDoAtaque>();
-        for (let i = 0; i < 5; i++) vistos.add(ataqueDaVez(i));
-        expect(vistos.size, 'algum padrão ficou de fora do ensino').toBe(5);
+        for (let i = 0; i <= ABERTURA_DO_MOVESET_COMPLETO; i++) vistos.add(ataqueDaVez(i));
+        expect(vistos.size, 'algum padrão ficou de fora da escalada').toBe(5);
     });
 
     it('e isso põe os cinco na tela em menos de um minuto', () => {
@@ -129,9 +161,14 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         }
     });
 
-    it('nenhum padrão emenda consigo mesmo', () => {
+    it('nenhum padrão emenda consigo mesmo — depois da repetição de estreia', () => {
+        // A ABERTURA 1 É A EXCEÇÃO, e é a única: ela repete o ataque primário de
+        // propósito, para o jogador ter uma segunda chance de ler a mesma coisa
+        // antes de existir uma segunda coisa. Fora dela, dois iguais seguidos
+        // leem como o jogo travando.
+        expect(ataqueDaVez(0)).toBe(ataqueDaVez(1));
         for (const virada of [false, true]) {
-            for (let i = 0; i < 200; i++) {
+            for (let i = 2; i < 200; i++) {
                 expect(ataqueDaVez(i), `i=${i} virada=${virada}`)
                     .not.toBe(ataqueDaVez(i + 1));
             }

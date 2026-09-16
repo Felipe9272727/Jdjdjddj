@@ -81,6 +81,68 @@ const B: React.FC<{ args: [number, number, number]; p?: [number, number, number]
         <mesh position={p} rotation={r} material={m}><boxGeometry args={args} /></mesh>
     );
 
+// ── A ATITUDE DE VOO: O QUE FAZ ISTO SER UM ESPAÇO E NÃO UM SPRITE ───────────
+//
+// Fotografado com a bancada de voo (alvos fortes para os quatro lados), o avião
+// deslizava pela arena SEM MUDAR DE POSTURA num eixo só: ele rolava e mais nada.
+// Um avião que anda de lado continuando de frente para a câmera é um adesivo
+// preso na tela, e era essa a leitura.
+//
+// Três coisas consertam isso, e nenhuma delas mexe na POSIÇÃO — este arquivo já
+// pagou caro por desenho que discordava da conta: houve um bamboleio visual que
+// discordava da caixa de colisão e o dano vinha de 90 cm de onde o jogador via
+// a nave. Aqui só se gira.
+//
+//   • ROLAGEM, que já vinha da simulação, agora passa por uma mola e por isso
+//     PASSA DO PONTO no fim da curva e volta — é o meio-grau a mais que separa
+//     um avião com massa de um avião num trilho;
+//   • GUINADA: o nariz aponta para onde ele está indo. É a única das três que
+//     mostra o FLANCO do modelo, e é por isso que ela é a que mais vende que
+//     existe um eixo Z ali;
+//   • ARFAGEM: o nariz sobe quando ele sobe. Sem isto, subir e descer eram o
+//     mesmo desenho deslizando, que é literalmente um sprite em 2D.
+const ATITUDE = {
+    /** Radianos de nariz para cima na subida mais rápida. */
+    arfagem: 0.40,
+    /** Radianos de guinada na corrida lateral mais rápida. */
+    guinada: 0.32,
+    /** Mola da postura: rígida o bastante para responder, frouxa para pesar. */
+    rigidez: 90,
+    atrito: 13,
+    /** Quanto o leme e os ailerons defletem por radiano/s de manobra. */
+    superficie: 0.075,
+    /** O respiro parado: o avião nunca fica perfeitamente imóvel no ar. */
+    respiro: 0.022,
+};
+
+/** A postura visual do avião. Mora aqui e não na `Nave` porque é enfeite. */
+interface Atitude { rol: number; rolV: number; arf: number; arfV: number; gui: number }
+
+const novaAtitude = (): Atitude => ({ rol: 0, rolV: 0, arf: 0, arfV: 0, gui: 0 });
+
+const preso = (v: number): number => Math.max(-1, Math.min(1, v));
+
+/**
+ * Um passo da postura. `ganho` é o quanto o avião se entrega à manobra — o
+ * irmão voa com menos, porque ele é velho e não tem pressa.
+ */
+function passoDaAtitude(a: Atitude, n: Nave, dt: number, ganho = 1): void {
+    const d = Math.min(dt, 0.05);
+    const V = NAVE.velocidadeDoAlvo;
+    const alvoRol = n.rolagem * ganho;
+    const alvoArf = preso(n.vy / V) * ATITUDE.arfagem * ganho;
+    // Nariz para +x pede rotação Y NEGATIVA: a frente do modelo é -z.
+    const alvoGui = -preso(n.vx / V) * ATITUDE.guinada * ganho;
+    // Mola amortecida (ζ ≈ 0,68): ela alcança o alvo, passa um pouco e volta.
+    a.rolV += ((alvoRol - a.rol) * ATITUDE.rigidez - a.rolV * ATITUDE.atrito) * d;
+    a.rol += a.rolV * d;
+    a.arfV += ((alvoArf - a.arf) * ATITUDE.rigidez - a.arfV * ATITUDE.atrito) * d;
+    a.arf += a.arfV * d;
+    // A guinada não precisa de excesso: um nariz que passa do ponto lateralmente
+    // parece derrapagem, não peso.
+    a.gui += (alvoGui - a.gui) * Math.min(1, d * 8);
+}
+
 /**
  * O CASCO — a cabine do elevador com asas.
  *
@@ -92,12 +154,20 @@ const B: React.FC<{ args: [number, number, number]; p?: [number, number, number]
 export const CascoDoElevador: React.FC<{
     aberturaRef: React.MutableRefObject<number>;
     heliceRef?: React.MutableRefObject<number>;
-}> = ({ aberturaRef, heliceRef }) => {
+    /** A postura de voo, para as superfícies de comando defletirem com ela. */
+    atitudeRef?: React.MutableRefObject<Atitude>;
+}> = ({ aberturaRef, heliceRef, atitudeRef }) => {
     const asaE = useRef<THREE.Group>(null);
     const asaD = useRef<THREE.Group>(null);
     const cauda = useRef<THREE.Group>(null);
     const nariz = useRef<THREE.Group>(null);
+    const portaE = useRef<THREE.Group>(null);
+    const portaD = useRef<THREE.Group>(null);
     const helice = useRef<THREE.Group>(null);
+    const leme = useRef<THREE.Group>(null);
+    const profundor = useRef<THREE.Group>(null);
+    const aileronE = useRef<THREE.Group>(null);
+    const aileronD = useRef<THREE.Group>(null);
 
     const M = useMemo(() => ({
         cabine: mat64(CORES.cabine), cabineEsc: mat64(CORES.cabineEsc),
@@ -119,22 +189,45 @@ export const CascoDoElevador: React.FC<{
         if (cauda.current) { cauda.current.position.y = -0.5 + k * 0.62; cauda.current.scale.y = 0.1 + k * 0.9; }
         // O nariz é a PORTA do elevador, empurrada para a frente.
         if (nariz.current) nariz.current.position.z = -0.55 - k * 0.55;
+        // ── E AS DUAS FOLHAS DA PORTA VIRAM O BICO ───────────────────
+        // Empurrar uma porta fechada para a frente dá um TIJOLO na frente do
+        // avião, que foi o que a foto mostrou. As duas folhas giram nos próprios
+        // eixos até se encostarem em cunha: em 0 é a porta do elevador, de
+        // frente e fechada; em 1 é um bico. A mesma peça conta as duas coisas,
+        // que é a regra de ouro desta transformação.
+        if (portaE.current) portaE.current.rotation.y = k * 0.30;
+        if (portaD.current) portaD.current.rotation.y = -k * 0.30;
         if (helice.current) {
             const v = heliceRef ? heliceRef.current : 1;
             helice.current.rotation.z += dt * 26 * v * k;
             helice.current.scale.setScalar(k);
         }
+        // ── AS SUPERFÍCIES DE COMANDO ────────────────────────────────
+        // Leme, profundor e ailerons defletem com a VELOCIDADE da manobra, não
+        // com o ângulo: é assim num avião de verdade e, num modelo de trinta
+        // pixels, é o que dá a impressão de que alguém está pilotando.
+        const a = atitudeRef?.current;
+        if (a) {
+            const d = (v: number) => THREE.MathUtils.clamp(v * ATITUDE.superficie, -0.5, 0.5);
+            if (leme.current) leme.current.rotation.y = d(-a.gui * 9);
+            if (profundor.current) profundor.current.rotation.x = d(-a.arfV);
+            if (aileronE.current) aileronE.current.rotation.x = d(a.rolV);
+            if (aileronD.current) aileronD.current.rotation.x = d(-a.rolV);
+        }
     });
 
     return (
         <group>
-            {/* fuselagem: a cabine, agora comprida — ver a nota das proporções */}
+            {/* ── A CABINE ──
+                A caixa creme é a cabine; os montantes de latão nos cantos e os
+                frisos de teto e piso são o que a fazem ler como CABINE e não
+                como caixote. De trás — que é o ângulo do andar inteiro — são
+                eles que dão as arestas que o sombreamento chapado precisa. */}
             <B args={[1.15, 1.05, 2.6]} m={M.cabine} />
-            <B args={[1.2, 0.12, 2.65]} p={[0, 0.53, 0]} m={M.cabineEsc} />
-            <B args={[1.2, 0.12, 2.65]} p={[0, -0.53, 0]} m={M.cabineEsc} />
-            {/* a quilha traseira: afina a fuselagem até a cauda, para o corpo
-                não acabar num tijolo cortado */}
-            <B args={[0.8, 0.72, 0.7]} p={[0, -0.02, 1.55]} m={M.cabineEsc} />
+            <B args={[1.22, 0.12, 2.66]} p={[0, 0.53, 0]} m={M.cabineEsc} />
+            <B args={[1.22, 0.12, 2.66]} p={[0, -0.53, 0]} m={M.cabineEsc} />
+            <B args={[0.10, 1.06, 0.10]} p={[-0.60, 0, 1.24]} m={M.latao} />
+            <B args={[0.10, 1.06, 0.10]} p={[0.60, 0, 1.24]} m={M.latao} />
             {/* o painel de botões do elevador, do lado do piloto — o detalhe que
                 diz que isto era um elevador */}
             <B args={[0.08, 0.5, 0.3]} p={[0.6, 0.05, 0.15]} m={M.latao} />
@@ -144,11 +237,37 @@ export const CascoDoElevador: React.FC<{
             {/* para-brisa */}
             <B args={[0.86, 0.4, 0.06]} p={[0, 0.24, -1.25]} m={M.vidro} />
 
-            {/* nariz = a porta */}
+            {/* ── A TRASEIRA, QUE É A ÚNICA PARTE QUE O JOGADOR OLHA ──
+                O corpo acabava num tijolo cortado e o casco inteiro lia como
+                caixa; agora ele AFINA em dois degraus até uma parede de fundo
+                com corrimão e com o indicador de andar aceso. A piada do
+                elevador estava toda nos lados do modelo, ou seja num lugar que
+                a câmera de terceira pessoa nunca mostra — o indicador põe a
+                piada exatamente no ângulo em que o andar é jogado. */}
+            <B args={[0.92, 0.86, 0.62]} p={[0, -0.02, 1.60]} m={M.cabine} />
+            <B args={[0.66, 0.62, 0.42]} p={[0, -0.06, 2.02]} m={M.cabineEsc} />
+            <B args={[0.46, 0.26, 0.06]} p={[0, 0.10, 2.22]} m={M.latao} />
+            <B args={[0.09, 0.13, 0.04]} p={[-0.10, 0.10, 2.25]} m={M.botao} />
+            <B args={[0.09, 0.13, 0.04]} p={[0.10, 0.10, 2.25]} m={M.botao} />
+            <B args={[0.64, 0.07, 0.07]} p={[0, -0.20, 2.21]} m={M.latao} />
+
+            {/* nariz = a porta do elevador, que se dobra em bico */}
             <group ref={nariz} position={[0, 0, -1.45]}>
-                <B args={[1.0, 0.9, 0.5]} m={M.ferro} />
-                <B args={[0.08, 0.9, 0.52]} m={M.ferroEsc} />
-                <group ref={helice} position={[0, 0, -0.3]}>
+                {/* o batente: a moldura da porta ficou onde estava */}
+                <B args={[1.08, 0.98, 0.14]} p={[0, 0, 0.22]} m={M.ferroEsc} />
+                <group ref={portaE} position={[-0.26, 0, 0]}>
+                    <B args={[0.50, 0.90, 0.50]} m={M.ferro} />
+                    {/* o vidrinho da porta e a chapa de rodapé: é por eles que
+                        a peça continua sendo uma PORTA depois de virar bico */}
+                    <B args={[0.28, 0.24, 0.02]} p={[0, 0.24, -0.26]} m={M.vidro} />
+                    <B args={[0.50, 0.12, 0.52]} p={[0, -0.36, 0]} m={M.latao} />
+                </group>
+                <group ref={portaD} position={[0.26, 0, 0]}>
+                    <B args={[0.50, 0.90, 0.50]} m={M.ferro} />
+                    <B args={[0.28, 0.24, 0.02]} p={[0, 0.24, -0.26]} m={M.vidro} />
+                    <B args={[0.50, 0.12, 0.52]} p={[0, -0.36, 0]} m={M.latao} />
+                </group>
+                <group ref={helice} position={[0, 0, -0.42]}>
                     <B args={[2.0, 0.1, 0.06]} m={M.helice} />
                     <B args={[0.1, 2.0, 0.06]} m={M.helice} />
                     <mesh material={M.latao}><sphereGeometry args={[0.16, 10, 8]} /></mesh>
@@ -161,21 +280,30 @@ export const CascoDoElevador: React.FC<{
                 0,12 de espessura, de canto para a câmera. Um avião que de trás
                 não parece um avião.
                 Agora elas são grossas, têm DIEDRO (sobem para fora, como toda
-                asa de verdade) e ponta marcada — três coisas que dão silhueta em
-                vez de traço. */}
+                asa de verdade), carenagem na raiz — sem ela a prancha só
+                ATRAVESSA a cabine, que era a leitura de "tábua espetada" — e
+                aileron no bordo de fuga. */}
             <group ref={asaE} position={[-0.45, -0.05, 0.25]} rotation={[0, 0, 0.20]}>
-                <B args={[1.05, 0.26, 1.15]} p={[-0.52, 0, 0]} m={M.metal} />
-                <B args={[0.55, 0.20, 0.78]} p={[-1.30, 0.06, -0.08]} m={M.metal} />
+                <B args={[0.44, 0.46, 1.34]} p={[-0.16, 0.02, 0]} m={M.cabineEsc} />
+                <B args={[1.05, 0.26, 1.15]} p={[-0.60, 0, 0]} m={M.metal} />
+                <B args={[0.55, 0.20, 0.78]} p={[-1.34, 0.06, -0.08]} m={M.metal} />
                 {/* ponta marcada, mais clara: é ela que o olho segue na rolagem */}
-                <B args={[0.30, 0.34, 0.44]} p={[-1.62, 0.13, -0.14]} m={M.metalEsc} />
+                <B args={[0.30, 0.34, 0.44]} p={[-1.66, 0.13, -0.14]} m={M.metalEsc} />
                 {/* luz de navegação na ponta da asa — e é DAQUI que o tiro sai */}
-                <B args={[0.16, 0.16, 0.16]} p={[-1.72, 0.16, -0.22]} m={M.fogo} />
+                <B args={[0.16, 0.16, 0.16]} p={[-1.76, 0.16, -0.22]} m={M.fogo} />
+                <group ref={aileronE} position={[-1.05, 0.02, 0.58]}>
+                    <B args={[0.96, 0.10, 0.26]} p={[0, 0, 0.13]} m={M.metalEsc} />
+                </group>
             </group>
             <group ref={asaD} position={[0.45, -0.05, 0.25]} rotation={[0, 0, -0.20]}>
-                <B args={[1.05, 0.26, 1.15]} p={[0.52, 0, 0]} m={M.metal} />
-                <B args={[0.55, 0.20, 0.78]} p={[1.30, 0.06, -0.08]} m={M.metal} />
-                <B args={[0.30, 0.34, 0.44]} p={[1.62, 0.13, -0.14]} m={M.metalEsc} />
-                <B args={[0.16, 0.16, 0.16]} p={[1.72, 0.16, -0.22]} m={M.fogo} />
+                <B args={[0.44, 0.46, 1.34]} p={[0.16, 0.02, 0]} m={M.cabineEsc} />
+                <B args={[1.05, 0.26, 1.15]} p={[0.60, 0, 0]} m={M.metal} />
+                <B args={[0.55, 0.20, 0.78]} p={[1.34, 0.06, -0.08]} m={M.metal} />
+                <B args={[0.30, 0.34, 0.44]} p={[1.66, 0.13, -0.14]} m={M.metalEsc} />
+                <B args={[0.16, 0.16, 0.16]} p={[1.76, 0.16, -0.22]} m={M.fogo} />
+                <group ref={aileronD} position={[1.05, 0.02, 0.58]}>
+                    <B args={[0.96, 0.10, 0.26]} p={[0, 0, 0.13]} m={M.metalEsc} />
+                </group>
             </group>
 
             {/* ── CAUDA ──
@@ -186,21 +314,45 @@ export const CascoDoElevador: React.FC<{
                 {/* A DERIVA É ALTA DE PROPÓSITO. De trás, ela é a única peça
                     vertical num vulto que é todo horizontal, e é ela que faz o
                     olho ler "avião" a trinta pixels. A anterior tinha 1,25 numa
-                    malha de 5,30 de envergadura — 24% — e sumia. Esta tem 1,55
-                    numa de 4,00: 39%, quase o dobro de altura relativa. */}
-                <B args={[0.18, 1.55, 0.66]} p={[0, 0.77, 0]} m={M.metal} />
-                <B args={[0.22, 0.44, 0.34]} p={[0, 1.52, 0.06]} m={M.metalEsc} />
-                {/* estabilizador horizontal: o "T" que fecha a leitura */}
-                <B args={[1.35, 0.15, 0.46]} p={[0, 0.12, 0.06]} m={M.metalEsc} />
-                <B args={[1.4, 0.1, 0.12]} p={[0, 0.2, 0.2]} m={M.metal} />
+                    malha de 5,30 de envergadura — 24% — e sumia. Esta tem 1,50
+                    numa de 4,00.
+                    E ela tem CORDA em dois degraus: com 0,18 de espessura e uma
+                    corda só, de trás ela saía na foto como um MASTRO — o avião
+                    inteiro lia como cata-vento. Uma base larga que afina para o
+                    topo é a diferença entre um mastro e uma deriva. */}
+                {/* A ESPIGA DORSAL. Sem ela a deriva é um mastro ESPETADO no
+                    teto — foi assim que ela saiu na foto de zoom, uma cruz azul
+                    pousada em cima de uma caixa. A rampa que desce da base da
+                    deriva para o teto da cabine é o que costura as duas peças
+                    num corpo só. */}
+                <B args={[0.22, 0.34, 1.05]} p={[0, 0.06, -0.62]} m={M.metal} />
+                <B args={[0.26, 0.82, 0.92]} p={[0, 0.42, 0.06]} m={M.metal} />
+                <B args={[0.22, 0.78, 0.62]} p={[0, 1.10, -0.02]} m={M.metal} />
+                <B args={[0.26, 0.22, 0.46]} p={[0, 1.52, 0.02]} m={M.metalEsc} />
+                <group ref={leme} position={[0, 0.80, 0.52]}>
+                    <B args={[0.14, 1.30, 0.24]} p={[0, 0, 0.12]} m={M.metalEsc} />
+                </group>
+                {/* estabilizador: ele subiu para ACIMA do teto da cabine. Onde
+                    estava, o corpo o escondia inteiro e a cauda não tinha o
+                    "T" que fecha a leitura de avião. */}
+                <B args={[1.45, 0.16, 0.50]} p={[0, 0.62, 0.10]} m={M.metalEsc} />
+                <B args={[0.22, 0.26, 0.34]} p={[-0.74, 0.66, 0.06]} m={M.metal} />
+                <B args={[0.22, 0.26, 0.34]} p={[0.74, 0.66, 0.06]} m={M.metal} />
+                <group ref={profundor} position={[0, 0.62, 0.34]}>
+                    <B args={[1.30, 0.10, 0.24]} p={[0, 0, 0.12]} m={M.metal} />
+                </group>
             </group>
 
             {/* ── O ESCAPE ──
                 Duas chamas atrás. Elas dizem para que lado o avião aponta, o que
                 de trás não é óbvio, e ancoram a nave no quadro quando tudo o
-                mais está voando. */}
-            <B args={[0.3, 0.3, 0.58]} p={[-0.3, -0.08, 1.72]} m={M.fogo} />
-            <B args={[0.3, 0.3, 0.58]} p={[0.3, -0.08, 1.72]} m={M.fogo} />
+                mais está voando. Agora saem de BOCAIS escuros e ficaram
+                estreitas: soltas, eram dois quadrados laranja do tamanho da
+                cabine e o olho lia o avião como uma cara com dois olhos. */}
+            <B args={[0.32, 0.32, 0.34]} p={[-0.40, -0.26, 1.66]} m={M.ferroEsc} />
+            <B args={[0.32, 0.32, 0.34]} p={[0.40, -0.26, 1.66]} m={M.ferroEsc} />
+            <B args={[0.20, 0.20, 0.44]} p={[-0.40, -0.26, 1.94]} m={M.fogo} />
+            <B args={[0.20, 0.20, 0.44]} p={[0.40, -0.26, 1.94]} m={M.fogo} />
         </group>
     );
 };
@@ -234,16 +386,23 @@ export const AviaoDoJogador: React.FC<{
     const casco = useRef<THREE.Group>(null);
     const refs = useAvatarRefs();
     const sentado = useRef(false);
+    const atitude = useRef<Atitude>(novaAtitude());
 
-    useFrame((state) => {
+    useFrame((state, rawDt) => {
         const g = raiz.current; if (!g) return;
         const n = naveRef.current;
+        // A POSIÇÃO É A DA SIMULAÇÃO, SEM UM MILÍMETRO A MAIS. Toda a postura
+        // abaixo é rotação pura: é o único jeito de o que se vê e o que
+        // machuca continuarem sendo o mesmo lugar.
         g.position.set(n.x, n.y, 0);
         g.visible = visivelRef ? visivelRef.current : true;
+        passoDaAtitude(atitude.current, n, rawDt);
         if (visual.current) {
-            visual.current.rotation.z = n.rolagem;
-            // o nariz sobe/desce com a velocidade vertical: dá peso ao avião
-            visual.current.rotation.x = THREE.MathUtils.clamp(-n.vy * 0.045, -0.35, 0.35);
+            const a = atitude.current;
+            const t = state.clock.elapsedTime;
+            visual.current.rotation.z = a.rol + Math.sin(t * 1.7) * ATITUDE.respiro;
+            visual.current.rotation.x = a.arf + Math.sin(t * 1.1) * ATITUDE.respiro * 0.6;
+            visual.current.rotation.y = a.gui;
         }
         // ── O BRILHO DO RASPÃO E A CARGA ─────────────────────────────
         //
@@ -274,7 +433,7 @@ export const AviaoDoJogador: React.FC<{
         <group ref={raiz} name="aviao" scale={ESCALA_DO_AVIAO}>
             <group ref={visual}>
                 <group ref={casco}>
-                    <CascoDoElevador aberturaRef={aberturaRef} heliceRef={heliceRef} />
+                    <CascoDoElevador aberturaRef={aberturaRef} heliceRef={heliceRef} atitudeRef={atitude} />
                 </group>
                 {/* o piloto, sentado, encolhido para caber na cabine */}
                 <group position={[0, -0.6, 0.1]} scale={0.44}>
@@ -307,6 +466,7 @@ export const AviaoDoIrmao: React.FC<{
     const luzes = useRef<THREE.MeshLambertMaterial[]>([]);
     const olho = useRef<THREE.MeshLambertMaterial | null>(null);
     const fala = useRef(0);
+    const atitude = useRef<Atitude>(novaAtitude());
 
     const M = useMemo(() => ({
         corpo: mat64(CORES.irmao), corpoEsc: mat64(CORES.irmaoEsc),
@@ -322,11 +482,11 @@ export const AviaoDoIrmao: React.FC<{
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
         g.position.set(n.x, n.y, 0.4);
-        if (visual.current) {
-            visual.current.rotation.z = n.rolagem * 0.8;
-            visual.current.visible = n.piscando <= 0
-                || Math.floor(state.clock.elapsedTime * 14) % 2 === 0;
-        }
+        // ── ELE VOA COM MENOS ENTREGA ────────────────────────────────
+        // Mesma mola do avião do jogador, com 0,72 de ganho: o irmão inclina
+        // menos e chega depois na curva. É a formação inteira dizendo, sem uma
+        // fala, que ele é o modelo velho seguindo o novo.
+        passoDaAtitude(atitude.current, n, rawDt, 0.72);
         if (helice.current) helice.current.rotation.z += dt * 24;
 
         // ── ELE SE MEXE ENQUANTO FALA ────────────────────────────────
@@ -341,9 +501,16 @@ export const AviaoDoIrmao: React.FC<{
             const f = falandoRef.current ? 1 : 0;
             fala.current += (f - fala.current) * Math.min(1, dt * 6);
             const k = fala.current;
+            const a = atitude.current;
+            // A fala SOMA à postura de voo em vez de substituí-la: escrever por
+            // cima fazia o avião parar de inclinar no meio de uma manobra só
+            // porque ele tinha começado a resmungar.
             visual.current.position.y = Math.sin(t * 5.5) * 0.14 * k;
-            visual.current.rotation.x = Math.sin(t * 4.2) * 0.10 * k;
-            visual.current.rotation.y = -0.5 * k + Math.sin(t * 2.6) * 0.09 * k;
+            visual.current.rotation.z = a.rol;
+            visual.current.rotation.x = a.arf + Math.sin(t * 4.2) * 0.10 * k;
+            visual.current.rotation.y = a.gui - 0.5 * k + Math.sin(t * 2.6) * 0.09 * k;
+            visual.current.visible = n.piscando <= 0
+                || Math.floor(state.clock.elapsedTime * 14) % 2 === 0;
         }
         // As luzes CORREM quando ele fala — é o mesmo truque do TROCO-64, e é o
         // que faz um robô sem boca parecer que está falando.

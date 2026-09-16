@@ -21,7 +21,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
-import { ARENA, f12, xParaFracao, yParaFracao, larguraDoQuadro, ENQUADRAMENTO } from './f12Boss';
+import { f12, xParaFracao, yParaFracao, larguraDoQuadro, alturaDoQuadro, ENQUADRAMENTO } from './f12Boss';
 
 /**
  * ── O CÉU DEIXOU DE SER UMA COR CHAPADA ──────────────────────────────────────
@@ -99,31 +99,114 @@ const texturaDaNuvem: THREE.CanvasTexture = (() => {
     const g = c.getContext('2d')!;
     g.clearRect(0, 0, 128, 64);
     g.fillStyle = '#ffffff';
-    // três bolotas sobrepostas, com a de baixo mais larga: silhueta de desenho
-    const bolotas: [number, number, number][] = [[42, 40, 22], [70, 34, 26], [96, 42, 18]];
+    // QUATRO bolotas de raios desencontrados, e não três parecidas: a camada de
+    // baixo é cortada pela borda do quadro, e o que sobrava na tela era a calota
+    // de uma bolota só — na foto do celular em pé isso saiu como uma BOLA branca
+    // perfeita em cima da cidade. Uma silhueta comprida e desigual, cortada,
+    // ainda lê como nuvem.
+    const bolotas: [number, number, number][] = [
+        [34, 43, 19], [60, 33, 26], [88, 40, 21], [110, 46, 13],
+    ];
     for (const [x, y, r] of bolotas) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-    g.fillRect(34, 40, 72, 20);
+    g.fillRect(24, 42, 92, 18);
     // sombra chapada embaixo — duas cores, como todo o resto do andar
     g.fillStyle = '#cfd9e6';
-    g.fillRect(34, 52, 72, 8);
+    g.fillRect(24, 52, 92, 8);
     for (const [x, , r] of bolotas) { g.beginPath(); g.arc(x, 52, r * 0.7, 0, Math.PI); g.fill(); }
     const t = new THREE.CanvasTexture(c);
     t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter;
     return t;
 })();
 
+/**
+ * A nuvem ALTA: uma risca, não uma bolota.
+ *
+ * Na foto do céu antigo a metade de cima do quadro era gradiente puro de
+ * horizonte a horizonte — nenhuma marca. Sem marca no alto, subir não tem contra
+ * o que ser medido: o avião sobe e a tela não muda. Uma risca de cirro lá em
+ * cima é a marca mais barata que existe, e ela não vira bolota porque bolota no
+ * topo do quadro brigaria de silhueta com a cabeça.
+ */
+const texturaDoCirro: THREE.CanvasTexture = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 32;
+    const g = c.getContext('2d')!;
+    g.clearRect(0, 0, 256, 32);
+    g.fillStyle = '#ffffff';
+    // três riscas desencontradas: uma risca só lê como barra de interface
+    g.fillRect(18, 12, 200, 7);
+    g.fillRect(52, 6, 96, 6);
+    g.fillRect(120, 19, 108, 5);
+    g.fillStyle = '#dfe9f4';
+    g.fillRect(18, 17, 200, 2);
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter;
+    return t;
+})();
+
+/**
+ * Quanto do alto de cada textura é transparente, em fração da altura dela.
+ * [bolota, cirro]. Ver a conta de `meia` em `Nuvens`.
+ */
+const MARGEM: readonly [number, number] = [8 / 64, 6 / 32];
+
 interface Camada {
     /** Quantas nuvens. */
     n: number;
     /** Profundidade. */
     z: number;
-    /** Velocidade com que passam (unidades por segundo). */
-    v: number;
-    escala: number;
+    /**
+     * Velocidade em LARGURAS DE QUADRO POR SEGUNDO, à profundidade desta camada.
+     *
+     * Este número é o assunto inteiro do arquivo. Em unidades de mundo, "10 por
+     * segundo" quer dizer coisas opostas a 10 e a 100 de distância, e foi assim
+     * que a paralaxe daqui virou um punhado de constantes afinadas no olho. Em
+     * larguras de tela por segundo o que está escrito é o que se VÊ: 0,62 cruza
+     * o quadro em menos de dois segundos, 0,028 leva mais de meio minuto. A
+     * razão entre as camadas — vinte e duas vezes daqui até lá — é a paralaxe,
+     * e agora ela é legível no código e verificável na folha de fotos.
+     */
+    vTela: number;
+    /**
+     * Tamanho da nuvem em fração do MENOR lado do quadro, à profundidade dela.
+     *
+     * Menor lado, e não altura: medido pela altura, a folha de fotos do celular
+     * EM PÉ virou uma papa branca. O celular em pé tem a MESMA altura de quadro
+     * e menos da metade da largura (aspecto 0,45), então uma nuvem de "30% da
+     * altura" ocupa lá dois terços da largura — e a metade de baixo da tela
+     * sumiu debaixo de três nuvens, com hotel e cidade dentro. Pelo menor lado a
+     * nuvem tem o mesmo tamanho RELATIVO nas duas orientações.
+     */
+    escalaTela: number;
+    /** Quanto a nuvem é mais larga que alta. */
+    alongar: number;
     opacidade: number;
-    /** Faixa de altura em que esta camada pode nascer. */
-    yDe: number;
-    yAte: number;
+    /** 0 = branco de nuvem perto; 1 = a cor da bruma do horizonte. */
+    bruma: number;
+    /**
+     * Faixa em que cai o TOPO da nuvem, em fração de tela (0 = base, 1 = topo).
+     *
+     * O topo e não o centro, e a diferença é a regra de não tapar a luta: o que
+     * precisa ficar abaixo do avião é a borda de cima da nuvem, e ela depende do
+     * tamanho — que muda com a orientação da tela. Ancorando pelo centro, a
+     * mesma camada que passava rente ao chão no monitor subia por cima do avião
+     * no celular. Ancorando pelo topo, o limite escrito aqui é o limite que sai
+     * na tela, em qualquer aspecto.
+     */
+    vDe: number;
+    vAte: number;
+    /**
+     * Espessura da camada em Z, em unidades de mundo. A nuvem sorteia um `z`
+     * dentro dela.
+     *
+     * Sem isto cada camada é uma PAREDE: todas as nuvens dela exatamente à mesma
+     * distância, do mesmo tamanho na tela, e o olho lê um adesivo. Com espessura
+     * a própria camada tem volume — e as de dentro dela já andam uma em relação
+     * à outra quando a câmera acompanha o avião. Nas camadas de trás a espessura
+     * é limitada para NENHUMA nuvem chegar à frente da cabeça (z > −36).
+     */
+    espessura: number;
+    /** Riscas de cirro em vez de bolotas. */
+    cirro?: boolean;
 }
 
 /**
@@ -132,13 +215,32 @@ interface Camada {
  * A primeira versão tinha três camadas em z = 6, −9 e −34, com o avião em 0 e a
  * cabeça em −26. Na foto o estrago foi imediato: a camada do meio ficava ENTRE
  * o avião e o chefe e tapava a boca dele — que é exatamente a única coisa que o
- * jogador precisa vigiar, porque é o telegrafo do ataque e o ponto fraco. Uma
- * nuvem bonita escondendo a regra do jogo.
+ * jogador precisa vigiar, porque é o telegrafo do ataque e o ponto fraco.
  *
- * As camadas de trás vão todas para ATRÁS da cabeça (z < −36). A sensação de
- * velocidade, que era o trabalho da camada da frente, passa a vir de nuvens
- * correndo POR BAIXO da arena: elas ficam na frente em Z, mas fora do caminho
- * em Y, então dão o mesmo empurrão sem cobrir nada.
+ * A regra que sobrou é geométrica, e não de bom senso: uma nuvem ANDA em X e dá
+ * a volta, então toda nuvem passa, mais cedo ou mais tarde, pelo meio do quadro.
+ * Proibir o meio na hora de sortear não protege nada. Só duas coisas protegem:
+ * estar atrás da cabeça em Z (z < −36, e aí o próprio zBuffer resolve, porque a
+ * cabeça é opaca e o teste de profundidade continua ligado nas nuvens), ou estar
+ * numa faixa de ALTURA que não encosta na cabeça. A cabeça ocupa de 65% a 90%
+ * da altura da tela e a boca fica em 70%: por isso nenhuma camada à frente dela
+ * sobe além de 50% do quadro.
+ *
+ * ── E POR QUE O CÉU DE CIMA DEIXOU DE SER VAZIO ──────────────────────────────
+ *
+ * A versão anterior media as faixas em unidades de mundo tiradas da ARENA (`yDe:
+ * ARENA.yAlto + 16`). Vinte e cinco unidades de altura é o teto da arena a
+ * z = 0 — e a 78 de distância é quase a linha do horizonte. Na foto de 1100x620
+ * todas as nuvens das QUATRO camadas apareciam empilhadas no terço de baixo e a
+ * metade de cima do quadro era gradiente liso. Pior: `LIMITE_X` era 34 para
+ * todas, e 34 a 93 de distância é um terço da largura da tela — as camadas do
+ * fundo só existiam numa tira central.
+ *
+ * Agora cada camada é colocada por FRAÇÃO DE TELA na profundidade dela, com a
+ * mesma régua do resto do andar. É o que põe marca no alto, e marca no alto é o
+ * que faz SUBIR parecer subir: a camada de baixo escorrega ~29% da tela quando o
+ * avião vai do chão ao teto da arena, a de cima ~2%. Sem nada lá em cima essa
+ * diferença não tinha contra o que ser medida.
  */
 // ── O CUSTO DAS NUVENS É PREENCHIMENTO, NÃO CHAMADA DE DESENHO ───────────────
 //
@@ -146,17 +248,56 @@ interface Camada {
 // não mexeu no FPS: 53,6 -> 51,7 de mediana, dentro do ruído. O que pesa é
 // SOBREPOSIÇÃO — dezenas de quadriláteros transparentes e grandes empilhados,
 // cada pixel pintado várias vezes. A instanciação ficou porque é gratuita, mas
-// quem devolveu o quadro foi cortar nuvem grande perto da câmera.
+// quem devolveu o quadro foi cortar nuvem grande perto da câmera. É por isso que
+// encher o céu de cima veio junto com um corte no número de nuvens de baixo: a
+// conta que importa é área de tela pintada, não quantidade.
 const CAMADAS: ReadonlyArray<Camada> = Object.freeze([
-    // O MAR DE NUVENS: denso, logo abaixo da arena. Na referência é ele que
-    // ocupa a metade de baixo do quadro e dá a altitude — sem ele o avião voa
-    // num vazio azul e podia estar a três metros do chão.
-    { n: 12, z: 6, v: 16.0, escala: 3.0, opacidade: 0.97, yDe: ARENA.yBaixo - 13, yAte: ARENA.yBaixo - 2.6 },
-    { n: 10, z: -14, v: 10.0, escala: 4.4, opacidade: 0.9, yDe: ARENA.yBaixo - 20, yAte: ARENA.yBaixo - 3.4 },
-    // as de trás continuam ATRÁS da cabeça: nuvem na frente da boca já tapou a
-    // única coisa que o jogador precisa vigiar, e não volta a tapar
-    { n: 10, z: -46, v: 6.0, escala: 7.0, opacidade: 0.85, yDe: ARENA.yBaixo - 4, yAte: ARENA.yAlto + 9 },
-    { n: 8, z: -78, v: 2.6, escala: 12.0, opacidade: 0.62, yDe: ARENA.yBaixo - 8, yAte: ARENA.yAlto + 16 },
+    // 1. O CHÃO DE NUVENS: a camada mais rápida, cruzando o terço de baixo do
+    //    quadro em dois segundos. É ela que dá a altitude e quase toda a
+    //    sensação de velocidade, porque corre na FRENTE da cidade — que está
+    //    parada a 260 de distância. Velocidade é sempre uma comparação.
+    //
+    //    ── E ELA FICA EM z = −4, ATRÁS DO AVIÃO, DE PROPÓSITO ────────────────
+    //
+    //    Tentei em z = +9, entre a câmera e o avião. A conta que isso impõe: com
+    //    a câmera acompanhando em 0,30, o avião desce até 8,6% da altura da tela
+    //    (4,5% contando a barriga dele), então nenhuma nuvem à frente dele pode
+    //    subir além disso — e quatro por cento de tela é uma nesga. Na foto do
+    //    recorte de baixo o que saiu foi uma mancha branca leitosa em cima dos
+    //    prédios, sem silhueta de nuvem nenhuma, lavando a cidade.
+    //
+    //    Quatro unidades ATRÁS do avião a restrição some — o zBuffer resolve, o
+    //    avião desenha por cima —, a nuvem aparece inteira, e a paralaxe contra a
+    //    cidade continua sendo a mesma. O ganho de estar na frente do avião era
+    //    zero; o preço era a única nesga em que ela cabia.
+    {
+        n: 9, z: -4, vTela: 0.50, escalaTela: 0.27, alongar: 2.3, espessura: 9,
+        opacidade: 0.95, bruma: 0.03, vDe: 0.05, vAte: 0.17,
+    },
+    // 2. A segunda fileira, já atrás do avião: metade da velocidade da primeira.
+    {
+        n: 11, z: -10, vTela: 0.30, escalaTela: 0.26, alongar: 2.0, espessura: 12,
+        opacidade: 0.90, bruma: 0.12, vDe: 0.10, vAte: 0.30,
+    },
+    // 3. O MEIO DO CÉU, atrás da arena e ainda longe da cabeça. Esta é a camada
+    //    que faz o vão entre a cidade e o chefe deixar de ser papel de parede:
+    //    é contra ela que o desvio lateral do avião se mede.
+    {
+        n: 11, z: -44, vTela: 0.145, escalaTela: 0.22, alongar: 2.0, espessura: 14,
+        opacidade: 0.60, bruma: 0.22, vDe: 0.34, vAte: 0.60,
+    },
+    // 4. O ALTO, atrás da cabeça — o zBuffer a recorta na silhueta dela, então
+    //    ela emoldura o chefe em vez de disputar com ele.
+    {
+        n: 8, z: -98, vTela: 0.062, escalaTela: 0.17, alongar: 2.2, espessura: 40,
+        opacidade: 0.42, bruma: 0.42, vDe: 0.58, vAte: 0.95,
+    },
+    // 5. Os CIRROS do teto do quadro: quase parados (22x mais lentos que o chão
+    //    de nuvens). São a régua fixa contra a qual tudo o mais corre.
+    {
+        n: 6, z: -160, vTela: 0.028, escalaTela: 0.075, alongar: 7.0, espessura: 40,
+        opacidade: 0.45, bruma: 0.5, vDe: 0.86, vAte: 1.08, cirro: true,
+    },
 ]);
 
 /** Sorteio estável: o mesmo céu em toda partida, e sem `Math.random` no quadro. */
@@ -170,8 +311,6 @@ function baralho(semente: number): () => number {
     };
 }
 
-const LIMITE_X = 34;
-
 /**
  * ── UMA CHAMADA DE DESENHO POR CAMADA, NÃO UMA POR NUVEM ─────────────────────
  *
@@ -181,22 +320,64 @@ const LIMITE_X = 34;
  * matrizes por quadro na CPU, que é nada, em vez de 18 trocas de estado na GPU.
  *
  * O movimento continua sendo o mesmo — as nuvens andam para +X e dão a volta —,
- * só que agora ele mora num array em vez de na árvore da cena.
+ * só que agora ele mora num array em vez de na árvore da cena, e a volta é dada
+ * na borda do QUADRO daquela profundidade, não num limite fixo para todas.
  */
 const Nuvens: React.FC<{ camada: Camada; semente: number }> = ({ camada, semente }) => {
     const malha = useRef<THREE.InstancedMesh>(null);
     const material = useMemo(() => new THREE.MeshBasicMaterial({
-        map: texturaDaNuvem, transparent: true, opacity: camada.opacidade,
+        map: camada.cirro ? texturaDoCirro : texturaDaNuvem,
+        // A BRUMA é pintada no material, e não deixada para a névoa da cena: a
+        // névoa deste andar só começa a 180 de distância e a nuvem mais funda
+        // está a 175. Sem isto a camada do alto sairia do mesmo branco puro da
+        // que passa debaixo do avião, e duas camadas com o mesmo contraste leem
+        // como "nuvem em cima de nuvem", não "nuvem atrás de nuvem".
+        color: new THREE.Color(embrumar('#ffffff', camada.bruma)),
+        transparent: true, opacity: camada.opacidade,
         depthWrite: false, fog: true,
-    }), [camada.opacidade]);
+    }), [camada]);
+
+    /** A régua desta camada: tudo aqui é resolvido na profundidade dela. */
+    const regua = useMemo(() => {
+        const d = ENQUADRAMENTO.recuo - camada.z;
+        const larg = larguraDoQuadro(d);
+        return {
+            // 0,62 e não 0,5: a nuvem tem de nascer e morrer FORA do quadro,
+            // senão ela aparece e some no meio do ar, à vista.
+            limiteX: larg * 0.62,
+            vMundo: camada.vTela * larg,
+            alturaBase: camada.escalaTela * Math.min(alturaDoQuadro(d), larg),
+        };
+    }, [camada]);
+
     const pontos = useMemo(() => {
         const r = baralho(semente);
-        return Array.from({ length: camada.n }, () => ({
-            x: (r() * 2 - 1) * LIMITE_X,
-            y: camada.yDe + r() * (camada.yAte - camada.yDe),
-            e: camada.escala * (0.65 + r() * 0.7),
-        }));
-    }, [camada, semente]);
+        return Array.from({ length: camada.n }, () => {
+            const z = camada.z + (r() - 0.5) * camada.espessura;
+            // A MESMA bolota repetida vinte vezes lê como ladrilho, e leu: na
+            // foto do céu cheio a fileira da direita eram quatro nuvens
+            // idênticas na mesma altura. Espelhar em X e achatar um pouco custa
+            // um sinal e um número, e desfaz o padrão.
+            const espelho = r() < 0.5 ? -1 : 1;
+            const achatar = 0.78 + r() * 0.44;
+            const e = regua.alturaBase * (0.7 + r() * 0.65);
+            // do topo pedido para o CENTRO, descontando meia nuvem em fração de
+            // tela — é isto que faz o limite escrito valer em qualquer aspecto
+            const topo = camada.vDe + r() * (camada.vAte - camada.vDe);
+            const altTela = (e * achatar) / alturaDoQuadro(ENQUADRAMENTO.recuo - z);
+            // A MARGEM VAZIA DA TEXTURA entra na conta, e não é preciosismo: a
+            // faixa desta camada é a borda de baixo do quadro, e com o topo do
+            // QUADRILÁTERO em 4% da tela o que aparecia eram 4% de pixel
+            // transparente — a foto do recorte de baixo saiu azul liso, sem
+            // nuvem nenhuma. O que a faixa descreve é o topo do DESENHO.
+            const meia = altTela / 2 + MARGEM[camada.cirro ? 1 : 0] * altTela;
+            return {
+                x: (r() * 2 - 1) * regua.limiteX,
+                y: yParaFracao(topo - meia, z),
+                z, e, espelho, achatar,
+            };
+        });
+    }, [camada, semente, regua]);
     const aux = useMemo(() => new THREE.Object3D(), []);
 
     useFrame((_, rawDt) => {
@@ -205,10 +386,10 @@ const Nuvens: React.FC<{ camada: Camada; semente: number }> = ({ camada, semente
         for (let i = 0; i < pontos.length; i++) {
             const q = pontos[i];
             // Andam para +X: o avião voa para -Z, então o cenário passa de lado.
-            q.x += camada.v * dt;
-            if (q.x > LIMITE_X) q.x -= LIMITE_X * 2;
-            aux.position.set(q.x, q.y, camada.z);
-            aux.scale.set(q.e * 2, q.e, 1);
+            q.x += regua.vMundo * dt;
+            if (q.x > regua.limiteX) q.x -= regua.limiteX * 2;
+            aux.position.set(q.x, q.y, q.z);
+            aux.scale.set(q.e * camada.alongar * q.espelho, q.e * q.achatar, 1);
             aux.updateMatrix();
             m.setMatrixAt(i, aux.matrix);
         }

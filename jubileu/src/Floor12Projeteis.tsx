@@ -21,13 +21,28 @@ import * as THREE from 'three';
 import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, MARE, frestaDaMare, LEQUE, ENQUADRAMENTO, BOCA_SAIDA,
+    silhuetaDe, ELEVADORES, NAVES, TELEGUIADO,
     type Projetil, type NomeDoAtaque,
 } from './f12Boss';
 
 const CORES = {
     leque: '#ffd34a',        // os cinco andares: âmbar de placa de elevador
-    teleguiado: '#e03a3a',   // o fio vermelho
-    fio: '#8c1d1d',
+    // ── O VERMELHO TINHA UMA COR SÓ, E ERA ISSO QUE O FAZIA PARECER CRU ──
+    //
+    // Era `#e03a3a` chapado no corpo inteiro e `#8c1d1d` num caixote de 3,2 de
+    // comprimento e largura constante. Um objeto de uma cor só não tem volume, e
+    // um retângulo escuro arrastado atrás não tem movimento: os dois juntos leem
+    // como marcador de posição.
+    //
+    // Perigo, profundidade, movimento e energia são quatro coisas diferentes e
+    // cada uma precisa da sua camada. Aqui: CASCA escura (volume), BANDA quente
+    // (energia contida), OLHO que pulsa (perigo, e a informação de que ele está
+    // travado em você) e CHAMA aditiva que treme (movimento).
+    teleguiadoCasca: '#4a1418',   // metal cozido: a parte que dá volume
+    teleguiado: '#c8302c',        // a banda quente do meio
+    teleguiadoOlho: '#ff5a3c',    // o buscador — o único ponto saturado
+    chama: '#ff9a3c',
+    fio: '#7a1a1a',
     naves: '#cfd6e0',        // as camareiras: cinza de uniforme
     navesLuz: '#7ad4ff',
     mare: '#3fa9d6',         // a maré do 2º
@@ -74,35 +89,105 @@ function fazerOnda(M: Record<string, THREE.Material>): THREE.Group {
     return g;
 }
 
+/**
+ * A cabine que cai — e a largura dela SAI DO RAIO DE COLISÃO.
+ *
+ * Ela era 1,5 de largura contra uma hitbox de Ø 1,24: sobravam 13 cm de cada
+ * lado em que o jogador estava dentro da cabine desenhada e não levava nada. A
+ * medida agora vem de `silhuetaDe(ELEVADORES.raio)`, que é o contrato — ver a
+ * nota longa em `f12Boss`. Para a cabine ficar maior, quem tem de subir é o
+ * raio, e o preço em dificuldade é pago de olhos abertos.
+ */
 function fazerCabine(M: Record<string, THREE.Material>): THREE.Group {
     const g = new THREE.Group();
-    const corpo = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.9, 1.5), M.elevadores);
-    const teto = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 1.6), M.elevadoresEsc);
-    teto.position.y = 1.0;
-    const porta = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 1.2), M.elevadoresEsc);
-    porta.position.set(0, 0, 0.78); porta.rotation.y = Math.PI / 2;
+    const L = silhuetaDe(ELEVADORES.raio) * 2;      // largura total
+    const corpo = new THREE.Mesh(new THREE.BoxGeometry(L, L * 1.27, L), M.elevadores);
+    const teto = new THREE.Mesh(new THREE.BoxGeometry(L * 1.07, 0.2, L * 1.07), M.elevadoresEsc);
+    teto.position.y = L * 0.67;
+    const porta = new THREE.Mesh(new THREE.BoxGeometry(0.12, L, L * 0.8), M.elevadoresEsc);
+    porta.position.set(0, 0, L * 0.52); porta.rotation.y = Math.PI / 2;
     g.add(corpo, teto, porta);
     return g;
 }
 
+/**
+ * A camareira — e a ASA dela é o que estava mentindo.
+ *
+ * Ela tinha 1,9 de ponta a ponta contra uma hitbox de Ø 1,1: as pontas
+ * atravessavam o avião sem cobrar nada, e a camareira é justamente o padrão em
+ * que o jogador se aproxima para atirar. A envergadura agora sai de
+ * `silhuetaDe(NAVES.raio)`.
+ */
 function fazerCamareira(M: Record<string, THREE.Material>): THREE.Group {
     const g = new THREE.Group();
-    const corpo = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 1.2), M.naves);
-    const cupula = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), M.navesLuz);
+    const L = silhuetaDe(NAVES.raio) * 2;           // envergadura total
+    const corpo = new THREE.Mesh(new THREE.BoxGeometry(L * 0.52, 0.5, 1.2), M.naves);
+    const cupula = new THREE.Mesh(new THREE.SphereGeometry(L * 0.22, 10, 8), M.navesLuz);
     cupula.position.set(0, 0.3, -0.1);
-    const asa = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 0.4), M.naves);
+    const asa = new THREE.Mesh(new THREE.BoxGeometry(L, 0.1, 0.4), M.naves);
     g.add(corpo, cupula, asa);
     return g;
 }
 
+/**
+ * O míssil — e aqui o defeito era o OUTRO: dano onde não havia míssil.
+ *
+ * O corpo tinha Ø 0,44 e a hitbox Ø 0,84, quase o dobro. O jogador levava tiro
+ * de um ponto vazio, e isso não tem conserto pelo lado dele. O corpo engordou
+ * até `silhuetaDe(TELEGUIADO.raio)` e o raio desceu para encontrá-lo.
+ *
+ * O FIO continua sendo RASTRO e não ameaça — ele nunca cobrou dano —, e por isso
+ * é fino e some para trás: uma coisa comprida atrás de um projétil é lida como
+ * parte dele, e essa leitura tem de ser desmentida pela forma.
+ */
+/**
+ * O míssil — quatro camadas, porque "vermelho" não é um efeito.
+ *
+ * O corpo engordou até `silhuetaDe(TELEGUIADO.raio)` (o dano tinha o dobro da
+ * largura do desenho — ver a nota em `f12Boss`), e o resto é leitura:
+ *
+ *   CASCA   escura, mais larga, dá o volume e a sombra própria
+ *   BANDA   quente no meio, estreita: a energia que ele carrega
+ *   OLHO    o buscador, na ponta, pulsando — é o que diz "é em VOCÊ"
+ *   CHAMA   aditiva, atrás, tremendo: é o que diz que ele está acelerando
+ *
+ * O FIO continua sendo a piada do 9º andar, mas agora AFINA para trás em vez de
+ * ser um caixote de largura constante — um rastro de largura fixa não tem
+ * direção, e sem direção ele lê como parte do corpo, ou seja como ameaça. Ele
+ * nunca cobrou dano nenhum e não pode parecer que cobra.
+ */
 function fazerMissil(M: Record<string, THREE.Material>): THREE.Group {
     const g = new THREE.Group();
-    const corpo = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.7, 4, 8), M.teleguiado);
-    corpo.rotation.x = Math.PI / 2;
-    // o FIO que ele arrasta atrás — a referência ao 9º andar
-    const fio = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.2), M.fio);
-    fio.position.z = -1.8;
-    g.add(corpo, fio);
+    const r = silhuetaDe(TELEGUIADO.raio);
+
+    const casca = new THREE.Mesh(new THREE.CapsuleGeometry(r, r * 3.0, 4, 8), M.teleguiadoCasca);
+    casca.rotation.x = Math.PI / 2;
+    // a banda quente: um anel curto e um pouco mais gordo, no meio do corpo
+    const banda = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.06, r * 1.06, r * 0.9, 8), M.teleguiado);
+    banda.rotation.x = Math.PI / 2;
+    // as aletas, que dão silhueta a um corpo que senão é uma cápsula lisa
+    const aletas = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+        const a = new THREE.Mesh(new THREE.BoxGeometry(r * 0.14, r * 1.5, r * 1.3), M.teleguiadoCasca);
+        a.position.set(0, r * 0.8, r * 1.3);
+        const giro = new THREE.Group();
+        giro.rotation.z = (i / 3) * Math.PI * 2;
+        giro.add(a); aletas.add(giro);
+    }
+    const olho = new THREE.Mesh(new THREE.SphereGeometry(r * 0.52, 8, 6), M.teleguiadoOlho);
+    olho.position.z = -r * 1.9; olho.name = 'olho';
+    const chama = new THREE.Mesh(new THREE.ConeGeometry(r * 0.78, r * 2.6, 7), M.chama);
+    chama.rotation.x = -Math.PI / 2; chama.position.z = r * 3.0; chama.name = 'chama';
+
+    // o rastro AFINA: quatro elos cada vez mais finos e mais apagados
+    const fio = new THREE.Group(); fio.name = 'fio';
+    for (let i = 0; i < 4; i++) {
+        const k = 1 - i / 4;
+        const elo = new THREE.Mesh(new THREE.BoxGeometry(r * 0.20 * k, r * 0.20 * k, 0.8), M.fio);
+        elo.position.z = r * 3.4 + 0.42 + i * 0.82;
+        fio.add(elo);
+    }
+    g.add(casca, banda, aletas, olho, chama, fio);
     return g;
 }
 
@@ -111,7 +196,10 @@ export const Floor12Projeteis: React.FC = () => {
 
     const M = useMemo(() => ({
         leque: mat64(CORES.leque, CORES.leque, 0.5),
-        teleguiado: mat64(CORES.teleguiado, CORES.teleguiado, 0.4),
+        teleguiado: mat64(CORES.teleguiado, CORES.teleguiado, 0.55),
+        teleguiadoCasca: mat64(CORES.teleguiadoCasca),
+        teleguiadoOlho: mat64(CORES.teleguiadoOlho, CORES.teleguiadoOlho, 1.5),
+        chama: mat64(CORES.chama, CORES.chama, 1.3),
         fio: mat64(CORES.fio),
         naves: mat64(CORES.naves), navesLuz: mat64(CORES.navesLuz, CORES.navesLuz, 0.6),
         mare: mat64(CORES.mare, CORES.mare, 0.15), mareEsc: mat64(CORES.mareEsc),
@@ -290,6 +378,17 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
         // aponta para onde vai — é o que faz o jogador ler a curva dele
         const alvo = new THREE.Vector3(p.x + p.vx, p.y + p.vy, p.z + p.vz);
         o.lookAt(alvo);
+        // O BUSCADOR PULSA e a CHAMA TREME. As duas em ritmos diferentes de
+        // propósito: em fase viram uma coisa só piscando, que é o que um
+        // marcador de posição faz. O pulso é lento o bastante para ser lido como
+        // varredura de radar, e a chama é rápida o bastante para ser fogo.
+        const g = o as THREE.Group;
+        const olho = g.getObjectByName('olho');
+        if (olho) olho.scale.setScalar(1 + Math.sin(t * 9 + p.id) * 0.35);
+        const chama = g.getObjectByName('chama');
+        if (chama) {
+            chama.scale.set(1, 0.75 + Math.abs(Math.sin(t * 31 + p.id)) * 0.6, 1);
+        }
         return;
     }
 

@@ -732,13 +732,56 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  * Determinístico de propósito: a simulação e os testes precisam poder repetir a
  * mesma luta, e "às vezes falha" é a pior coisa que um teste de padrão pode ter.
  */
-const ENSINO: ReadonlyArray<NomeDoAtaque> = Object.freeze([
-    'leque',        // o mais legível: cinco coisas abrindo em leque
-    'naves',        // o único que se resolve atirando
-    'teleguiado',   // o primeiro que exige manobra, e não posição
-    'mare',         // posicionamento, com uma fresta que passeia
-    'elevadores',   // vertical, o eixo que os outros quase não pedem
+/**
+ * ── O CHEFE COMEÇA COM UM ATAQUE SÓ ─────────────────────────────────────────
+ *
+ * A versão anterior mostrava UM DE CADA nos cinco primeiros ciclos. Isso
+ * resolveu um defeito real — dois dos cinco moravam atrás de metade da vida e
+ * ninguém nunca os via — e criou outro: o jogador levava os cinco padrões na
+ * cara nos primeiros trinta segundos, sem tempo de aprender nenhum. Cinco coisas
+ * novas seguidas não são um ensino, são um despejo.
+ *
+ * Agora cada padrão tem uma ABERTURA DE ENTRADA. O chefe abre a boca as duas
+ * primeiras vezes com o mesmo ataque — o leque, o mais legível — e o jogador
+ * tem duas repetições para entender a regra da coisa antes de a segunda regra
+ * existir. Daí em diante um padrão novo entra a cada duas aberturas, e os já
+ * conhecidos continuam voltando no meio.
+ *
+ * O ritmo é esse de propósito: um padrão novo é interessante na primeira vez e
+ * só vira VOCABULÁRIO na terceira. Intercalar o novo com os velhos é o que
+ * transforma cinco truques numa luta que se aprende.
+ *
+ * `entra` é o índice da abertura em que o padrão passa a existir.
+ */
+interface EntradaDoPadrao { nome: NomeDoAtaque; entra: number; }
+
+const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
+    // O ATAQUE PRIMÁRIO. Duas aberturas sozinho: uma para levar o susto, outra
+    // para descobrir que dá para passar entre eles.
+    { nome: 'leque', entra: 0 },
+    // manobra, e não posição: é a primeira vez que ficar parado no lugar certo
+    // não resolve
+    { nome: 'teleguiado', entra: 2 },
+    // o único que se resolve ATIRANDO — entra depois de o jogador já ter
+    // desviado de duas coisas, para a arma dele ter um motivo
+    { nome: 'naves', entra: 4 },
+    // posicionamento com uma fresta que passeia
+    { nome: 'mare', entra: 6 },
+    // o eixo VERTICAL, que os outros quase não pedem; é o último porque é o que
+    // mais depende de o jogador já ter entendido que pode subir e descer
+    { nome: 'elevadores', entra: 8 },
 ]);
+
+/** Quantos padrões já entraram na luta na abertura `n`. */
+export function padroesAtivos(n: number): NomeDoAtaque[] {
+    return ESCALADA.filter((e) => n >= e.entra).map((e) => e.nome);
+}
+
+/** Em que abertura o moveset dos cinco fica completo. */
+export const ABERTURA_DO_MOVESET_COMPLETO =
+    ESCALADA.reduce((m, e) => Math.max(m, e.entra), 0);
+
+const ENSINO: ReadonlyArray<NomeDoAtaque> = Object.freeze(ESCALADA.map((e) => e.nome));
 
 /** Um embaralhador determinístico e barato (hash inteiro -> 0..1). */
 function sorte(semente: number): number {
@@ -869,15 +912,78 @@ export function ataqueDaVez(n: number, desdeAVirada = -1): NomeDoAtaque {
     // cinco de propósito: o jogador acabou de ler um balão, e a novidade chega
     // no compasso seguinte, quando ele já voltou a jogar.
     if (desdeAVirada >= 0 && desdeAVirada % 3 === 1) return 'giratoria';
-    if (i < ENSINO.length) return ENSINO[i];
-    const k = i - ENSINO.length;
+
+    // ── A ESTREIA TEM PRIORIDADE ─────────────────────────────────────────
+    //
+    // Na abertura exata em que um padrão entra, é ELE que sai. Sem isto o
+    // sorteio podia adiar a estreia por várias aberturas e o jogador receberia
+    // a coisa nova num momento qualquer, no meio de outras — que é justamente a
+    // diferença entre apresentar e despejar.
+    const estreia = ESCALADA.find((e) => e.entra === i);
+    if (estreia) return estreia.nome;
+
+    // Antes de o moveset completar, o rodízio só pode tirar do que JÁ ENTROU.
+    if (padroesAtivos(i).length < ENSINO.length) return naEscalada(i);
+
     // (Havia aqui um parágrafo jurando que "A VIRADA NÃO ENTRA AQUI" e que o
     // parâmetro dela tinha sido removido. Ele sobreviveu ao commit que pôs a
     // virada exatamente aqui, oito linhas acima, e passou a contradizer o código
     // que o cercava — o mesmo defeito que esse commit celebrava ter matado em
     // outro arquivo. Um comentário sobre uma decisão morre com a decisão.)
+    const k = i - ENSINO.length;
     const ordem = blocoEmbaralhado(Math.floor(k / ENSINO.length));
     return ordem[k % ENSINO.length];
+}
+
+/**
+ * A sequência da ESCALADA — as aberturas antes de o moveset ficar completo.
+ *
+ * ── O PADRÃO MENOS RECENTE, E NÃO UM SORTEIO ─────────────────────────────────
+ *
+ * A primeira versão sorteava por hash entre os padrões ativos. O resultado, lido
+ * na sequência de verdade, foi: leque leque teleguiado leque naves leque mare
+ * leque elevadores leque. TODA abertura que não era estreia caía no ataque
+ * primário — porque o saco era pequeno, o anterior era sempre a estreia, e o
+ * que sobrava era quase sempre o mesmo.
+ *
+ * O jogador receberia o padrão novo uma vez e voltaria ao leque no compasso
+ * seguinte, o que é a caricatura do defeito que a escalada existe para
+ * consertar.
+ *
+ * Aqui não há sorteio: sai o padrão ATIVO HÁ MAIS TEMPO SEM APARECER. Isso
+ * rotaciona sozinho, garante que a coisa nova volte logo (ela é a mais recente,
+ * então vai para o fim da fila e volta quando a fila der a volta) e continua
+ * determinístico — a mesma partida dá a mesma ordem, que é o que deixa a luta
+ * ser aprendida.
+ */
+function naEscalada(ate: number): NomeDoAtaque {
+    const usados = new Map<NomeDoAtaque, number>();
+    let ultimo: NomeDoAtaque | null = null;
+    for (let i = 0; i <= ate; i++) {
+        const estreia = ESCALADA.find((e) => e.entra === i);
+        let q: NomeDoAtaque;
+        if (estreia) {
+            q = estreia.nome;
+        } else {
+            const ativos = padroesAtivos(i);
+            // o menos recente; empate fica com a ordem da escalada
+            let melhor = ativos[0], visto = usados.get(ativos[0]) ?? -1;
+            for (const a of ativos) {
+                const v = usados.get(a) ?? -1;
+                if (v < visto) { melhor = a; visto = v; }
+            }
+            // e ainda assim não pode emendar consigo mesmo
+            if (melhor === ultimo && ativos.length > 1) {
+                const outro = ativos.find((a) => a !== ultimo);
+                if (outro) melhor = outro;
+            }
+            q = melhor;
+        }
+        usados.set(q, i);
+        ultimo = q;
+        if (i === ate) return q;
+    }
+    return ESCALADA[0].nome;
 }
 
 // ── OS PROJÉTEIS ─────────────────────────────────────────────────────────────
@@ -1125,7 +1231,19 @@ export const TELEGUIADO = Object.freeze({
     velocidade: 8.0,
     /** Radianos por segundo de correção. Este número É a dificuldade. */
     curvaPorSegundo: 1.45,
-    raio: 0.42,
+    /**
+     * 0,42 -> 0,30.
+     *
+     * Aqui o defeito era ao contrário: o corpo do míssil tem Ø 0,44 e o dano
+     * tinha Ø 0,84 — quase o dobro. O jogador levava tiro de um ponto onde não
+     * havia míssil, e não há como descobrir isso jogando. O corpo engordou um
+     * pouco e o raio desceu para encontrá-lo.
+     *
+     * O FIO que ele arrasta continua sendo só rastro, e agora é fino o bastante
+     * para não ser lido como ameaça: ele tem 3,2 de comprimento e nunca cobrou
+     * dano nenhum.
+     */
+    raio: 0.30,
     /** Depois disto ele desiste e segue reto (senão ele orbita para sempre). */
     combustivel: 7.5,
 });
@@ -1192,7 +1310,14 @@ export const NAVES = Object.freeze({
     /** Bamboleio lateral, para elas não virem em linha reta. */
     ondaAmp: 1.6,
     ondaHz: 0.55,
-    raio: 0.55,
+    /**
+     * 0,55 -> 0,72.
+     *
+     * A asa da camareira tem 1,9 de ponta a ponta e o dano cobria 1,1: as
+     * pontas passavam por dentro do avião sem cobrar nada. A asa encolheu para
+     * caber (ver `silhuetaDe`) e o raio subiu para encontrá-la no meio.
+     */
+    raio: 0.72,
     hp: 2,
 });
 
@@ -1239,7 +1364,14 @@ export const MARE = Object.freeze({
      * larga uma fresta proporcional seria enorme e a onda deixaria de exigir
      * posicionamento. O piso (1,5) é o que garante que o avião passe.
      */
-    get fresta(): number { return Math.max(1.5, ARENA.x * 0.42); },
+    /**
+     * Alargada em `NAVE.raio` quando a colisão passou a contar a largura do
+     * avião: sem isso o corredor jogável encolheria de repente e a maré viraria
+     * o ataque mais difícil do andar por acidente de conserto, e não por
+     * decisão. O que se atravessa continua sendo o mesmo; a diferença é que
+     * agora é o corredor DESENHADO.
+     */
+    get fresta(): number { return Math.max(1.5, ARENA.x * 0.42) + NAVE.raio; },
     /**
      * A fresta passeia por X neste seno.
      *
@@ -1284,8 +1416,27 @@ export function frestaDaMare(m: Projetil): number {
 }
 
 /** A onda pegou quem está em `x`? (fora da fresta = pegou) */
-export function mareAcerta(m: Projetil, x: number): boolean {
-    return Math.abs(x - frestaDaMare(m)) > MARE.fresta;
+/**
+ * A onda pegou o avião?
+ *
+ * ── O AVIÃO TEM LARGURA, E A ONDA PRECISA SABER DISSO ────────────────────────
+ *
+ * Esta conta usava só o CENTRO do avião: `|x - fresta| > fresta`. A parede é
+ * desenhada terminando exatamente em `fresta ± MARE.fresta`, então o desenho e o
+ * dano concordavam no papel — e discordavam na tela, porque o avião tem meia
+ * envergadura. Com o centro na borda da fresta, metade da asa ficava DENTRO da
+ * parede desenhada e não acontecia nada.
+ *
+ * É o mesmo defeito que a cabine do elevador e a camareira tinham, com outra
+ * forma: o jogador vê a coisa atravessá-lo e conclui, corretamente, que os
+ * ataques deste chefe não acertam.
+ *
+ * Agora entra o raio de quem está passando. A fresta foi alargada no mesmo
+ * tanto (ver `MARE.fresta`), então o corredor que dá para atravessar continua o
+ * mesmo — o que mudou é que ele agora é o corredor que se VÊ.
+ */
+export function mareAcerta(m: Projetil, x: number, raio = 0): boolean {
+    return Math.abs(x - frestaDaMare(m)) + raio > MARE.fresta;
 }
 
 // ── ATAQUE 5: A ESPINHA (cabines de elevador caindo) ─────────────────────────
@@ -1316,7 +1467,15 @@ export const ELEVADORES = Object.freeze({
      * do jogador — cairiam a fase inteira sem nunca ameaçar ninguém.
      */
     get quedaPorSegundo() { return -descidaAte(meioY(), ELEVADORES.velocidadeZ); },
-    raio: 0.62,
+    /**
+     * 0,62 -> 0,80.
+     *
+     * A cabine é desenhada com 1,5 de largura — é o ataque, e um elevador magro
+     * não seria um elevador. Com Ø 1,24 de hitbox sobravam 13 cm de cada lado em
+     * que o jogador estava DENTRO da cabine e não levava nada. Agora a malha sai
+     * de `silhuetaDe(raio)` e o dano cobre o que se vê.
+     */
+    raio: 0.80,
 });
 
 export const xDaFaixa = (i: number): number =>
@@ -1810,7 +1969,8 @@ export function dispararCarregado(n: Nave): Projetil | null {
 // X/Y com uma janela em Z. A maré é a exceção e tem a regra dela.
 export function encostou(p: Projetil, x: number, y: number, raio: number): boolean {
     if (Math.abs(p.z - ARENA.zNave) > (p.r + 0.9)) return false;
-    if (p.tipo === 'mare') return mareAcerta(p, x);
+    // o raio de quem está passando ENTRA na conta da onda: ver `mareAcerta`
+    if (p.tipo === 'mare') return mareAcerta(p, x, raio);
     return Math.hypot(p.x - x, p.y - y) < p.r + raio;
 }
 
@@ -1998,6 +2158,51 @@ export function tombamentoDaMorte(t: number): number {
 /** A cena acabou e é hora do balão? */
 export function aMorteAcabou(t: number): boolean {
     return t >= MORTE.duracao;
+}
+
+/**
+ * ── O QUE SE VÊ TEM DE SER O QUE MACHUCA ─────────────────────────────────────
+ *
+ * O dono do jogo relatou que vários ataques "não acertam de forma confiável".
+ * Medido no navegador, comparando o raio de colisão de cada projétil com a
+ * caixa da malha que o representa, o defeito é este — e é o mesmo em quase
+ * todos:
+ *
+ *     cabine do elevador   malha 1,50-1,60 de largura   hitbox Ø 1,24
+ *     camareira            asa 1,90 de ponta a ponta    hitbox Ø 1,10
+ *     míssil teleguiado    corpo Ø 0,44                 hitbox Ø 0,84
+ *
+ * Nos dois primeiros o jogador atravessa a coisa desenhada e NÃO leva dano — o
+ * ataque "passou por dentro dele". No terceiro é o contrário: ele leva dano de
+ * um lugar onde não há míssil nenhum. São o mesmo defeito com sinais trocados,
+ * e nenhum dos dois tem conserto pelo lado do jogador, porque a informação que
+ * ele recebe está errada.
+ *
+ * ── E POR QUE ISSO VOLTOU A ACONTECER ────────────────────────────────────────
+ *
+ * Porque a regra morava aqui e o desenho morava em `Floor12Projeteis`, e as duas
+ * podiam divergir em silêncio. É o mesmo gênero de defeito que já pôs a boca do
+ * chefe num lugar e a mira dela noutro.
+ *
+ * `SILHUETA` é a ponte: ela é a MEIA-LARGURA que a malha tem de ter, derivada do
+ * raio de colisão. O renderizador constrói os projéteis a partir daqui, e um
+ * teste confere a relação. Para divergirem de novo é preciso mudar este arquivo.
+ *
+ * A folga é a favor do jogador, e é pequena de propósito: a malha pode ser um
+ * pouco MENOR que a hitbox (o dano cobre tudo o que se vê, e um fio a mais),
+ * nunca maior. `FOLGA_DO_DESENHO` é quanto.
+ */
+export const FOLGA_DO_DESENHO = 0.9;
+
+/**
+ * A meia-largura que a MALHA de cada padrão deve ter, em unidades de mundo.
+ *
+ * Quem desenha lê daqui. Se um projétil precisa parecer maior do que isto, o
+ * caminho é aumentar o RAIO DE COLISÃO dele — e pagar o preço em dificuldade,
+ * conscientemente — e não desenhar por fora do dano.
+ */
+export function silhuetaDe(raio: number): number {
+    return raio * FOLGA_DO_DESENHO;
 }
 
 // ── O ESTADO VIVO ────────────────────────────────────────────────────────────

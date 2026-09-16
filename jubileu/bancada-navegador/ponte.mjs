@@ -45,7 +45,11 @@ const tipo = (url) => (url.endsWith('.js') || url.endsWith('.mjs') ? 'text/javas
  */
 export function abrirPonte({
     cache = '/tmp/ponte',
-    porta = 3421,
+    // ── A PORTA SAI DO AMBIENTE ─────────────────────────────────────────────
+    // Com vários agentes rodando bancadas ao mesmo tempo, uma porta fixa dá
+    // EADDRINUSE e a bancada morre sem medir nada. `PONTE_PORTA` deixa cada
+    // processo escolher a sua; o padrão continua o de sempre.
+    porta = Number(process.env.PONTE_PORTA ?? 3421),
     guardarGrandes = 1,
     registrar = console.log,
     // Repetir a bancada custa o download inteiro de novo — 2,6 GB só da fala.

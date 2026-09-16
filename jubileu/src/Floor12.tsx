@@ -55,7 +55,7 @@ import {
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
     tocarRaspao, tocarCarregado, tocarTrilha, intensificarTrilha, pararTrilha,
-    tocarEstouro, tocarQueda,
+    tocarEstouro, tocarQueda, atualizarMotor,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -489,6 +489,13 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const e = F.entrada.current;
         if (lutando) conduzirNave(n, e.x, e.y, dt);
         passoDaNave(n, dt);
+        // ── O MOTOR SEGUE A MANOBRA ──────────────────────────────────────
+        // Sem isto o motor era um zumbido constante e o áudio não sabia que o
+        // avião estava manobrando: o som inferia a manobra do gatilho, que é
+        // outra coisa. `NAVE.velocidade` é o teto do que ele consegue fazer,
+        // então a razão dá o acelerador real. (`velocidadeDoAlvo` é a rapidez com que
+        // o alvo persegue o dedo — é o teto prático da manobra.)
+        atualizarMotor(Math.hypot(n.vx, n.vy) / NAVE.velocidadeDoAlvo, n.rolagem);
         // O irmão é um ALA: ele acompanha o jogador com atraso e desvia do que
         // estiver mais perto dele. Não é uma IA esperta — é uma presença.
         if (lutando) {
