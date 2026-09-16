@@ -235,6 +235,48 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
     ATAQUES.find((a) => a.nome === n) ?? ATAQUES[0];
 
 /**
+ * ── A ESCALADA: O CHEFE COMEÇA COM UM ATAQUE SÓ ─────────────────────────────
+ *
+ * Antes, três padrões rodavam desde a PRIMEIRA abertura e os outros dois moravam
+ * atrás dos 50% de vida. As duas metades disso eram defeito:
+ *
+ *  - três coisas novas nos primeiros quinze segundos não são um ensino, são um
+ *    despejo. O jogador não tem tempo de aprender a regra de nenhuma antes de a
+ *    próxima chegar;
+ *  - e medido jogando, a luta inteira leva minutos. Os dois padrões trancados
+ *    atrás da metade da vida eram, na prática, conteúdo que quase ninguém via —
+ *    exatamente o oposto de "guardar o melhor para depois".
+ *
+ * Agora cada padrão tem uma ABERTURA DE ENTRADA. A boca abre duas vezes com o
+ * mesmo ataque — o leque, o mais legível — e só então existe uma segunda regra.
+ * Daí em diante entra um padrão novo a cada duas aberturas, e os já conhecidos
+ * continuam voltando no meio: um truque novo é interessante na primeira vez e só
+ * vira VOCABULÁRIO na terceira.
+ *
+ * A VIRADA deixa de ser a estreia de dois ataques e passa a ser o que ela devia
+ * ser: a mesma luta, mais apertada. Quem entrega isso é a pressão, não o
+ * catálogo.
+ */
+interface EntradaDoPadrao { nome: NomeDoAtaque; entra: number; }
+
+const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
+    { nome: 'leque', entra: 0 },        // o ATAQUE PRIMÁRIO, e o mais legível
+    { nome: 'teleguiado', entra: 2 },   // manobra, e não posição
+    { nome: 'naves', entra: 4 },        // o único que se resolve ATIRANDO
+    { nome: 'mare', entra: 6 },         // posicionamento, com uma fresta que anda
+    { nome: 'elevadores', entra: 8 },   // o eixo VERTICAL, que os outros não pedem
+]);
+
+/** Quais padrões já entraram na luta, na abertura `n`. */
+export function padroesAtivos(n: number): NomeDoAtaque[] {
+    return ESCALADA.filter((e) => n >= e.entra).map((e) => e.nome);
+}
+
+/** Em que abertura o moveset dos cinco fica completo. */
+export const ABERTURA_DO_MOVESET_COMPLETO =
+    ESCALADA.reduce((m, e) => Math.max(m, e.entra), 0);
+
+/**
  * Qual ataque cai na `n`-ésima abertura de boca.
  *
  * NÃO é sorteio. Um chefe sorteado é injusto de um jeito que o jogador sente e
@@ -242,17 +284,43 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  * combo impossível. Isto é um RODÍZIO — a mesma partida dá a mesma ordem, e o
  * jogador pode aprender a luta, que é a única coisa que torna um chefe justo.
  *
- * Antes da virada rodam os três primeiros. Depois, os cinco — e os dois novos
- * entram logo na virada, para a mudança ser sentida no ato.
+ * Na abertura em que um padrão ENTRA, é ele que sai: sem isso o rodízio podia
+ * adiar a estreia e a coisa nova chegaria no meio de outras, que é a diferença
+ * entre apresentar e despejar.
+ *
+ * Fora das estreias sai o padrão ATIVO HÁ MAIS TEMPO SEM APARECER. Rotaciona
+ * sozinho, faz a novidade voltar logo, e continua determinístico.
  */
-export function ataqueDaVez(n: number, depoisDaVirada: boolean): NomeDoAtaque {
-    const i = Math.max(0, Math.floor(n));
-    if (!depoisDaVirada) return ATAQUES[i % 3].nome;
-    // A ordem depois da virada intercala os novos com os velhos, para nenhum
-    // par de ataques novos cair colado (dois padrões desconhecidos seguidos é
-    // onde um chefe deixa de ensinar e passa a punir).
-    const ordem: NomeDoAtaque[] = ['mare', 'leque', 'elevadores', 'teleguiado', 'mare', 'naves', 'elevadores', 'leque'];
-    return ordem[i % ordem.length];
+export function ataqueDaVez(n: number, depoisDaVirada = false): NomeDoAtaque {
+    void depoisDaVirada;   // a virada muda a PRESSÃO, não o catálogo
+    const ate = Math.max(0, Math.floor(n));
+    const usados = new Map<NomeDoAtaque, number>();
+    let ultimo: NomeDoAtaque | null = null;
+    for (let i = 0; i <= ate; i++) {
+        const estreia = ESCALADA.find((e) => e.entra === i);
+        let q: NomeDoAtaque;
+        if (estreia) {
+            q = estreia.nome;
+        } else {
+            const ativos = padroesAtivos(i);
+            let melhor = ativos[0], visto = usados.get(ativos[0]) ?? -1;
+            for (const a of ativos) {
+                const v = usados.get(a) ?? -1;
+                if (v < visto) { melhor = a; visto = v; }
+            }
+            // e nem assim pode emendar consigo mesmo — salvo na repetição de
+            // estreia do primário, que é de propósito
+            if (melhor === ultimo && ativos.length > 1) {
+                const outro = ativos.find((a) => a !== ultimo);
+                if (outro) melhor = outro;
+            }
+            q = melhor;
+        }
+        usados.set(q, i);
+        ultimo = q;
+        if (i === ate) return q;
+    }
+    return ESCALADA[0].nome;
 }
 
 // ── OS PROJÉTEIS ─────────────────────────────────────────────────────────────
@@ -538,7 +606,16 @@ export const TIRO = Object.freeze({
     raio: 0.36,
     /** Segundos entre tiros. */
     cadencia: 0.16,
-    dano: 1.0,
+    /**
+     * 1,0 -> 1,8.
+     *
+     * Medido no navegador, com um bot jogando o ciclo de carga certo: 100
+     * acertos em 95 s, 1,09 de dano por acerto, 1,15 de dano por segundo. A 240
+     * de vida isso projeta uma luta de 210 SEGUNDOS — três minutos e meio de
+     * chefe, com o mesmo punhado de padrões se repetindo. Um chefe longo não é
+     * um chefe difícil, é um chefe cansativo.
+     */
+    dano: 1.2,
     /** O irmão atira mais devagar e mais fraco: ele é ala, não protagonista. */
     cadenciaIrmao: 0.34,
     danoIrmao: 0.6,
@@ -575,7 +652,33 @@ export function nascerTiro(
     };
 }
 
-export const MISSEL_CARREGADO = Object.freeze({ dano: 8, velocidade: 28, raio: .48 });
+/**
+ * O prêmio dos 100% de carga.
+ *
+ * 8 -> 14 de dano, contra 1,8 do tiro comum: quase OITO TIROS numa coisa só. O
+ * número subiu junto com a carga ficar alcançável (ver `FLIGHT_WEAPON`) — antes
+ * ele era generoso no papel e nunca era cobrado, porque o míssil não saía.
+ *
+ * Ele precisa ser desproporcional de propósito: quem fica parado no meio de uma
+ * luta de desvio está pagando com risco, e o pagamento tem de se ver na barra de
+ * vida do chefe, num salto que o jogador consiga apontar com o dedo.
+ */
+/** Quantas vezes o míssil vale um tiro comum. É o prêmio, e é o contrato. */
+export const MULTIPLICADOR_DO_MISSEL = 10;
+
+export const MISSEL_CARREGADO = Object.freeze({
+    /**
+     * DERIVADO de `TIRO.dano`, e não escrito à mão.
+     *
+     * Ele era 8 contra um tiro de 1,0. Quando o tiro mudou de valor, a razão
+     * mudou junto sem ninguém decidir — e havia um teste cravando "oito vezes"
+     * que passou a reprovar por causa da aritmética, não do projeto. Derivando,
+     * a razão é a coisa fixa, que é o que o projeto realmente quer dizer.
+     */
+    dano: +(TIRO.dano * MULTIPLICADOR_DO_MISSEL).toFixed(3),
+    velocidade: 28,
+    raio: .48,
+});
 
 export function nascerMissilCarregado(x: number, y: number): Projetil {
     return { ...nascerTiro(x, y, 'jogador'), x, y: y - .08, z: ARENA.zNave - 1.2,

@@ -1,5 +1,19 @@
-/** Contact-controlled gun. Waiting banks a short, bounded volley on movement. */
-export const FLIGHT_WEAPON = { cadence: .16, burstCadence: .045, chargeLimit: 4, roundsPerSecond: 4 };
+/**
+ * Contact-controlled gun. Waiting banks a short, bounded volley on movement.
+ *
+ * ── `chargeLimit` CAIU DE 4 s PARA 2,4 s, E ISSO É UM CONSERTO DE PROJETO ────
+ *
+ * Encher a carga exige ficar PARADO com o dedo na tela. A 4 s, isso pedia quatro
+ * segundos de imobilidade no meio de uma salva do chefe — ou seja, pedia
+ * exatamente a coisa que mata. Medido com um bot que joga o ciclo certo (fica
+ * parado, depois manobra), a carga chegava a 2,45 de 4 e o MÍSSIL NUNCA SAÍA:
+ * em 95 s de luta, zero.
+ *
+ * O prêmio de 100% não pode ser teórico. A 2,4 s ele cabe na folga entre duas
+ * aberturas de boca, que é o momento em que o jogador de verdade tem para
+ * respirar — e continua custando risco, porque parar continua sendo parar.
+ */
+export const FLIGHT_WEAPON = { cadence: .16, burstCadence: .045, chargeLimit: 2.4, roundsPerSecond: 4 };
 
 export type FlightWeapon = {
   charge: number;

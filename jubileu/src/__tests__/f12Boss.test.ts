@@ -3,7 +3,7 @@ import {
     ARENA, meioY, dentroDaArena,
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
-    ATAQUES, ataqueDaVez, fichaDoAtaque,
+    ATAQUES, ataqueDaVez, fichaDoAtaque, padroesAtivos, ABERTURA_DO_MOVESET_COMPLETO,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
@@ -112,24 +112,46 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         expect(a).toEqual(b);
     });
 
-    it('antes da virada só rodam os três primeiros', () => {
-        const vistos = new Set<NomeDoAtaque>();
-        for (let i = 0; i < 30; i++) vistos.add(ataqueDaVez(i, false));
-        expect(vistos).toEqual(new Set(['leque', 'teleguiado', 'naves']));
+    // ── O CONTRATO MUDOU: A ESCALADA ────────────────────────────────────
+    //
+    // Antes eram três padrões desde a PRIMEIRA abertura e dois trancados atrás
+    // dos 50% de vida. As duas metades eram defeito: três coisas novas em quinze
+    // segundos é despejo, e — medido jogando — a luta leva minutos, então o que
+    // mora atrás da metade da vida é conteúdo que quase ninguém vê.
+    it('o chefe começa com UM ataque, e ele se repete para poder ser aprendido', () => {
+        expect(ataqueDaVez(0)).toBe('leque');
+        expect(ataqueDaVez(1), 'o primário não teve uma segunda vez').toBe('leque');
+        expect(padroesAtivos(0), 'a luta começou com mais de um padrão').toEqual(['leque']);
     });
 
-    it('depois da virada os cinco entram, e os dois novos vêm logo', () => {
-        const primeiros = Array.from({ length: 8 }, (_, i) => ataqueDaVez(i, true));
-        expect(primeiros[0]).toBe('mare');                      // a virada é sentida no ato
-        const vistos = new Set(Array.from({ length: 24 }, (_, i) => ataqueDaVez(i, true)));
+    it('cada padrão ESTREIA na abertura em que entra', () => {
+        expect(ataqueDaVez(2)).toBe('teleguiado');
+        expect(ataqueDaVez(4)).toBe('naves');
+        expect(ataqueDaVez(6)).toBe('mare');
+        expect(ataqueDaVez(8)).toBe('elevadores');
+    });
+
+    it('nada aparece antes de ter entrado', () => {
+        for (let i = 0; i < ABERTURA_DO_MOVESET_COMPLETO; i++) {
+            expect(padroesAtivos(i), `a abertura ${i} cuspiu um padrão que não entrou`)
+                .toContain(ataqueDaVez(i));
+        }
+    });
+
+    it('e os cinco estão ativos ANTES da virada', () => {
+        // O ponto da escalada é não esconder conteúdo atrás da metade da vida.
+        const vistos = new Set(Array.from({ length: ABERTURA_DO_MOVESET_COMPLETO + 1 },
+            (_, i) => ataqueDaVez(i)));
         expect(vistos.size).toBe(5);
     });
 
-    it('nenhum par de ataques NOVOS cai colado — chefe que ensina, não que pune', () => {
-        const novos = new Set(ATAQUES.filter((a) => a.depoisDaVirada).map((a) => a.nome));
-        for (let i = 0; i < 40; i++) {
-            const a = ataqueDaVez(i, true), b = ataqueDaVez(i + 1, true);
-            expect(novos.has(a) && novos.has(b), `${i}: ${a} → ${b}`).toBe(false);
+    it('nenhum padrão emenda consigo mesmo — fora a repetição de estreia', () => {
+        // A abertura 1 é a ÚNICA exceção: ela repete o primário de propósito,
+        // para o jogador ler a mesma coisa duas vezes antes de existir uma
+        // segunda coisa.
+        expect(ataqueDaVez(0)).toBe(ataqueDaVez(1));
+        for (let i = 2; i < 40; i++) {
+            expect(ataqueDaVez(i), `${i} repete ${ataqueDaVez(i)}`).not.toBe(ataqueDaVez(i - 1));
         }
     });
 

@@ -833,6 +833,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     if (import.meta.env?.DEV && typeof window !== 'undefined') {
                         const w = window as unknown as Record<string, unknown>;
                         w.__f12cam = camera; w.__f12cena = scene; w.__THREE = THREE;
+                        // O RENDERER também: `info.render.calls` é a única
+                        // medida honesta de custo de cena. Contar malhas visíveis
+                        // engana, porque o culling derruba boa parte delas antes
+                        // de virarem chamada — e foi contando malha que eu quase
+                        // saí otimizando a coisa errada.
+                        w.__f12gl = gl;
                     }
                 }}
             >
