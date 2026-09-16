@@ -5,7 +5,14 @@
 // passada do andar 3: o que estou olhando é uma coreografia de segundos, não um
 // ciclo de 12 Hz.
 //
-//   node bancada-navegador/ver-o-andar-12.mjs [saida.png]
+//   LUTAR=1 node bancada-navegador/ver-o-andar-12.mjs [saida.png]
+//
+// ── `LUTAR=1` NÃO É OPCIONAL SE VOCÊ QUER VER A LUTA ─────────────────────────
+//
+// Sem ele a rajada inteira fotografa o `encontro` e a conclusão natural de quem
+// olha a folha é "o andar travou". Aconteceu: nove quadros idênticos do rosto do
+// TROCO-63, com a mesma fala, e vinte minutos investigando um congelamento que
+// não existia. O balão avança um clique por FALA, e são várias.
 import { chromium } from 'playwright';
 import { abrirPonte } from './ponte.mjs';
 import { execFileSync } from 'node:child_process';
