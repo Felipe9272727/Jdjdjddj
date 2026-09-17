@@ -402,6 +402,10 @@ interface Ferramentas {
     sacode: React.MutableRefObject<number>;
     /** 1 no quadro do lançamento do míssil, e decai. */
     clarao: React.MutableRefObject<number>;
+    /** 1 no quadro em que o jogador leva um toque, e decai. */
+    baque: React.MutableRefObject<number>;
+    /** Quantos toques o jogador já levou. SÓ SOBE — ver `BordaSangrando`. */
+    baques: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
     cinemaClock: React.MutableRefObject<number>;
@@ -596,7 +600,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             }
             // ataque × jogador
             if (encostou(p, n.x, n.y, NAVE.raio) && tomarToque(n)) {
-                F.sacode.current = 1; tocarDano();
+                F.sacode.current = 1; F.baque.current = 1; F.baques.current++; tocarDano();
                 if (p.tipo !== 'mare') mortos.add(p.id);
                 if (n.vidas <= 0) { acabar(F, 'derrota'); return; }
                 F.avisar();
@@ -823,6 +827,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const flash = useRef(0);
     const sacode = useRef(0);
     const clarao = useRef(0);
+    const baque = useRef(0);
+    const baques = useRef(0);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -1052,8 +1058,17 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <CameraDaLuta irmaoRef={irmao} naveRef={nave} camRef={cam} introProgressRef={introProgress}
                     introAtivaRef={introAtiva} sacodeRef={sacode} cinemaClock={cinemaClock} />
                 <DiretorDaLuta touchAtivo={touchAtivo} gatilho={gatilho} arma={arma} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} sacode={sacode} clarao={clarao} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
-                <ClaraoDoLancamento clarao={clarao} nave={nave} />
+                    flash={flash} sacode={sacode} clarao={clarao} baque={baque} baques={baques} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
+                {/* o clarão do disparo do míssil: dourado, para a frente */}
+                <Estouro vida={clarao} nave={nave} cor="#ffd98a" />
+                {/* ── O BAQUE ──
+                    Levar dano era `sacode` mais um pisca-pisca de visibilidade
+                    no avião, e mais nada: nenhuma faísca, nenhuma fumaça, nada
+                    na borda da tela. Num jogo todo em azul-escuro, o único
+                    elemento saturado era o brilho da boca — ou seja NADA
+                    estourava no contato, nos dois sentidos. Este é laranja,
+                    maior, mais lento, e nasce EM CIMA do avião. */}
+                <Estouro vida={baque} nave={nave} cor="#ff8a3c" raio={.85} cresce={3.2} dz={.2} velocidade={2.4} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
 
@@ -1122,6 +1137,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
+            {fase === 'luta' && <BordaSangrando baques={baques} />}
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
                 <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
@@ -1205,31 +1221,82 @@ const DicaDeControle: React.FC = () => {
  * Desenhado com `depthWrite` desligado e material básico: ele é LUZ, e luz não
  * recorta o que está atrás dela.
  */
-const ClaraoDoLancamento: React.FC<{
-    clarao: React.MutableRefObject<number>;
+const Estouro: React.FC<{
+    vida: React.MutableRefObject<number>;
     nave: React.MutableRefObject<Nave>;
-}> = ({ clarao, nave }) => {
+    cor: string;
+    raio?: number;
+    cresce?: number;
+    dz?: number;
+    velocidade?: number;
+}> = ({ vida, nave, cor, raio = .6, cresce = 2.4, dz = -1.4, velocidade = 3.6 }) => {
     const ref = useRef<THREE.Mesh>(null);
     useFrame((_, rawDt) => {
         const m = ref.current;
         if (!m) return;
-        clarao.current = Math.max(0, clarao.current - Math.min(rawDt, .05) * 3.6);
-        const c = clarao.current;
+        vida.current = Math.max(0, vida.current - Math.min(rawDt, .05) * velocidade);
+        const c = vida.current;
         m.visible = c > 0.02;
         if (!m.visible) return;
         const n = nave.current;
-        m.position.set(n.x, n.y, ARENA.zNave - 1.4);
-        // cresce enquanto apaga: é assim que clarão lê como estouro, e não
+        m.position.set(n.x, n.y, ARENA.zNave + dz);
+        // cresce enquanto apaga: é assim que estouro lê como estouro, e não
         // como uma bola que encolhe
-        m.scale.setScalar(0.5 + (1 - c) * 2.4);
+        m.scale.setScalar(0.5 + (1 - c) * cresce);
         (m.material as THREE.MeshBasicMaterial).opacity = c * c;
     });
     return (
         <mesh ref={ref} visible={false}>
-            <sphereGeometry args={[.6, 12, 8]} />
-            <meshBasicMaterial color="#ffd98a" transparent opacity={0} depthWrite={false} toneMapped={false} />
+            <sphereGeometry args={[raio, 12, 8]} />
+            <meshBasicMaterial color={cor} transparent opacity={0} depthWrite={false} toneMapped={false} />
         </mesh>
     );
+};
+
+/**
+ * A BORDA DA TELA SANGRA, e ela sangra só na BORDA de propósito.
+ *
+ * Levar dano não tinha linguagem de tela nenhuma: o avião piscava (um
+ * `visible = false` cru, que é a coisa mais barata que existe) e a câmera
+ * sacudia. Num andar inteiro em azul-escuro com janelas quentes, o único
+ * elemento saturado era o brilho da boca — nada estourava no contato.
+ *
+ * O vermelho fica num anel de fora com o meio transparente porque o centro do
+ * quadro é onde estão a boca e os projéteis, e tapar isso para avisar de um
+ * dano que o jogador ACABOU de tomar seria cobrar duas vezes pelo mesmo erro.
+ *
+ * ── E O GATILHO É UM CONTADOR, PORQUE O LIMIAR NÃO FUNCIONOU ────────────────
+ *
+ * A primeira versão vigiava `baque.current > 0.9` a cada 40 ms. Só que `baque`
+ * decai a 2,4 por segundo, então ele passa de 0,9 em pouco mais de 40 ms — a
+ * janela e o intervalo tinham o MESMO tamanho, e na prática a vinheta quase
+ * nunca disparava. Fotografado, o estouro laranja aparecia e a borda não.
+ *
+ * Um contador que só sobe não tem janela para perder: qualquer poll depois do
+ * toque vê o número diferente. E toques em sequência viram remontagens
+ * distintas, o que faz a animação de CSS rodar do começo em cada um.
+ */
+const BordaSangrando: React.FC<{ baques: React.MutableRefObject<number> }> = ({ baques }) => {
+    const [n, setN] = useState(0);
+    useEffect(() => {
+        const id = window.setInterval(() => setN(baques.current), 40);
+        return () => window.clearInterval(id);
+    }, [baques]);
+    if (n === 0) return null;
+    return <div key={n} aria-hidden style={{
+        // z ACIMA do canvas. Com 2 o elemento existia, o DOM dizia opacidade 1,
+        // e a foto não tinha vermelho nenhum: ele estava sendo pintado ATRÁS da
+        // cena. "Está no DOM" não é "está na tela".
+        position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 38%, rgba(214,46,36,0.78) 100%)',
+        // SEGURA antes de apagar. A 0,52 s com apagamento imediato, o flash
+        // durava uns cinco quadros num aparelho fraco e era fácil de perder
+        // completamente — que é o oposto do que um aviso de dano serve para
+        // fazer. Ele fica cheio por um quarto do tempo e só então some.
+        animation: 'f12sangra 0.9s ease-out forwards',
+    }}>
+        <style>{'@keyframes f12sangra { 0%, 25% { opacity: 1 } 100% { opacity: 0 } }'}</style>
+    </div>;
 };
 
 /** Mostra o avião quando a câmera já saiu de dentro do hóspede. */
