@@ -44,6 +44,7 @@ import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
 import { newFlightWeapon, stepFlightWeapon, type FlightWeapon } from './f12FlightWeapon';
+import { Floor12Estilhacos, type PedidoDeEstilhaco } from './Floor12Estilhacos';
 import { f12IntroCamera, f12ChaseDistance } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
@@ -425,6 +426,8 @@ interface Ferramentas {
     baque: React.MutableRefObject<number>;
     /** Quantos toques o jogador já levou. SÓ SOBE — ver `BordaSangrando`. */
     baques: React.MutableRefObject<number>;
+    /** A fila de estilhaços que a cena empilha e `Floor12Estilhacos` consome. */
+    estilhacos: React.MutableRefObject<PedidoDeEstilhaco[]>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
     cinemaClock: React.MutableRefObject<number>;
@@ -599,8 +602,16 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     if (Math.hypot(p.x - q.x, p.y - q.y) < q.r + p.r && Math.abs(p.z - q.z) < 1.2) {
                         q.hp = (q.hp ?? 1) - (p.carregado ? danoDoTiro(p) : 1);
                         mortos.add(p.id);
-                        if ((q.hp ?? 0) <= 0) { mortos.add(q.id); tocarExplosao(); }
-                        else tocarAcerto();
+                        if ((q.hp ?? 0) <= 0) {
+                            mortos.add(q.id); tocarExplosao();
+                            // A camareira SUMIA do quadro com um som. O jogador
+                            // derruba dezenas delas por luta e nenhuma delas
+                            // deixava rastro nenhum na tela.
+                            F.estilhacos.current.push({ x: q.x, y: q.y, z: q.z, cor: '#cfd8dc', forca: 1.8 });
+                        } else {
+                            tocarAcerto();
+                            F.estilhacos.current.push({ x: p.x, y: p.y, z: p.z, cor: '#ffd36b', forca: .7 });
+                        }
                         break;
                     }
                 }
@@ -610,6 +621,14 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                     mortos.add(p.id);
                     const virou = ferir(danoDoTiro(p));
                     F.flash.current = 1;
+                    // Acertar a boca pintava a cabeça de branco por um quadro e
+                    // mais nada. A faísca nasce NO PONTO do tiro, então ela diz
+                    // onde acertou, e não só que acertou.
+                    F.estilhacos.current.push({
+                        x: p.x, y: p.y, z: p.z,
+                        cor: p.carregado ? '#ffd575' : '#9fe8ff',
+                        forca: p.carregado ? 2.4 : 1,
+                    });
                     if (p.carregado) { F.sacode.current = .25; tocarExplosao(); } else tocarAcerto();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) { acabar(F, 'vitoria'); return; }
@@ -863,6 +882,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const baque = useRef(0);
     const baques = useRef(0);
     const reentrada = useRef(0);
+    const estilhacos = useRef<PedidoDeEstilhaco[]>([]);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -1098,8 +1118,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <CameraDaLuta irmaoRef={irmao} naveRef={nave} camRef={cam} introProgressRef={introProgress}
                     introAtivaRef={introAtiva} sacodeRef={sacode} cinemaClock={cinemaClock} />
                 <DiretorDaLuta touchAtivo={touchAtivo} gatilho={gatilho} arma={arma} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} sacode={sacode} clarao={clarao} baque={baque} baques={baques} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
+                    flash={flash} sacode={sacode} clarao={clarao} baque={baque} baques={baques} estilhacos={estilhacos} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
                 {/* o clarão do disparo do míssil: dourado, para a frente */}
+                <Floor12Estilhacos fila={estilhacos} />
                 <Estouro vida={clarao} nave={nave} cor="#ffd98a" />
                 {/* ── O BAQUE ──
                     Levar dano era `sacode` mais um pisca-pisca de visibilidade
