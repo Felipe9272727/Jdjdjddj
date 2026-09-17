@@ -108,8 +108,8 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     // Um chefe sorteado é injusto de um jeito que o jogador sente e não
     // consegue nomear. O rodízio deixa a luta APRENDÍVEL.
     it('a ordem é determinística: a mesma partida dá a mesma sequência', () => {
-        const a = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, false));
-        const b = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, false));
+        const a = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, 7));
+        const b = Array.from({ length: 20 }, (_, i) => ataqueDaVez(i, 7));
         expect(a).toEqual(b);
     });
 
@@ -188,8 +188,8 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     });
 
     it('índice sujo não quebra o rodízio', () => {
-        expect(() => ataqueDaVez(-3, false)).not.toThrow();
-        expect(ATAQUES.map((a) => a.nome)).toContain(ataqueDaVez(-3, true));
+        expect(() => ataqueDaVez(-3, 7)).not.toThrow();
+        expect(ATAQUES.map((a) => a.nome)).toContain(ataqueDaVez(-3, 7));
         expect(fichaDoAtaque('mare').grito).toBe('A MARÉ DO 2º');
     });
 });
@@ -763,7 +763,10 @@ describe('a virada não pode rebobinar a escalada', () => {
     // eixo vertical — nunca saía num jogo inteiro, `mare` saía uma vez por
     // metade, e o leque ficava com mais da metade das aberturas. E a fala da
     // virada anuncia "dois padrões novos".
-    const sequencia = (aberturas: number, zerarEm: number): NomeDoAtaque[] => {
+    // `zerarEm` é onde o relógio da ANIMAÇÃO é zerado; `viradaEm` é onde a
+    // escalada destranca os dois últimos padrões. São coisas diferentes, e o
+    // ponto do teste é justamente que a primeira não pode mexer na segunda.
+    const sequencia = (aberturas: number, zerarEm: number, viradaEm = 7): NomeDoAtaque[] => {
         const st = { aberturas: 0 } as F12State;
         const fora: NomeDoAtaque[] = [];
         let visto = -1, ciclo = 0;
@@ -771,7 +774,7 @@ describe('a virada não pode rebobinar a escalada', () => {
             if (i === zerarEm) { ciclo = 0; visto = -1; }   // a virada zera `bocaT`
             const n = marcarAbertura(visto, ciclo, st);
             visto = ciclo; ciclo++;
-            fora.push(ataqueDaVez(n, i >= zerarEm));
+            fora.push(ataqueDaVez(n, viradaEm));
         }
         return fora;
     };
@@ -784,7 +787,9 @@ describe('a virada não pode rebobinar a escalada', () => {
     });
 
     it('zerar o relógio da animação não muda o rodízio', () => {
+        // mesma virada nos dois; só muda ONDE o relógio da animação zerou
         expect(sequencia(15, 7)).toEqual(sequencia(15, 99));
+        expect(sequencia(15, 3)).toEqual(sequencia(15, 99));
     });
 
     it('marcarAbertura conta uma vez por ciclo, e não uma por quadro', () => {
