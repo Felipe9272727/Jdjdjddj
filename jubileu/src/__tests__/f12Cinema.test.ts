@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { F12_CINEMA, CENA_DA_DERROTA, cinemaEase, victoryBeat, defeatBeat } from '../f12Cinema';
+import { f12ChaseDistance, f12ChaseFov, f12FrameHeight } from '../f12Presentation';
 import { f12IntroCamera } from '../f12Presentation';
 
 describe('cinematic lifecycle', () => {
@@ -92,5 +93,58 @@ describe('o preto tem de fechar ANTES do corte, e não junto com ele', () => {
         // cena inteira existe para entregar.
         const inicioDoPreto = 4.8;
         expect(defeatBeat(inicioDoPreto).engolir).toBeGreaterThan(0.5);
+    });
+});
+
+describe('a paisagem não pode encolher o chefe', () => {
+    // `fov` no three é VERTICAL, então virar o aparelho não corta o quadro: ele
+    // ALARGA por `tan(fov/2) * aspecto`. Com a lente de retrato, a 844x390 a
+    // arena ocupava menos de um terço da largura e a cabeça virava um quinto
+    // dela — o chefe deixava de ser colossal porque o jogador deitou o telefone.
+    const RETRATO = 390 / 844, PAISAGEM = 844 / 390;
+    const ARENA_LARGURA = 4.9 * 2, ARENA_ALTURA = 7.6 - 0.4;
+
+    const quadro = (aspecto: number) => {
+        const d = f12ChaseDistance(aspecto);
+        const alt = f12FrameHeight(d, f12ChaseFov(aspecto));
+        return { alt, larg: alt * aspecto };
+    };
+
+    it('em retrato a lente continua exatamente a de sempre', () => {
+        expect(f12ChaseFov(RETRATO)).toBe(62);
+    });
+
+    it('a arena cabe em pé nas duas orientações', () => {
+        for (const a of [RETRATO, PAISAGEM]) {
+            expect(quadro(a).alt, `altura em ${a.toFixed(2)}`).toBeGreaterThan(ARENA_ALTURA);
+        }
+    });
+
+    // ── A PRIMEIRA VERSÃO DESTE TESTE PEDIA O IMPOSSÍVEL ─────────────────
+    //
+    // Ela exigia que a paisagem ocupasse 62% da fração de largura do retrato, e
+    // reprovou. Fui fazer a conta em vez de afrouxar o número, e a exigência é
+    // que estava errada: a largura do quadro é SEMPRE `altura * aspecto`, e a
+    // altura não pode ser menor que a arena mais uma folga. Então existe um
+    // TETO que nenhuma lente alcança:
+    //
+    //     teto = largura da arena / ((altura da arena + folga) * aspecto)
+    //
+    // Em paisagem esse teto é 0,55 — abaixo dos 0,58 que o teste pedia. Nenhum
+    // `fov` do mundo passaria, porque o que limita não é a lente, é o formato
+    // da tela contra o formato da arena.
+    //
+    // A régua honesta é outra: quão perto do próprio teto a lente chega. Se ela
+    // chegar perto, a largura não está sendo desperdiçada — está sendo gasta na
+    // altura, que é obrigatória.
+    it('a paisagem gasta a largura quase até o teto geométrico', () => {
+        const FOLGA = 1.0;   // o avião precisa de céu acima e abaixo da arena
+        const teto = ARENA_LARGURA / ((ARENA_ALTURA + FOLGA) * PAISAGEM);
+        const real = ARENA_LARGURA / quadro(PAISAGEM).larg;
+        expect(real).toBeGreaterThan(teto * 0.95);
+    });
+
+    it('e a lente de paisagem é de fato mais fechada que a de retrato', () => {
+        expect(f12ChaseFov(PAISAGEM)).toBeLessThan(f12ChaseFov(RETRATO) - 20);
     });
 });

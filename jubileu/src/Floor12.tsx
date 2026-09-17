@@ -45,7 +45,7 @@ import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
 import { newFlightWeapon, stepFlightWeapon, type FlightWeapon } from './f12FlightWeapon';
 import { Floor12Estilhacos, type PedidoDeEstilhaco } from './Floor12Estilhacos';
-import { f12IntroCamera, f12ChaseDistance } from './f12Presentation';
+import { f12IntroCamera, f12ChaseDistance, f12ChaseFov } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
@@ -383,7 +383,10 @@ const CameraDaLuta: React.FC<{
         const pz = THREE.MathUtils.lerp(dentroZ, recuo, suave);
         camera.position.lerp(new THREE.Vector3(px, py, pz), Math.min(1, dt * 7));
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov = ENQUADRAMENTO.fov;
+            // O `fov` acompanha o aspecto pelo mesmo motivo que o recuo já
+            // acompanhava: em paisagem a lente de retrato alarga o quadro e a
+            // cabeça deixa de ser colossal. Ver `f12ChaseFov`.
+            camera.fov = f12ChaseFov(size.width / Math.max(1, size.height));
             camera.updateProjectionMatrix();
         }
 

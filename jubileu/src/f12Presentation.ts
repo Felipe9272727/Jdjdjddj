@@ -55,3 +55,38 @@ export function f12IntroCamera(progress: number) {
 export function f12ChaseDistance(aspect: number) {
   return 19 - 7 * f12Ease((aspect - .65) / .65);
 }
+
+/**
+ * ── O `fov` VERTICAL TEM DE ENCOLHER EM PAISAGEM ─────────────────────────────
+ *
+ * `ENQUADRAMENTO.fov` é 62 e foi composto para um CELULAR EM PÉ. O `fov` do
+ * three é VERTICAL, e a abertura horizontal sai de `tan(fov/2) * aspecto` — ou
+ * seja, virar o aparelho não corta o quadro, ele ALARGA. Medido a 844x390, com
+ * a câmera já no recuo de paisagem (12 unidades):
+ *
+ *     largura do quadro = 2 * 12 * tan(31°) * 2,164 = 31 unidades
+ *     largura da arena  = 9,8
+ *
+ * A arena ocupava menos de um terço da tela. O resto eram bancos de nuvem
+ * vazios dos dois lados, e a cabeça — que em retrato domina o quadro — virava
+ * um quinto da largura. O chefe deixava de ser colossal só porque o jogador
+ * deitou o telefone.
+ *
+ * Encolher o `fov` resolve os dois lados de uma vez, e é melhor do que só
+ * aproximar a câmera: aproximar mexe no enquadramento do AVIÃO (a câmera é de
+ * perseguição), enquanto fechar a lente aumenta tudo sem mudar a distância de
+ * jogo. A trava por baixo é a altura: a arena tem 7,2 de altura e precisa caber.
+ *
+ *     a 12 unidades e 38°: vertical = 2 * 12 * tan(19°) = 8,3  (cabe em 7,2)
+ *                          horizontal = 8,3 * 2,164   = 17,9 (arena 9,8)
+ *
+ * Em retrato nada muda — a conta devolve os mesmos 62 de sempre.
+ */
+export function f12ChaseFov(aspect: number) {
+  return 62 - 24 * f12Ease((aspect - .65) / .65);
+}
+
+/** Quanto do mundo cabe na ALTURA do quadro, à distância `d` e com este `fov`. */
+export function f12FrameHeight(d: number, fov: number) {
+  return 2 * d * Math.tan((fov * Math.PI) / 180 / 2);
+}
