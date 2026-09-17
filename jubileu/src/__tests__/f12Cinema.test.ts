@@ -77,3 +77,20 @@ describe('a derrota é uma cena, e não um desligar', () => {
         }
     });
 });
+
+describe('o preto tem de fechar ANTES do corte, e não junto com ele', () => {
+    // O defeito que este teste tranca não estava na conta, estava no tempo: o
+    // preto só chegava a 1 no último instante da cena, e a fase trocava ali
+    // mesmo. Fotografado, o card de derrota entrava com o céu ACESO — o preto
+    // existia e morria antes de cobrir o corte que devia cobrir.
+    it('está cheio com folga antes do fim da cena', () => {
+        expect(defeatBeat(CENA_DA_DERROTA.total - 0.35).preto).toBe(1);
+    });
+
+    it('e não começa antes da cabeça ter avançado', () => {
+        // Escurecer antes do "engolir" esconderia justamente o plano que a
+        // cena inteira existe para entregar.
+        const inicioDoPreto = 4.8;
+        expect(defeatBeat(inicioDoPreto).engolir).toBeGreaterThan(0.5);
+    });
+});

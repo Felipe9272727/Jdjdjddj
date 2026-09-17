@@ -67,7 +67,10 @@ export function defeatBeat(seconds: number) {
     /** 0→1 enquanto a cabeça avança e abre a boca sobre a câmera. */
     engolir: cinemaEase((t - CENA_DA_DERROTA.engolir) / 2.1),
     /** 0→1 do fade final. */
-    preto: cinemaEase((t - 5.3) / 1.0),
+    // Começa mais cedo e fecha ANTES do fim da cena: a troca de fase acontece
+    // em `total`, e um preto que só chega a 1 no último instante não cobre
+    // corte nenhum. Fechado em 6,0, ele segura 0,4 s de preto cheio.
+    preto: cinemaEase((t - 4.8) / 1.2),
     finished: t >= CENA_DA_DERROTA.total,
   };
 }

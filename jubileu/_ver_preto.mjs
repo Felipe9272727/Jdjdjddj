@@ -12,15 +12,15 @@ let fase='';
 for(let i=0;i<800;i++){ fase=await p.evaluate(()=>window.__f12fase); if(fase==='abatido')break; await s(500); }
 if(fase!=='abatido'){ console.log('NAO MORREU — fase final:',fase); await b.close(); process.exit(0); }
 console.log('entrou em abatido');
-let maxOp=0;
-for(let k=0;k<60;k++){
+let maxOp=0, saiu=false, depois=0;
+for(let k=0;k<200;k++){
   const r=await p.evaluate(()=>{ const f=window.__f12fase; const c=window.__f12estado?.cinema??0;
     const d=[...document.querySelectorAll('div[aria-hidden]')].map(e=>getComputedStyle(e).opacity+'@'+getComputedStyle(e).backgroundColor);
     return {f,c:Number(c.toFixed(2)),d}; });
   if(r.d.length) { const o=Math.max(...r.d.filter(x=>x.includes('rgb(0, 0, 0)')).map(x=>parseFloat(x))); if(o>maxOp) maxOp=o; }
-  if(r.c>5.2) await p.screenshot({path:`/tmp/morte/pr-${r.c}.png`});
-  if(r.f!=='abatido'){ console.log('saiu de abatido em cinema',r.c); break; }
-  await s(180);
+  if(r.c>4.9||saiu) await p.screenshot({path:`/tmp/morte/pr-${saiu?'card':''}${r.c}-${k}.png`});
+  if(r.f!=='abatido'){ if(!saiu){ saiu=true; console.log('entrou no card em cinema',r.c); } if(++depois>8) break; }
+  await s(70);
 }
 console.log('opacidade maxima do preto vista:',maxOp);
 console.log('erros:',errs.slice(0,3)); await b.close();

@@ -771,7 +771,8 @@ const DiretorDaVitoria: React.FC<{
 const DiretorDaDerrota: React.FC<{
     clock: React.MutableRefObject<number>; nave: React.MutableRefObject<Nave>;
     irmao: React.MutableRefObject<Nave>; avisar: () => void;
-}> = ({ clock, nave, irmao, avisar }) => {
+    reentrada: React.MutableRefObject<number>;
+}> = ({ clock, nave, irmao, avisar, reentrada }) => {
     const origem = useRef<{ x: number; y: number; ix: number; iy: number } | null>(null);
     useFrame((_, rawDt) => {
         if (f12.fase !== 'abatido') { origem.current = null; return; }
@@ -796,7 +797,12 @@ const DiretorDaDerrota: React.FC<{
         ir.y = THREE.MathUtils.lerp(o.iy, n.y + 2.6, mergulho);
         ir.rolagem = mergulho * .7; ir.alvoX = ir.x; ir.alvoY = ir.y; ir.piscando = 0;
 
-        if (b.finished) { f12.fase = 'derrota'; f12.linhaDoDialogo = 0; avisar(); }
+        if (b.finished) {
+            // O card NASCE no preto em que a cena terminou. Sem isto o preto
+            // morre junto com a fase e o corte volta a ser seco.
+            reentrada.current = 1;
+            f12.fase = 'derrota'; f12.linhaDoDialogo = 0; avisar();
+        }
     });
     return null;
 };
@@ -1103,7 +1109,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor12CinemaEffects active={fase === 'queda'} clock={cinemaClock}
                     position={[0, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} />
                 <DiretorDaVitoria clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
-                <DiretorDaDerrota clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
+                <DiretorDaDerrota clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} reentrada={reentrada} />
                 <DiretorDaVirada clock={cinemaClock} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
@@ -1199,7 +1205,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
             {fase === 'luta' && <BordaSangrando baques={baques} />}
-            {fase === 'luta' && <Reentrada reentrada={reentrada} />}
+            {(fase === 'luta' || fase === 'derrota') && <Reentrada reentrada={reentrada} />}
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
             {fase === 'abatido' && <FechamentoDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
@@ -1345,7 +1351,17 @@ const FechamentoDaDerrota: React.FC<{ clock: React.MutableRefObject<number> }> =
     }} />;
 };
 
-/** Abre do preto quando a luta recomeça depois de uma derrota. */
+/**
+ * Abre do preto. Serve os DOIS cortes: a entrada do card de derrota e o
+ * recomeço da luta depois dele.
+ *
+ * O fecho em preto do `abatido` sozinho não resolvia nada, e a foto mostrou por
+ * quê: `FechamentoDaDerrota` só monta enquanto a fase é 'abatido', então ele
+ * DESMONTA no exato quadro em que a fase vira 'derrota'. O preto existia e
+ * morria antes de cobrir o corte que ele deveria cobrir — a cena entregava o
+ * card com o céu aceso, que é exatamente o corte seco que eu tinha declarado
+ * consertado. Fechar de um lado sem abrir do outro não é uma transição.
+ */
 const Reentrada: React.FC<{ reentrada: React.MutableRefObject<number> }> = ({ reentrada }) => {
     const [op, setOp] = useState(0);
     useEffect(() => {
