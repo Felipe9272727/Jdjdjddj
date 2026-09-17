@@ -9,7 +9,7 @@ await s(4000); await p.click('button',{timeout:30000}).catch(()=>{}); await s(15
 for(let i=0;i<120;i++){ if(await p.evaluate(()=>window.__f12fase)==='luta')break;
   const btn=await p.$('[data-testid="f12-dialogue"] button'); if(btn)await btn.click({timeout:1500}).catch(()=>{}); await s(300); }
 let fase='';
-for(let i=0;i<500;i++){ fase=await p.evaluate(()=>window.__f12fase); if(fase==='abatido')break; await s(300); }
+for(let i=0;i<800;i++){ fase=await p.evaluate(()=>window.__f12fase); if(fase==='abatido')break; await s(500); }
 if(fase!=='abatido'){ console.log('NAO MORREU — fase final:',fase); await b.close(); process.exit(0); }
 console.log('entrou em abatido');
 let maxOp=0;
