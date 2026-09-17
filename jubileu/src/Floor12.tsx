@@ -669,10 +669,24 @@ function cuspir(
 
 function abrirAVirada(F: Ferramentas): void {
     f12.passouDaVirada = true;
-    // A abertura em que ela caiu É a estreia dos dois padrões que o irmão
-    // anuncia. Sem gravar isto, as estreias voltam a ser números fixos e a fala
-    // volta a mentir em qualquer luta que não dure exatamente o previsto.
-    f12.aberturaDaVirada = Math.max(0, f12.aberturas - 1);
+    // ── A PRÓXIMA ABERTURA, E O `-1` AQUI ERA UM DEFEITO ─────────────────
+    //
+    // `f12.aberturas` é a CONTAGEM, então a abertura corrente é `aberturas-1`.
+    // Só que essa abertura JÁ CUSPIU: a virada acontece quando um tiro derruba
+    // a vida abaixo da metade, e nesse instante o ataque dela há muito saiu da
+    // boca. Marcando a estreia da maré nela, a estreia caía num índice que o
+    // jogador nunca veria — e pior, o rodízio passava a tratar a maré como
+    // "recém-usada" e a empurrava para umas quatro aberturas adiante.
+    //
+    // Medido: com a virada na 6ª, a primeira boca depois dela cuspia LEQUE (o
+    // ataque que o jogador já viu uma dúzia de vezes) e a maré só chegava uns
+    // 21 segundos de jogo depois — logo após o irmão anunciar "dois padrões
+    // novos, um vem do 2º andar". Exatamente a promessa quebrada que o
+    // comentário do `ESCALADA` diz ter consertado. O comentário estava certo
+    // sobre a intenção e o código errava por um.
+    //
+    // A estreia é a PRÓXIMA abertura, que é `aberturas` sem subtrair nada.
+    f12.aberturaDaVirada = f12.aberturas;
     f12.fase = 'virada';
     F.cinemaClock.current = 0;   // a virada agora TEM relógio
     f12.linhaDoDialogo = 0;
@@ -848,6 +862,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const clarao = useRef(0);
     const baque = useRef(0);
     const baques = useRef(0);
+    const reentrada = useRef(0);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -923,6 +938,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             irmao.current = novaNave(-4, meioY() + 1.2, 3);
             f12.fase = 'luta'; f12.bocaT = 0;
             abertura.current = 1; cam.current = 1; sumindo.current = 1; visivel.current = true;
+            // ── UMA REENTRADA, EM VEZ DE UM CORTE ────────────────────────
+            // O card de derrota termina no preto e a luta recomeçava com um
+            // corte seco para o plano de perseguição: o jogador que acabou de
+            // ser engolido era largado no ar, já voando, sem um quadro de
+            // transição. Abrir do preto é o mínimo, e custa 0,8 s.
+            reentrada.current = 1;
             tocarMotor();
         } else if (f12.fase === 'vitoria') {
             f12.fase = 'despedida'; f12.linhaDoDialogo = 0;
@@ -1157,7 +1178,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
             {fase === 'luta' && <BordaSangrando baques={baques} />}
+            {fase === 'luta' && <Reentrada reentrada={reentrada} />}
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
+            {fase === 'abatido' && <FechamentoDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
                 <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
                     {legendaIntro}
@@ -1270,6 +1293,52 @@ const Estouro: React.FC<{
             <meshBasicMaterial color={cor} transparent opacity={0} depthWrite={false} toneMapped={false} />
         </mesh>
     );
+};
+
+/**
+ * O FECHAMENTO DA DERROTA — o beat que era calculado e jogado fora.
+ *
+ * `defeatBeat` devolve `preto` desde que a cena foi escrita, e o bloco de
+ * documentação dela diz "preto — fecha, e só então entra a fala". Só que nada
+ * no andar lia esse valor: um `grep` por `preto` achava o comentário e a conta,
+ * e nenhum consumidor. Na prática a cena cortava SECO do plano da cabeça
+ * engolindo para o card de repetir, com o céu ainda aceso.
+ *
+ * É o mesmo tipo de defeito que a virada e a estreia da maré já tinham: a prosa
+ * descrevia um conserto que o código não entregava. Escrever o beat não é
+ * encená-lo.
+ *
+ * Fica por cima de tudo (`zIndex` acima do canvas e do HUD) porque é um
+ * fechamento de cena, e some sozinho quando a fase sai de 'abatido'.
+ */
+const FechamentoDaDerrota: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
+    const [op, setOp] = useState(0);
+    useEffect(() => {
+        const id = window.setInterval(() => setOp(defeatBeat(clock.current).preto), 40);
+        return () => window.clearInterval(id);
+    }, [clock]);
+    if (op <= 0.01) return null;
+    return <div aria-hidden style={{
+        position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none',
+        background: '#000', opacity: op,
+    }} />;
+};
+
+/** Abre do preto quando a luta recomeça depois de uma derrota. */
+const Reentrada: React.FC<{ reentrada: React.MutableRefObject<number> }> = ({ reentrada }) => {
+    const [op, setOp] = useState(0);
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            reentrada.current = Math.max(0, reentrada.current - 0.05 / 0.8);
+            setOp(reentrada.current);
+        }, 50);
+        return () => window.clearInterval(id);
+    }, [reentrada]);
+    if (op <= 0.01) return null;
+    return <div aria-hidden style={{
+        position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none',
+        background: '#000', opacity: op,
+    }} />;
 };
 
 /**

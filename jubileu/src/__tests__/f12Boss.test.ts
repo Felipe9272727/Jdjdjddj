@@ -851,3 +851,21 @@ describe('nenhum ataque pune FORA da própria silhueta', () => {
         expect(TELEGUIADO.raio).toBeCloseTo(TELEGUIADO.meiaEnvergaduraDesenhada, 9);
     });
 });
+
+describe('o primeiro ataque DEPOIS da virada é um dos anunciados', () => {
+    // A fala diz "dois padrões novos" e a boca seguinte tem de entregar um
+    // deles. O defeito que este teste tranca é de UM ÍNDICE: marcar a estreia
+    // na abertura corrente (que já cuspiu) em vez da próxima fazia a novidade
+    // cair num índice invisível, e o rodízio ainda a empurrava umas quatro
+    // aberturas adiante por considerá-la recém-usada.
+    it.each([4, 5, 6, 7, 8, 11])('virada na %iª abertura', (viradaEm) => {
+        expect(['mare', 'elevadores']).toContain(ataqueDaVez(viradaEm, viradaEm));
+    });
+
+    it('e os dois anunciados chegam em poucas aberturas', () => {
+        const viradaEm = 6;
+        const logo = Array.from({ length: 4 }, (_, i) => ataqueDaVez(viradaEm + i, viradaEm));
+        expect(logo).toContain('mare');
+        expect(logo).toContain('elevadores');
+    });
+});

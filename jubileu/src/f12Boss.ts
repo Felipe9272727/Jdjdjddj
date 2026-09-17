@@ -330,7 +330,16 @@ export function ataqueDaVez(n: number, viradaEm = -1): NomeDoAtaque {
     const usados = new Map<NomeDoAtaque, number>();
     let ultimo: NomeDoAtaque | null = null;
     for (let i = 0; i <= ate; i++) {
-        const estreia = ESCALADA.find((e) => estreiaDe(e, viradaEm) === i);
+        // QUEM GANHA O EMPATE DE ESTREIA É A VIRADA.
+        //
+        // Se a virada cair exatamente numa abertura que já era estreia fixa (a
+        // 4ª é a das camareiras, e um jogador bom chega lá), as duas disputam a
+        // mesma boca. A `find` simples devolvia a fixa, porque ela vem antes na
+        // lista — e a fala do irmão, que acabou de prometer um padrão novo,
+        // saía mentindo de novo. A estreia fixa não se perde: o padrão fica
+        // ATIVO na mesma abertura e o rodízio o traz logo em seguida.
+        const estreia = ESCALADA.find((e) => e.aposAVirada !== undefined && estreiaDe(e, viradaEm) === i)
+            ?? ESCALADA.find((e) => estreiaDe(e, viradaEm) === i);
         let q: NomeDoAtaque;
         if (estreia) {
             q = estreia.nome;
