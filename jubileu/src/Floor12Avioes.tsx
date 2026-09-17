@@ -84,6 +84,21 @@ export const CascoDoElevador: React.FC<{
         engine: mat64(FP.friendly, FP.friendly, .8), black: mat64('#091a24'),
         glass: new THREE.MeshLambertMaterial({ color: FP.glass, transparent: true, opacity: .34,
             depthWrite: false, side: THREE.DoubleSide }),
+        // ── A HÉLICE ERA TRÊS BARRAS PRETAS ATRAVESSANDO O ROBÔ ──────────
+        //
+        // Três pás opacas de 1,42, e nada mais. No plano de diálogo do
+        // TROCO-63 — o único plano de apresentação do companheiro — elas
+        // desenhavam um X preto sólido por cima do corpo dele e do casco. Uma
+        // hélice de verdade não se vê parada: na rotação ela vira um DISCO
+        // translúcido, e é só a essa velocidade que as pás somem.
+        //
+        // Então as duas coisas existem e trocam de lugar conforme a rotação: a
+        // pá some enquanto o disco aparece. Os dois sem `depthWrite`, porque
+        // uma hélice girando não recorta o que está atrás dela.
+        pa: new THREE.MeshLambertMaterial({ color: FP.hullDark, transparent: true,
+            opacity: 1, depthWrite: false }),
+        disco: new THREE.MeshLambertMaterial({ color: FP.hullDark, transparent: true,
+            opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
     }), []);
     const wing = useMemo(() => {
         const shape = new THREE.Shape();
@@ -120,8 +135,15 @@ export const CascoDoElevador: React.FC<{
         }
         if (helice.current) {
             const power = (heliceRef?.current ?? 1) * a.engine;
-            helice.current.rotation.z += dt * (6 + power * 46) * a.engine;
+            const giro = (6 + power * 46) * a.engine;
+            helice.current.rotation.z += dt * giro;
             helice.current.scale.setScalar(Math.max(.01, a.engine));
+            // A TROCA. Abaixo de ~8 rad/s ainda dá para contar as pás; acima de
+            // ~26 o olho já não as separa e o que resta é o disco. No meio os
+            // dois coexistem de leve, que é o borrão.
+            const borrao = THREE.MathUtils.clamp((giro - 8) / 18, 0, 1);
+            M.pa.opacity = 1 - borrao * 0.88;
+            M.disco.opacity = borrao * 0.30;
         }
         M.engine.emissiveIntensity = .25 + a.engine * (1.1 + Math.sin(clock.elapsedTime * 24) * .12);
     });
@@ -159,7 +181,14 @@ export const CascoDoElevador: React.FC<{
             </mesh>
             <B args={[.024, .64, .028]} p={[0, 0, -.39]} m={M.trim} />
             <group ref={helice} position={[0, 0, -.45]}>
-                {[0, Math.PI / 3, Math.PI * 2 / 3].map(angle => <B key={angle} args={[1.42, .12, .055]} r={[0, 0, angle]} m={M.dark} />)}
+                {[0, Math.PI / 3, Math.PI * 2 / 3].map(angle => <B key={angle} args={[1.42, .12, .055]} r={[0, 0, angle]} m={M.pa} />)}
+                {/* o disco: é ele que a hélice VIRA quando gira de verdade */}
+                <mesh material={M.disco} rotation={[Math.PI / 2, 0, 0]}>
+                    <cylinderGeometry args={[.71, .71, .012, 24, 1, true]} />
+                </mesh>
+                <mesh material={M.disco} position={[0, 0, .004]}>
+                    <circleGeometry args={[.71, 24]} />
+                </mesh>
                 <mesh material={M.brass}><sphereGeometry args={[.16, 12, 8]} /></mesh>
             </group>
         </group>

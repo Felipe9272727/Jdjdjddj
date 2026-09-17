@@ -410,19 +410,28 @@ export const LEQUE = Object.freeze({
     /**
      * Quanto cada unidade se afasta por segundo (a de fora anda mais).
      *
-     * ESTE NÚMERO É O ATAQUE. A 1,85 o vão final dava 1,77 — e a nave com o
-     * projétil pede 2,04 para passar. Ou seja: o leque estava INDESVIÁVEL pelos
-     * vãos, e a única saída era contornar por fora, que não é o desenho do
-     * ataque. Foi o teste que pegou; a foto de um leque aberto pareceria certa.
-     * O leque tem uma amarra que não é óbvia: o de FORA anda exatamente o dobro
-     * do vão entre vizinhos. Então "abrir o suficiente para a nave passar" e
-     * "não sair da arena" são a MESMA conta, e ela é apertada — o vão precisa
-     * de pelo menos 2,16 (nave 0,62 + projétil 0,46, vezes dois), o que põe o
-     * de fora em 4,32 no mínimo, contra uma arena de 4,9.
+     * ESTE NÚMERO É O ATAQUE, e ele está preso entre duas paredes.
      *
-     * A 2,5 o vão final dá 2,37 e o de fora 4,74: passa a nave com folga e
-     * ainda encosta na borda, que é o que impede o jogador de simplesmente
-     * contornar o ataque por fora em vez de usar um vão.
+     * O leque tem uma amarra que não é óbvia: a peça de FORA anda exatamente o
+     * dobro do vão entre vizinhos. Então "abrir o suficiente para a nave
+     * passar" e "não sair da arena" são a MESMA conta, em sentidos opostos.
+     *
+     *   por baixo — o vão tem de caber a nave mais o projétil, dos dois lados:
+     *               2 x (0,42 + 0,46) = 1,76;
+     *   por cima  — a peça de fora não pode passar de ARENA.x = 4,9, senão o
+     *               jogador contorna o ataque em vez de usar um vão, que não é
+     *               o desenho dele.
+     *
+     * Medido com os valores atuais (voo de 2,07 s até o plano da nave): o vão
+     * final dá 2,34 e a peça de fora chega a 4,68. Passa com folga pelos dois
+     * lados. A 1,85 o vão dava menos do que a nave pede e o leque ficava
+     * INDESVIÁVEL pelos vãos — foi o teste que pegou; a foto de um leque aberto
+     * pareceria certa.
+     *
+     * NOTA DE HIGIENE: este bloco dizia "A 2,5 o vão final dá 2,37" com a
+     * constante em 2,0, e citava uma nave de raio 0,62 quando `NAVE.raio` é
+     * 0,42. Os números acima foram recalculados a partir do código, não
+     * copiados da prosa antiga.
      */
     abrePorSegundo: 2.0,
     velocidadeZ: 12.0,
@@ -714,13 +723,22 @@ export const TIRO = Object.freeze({
     /** Segundos entre tiros. */
     cadencia: 0.16,
     /**
-     * 1,0 -> 1,8.
+     * 1,0 -> 1,2.
      *
-     * Medido no navegador, com um bot jogando o ciclo de carga certo: 100
-     * acertos em 95 s, 1,09 de dano por acerto, 1,15 de dano por segundo. A 240
-     * de vida isso projeta uma luta de 210 SEGUNDOS — três minutos e meio de
-     * chefe, com o mesmo punhado de padrões se repetindo. Um chefe longo não é
-     * um chefe difícil, é um chefe cansativo.
+     * Medido no navegador, com um bot jogando o ciclo de carga certo: a 1,0 a
+     * luta projetava 210 SEGUNDOS — três minutos e meio de chefe com o mesmo
+     * punhado de padrões se repetindo. Um chefe longo não é um chefe difícil, é
+     * um chefe cansativo.
+     *
+     * O primeiro conserto foi para 1,8, e foi LONGE DEMAIS: a simulação passou
+     * a fechar a luta em 51 s, e as guardas de `f12Simulacao` (60 a 150 s, e no
+     * mínimo 15 aberturas de boca) reprovaram — que é o sistema funcionando.
+     * 1,2 é o valor que passa pelas duas pontas da guarda.
+     *
+     * NOTA DE HIGIENE: este bloco ficou meses dizendo "1,0 -> 1,8" com o valor
+     * em 1,2 logo abaixo, e a conta de 210 s citada como se fosse a de 1,8
+     * quando era a de 1,0. Comentário que discorda da constante ao lado é pior
+     * do que comentário nenhum, porque ele é CRÍVEL.
      */
     dano: 1.2,
     /** O irmão atira mais devagar e mais fraco: ele é ala, não protagonista. */
@@ -762,9 +780,13 @@ export function nascerTiro(
 /**
  * O prêmio dos 100% de carga.
  *
- * 8 -> 14 de dano, contra 1,8 do tiro comum: quase OITO TIROS numa coisa só. O
- * número subiu junto com a carga ficar alcançável (ver `FLIGHT_WEAPON`) — antes
- * ele era generoso no papel e nunca era cobrado, porque o míssil não saía.
+ * 12 de dano, contra 1,2 do tiro comum: DEZ TIROS numa coisa só, e os dez em
+ * uma janela de boca em vez de espalhados por várias. O número deixou de ser
+ * escrito à mão e passou a sair de `TIRO.dano * MULTIPLICADOR_DO_MISSEL`, então
+ * a proporção não pode mais escorregar quando o tiro mudar de valor.
+ *
+ * (Este bloco já disse "8 -> 14 de dano, contra 1,8 do tiro comum" enquanto o
+ * valor derivado era 12 e o tiro era 1,2. Três números errados numa frase só.)
  *
  * Ele precisa ser desproporcional de propósito: quem fica parado no meio de uma
  * luta de desvio está pagando com risco, e o pagamento tem de se ver na barra de
