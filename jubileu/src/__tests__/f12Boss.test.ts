@@ -128,8 +128,35 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
     it('cada padrão ESTREIA na abertura em que entra', () => {
         expect(ataqueDaVez(2)).toBe('teleguiado');
         expect(ataqueDaVez(4)).toBe('naves');
-        expect(ataqueDaVez(6)).toBe('mare');
-        expect(ataqueDaVez(8)).toBe('elevadores');
+        // Os dois últimos não têm abertura fixa: eles estreiam RELATIVO à
+        // virada, porque é isso que a fala do TROCO-63 promete.
+        expect(ataqueDaVez(7, 7)).toBe('mare');
+        expect(ataqueDaVez(9, 7)).toBe('elevadores');
+    });
+
+    // ── A FALA DO TROCO-63 NA VIRADA TEM DE SER VERDADE ──────────────────
+    //
+    // `F12_VIRADA` diz: "Dois padrões novos. Um vem do 2º andar, o outro é o
+    // próprio poço do elevador." Enquanto as estreias eram por número fixo de
+    // abertura (`mare` na 6ª) e a virada caía lá pela 7ª, a MARÉ já tinha
+    // batido no jogador ANTES de ser anunciada como nova.
+    it('nenhum dos dois padrões anunciados aparece antes da virada', () => {
+        for (const viradaEm of [5, 6, 7, 8, 9, 12]) {
+            const antes = Array.from({ length: viradaEm }, (_, i) => ataqueDaVez(i, viradaEm));
+            expect(antes, `virada na ${viradaEm}ª: a maré vazou para antes`).not.toContain('mare');
+            expect(antes, `virada na ${viradaEm}ª: os elevadores vazaram`).not.toContain('elevadores');
+        }
+    });
+
+    it('e os dois aparecem DEPOIS, senão a promessa continua quebrada', () => {
+        const depois = Array.from({ length: 9 }, (_, i) => ataqueDaVez(7 + i, 7));
+        expect(depois).toContain('mare');
+        expect(depois).toContain('elevadores');
+    });
+
+    it('enquanto a virada não cai, só os três do começo rodam', () => {
+        const seq = Array.from({ length: 30 }, (_, i) => ataqueDaVez(i, -1));
+        expect(new Set(seq)).toEqual(new Set(['leque', 'teleguiado', 'naves']));
     });
 
     it('nada aparece antes de ter entrado', () => {
@@ -139,10 +166,14 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         }
     });
 
-    it('e os cinco estão ativos ANTES da virada', () => {
-        // O ponto da escalada é não esconder conteúdo atrás da metade da vida.
-        const vistos = new Set(Array.from({ length: ABERTURA_DO_MOVESET_COMPLETO + 1 },
-            (_, i) => ataqueDaVez(i)));
+    it('os cinco entram em poucas aberturas depois da virada', () => {
+        // O ponto da escalada continua sendo não esconder conteúdo: os dois da
+        // virada não podem demorar mais do que umas poucas aberturas depois
+        // dela, senão voltam a ser conteúdo que quase ninguém vê.
+        const viradaEm = 7;
+        const vistos = new Set(Array.from(
+            { length: viradaEm + ABERTURA_DO_MOVESET_COMPLETO + 2 },
+            (_, i) => ataqueDaVez(i, viradaEm)));
         expect(vistos.size).toBe(5);
     });
 

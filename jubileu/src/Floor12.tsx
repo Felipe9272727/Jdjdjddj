@@ -469,7 +469,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
-            const qual = ataqueDaVez(abertura, f12.passouDaVirada);
+            const qual = ataqueDaVez(abertura, f12.aberturaDaVirada);
             // O ÍNDICE VAI JUNTO com o texto, e não é enfeite: `GritoDoAtaque`
             // só reaparece quando a string MUDA, então um leque seguido de
             // outro leque (acontece nas aberturas 0 e 1, que é a estreia do
@@ -484,7 +484,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(abertura, f12.passouDaVirada);
+            const qual = ataqueDaVez(abertura, f12.aberturaDaVirada);
             f12.ataqueNoAr = qual;
             cuspir(qual, n, faixaDoElevador, faseDaMare);
             tocarAtaque(qual);
@@ -596,6 +596,10 @@ function cuspir(
 
 function abrirAVirada(F: Ferramentas): void {
     f12.passouDaVirada = true;
+    // A abertura em que ela caiu É a estreia dos dois padrões que o irmão
+    // anuncia. Sem gravar isto, as estreias voltam a ser números fixos e a fala
+    // volta a mentir em qualquer luta que não dure exatamente o previsto.
+    f12.aberturaDaVirada = Math.max(0, f12.aberturas - 1);
     f12.fase = 'virada';
     f12.linhaDoDialogo = 0;
     f12.projeteis = f12.projeteis.filter((p) => p.tipo === 'tiro');

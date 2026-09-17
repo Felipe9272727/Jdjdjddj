@@ -23,7 +23,7 @@
  * Puro: sem three, sem react, sem DOM.
  */
 import {
-    ARENA, meioY, BOCA_ALVO, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
+    ARENA, meioY, dentroDaArena, BOCA_ALVO, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, ataqueDaVez, LIMIAR_DA_VIRADA,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, NAVE, MARE, frestaDaMare,
@@ -102,12 +102,63 @@ function decidir(n: Nave, ps: Projetil[], reflexo: number): { x: number; y: numb
         ameaca = Math.max(ameaca, peso);
     }
     if (ameaca > 0.05 && reflexo > 0.02) {
-        const m = Math.hypot(fugaX, fugaY) || 1;
-        const forca = 3.4 * reflexo;
-        return {
-            x: n.x + (fugaX / m) * forca,
-            y: n.y + (fugaY / m) * forca,
-        };
+        // ── FUGIR NÃO BASTA CONTRA UM LEQUE ──────────────────────────────
+        //
+        // A soma de repulsões funciona contra UMA coisa vindo. Contra um leque
+        // — cinco pétalas abrindo simétricas em volta do jogador — os vetores
+        // se cancelam, e a fuga vira um empurrão fraco para dentro da pétala
+        // seguinte. Medido: num jogo inteiro o bot levava CINCO toques, e os
+        // cinco eram do leque. Ele não desviava do ataque primário nenhuma vez.
+        //
+        // Isso quebra o que este módulo serve para fazer. A régua é "se um
+        // humano razoável precisa ser MELHOR que este bot, o andar está difícil
+        // demais" — e um bot que não desvia do ataque mais legível do jogo está
+        // abaixo de qualquer humano, então a régua mede o bot, não o andar.
+        //
+        // Um humano não foge de um leque: ele PROCURA O VÃO, que é a mesma
+        // coisa que já se fazia à mão contra a maré. Aqui isso vira geral —
+        // amostra posições e escolhe a mais folgada, o que serve para qualquer
+        // padrão sem precisar de um caso especial por ataque.
+        //
+        // ── O QUE ESTE BOT CERTIFICA, E O QUE ELE NÃO CERTIFICA ──────────
+        //
+        // Medido depois da mudança: de `reflexo` 0,15 a 1,0 ele termina a luta
+        // com 4 ou 5 vidas, e a curva é CHAPADA. Ou seja o botão do reflexo
+        // quase não muda o placar — a arena é pequena e o avião é rápido o
+        // bastante para que "ver o perigo mais tarde" não chegue a custar um
+        // toque. Tentei modelar o reflexo como tempo de reação justamente para
+        // curvar isso, e não curvou; está registrado aqui em vez de escondido.
+        //
+        // Então: este módulo CERTIFICA O RITMO — duração da luta e quantas
+        // vezes a boca abre, que é o que o teste cobra e o que faz os cinco
+        // padrões caberem. Ele NÃO é mais uma régua de dificuldade, e a frase
+        // antiga "se este bot passa raspando, está no ponto" não vale: ele não
+        // passa raspando, ele passa com folga. Somem-se a isso os dois buracos
+        // que já existiam — ele atira sozinho e sem parar, sem o gatilho por
+        // contato, sem carga e sem o míssil de 100% — e a conclusão honesta é
+        // que a dificuldade real deste andar ainda não foi medida por ninguém.
+        const alcance = 3.4 * reflexo;
+        const janela = 14;
+        let melhorX = n.x, melhorY = n.y, melhorFolga = -Infinity;
+        for (let i = 0; i <= 12; i++) {
+            for (let j = 0; j <= 6; j++) {
+                const cx = n.x + ((i / 12) * 2 - 1) * alcance;
+                const cy = n.y + ((j / 6) * 2 - 1) * alcance;
+                const dentro = dentroDaArena(cx, cy);
+                let folga = Infinity;
+                for (const p of ps) {
+                    if (p.tipo === 'tiro') continue;
+                    const dz = p.z - ARENA.zNave;
+                    if (dz < -janela || dz > 3) continue;
+                    folga = Math.min(folga, Math.hypot(dentro.x - p.x, dentro.y - p.y) - p.r);
+                }
+                // Empate vai para quem se mexe menos: um bot que teleporta pela
+                // arena a cada quadro mede a arena, e não a dificuldade.
+                const nota = folga - Math.hypot(dentro.x - n.x, dentro.y - n.y) * 0.08;
+                if (nota > melhorFolga) { melhorFolga = nota; melhorX = dentro.x; melhorY = dentro.y; }
+            }
+        }
+        return { x: melhorX, y: melhorY };
     }
 
     // 3. Nada ameaçando: volta para debaixo da boca, que é de onde se acerta.
@@ -124,7 +175,7 @@ export function simular(politica: Partial<Politica> = {}): Resultado {
     let projeteis: Projetil[] = [];
     let vida = VIDA_MAXIMA;
     let bocaT = 0, t = 0, toques = 0;
-    let cuspiu = -1, aberturas = 0;
+    let cuspiu = -1, aberturas = 0, viradaEm = -1;
     let faixa = 0, faseMare = 0;
     let quadrosAberta = 0, quadrosMirando = 0;
     let ladoJ: -1 | 1 = 1, ladoI: -1 | 1 = 1;
@@ -133,12 +184,14 @@ export function simular(politica: Partial<Politica> = {}): Resultado {
         t += dt; bocaT += dt;
         const b = bocaNoInstante(bocaT);
         const ciclo = Math.floor(bocaT / CICLO_DA_BOCA);
-        const viradaJa = vida <= LIMIAR_DA_VIRADA;
+        // A simulação precisa guardar QUANDO a virada caiu, e não só SE caiu:
+        // é desse número que saem as estreias de `mare` e `elevadores`.
+        if (vida <= LIMIAR_DA_VIRADA && viradaEm < 0) viradaEm = ciclo;
 
         // a boca cospe uma vez por ciclo, no instante em que escancara
         if (b.estado === 'aberta' && cuspiu !== ciclo) {
             cuspiu = ciclo; aberturas++;
-            const qual = ataqueDaVez(ciclo, viradaJa);
+            const qual = ataqueDaVez(ciclo, viradaEm);
             if (qual === 'leque') projeteis.push(...nascerLeque(n.x * 0.4, n.y));
             else if (qual === 'teleguiado') projeteis.push(nascerTeleguiado());
             else if (qual === 'naves') projeteis.push(...nascerNaves());

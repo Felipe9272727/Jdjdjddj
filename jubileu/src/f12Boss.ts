@@ -254,28 +254,61 @@ export const fichaDoAtaque = (n: NomeDoAtaque): FichaDoAtaque =>
  * continuam voltando no meio: um truque novo é interessante na primeira vez e só
  * vira VOCABULÁRIO na terceira.
  *
- * A VIRADA deixa de ser a estreia de dois ataques e passa a ser o que ela devia
- * ser: a mesma luta, mais apertada. Quem entrega isso é a pressão, não o
- * catálogo.
+ * ── E DOIS DELES ENTRAM PELA VIRADA, PORQUE A FALA PROMETE ISSO ─────────────
+ *
+ * O TROCO-63 diz, na virada: "Dois padrões novos. Um vem do 2º andar, o outro é
+ * o próprio poço do elevador." Enquanto as estreias eram por número de abertura
+ * (`mare` na 6ª, `elevadores` na 8ª) e a virada caía lá pela 7ª, a MARÉ já tinha
+ * batido no jogador antes de ser anunciada como nova. A fala mentia — e uma
+ * promessa quebrada num chefe é pior do que não prometer nada.
+ *
+ * `ATAQUES` já marcava os dois com `depoisDaVirada: true`. O dado estava certo
+ * desde sempre; `ataqueDaVez` é que fazia `void depoisDaVirada` e ignorava. Isto
+ * é a mesma classe de defeito do cursor que não estava ligado.
+ *
+ * Agora eles estreiam RELATIVO À VIRADA, e não a um número fixo: o primeiro na
+ * abertura em que ela acontece, o segundo duas depois. O rodízio continua
+ * determinístico — a mesma partida dá a mesma ordem — e a virada volta a ser o
+ * que a fala diz que é, sem deixar de ser também mais apertada.
  */
-interface EntradaDoPadrao { nome: NomeDoAtaque; entra: number; }
-
-const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
-    { nome: 'leque', entra: 0 },        // o ATAQUE PRIMÁRIO, e o mais legível
-    { nome: 'teleguiado', entra: 2 },   // manobra, e não posição
-    { nome: 'naves', entra: 4 },        // o único que se resolve ATIRANDO
-    { nome: 'mare', entra: 6 },         // posicionamento, com uma fresta que anda
-    { nome: 'elevadores', entra: 8 },   // o eixo VERTICAL, que os outros não pedem
-]);
-
-/** Quais padrões já entraram na luta, na abertura `n`. */
-export function padroesAtivos(n: number): NomeDoAtaque[] {
-    return ESCALADA.filter((e) => n >= e.entra).map((e) => e.nome);
+interface EntradaDoPadrao {
+    nome: NomeDoAtaque;
+    /** Abertura fixa de estreia, para os que existem desde o começo. */
+    entra?: number;
+    /** Aberturas DEPOIS da virada, para os que ela destranca. */
+    aposAVirada?: number;
 }
 
-/** Em que abertura o moveset dos cinco fica completo. */
+const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
+    { nome: 'leque', entra: 0 },          // o ATAQUE PRIMÁRIO, e o mais legível
+    { nome: 'teleguiado', entra: 2 },     // manobra, e não posição
+    { nome: 'naves', entra: 4 },          // o único que se resolve ATIRANDO
+    { nome: 'mare', aposAVirada: 0 },     // "um vem do 2º andar"
+    { nome: 'elevadores', aposAVirada: 2 }, // "o outro é o próprio poço"
+]);
+
+/**
+ * Em que abertura o padrão estreia, dado o instante da virada.
+ *
+ * `viradaEm` é a abertura em que a vida cruzou a metade, ou -1 se ainda não
+ * cruzou. Enquanto ela não aconteceu, os dois trancados não têm estreia: é
+ * `Infinity`, e não um número grande escolhido a dedo, porque "grande o
+ * bastante" é exatamente o tipo de suposição que quebra quando a luta muda de
+ * duração.
+ */
+function estreiaDe(e: EntradaDoPadrao, viradaEm: number): number {
+    if (e.entra !== undefined) return e.entra;
+    return viradaEm < 0 ? Infinity : viradaEm + (e.aposAVirada ?? 0);
+}
+
+/** Quais padrões já entraram na luta, na abertura `n`. */
+export function padroesAtivos(n: number, viradaEm = -1): NomeDoAtaque[] {
+    return ESCALADA.filter((e) => n >= estreiaDe(e, viradaEm)).map((e) => e.nome);
+}
+
+/** Quantas aberturas depois da virada o moveset dos cinco fica completo. */
 export const ABERTURA_DO_MOVESET_COMPLETO =
-    ESCALADA.reduce((m, e) => Math.max(m, e.entra), 0);
+    ESCALADA.reduce((m, e) => Math.max(m, e.aposAVirada ?? 0), 0);
 
 /**
  * Qual ataque cai na `n`-ésima abertura de boca.
@@ -292,18 +325,17 @@ export const ABERTURA_DO_MOVESET_COMPLETO =
  * Fora das estreias sai o padrão ATIVO HÁ MAIS TEMPO SEM APARECER. Rotaciona
  * sozinho, faz a novidade voltar logo, e continua determinístico.
  */
-export function ataqueDaVez(n: number, depoisDaVirada = false): NomeDoAtaque {
-    void depoisDaVirada;   // a virada muda a PRESSÃO, não o catálogo
+export function ataqueDaVez(n: number, viradaEm = -1): NomeDoAtaque {
     const ate = Math.max(0, Math.floor(n));
     const usados = new Map<NomeDoAtaque, number>();
     let ultimo: NomeDoAtaque | null = null;
     for (let i = 0; i <= ate; i++) {
-        const estreia = ESCALADA.find((e) => e.entra === i);
+        const estreia = ESCALADA.find((e) => estreiaDe(e, viradaEm) === i);
         let q: NomeDoAtaque;
         if (estreia) {
             q = estreia.nome;
         } else {
-            const ativos = padroesAtivos(i);
+            const ativos = padroesAtivos(i, viradaEm);
             let melhor = ativos[0], visto = usados.get(ativos[0]) ?? -1;
             for (const a of ativos) {
                 const v = usados.get(a) ?? -1;
@@ -925,6 +957,14 @@ export interface F12State {
     /** O ataque que a boca cuspiu na abertura atual (null = ainda não cuspiu). */
     ataqueNoAr: NomeDoAtaque | null;
     passouDaVirada: boolean;
+    /**
+     * A abertura em que a vida cruzou a metade; -1 enquanto não cruzou.
+     *
+     * É o que faz as estreias de `mare` e `elevadores` serem RELATIVAS à virada
+     * em vez de números fixos — e portanto o que faz a fala do TROCO-63 ("dois
+     * padrões novos") ser verdade em qualquer luta, curta ou longa.
+     */
+    aberturaDaVirada: number;
     projeteis: Projetil[];
     linhaDoDialogo: number;
     versao: number;
@@ -951,7 +991,7 @@ export const f12: F12State = criarEstado();
 function criarEstado(): F12State {
     return {
         fase: 'intro', relogio: 0, bocaT: 0, vida: VIDA_MAXIMA, aberturas: 0,
-        ataqueNoAr: null, passouDaVirada: false, projeteis: [],
+        ataqueNoAr: null, passouDaVirada: false, aberturaDaVirada: -1, projeteis: [],
         linhaDoDialogo: 0, versao: 0,
     };
 }
