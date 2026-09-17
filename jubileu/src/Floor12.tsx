@@ -396,6 +396,8 @@ interface Ferramentas {
     entrada: React.MutableRefObject<{ x: number; y: number }>;
     flash: React.MutableRefObject<number>;
     sacode: React.MutableRefObject<number>;
+    /** 1 no quadro do lançamento do míssil, e decai. */
+    clarao: React.MutableRefObject<number>;
     gritoRef: React.MutableRefObject<string>;
     avisar: () => void;
     cinemaClock: React.MutableRefObject<number>;
@@ -519,7 +521,21 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const moving = Math.hypot(n.vx, n.vy) > .12;
         const shots = stepFlightWeapon(F.arma.current, dtDoRelogio, F.touchAtivo.current || F.gatilho.current, moving);
         if (F.arma.current.missile) {
+            // ── O DISPARO PRECISA SER UM EVENTO, E NÃO SÓ UM SOM ──────────
+            //
+            // O prêmio de 100% custa ficar PARADO no meio de uma salva do
+            // chefe e vale dez tiros comuns. Ele saía com `tocarExplosao()` e
+            // mais nada: a tela não piscava, não sacudia, e o foguete some em
+            // dois quadros porque é rápido. Fotografado num quadro logo depois
+            // do lançamento, não dava para achar o míssil na imagem. Uma
+            // recompensa que o jogador não vê acontecer não é recompensa.
+            //
+            // O tranco aqui é o do COICE, e por isso é menor que o do impacto
+            // (0,25) e muito menor que o de tomar dano (1,0): a ordem entre os
+            // três é o que diz ao jogador o que aconteceu sem uma palavra.
             f12.projeteis.push(nascerMissilCarregado(n.x, n.y));
+            F.sacode.current = Math.max(F.sacode.current, .14);
+            F.clarao.current = 1;
             tocarExplosao();
         }
         for (let i = 0; i < shots; i++) {
@@ -797,6 +813,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const cinemaClock = useRef(0);
     const flash = useRef(0);
     const sacode = useRef(0);
+    const clarao = useRef(0);
     const gritoRef = useRef('');
     const porta = useRef(0);
     const abertura = useRef(0);
@@ -1026,7 +1043,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <CameraDaLuta irmaoRef={irmao} naveRef={nave} camRef={cam} introProgressRef={introProgress}
                     introAtivaRef={introAtiva} sacodeRef={sacode} cinemaClock={cinemaClock} />
                 <DiretorDaLuta touchAtivo={touchAtivo} gatilho={gatilho} arma={arma} nave={nave} irmao={irmao} entrada={entrada}
-                    flash={flash} sacode={sacode} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
+                    flash={flash} sacode={sacode} clarao={clarao} gritoRef={gritoRef} avisar={avisar} cinemaClock={cinemaClock} />
+                <ClaraoDoLancamento clarao={clarao} nave={nave} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
             </Canvas>
 
@@ -1164,6 +1182,44 @@ const DicaDeControle: React.FC = () => {
                 estava aprendendo a pilotar. */}
             ARRASTE PARA VOAR E ATIRAR · PARAR CARREGA A RAJADA
         </div>
+    );
+};
+
+/**
+ * O CLARÃO DO LANÇAMENTO.
+ *
+ * Uma bola de luz que nasce na frente do avião no quadro do disparo e morre em
+ * pouco mais de um quarto de segundo, crescendo enquanto apaga. É o que dá ao
+ * míssil um INSTANTE — sem ele o foguete atravessa a arena em dois quadros e o
+ * jogador só ouve um estouro sem origem.
+ *
+ * Desenhado com `depthWrite` desligado e material básico: ele é LUZ, e luz não
+ * recorta o que está atrás dela.
+ */
+const ClaraoDoLancamento: React.FC<{
+    clarao: React.MutableRefObject<number>;
+    nave: React.MutableRefObject<Nave>;
+}> = ({ clarao, nave }) => {
+    const ref = useRef<THREE.Mesh>(null);
+    useFrame((_, rawDt) => {
+        const m = ref.current;
+        if (!m) return;
+        clarao.current = Math.max(0, clarao.current - Math.min(rawDt, .05) * 3.6);
+        const c = clarao.current;
+        m.visible = c > 0.02;
+        if (!m.visible) return;
+        const n = nave.current;
+        m.position.set(n.x, n.y, ARENA.zNave - 1.4);
+        // cresce enquanto apaga: é assim que clarão lê como estouro, e não
+        // como uma bola que encolhe
+        m.scale.setScalar(0.5 + (1 - c) * 2.4);
+        (m.material as THREE.MeshBasicMaterial).opacity = c * c;
+    });
+    return (
+        <mesh ref={ref} visible={false}>
+            <sphereGeometry args={[.6, 12, 8]} />
+            <meshBasicMaterial color="#ffd98a" transparent opacity={0} depthWrite={false} toneMapped={false} />
+        </mesh>
     );
 };
 

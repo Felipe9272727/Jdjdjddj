@@ -247,7 +247,18 @@ function desenhar(o: THREE.Object3D, p: Projetil, t: number, M: Record<string, T
             (filho as THREE.Mesh).material = filho.name === 'core' ? M.core : p.carregado ? M.missilLuz : m;
             // o rastro do irmão é mais curto: a arma dele é menor, e isso tem de
             // dar para ver sem ler o HUD
-            if (filho.name === 'rastro') filho.scale.set(p.carregado ? 1.8 : 1, p.carregado ? 1.8 : 1, p.carregado ? 1.2 : p.de === 'irmao' ? .55 : 1);
+            // O RASTRO DO MÍSSIL É O QUE TORNA O MÍSSIL ACHÁVEL.
+            //
+            // Ele cruza a arena em dois quadros. Num quadro fotografado logo
+            // depois do lançamento não dava para localizar o foguete na imagem
+            // — e é o prêmio que custa ficar parado no meio de uma salva. O
+            // corpo pode ser pequeno; o risco que ele deixa atrás de si é que
+            // precisa ser grande, porque é ele que fica no quadro tempo
+            // suficiente para ser visto.
+            if (filho.name === 'rastro') filho.scale.set(
+                p.carregado ? 2.6 : 1,
+                p.carregado ? 2.6 : 1,
+                p.carregado ? 3.4 : p.de === 'irmao' ? .55 : 1);
         }
         return;
     }

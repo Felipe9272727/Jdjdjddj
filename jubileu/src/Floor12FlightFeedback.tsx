@@ -83,7 +83,16 @@ export function Floor12ChargeMeter({ arma }: { arma: MutableRefObject<FlightWeap
   if (percent < 2) return null;
   const full = percent === 100;
   return <div data-testid="f12-charge" role="progressbar" aria-label="Carga da rajada" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
-    style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 126px)', left: 12, width: 116, padding: '7px 9px', borderRadius: 8, background: '#09202bd9', border: '1px solid #53787d', color: full ? '#ffdc89' : '#96fff0', font: 'bold 11px monospace', pointerEvents: 'none', zIndex: 3 }}>
+    style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 126px)', left: 12, width: 116, padding: '7px 9px', borderRadius: 8, background: '#09202bd9',
+      // CHEIO TEM DE GRITAR. Em 99% e em 100% a caixa era a mesma coisa em
+      // dois tons de azul-esverdeado, e o instante em que o prêmio fica
+      // disponível — o único momento em que ficar parado passa a valer a pena —
+      // não se distinguia de estar quase lá.
+      border: full ? '2px solid #ffd575' : '1px solid #53787d',
+      boxShadow: full ? '0 0 12px #ffd57588' : 'none',
+      animation: full ? 'f12carga 0.55s infinite' : 'none',
+      color: full ? '#ffdc89' : '#96fff0', font: 'bold 11px monospace', pointerEvents: 'none', zIndex: 3 }}>
+    <style>{'@keyframes f12carga { 0%,100% { opacity: 1 } 50% { opacity: 0.62 } }'}</style>
     {full ? 'MÍSSIL PRONTO' : 'RAJADA · ' + percent + '%'}
     <div style={{ marginTop: 5, height: 4, background: '#29434b', borderRadius: 3 }}>
       <div style={{ width: percent + '%', height: '100%', background: full ? '#ffd575' : '#71fff0', borderRadius: 3 }} />
