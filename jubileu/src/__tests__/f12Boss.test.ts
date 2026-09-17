@@ -3,7 +3,8 @@ import {
     ARENA, meioY, dentroDaArena,
     BOCA, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, LIMIAR_DA_VIRADA, ferir, f12, f12Reset,
-    ATAQUES, ataqueDaVez, fichaDoAtaque, padroesAtivos, ABERTURA_DO_MOVESET_COMPLETO,
+    ATAQUES, ataqueDaVez, marcarAbertura, fichaDoAtaque, padroesAtivos, ABERTURA_DO_MOVESET_COMPLETO,
+    type F12State,
     LEQUE, nascerLeque,
     TELEGUIADO, nascerTeleguiado, guiarTeleguiado,
     NAVES, nascerNaves,
@@ -719,4 +720,76 @@ describe('f12 — attacks reach the flight plane', () => {
             expect(hit).toBe(true);
         });
     }
+});
+
+describe('a virada não pode rebobinar a escalada', () => {
+    // O DEFEITO QUE ESTE TESTE TRANCA, e ele custou o ataque inteiro:
+    //
+    // O rodízio saía de `Math.floor(bocaT / CICLO_DA_BOCA)`. Só que `bocaT` é a
+    // FASE da animação, e a virada a zera de propósito para o compasso
+    // recomeçar limpo. O resultado é que a metade da luta voltava para a
+    // abertura 0: `elevadores` — que entra na 8ª abertura e é o ÚNICO ataque do
+    // eixo vertical — nunca saía num jogo inteiro, `mare` saía uma vez por
+    // metade, e o leque ficava com mais da metade das aberturas. E a fala da
+    // virada anuncia "dois padrões novos".
+    const sequencia = (aberturas: number, zerarEm: number): NomeDoAtaque[] => {
+        const st = { aberturas: 0 } as F12State;
+        const fora: NomeDoAtaque[] = [];
+        let visto = -1, ciclo = 0;
+        for (let i = 0; i < aberturas; i++) {
+            if (i === zerarEm) { ciclo = 0; visto = -1; }   // a virada zera `bocaT`
+            const n = marcarAbertura(visto, ciclo, st);
+            visto = ciclo; ciclo++;
+            fora.push(ataqueDaVez(n, i >= zerarEm));
+        }
+        return fora;
+    };
+
+    it('os cinco padrões aparecem numa luta de 15 aberturas com virada na 7ª', () => {
+        const vistos = new Set(sequencia(15, 7));
+        for (const nome of ['leque', 'teleguiado', 'naves', 'mare', 'elevadores'] as const) {
+            expect(vistos).toContain(nome);
+        }
+    });
+
+    it('zerar o relógio da animação não muda o rodízio', () => {
+        expect(sequencia(15, 7)).toEqual(sequencia(15, 99));
+    });
+
+    it('marcarAbertura conta uma vez por ciclo, e não uma por quadro', () => {
+        const st = { aberturas: 0 } as F12State;
+        expect(marcarAbertura(-1, 4, st)).toBe(0);
+        expect(marcarAbertura(4, 4, st)).toBe(0);   // mesmo ciclo, mesmo índice
+        expect(marcarAbertura(4, 4, st)).toBe(0);
+        expect(marcarAbertura(4, 5, st)).toBe(1);
+        expect(st.aberturas).toBe(2);
+    });
+});
+
+describe('a cabine do elevador é alta, e a colisão também', () => {
+    // O raio sozinho acertava a LARGURA da cabine e errava a ALTURA por 0,41 —
+    // no único ataque cujo assunto é o eixo vertical.
+    const cabine = () => nascerElevadores(0)[0];
+
+    it('o alcance vertical bate com a meia-altura desenhada', () => {
+        expect(ELEVADORES.meioSegmento + ELEVADORES.raio + NAVE.raio)
+            .toBeCloseTo(ELEVADORES.meiaAlturaDesenhada, 6);
+    });
+
+    it('encosta na borda de cima da cabine, e não meia unidade dentro', () => {
+        const c = cabine();
+        c.z = ARENA.zNave;
+        const dentro = ELEVADORES.meiaAlturaDesenhada - 0.02;
+        const fora = ELEVADORES.meiaAlturaDesenhada + 0.02;
+        expect(encostou(c, c.x, c.y + dentro, NAVE.raio)).toBe(true);
+        expect(encostou(c, c.x, c.y - dentro, NAVE.raio)).toBe(true);
+        expect(encostou(c, c.x, c.y + fora, NAVE.raio)).toBe(false);
+    });
+
+    it('a largura continua onde estava: o eixo novo não alargou a cabine', () => {
+        const c = cabine();
+        c.z = ARENA.zNave;
+        expect(encostou(c, c.x + 0.92, c.y, NAVE.raio)).toBe(true);
+        expect(encostou(c, c.x + 0.96, c.y, NAVE.raio)).toBe(false);
+    });
 });

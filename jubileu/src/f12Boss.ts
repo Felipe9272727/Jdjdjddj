@@ -343,6 +343,17 @@ export interface Projetil {
     p?: number;
     /** X de repouso, para os que bamboleiam em volta de uma linha. */
     base?: number;
+    /**
+     * Meio-comprimento do EIXO VERTICAL da colisão, quando ela não é um círculo.
+     *
+     * Quase tudo que a cabeça cospe é redondo, e um raio basta. A cabine do
+     * elevador não é: ela é 1,9 de caixa mais teto mais trilhos, ou seja alta e
+     * estreita. Com um círculo só, um raio que acerte a largura erra a altura
+     * por quase meia unidade — e é justamente o ataque cujo assunto É o eixo
+     * vertical. Com `ry`, a colisão vira uma cápsula em pé: o raio cuida da
+     * largura e o segmento cuida da altura.
+     */
+    ry?: number;
 }
 
 let proximoId = 1;
@@ -589,6 +600,20 @@ export const ELEVADORES = Object.freeze({
      * 0,52 + 0,42 do avião = 0,94, que é exatamente onde a cabine acaba.
      */
     raio: 0.52,
+    /**
+     * Meia-altura DESENHADA da cabine: a caixa tem 1,9, o teto está em 1,0 e os
+     * trilhos têm 2,7 de altura — o topo do que se vê fica em 1,35.
+     *
+     * O raio acima acerta a LARGURA e só ela. Na vertical, 0,52 + 0,42 do avião
+     * dava 0,94 contra 1,35 de cabine: o jogador atravessava o telhado e o piso
+     * da cabine, sem dano, por 0,41 — uns 16 px em celular. É o mesmo defeito da
+     * maré, no outro eixo, no ÚNICO ataque cujo assunto é justamente a altura.
+     */
+    meiaAlturaDesenhada: 1.35,
+    /** DERIVADO: o segmento que, somado ao raio e ao avião, dá a meia-altura. */
+    get meioSegmento(): number {
+        return this.meiaAlturaDesenhada - this.raio - NAVE.raio;
+    },
 });
 
 export const xDaFaixa = (i: number): number =>
@@ -607,7 +632,7 @@ export function nascerElevadores(faixaVazia: number, alvoY = meioY()): Projetil[
             id: novoId(), tipo: 'elevadores',
             x: xDaFaixa(i), y: inicioY, z: inicioZ,
             vx: 0, vy: -queda, vz: ELEVADORES.velocidadeZ,
-            r: ELEVADORES.raio, t: 0, p: i,
+            r: ELEVADORES.raio, ry: ELEVADORES.meioSegmento, t: 0, p: i,
         });
     }
     return fora;
@@ -856,7 +881,11 @@ export function encostou(p: Projetil, x: number, y: number, raio: number): boole
     if (Math.abs(p.z - ARENA.zNave) > (p.r + 0.9)) return false;
     // o raio de quem passa ENTRA na conta da onda, como entra em todo o resto
     if (p.tipo === 'mare') return mareAcerta(p, x, raio);
-    return Math.hypot(p.x - x, p.y - y) < p.r + raio;
+    // `ry` aproxima o corpo do projétil de um segmento VERTICAL em vez de um
+    // ponto: grudando o y do alvo ao segmento, o teste vira o mesmo círculo de
+    // sempre, só que contra a parte mais próxima da cabine.
+    const dy = p.ry ? y - Math.max(p.y - p.ry, Math.min(p.y + p.ry, y)) : p.y - y;
+    return Math.hypot(p.x - x, dy) < p.r + raio;
 }
 
 /**
@@ -898,6 +927,22 @@ export interface F12State {
     projeteis: Projetil[];
     linhaDoDialogo: number;
     versao: number;
+}
+
+/**
+ * Marca uma abertura nova e devolve o ÍNDICE dela na escalada.
+ *
+ * As duas coisas que `bocaT` fazia ao mesmo tempo moram aqui separadas: quem
+ * chama passa o ciclo da ANIMAÇÃO (que a virada zera de propósito) e recebe de
+ * volta o índice do RODÍZIO (que só sobe). Enquanto o rodízio saía do ciclo da
+ * animação, a virada devolvia a luta para a abertura 0 e `elevadores` nunca
+ * chegava a sair.
+ *
+ * `visto` é o último ciclo que o chamador já contou; -1 quer dizer "nenhum".
+ */
+export function marcarAbertura(visto: number, ciclo: number, st: F12State = f12): number {
+    if (visto === ciclo) return st.aberturas - 1;
+    return st.aberturas++;
 }
 
 export const f12: F12State = criarEstado();

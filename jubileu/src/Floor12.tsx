@@ -33,7 +33,7 @@ import {
     f12, f12Reset, f12AoMudar, f12Bump, ARENA, meioY, ENQUADRAMENTO, BOCA_ALVO,
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
-    ataqueDaVez, fichaDoAtaque, VIDA_MAXIMA, ferir,
+    ataqueDaVez, marcarAbertura, fichaDoAtaque, VIDA_MAXIMA, ferir,
     nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
@@ -362,6 +362,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
     const ladoDoIrmao = useRef<-1 | 1>(1);
     const cuspiu = useRef(-1);
     const anunciou = useRef(-1);
+    const cicloVisto = useRef(-1);
     const faixaDoElevador = useRef(0);
     const faseDaMare = useRef(0);
 
@@ -409,7 +410,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         passoDaNave(ir, dt);
 
         if (!lutando) {
-            anunciou.current = -1; cuspiu.current = -1;
+            anunciou.current = -1; cuspiu.current = -1; cicloVisto.current = -1;
             F.arma.current.active = false;
             return;
         }
@@ -420,10 +421,33 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const b = bocaNoInstante(f12.bocaT);
         const ciclo = Math.floor(f12.bocaT / CICLO_DA_BOCA);
 
+        // ── O CURSOR DA ESCALADA NÃO É O RELÓGIO DA BOCA ─────────────────
+        //
+        // `bocaT` é a FASE da animação, e a virada o zera de propósito para o
+        // compasso recomeçar limpo dos dois lados. Enquanto o rodízio saía de
+        // `Math.floor(bocaT / CICLO)`, zerar a fase zerava também a escalada:
+        // a metade da luta voltava para a abertura 0, `elevadores` (que entra
+        // na 8ª e é o único ataque do eixo VERTICAL) NUNCA saía num
+        // jogo inteiro, `mare` saía uma vez por metade, e o leque ficava com
+        // 8 das 15 aberturas. Pior: a fala da virada anuncia "dois padrões
+        // novos" e o que o jogador recebia era o leque de novo.
+        //
+        // `f12.aberturas` já existia no estado, com o comentário "é o cursor
+        // do rodízio", e simplesmente nunca tinha sido ligado. Ele só sobe, e
+        // a virada não o toca — que é a diferença entre as duas coisas que
+        // `bocaT` estava fazendo ao mesmo tempo.
+        const abertura = marcarAbertura(cicloVisto.current, ciclo);
+        cicloVisto.current = ciclo;
+
         if (b.estado === 'abrindo' && anunciou.current !== ciclo) {
             anunciou.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
-            F.gritoRef.current = fichaDoAtaque(qual).grito;
+            const qual = ataqueDaVez(abertura, f12.passouDaVirada);
+            // O ÍNDICE VAI JUNTO com o texto, e não é enfeite: `GritoDoAtaque`
+            // só reaparece quando a string MUDA, então um leque seguido de
+            // outro leque (acontece nas aberturas 0 e 1, que é a estreia do
+            // jogador na luta) abria em silêncio. Com a abertura na frente, o
+            // mesmo ataque duas vezes são duas strings diferentes.
+            F.gritoRef.current = `${abertura}|${fichaDoAtaque(qual).grito}`;
             tocarBocaAbrindo();
             F.avisar();
         }
@@ -432,7 +456,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // No PRIMEIRO instante do estado aberto, e uma vez por ciclo.
         if (b.estado === 'aberta' && cuspiu.current !== ciclo) {
             cuspiu.current = ciclo;
-            const qual = ataqueDaVez(ciclo, f12.passouDaVirada);
+            const qual = ataqueDaVez(abertura, f12.passouDaVirada);
             f12.ataqueNoAr = qual;
             cuspir(qual, n, faixaDoElevador, faseDaMare);
             tocarAtaque(qual);
@@ -1077,7 +1101,7 @@ const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({
             ...t64, ...CANTO_DO_HUD, top: 'calc(env(safe-area-inset-top) + 62px)',
             fontSize: 18, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
         }}>
-            {texto}
+            {texto.slice(texto.indexOf('|') + 1)}
             <style>{'@keyframes f12pisca { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }'}</style>
         </div>
     );
