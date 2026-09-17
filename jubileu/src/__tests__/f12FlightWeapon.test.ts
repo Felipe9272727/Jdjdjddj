@@ -81,3 +81,28 @@ describe('full-charge missile', () => {
     expect(danoDoTiro(nascerTiro(2, 4, 'irmao'))).toBe(.6);
   });
 });
+
+describe('a carga é um cronômetro, e não uma contagem de quadros', () => {
+    // O defeito que este teste tranca: o loop passava à arma o `dt` TRAVADO da
+    // física (0,05). Num aparelho a 11 fps o quadro dura 0,09 s, virava 0,05, e
+    // os "2,4 s" prometidos custavam quase 4 s de imobilidade real — o prêmio
+    // de 100% ficava fora de alcance justamente em quem tem o aparelho pior.
+    const segundosAteCarregar = (dt: number): number => {
+        const g = newFlightWeapon();
+        let t = 0;
+        for (let i = 0; i < 10000 && g.charge < FLIGHT_WEAPON.chargeLimit - 1e-6; i++) {
+            stepFlightWeapon(g, dt, true, false);
+            t += dt;
+        }
+        return t;
+    };
+
+    // A folga é UM QUADRO, e não um número escolhido a dedo: a carga só pode
+    // ser conferida quando o quadro acontece, então o último passo sempre passa
+    // um pouco do alvo. Passar disso é dependência de taxa de quadros.
+    it.each([1 / 60, 1 / 30, 1 / 20, 1 / 11])('a %f s por quadro, carrega em 2,4 s', (dt) => {
+        const gasto = segundosAteCarregar(dt);
+        expect(gasto).toBeGreaterThan(FLIGHT_WEAPON.chargeLimit - 1e-6);
+        expect(gasto).toBeLessThan(FLIGHT_WEAPON.chargeLimit + dt);
+    });
+});

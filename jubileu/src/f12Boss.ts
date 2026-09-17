@@ -494,8 +494,16 @@ export function nascerNaves(): Projetil[] {
 // reflexo — que é o contraste com o leque e o teleguiado.
 export const MARE = Object.freeze({
     velocidadeZ: 5.8,
-    /** Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo. */
-    fresta: 2.05,
+    /**
+     * Meia-largura da fresta. Cabe um avião com folga, e é isso mesmo.
+     *
+     * 2,05 -> 2,46: cresceu exatamente `NAVE.raio` quando a colisão passou a
+     * contar a largura do avião (ver `mareAcerta`). Sem isso o corredor jogável
+     * encolheria de repente e a maré viraria o ataque mais difícil do andar por
+     * acidente de conserto, e não por decisão de projeto. O que se atravessa
+     * continua o mesmo; a diferença é que agora é o corredor DESENHADO.
+     */
+    get fresta(): number { return 2.05 + NAVE.raio; },
     /**
      * A fresta passeia por X neste seno.
      *
@@ -504,7 +512,17 @@ export const MARE = Object.freeze({
      * a onda chegaria com a única passagem num lugar onde o avião não pode
      * estar. É por isso que o teste cobra esta relação e não o número solto.
      */
-    passeioAmp: 2.75,
+    get passeioAmp(): number {
+        // DERIVADO do invariante, e não escrito à mão.
+        //
+        // A regra é `passeioAmp + fresta <= ARENA.x`: passar disso põe a saída
+        // FORA da arena e o ataque vira indesviável sem aviso. Quando a fresta
+        // cresceu (ela passou a contar a largura do avião), este número continuou
+        // em 2,75 e o invariante quebrou na hora — dois testes reprovaram, que é
+        // o sistema funcionando. Derivando, ele não pode mais escorregar: quem
+        // mexer na fresta não precisa lembrar de mexer aqui.
+        return ARENA.x - MARE.fresta;
+    },
     passeioHz: 0.24,
     raio: 0.9,          // espessura da onda, para a colisão em Z
 });
@@ -524,8 +542,27 @@ export function frestaDaMare(m: Projetil): number {
 }
 
 /** A onda pegou quem está em `x`? (fora da fresta = pegou) */
-export function mareAcerta(m: Projetil, x: number): boolean {
-    return Math.abs(x - frestaDaMare(m)) > MARE.fresta;
+/**
+ * A onda pegou quem está em `x`?
+ *
+ * ── O AVIÃO TEM LARGURA, E ESTA CONTA ERA A ÚNICA QUE NÃO SABIA DISSO ────────
+ *
+ * `encostou` soma o raio de quem passa em TODOS os outros ataques. A maré era a
+ * exceção: comparava só o CENTRO do avião contra a borda da fresta. E a parede é
+ * desenhada terminando exatamente em `fresta ± MARE.fresta`, então o desenho e o
+ * dano concordavam no papel e discordavam na tela — com o centro na borda, meia
+ * envergadura ficava DENTRO da parede desenhada e não acontecia nada.
+ *
+ * Medido por um avaliador: até 0,41 de unidade de sobreposição visível, uns 17
+ * px em tela de celular. É o "o ataque passou por dentro de mim" ao pé da letra,
+ * e é o defeito que o dono do jogo relatou primeiro.
+ *
+ * A fresta foi alargada no mesmo tanto (ver `MARE.fresta`), então o corredor que
+ * dá para atravessar continua o mesmo; o que mudou é que agora ele é o corredor
+ * que se VÊ.
+ */
+export function mareAcerta(m: Projetil, x: number, raio = 0): boolean {
+    return Math.abs(x - frestaDaMare(m)) + raio > MARE.fresta;
 }
 
 // ── ATAQUE 5: A ESPINHA (cabines de elevador caindo) ─────────────────────────
@@ -539,7 +576,19 @@ export const ELEVADORES = Object.freeze({
     velocidadeZ: 5.2,
     /** Velocidade máxima da descida; o trajeto cruza a altura visada. */
     quedaPorSegundo: 2.4,
-    raio: 0.85,
+    /**
+     * 0,85 -> 0,52.
+     *
+     * A parte mais larga da cabine desenhada são os trilhos, em ±0,89 com 0,10
+     * de espessura — ou seja a silhueta acaba em 0,94. Com o raio em 0,85 e o
+     * avião em 0,42, o dano ia até 1,27 do centro: um terço de unidade (uns 13
+     * px em celular) de dano vindo de FORA da cabine que o jogador vê. É o
+     * mesmo defeito da maré com o sinal trocado, e o jogador não tem como
+     * descobrir nenhum dos dois jogando.
+     *
+     * 0,52 + 0,42 do avião = 0,94, que é exatamente onde a cabine acaba.
+     */
+    raio: 0.52,
 });
 
 export const xDaFaixa = (i: number): number =>
@@ -805,7 +854,8 @@ export function tomarToque(n: Nave): boolean {
 // X/Y com uma janela em Z. A maré é a exceção e tem a regra dela.
 export function encostou(p: Projetil, x: number, y: number, raio: number): boolean {
     if (Math.abs(p.z - ARENA.zNave) > (p.r + 0.9)) return false;
-    if (p.tipo === 'mare') return mareAcerta(p, x);
+    // o raio de quem passa ENTRA na conta da onda, como entra em todo o resto
+    if (p.tipo === 'mare') return mareAcerta(p, x, raio);
     return Math.hypot(p.x - x, p.y - y) < p.r + raio;
 }
 

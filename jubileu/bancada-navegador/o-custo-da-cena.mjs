@@ -7,7 +7,8 @@ const ctx = await b.newContext({ viewport:{width:W,height:H}, deviceScaleFactor:
 const p = await ctx.newPage();
 await p.route('**://raw.githubusercontent.com/**', r=>r.fulfill({status:200,contentType:'image/png',body:PNG}));
 await p.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r=>r.abort().catch(()=>{}));
-await p.goto('http://127.0.0.1:3012/index.html?f12',{waitUntil:'domcontentloaded',timeout:120000});
+const PORTA = process.env.PORTA ?? '3011';
+await p.goto(`http://127.0.0.1:${PORTA}/index.html?f12`,{waitUntil:'domcontentloaded',timeout:120000});
 await new Promise(r=>setTimeout(r,3500));
 for (let i=0;i<120;i++){
   const f = await p.evaluate(()=>window.__f12estado?.fase ?? null).catch(()=>null);

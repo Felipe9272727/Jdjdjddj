@@ -367,6 +367,17 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
+        // O RELÓGIO DA ARMA É O DO MUNDO, e não o da física.
+        //
+        // `dt` está travado em 0,05 porque o passo da física precisa disso: um
+        // quadro longo com o passo inteiro faz projétil ATRAVESSAR o avião. Só
+        // que a carga da arma não é física, é um cronômetro — ela promete 2,4
+        // SEGUNDOS de imobilidade. Passando o `dt` travado, a promessa virava
+        // "2,4 s se o aparelho estiver a 20 fps ou mais, e quase 4 s a 11 fps":
+        // num celular ruim o prêmio de 100% ficava fora de alcance, e nada na
+        // tela explicava por quê. O travamento maior aqui é só um limite de
+        // sanidade para aba em segundo plano; quem fecha em 0,1 é a arma.
+        const dtDoRelogio = Math.min(rawDt, 0.25);
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
         if (['queda', 'vitoria', 'despedida'].includes(f12.fase)) return;
@@ -429,7 +440,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 
         // ── AS ARMAS ─────────────────────────────────────────────────────
         const moving = Math.hypot(n.vx, n.vy) > .12;
-        const shots = stepFlightWeapon(F.arma.current, dt, F.touchAtivo.current || F.gatilho.current, moving);
+        const shots = stepFlightWeapon(F.arma.current, dtDoRelogio, F.touchAtivo.current || F.gatilho.current, moving);
         if (F.arma.current.missile) {
             f12.projeteis.push(nascerMissilCarregado(n.x, n.y));
             tocarExplosao();
@@ -982,12 +993,14 @@ const DicaDeControle: React.FC = () => {
     if (!visivel) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 30px)',
-            left: 0, right: 0, textAlign: 'center', fontSize: 15, zIndex: 3, pointerEvents: 'none',
+            ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+            left: 0, right: 0, textAlign: 'center', fontSize: 13, zIndex: 3, pointerEvents: 'none',
             opacity: 0.92,
         }}>
-            TOQUE E ARRASTE PARA VOAR E ATIRAR<br />
-            <span style={{ fontSize: 12 }}>SOLTE PARA CESSAR FOGO · PARAR CARREGA A RAJADA</span>
+            {/* UMA linha, e rente à borda. Duas linhas a 30 px do fundo caíam em
+                cima do avião do jogador — o tutorial tapava a coisa que ele
+                estava aprendendo a pilotar. */}
+            ARRASTE PARA VOAR E ATIRAR · PARAR CARREGA A RAJADA
         </div>
     );
 };
@@ -999,6 +1012,22 @@ const RevelarAviao: React.FC<{
 }> = ({ camRef, visivelRef }) => {
     useFrame(() => { if (camRef.current > 0.12) visivelRef.current = true; });
     return null;
+};
+
+/**
+ * A COLUNA DO MEIO É DA CABEÇA, e o HUD não entra nela.
+ *
+ * As duas linhas que a luta grita — o nome do ataque e a janela de dano —
+ * estavam centralizadas e presas a 64 px e 96 px do topo. É exatamente onde
+ * fica a cara do chefe: em retrato as duas cobriam a testa e a boca ao mesmo
+ * tempo em que diziam "ATIRE NA BOCA!", tapando a única coisa que o jogador
+ * precisava ver. O canto é o lugar certo para texto de apoio; o meio é do
+ * desenho. Alinhadas à direita, elas espelham as vidas no canto esquerdo e
+ * empilham sem se atropelar quando as duas aparecem juntas.
+ */
+const CANTO_DO_HUD: React.CSSProperties = {
+    position: 'absolute', right: 14, textAlign: 'right',
+    maxWidth: '42%', zIndex: 3, pointerEvents: 'none',
 };
 
 /**
@@ -1020,9 +1049,8 @@ const AvisoDeJanela: React.FC = () => {
     if (!aberta) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 96px)',
-            left: 0, right: 0, textAlign: 'center', fontSize: 20, color: '#b6ff4a',
-            zIndex: 3, pointerEvents: 'none', animation: 'f12pisca 0.45s infinite',
+            ...t64, ...CANTO_DO_HUD, top: 'calc(env(safe-area-inset-top) + 92px)',
+            fontSize: 18, color: '#b6ff4a', animation: 'f12pisca 0.45s infinite',
         }}>
             ATIRE NA BOCA!
         </div>
@@ -1046,8 +1074,8 @@ const GritoDoAtaque: React.FC<{ gritoRef: React.MutableRefObject<string> }> = ({
     if (!texto || !visivel) return null;
     return (
         <div style={{
-            ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 64px)', left: 0, right: 0, textAlign: 'center',
-            fontSize: 20, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
+            ...t64, ...CANTO_DO_HUD, top: 'calc(env(safe-area-inset-top) + 62px)',
+            fontSize: 18, color: '#ff8a6b', animation: 'f12pisca 0.4s infinite',
         }}>
             {texto}
             <style>{'@keyframes f12pisca { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }'}</style>
