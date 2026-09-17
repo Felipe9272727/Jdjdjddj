@@ -45,10 +45,22 @@ export const Floor12Estilhacos: React.FC<{ fila: FilaDeEstilhacos }> = ({ fila }
     })), []);
     const proxima = useRef(0);
 
+    const pintou = useRef(false);
+
     useFrame((_, rawDt) => {
         const m = malha.current;
         if (!m) return;
         const dt = Math.min(rawDt, 0.05);
+
+        // TODAS as instâncias nascem com cor. Assim que `setColorAt` é chamado
+        // uma vez, o three cria o atributo de cor e toda instância que nunca
+        // recebeu a sua fica PRETA — e lasca preta num céu escuro é lasca
+        // invisível. Fotografado, metade delas saía preta.
+        if (!pintou.current) {
+            pintou.current = true;
+            for (let i = 0; i < QUANTOS; i++) m.setColorAt(i, cor.set('#ffffff'));
+            if (m.instanceColor) m.instanceColor.needsUpdate = true;
+        }
 
         // 1. atender os pedidos da fila
         const pedidos = fila.current;
@@ -56,7 +68,8 @@ export const Floor12Estilhacos: React.FC<{ fila: FilaDeEstilhacos }> = ({ fila }
             const p = pedidos.pop()!;
             const quantas = Math.round(4 + p.forca * 4);
             for (let k = 0; k < quantas; k++) {
-                const l = lascas[proxima.current];
+                const i = proxima.current;
+                const l = lascas[i];
                 proxima.current = (proxima.current + 1) % QUANTOS;
                 // Direções determinísticas em vez de `Math.random`: o mesmo
                 // impacto sempre estoura igual, que é o que deixa o efeito
@@ -67,9 +80,15 @@ export const Floor12Estilhacos: React.FC<{ fila: FilaDeEstilhacos }> = ({ fila }
                 l.x = p.x; l.y = p.y; l.z = p.z;
                 l.vx = Math.cos(a) * v; l.vy = Math.sin(a) * v + 1.2; l.vz = b * v * .6;
                 l.giro = 6 + Math.abs(b) * 14;
-                l.tam = (.09 + Math.abs(b) * .10) * p.forca;
+                // ── O TAMANHO É PARA SER LIDO A 26 UNIDADES ──────────────
+                // A primeira leva usava 0,09 a 0,19 de aresta. Fotografada, a
+                // lasca existia e era um PONTO: a cabeça está a 26 unidades e
+                // tem 7,2 de escala, então dois décimos de unidade não chegam
+                // a um pixel útil. Um efeito que só o código sabe que existe
+                // não é um efeito.
+                l.tam = (.26 + Math.abs(b) * .22) * p.forca;
                 l.t = 0;
-                m.setColorAt(proxima.current === 0 ? QUANTOS - 1 : proxima.current - 1, cor.set(p.cor));
+                m.setColorAt(i, cor.set(p.cor));
             }
             if (m.instanceColor) m.instanceColor.needsUpdate = true;
         }
