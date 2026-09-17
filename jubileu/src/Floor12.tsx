@@ -1,4 +1,4 @@
-import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat } from './f12Cinema';
+import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
@@ -256,13 +256,17 @@ const CameraDaLuta: React.FC<{
             const retrato = Math.max(0, 1 - size.width / Math.max(1, size.height));
             const n2 = naveRef.current;
             const perto = new THREE.Vector3(n2.x + 2.2, n2.y + 2.0, 9 + retrato * 7);
+            // A câmera é colocada RELATIVA à cabeça, e não num z absoluto: os
+            // dois se moviam um contra o outro e cruzavam, deixando a cabeça
+            // atrás da câmera no plano final. Ver `avancoDaCabecaNaDerrota`.
+            const cabecaZ = ARENA.zCabeca + avancoDaCabecaNaDerrota(b.engolir);
             const cara = new THREE.Vector3(0, BOCA_ALVO.y + 1.2,
-                ARENA.zCabeca + 19 + retrato * 13 - b.engolir * 12);
+                cabecaZ + 17 + retrato * 12);
             camera.position.lerp(perto.lerp(cara, b.engolir), 1 - Math.exp(-dt * 2.6));
             camera.position.x += Math.sin(t * 47) * b.atingido * (1 - b.rodopio) * .16;
             camera.rotation.z = (1 - b.engolir) * Math.sin(b.rodopio * Math.PI * 2.2) * .28;
             const foco = new THREE.Vector3(n2.x, n2.y, ARENA.zNave)
-                .lerp(new THREE.Vector3(0, BOCA_ALVO.y, ARENA.zCabeca), b.engolir);
+                .lerp(new THREE.Vector3(0, BOCA_ALVO.y, cabecaZ), b.engolir);
             alvo.current.lerp(foco, 1 - Math.exp(-dt * 3.4));
             if (camera instanceof THREE.PerspectiveCamera) {
                 camera.fov = THREE.MathUtils.lerp(camera.fov, 52 + b.engolir * 18, 1 - Math.exp(-dt * 3));
@@ -436,7 +440,12 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const dtDoRelogio = Math.min(rawDt, 0.25);
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
-        if (['queda', 'vitoria', 'despedida', 'abatido'].includes(f12.fase)) return;
+        // 'derrota' ENTROU NESTA LISTA, e a falta dela era um defeito visível:
+        // o loop da luta continuava rodando sobre o card de derrota, pilotando
+        // o avião de volta para a arena e endireitando-o. Fotografado, o avião
+        // aparecia INTEIRO e nivelado ao lado do ala um segundo e meio depois
+        // de ser engolido — a consequência era retirada na tela seguinte.
+        if (['queda', 'vitoria', 'despedida', 'abatido', 'derrota'].includes(f12.fase)) return;
 
         // ── AS NAVES ─────────────────────────────────────────────────────
         // O ALVO já foi movido por quem toca a tela (arrasto) ou pelo teclado.

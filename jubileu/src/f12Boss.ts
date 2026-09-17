@@ -463,7 +463,24 @@ export const TELEGUIADO = Object.freeze({
     velocidade: 8.0,
     /** Radianos por segundo de correção. Este número É a dificuldade. */
     curvaPorSegundo: 1.45,
-    raio: 0.42,
+    /**
+     * Meia-envergadura DESENHADA: a peça mais larga do míssil são as quatro
+     * aletas, `BoxGeometry(.62, .07, .40)`, ou seja 0,31 do eixo. O corpo tem
+     * 0,22 e a ogiva 0,23, então é a aleta que manda na silhueta.
+     */
+    meiaEnvergaduraDesenhada: 0.31,
+    /**
+     * 0,42 -> 0,31, DERIVADO do desenho.
+     *
+     * `encostou` testa `dist < p.r + raioDaNave`, ou seja `p.r` tem de ser a
+     * meia-largura do que se VÊ. Com 0,42 contra 0,31 desenhados, o jogador
+     * tomava dano de 0,11 de unidade FORA do míssil — uns 4 a 5 px num celular
+     * de 412. Pouco, mas era o único dos cinco ataques em que o erro estava na
+     * direção punitiva: nos outros quatro a regra é igual ou mais generosa que
+     * a silhueta. Um chefe pode errar para o lado do jogador; para o outro
+     * lado, não, porque não há como ele descobrir jogando.
+     */
+    get raio(): number { return this.meiaEnvergaduraDesenhada; },
     /** Depois disto ele desiste e segue reto (senão ele orbita para sempre). */
     combustivel: 7.5,
 });

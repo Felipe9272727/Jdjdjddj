@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { victoryBeat, defeatBeat, turnBeat } from './f12Cinema';
+import { victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota, CENA_DA_DERROTA } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
@@ -188,8 +188,12 @@ export const Floor12Cabeca: React.FC<{
         // ficaria parada, batendo o compasso da boca como se a luta não tivesse
         // acabado. Ela AVANÇA para dentro do quadro, inclina e escancara — a
         // última coisa que o jogador vê é quem o derrubou, não o próprio avião.
+        // A cabeça SEGURA A POSE no card de derrota. Enquanto isto era só
+        // 'abatido', ela voltava à pose normal na tela seguinte e o chefe
+        // aparecia inteiro e calmo logo depois de engolir o jogador.
         const abatido = f12.fase === 'abatido';
-        const dv = abatido ? defeatBeat(ct) : null;
+        const dv = abatido ? defeatBeat(ct)
+            : f12.fase === 'derrota' ? defeatBeat(CENA_DA_DERROTA.total) : null;
         // ── A CABEÇA RUGE NA VIRADA ──────────────────────────────────────
         // Ela ficava parada, batendo o compasso da boca como se nada tivesse
         // acontecido, enquanto uma caixa de texto avisava que tudo tinha
@@ -205,7 +209,8 @@ export const Floor12Cabeca: React.FC<{
                     + (tv ? Math.sin(ct * 71) * tv.tremor * .26 : 0),
                 ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0)
                     - (dv ? dv.engolir * 2.4 : 0),
-                ARENA.zCabeca - (dying ? beat.fall * 7 : 0) + (dv ? dv.engolir * 13 : 0)
+                ARENA.zCabeca - (dying ? beat.fall * 7 : 0)
+                    + (dv ? avancoDaCabecaNaDerrota(dv.engolir) : 0)
                     + (tv ? tv.aproxima * 1.5 : 0));
             raiz.current.rotation.set(
                 (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0),

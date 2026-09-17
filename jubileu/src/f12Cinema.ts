@@ -38,6 +38,25 @@ export function victoryBeat(seconds: number) {
  */
 export const CENA_DA_DERROTA = { total: 6.4, engolir: 3.4 } as const;
 
+/**
+ * QUANTO A CABEÇA AVANÇA NA DERROTA, e por que isto mora aqui.
+ *
+ * Este número estava escrito duas vezes: um 13 na cena (que move a cabeça) e um
+ * 19 - 12 na câmera (que devia parar na frente dela). Como são dois números
+ * independentes, eles CRUZARAM — fotografada, a câmera terminava a 19 unidades
+ * do centro da arena e a cabeça a 13, ou seja a cabeça passava POR TRÁS da
+ * câmera. O quadro em que o TROCO-63 diz "não olha pra cima" não tinha cabeça
+ * nem avião dentro: céu vazio, na única fala cujo trabalho é fazer você olhar
+ * para o chefe.
+ *
+ * Com um dono só, a câmera é posicionada RELATIVA à cabeça e os dois não podem
+ * mais se atravessar. É o mesmo conserto que a virada já tinha recebido — eu
+ * não tinha aplicado a lição aqui.
+ */
+export function avancoDaCabecaNaDerrota(engolir: number): number {
+  return engolir * 13;
+}
+
 export function defeatBeat(seconds: number) {
   const t = Math.max(0, seconds);
   return {

@@ -829,3 +829,25 @@ describe('a cabine do elevador é alta, e a colisão também', () => {
         expect(encostou(c, c.x + 0.96, c.y, NAVE.raio)).toBe(false);
     });
 });
+
+describe('nenhum ataque pune FORA da própria silhueta', () => {
+    // A regra da casa: `encostou` testa `dist < p.r + NAVE.raio`, então `p.r`
+    // tem de ser a meia-largura do que se VÊ. Errar para o lado do jogador (uma
+    // regra mais generosa que o desenho) é aceitável — ele nunca reclama de não
+    // ter tomado dano. Errar para o outro lado não é, porque não existe jeito de
+    // descobrir jogando.
+    const silhuetas: ReadonlyArray<[string, number, number]> = [
+        // [nome, meia-largura desenhada, raio de colisão]
+        ['teleguiado', TELEGUIADO.meiaEnvergaduraDesenhada, TELEGUIADO.raio],
+        ['naves', 0.95, NAVES.raio],          // asa BoxGeometry(1.9)
+        ['elevadores', 0.94, ELEVADORES.raio + NAVE.raio],  // trilhos em ±0,89 + 0,05
+    ];
+
+    it.each(silhuetas)('%s não dá dano fora do desenho', (_nome, desenhado, colisao) => {
+        expect(colisao).toBeLessThanOrEqual(desenhado + 1e-9);
+    });
+
+    it('o teleguiado sai exatamente na ponta da aleta', () => {
+        expect(TELEGUIADO.raio).toBeCloseTo(TELEGUIADO.meiaEnvergaduraDesenhada, 9);
+    });
+});
