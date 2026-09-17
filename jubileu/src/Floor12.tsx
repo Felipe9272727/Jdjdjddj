@@ -1,4 +1,4 @@
-import { F12_CINEMA, CENA_DA_DERROTA, cinemaEase, victoryBeat, defeatBeat } from './f12Cinema';
+import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
@@ -226,6 +226,31 @@ const CameraDaLuta: React.FC<{
         // caindo — é quem o derrubou, avançando para dentro do quadro com a
         // boca abrindo. A câmera roda junto com o avião enquanto ele ainda está
         // no enquadramento, para que a espiral seja sentida e não só vista.
+        // ── A CÂMERA DA VIRADA ───────────────────────────────────────────
+        // Ela FECHA na cara da cabeça enquanto ela se abre, e treme junto. Sem
+        // isto a metade da vida era um congelamento com legenda.
+        if (f12.fase === 'virada') {
+            const t = cinemaClock.current, b = turnBeat(t);
+            const retrato = Math.max(0, 1 - size.width / Math.max(1, size.height));
+            // ── OS DOIS MOVIMENTOS SE SOMAM, E ISSO QUASE CUSTOU O PLANO ──
+            // A câmera avança e a cabeça avança CONTRA ela. Com o fechamento
+            // que eu tinha escrito primeiro, fotografado, a câmera terminava
+            // DENTRO da boca: o quadro final era a garganta em tela cheia e a
+            // cara tinha sumido. O alvo aqui é um plano de rosto, não um mergulho.
+            const longe = new THREE.Vector3(0, BOCA_ALVO.y + 2.4, ARENA.zCabeca + 27 + retrato * 17);
+            const perto = new THREE.Vector3(0, BOCA_ALVO.y + 1.6, ARENA.zCabeca + 22 + retrato * 14);
+            camera.position.lerp(longe.lerp(perto, b.aproxima), 1 - Math.exp(-dt * 2.2));
+            camera.position.x += Math.sin(t * 57) * b.tremor * .22;
+            camera.position.y += Math.cos(t * 43) * b.tremor * .14;
+            alvo.current.lerp(new THREE.Vector3(0, BOCA_ALVO.y + 1.1, ARENA.zCabeca), 1 - Math.exp(-dt * 4));
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, 56 - b.aproxima * 4, 1 - Math.exp(-dt * 3));
+                camera.updateProjectionMatrix();
+            }
+            camera.lookAt(alvo.current);
+            return;
+        }
+
         if (f12.fase === 'abatido') {
             const t = cinemaClock.current, b = defeatBeat(t);
             const retrato = Math.max(0, 1 - size.width / Math.max(1, size.height));
@@ -601,6 +626,7 @@ function abrirAVirada(F: Ferramentas): void {
     // volta a mentir em qualquer luta que não dure exatamente o previsto.
     f12.aberturaDaVirada = Math.max(0, f12.aberturas - 1);
     f12.fase = 'virada';
+    F.cinemaClock.current = 0;   // a virada agora TEM relógio
     f12.linhaDoDialogo = 0;
     f12.projeteis = f12.projeteis.filter((p) => p.tipo === 'tiro');
     tocarExplosao(); tocarFalaDoIrmao();
@@ -695,6 +721,16 @@ const DiretorDaDerrota: React.FC<{
 };
 
 /** As três batidas da derrota, escritas. */
+/** Só adianta o relógio da virada: quem encerra a cena é o jogador. */
+const DiretorDaVirada: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
+    useFrame((_, rawDt) => {
+        if (f12.fase !== 'virada') return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+        clock.current = Math.min(CENA_DA_VIRADA.entrada + 2, clock.current + Math.min(rawDt, .25));
+    });
+    return null;
+};
+
 const LegendaDaDerrota: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
     const [beat, setBeat] = useState(0);
     useEffect(() => {
@@ -976,6 +1012,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     position={[0, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} />
                 <DiretorDaVitoria clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
                 <DiretorDaDerrota clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
+                <DiretorDaVirada clock={cinemaClock} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
                 {fase === 'luta' && <><Mira naveRef={nave} />
@@ -994,9 +1031,15 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             </Canvas>
 
             {/* ── HUD ── */}
-            {fase === 'luta' && (
+            {(fase === 'luta' || fase === 'virada') && (
                 <>
-                    {/* a vida da cabeça */}
+                    {/* a vida da cabeça.
+                        ── ELA FICA DE PÉ NA VIRADA, E ISSO É O PONTO ──
+                        O HUD inteiro estava preso a `fase === 'luta'`, então no
+                        instante em que a barra cruza a metade e muda de verde
+                        para vermelho, ela SOME — justamente o readout de que a
+                        cena trata. O jogador lia "a cabeça mudou" num balão sem
+                        poder ver a barra que mudou. */}
                     <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: '8%', right: '8%', zIndex: 3, pointerEvents: 'none' }}>
                         <div style={{ ...t64, fontSize: 12, marginBottom: 3, textAlign: 'center' }}>A CABEÇA</div>
                         <div style={{ height: 16, background: 'rgba(0,0,0,0.5)', border: '3px solid #11131a', borderRadius: 9, overflow: 'hidden' }}>

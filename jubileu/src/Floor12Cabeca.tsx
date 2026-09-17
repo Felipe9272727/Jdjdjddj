@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { victoryBeat, defeatBeat } from './f12Cinema';
+import { victoryBeat, defeatBeat, turnBeat } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
@@ -128,10 +128,51 @@ export const Floor12Cabeca: React.FC<{
     // As feridas aparecem conforme a vida cai: a cabeça CONTA a luta no corpo,
     // e não só na barra do HUD. Um chefe cuja aparência não muda faz o jogador
     // duvidar de que está acertando.
-    const feridas = useMemo(() => ([
-        [-1.9, 1.4, 3.3], [2.2, 0.6, 3.2], [-0.7, -1.9, 3.4], [1.4, 2.6, 2.9],
-        [-2.6, -0.4, 2.9], [0.4, 3.1, 2.7],
-    ] as [number, number, number][]), []);
+    /**
+     * ── AS FERIDAS ERAM BLUSH DE PALHAÇO ─────────────────────────────────
+     *
+     * Eram seis esferas de raio 0,5 em `#c8443a` chapado, postas a z entre 2,7
+     * e 3,4 num crânio de raio 3,6 — ou seja DENTRO da superfície, estourando
+     * para fora dela como bolas. Fotografadas, duas caíam nas bochechas e uma
+     * dentro da boca, em cima da língua. O resultado era uma cara de palhaço,
+     * na cara do chefe, durante toda a segunda metade da luta.
+     *
+     * A intenção estava certa — a cabeça CONTA a luta no corpo, e um chefe que
+     * não muda de aparência faz o jogador duvidar de que está acertando. O
+     * desenho é que dizia outra coisa.
+     *
+     * Agora cada ferida é uma CRATERA: as direções são normalizadas e a ferida
+     * é assentada exatamente sobre a casca, virada para fora, com a chapa
+     * queimada escura por cima e a brasa aparecendo por dentro. Buraco lê como
+     * dano; bola vermelha lê como bochecha.
+     *
+     * As direções também saíram da faixa central do rosto, onde moram os olhos
+     * e a boca. Uma ferida em cima do olho não é dano, é maquiagem.
+     */
+    const feridas = useMemo(() => {
+        const R = 3.6;
+        // AS DIREÇÕES PRECISAM OLHAR PARA A CÂMERA, e não para os lados.
+        // A primeira leva destas crateras era lateral demais (z em torno de
+        // 0,5 normalizado): fotografada, a cara ficou limpa — elas assentavam
+        // perto da silhueta e não apareciam em quadro nenhum. Trocar uma
+        // ferida feia por ferida invisível é pior, porque aí a cabeça para de
+        // contar a luta no corpo, que era o ponto.
+        //
+        // Elas ficam na METADE DA FRENTE (z alto), fora da faixa dos olhos
+        // (y ~1,4 a 2,3, x ~±1,6) e acima da boca.
+        const dirs: [number, number, number][] = [
+            [-2.30, 0.10, 2.60],   // bochecha esquerda
+            [2.30, 0.05, 2.60],    // bochecha direita
+            [-1.15, 2.95, 2.10],   // testa, à esquerda
+            [1.50, 2.80, 2.05],    // testa, à direita
+            [-2.70, 1.45, 1.85],   // têmpora esquerda
+            [2.70, 1.35, 1.85],    // têmpora direita
+        ];
+        return dirs.map(([x, y, z]) => {
+            const m = Math.hypot(x, y, z);
+            return [(x / m) * R, (y / m) * R, (z / m) * R] as [number, number, number];
+        });
+    }, []);
     const feridaRefs = useRef<(THREE.Mesh | null)[]>([]);
 
     useFrame((state, rawDt) => {
@@ -149,14 +190,23 @@ export const Floor12Cabeca: React.FC<{
         // última coisa que o jogador vê é quem o derrubou, não o próprio avião.
         const abatido = f12.fase === 'abatido';
         const dv = abatido ? defeatBeat(ct) : null;
+        // ── A CABEÇA RUGE NA VIRADA ──────────────────────────────────────
+        // Ela ficava parada, batendo o compasso da boca como se nada tivesse
+        // acontecido, enquanto uma caixa de texto avisava que tudo tinha
+        // mudado. Aqui ela escancara e treme, e é isso que o jogador vê.
+        const tv = f12.fase === 'virada' ? turnBeat(ct) : null;
         if (dying) b.abertura = .4 + beat.tremor * .6;
         if (dv) b.abertura = Math.max(b.abertura, dv.engolir);
+        if (tv) b.abertura = Math.max(b.abertura, tv.rugido);
         if (raiz.current) {
             raiz.current.visible = !gone && (!dying || beat.fall < .995);
-            raiz.current.position.set(dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0,
+            raiz.current.position.set(
+                (dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0)
+                    + (tv ? Math.sin(ct * 71) * tv.tremor * .26 : 0),
                 ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0)
                     - (dv ? dv.engolir * 2.4 : 0),
-                ARENA.zCabeca - (dying ? beat.fall * 7 : 0) + (dv ? dv.engolir * 13 : 0));
+                ARENA.zCabeca - (dying ? beat.fall * 7 : 0) + (dv ? dv.engolir * 13 : 0)
+                    + (tv ? tv.aproxima * 1.5 : 0));
             raiz.current.rotation.set(
                 (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0),
                 dying ? beat.fall * -.35 : 0,
@@ -176,7 +226,8 @@ export const Floor12Cabeca: React.FC<{
             garganta.current.scale.setScalar(0.85 + b.abertura * 0.3);
         }
 
-        if (reator.current) reator.current.rotation.z += dt * (dying ? 2 + beat.tremor * 12 : .18 + b.abertura * 1.6);
+        if (reator.current) reator.current.rotation.z += dt * (dying ? 2 + beat.tremor * 12
+            : tv ? 3 + tv.rugido * 9 : .18 + b.abertura * 1.6);
 
         // ── OS OLHOS ─────────────────────────────────────────────────────
         // Apertam quando a boca abre. É o telegrafo redundante: quem estiver
@@ -215,7 +266,10 @@ export const Floor12Cabeca: React.FC<{
             const limiar = (i + 0.6) / feridas.length;
             const aberta = THREE.MathUtils.clamp((perdida - limiar) * 4, 0, 1);
             m.visible = aberta > 0.02;
-            m.scale.setScalar(0.2 + aberta * 0.95);
+            // Cratera não CRESCE como bola: ela abre. A escala fica quase toda
+            // no plano da casca e quase nada na normal, senão volta a estourar
+            // para fora e vira bola outra vez.
+            m.scale.set(0.45 + aberta * 0.75, 0.45 + aberta * 0.75, 0.6 + aberta * 0.4);
         });
     });
 
@@ -304,10 +358,29 @@ export const Floor12Cabeca: React.FC<{
 
             {/* ── AS FERIDAS ── */}
             {feridas.map((p, i) => (
-                <mesh key={i} material={M.ferida} position={p}
-                    ref={(m) => { feridaRefs.current[i] = m; }} visible={false}>
-                    <sphereGeometry args={[0.5, 10, 8]} />
-                </mesh>
+                <group key={i} position={p}
+                    // virada PARA FORA: o eixo +Z de cada cratera aponta para
+                    // longe do centro do crânio, então ela assenta na casca em
+                    // vez de estourar através dela.
+                    rotation={[Math.atan2(-p[1], Math.hypot(p[0], p[2])), Math.atan2(p[0], p[2]), 0]}
+                    ref={(g) => { feridaRefs.current[i] = g as unknown as THREE.Mesh; }} visible={false}>
+                    {/* a brasa, no fundo do buraco */}
+                    <mesh material={M.brasa} position={[0, 0, -.18]}>
+                        <sphereGeometry args={[.30, 10, 8]} />
+                    </mesh>
+                    {/* a chapa rasgada em volta: escura, e é ela que faz o buraco */}
+                    <mesh material={M.peleEsc} position={[0, 0, -.02]} rotation={[Math.PI / 2, 0, 0]}>
+                        <torusGeometry args={[.40, .17, 6, 12]} />
+                    </mesh>
+                    {/* lascas levantadas, para a borda não ser um anel perfeito */}
+                    {[0, 1, 2].map((k) => (
+                        <mesh key={k} material={M.peleEsc}
+                            position={[Math.cos(k * 2.1 + i) * .44, Math.sin(k * 2.1 + i) * .44, .06]}
+                            rotation={[.5 + k * .4, k * .7, k * 2.1 + i]}>
+                            <boxGeometry args={[.26, .07, .20]} />
+                        </mesh>
+                    ))}
+                </group>
             ))}
         </group>
     );
