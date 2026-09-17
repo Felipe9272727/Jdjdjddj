@@ -333,13 +333,32 @@ const CameraDaLuta: React.FC<{
             return;
         }
 
-        // A three-quarter front shot lets the older brother actually perform.
+        // ── A APRESENTAÇÃO DO IRMÃO, E ELA ESTAVA OLHANDO PARA O LADO ERRADO ──
+        //
+        // Este plano de três quartos existe para o irmão mais velho ATUAR: são
+        // seis falas de lore do hotel e de preparação do chefe, e é o único
+        // plano de apresentação do companheiro no andar.
+        //
+        // Só que a câmera estava em z = -4,2 olhando para z = +0,4, ou seja
+        // ATRÁS dos aviões e virada para o lado OPOSTO ao da cabeça (que está
+        // em -26). Fotografado, o resultado eram seis falas contra um campo
+        // azul-escuro chapado: sem céu, sem prédios, sem chefe, sem nada. O
+        // pior quadro do andar era justamente o de "apresentação cinemática".
+        //
+        // Com a câmera do outro lado, olhando para -z, a composição vira o que
+        // ela sempre devia ter sido: o TROCO-63 em primeiro plano e a CABEÇA
+        // GIGANTE ao fundo, atrás dele, enquanto ele fala dela.
         if (f12.fase === 'encontro' && f12.linhaDoDialogo < 3) {
             const ir = irmaoRef.current;
-            camera.position.lerp(new THREE.Vector3(ir.x + (f12.linhaDoDialogo === 1 ? 1.8 : 2.7), ir.y + 1.6, f12.linhaDoDialogo === 2 ? -5.6 : -4.2), 1 - Math.exp(-dt * 3.2));
-            alvo.current.lerp(new THREE.Vector3(ir.x, ir.y + .9, .4), 1 - Math.exp(-dt * 4));
+            const perto = f12.linhaDoDialogo === 1;
+            camera.position.lerp(new THREE.Vector3(
+                ir.x + (perto ? 1.5 : 2.4), ir.y + (perto ? .8 : 1.5),
+                f12.linhaDoDialogo === 2 ? 6.4 : 5.0), 1 - Math.exp(-dt * 3.2));
+            // O alvo fica um pouco ALÉM do irmão, em -z: assim a cabeça cai
+            // atrás dele no quadro em vez de ficar fora dele.
+            alvo.current.lerp(new THREE.Vector3(ir.x - .5, ir.y + .7, -3.2), 1 - Math.exp(-dt * 4));
             if (camera instanceof THREE.PerspectiveCamera) {
-                camera.fov = THREE.MathUtils.lerp(camera.fov, f12.linhaDoDialogo === 1 ? 42 : 48, 1 - Math.exp(-dt * 3));
+                camera.fov = THREE.MathUtils.lerp(camera.fov, perto ? 44 : 52, 1 - Math.exp(-dt * 3));
                 camera.updateProjectionMatrix();
             }
             camera.lookAt(alvo.current);
