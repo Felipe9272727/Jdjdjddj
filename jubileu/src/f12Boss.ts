@@ -114,6 +114,7 @@ export type F12Fase =
     | 'virada'       // metade da vida: a cabeça se abre e libera mais dois ataques
     | 'queda'        // reactor rupture, fall and wingman escort
     | 'vitoria'
+    | 'abatido'      // o avião do jogador rodopia, e a cabeça desce para engolir
     | 'derrota'
     | 'despedida';   // o jogador escolheu o elevador
 

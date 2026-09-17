@@ -1,4 +1,4 @@
-import { F12_CINEMA, cinemaEase, victoryBeat } from './f12Cinema';
+import { F12_CINEMA, CENA_DA_DERROTA, cinemaEase, victoryBeat, defeatBeat } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
@@ -221,6 +221,34 @@ const CameraDaLuta: React.FC<{
         const n = naveRef.current;
         const recuo = f12ChaseDistance(size.width / Math.max(1, size.height));
 
+        // ── A CÂMERA DA DERROTA ──────────────────────────────────────────
+        // Ela larga o avião e SOBE para a cabeça. O plano final não é o jogador
+        // caindo — é quem o derrubou, avançando para dentro do quadro com a
+        // boca abrindo. A câmera roda junto com o avião enquanto ele ainda está
+        // no enquadramento, para que a espiral seja sentida e não só vista.
+        if (f12.fase === 'abatido') {
+            const t = cinemaClock.current, b = defeatBeat(t);
+            const retrato = Math.max(0, 1 - size.width / Math.max(1, size.height));
+            const n2 = naveRef.current;
+            const perto = new THREE.Vector3(n2.x + 2.2, n2.y + 2.0, 9 + retrato * 7);
+            const cara = new THREE.Vector3(0, BOCA_ALVO.y + 1.2,
+                ARENA.zCabeca + 19 + retrato * 13 - b.engolir * 12);
+            camera.position.lerp(perto.lerp(cara, b.engolir), 1 - Math.exp(-dt * 2.6));
+            camera.position.x += Math.sin(t * 47) * b.atingido * (1 - b.rodopio) * .16;
+            camera.rotation.z = (1 - b.engolir) * Math.sin(b.rodopio * Math.PI * 2.2) * .28;
+            const foco = new THREE.Vector3(n2.x, n2.y, ARENA.zNave)
+                .lerp(new THREE.Vector3(0, BOCA_ALVO.y, ARENA.zCabeca), b.engolir);
+            alvo.current.lerp(foco, 1 - Math.exp(-dt * 3.4));
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, 52 + b.engolir * 18, 1 - Math.exp(-dt * 3));
+                camera.updateProjectionMatrix();
+            }
+            const giro = camera.rotation.z;
+            camera.lookAt(alvo.current);
+            camera.rotateZ(giro);
+            return;
+        }
+
         if (f12.fase === 'queda' || f12.fase === 'vitoria' || f12.fase === 'despedida') {
             const t = cinemaClock.current;
             const b = victoryBeat(t);
@@ -381,7 +409,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         const dtDoRelogio = Math.min(rawDt, 0.25);
         const lutando = f12.fase === 'luta';
         const n = F.nave.current, ir = F.irmao.current;
-        if (['queda', 'vitoria', 'despedida'].includes(f12.fase)) return;
+        if (['queda', 'vitoria', 'despedida', 'abatido'].includes(f12.fase)) return;
 
         // ── AS NAVES ─────────────────────────────────────────────────────
         // O ALVO já foi movido por quem toca a tela (arrasto) ou pelo teclado.
@@ -576,7 +604,10 @@ function abrirAVirada(F: Ferramentas): void {
 }
 
 function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
-    f12.fase = como === 'vitoria' ? 'queda' : como;
+    // Os dois desfechos abrem uma CENA, e nenhum dos dois é a fase final.
+    // A derrota ia direto para 'derrota' — balão de fala e botão REPETIR, sem
+    // um quadro de consequência. 'abatido' é o negativo de 'queda'.
+    f12.fase = como === 'vitoria' ? 'queda' : 'abatido';
     F.cinemaClock.current = 0;
     F.touchAtivo.current = false; F.gatilho.current = false;
     F.arma.current.active = false; F.arma.current.flash = 0;
@@ -616,6 +647,64 @@ const DiretorDaVitoria: React.FC<{
         }
     });
     return null;
+};
+
+/**
+ * O DIRETOR DA DERROTA — o negativo do `DiretorDaVitoria`.
+ *
+ * Mesma estrutura de propósito: um relógio, uma origem congelada no instante do
+ * golpe, e a coreografia saindo de `defeatBeat`. O avião do jogador roda e cai;
+ * o irmão MERGULHA ATRÁS DELE em vez de escoltar, que é o gesto que separa as
+ * duas cenas; e a cabeça é quem fecha o plano.
+ */
+const DiretorDaDerrota: React.FC<{
+    clock: React.MutableRefObject<number>; nave: React.MutableRefObject<Nave>;
+    irmao: React.MutableRefObject<Nave>; avisar: () => void;
+}> = ({ clock, nave, irmao, avisar }) => {
+    const origem = useRef<{ x: number; y: number; ix: number; iy: number } | null>(null);
+    useFrame((_, rawDt) => {
+        if (f12.fase !== 'abatido') { origem.current = null; return; }
+        const n = nave.current, ir = irmao.current;
+        if (!origem.current) origem.current = { x: n.x, y: n.y, ix: ir.x, iy: ir.y };
+        if (typeof document !== 'undefined' && document.hidden) return;
+        clock.current = Math.min(CENA_DA_DERROTA.total, clock.current + Math.min(rawDt, .25));
+        const t = clock.current, b = defeatBeat(t), o = origem.current;
+
+        // A ESPIRAL. O avião não "some": ele roda no próprio eixo enquanto
+        // desce, e sai por baixo do quadro. `rodopio` é uma só curva, então a
+        // queda e o giro são obrigatoriamente a mesma coisa.
+        n.x = o.x + Math.sin(b.rodopio * Math.PI * 2.2) * 1.5 * b.rodopio;
+        n.y = o.y - b.rodopio * (o.y - ARENA.yBaixo + 7.5);
+        n.rolagem = b.rodopio * Math.PI * 3.4;
+        n.alvoX = n.x; n.alvoY = n.y; n.piscando = 0;
+
+        // O IRMÃO MERGULHA ATRÁS. Na vitória ele se junta à asa do jogador; aqui
+        // ele vai atrás de um avião que está caindo, e não alcança.
+        const mergulho = cinemaEase((t - .5) / 2.6);
+        ir.x = THREE.MathUtils.lerp(o.ix, n.x - 1.4, mergulho);
+        ir.y = THREE.MathUtils.lerp(o.iy, n.y + 2.6, mergulho);
+        ir.rolagem = mergulho * .7; ir.alvoX = ir.x; ir.alvoY = ir.y; ir.piscando = 0;
+
+        if (b.finished) { f12.fase = 'derrota'; f12.linhaDoDialogo = 0; avisar(); }
+    });
+    return null;
+};
+
+/** As três batidas da derrota, escritas. */
+const LegendaDaDerrota: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
+    const [beat, setBeat] = useState(0);
+    useEffect(() => {
+        const id = window.setInterval(() =>
+            setBeat(clock.current < 1.6 ? 0 : clock.current < CENA_DA_DERROTA.engolir ? 1 : 2), 100);
+        return () => window.clearInterval(id);
+    }, [clock]);
+    return <div data-testid="f12-defeat-caption" style={{ flex: '0 0 auto', background: '#2d1218',
+        color: '#ffc0b0', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)',
+        textAlign: 'center', font: '600 clamp(12px, 2.5vh, 16px) monospace' }}>
+        {['TROCO-63: NÃO — teu motor! Puxa, puxa!',
+          'TROCO-63: Eu não alcanço. Eu não alcanço!',
+          'TROCO-63: …não olha pra cima. Por favor não olha pra cima.'][beat]}
+    </div>;
 };
 
 const LegendaDaVitoria: React.FC<{ clock: React.MutableRefObject<number> }> = ({ clock }) => {
@@ -882,6 +971,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor12CinemaEffects active={fase === 'queda'} clock={cinemaClock}
                     position={[0, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} />
                 <DiretorDaVitoria clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
+                <DiretorDaDerrota clock={cinemaClock} nave={nave} irmao={irmao} avisar={avisar} />
                 <AnelDaBoca />
                 <Floor12Projeteis />
                 {fase === 'luta' && <><Mira naveRef={nave} />
@@ -958,6 +1048,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
+            {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
                 <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
                     {legendaIntro}

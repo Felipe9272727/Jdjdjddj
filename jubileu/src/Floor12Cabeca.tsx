@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { victoryBeat } from './f12Cinema';
+import { victoryBeat, defeatBeat } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
@@ -142,12 +142,24 @@ export const Floor12Cabeca: React.FC<{
         const gone = f12.fase === 'vitoria' || f12.fase === 'despedida';
         const ct = cinemaClock?.current ?? 0;
         const beat = victoryBeat(ct);
+        // ── A CABEÇA FECHA O PLANO DA DERROTA ────────────────────────────
+        // Sem isto, a cena de derrota seria só a câmera passeando: a cabeça
+        // ficaria parada, batendo o compasso da boca como se a luta não tivesse
+        // acabado. Ela AVANÇA para dentro do quadro, inclina e escancara — a
+        // última coisa que o jogador vê é quem o derrubou, não o próprio avião.
+        const abatido = f12.fase === 'abatido';
+        const dv = abatido ? defeatBeat(ct) : null;
         if (dying) b.abertura = .4 + beat.tremor * .6;
+        if (dv) b.abertura = Math.max(b.abertura, dv.engolir);
         if (raiz.current) {
             raiz.current.visible = !gone && (!dying || beat.fall < .995);
             raiz.current.position.set(dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0,
-                ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0), ARENA.zCabeca - (dying ? beat.fall * 7 : 0));
-            raiz.current.rotation.set(dying ? beat.fall * .9 : 0, dying ? beat.fall * -.35 : 0,
+                ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0)
+                    - (dv ? dv.engolir * 2.4 : 0),
+                ARENA.zCabeca - (dying ? beat.fall * 7 : 0) + (dv ? dv.engolir * 13 : 0));
+            raiz.current.rotation.set(
+                (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0),
+                dying ? beat.fall * -.35 : 0,
                 dying ? Math.sin(ct * 23) * .018 * beat.tremor + beat.fall * .65 : 0);
         }
 
