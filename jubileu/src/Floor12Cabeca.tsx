@@ -112,6 +112,18 @@ export const Floor12Cabeca: React.FC<{
 
     const M = useMemo(() => ({
         pele: new THREE.MeshStandardMaterial({ color: CORES.pele, roughness: .43, metalness: .28 }),
+        // ── AS COSTURAS E OS REBITES ──────────────────────────────────────
+        // O que faz esta cabeça parecer barata não é a forma, é a AUSÊNCIA DE
+        // ESCALA. Uma esfera lisa de sete metros e uma esfera lisa de setenta
+        // centímetros são a mesma imagem: sem nada de tamanho conhecido na
+        // superfície, o olho não tem como saber que a coisa é enorme.
+        //
+        // Rebite e chapa resolvem isso porque o jogador SABE o tamanho de um
+        // rebite. É o truque mais velho de design industrial, e é por isso que
+        // toda nave grande de cinema é coberta de painel.
+        costura: new THREE.MeshStandardMaterial({ color: '#0b2027', roughness: .62, metalness: .40 }),
+        rebite: new THREE.MeshStandardMaterial({ color: '#c9a04a', roughness: .30, metalness: .85 }),
+        recesso: new THREE.MeshStandardMaterial({ color: '#081a20', roughness: .85, metalness: .10 }),
         porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .38, metalness: .12 }),
         brilhoOlho: new THREE.MeshBasicMaterial({ color: '#a0fff1', toneMapped: false }),
         peleEsc: mat64(CORES.peleEsc),
@@ -285,6 +297,35 @@ export const Floor12Cabeca: React.FC<{
         <group ref={raiz} name="cabeca" scale={ESCALA / R} position={[0, ALTURA_DA_CABECA, ARENA.zCabeca]}>
             {/* ── O CRÂNIO ── */}
             <mesh material={M.pele} geometry={cranio} />
+
+            {/* ── AS CHAPAS ──
+                Três costuras horizontais em alturas diferentes. Elas não são
+                enfeite: são a régua que diz ao olho que a cabeça é gigante. Sem
+                elas, o crânio é uma esfera lisa e uma esfera lisa não tem
+                tamanho. Ficam ligeiramente ACIMA da casca (raio um pouco maior)
+                para não brigarem em profundidade com ela. */}
+            {[[2.55, .055], [0.55, .075], [-1.35, .060]].map(([y, esp], i) => {
+                const raioLocal = Math.sqrt(Math.max(.04, R * R - (y as number) * (y as number)));
+                return (
+                    <mesh key={i} material={M.costura} position={[0, y as number, 0]}
+                        rotation={[Math.PI / 2, 0, 0]}>
+                        <torusGeometry args={[raioLocal * 1.002, esp as number, 6, 40]} />
+                    </mesh>
+                );
+            })}
+
+            {/* REBITES na costura do meio: o tamanho conhecido. */}
+            {Array.from({ length: 14 }, (_, i) => {
+                const a = (i / 14) * Math.PI * 2;
+                const raioLocal = Math.sqrt(Math.max(.04, R * R - .55 * .55));
+                return (
+                    <mesh key={`rb${i}`} material={M.rebite}
+                        position={[Math.cos(a) * raioLocal * 1.01, .55, Math.sin(a) * raioLocal * 1.01]}>
+                        <sphereGeometry args={[.105, 8, 6]} />
+                    </mesh>
+                );
+            })}
+
             <group ref={face}>
             <Floor12BossCrown />
             <Floor12Facework />
@@ -296,6 +337,13 @@ export const Floor12Cabeca: React.FC<{
             {/* ── OS OLHOS ── */}
             {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
                 <React.Fragment key={lado}>
+                    {/* O RECESSO: um disco escuro logo atrás do olho. Sem ele o
+                        olho é uma bola COLADA na superfície — com ele, a órbita
+                        tem fundo e o olho passa a morar dentro da cabeça. */}
+                    <mesh material={M.recesso} position={[lado * 1.55, 1.15, 3.18]}
+                        rotation={[Math.PI / 2, 0, 0]}>
+                        <cylinderGeometry args={[.96, 1.02, .22, 20, 1, true]} />
+                    </mesh>
                     <group ref={ro} position={[lado * 1.55, 1.15, 3.27]}>
                         <mesh material={M.olho} scale={[1, .67, .38]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
                         <mesh material={M.pupila} position={[lado * 0.12, -0.05, .30]} scale={[.82, 1, .35]}>
