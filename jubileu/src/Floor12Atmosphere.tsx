@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { createCloudGeometry } from './f12CloudGeometry';
 
 /** Framing landmarks: the flight corridor remains clear. Windows/clouds are instanced. */
 export function Floor12Atmosphere() {
   const windows = useRef<THREE.InstancedMesh>(null!);
   const clouds = useRef<THREE.InstancedMesh>(null!);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const cloudGeometry = useMemo(createCloudGeometry, []);
+  useEffect(() => () => cloudGeometry.dispose(), [cloudGeometry]);
   useEffect(() => {
     let n = 0;
     for (const side of [-1, 1]) for (let row = 0; row < 10; row++) for (let col = 0; col < 3; col++) {
@@ -19,9 +22,9 @@ export function Floor12Atmosphere() {
   useFrame(({ clock }) => {
     for (let i = 0; i < 20; i++) {
       const side = i % 2 ? -1 : 1, layer = Math.floor(i / 2);
-      dummy.position.set(side * (23 + layer * 4.4) + Math.sin(clock.elapsedTime * .025 + layer) * 2,
+      dummy.position.set(side * (28 + layer * 4.4) + Math.sin(clock.elapsedTime * .025 + layer) * 2,
         -8 + Math.sin(layer * 2.1) * 2.4, -48 - layer * 13);
-      dummy.scale.set(8 + layer * .5, 2.4 + layer * .12, 5.5);
+      dummy.scale.set(7 + layer * .45, 4.2 + layer * .18, 5.5);
       dummy.rotation.set(0, layer * .73, .08 * side);
       dummy.updateMatrix(); clouds.current.setMatrixAt(i, dummy.matrix);
     }
@@ -48,8 +51,8 @@ export function Floor12Atmosphere() {
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial color="#f5ce85" emissive="#e9a448" emissiveIntensity={.7} />
     </instancedMesh>
-    <instancedMesh ref={clouds} args={[undefined, undefined, 20]} frustumCulled={false}>
-      <sphereGeometry args={[1, 12, 8]} /><meshStandardMaterial color="#648892" roughness={1} />
+    <instancedMesh ref={clouds} args={[cloudGeometry, undefined, 20]} frustumCulled={false}>
+      <meshStandardMaterial vertexColors roughness={1} />
     </instancedMesh>
   </group>;
 }

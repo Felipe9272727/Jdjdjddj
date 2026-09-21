@@ -1,7 +1,8 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { F12_PALETTE as P } from './f12Presentation';
+import { createCloudGeometry } from './f12CloudGeometry';
 
 type Piece = { x: number; y: number; z: number; sx: number; sy: number; sz: number };
 
@@ -70,11 +71,13 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
       sx: 5.5 + r * 4, sy: 3.3 + r * 3.2, sz: 5 + r * 4 };
   }), [bossZ]);
   const cloudRef = useRef<THREE.InstancedMesh>(null);
+  const cloudGeometry = useMemo(createCloudGeometry, []);
+  useEffect(() => () => cloudGeometry.dispose(), [cloudGeometry]);
   useLayoutEffect(() => {
     if (!cloudRef.current) return;
     const dummy = new THREE.Object3D();
     clouds.forEach((p, i) => {
-      dummy.position.set(p.x, p.y, p.z); dummy.scale.set(p.sx, p.sy, p.sz);
+      dummy.position.set(p.x, p.y, p.z); dummy.scale.set(p.sx * .8, p.sy, p.sz);
       dummy.updateMatrix(); cloudRef.current!.setMatrixAt(i, dummy.matrix);
     });
     cloudRef.current.instanceMatrix.needsUpdate = true;
@@ -84,9 +87,8 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
     <ArchitectureInstances pieces={architecture.walls} color={P.hullDark} />
     <ArchitectureInstances pieces={architecture.brass} color={P.brassDark} />
     <ArchitectureInstances pieces={architecture.windows} color="#f1c777" glow />
-    <instancedMesh ref={cloudRef} args={[undefined, undefined, clouds.length]}>
-      <sphereGeometry args={[1, 20, 12]} />
-      <meshStandardMaterial color="#527582" roughness={1} />
+    <instancedMesh ref={cloudRef} args={[cloudGeometry, undefined, clouds.length]}>
+      <meshStandardMaterial vertexColors roughness={1} />
     </instancedMesh>
   </group>;
 }
@@ -111,4 +113,3 @@ export function Floor12Slipstream({ speed = 1 }: { speed?: number }) {
     <meshBasicMaterial color="#a0dce2" transparent opacity={.24} depthWrite={false} />
   </instancedMesh>;
 }
-
