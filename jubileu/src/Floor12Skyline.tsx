@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { F12_PALETTE as P } from './f12Presentation';
 import { createCloudGeometry } from './f12CloudGeometry';
+import { Floor12MarDeNuvens, Y_DO_PISO } from './Floor12MarDeNuvens';
 
 type Piece = { x: number; y: number; z: number; sx: number; sy: number; sz: number };
 
@@ -66,7 +67,12 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
     const r = seed - Math.floor(seed), side = i % 2 ? -1 : 1;
     const layer = Math.floor(i / 16), cluster = Math.floor(i / 2) % 8;
     return { x: side * (22 + cluster * 6.5 + r * 3),
-      y: -17 + r * 4 - layer * 1.2,
+      // Os bancos laterais REPOUSAM sobre o mar de nuvens. Eles moravam em
+      // y ~ -17, que fica ABAIXO do piso novo: sem isto viravam 64 bolhas
+      // enterradas sob um plano opaco — invisíveis e ainda cobrando draw call.
+      // A base de cada um (0,6 da altura abaixo do centro) afunda meia unidade
+      // na superfície, e o resto sobe como parede de nuvem nas laterais.
+      y: Y_DO_PISO - .5 + .6 * (3.3 + r * 3.2) - layer * .4,
       z: bossZ - 22 - layer * 32 - r * 14,
       sx: 5.5 + r * 4, sy: 3.3 + r * 3.2, sz: 5 + r * 4 };
   }), [bossZ]);
@@ -92,6 +98,8 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
         porque hotel à noite tem janela acesa, mas descem de protagonista a
         textura: o quente agora é reservado para o que machuca. */}
     <ArchitectureInstances pieces={architecture.windows} color="#8e7d55" />
+    {/* O chão inteiro, e não só as laterais: ver Floor12MarDeNuvens. */}
+    <Floor12MarDeNuvens bossZ={bossZ} />
     <instancedMesh ref={cloudRef} args={[cloudGeometry, undefined, clouds.length]}>
       <meshStandardMaterial vertexColors roughness={1} />
     </instancedMesh>
