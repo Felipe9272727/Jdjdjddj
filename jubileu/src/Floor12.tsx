@@ -307,6 +307,7 @@ const CameraDaLuta: React.FC<{
         // Nave state that gameplay uses. At the end of the intro the normal chase
         // camera takes over with a damped lerp instead of a hard cut.
         if (introAtivaRef.current) {
+            const aspecto = size.width / Math.max(1, size.height);
             const mark = f12IntroCamera(introProgressRef.current);
             // The presentation helper's final cinematic mark is intentionally
             // nearer than the gameplay framing. Blend to the exact chase pose
@@ -328,7 +329,21 @@ const CameraDaLuta: React.FC<{
             );
             alvo.current.copy(alvoCinematico.lerp(alvoGameplay, handoff));
             if (camera instanceof THREE.PerspectiveCamera) {
-                camera.fov = THREE.MathUtils.lerp(mark.fov, ENQUADRAMENTO.fov, handoff);
+                // ── A INTRO TAMBÉM PRECISA COMPENSAR O ASPECTO ───────────
+                // `f12ChaseFov` já fechava a lente em paisagem, mas SÓ na
+                // câmera de perseguição. A intro devolvia `fov` fixo, então em
+                // 844x390 o plano de REVELAÇÃO do chefe — o único plano cujo
+                // trabalho inteiro é dizer "isso é colossal" — era o pior
+                // enquadrado do andar: a cabeça ocupava um quinto da largura,
+                // ilhada em céu vazio.
+                //
+                // A compensação é a MESMA RAZÃO que a perseguição usa, aplicada
+                // por multiplicação. Assim a coreografia da intro (que já foi
+                // ajustada quadro a quadro) não muda de forma — ela só deixa de
+                // ser larga demais quando a tela é larga demais.
+                const razaoDaLente = f12ChaseFov(aspecto) / ENQUADRAMENTO.fov;
+                camera.fov = THREE.MathUtils.lerp(
+                    mark.fov * razaoDaLente, f12ChaseFov(aspecto), handoff);
                 camera.updateProjectionMatrix();
             }
             camera.lookAt(alvo.current);
@@ -1291,16 +1306,40 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
  */
 const DicaDeControle: React.FC = () => {
     const [visivel, setVisivel] = useState(true);
+    // Uma tela BAIXA é uma tela deitada. Medir a altura em vez de perguntar a
+    // orientação ao sistema evita o caso do tablet largo e alto, onde sobra
+    // espaço embaixo e a legenda pode ficar onde sempre esteve.
+    const [paisagem, setPaisagem] = useState(
+        typeof window !== 'undefined' && window.innerHeight < 520);
+    useEffect(() => {
+        const medir = () => setPaisagem(window.innerHeight < 520);
+        window.addEventListener('resize', medir);
+        return () => window.removeEventListener('resize', medir);
+    }, []);
     useEffect(() => {
         const id = window.setTimeout(() => setVisivel(false), 6000);
         return () => window.clearTimeout(id);
     }, []);
     if (!visivel) return null;
+    // ── EM PAISAGEM ELA VAI PARA O TOPO ──────────────────────────────────
+    //
+    // Rente ao fundo ela funciona em retrato, onde sobra céu embaixo do avião.
+    // Em 844x390 não sobra: o avião já fica colado na borda de baixo, e a
+    // legenda caía EM CIMA dele. O tutorial tapava exatamente a coisa que ele
+    // estava ensinando a pilotar — o mesmo defeito que já tinha sido consertado
+    // em retrato, reaparecendo na orientação que ninguém conferiu.
+    //
+    // No topo, em paisagem, ela divide a faixa com a barra de vida do chefe,
+    // que é céu vazio nessa orientação.
+    const deitado = paisagem;
     return (
         <div style={{
-            ...t64, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 8px)',
-            left: 0, right: 0, textAlign: 'center', fontSize: 13, zIndex: 3, pointerEvents: 'none',
-            opacity: 0.92,
+            ...t64, position: 'absolute',
+            ...(deitado
+                ? { top: 'calc(env(safe-area-inset-top) + 40px)' }
+                : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }),
+            left: 0, right: 0, textAlign: 'center', fontSize: deitado ? 12 : 13,
+            zIndex: 3, pointerEvents: 'none', opacity: 0.92,
         }}>
             {/* UMA linha, e rente à borda. Duas linhas a 30 px do fundo caíam em
                 cima do avião do jogador — o tutorial tapava a coisa que ele
