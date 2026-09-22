@@ -1,0 +1,33 @@
+{
+  "historical_revision": "3bcf535055435745922d2f4bc5e5df7af7cf4b17",
+  "runs": [
+    {
+      "model": "jev-1.13.0",
+      "metrics": {
+        "elapsed_ms": 9373.296,
+        "cache_hit": false,
+        "api_calls": 1,
+        "billed_tokens": 1126,
+        "saved_tokens": 0
+      },
+      "priority": "animation",
+      "impact": 1.63,
+      "evidence_sufficient": 0.8,
+      "verification": "render_comparison"
+    },
+    {
+      "model": "jev-1.13.0",
+      "metrics": {
+        "elapsed_ms": 0.147,
+        "cache_hit": true,
+        "api_calls": 0,
+        "billed_tokens": 0,
+        "saved_tokens": 1126
+      },
+      "priority": "animation",
+      "impact": 1.63,
+      "evidence_sufficient": 0.8,
+      "verification": "render_comparison"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "state": {
+    "revision": "REPLACE_WITH_CURRENT_COMMIT_AND_RELEVANT_DIFF_HASH",
+    "goal": "Prioritize player-visible mobile quality work from verified evidence.",
+    "constraints": ["Use a short summary", "No secrets", "No API call in a frame loop"],
+    "evidence": []
+  },
+  "questions": {
+    "priority": {
+      "type": "choice",
+      "instructions": "Which unresolved area has strongest concrete evidence and player impact? If insufficient or resolved choose none.",
+      "criteria": {
+        "controls": "Observed movement or touch failure",
+        "readability": "Observed unclear objective, attack or feedback",
+        "animation": "Observed abrupt timing or broken movement",
+        "art": "Observed geometry, material or composition flaw",
+        "performance": "Measured frame-time or memory regression",
+        "none": "No actionable unresolved evidence"
+      }
+    },
+    "evidence_sufficient": {
+      "type": "noul",
+      "instructions": "Do the observations establish an actionable unresolved issue, rather than a guess?"
+    },
+    "impact": {
+      "type": "score",
+      "instructions": "Rate only the strongest demonstrated player impact.",
+      "criteria": ["Not demonstrated", "Small cosmetic distraction", "Usability or readability issue", "Blocks control or progression"]
+    },
+    "verification": {
+      "type": "choice",
+      "instructions": "Select a check that resolves the most important uncertainty.",
+      "criteria": {
+        "touch_reproduction": "Check mobile gestures and layout",
+        "timing_tests": "Check state timing and frame independence",
+        "render_comparison": "Compare actual scene geometry and framing",
+        "device_profile": "Measure frame-time and memory on target device",
+        "none": "No justified check from present evidence"
+      }
+    },
+    "next_owner": {
+      "type": "choice",
+      "instructions": "Who should perform the next task from available evidence?",
+      "criteria": {
+        "luna": "Read source or research and collect missing evidence",
+        "main": "Implement a confirmed fix",
+        "measurement_tools": "Run the necessary tests, renders or profiler",
+        "none": "No actionable step"
+      }
+    }
+  }
+}
