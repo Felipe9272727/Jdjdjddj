@@ -14,15 +14,15 @@
  * aberta, e é aí que o tiro entra. O desenho tem de deixar isso óbvio sem HUD:
  * a mandíbula desce de verdade, o interior acende, e os olhos apertam.
  *
- * O crânio tem uma cavidade real, com mandíbula e garganta independentes. Nada de GLB: o andar 12
- * carrega zero bytes de asset, e num celular isso é a diferença entre entrar no
- * andar e olhar uma tela preta esperando.
+ * Máscara embutida no módulo, com mandíbula e garganta independentes.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota, CENA_DA_DERROTA } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
+import { createConciergeGeometry } from './f12ConciergeGeometry';
+import { createConciergeSkull, createConciergeJaw, createConciergeTooth, createShellSeams, createFaceDetails, shellPoint } from './f12HeadDetails';
 import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
 import {
@@ -47,34 +47,6 @@ const CORES = {
     ferida: '#c8443a',
 };
 
-/** A real cavity: discard the front lower skull, leaving the jaw independent. */
-function cranioAberto() {
-    const sphere = new THREE.SphereGeometry(3.6, 64, 48);
-    const flat = sphere.toNonIndexed();
-    sphere.dispose();
-    const p = flat.getAttribute('position');
-    const n = flat.getAttribute('normal');
-    const vertices: number[] = [], normals: number[] = [];
-    for (let i = 0; i < p.count; i += 3) {
-        const x = (p.getX(i) + p.getX(i+1) + p.getX(i+2)) / 3;
-        const y = (p.getY(i) + p.getY(i+1) + p.getY(i+2)) / 3;
-        const z = (p.getZ(i) + p.getZ(i+1) + p.getZ(i+2)) / 3;
-        if (z > 0.45 && y < -0.62 && Math.abs(x) < 2.48) continue;
-        for (let j = i; j < i + 3; j++) {
-            const vy = p.getY(j);
-            const taper = .86 + .16 * THREE.MathUtils.smoothstep(vy, -2.6, .8);
-            vertices.push(p.getX(j) * taper, vy * 1.015, p.getZ(j) * .88);
-            normals.push(n.getX(j) / taper, n.getY(j) / 1.015, n.getZ(j) / .88);
-        }
-    }
-    flat.dispose();
-    const result = new THREE.BufferGeometry();
-    result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    result.computeBoundingSphere();
-    return result;
-}
-
 export const Floor12Cabeca: React.FC<{
     /** Sobe quando um tiro entra: a cabeça pisca de dano. */
     flashRef: React.MutableRefObject<number>;
@@ -82,17 +54,20 @@ export const Floor12Cabeca: React.FC<{
     cinemaClock?: React.MutableRefObject<number>;
 }> = ({ flashRef, naveRef, cinemaClock }) => {
     const raiz = useRef<THREE.Group>(null);
-    const cranio = useMemo(cranioAberto, []);
-    const jaw = useMemo(() => {
-        const s = new THREE.Shape();
-        s.moveTo(-2.35, .65); s.lineTo(2.35, .65);
-        s.quadraticCurveTo(2.5, -.45, 1.78, -.86);
-        s.quadraticCurveTo(0, -1.1, -1.78, -.86);
-        s.quadraticCurveTo(-2.5, -.45, -2.35, .65);
-        const g = new THREE.ExtrudeGeometry(s, { depth: 2.2, bevelEnabled: true,
-            bevelSize: .14, bevelThickness: .13, bevelSegments: 3, curveSegments: 12 });
-        g.translate(0, 0, -1.1); return g;
+    const cranio = useMemo(createConciergeSkull, []);
+    const jaw = useMemo(createConciergeJaw, []);
+    const tooth = useMemo(createConciergeTooth, []);
+    const seams = useMemo(createShellSeams, []);
+    const faceAssets = useMemo(() => {
+        const sculpt = createConciergeGeometry();
+        return { sculpt, ...createFaceDetails(sculpt) };
     }, []);
+    const detail = faceAssets.cracks;
+    useEffect(() => () => {
+        tooth.dispose(); seams.forEach(g => g.dispose());
+        faceAssets.sculpt.dispose(); faceAssets.rims.forEach(g => g.dispose());
+        detail.forEach(c => { c.edge.dispose(); c.ember.dispose(); });
+    }, [tooth, seams, faceAssets, detail]);
     const brow = useMemo(() => {
         const s = new THREE.Shape();
         s.moveTo(-.9, -.12); s.quadraticCurveTo(0, .4, .9, .08);
@@ -124,12 +99,13 @@ export const Floor12Cabeca: React.FC<{
         costura: new THREE.MeshStandardMaterial({ color: '#0b2027', roughness: .62, metalness: .40 }),
         rebite: new THREE.MeshStandardMaterial({ color: '#c9a04a', roughness: .30, metalness: .85 }),
         recesso: new THREE.MeshStandardMaterial({ color: '#081a20', roughness: .85, metalness: .10 }),
-        porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .38, metalness: .12 }),
+        porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .44, metalness: .08 }),
         brilhoOlho: new THREE.MeshBasicMaterial({ color: '#a0fff1', toneMapped: false }),
         peleEsc: mat64(CORES.peleEsc),
         interior: mat64(CORES.interior),
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
         olho: new THREE.MeshStandardMaterial({ color: CORES.olho, roughness: .24, metalness: .08 }),
+        iris: new THREE.MeshStandardMaterial({ color: '#bd934e', roughness: .3, metalness: .5 }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
@@ -137,55 +113,8 @@ export const Floor12Cabeca: React.FC<{
 
     useEffect(() => () => { cranio.dispose(); jaw.dispose(); brow.dispose(); Object.values(M).forEach(m => m.dispose()); }, [cranio, jaw, brow, M]);
 
-    // As feridas aparecem conforme a vida cai: a cabeça CONTA a luta no corpo,
-    // e não só na barra do HUD. Um chefe cuja aparência não muda faz o jogador
-    // duvidar de que está acertando.
-    /**
-     * ── AS FERIDAS ERAM BLUSH DE PALHAÇO ─────────────────────────────────
-     *
-     * Eram seis esferas de raio 0,5 em `#c8443a` chapado, postas a z entre 2,7
-     * e 3,4 num crânio de raio 3,6 — ou seja DENTRO da superfície, estourando
-     * para fora dela como bolas. Fotografadas, duas caíam nas bochechas e uma
-     * dentro da boca, em cima da língua. O resultado era uma cara de palhaço,
-     * na cara do chefe, durante toda a segunda metade da luta.
-     *
-     * A intenção estava certa — a cabeça CONTA a luta no corpo, e um chefe que
-     * não muda de aparência faz o jogador duvidar de que está acertando. O
-     * desenho é que dizia outra coisa.
-     *
-     * Agora cada ferida é uma CRATERA: as direções são normalizadas e a ferida
-     * é assentada exatamente sobre a casca, virada para fora, com a chapa
-     * queimada escura por cima e a brasa aparecendo por dentro. Buraco lê como
-     * dano; bola vermelha lê como bochecha.
-     *
-     * As direções também saíram da faixa central do rosto, onde moram os olhos
-     * e a boca. Uma ferida em cima do olho não é dano, é maquiagem.
-     */
-    const feridas = useMemo(() => {
-        const R = 3.6;
-        // AS DIREÇÕES PRECISAM OLHAR PARA A CÂMERA, e não para os lados.
-        // A primeira leva destas crateras era lateral demais (z em torno de
-        // 0,5 normalizado): fotografada, a cara ficou limpa — elas assentavam
-        // perto da silhueta e não apareciam em quadro nenhum. Trocar uma
-        // ferida feia por ferida invisível é pior, porque aí a cabeça para de
-        // contar a luta no corpo, que era o ponto.
-        //
-        // Elas ficam na METADE DA FRENTE (z alto), fora da faixa dos olhos
-        // (y ~1,4 a 2,3, x ~±1,6) e acima da boca.
-        const dirs: [number, number, number][] = [
-            [-2.30, 0.10, 2.60],   // bochecha esquerda
-            [2.30, 0.05, 2.60],    // bochecha direita
-            [-1.15, 2.95, 2.10],   // testa, à esquerda
-            [1.50, 2.80, 2.05],    // testa, à direita
-            [-2.70, 1.45, 1.85],   // têmpora esquerda
-            [2.70, 1.35, 1.85],    // têmpora direita
-        ];
-        return dirs.map(([x, y, z]) => {
-            const m = Math.hypot(x, y, z);
-            return [(x / m) * R, (y / m) * R, (z / m) * R] as [number, number, number];
-        });
-    }, []);
-    const feridaRefs = useRef<(THREE.Mesh | null)[]>([]);
+    // Cracks remain seated on the sculpt while the upper face recoils.
+    const feridaRefs = useRef<(THREE.Group | null)[]>([]);
 
     useFrame((state, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
@@ -275,18 +204,16 @@ export const Floor12Cabeca: React.FC<{
         const brilho = flashRef.current;
         M.pele.emissive.setRGB(brilho * 0.9, brilho * 0.35, brilho * 0.3);
         M.peleEsc.emissive.setRGB(brilho * 0.7, brilho * 0.25, brilho * 0.22);
+        M.porcelana.emissive.setRGB(brilho * .42, brilho * .22, brilho * .06);
 
         // ── AS FERIDAS ───────────────────────────────────────────────────
         const perdida = 1 - f12.vida / VIDA_MAXIMA;
         feridaRefs.current.forEach((m, i) => {
             if (!m) return;
-            const limiar = (i + 0.6) / feridas.length;
+            const limiar = (i + 0.6) / detail.length;
             const aberta = THREE.MathUtils.clamp((perdida - limiar) * 4, 0, 1);
             m.visible = aberta > 0.02;
-            // Cratera não CRESCE como bola: ela abre. A escala fica quase toda
-            // no plano da casca e quase nada na normal, senão volta a estourar
-            // para fora e vira bola outra vez.
-            m.scale.set(0.45 + aberta * 0.75, 0.45 + aberta * 0.75, 0.6 + aberta * 0.4);
+            if (face.current) m.position.copy(face.current.position);
         });
     });
 
@@ -304,31 +231,15 @@ export const Floor12Cabeca: React.FC<{
                 elas, o crânio é uma esfera lisa e uma esfera lisa não tem
                 tamanho. Ficam ligeiramente ACIMA da casca (raio um pouco maior)
                 para não brigarem em profundidade com ela. */}
-            {[[2.55, .055], [0.55, .075], [-1.35, .060]].map(([y, esp], i) => {
-                const raioLocal = Math.sqrt(Math.max(.04, R * R - (y as number) * (y as number)));
-                return (
-                    <mesh key={i} material={M.costura} position={[0, y as number, 0]}
-                        rotation={[Math.PI / 2, 0, 0]}>
-                        <torusGeometry args={[raioLocal * 1.002, esp as number, 6, 40]} />
-                    </mesh>
-                );
-            })}
-
-            {/* REBITES na costura do meio: o tamanho conhecido. */}
-            {Array.from({ length: 14 }, (_, i) => {
-                const a = (i / 14) * Math.PI * 2;
-                const raioLocal = Math.sqrt(Math.max(.04, R * R - .55 * .55));
-                return (
-                    <mesh key={`rb${i}`} material={M.rebite}
-                        position={[Math.cos(a) * raioLocal * 1.01, .55, Math.sin(a) * raioLocal * 1.01]}>
-                        <sphereGeometry args={[.105, 8, 6]} />
-                    </mesh>
-                );
-            })}
+            {seams.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
+            {Array.from({length: 14}, (_,i) => <mesh key={i} material={M.rebite}
+                position={shellPoint(.55, Math.PI*(1.02+i/13*.96))}>
+                <sphereGeometry args={[.07, 8, 6]} />
+            </mesh>)}
 
             <group ref={face}>
             <Floor12BossCrown />
-            <Floor12Facework />
+            <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.70, 16, 10]} />
@@ -337,23 +248,15 @@ export const Floor12Cabeca: React.FC<{
             {/* ── OS OLHOS ── */}
             {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
                 <React.Fragment key={lado}>
-                    {/* O RECESSO: um disco escuro logo atrás do olho. Sem ele o
-                        olho é uma bola COLADA na superfície — com ele, a órbita
-                        tem fundo e o olho passa a morar dentro da cabeça. */}
-                    <mesh material={M.recesso} position={[lado * 1.55, 1.15, 3.18]}
-                        rotation={[Math.PI / 2, 0, 0]}>
-                        <cylinderGeometry args={[.96, 1.02, .22, 20, 1, true]} />
-                    </mesh>
-                    <group ref={ro} position={[lado * 1.55, 1.15, 3.27]}>
-                        <mesh material={M.olho} scale={[1, .67, .38]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
-                        <mesh material={M.pupila} position={[lado * 0.12, -0.05, .30]} scale={[.82, 1, .35]}>
-                            <sphereGeometry args={[0.31, 16, 10]} />
-                        </mesh>
-                        <mesh material={M.brilhoOlho} position={[.07, .02, .43]}>
-                            <sphereGeometry args={[.055, 10, 8]} />
-                        </mesh>
+                    <group ref={ro} position={[lado * 1.55, 1.15, 2.94]}>
+                        <mesh material={M.olho} scale={[1, .64, .32]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
+                        <group position={[0, 0, .247]}>
+                            <mesh material={M.iris} scale={[1, 1, .18]}><sphereGeometry args={[.265, 20, 12]} /></mesh>
+                            <mesh material={M.pupila} position={[0, 0, .043]} scale={[1, 1, .12]}><sphereGeometry args={[.135, 16, 10]} /></mesh>
+                            <mesh material={M.brilhoOlho} position={[-.07, .09, .054]}><sphereGeometry args={[.035, 8, 6]} /></mesh>
+                        </group>
                     </group>
-                    <mesh ref={rs} geometry={brow} material={M.peleEsc} position={[lado * 1.6, 2.03, 3.28]} />
+                    <mesh ref={rs} geometry={brow} material={M.peleEsc} position={[lado * 1.55, 1.99, 3.12]} scale={[.94, .78, .65]} />
                 </React.Fragment>
             ))}
 
@@ -370,12 +273,9 @@ export const Floor12Cabeca: React.FC<{
                 somando por acaso, que foi como o anel de mira acabou em cima do
                 nariz na primeira montagem. */}
             <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.42]}>
-                <mesh material={M.interior} position={[0, 0, -0.9]}>
-                    <boxGeometry args={[4.9, 3.2, 0.25]} />
+                <mesh material={M.interior} position={[0, -.12, -.35]} scale={[2.38, 1.65, .72]}>
+                    <sphereGeometry args={[1, 32, 20]} />
                 </mesh>
-                {[-1, 1].map(side => <mesh key={side} material={M.interior} position={[side * 2.35, 0, 0.25]}>
-                    <boxGeometry args={[0.25, 2.7, 2.4]} />
-                </mesh>)}
                 <mesh ref={garganta} material={M.brasa} position={[0, -0.2, 0.15]}>
                     <sphereGeometry args={[.72, 20, 14]} />
                 </mesh>
@@ -391,48 +291,22 @@ export const Floor12Cabeca: React.FC<{
                 </group>
                 {/* dentes de cima, presos ao crânio */}
                 {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                    <mesh key={i} material={M.dente} position={[x, 0.88, 1.0]}>
-                        <boxGeometry args={[0.55, 0.7, 0.42]} />
-                    </mesh>
+                    <mesh key={i} material={M.dente} geometry={tooth} position={[x, .84, 1.06 - x*x*.055]} rotation={[0, -x*.055, 0]} />
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
-                    <mesh geometry={jaw} material={M.porcelana} position={[0, -.75, 1.15]} />
-                    <mesh position={[0, -1.05, 2.38]} scale={[1, .28, .22]} material={M.peleEsc}>
-                        <sphereGeometry args={[1.72, 24, 12]} />
-                    </mesh>
+                    <mesh geometry={jaw} material={[M.porcelana, M.interior]} position={[0, -.75, 1.15]} />
                     {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                        <mesh key={i} material={M.dente} position={[x, -0.05, 2.1]}>
-                            <boxGeometry args={[0.55, 0.66, 0.42]} />
-                        </mesh>
+                        <mesh key={i} material={M.dente} geometry={tooth} position={[x, -.18, 2.10 - x*x*.055]} rotation={[0, -x*.055, Math.PI]} />
                     ))}
                 </group>
             </group>
 
             {/* ── AS FERIDAS ── */}
-            {feridas.map((p, i) => (
-                <group key={i} position={p}
-                    // virada PARA FORA: o eixo +Z de cada cratera aponta para
-                    // longe do centro do crânio, então ela assenta na casca em
-                    // vez de estourar através dela.
-                    rotation={[Math.atan2(-p[1], Math.hypot(p[0], p[2])), Math.atan2(p[0], p[2]), 0]}
-                    ref={(g) => { feridaRefs.current[i] = g as unknown as THREE.Mesh; }} visible={false}>
-                    {/* a brasa, no fundo do buraco */}
-                    <mesh material={M.brasa} position={[0, 0, -.18]}>
-                        <sphereGeometry args={[.30, 10, 8]} />
-                    </mesh>
-                    {/* a chapa rasgada em volta: escura, e é ela que faz o buraco */}
-                    <mesh material={M.peleEsc} position={[0, 0, -.02]} rotation={[Math.PI / 2, 0, 0]}>
-                        <torusGeometry args={[.40, .17, 6, 12]} />
-                    </mesh>
-                    {/* lascas levantadas, para a borda não ser um anel perfeito */}
-                    {[0, 1, 2].map((k) => (
-                        <mesh key={k} material={M.peleEsc}
-                            position={[Math.cos(k * 2.1 + i) * .44, Math.sin(k * 2.1 + i) * .44, .06]}
-                            rotation={[.5 + k * .4, k * .7, k * 2.1 + i]}>
-                            <boxGeometry args={[.26, .07, .20]} />
-                        </mesh>
-                    ))}
+            {detail.map((crack, i) => (
+                <group key={i} ref={g => { feridaRefs.current[i] = g; }} visible={false}>
+                    <mesh material={M.brasa} geometry={crack.ember} />
+                    <mesh material={M.peleEsc} geometry={crack.edge} />
                 </group>
             ))}
         </group>

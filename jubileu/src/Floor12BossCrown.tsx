@@ -11,7 +11,7 @@ export function Floor12BossCrown() {
       bevelThickness: .06, bevelSize: .06, bevelSegments: 2, curveSegments: 20 });
   }, []);
   useEffect(() => () => visor.dispose(), [visor]);
-  return <group name="quepe-do-concierge" position={[0, 3.06, 0]}>
+  return <group name="quepe-do-concierge" position={[0, 3.19, -.08]} scale={[.94, .88, .95]} rotation={[0, 0, -.025]}>
     <mesh position={[0, .60, -.05]} scale={[1, 1, .81]}>
       <cylinderGeometry args={[3.08, 3.38, 1.40, 48]} />
       <meshStandardMaterial color="#173b45" metalness={.30} roughness={.48} />

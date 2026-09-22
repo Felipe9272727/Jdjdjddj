@@ -1,40 +1,27 @@
-import { useEffect, useMemo } from 'react';
-import { createConciergeGeometry } from './f12ConciergeGeometry';
+import * as THREE from 'three';
 
-/** Sculpted porcelain shell; live eyes, jaw and mouth target stay in Floor12Cabeca. */
-export function Floor12Facework() {
-  const assets = useMemo(() => {
-    return { sculpt: createConciergeGeometry() };
-  }, []);
-  useEffect(() => () => Object.values(assets).forEach(g => g.dispose()), [assets]);
+/** Shared sculpt geometry and fitted trim; the parent owns their lifetime. */
+export function Floor12Facework({material, geometry, rims}: {
+  material: THREE.Material; geometry: THREE.BufferGeometry; rims: THREE.BufferGeometry[];
+}) {
   return <group name="mascara-do-concierge">
-    <mesh name="concierge-blender-face" geometry={assets.sculpt}>
-      <meshStandardMaterial color="#e9ddbd" roughness={.43} metalness={.08} />
-    </mesh>
-    {[-1, 1].map(side => <group key={side}>
-      {/* Recessed almond sockets, with a single brass eyelid seam. */}
-      <mesh position={[side * 1.55, 1.15, 3.04]} scale={[1.10, .75, .24]}>
-        <sphereGeometry args={[1, 24, 16]} />
+    <mesh name="concierge-blender-face" geometry={geometry} material={material} />
+    {[-1,1].map((side,i)=><group key={side}>
+      <mesh position={[side*1.55,1.15,2.62]} scale={[1.01,.71,.18]}>
+        <sphereGeometry args={[1,24,16]} />
         <meshStandardMaterial color="#12313a" roughness={.5} />
       </mesh>
-      <mesh position={[side * 1.55, 1.15, 3.20]} scale={[1.12, .75, 1]}>
-        <torusGeometry args={[.82, .045, 6, 32]} />
+      <mesh geometry={rims[i]}>
         <meshStandardMaterial color="#bd934e" metalness={.8} roughness={.28} />
       </mesh>
-      {/* Temple hinge and vent follow the same uniform/cap palette. */}
-      <mesh position={[side * 3.04, -.48, 1.86]} rotation={[0, 0, side * -.10]}>
-        <capsuleGeometry args={[.27, 1.42, 4, 12]} />
+      <mesh position={[side*2.95,-.48,1.68]} rotation={[0,0,side*-.10]}>
+        <capsuleGeometry args={[.22,1.30,4,12]} />
         <meshStandardMaterial color="#173e48" metalness={.55} roughness={.4} />
       </mesh>
-      <mesh position={[side * 2.85, -1.22, 2.70]}>
-        <sphereGeometry args={[.15, 12, 8]} />
+      <mesh position={[side*2.40,-1.32,1.80]} rotation={[0,Math.PI/2,0]}>
+        <cylinderGeometry args={[.30,.30,.20,16]} />
         <meshStandardMaterial color="#d5aa56" metalness={.8} roughness={.3} />
       </mesh>
-      {[0, 1, 2].map(i => <mesh key={i} position={[side * (2.79 - i * .04), -.1 - i * .28, 3.02]}
-        rotation={[0, 0, side * -.22]}>
-        <capsuleGeometry args={[.035, .30, 2, 6]} />
-        <meshStandardMaterial color="#b9955d" metalness={.6} roughness={.4} />
-      </mesh>)}
     </group>)}
   </group>;
 }
