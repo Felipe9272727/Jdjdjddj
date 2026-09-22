@@ -1615,7 +1615,7 @@ const AvisoDeJanela: React.FC = () => {
     if (!aberta) return null;
     return (
         <div style={{
-            ...t64, ...CANTO_DO_HUD, top: 'calc(env(safe-area-inset-top) + 92px)',
+            ...t64, ...CANTO_DO_HUD, top: 'calc(env(safe-area-inset-top) + 126px)',
             fontSize: 18, color: '#b6ff4a', animation: 'f12pisca 0.45s infinite',
         }}>
             ATIRE NA BOCA!
