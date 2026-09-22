@@ -12,3 +12,12 @@ The helper validates returned choices and prints recommendations plus usage.
 It does not intercept native agent tools, execute commands, or grant permissions.
 The agent checks applicability and uncertainty before acting. If the API fails,
 continue with ordinary tool selection and state that Jev was unavailable.
+
+To route a bounded task among *currently available* agent models, run
+`python tools/jev-model-router.py < task.json` with `TYPESAFE_API_KEY` set in
+the process environment. Input contains `task`, `evidence`, and `constraints`;
+the script returns `selected`, the full Choice distribution, confidence and
+usage. The caller still decides whether to spawn an agent. In ambiguous cases
+the script retains work with `main_agent`; it never grants access or dispatches
+tools itself. Group related routing questions into one Jev request when they
+share the same evidence.

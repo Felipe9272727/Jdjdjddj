@@ -21,6 +21,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota, CENA_DA_DERROTA } from './f12Cinema';
 import { Floor12Facework } from './Floor12Facework';
+import { blinkScale, followGaze } from './f12Expression';
 import { createConciergeGeometry } from './f12ConciergeGeometry';
 import { createConciergeSkull, createConciergeJaw, createConciergeTooth, createShellSeams, createFaceDetails, shellPoint } from './f12HeadDetails';
 import { Floor12BossCrown } from './Floor12BossCrown';
@@ -201,7 +202,7 @@ export const Floor12Cabeca: React.FC<{
         // ── OS OLHOS ─────────────────────────────────────────────────────
         // Apertam quando a boca abre. É o telegrafo redundante: quem estiver
         // olhando para os olhos e não para a boca também vê o ataque vir.
-        const blink = !dying && b.abertura < .1 && t % 5.7 < .12 ? .15 : 1;
+        const blink = dying ? 1 : blinkScale(t, b.abertura);
         const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
         const franzir = b.abertura * 0.4;
@@ -225,8 +226,10 @@ export const Floor12Cabeca: React.FC<{
         for (const eye of [olhoE.current, olhoD.current]) {
             const pupil = eye?.children[1];
             if (pupil) {
-                pupil.position.x = THREE.MathUtils.clamp((naveRef?.current.x ?? 0) * 0.025, -0.14, 0.14);
-                pupil.position.y = THREE.MathUtils.clamp(((naveRef?.current.y ?? 5) - 5) * 0.025, -0.12, 0.1);
+                const targetX = THREE.MathUtils.clamp((naveRef?.current.x ?? 0) * 0.025, -0.14, 0.14);
+                const targetY = THREE.MathUtils.clamp(((naveRef?.current.y ?? 5) - 5) * 0.025, -0.12, 0.1);
+                pupil.position.x = followGaze(pupil.position.x, targetX, dt);
+                pupil.position.y = followGaze(pupil.position.y, targetY, dt);
             }
         }
 
@@ -299,7 +302,7 @@ export const Floor12Cabeca: React.FC<{
                             <cylinderGeometry args={[.62, .70, .62, 20, 1, true]} />
                         </mesh>
                         <group position={[0, 0, .10]}>
-                            <mesh material={M.iris} rotation={[Math.PI / 2, 0, 0]}>
+                            <mesh material={M.iris}>
                                 <torusGeometry args={[.40, .075, 8, 24]} />
                             </mesh>
                             <mesh material={M.lente} scale={[1, 1, .55]}>
