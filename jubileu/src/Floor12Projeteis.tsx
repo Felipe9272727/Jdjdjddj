@@ -24,18 +24,46 @@ import {
     type Projetil, type NomeDoAtaque,
 } from './f12Boss';
 
+/**
+ * ── UMA FAIXA DE COR RESERVADA PARA O QUE MACHUCA ────────────────────────────
+ *
+ * As cores antigas foram escolhidas por LORE — âmbar de placa de elevador para
+ * o leque, creme de cabine para os elevadores, azul para a maré do 2º andar.
+ * Cada escolha fazia sentido sozinha, e juntas produziram o pior defeito de
+ * legibilidade possível: QUATRO DOS CINCO ATAQUES dividiam família de cor com o
+ * cenário.
+ *
+ *   leque       #ffd34a  âmbar  ×  janelas dos prédios  #f1c777  âmbar
+ *   elevadores  #c9b28a  creme  ×  a própria cabeça, creme
+ *   naves       #cfd6e0  cinza  ×  os bancos de nuvem, cinza
+ *   maré        #3fa9d6  azul   ×  o céu, azul
+ *
+ * O objeto mais saturado da tela era DECORAÇÃO, e a coisa que mata era o mais
+ * apagado. Um jogador que morre sem ter visto o tiro não aprende nada — ele só
+ * conclui que o jogo é injusto.
+ *
+ * Agora existe uma regra: a faixa QUENTE (laranja → vermelho → magenta) é
+ * exclusiva do que causa dano. Nada de cenário entra nela. Dentro da faixa os
+ * cinco continuam distinguíveis por VALOR e por forma, que é como um jogador
+ * reconhece padrão de chefe — pela silhueta, não pelo matiz.
+ *
+ * O teleguiado já era vermelho e já era o único que se lia. Ele virou a
+ * referência, em vez de a exceção.
+ */
 const CORES = {
-    leque: '#ffd34a',        // os cinco andares: âmbar de placa de elevador
-    teleguiado: '#e03a3a',   // o fio vermelho
+    leque: '#ff7a2f',        // laranja quente: os cinco andares, mas visíveis
+    teleguiado: '#e03a3a',   // o fio vermelho — a referência da faixa
     fio: '#8c1d1d',
-    naves: '#cfd6e0',        // as camareiras: cinza de uniforme
-    navesLuz: '#7ad4ff',
-    mare: '#3fa9d6',         // a maré do 2º
-    mareEsc: '#1d6e94',
-    elevadores: '#c9b28a',   // a espinha: a mesma cabine creme do elevador
-    elevadoresEsc: '#6f6350',
+    naves: '#d8604a',        // as camareiras: o uniforme puxado para o quente
+    navesLuz: '#ffd08a',     // a luz delas, para separar da fuselagem
+    mare: '#c0345f',         // a maré do 2º: magenta, para não sumir no céu
+    mareEsc: '#7d1f3e',
+    elevadores: '#e8552c',   // a espinha: a cabine, mas em brasa
+    elevadoresEsc: '#7a2b17',
+    // O JOGADOR fica do lado FRIO da paleta, e sozinho nele. Assim "ciano é
+    // meu, quente é o que me mata" vira uma regra que se aprende sem texto.
     tiro: '#65fff0',
-    tiroIrmao: '#ff9d5a',
+    tiroIrmao: '#7ad4ff',
 };
 
 /** Quantos de cada tipo cabem no ar ao mesmo tempo. Generoso, mas fixo. */

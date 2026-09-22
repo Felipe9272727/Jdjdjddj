@@ -86,7 +86,12 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
   return <group>
     <ArchitectureInstances pieces={architecture.walls} color={P.hullDark} />
     <ArchitectureInstances pieces={architecture.brass} color={P.brassDark} />
-    <ArchitectureInstances pieces={architecture.windows} color="#f1c777" glow />
+    {/* As janelas eram #f1c777 em material BÁSICO sem tone mapping, ou seja o
+        pixel mais saturado e mais brilhante da tela inteira — e eram cenário.
+        Elas disputavam a atenção com os projéteis e ganhavam. Continuam acesas,
+        porque hotel à noite tem janela acesa, mas descem de protagonista a
+        textura: o quente agora é reservado para o que machuca. */}
+    <ArchitectureInstances pieces={architecture.windows} color="#8e7d55" />
     <instancedMesh ref={cloudRef} args={[cloudGeometry, undefined, clouds.length]}>
       <meshStandardMaterial vertexColors roughness={1} />
     </instancedMesh>
