@@ -917,6 +917,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const clarao = useRef(0);
     const baque = useRef(0);
     const baques = useRef(0);
+    const cardJaPassou = useRef(false);
     const reentrada = useRef(0);
     const estilhacos = useRef<PedidoDeEstilhaco[]>([]);
     const gritoRef = useRef('');
@@ -988,6 +989,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             // Recomeça a luta, mas mantendo o que a cabeça já perdeu seria
             // cruel do avesso: ela volta inteira e o jogador também.
             f12Reset();
+            cardJaPassou.current = false;   // o chefe é reapresentado no REPETIR
             arma.current = newFlightWeapon();
             touchAtivo.current = false; gatilho.current = false;
             nave.current = novaNave(0, meioY());
@@ -1261,6 +1263,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* a legenda da introdução: sem ela o jogador não sabe que o
                 elevador está virando avião, ele só vê o metal se mexendo */}
             {fase === 'queda' && <LegendaDaVitoria clock={cinemaClock} />}
+            {/* SÓ NA ABERTURA DA LUTA. O componente desmonta quando a fase sai
+                de 'luta' (a virada faz isso), e remontar tocaria o card de novo
+                — o anúncio do chefe viraria um anúncio a cada retomada. O ref
+                lembra que ele já passou, e o REPETIR o zera. */}
+            {fase === 'luta' && !cardJaPassou.current && (
+                <CardDoChefe aoTerminar={() => { cardJaPassou.current = true; }} />
+            )}
             {fase === 'luta' && <BordaSangrando baques={baques} />}
             {(fase === 'luta' || fase === 'derrota') && <Reentrada reentrada={reentrada} />}
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
@@ -1434,6 +1443,59 @@ const FechamentoDaDerrota: React.FC<{ clock: React.MutableRefObject<number> }> =
         position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none',
         background: '#000', opacity: op,
     }} />;
+};
+
+/**
+ * ── O CARD DO CHEFE ──────────────────────────────────────────────────────────
+ *
+ * Furi, Cuphead e Titan Souls carimbam o nome do chefe na tela quando a luta
+ * começa. Não é enfeite: é o gesto que separa "inimigo" de "CHEFE", e é o que
+ * diz ao jogador que a partir daqui a regra do jogo é outra. O andar 12 tinha
+ * catorze segundos de revelação cinematográfica e entrava na luta sem anunciar
+ * nada.
+ *
+ * ── E ELE NÃO PODE TER UM NOME, POR CAUSA DO ROTEIRO ─────────────────────────
+ *
+ * O TROCO-63 diz, três falas antes: "Vê aquela cara? NÃO PERGUNTA DE QUEM É."
+ * Inventar um nome próprio aqui contradiria a única coisa que o roteiro faz
+ * questão de esconder. Então o card usa o anonimato em vez de furá-lo: carimba
+ * o que o HUD já chama, e a legenda paga a fala que o jogador acabou de ouvir.
+ * A convenção do gênero é cumprida sem mentir sobre a ficção.
+ *
+ * Fica no TERÇO INFERIOR, nunca no meio: o meio é da boca, e a boca é o relógio
+ * da luta.
+ */
+const CardDoChefe: React.FC<{ aoTerminar: () => void }> = ({ aoTerminar }) => {
+    const [t, setT] = useState(0);
+    useEffect(() => {
+        const inicio = performance.now();
+        const id = window.setInterval(() => setT((performance.now() - inicio) / 1000), 50);
+        return () => window.clearInterval(id);
+    }, []);
+    const DURACAO = 2.6;
+    if (t > DURACAO) { aoTerminar(); return null; }
+    const entrada = Math.min(1, t / .32);
+    const saida = Math.min(1, Math.max(0, (DURACAO - t) / .45));
+    const op = entrada * saida;
+    return (
+        <div aria-hidden style={{
+            position: 'absolute', left: 0, right: 0, bottom: '21%',
+            textAlign: 'center', zIndex: 4, pointerEvents: 'none', opacity: op,
+        }}>
+            <div style={{
+                ...t64, fontSize: 'clamp(26px, 7vw, 46px)', color: '#ffe9b0',
+                letterSpacing: 6, transform: `translateY(${(1 - entrada) * 14}px)`,
+            }}>A CABEÇA</div>
+            <div style={{
+                height: 2, width: `${op * 62}%`, margin: '7px auto',
+                background: 'linear-gradient(90deg, transparent, #d8a44a, transparent)',
+            }} />
+            <div style={{
+                ...t64, fontSize: 'clamp(10px, 2.6vw, 14px)', color: '#c8b48a',
+                letterSpacing: 3, fontWeight: 700,
+            }}>12º ANDAR · NÃO PERGUNTE DE QUEM É</div>
+        </div>
+    );
 };
 
 /**
