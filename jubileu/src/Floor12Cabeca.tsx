@@ -85,6 +85,9 @@ export const Floor12Cabeca: React.FC<{
     const olhoD = useRef<THREE.Group>(null);
     const sobrE = useRef<THREE.Mesh>(null);
     const sobrD = useRef<THREE.Mesh>(null);
+    const bracosDaMandibula = useRef<(THREE.Mesh | null)[]>([]);
+    const armScratch = useMemo(() => ({ start: new THREE.Vector3(), end: new THREE.Vector3(),
+        span: new THREE.Vector3(), mid: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0) }), []);
 
     const M = useMemo(() => ({
         pele: new THREE.MeshStandardMaterial({ color: CORES.pele, roughness: .43, metalness: .28 }),
@@ -100,7 +103,7 @@ export const Floor12Cabeca: React.FC<{
         costura: new THREE.MeshStandardMaterial({ color: '#0b2027', roughness: .62, metalness: .40 }),
         rebite: new THREE.MeshStandardMaterial({ color: '#c9a04a', roughness: .30, metalness: .85 }),
         recesso: new THREE.MeshStandardMaterial({ color: '#081a20', roughness: .85, metalness: .10 }),
-        porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .44, metalness: .08 }),
+        porcelana: new THREE.MeshStandardMaterial({ color: '#c6b49b', roughness: .63, metalness: .03, vertexColors: true }),
         /**
          * A CHAPA DA MANDÍBULA.
          *
@@ -122,13 +125,13 @@ export const Floor12Cabeca: React.FC<{
         interior: mat64(CORES.interior),
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
         olho: new THREE.MeshStandardMaterial({ color: CORES.olho, roughness: .24, metalness: .08 }),
-        iris: new THREE.MeshStandardMaterial({ color: '#bd934e', roughness: .3, metalness: .5 }),
+        iris: new THREE.MeshStandardMaterial({ color: '#98754a', roughness: .36, metalness: .57 }),
         /** O fundo do poço do olho: quase preto, para a lente acender contra ele. */
         recessoOlho: new THREE.MeshStandardMaterial({ color: '#05161c', roughness: .92, metalness: .05 }),
         /** A lente. Ela EMITE — é o que faz um olho de máquina parecer ligado. */
         lente: new THREE.MeshStandardMaterial({
             color: '#0e3b44', roughness: .18, metalness: .35,
-            emissive: new THREE.Color('#5fe6d0'), emissiveIntensity: .85,
+            emissive: new THREE.Color('#42bcb1'), emissiveIntensity: .58,
         }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
@@ -187,6 +190,24 @@ export const Floor12Cabeca: React.FC<{
         // Ela GIRA num pivô atrás do queixo, não desliza para baixo: mandíbula
         // que translada lê como gaveta.
         if (mandibula.current) mandibula.current.rotation.x = b.abertura * 0.86;
+        // Dois braços acompanham a mandíbula: o queixo não flutua abaixo da
+        // máscara quando o chefe escancara a boca. Tudo fica fora da hitbox.
+        for (let i = 0; i < 2; i++) {
+            const arm = bracosDaMandibula.current[i];
+            if (!arm) continue;
+            const lado = i === 0 ? -1 : 1;
+            const a = b.abertura * .86;
+            armScratch.start.set(lado * 2.36, -1.38, 2.53);
+            armScratch.end.set(lado * 2.10,
+                -1.45 - .68 * Math.cos(a) - 1.55 * Math.sin(a),
+                .612 - .68 * Math.sin(a) + 1.55 * Math.cos(a));
+            armScratch.span.subVectors(armScratch.end, armScratch.start);
+            armScratch.mid.addVectors(armScratch.start, armScratch.end).multiplyScalar(.5);
+            arm.position.copy(armScratch.mid);
+            const length = armScratch.span.length();
+            arm.quaternion.setFromUnitVectors(armScratch.up, armScratch.span.multiplyScalar(1 / length));
+            arm.scale.set(1, length, 1);
+        }
 
         // A garganta acende quando abre — é o que faz a boca parecer perigosa
         // em vez de um buraco.
@@ -205,17 +226,16 @@ export const Floor12Cabeca: React.FC<{
         const blink = dying ? 1 : blinkScale(t, b.abertura);
         const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
-        const franzir = b.abertura * 0.4;
+        const franzir = b.abertura * 0.15;
         // ── O ÂNGULO DE REPOUSO DA ARCADA ────────────────────────────────
         // Era 0,18 rad: quase horizontal, com as pontas de fora um tico para
         // cima. Isso é sobrancelha ARQUEADA, e sobrancelha arqueada é susto —
         // parte do porquê a cabeça lia como personagem de desenho assustado.
         //
-        // 0,46 inclina a ponta INTERNA para baixo, em direção ao nariz, que é a
-        // forma universal de raiva num rosto. O franzir da boca aberta continua
-        // somando por cima, então abrir a boca ainda fecha mais a cara.
-        if (sobrE.current) sobrE.current.rotation.z = -0.46 - franzir;
-        if (sobrD.current) sobrD.current.rotation.z = 0.46 + franzir;
+        // A inclinação agora para antes de atravessar a lente: a raiva fica no
+        // contorno, e o franzir ao abrir a boca ainda serve de aviso de ataque.
+        if (sobrE.current) sobrE.current.rotation.z = -0.24 - franzir;
+        if (sobrD.current) sobrD.current.rotation.z = 0.24 + franzir;
 
         // Mouth and collision stay anchored. The upper face breathes and recoils.
         if (face.current) {
@@ -297,26 +317,29 @@ export const Floor12Cabeca: React.FC<{
                         A ordem dos filhos importa: o laço de quadro pega
                         `children[1]` para mirar a lente no avião do jogador.
                         Filho 0 é o poço (fixo), filho 1 é o que segue. */}
-                    <group ref={ro} position={[lado * 1.55, 1.15, 2.72]}>
-                        <mesh material={M.recessoOlho} rotation={[Math.PI / 2, 0, 0]}>
-                            <cylinderGeometry args={[.62, .70, .62, 20, 1, true]} />
+                    <group ref={ro} position={[lado * 1.55, 1.15, 3.26]}>
+                        {/* O plano escuro é parte da máscara, não uma esclera clara.
+                            Por estar na frente da porcelana, a lente permanece
+                            legível até com luz forte e vista de celular. */}
+                        <mesh material={M.recessoOlho} position={[0, 0, -.15]} scale={[1.02, .71, .18]}>
+                            <sphereGeometry args={[1, 10, 6]} />
                         </mesh>
                         <group position={[0, 0, .10]}>
                             <mesh material={M.iris}>
-                                <torusGeometry args={[.40, .075, 8, 24]} />
+                                <torusGeometry args={[.36, .065, 7, 20]} />
                             </mesh>
-                            <mesh material={M.lente} scale={[1, 1, .55]}>
-                                <sphereGeometry args={[.30, 20, 12]} />
+                            <mesh material={M.lente} scale={[1, 1, .52]}>
+                                <sphereGeometry args={[.22, 16, 10]} />
                             </mesh>
-                            <mesh material={M.brilhoOlho} position={[0, 0, .17]}>
-                                <sphereGeometry args={[.085, 10, 8]} />
+                            <mesh material={M.brilhoOlho} position={[0, 0, .13]}>
+                                <sphereGeometry args={[.05, 8, 6]} />
                             </mesh>
                         </group>
                     </group>
                     {/* A ARCADA desceu e engrossou: ela projeta sobre o poço e o
                         que sobra do olho é o ponto aceso no escuro. */}
                     <mesh ref={rs} geometry={brow} material={M.peleEsc}
-                        position={[lado * 1.55, 1.80, 3.30]} scale={[1.14, .96, 1.05]} />
+                        position={[lado * 1.55, 2.05, 3.30]} scale={[1.14, .96, 1.05]} />
                 </React.Fragment>
             ))}
 
@@ -361,6 +384,12 @@ export const Floor12Cabeca: React.FC<{
                     ))}
                 </group>
             </group>
+
+            {[-1, 1].map((lado, i) => (
+                <mesh key={lado} ref={m => { bracosDaMandibula.current[i] = m; }} material={M.mandibulaPlaca}>
+                    <cylinderGeometry args={[.11, .15, 1, 8]} />
+                </mesh>
+            ))}
 
             {/* ── AS FERIDAS ── */}
             {detail.map((crack, i) => (

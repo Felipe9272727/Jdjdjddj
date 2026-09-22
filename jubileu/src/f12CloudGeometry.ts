@@ -19,11 +19,17 @@ export function createCloudGeometry() {
   pieces.forEach(p => p.dispose());
   const positions = geometry.getAttribute('position');
   const colors = new Float32Array(positions.count * 3);
-  const shade = new THREE.Color('#465e78'), light = new THREE.Color('#d0dbd7');
+  // Dusk-lit volumes separate from the pale porcelain and cyan projectiles.
+  // Vertex colors stay opaque/instanced; no mobile overdraw or extra draw calls.
+  const shade = new THREE.Color('#50516d');
+  const light = new THREE.Color('#a49ab0');
+  const sunset = new THREE.Color('#d2ad98');
   const color = new THREE.Color();
   for (let i = 0; i < positions.count; i++) {
     const sun = THREE.MathUtils.smoothstep(positions.getY(i) - positions.getX(i) * .15, -.58, 1.05);
     color.copy(shade).lerp(light, sun);
+    const rim = THREE.MathUtils.smoothstep(positions.getY(i) - positions.getX(i) * .45, .10, .90);
+    color.lerp(sunset, rim * .30);
     color.toArray(colors, i * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));

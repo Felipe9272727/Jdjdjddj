@@ -18,9 +18,19 @@ export function Floor12Facework({material, geometry, rims}: {
         <capsuleGeometry args={[.22,1.30,4,12]} />
         <meshStandardMaterial color="#173e48" metalness={.55} roughness={.4} />
       </mesh>
-      <mesh position={[side*2.40,-1.32,1.80]} rotation={[0,Math.PI/2,0]}>
-        <cylinderGeometry args={[.30,.30,.20,16]} />
-        <meshStandardMaterial color="#d5aa56" metalness={.8} roughness={.3} />
+      {/* A articulação lateral fica diante do casco: a mandíbula lê como
+          mecanismo independente ao abrir, sem mover o ponto de acerto. */}
+      <mesh position={[side*2.36,-1.38,2.42]} rotation={[Math.PI/2,0,0]}>
+        <cylinderGeometry args={[.37,.37,.15,12]} />
+        <meshStandardMaterial color="#102b33" metalness={.54} roughness={.4} />
+      </mesh>
+      <mesh position={[side*2.36,-1.38,2.53]}>
+        <torusGeometry args={[.28,.055,6,16]} />
+        <meshStandardMaterial color="#c39a5c" metalness={.78} roughness={.3} />
+      </mesh>
+      <mesh position={[side*2.36,-1.38,2.54]} scale={[.72,.72,.22]}>
+        <sphereGeometry args={[.22,10,8]} />
+        <meshStandardMaterial color="#416775" metalness={.6} roughness={.35} />
       </mesh>
     </group>)}
   </group>;

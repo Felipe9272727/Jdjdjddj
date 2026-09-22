@@ -46,12 +46,12 @@ export function Floor12Ceu() {
   const sky = useMemo(() => ({
     time: { value: 0 },
     topColor: { value: new THREE.Color(P.sky) },
-    horizonColor: { value: new THREE.Color('#557b89') },
+    horizonColor: { value: new THREE.Color('#746879') },
   }), []);
   const colors = useMemo(() => ({
-    top: new THREE.Color(P.sky), storm: new THREE.Color('#241933'),
-    horizon: new THREE.Color('#557b89'), stormHorizon: new THREE.Color('#795a75'),
-    fog: new THREE.Fog('#355267', 68, 215),
+    top: new THREE.Color(P.sky), storm: new THREE.Color('#171626'),
+    horizon: new THREE.Color('#746879'), stormHorizon: new THREE.Color('#5b465c'),
+    fog: new THREE.Fog('#494052', 68, 215),
   }), []);
   useEffect(() => {
     const oldFog = scene.fog, oldBackground = scene.background;
@@ -73,9 +73,9 @@ export function Floor12Ceu() {
       <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader}
         uniforms={sky} side={THREE.BackSide} depthWrite={false} fog={false} />
     </mesh>
-    <hemisphereLight args={['#b7e2ec', '#172b3a', 1.55]} />
-    <directionalLight position={[-18, 28, 14]} color="#ffddaa" intensity={2.3} />
-    <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.5} />
+    <hemisphereLight args={['#c6b9c9', '#172b3a', 1.35]} />
+    <directionalLight position={[-18, 28, 14]} color="#ffddaa" intensity={1.85} />
+    <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
     <Floor12Skyline bossZ={ARENA.zCabeca} />
     <Floor12SkyDetails />
     <Floor12Atmosphere />

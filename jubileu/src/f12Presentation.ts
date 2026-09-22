@@ -21,7 +21,7 @@ export function f12Transformation(progress: number) {
 }
 
 export const F12_PALETTE = {
-  sky: '#091a2b',
+  sky: '#222138',
   fog: '#234354',
   brass: '#d5aa56',
   brassDark: '#775229',
