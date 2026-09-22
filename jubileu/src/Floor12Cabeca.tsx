@@ -100,6 +100,22 @@ export const Floor12Cabeca: React.FC<{
         rebite: new THREE.MeshStandardMaterial({ color: '#c9a04a', roughness: .30, metalness: .85 }),
         recesso: new THREE.MeshStandardMaterial({ color: '#081a20', roughness: .85, metalness: .10 }),
         porcelana: new THREE.MeshStandardMaterial({ color: '#e9ddbd', roughness: .44, metalness: .08 }),
+        /**
+         * A CHAPA DA MANDÍBULA.
+         *
+         * Ela usava `porcelana`, o creme mais CLARO da paleta — a mesma cor do
+         * rosto. Fotografada, virava uma placa pálida arredondada pendurada
+         * embaixo da cara: um babador. Numa cabeça-máquina a mandíbula é peça
+         * MÓVEL, e peça móvel não tem a mesma cor do casco fixo; ela é mais
+         * escura e mais metálica, porque é ferramenta.
+         *
+         * Escurecendo, ela também para de brigar com o rosto pela atenção: o
+         * olho vai para a cara, e a boca só pesa quando ABRE e a garganta
+         * acende — que é exatamente quando o jogo quer que o jogador olhe.
+         */
+        mandibulaPlaca: new THREE.MeshStandardMaterial({
+            color: '#3c4a4e', roughness: .38, metalness: .62,
+        }),
         brilhoOlho: new THREE.MeshBasicMaterial({ color: '#a0fff1', toneMapped: false }),
         peleEsc: mat64(CORES.peleEsc),
         interior: mat64(CORES.interior),
@@ -336,7 +352,7 @@ export const Floor12Cabeca: React.FC<{
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
-                    <mesh geometry={jaw} material={[M.porcelana, M.interior]} position={[0, -.75, 1.15]} />
+                    <mesh geometry={jaw} material={[M.mandibulaPlaca, M.interior]} position={[0, -.75, 1.15]} />
                     {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
                         <mesh key={i} material={M.dente} geometry={tooth} position={[x, -.18, 2.10 - x*x*.055]} rotation={[0, -x*.055, Math.PI]} />
                     ))}
