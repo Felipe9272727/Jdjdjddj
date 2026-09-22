@@ -46,7 +46,7 @@ import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
 import { newFlightWeapon, stepFlightWeapon, type FlightWeapon } from './f12FlightWeapon';
 import { Floor12Estilhacos, type PedidoDeEstilhaco } from './Floor12Estilhacos';
-import { f12IntroCamera, f12ChaseDistance, f12ChaseFov } from './f12Presentation';
+import { f12IntroCamera, f12ChaseDistance, f12ChaseFov, f12FrameHeight } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
@@ -221,7 +221,8 @@ const CameraDaLuta: React.FC<{
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
-        const recuo = f12ChaseDistance(size.width / Math.max(1, size.height));
+        const aspectoDaTela = size.width / Math.max(1, size.height);
+        const recuo = f12ChaseDistance(aspectoDaTela);
 
         // ── A CÂMERA DA DERROTA ──────────────────────────────────────────
         // Ela larga o avião e SOBE para a cabeça. O plano final não é o jogador
@@ -392,7 +393,17 @@ const CameraDaLuta: React.FC<{
         const atrasX = n.x * 0.72, atrasY = n.y;
 
         const px = THREE.MathUtils.lerp(0, atrasX, suave);
-        const py = THREE.MathUtils.lerp(dentroY, atrasY + 6, suave);
+        // ── O AVIÃO ESTAVA SAINDO PELA BORDA DE BAIXO ────────────────────
+        // A câmera fica 6 unidades ACIMA do avião, o que em retrato deixa ele
+        // no terço inferior e sobra céu embaixo. Em paisagem a altura do quadro
+        // é menos da metade, então as mesmas 6 unidades empurram o avião para
+        // FORA: fotografado a 844x390, ele aparecia cortado pela borda.
+        //
+        // O deslocamento encolhe junto com a altura do quadro, pela mesma razão
+        // com que a lente já fecha — é o mesmo problema, medido no outro eixo.
+        const alturaDoQuadro = f12FrameHeight(recuo, f12ChaseFov(aspectoDaTela));
+        const acima = 6 * Math.min(1, alturaDoQuadro / 22);
+        const py = THREE.MathUtils.lerp(dentroY, atrasY + acima, suave);
         // O RECUO É MEDIDO, não escolhido no olho: ele vem de `ENQUADRAMENTO`,
         // que é onde a largura da arena, o aspecto da tela em pé e o tamanho do
         // avião são conciliados — ver a nota longa em `f12Boss`.
@@ -1336,7 +1347,11 @@ const DicaDeControle: React.FC = () => {
         <div style={{
             ...t64, position: 'absolute',
             ...(deitado
-                ? { top: 'calc(env(safe-area-inset-top) + 40px)' }
+                // 40 px punha a legenda EM CIMA da barra de vida do chefe —
+                // fotografado, as duas se sobrepunham. Tirar o texto do avião
+                // para jogá-lo no readout não é conserto, é troca de oclusão.
+                // 62 px é logo ABAIXO do rótulo mais da barra.
+                ? { top: 'calc(env(safe-area-inset-top) + 62px)' }
                 : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }),
             left: 0, right: 0, textAlign: 'center', fontSize: deitado ? 12 : 13,
             zIndex: 3, pointerEvents: 'none', opacity: 0.92,
