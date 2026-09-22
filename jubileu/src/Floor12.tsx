@@ -1,3 +1,4 @@
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
@@ -1140,6 +1141,33 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     maior, mais lento, e nasce EM CIMA do avião. */}
                 <Estouro vida={baque} nave={nave} cor="#ff8a3c" raio={.85} cresce={3.2} dz={.2} velocidade={2.4} />
                 <RevelarAviao camRef={cam} visivelRef={visivel} />
+
+                {/* ── O BLOOM, E POR QUE ELE SÓ PODIA VIR AGORA ────────────
+                    O andar monta o próprio `Canvas` e nunca teve composer, ou
+                    seja zero pós-processamento. Sem ele, a boca acesa, as
+                    brasas das feridas, o míssil dourado e o clarão do disparo
+                    renderizavam como POLÍGONOS CHAPADOS: a cor era de luz, o
+                    pixel não era.
+
+                    A ordem importou. Ligar bloom ENQUANTO as janelas dos
+                    prédios eram o objeto mais saturado da tela teria feito o
+                    CENÁRIO brilhar e engolir a ameaça — pioraria exatamente o
+                    que eu queria consertar. Com a faixa quente já reservada
+                    para o que machuca e as janelas rebaixadas, o bloom passa a
+                    iluminar só o que é perigoso ou é prêmio.
+
+                    `luminanceThreshold` alto de propósito: ele não é um filtro
+                    de charme por cima de tudo, é um holofote no que EMITE.
+                    `multisampling={0}` e uma passada só, porque isto roda em
+                    celular. */}
+                <EffectComposer multisampling={0} enableNormalPass={false}>
+                    <Bloom
+                        intensity={0.85}
+                        luminanceThreshold={0.62}
+                        luminanceSmoothing={0.22}
+                        mipmapBlur
+                    />
+                </EffectComposer>
             </Canvas>
 
             {/* ── HUD ── */}
