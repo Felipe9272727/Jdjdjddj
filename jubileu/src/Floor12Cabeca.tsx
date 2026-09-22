@@ -106,6 +106,13 @@ export const Floor12Cabeca: React.FC<{
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
         olho: new THREE.MeshStandardMaterial({ color: CORES.olho, roughness: .24, metalness: .08 }),
         iris: new THREE.MeshStandardMaterial({ color: '#bd934e', roughness: .3, metalness: .5 }),
+        /** O fundo do poço do olho: quase preto, para a lente acender contra ele. */
+        recessoOlho: new THREE.MeshStandardMaterial({ color: '#05161c', roughness: .92, metalness: .05 }),
+        /** A lente. Ela EMITE — é o que faz um olho de máquina parecer ligado. */
+        lente: new THREE.MeshStandardMaterial({
+            color: '#0e3b44', roughness: .18, metalness: .35,
+            emissive: new THREE.Color('#5fe6d0'), emissiveIntensity: .85,
+        }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
         ferida: mat64(CORES.ferida, CORES.ferida, 0.35),
@@ -182,8 +189,16 @@ export const Floor12Cabeca: React.FC<{
         const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
         const franzir = b.abertura * 0.4;
-        if (sobrE.current) sobrE.current.rotation.z = -0.18 - franzir;
-        if (sobrD.current) sobrD.current.rotation.z = 0.18 + franzir;
+        // ── O ÂNGULO DE REPOUSO DA ARCADA ────────────────────────────────
+        // Era 0,18 rad: quase horizontal, com as pontas de fora um tico para
+        // cima. Isso é sobrancelha ARQUEADA, e sobrancelha arqueada é susto —
+        // parte do porquê a cabeça lia como personagem de desenho assustado.
+        //
+        // 0,46 inclina a ponta INTERNA para baixo, em direção ao nariz, que é a
+        // forma universal de raiva num rosto. O franzir da boca aberta continua
+        // somando por cima, então abrir a boca ainda fecha mais a cara.
+        if (sobrE.current) sobrE.current.rotation.z = -0.46 - franzir;
+        if (sobrD.current) sobrD.current.rotation.z = 0.46 + franzir;
 
         // Mouth and collision stay anchored. The upper face breathes and recoils.
         if (face.current) {
@@ -248,15 +263,41 @@ export const Floor12Cabeca: React.FC<{
             {/* ── OS OLHOS ── */}
             {[[-1, olhoE, sobrE] as const, [1, olhoD, sobrD] as const].map(([lado, ro, rs]) => (
                 <React.Fragment key={lado}>
-                    <group ref={ro} position={[lado * 1.55, 1.15, 2.94]}>
-                        <mesh material={M.olho} scale={[1, .64, .32]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
-                        <group position={[0, 0, .247]}>
-                            <mesh material={M.iris} scale={[1, 1, .18]}><sphereGeometry args={[.265, 20, 12]} /></mesh>
-                            <mesh material={M.pupila} position={[0, 0, .043]} scale={[1, 1, .12]}><sphereGeometry args={[.135, 16, 10]} /></mesh>
-                            <mesh material={M.brilhoOlho} position={[-.07, .09, .054]}><sphereGeometry args={[.035, 8, 6]} /></mesh>
+                    {/* ── ISTO ERA UM OLHO DE KIKO ────────────────────────
+                        Era uma esclera BRANCA de raio 0,78 com uma íris marrom
+                        de 0,265 por cima, projetada para a frente do rosto. O
+                        dono do jogo olhou e disse que a cabeça parecia o Kiko —
+                        e estava certo: olho grande, redondo, com branco à mostra
+                        é rosto de desenho humano assustado. Máquina não tem
+                        esclera.
+
+                        Agora é uma LENTE: um poço escuro, um anel de latão, e um
+                        ponto aceso pequeno lá dentro. O que olha de volta é um
+                        instrumento, não um menino.
+
+                        A ordem dos filhos importa: o laço de quadro pega
+                        `children[1]` para mirar a lente no avião do jogador.
+                        Filho 0 é o poço (fixo), filho 1 é o que segue. */}
+                    <group ref={ro} position={[lado * 1.55, 1.15, 2.72]}>
+                        <mesh material={M.recessoOlho} rotation={[Math.PI / 2, 0, 0]}>
+                            <cylinderGeometry args={[.62, .70, .62, 20, 1, true]} />
+                        </mesh>
+                        <group position={[0, 0, .10]}>
+                            <mesh material={M.iris} rotation={[Math.PI / 2, 0, 0]}>
+                                <torusGeometry args={[.40, .075, 8, 24]} />
+                            </mesh>
+                            <mesh material={M.lente} scale={[1, 1, .55]}>
+                                <sphereGeometry args={[.30, 20, 12]} />
+                            </mesh>
+                            <mesh material={M.brilhoOlho} position={[0, 0, .17]}>
+                                <sphereGeometry args={[.085, 10, 8]} />
+                            </mesh>
                         </group>
                     </group>
-                    <mesh ref={rs} geometry={brow} material={M.peleEsc} position={[lado * 1.55, 1.99, 3.12]} scale={[.94, .78, .65]} />
+                    {/* A ARCADA desceu e engrossou: ela projeta sobre o poço e o
+                        que sobra do olho é o ponto aceso no escuro. */}
+                    <mesh ref={rs} geometry={brow} material={M.peleEsc}
+                        position={[lado * 1.55, 1.80, 3.30]} scale={[1.14, .96, 1.05]} />
                 </React.Fragment>
             ))}
 
