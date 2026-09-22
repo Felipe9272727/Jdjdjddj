@@ -340,20 +340,36 @@ export const Floor12Cabeca: React.FC<{
                     {/* O RECESSO: um disco escuro logo atrás do olho. Sem ele o
                         olho é uma bola COLADA na superfície — com ele, a órbita
                         tem fundo e o olho passa a morar dentro da cabeça. */}
-                    <mesh material={M.recesso} position={[lado * 1.55, 1.15, 3.18]}
+                    {/* ── PROPORÇÃO, e este é o conserto de verdade ──
+                        A cabeça parecia FOFA, não ameaçadora, e eu ia atacar
+                        isso com contraste e mais painel. Errado: o que manda
+                        aqui é ANATOMIA. Olho grande e redondo num crânio grande
+                        é rosto de filhote — é literalmente o esquema que a
+                        publicidade usa para deixar qualquer coisa querida.
+                        Olho MENOR e AFUNDADO sob uma arcada que PROJETA vira a
+                        mesma cabeça, ameaçadora, sem trocar uma cor sequer.
+
+                        O recesso acompanha o olho: uma órbita larga com um olho
+                        pequeno dentro deixa de ser uma bola colada e vira um
+                        buraco com algo olhando de dentro. */}
+                    <mesh material={M.recesso} position={[lado * 1.52, 1.18, 3.02]}
                         rotation={[Math.PI / 2, 0, 0]}>
-                        <cylinderGeometry args={[.96, 1.02, .22, 20, 1, true]} />
+                        <cylinderGeometry args={[.88, .98, .46, 20, 1, true]} />
                     </mesh>
-                    <group ref={ro} position={[lado * 1.55, 1.15, 3.27]}>
-                        <mesh material={M.olho} scale={[1, .67, .38]}><sphereGeometry args={[.78, 24, 16]} /></mesh>
-                        <mesh material={M.pupila} position={[lado * 0.12, -0.05, .30]} scale={[.82, 1, .35]}>
-                            <sphereGeometry args={[0.31, 16, 10]} />
+                    <group ref={ro} position={[lado * 1.52, 1.18, 3.02]}>
+                        <mesh material={M.olho} scale={[1, .70, .40]}><sphereGeometry args={[.58, 24, 16]} /></mesh>
+                        <mesh material={M.pupila} position={[lado * 0.09, -0.04, .24]} scale={[.80, 1, .35]}>
+                            <sphereGeometry args={[0.24, 16, 10]} />
                         </mesh>
-                        <mesh material={M.brilhoOlho} position={[.07, .02, .43]}>
-                            <sphereGeometry args={[.055, 10, 8]} />
+                        <mesh material={M.brilhoOlho} position={[.055, .015, .33]}>
+                            <sphereGeometry args={[.042, 10, 8]} />
                         </mesh>
                     </group>
-                    <mesh ref={rs} geometry={brow} material={M.peleEsc} position={[lado * 1.6, 2.03, 3.28]} />
+                    {/* A ARCADA PROJETA: mais à frente e mais baixa, ela lança
+                        sombra dentro da órbita. É a sombra que faz o olhar ser
+                        pesado — não a sobrancelha em si. */}
+                    <mesh ref={rs} geometry={brow} material={M.peleEsc}
+                        position={[lado * 1.58, 1.92, 3.52]} scale={[1.12, 1.30, 1.45]} />
                 </React.Fragment>
             ))}
 
@@ -397,8 +413,14 @@ export const Floor12Cabeca: React.FC<{
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
-                    <mesh geometry={jaw} material={M.porcelana} position={[0, -.75, 1.15]} />
-                    <mesh position={[0, -1.05, 2.38]} scale={[1, .28, .22]} material={M.peleEsc}>
+                    {/* MAXILAR MAIS LARGO E MAIS PESADO — a terceira perna da
+                        mesma decisão. Um queixo estreito sob uma caixa craniana
+                        grande é proporção de bebê; alargar a mandíbula move a
+                        massa da cabeça para BAIXO, e a silhueta passa a ler como
+                        adulto e pesado. Nenhuma cor mudou aqui. */}
+                    <mesh geometry={jaw} material={M.porcelana} position={[0, -.75, 1.15]}
+                        scale={[1.16, 1.10, 1.04]} />
+                    <mesh position={[0, -1.12, 2.38]} scale={[1.18, .34, .24]} material={M.peleEsc}>
                         <sphereGeometry args={[1.72, 24, 12]} />
                     </mesh>
                     {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
