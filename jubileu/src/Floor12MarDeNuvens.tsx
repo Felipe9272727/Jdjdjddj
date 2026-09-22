@@ -44,60 +44,61 @@ import { createCloudGeometry } from './f12CloudGeometry';
 /** O topo do mar. Exportado: os bancos laterais repousam sobre ele. */
 export const Y_DO_PISO = -8;
 
-const vert = /* glsl */`
-#include <fog_pars_vertex>
+// O ruído que desenha o topo do mar. Ele é INJETADO num material padrão (ver
+// abaixo), em vez de ser um shader à parte: a primeira versão era um
+// ShaderMaterial sem luz, e fotografado o vale do piso saía mais escuro e mais
+// azul que as bolhas iluminadas ao lado — dois materiais, duas matérias.
+const RUIDO = /* glsl */`
 varying vec2 vMundo;
-void main() {
-  vec4 m = modelMatrix * vec4(position, 1.0);
-  vMundo = m.xz;
-  vec4 mvPosition = viewMatrix * m;
-  gl_Position = projectionMatrix * mvPosition;
-  #include <fog_vertex>
-}`;
-
-const frag = /* glsl */`
-#include <fog_pars_fragment>
 uniform float uT;
 uniform vec3 uSombra;
 uniform vec3 uLuz;
-varying vec2 vMundo;
-
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float ruido(vec2 p){
+float f12Hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float f12Ruido(vec2 p){
   vec2 i = floor(p), f = fract(p);
   vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1,0)), u.x),
-             mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
+  return mix(mix(f12Hash(i), f12Hash(i + vec2(1,0)), u.x),
+             mix(f12Hash(i + vec2(0,1)), f12Hash(i + vec2(1,1)), u.x), u.y);
 }
 // Quatro oitavas bastam: a partir daí o celular paga e o olho não vê.
-float fbm(vec2 p){
+float f12Fbm(vec2 p){
   float s = 0.0, a = 0.5;
-  for (int k = 0; k < 4; k++) { s += a * ruido(p); p *= 2.03; a *= 0.5; }
+  for (int k = 0; k < 4; k++) { s += a * f12Ruido(p); p *= 2.03; a *= 0.5; }
   return s;
 }
-void main() {
-  vec2 p = vMundo * 0.045 + vec2(uT * 0.012, uT * 0.02);
-  float n = fbm(p);
-  // Os topos das ondas de nuvem ficam claros; os vales, na sombra.
-  float topo = smoothstep(0.32, 0.78, n);
-  gl_FragColor = vec4(mix(uSombra, uLuz, topo), 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-  #include <fog_fragment>
-}`;
+`;
 
 export function Floor12MarDeNuvens({ bossZ }: { bossZ: number }) {
-    const mat = useMemo(() => new THREE.ShaderMaterial({
-        vertexShader: vert, fragmentShader: frag, fog: true,
-        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
-            uT: { value: 0 },
-            // As MESMAS cores da sombra e da luz de `createCloudGeometry`, para
-            // o piso e as bolhas lerem como a mesma matéria.
-            uSombra: { value: new THREE.Color('#465e78') },
-            uLuz: { value: new THREE.Color('#c6d3d2') },
-        }]),
-    }), []);
-    useFrame((_, dt) => { mat.uniforms.uT.value += Math.min(dt, .1); });
+    const uT = useMemo(() => ({ value: 0 }), []);
+    const mat = useMemo(() => {
+        // `MeshStandardMaterial` de verdade: recebe as MESMAS luzes, a mesma
+        // névoa (inclusive a troca para a paleta de tempestade na virada) e a
+        // mesma conversão de cor que as bolhas. Só a cor difusa é trocada pelo
+        // ruído.
+        const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 });
+        m.onBeforeCompile = (shader) => {
+            shader.uniforms.uT = uT;
+            // A faixa de cor das bolhas (`createCloudGeometry`), com o VALE
+            // mais claro que a base delas: o vale do piso ainda está virado
+            // para o céu, só está mais baixo.
+            shader.uniforms.uSombra = { value: new THREE.Color('#7d90a6') };
+            shader.uniforms.uLuz = { value: new THREE.Color('#d0dbd7') };
+            shader.vertexShader = 'varying vec2 vMundo;\n' + shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                '#include <begin_vertex>\n  vMundo = (modelMatrix * vec4(transformed, 1.0)).xz;');
+            shader.fragmentShader = RUIDO + shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                // Frequência 0,08: traço de ~12 unidades. Com 0,045 o traço
+                // tinha ~22, e o pedaço de piso visível perto da câmera cabia
+                // INTEIRO num vale — fotografado, uma faixa azul lisa na borda
+                // de baixo do retrato, que lia como vazio de novo.
+                '#include <color_fragment>\n  { float n = f12Fbm(vMundo * 0.08 + vec2(uT * 0.012, uT * 0.02));\n'
+                + '    diffuseColor.rgb *= mix(uSombra, uLuz, smoothstep(0.30, 0.76, n)); }');
+        };
+        m.customProgramCacheKey = () => 'f12-mar-de-nuvens';
+        return m;
+    }, [uT]);
+    useFrame((_, dt) => { uT.value += Math.min(dt, .1); });
     useEffect(() => () => mat.dispose(), [mat]);
 
     // ── AS BOLHAS DE VOLUME, pelo chão inteiro ─────────────────────────────
@@ -110,11 +111,16 @@ export function Floor12MarDeNuvens({ bossZ }: { bossZ: number }) {
             for (let iz = 0; iz < 9; iz++) {
                 const seed = Math.sin(ix * 91.7 + iz * 47.3) * 43758.5453;
                 const r = seed - Math.floor(seed);
+                // A fileira que ficava em z ~ 18 estava DEBAIXO da câmera: nunca
+                // entrava em quadro e só custava. A primeira fileira agora é a
+                // de z ~ 1 — e ela encolhe, porque fotografada em retrato era
+                // a que virava uma parede de bolhas gigantes no terço de baixo.
+                const perto = iz === 0 ? .6 : 1;
                 out.push({
                     x: -66 + ix * 11 + (r - .5) * 7,
-                    y: Y_DO_PISO + .2 + r * .8,
-                    z: bossZ + 44 - iz * 17 + (r - .5) * 8,
-                    s: 3.8 + r * 3.4,
+                    y: Y_DO_PISO + .2 + r * .8 * perto,
+                    z: bossZ + 27 - iz * 17 + (r - .5) * 8,
+                    s: (3.8 + r * 3.4) * perto,
                 });
             }
         }
