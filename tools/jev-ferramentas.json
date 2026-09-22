@@ -1,0 +1,28 @@
+{
+  "_leia_me": "CATALOGO DAS FERRAMENTAS QUE MAIS USAMOS no andar 12, em ordem crescente de custo. Copie o bloco `criteria` para dentro de uma pergunta Choice e mande via tools/jev-route.py ANTES de gastar a ferramenta. O custo entre a primeira e a ultima linha varia por ordens de grandeza: uma leitura de codigo custa segundos, um subagente critico custa dezenas de minutos. A opcao `none` e obrigatoria e significa: nenhuma ferramenta e necessaria, ja da para responder ou decidir sozinho.",
+
+  "criteria": {
+    "ler_codigo": "Grep ou Read no repositorio. Segundos. Serve para: achar onde algo esta implementado, conferir uma constante, ler uma funcao, comparar um numero desenhado com um numero de colisao.",
+
+    "editar_codigo": "Edit, ou python/sed via Bash. Segundos. Serve para: aplicar uma mudanca ja decidida. NAO serve para descobrir se a mudanca e a certa.",
+
+    "rodar_testes": "npx vitest run e npx tsc --noEmit via Bash. ~20s. Serve para: provar que uma regra vale, que um invariante nao quebrou, que os tipos fecham. NAO diz nada sobre como a coisa PARECE na tela.",
+
+    "simulacao_pura": "npx vite-node rodando f12Simulacao ou f12Boss em memoria, sem navegador. ~5s. Serve para: duracao da luta, quantas vezes a boca abre, sequencia dos cinco ataques, balanco de dano, ordem do rodizio. Responde quase toda pergunta de RITMO sem abrir navegador.",
+
+    "blender_local": "python3 com bpy 4.2, Cycles em CPU (EEVEE nao roda: falta libEGL). ~2s por render a 320px. Serve para: modelar geometria nova, exportar GLB, ver uma forma 3D isolada fora do jogo.",
+
+    "bancada_navegador": "Playwright headless com SwiftShader, contra um WORKTREE CONGELADO no commit, tirando screenshot do jogo rodando. 2 a 5 MINUTOS por rodada. Serve SO para responder: o que o jogador realmente VE, com HUD, luz, camera e animacao reais. E a unica coisa que prova um conserto visual. Nunca rodar contra a arvore em edicao: o HMR recarrega a pagina e corrompe a medida.",
+
+    "subagente_critico": "Um agente inteiro, contexto zero, que pesquisa referencias, joga o andar e devolve PASS/FAIL com nota 0-10. DEZENAS de minutos e o gasto mais alto que temos. Serve so para: julgamento independente da qualidade do andar inteiro, ao fim de uma rodada de consertos. Nunca para verificar um conserto isolado.",
+
+    "none": "Nenhuma ferramenta. Ja tenho a informacao, ou a decisao e minha e nao de uma medida."
+  },
+
+  "perguntas_uteis": {
+    "precisa_ver_na_tela": "Esta tarefa exige ver a IMAGEM final renderizada no jogo, com HUD, luz e camera reais, para ser respondida? true = so a foto do jogo responde; false = codigo, teste ou simulacao respondem.",
+    "risco_de_desperdicio": "Se eu escolher a ferramenta cara (bancada ou subagente) para esta tarefa, o quanto e desperdicio? Niveis: a cara e a unica que responde / a cara se justifica / da para fazer mais barato / desperdicio claro / desperdicio absurdo."
+  },
+
+  "regra_de_leitura": "Confianca importa tanto quanto a escolha. Uma resposta com confidence proxima de zero, ou com as probabilidades espalhadas por varias opcoes, quer dizer que o modelo NAO SABE — nesse caso decida voce e registre que decidiu. Tratar resposta de confianca zero como dado e pior do que nao ter perguntado."
+}
