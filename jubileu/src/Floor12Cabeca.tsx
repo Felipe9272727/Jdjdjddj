@@ -89,7 +89,8 @@ export const Floor12Cabeca: React.FC<{
             bevelSize: .05, bevelThickness: .04, bevelSegments: 2 });
     }, []);
     const face = useRef<THREE.Group>(null);
-    const engrenagens = useRef<THREE.Group>(null);
+    const engrenagens = useRef<(THREE.Group | null)[]>([]);
+    const quepe = useRef<THREE.Group>(null);
     const mandibula = useRef<THREE.Group>(null);
     const garganta = useRef<THREE.Mesh>(null);
     const reator = useRef<THREE.Group>(null);
@@ -288,11 +289,18 @@ export const Floor12Cabeca: React.FC<{
         // ── A SEGUNDA FORMA ──────────────────────────────────────────────
         // Passada a virada, a chapa da bochecha direita não está mais lá: por
         // baixo, engrenagens em brasa girando. É a cabeça mostrando o que é.
-        if (engrenagens.current) {
-            engrenagens.current.visible = f12.passouDaVirada && !gone;
-            engrenagens.current.children.forEach((g, i) => {
+        for (const grupo of engrenagens.current) {
+            if (!grupo) continue;
+            grupo.visible = f12.passouDaVirada && !gone;
+            grupo.children.forEach((g, i) => {
                 if (i > 1) g.rotation.z += dt * (i % 2 ? 1.6 : -2.3);
             });
+        }
+        // O quepe sai do lugar na segunda forma: torto, meio arrancado.
+        if (quepe.current) {
+            const alvo = f12.passouDaVirada ? 1 : 0;
+            quepe.current.rotation.z += (alvo * -.16 - quepe.current.rotation.z) * Math.min(1, dt * 3);
+            quepe.current.position.y += (alvo * .35 - quepe.current.position.y) * Math.min(1, dt * 3);
         }
 
         // ── O PISCA DE DANO ──────────────────────────────────────────────
@@ -334,10 +342,11 @@ export const Floor12Cabeca: React.FC<{
             </mesh>)}
 
             <group ref={face}>
-            <Floor12BossCrown />
+            <group ref={quepe}><Floor12BossCrown /></group>
             <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
             {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
-            <group ref={engrenagens} visible={false} position={[2.0, -.35, 3.2]} rotation={[0, .55, 0]} scale={.8}>
+            {[1, -1].map(lado => (
+            <group key={lado} ref={g => { engrenagens.current[lado > 0 ? 0 : 1] = g; }} visible={false} position={[lado * 2.0, -.35, 3.2]} rotation={[0, lado * .55, 0]} scale={.95}>
                 {/* O POÇO: fundo escuro de verdade (o mesmo material do fundo
                     dos olhos, que já prova que lê contra a porcelana). */}
                 <mesh material={M.recessoOlho} position={[0, -.1, .2]} scale={[1, .82, .3]}>
@@ -366,6 +375,7 @@ export const Floor12Cabeca: React.FC<{
                     </group>
                 ))}
             </group>
+            ))}
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.70, 16, 10]} />
