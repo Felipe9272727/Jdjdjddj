@@ -996,6 +996,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         const id = window.setInterval(() => {
             if (!introAtiva.current) return;
             const p = introProgress.current;
+            if (prologo.ativo) {
+                const t = prologo.t;
+                setLegendaIntro(t < 2.2 ? 'ANDAR 12 · FIM DO EXPEDIENTE' : t < 3.3 ? 'DING.'
+                    : t < 4.4 ? 'ESSA NÃO É A PORTA CERTA…' : 'NÃO HÁ CHÃO.');
+                return;
+            }
             setLegendaIntro(p < .08 ? 'ANDAR 12' : p < .26 ? 'AS PORTAS SE ABREM…'
                 : p < .52 ? 'O ELEVADOR SE DESDOBRA…' : p < .70 ? 'MOTORES ACESOS.'
                 : p < .86 ? 'TROCO-63, NA SUA ALA.' : 'PRÓXIMA PARADA: O IMPOSSÍVEL.');
