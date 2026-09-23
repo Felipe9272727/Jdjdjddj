@@ -29,6 +29,16 @@ export function configureFloor12Sfx(context: AudioContext | null, destination?: 
 }
 export function clearFloor12Sfx(): void { pararMotor(); pararMusica(0.2); ctx = null; dest = null; }
 
+/**
+ * O toque também sente: dano, aviso de ataque e tiro carregado vibram o
+ * aparelho (Android; o iOS ignora `vibrate`, e tudo segue igual). Sem contexto
+ * de áudio o andar está fora de cena, então não vibra.
+ */
+function vibrar(padrao: number | number[]): void {
+    if (!ctx || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    try { navigator.vibrate(padrao); } catch { /* alguns navegadores recusam sem gesto */ }
+}
+
 function saida(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 
 /**
@@ -81,8 +91,11 @@ let motor: { osc: OscillatorNode; g: GainNode; lfo: OscillatorNode } | null = nu
 export function tocarMotor(): void {
     const c = ctx, d = saida();
     if (!c || !d || motor) return;
-    const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 74;
-    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 320;
+    const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 110;
+    // Alto-falante de celular não toca abaixo de ~300 Hz: a 74 Hz com corte em
+    // 320 o motor simplesmente não existia no aparelho. 110 Hz e corte em 950
+    // deixam os harmônicos passarem, e ele volta a ser ouvido.
+    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 950;
     const g = c.createGain(); g.gain.value = 0.0001;
     g.gain.exponentialRampToValueAtTime(0.035, c.currentTime + 1.2);
     // um LFO leve na altura: hélice, não gerador
@@ -141,6 +154,7 @@ export function tocarAcerto(): void {
 // ouvido, antes de ver. Leque 1, teleguiado 2, naves 3, maré 1 grave, elevadores 4.
 const BATIDAS: Record<string, number> = { leque: 1, teleguiado: 2, naves: 3, mare: 1, elevadores: 4 };
 export function tocarBocaAbrindo(ataque = ''): void {
+    vibrar([18, 50, 18]);
     const n = BATIDAS[ataque] ?? 1, grave = ataque === 'mare' ? .5 : 1;
     for (let i = 1; i < n; i++) bipe('sine', 1320 * grave, 1320 * grave, 0.12, 0.13, 0.42 + (i - 1) * 0.1);
     abaixarMusica(0.6);
@@ -166,7 +180,7 @@ export function tocarAtaque(nome: string): void {
     }
 }
 
-export function tocarDano(): void { abaixarMusica(0.8); ruido(0.08, 0.2, 6000); bipe('triangle', 1900, 1500, 0.2, 0.05); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
+export function tocarDano(): void { vibrar(45); abaixarMusica(0.8); ruido(0.08, 0.2, 6000); bipe('triangle', 1900, 1500, 0.2, 0.05); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
 // Explosão em camadas: estalo, corpo grave, destroços e um eco atrasado.
 export function tocarExplosao(): void {
     ruido(0.05, 0.25, 7000);
@@ -363,6 +377,7 @@ export function tocarMorteDoChefe(): void {
 
 /** O tiro carregado acertando: campainha grave + baque — a recompensa soa diferente. */
 export function tocarAcertoCarregado(): void {
+    vibrar(25);
     bipe('sine', 660, 660, 0.6, 0.14); bipe('triangle', 1320, 1250, 0.4, 0.07);
     bipe('sine', 110, 40, 0.5, 0.22); ruido(0.25, 0.18, 2500);
 }
