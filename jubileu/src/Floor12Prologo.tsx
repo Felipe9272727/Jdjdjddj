@@ -127,9 +127,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // ── A CÂMERA: os olhos dele ──────────────────────────────────────
         const cam = tmp.pos, alvo = tmp.alvo;
         const retrato = size.width < size.height;
-        let fov = retrato ? 70 : 58;
+        let fov = retrato ? 76 : 60;
         const andar = ease(t / 2.2);
-        let z = THREE.MathUtils.lerp(FUNDO - .5, .95, andar);
+        let z = THREE.MathUtils.lerp(FUNDO - .25, .95, andar);
         // passo de gente: o balanço vertical e o lateral vêm do mesmo ciclo
         const passo = t < 2.2 ? (1 - andar * .6) : 0;
         let y = OLHO + Math.abs(Math.sin(t * 6.2)) * .045 * passo;
@@ -155,8 +155,12 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             x = Math.sin(cai * 5) * .3;
             fov += tomba * 10;
         }
+        // Nos primeiros passos ele olha a cabine (a botoeira, os painéis e o
+        // corrimão à direita) antes de encarar a porta: é o plano que mostra
+        // o elevador, e não só a porta dele.
+        const olhaEmVolta = cai > 0 ? 0 : 1 - ease((t - .6) / 1.3);
         cam.set(x, y, z);
-        alvo.set(x * .5, olhoY, olhoZ);
+        alvo.set(x * .5 + olhaEmVolta * 2.6, olhoY - olhaEmVolta * .25, olhoZ + olhaEmVolta * 3.2);
         camera.position.copy(cam).add(ORIGEM);
         camera.lookAt(alvo.add(ORIGEM));
         camera.rotateZ(roll);
@@ -199,6 +203,13 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
                         <mesh key={pz} material={M.latao} position={[lado * (L - .05), .95, pz]} rotation={[0, 0, Math.PI / 2]}>
                             <cylinderGeometry args={[.014, .014, .08, 10]} />
                         </mesh>
+                    ))}
+                    {/* arandelas em leque entre os painéis */}
+                    {[1.0, 1.9].map((pz) => (
+                        <group key={pz} position={[lado * (L - .04), 2.2, pz]} rotation={[0, -lado * Math.PI / 2, 0]}>
+                            <mesh material={M.luz}><circleGeometry args={[.09, 24, 0, Math.PI]} /></mesh>
+                            <mesh material={M.latao}><torusGeometry args={[.1, .012, 6, 24, Math.PI]} /></mesh>
+                        </group>
                     ))}
                     <mesh material={M.latao} position={[lado * (L - .02), .1, FUNDO / 2]}><boxGeometry args={[.03, .2, FUNDO]} /></mesh>
                     <mesh material={M.latao} position={[lado * (L - .02), 2.62, FUNDO / 2]}><boxGeometry args={[.03, .05, FUNDO]} /></mesh>
