@@ -272,8 +272,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
                 <group key={lado} ref={lado < 0 ? portaE : portaD} position={[lado * .54, 1.22, -.1]}>
                     <mesh material={M.aco}><boxGeometry args={[1.12, 2.46, .05]} /></mesh>
                     {/* o arco de latão do leque */}
-                    <mesh material={M.latao} position={[-lado * .56, -.2, .03]} rotation={[0, 0, lado > 0 ? Math.PI / 2 : -Math.PI / 2]}>
-                        <torusGeometry args={[.56, .02, 8, 32, Math.PI / 2]} />
+                    <mesh material={M.latao} position={[-lado * .56, -.2, .03]} rotation={[0, 0, -lado * Math.PI / 2]}>
+                        <torusGeometry args={[.56, .02, 8, 32, Math.PI]} />
                     </mesh>
                     <group position={[-lado * .56, -.2, .03]}>
                         <mesh material={M.latao} geometry={G.lequePorta} rotation={[0, 0, -lado * Math.PI / 2]} />
