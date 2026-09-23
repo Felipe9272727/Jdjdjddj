@@ -192,6 +192,8 @@ export function tocarAtaque(nome: string): void {
         // maré: onda — ruído largo que cresce e rebenta
         case 'cruz':       for (let i = 0; i < 5; i++) { ruido(0.05, 0.12, 5000, i * 0.05); bipe('square', 520 + i * 90, 260, 0.08, 0.03, i * 0.05); } break;
         case 'lustre':     for (let i = 0; i < 7; i++) bipe('triangle', 1400 + i * 180, 900, 0.35, 0.03, i * 0.03); break;
+        case 'chuva':      for (let i = 0; i < 8; i++) bipe('sine', 900 - i * 60, 500, 0.12, 0.035, i * 0.05); break;
+        case 'pinca':      ruido(0.5, 0.12, 1800); bipe('sawtooth', 180, 320, 0.5, 0.06); bipe('sawtooth', 185, 330, 0.5, 0.06, .02); break;
         case 'mare':       ruido(1.0, 0.18, 500); ruido(0.5, 0.1, 3000, 0.4); bipe('sine', 150, 60, 0.9, 0.08); break;
         // elevadores: catraca de engrenagem e o 'ding' grave de chegada
         case 'elevadores': for (let i = 0; i < 6; i++) ruido(0.03, 0.14, 2200, i * 0.06); bipe('sine', 660, 660, 0.4, 0.09, 0.38); break;

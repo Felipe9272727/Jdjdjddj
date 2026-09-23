@@ -130,7 +130,7 @@ export type F12Fase =
  *
  * Quem mede isso é `f12Simulacao`, e o teste cobra a faixa.
  */
-export const VIDA_MAXIMA = 240;
+export const VIDA_MAXIMA = 300;
 /** Abaixo disto ela desbloqueia os dois ataques novos. */
 export const LIMIAR_DA_VIRADA = VIDA_MAXIMA / 2;
 
@@ -149,7 +149,8 @@ export const VIDAS_DO_JOGADOR = 5;
  * jogo de nave do hotel, não o último.
  */
 export const BOCA = Object.freeze({
-    fechada: 1.95,
+    // 1,95 -> 1,5: o descanso entre ataques era longo e a luta ficava fácil.
+    fechada: 1.5,
     abrindo: 0.70,
     aberta: 2.10,
     fechando: 0.45,
@@ -187,7 +188,7 @@ export const vulneravel = (b: BocaAgora): boolean => b.estado === 'aberta';
 //
 // Cada um é uma referência à lore de um andar, porque é o hotel inteiro que
 // está cuspindo pela boca dela.
-export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores' | 'cruz' | 'lustre';
+export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores' | 'cruz' | 'lustre' | 'chuva' | 'pinca';
 
 export interface FichaDoAtaque {
     nome: NomeDoAtaque;
@@ -240,6 +241,18 @@ export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
         nome: 'lustre',
         grito: 'O LUSTRE DO SAGUÃO',
         lore: 'Oito cristais que despencam para fora. Falta sempre um — ele caiu em 1962.',
+        depoisDaVirada: true,
+    },
+    {
+        nome: 'chuva',
+        grito: 'A GOTEIRA DO 7º',
+        lore: 'O teto do 7º nunca foi consertado. Chove de cima, em grade — e a goteira segue você.',
+        depoisDaVirada: false,
+    },
+    {
+        nome: 'pinca',
+        grito: 'A PORTA GIRATÓRIA',
+        lore: 'Duas paredes de vidro fechando do lado de fora para dentro. O vão do meio é estreito, mas é seu.',
         depoisDaVirada: true,
     },
 ]);
@@ -295,12 +308,14 @@ const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
     { nome: 'leque', entra: 0 },          // o ATAQUE PRIMÁRIO, e o mais legível
     { nome: 'teleguiado', entra: 2 },     // manobra, e não posição
     { nome: 'naves', entra: 4 },          // o único que se resolve ATIRANDO
+    { nome: 'chuva', entra: 6 },          // o primeiro que vem de CIMA
     { nome: 'mare', aposAVirada: 0 },     // "um vem do 2º andar"
     { nome: 'elevadores', aposAVirada: 2 }, // "o outro é o próprio poço"
     // Depois da virada a cabeça perde a compostura e improvisa: variações do
     // leque que o jogador já sabe ler, agora em outros eixos.
     { nome: 'cruz', aposAVirada: 4 },
     { nome: 'lustre', aposAVirada: 6 },
+    { nome: 'pinca', aposAVirada: 8 },
 ]);
 
 /**
@@ -459,7 +474,7 @@ export const LEQUE = Object.freeze({
      * copiados da prosa antiga.
      */
     abrePorSegundo: 2.0,
-    velocidadeZ: 12.0,
+    velocidadeZ: 14.0,
     raio: 0.46,
 });
 
@@ -510,6 +525,57 @@ export function nascerLustre(alvoX: number, alvoY: number): Projetil[] {
     return fora;
 }
 
+/**
+ * ── A GOTEIRA: UMA GRADE QUE CAI DE CIMA ────────────────────────────────────
+ * Nove gotas nascem acima do teto e descem enquanto vêm, cada uma mirando uma
+ * célula de uma grade 3x3 da arena. A célula onde o jogador está é SEMPRE
+ * atingida; a vazia é a mais longe dele. Parado, apanha — tem de atravessar.
+ */
+export const CHUVA = Object.freeze({ raio: .62, voo: 2.2 });
+export function nascerChuva(alvoX: number, alvoY: number): Projetil[] {
+    const cx = (i: number) => (i - 1) * ARENA.x * .66;
+    const cy = (j: number) => ARENA.yBaixo + (ARENA.yAlto - ARENA.yBaixo) * (j + .5) / 3;
+    let vazia = [0, 0], longe = -1;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const d = Math.hypot(cx(i) - alvoX, cy(j) - alvoY);
+        if (d > longe) { longe = d; vazia = [i, j]; }
+    }
+    const fora: Projetil[] = [];
+    const z0 = ARENA.zCabeca + 1.2, vz = (ARENA.zNave - z0) / CHUVA.voo;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        if (i === vazia[0] && j === vazia[1]) continue;
+        const y0 = ARENA.yAlto + 4;
+        fora.push({
+            id: novoId(), tipo: 'leque',
+            x: cx(i), y: y0, z: z0,
+            vx: 0, vy: (cy(j) - y0) / CHUVA.voo, vz,
+            r: CHUVA.raio, t: 0, p: 0,
+        });
+    }
+    return fora;
+}
+
+/**
+ * ── A PORTA GIRATÓRIA: DUAS PAREDES QUE FECHAM ──────────────────────────────
+ * Uma coluna de cinco de cada lado, andando para o meio. Chegam ao plano do
+ * avião quase se tocando: sobra um corredor estreito no centro (e os vãos
+ * entre as bolas, para quem tem mão).
+ */
+export function nascerPinca(): Projetil[] {
+    const fora: Projetil[] = [];
+    const z0 = ARENA.zCabeca + 1.2, voo = 2.1, vz = (ARENA.zNave - z0) / voo;
+    for (const lado of [-1, 1]) for (let j = 0; j < 5; j++) {
+        const x0 = lado * (ARENA.x + .4);
+        fora.push({
+            id: novoId(), tipo: 'leque',
+            x: x0, y: ARENA.yBaixo + .4 + j * 1.6, z: z0,
+            vx: -lado * (ARENA.x + .4 - .95) / voo, vy: 0, vz,
+            r: .46, t: 0, p: lado,
+        });
+    }
+    return fora;
+}
+
 // ── ATAQUE 2: O TELEGUIADO (o fio vermelho) ──────────────────────────────────
 //
 // Um míssil só, que persegue. Ele NÃO pode ser perfeito: um teleguiado que
@@ -517,9 +583,9 @@ export function nascerLustre(alvoX: number, alvoY: number): Projetil[] {
 // despistável é o raio de curva — ele vira devagar, então quem passa perto e
 // vira na hora certa faz ele desperdiçar a curva e sair longo.
 export const TELEGUIADO = Object.freeze({
-    velocidade: 8.0,
+    velocidade: 9.5,
     /** Radianos por segundo de correção. Este número É a dificuldade. */
-    curvaPorSegundo: 1.45,
+    curvaPorSegundo: 1.65,
     /**
      * Meia-envergadura DESENHADA: a peça mais larga do míssil são as quatro
      * aletas, `BoxGeometry(.62, .07, .40)`, ou seja 0,31 do eixo. O corpo tem

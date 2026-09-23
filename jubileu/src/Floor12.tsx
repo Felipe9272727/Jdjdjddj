@@ -37,7 +37,7 @@ import {
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, marcarAbertura, fichaDoAtaque, VIDA_MAXIMA, ferir,
-    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores, nascerCruz, nascerLustre,
+    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores, nascerCruz, nascerLustre, nascerChuva, nascerPinca,
     nascerTiro, TIRO, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
     type Nave, type NomeDoAtaque, type F12Linha,
@@ -747,6 +747,10 @@ function cuspir(
     qual: NomeDoAtaque, alvo: Nave,
     faixa: React.MutableRefObject<number>, faseMare: React.MutableRefObject<number>,
 ): void {
+    // ── DEPOIS DA VIRADA, ELA ATACA EM DUPLA ─────────────────────────────
+    // Todo ataque vem acompanhado de um fio vermelho: é o que faz a segunda
+    // metade ser difícil de verdade, e não só a primeira com outra cor.
+    if (f12.passouDaVirada && qual !== 'teleguiado') f12.projeteis.push(nascerTeleguiado());
     switch (qual) {
         case 'leque':
             f12.projeteis.push(...nascerLeque(alvo.x * 0.4, alvo.y));
@@ -772,6 +776,12 @@ function cuspir(
             break;
         case 'lustre':
             f12.projeteis.push(...nascerLustre(alvo.x, alvo.y));
+            break;
+        case 'chuva':
+            f12.projeteis.push(...nascerChuva(alvo.x, alvo.y));
+            break;
+        case 'pinca':
+            f12.projeteis.push(...nascerPinca());
             break;
     }
 }
