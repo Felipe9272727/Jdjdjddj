@@ -187,7 +187,7 @@ export const vulneravel = (b: BocaAgora): boolean => b.estado === 'aberta';
 //
 // Cada um é uma referência à lore de um andar, porque é o hotel inteiro que
 // está cuspindo pela boca dela.
-export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores';
+export type NomeDoAtaque = 'leque' | 'teleguiado' | 'naves' | 'mare' | 'elevadores' | 'cruz' | 'lustre';
 
 export interface FichaDoAtaque {
     nome: NomeDoAtaque;
@@ -228,6 +228,18 @@ export const ATAQUES: ReadonlyArray<FichaDoAtaque> = Object.freeze([
         nome: 'elevadores',
         grito: 'A ESPINHA',
         lore: 'Cabines vazias caindo. O hotel inteiro é um poço, e a gente está dentro dele.',
+        depoisDaVirada: true,
+    },
+    {
+        nome: 'cruz',
+        grito: 'O CORREDOR',
+        lore: 'O leque de pé: abre para cima e para baixo. O corredor do 4º também nunca teve fim.',
+        depoisDaVirada: true,
+    },
+    {
+        nome: 'lustre',
+        grito: 'O LUSTRE DO SAGUÃO',
+        lore: 'Oito cristais que despencam para fora. Falta sempre um — ele caiu em 1962.',
         depoisDaVirada: true,
     },
 ]);
@@ -285,6 +297,10 @@ const ESCALADA: ReadonlyArray<EntradaDoPadrao> = Object.freeze([
     { nome: 'naves', entra: 4 },          // o único que se resolve ATIRANDO
     { nome: 'mare', aposAVirada: 0 },     // "um vem do 2º andar"
     { nome: 'elevadores', aposAVirada: 2 }, // "o outro é o próprio poço"
+    // Depois da virada a cabeça perde a compostura e improvisa: variações do
+    // leque que o jogador já sabe ler, agora em outros eixos.
+    { nome: 'cruz', aposAVirada: 4 },
+    { nome: 'lustre', aposAVirada: 6 },
 ]);
 
 /**
@@ -457,6 +473,38 @@ export function nascerLeque(alvoX: number, alvoY: number): Projetil[] {
             x: alvoX + lado * LEQUE.largura0, y: alvoY, z: ARENA.zCabeca + 1.2,
             vx: lado * LEQUE.abrePorSegundo, vy: 0, vz: LEQUE.velocidadeZ,
             r: LEQUE.raio, t: 0, p: lado,
+        });
+    }
+    return fora;
+}
+
+/**
+ * ── A CRUZ: O LEQUE EM PÉ ───────────────────────────────────────────────────
+ * Mesmos projéteis e mesma conta de vão do leque, mas abrindo no eixo Y. Quem
+ * aprendeu a esperar o vão horizontal agora tem de esperar o vertical.
+ */
+export function nascerCruz(alvoX: number, alvoY: number): Projetil[] {
+    return nascerLeque(alvoX, alvoY).map((q) => ({ ...q, vy: q.vx * .62, vx: 0, y: alvoY + (q.p ?? 0) * LEQUE.largura0 * .6, x: alvoX }));
+}
+
+/**
+ * ── O LUSTRE: UM ANEL QUE SE ABRE, COM UM CRISTAL FALTANDO ──────────────────
+ * Oito posições num círculo; a que aponta para a nave fica vazia, então o
+ * caminho seguro é ficar onde está — o contrário do que o pânico pede.
+ */
+export const LUSTRE = Object.freeze({ quantos: 8, abre: 1.9, raio: .42 });
+export function nascerLustre(alvoX: number, alvoY: number): Projetil[] {
+    const cy = meioY();
+    const falta = Math.round(((Math.atan2(alvoY - cy, alvoX) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2 / LUSTRE.quantos)) % LUSTRE.quantos;
+    const fora: Projetil[] = [];
+    for (let i = 0; i < LUSTRE.quantos; i++) {
+        if (i === falta) continue;
+        const a = i * Math.PI * 2 / LUSTRE.quantos;
+        fora.push({
+            id: novoId(), tipo: 'leque',
+            x: Math.cos(a) * .5, y: cy + Math.sin(a) * .5, z: ARENA.zCabeca + 1.2,
+            vx: Math.cos(a) * LUSTRE.abre, vy: Math.sin(a) * LUSTRE.abre * .7, vz: LEQUE.velocidadeZ * .9,
+            r: LUSTRE.raio, t: 0, p: 0,
         });
     }
     return fora;
@@ -1035,6 +1083,13 @@ export function marcarAbertura(visto: number, ciclo: number, st: F12State = f12)
 }
 
 export const f12: F12State = criarEstado();
+
+/**
+ * O humor da cabeça, fora do estado da luta (não entra em regra nenhuma).
+ * `deboche` vai a 1 quando ela acerta o jogador e decai sozinho: é a risada
+ * muda, dita com a cara, porque a cabeça não fala.
+ */
+export const expressao = { deboche: 0 };
 
 function criarEstado(): F12State {
     return {

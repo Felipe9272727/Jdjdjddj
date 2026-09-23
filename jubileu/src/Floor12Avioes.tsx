@@ -19,7 +19,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { mat64, Avatar64, useAvatarRefs, type AvatarRefs } from './Floor5Player64';
+import { Avatar64, useAvatarRefs, type AvatarRefs } from './Floor5Player64';
 import { f12, NAVE, ENQUADRAMENTO, type Nave } from './f12Boss';
 
 const CORES = {
@@ -56,6 +56,19 @@ const CORES = {
  * envergadura alvo vem de `ENQUADRAMENTO`, que concilia arena, aspecto de tela
  * e caixa de colisão num lugar só.
  */
+/**
+ * Material liso do andar 12. O `mat64` do andar 5 é Lambert com flatShading:
+ * certo para o plástico N64 de lá, mas aqui ele facetava as quinas
+ * arredondadas e o avião voltava a parecer papelão. Latão ganha metal.
+ */
+const mat64 = (color: string, emissive = '#000000', ei = 0) => {
+    const c = new THREE.Color(color);
+    const hsl = { h: 0, s: 0, l: 0 }; c.getHSL(hsl);
+    const latao = hsl.h > .08 && hsl.h < .17 && hsl.s > .35;
+    return new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: ei,
+        roughness: latao ? .38 : .5, metalness: latao ? .65 : .08 });
+};
+
 const ENVERGADURA_MODELADA = 5.30;
 const ESCALA_DO_AVIAO = ENQUADRAMENTO.envergadura / ENVERGADURA_MODELADA;
 
@@ -312,8 +325,8 @@ export const AviaoDoIrmao: React.FC<{
     const bracos63 = useRef<(THREE.Group | null)[]>([]);
     const falaT = useRef(0);
     const ultimoTexto = useRef(-1);
-    const luzes = useRef<THREE.MeshLambertMaterial[]>([]);
-    const olho = useRef<THREE.MeshLambertMaterial | null>(null);
+    const luzes = useRef<THREE.MeshStandardMaterial[]>([]);
+    const olho = useRef<THREE.MeshStandardMaterial | null>(null);
 
     const M = useMemo(() => ({
         corpo: mat64('#91a1a4'), corpoEsc: mat64('#273e47'),

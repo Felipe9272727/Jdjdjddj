@@ -92,9 +92,10 @@ describe('f12 — a boca é o relógio da luta', () => {
 // ── O RODÍZIO ────────────────────────────────────────────────────────────────
 describe('f12 — os cinco ataques e a ordem deles', () => {
     it('são cinco, com nomes únicos, e dois só entram depois da virada', () => {
-        expect(ATAQUES).toHaveLength(5);
-        expect(new Set(ATAQUES.map((a) => a.nome)).size).toBe(5);
-        expect(ATAQUES.filter((a) => a.depoisDaVirada)).toHaveLength(2);
+        expect(ATAQUES).toHaveLength(7);
+        expect(new Set(ATAQUES.map((a) => a.nome)).size).toBe(7);
+        // maré e elevadores, e as duas improvisações da cabeça (cruz, lustre)
+        expect(ATAQUES.filter((a) => a.depoisDaVirada)).toHaveLength(4);
     });
 
     it('cada ataque tem grito e uma referência de lore — é o pedido do andar', () => {
@@ -174,7 +175,7 @@ describe('f12 — os cinco ataques e a ordem deles', () => {
         const vistos = new Set(Array.from(
             { length: viradaEm + ABERTURA_DO_MOVESET_COMPLETO + 2 },
             (_, i) => ataqueDaVez(i, viradaEm)));
-        expect(vistos.size).toBe(5);
+        expect(vistos.size).toBe(7);
     });
 
     it('nenhum padrão emenda consigo mesmo — fora a repetição de estreia', () => {

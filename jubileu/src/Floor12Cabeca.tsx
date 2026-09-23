@@ -28,7 +28,7 @@ import { Floor12BossCrown } from './Floor12BossCrown';
 import { mat64 } from './Floor5Player64';
 import {
     f12, ARENA, bocaNoInstante, vulneravel, VIDA_MAXIMA, LIMIAR_DA_VIRADA, BOCA_ALVO,
-    ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO,
+    ALTURA_DA_CABECA, BOCA_ABAIXO_DO_CENTRO, expressao,
 } from './f12Boss';
 
 /**
@@ -163,6 +163,8 @@ export const Floor12Cabeca: React.FC<{
 
     // Cracks remain seated on the sculpt while the upper face recoils.
     const feridaRefs = useRef<(THREE.Group | null)[]>([]);
+    const humor = useRef({ deb: 0, dor: 0, desconfia: 0, raiva: 0 });
+    const inclina = useRef(0);
 
     useFrame((state, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
@@ -211,12 +213,21 @@ export const Floor12Cabeca: React.FC<{
                 (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0) - tomaFolego * .16,
                 dying ? beat.fall * -.35 : 0,
                 dying ? Math.sin(ct * 23) * .018 * beat.tremor + beat.fall * .65 : 0);
+            if (!dying && !dv && !tv) {
+                const hm = humor.current;
+                const olhaX = THREE.MathUtils.clamp((naveRef?.current.x ?? 0) * .03, -.12, .12);
+                inclina.current += ((olhaX + hm.deb * .14 * Math.sin(t * 3) + hm.desconfia * .1) - inclina.current) * Math.min(1, dt * 3);
+                raiz.current.rotation.z += inclina.current;
+                raiz.current.rotation.y += olhaX * .8;
+                raiz.current.rotation.x += -hm.dor * .12 + hm.deb * Math.abs(Math.sin(t * 17)) * .03;
+            }
         }
 
         // ── A MANDÍBULA ──────────────────────────────────────────────────
         // Ela GIRA num pivô atrás do queixo, não desliza para baixo: mandíbula
         // que translada lê como gaveta.
-        if (mandibula.current) mandibula.current.rotation.x = b.abertura * 0.86;
+        if (mandibula.current) mandibula.current.rotation.x = b.abertura * 0.86
+            + (b.estado === 'fechada' ? humor.current.deb * Math.abs(Math.sin(t * 17)) * .16 : 0);
         // Dois braços acompanham a mandíbula: o queixo não flutua abaixo da
         // máscara quando o chefe escancara a boca. Tudo fica fora da hitbox.
         for (let i = 0; i < 2; i++) {
@@ -252,7 +263,24 @@ export const Floor12Cabeca: React.FC<{
         // olhando para os olhos e não para a boca também vê o ataque vir.
         const blink = dying ? 1 : blinkScale(t, b.abertura);
         const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
-        for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
+        // ── A CARA TEM HUMOR (sem falar nada) ────────────────────────────
+        //  - DOR: levou tiro. Arcadas saltam, lentes arregalam, cabeça recua.
+        //  - DEBOCHE: acertou o jogador. Uma arcada sobe, o outro olho aperta,
+        //    a cabeça inclina e a mandíbula bate: é a risada, sem som de voz.
+        //  - DESCONFIANÇA: parada, de tempos em tempos aperta um olho só e
+        //    inclina a cabeça na direção de onde o avião está.
+        //  - Depois da virada as arcadas tremem de raiva.
+        const calmo = !dying && !dv && !tv;
+        expressao.deboche = Math.max(0, expressao.deboche - dt * .55);
+        const deb = calmo ? Math.sin(Math.min(1, expressao.deboche * 1.4) * Math.PI * .5) : 0;
+        const dor = calmo ? Math.min(1, flashRef.current * 1.6) : 0;
+        const ciclo = (t % 7.3) / 7.3;
+        const desconfia = calmo && b.estado === 'fechada' ? Math.max(0, Math.sin((ciclo - .62) / .3 * Math.PI)) * (ciclo > .62 && ciclo < .92 ? 1 : 0) : 0;
+        const raiva = f12.passouDaVirada && calmo ? Math.sin(t * 31) * .025 : 0;
+        humor.current = { deb, dor, desconfia, raiva };
+        const olhoArregala = 1 + dor * .35;
+        if (olhoE.current) olhoE.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - deb * .55));
+        if (olhoD.current) olhoD.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - desconfia * .6));
         // ── O AVISO TEM DE SE VER DE LONGE ────────────────────────────────
         // 0,15 rad de franzir não lia no celular. Enquanto a boca ABRE (o
         // telégrafo), a arcada desce forte e as lentes acendem; aberta, volta
@@ -271,8 +299,15 @@ export const Floor12Cabeca: React.FC<{
         //
         // A inclinação agora para antes de atravessar a lente: a raiva fica no
         // contorno, e o franzir ao abrir a boca ainda serve de aviso de ataque.
-        if (sobrE.current) sobrE.current.rotation.z = -0.24 - franzir;
-        if (sobrD.current) sobrD.current.rotation.z = 0.24 + franzir;
+        const hm = humor.current;
+        if (sobrE.current) {
+            sobrE.current.rotation.z = -0.24 - franzir + hm.dor * .5 + hm.deb * .12 + hm.raiva;
+            sobrE.current.position.y = 2.05 + hm.dor * .28 - hm.deb * .08;
+        }
+        if (sobrD.current) {
+            sobrD.current.rotation.z = 0.24 + franzir - hm.dor * .5 - hm.deb * .38 + hm.desconfia * .22 - hm.raiva;
+            sobrD.current.position.y = 2.05 + hm.dor * .28 + hm.deb * .34 - hm.desconfia * .12;
+        }
 
         // Mouth and collision stay anchored. The upper face breathes and recoils.
         if (face.current) {

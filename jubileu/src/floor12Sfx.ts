@@ -95,9 +95,10 @@ export function tocarMotor(): void {
     // Alto-falante de celular não toca abaixo de ~300 Hz: a 74 Hz com corte em
     // 320 o motor simplesmente não existia no aparelho. 110 Hz e corte em 950
     // deixam os harmônicos passarem, e ele volta a ser ouvido.
-    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 950;
+    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 700;
     const g = c.createGain(); g.gain.value = 0.0001;
-    g.gain.exponentialRampToValueAtTime(0.035, c.currentTime + 1.2);
+    // 0,035 cobria a música: a hélice é chão, não melodia.
+    g.gain.exponentialRampToValueAtTime(0.012, c.currentTime + 1.2);
     // um LFO leve na altura: hélice, não gerador
     const lfo = c.createOscillator(); lfo.frequency.value = 6.5;
     const lfoG = c.createGain(); lfoG.gain.value = 5;
@@ -189,6 +190,8 @@ export function tocarAtaque(nome: string): void {
         case 'teleguiado': bipe('sine', 1800, 500, 0.7, 0.09); bipe('sine', 1830, 510, 0.7, 0.05); break;
         case 'naves':      for (let i = 0; i < 4; i++) bipe('triangle', 700 + i * 90, 400, 0.13, 0.045, i * 0.07); break;
         // maré: onda — ruído largo que cresce e rebenta
+        case 'cruz':       for (let i = 0; i < 5; i++) { ruido(0.05, 0.12, 5000, i * 0.05); bipe('square', 520 + i * 90, 260, 0.08, 0.03, i * 0.05); } break;
+        case 'lustre':     for (let i = 0; i < 7; i++) bipe('triangle', 1400 + i * 180, 900, 0.35, 0.03, i * 0.03); break;
         case 'mare':       ruido(1.0, 0.18, 500); ruido(0.5, 0.1, 3000, 0.4); bipe('sine', 150, 60, 0.9, 0.08); break;
         // elevadores: catraca de engrenagem e o 'ding' grave de chegada
         case 'elevadores': for (let i = 0; i < 6; i++) ruido(0.03, 0.14, 2200, i * 0.06); bipe('sine', 660, 660, 0.4, 0.09, 0.38); break;

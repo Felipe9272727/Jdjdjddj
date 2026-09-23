@@ -2,7 +2,7 @@ import { EffectComposer, Bloom, N8AO, SMAA } from '@react-three/postprocessing';
 import { PerformanceMonitor } from '@react-three/drei';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
-import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
+import { nascerMissilCarregado, danoDoTiro, expressao } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
 /**
  * Floor12.tsx — ANDAR 12: "A CABEÇA".
@@ -36,7 +36,7 @@ import {
     novaNave, passoDaNave, conduzirNave, arrastarNave, tomarToque, NAVE, VIDAS_DO_JOGADOR,
     bocaNoInstante, vulneravel, CICLO_DA_BOCA, BOCA,
     ataqueDaVez, marcarAbertura, fichaDoAtaque, VIDA_MAXIMA, ferir,
-    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
+    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores, nascerCruz, nascerLustre,
     nascerTiro, TIRO, PONTA_DA_ASA, passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
     F12_ENCONTRO, F12_VIRADA, F12_VITORIA, F12_DERROTA, F12_DESPEDIDA,
     type Nave, type NomeDoAtaque, type F12Linha,
@@ -698,7 +698,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             }
             // ataque × jogador
             if (encostou(p, n.x, n.y, NAVE.raio) && tomarToque(n)) {
-                F.sacode.current = 1; F.baque.current = 1; F.baques.current++; tocarDano();
+                F.sacode.current = 1; F.baque.current = 1; F.baques.current++; tocarDano(); expressao.deboche = 1;
                 if (p.tipo !== 'mare') mortos.add(p.id);
                 if (n.vidas <= 0) { acabar(F, 'derrota'); return; }
                 F.avisar();
@@ -742,6 +742,12 @@ function cuspir(
             // único canto seguro e ficar parado nele.
             faixa.current = (faixa.current + 2) % 5;
             f12.projeteis.push(...nascerElevadores(faixa.current, alvo.y));
+            break;
+        case 'cruz':
+            f12.projeteis.push(...nascerCruz(alvo.x * 0.5, alvo.y));
+            break;
+        case 'lustre':
+            f12.projeteis.push(...nascerLustre(alvo.x, alvo.y));
             break;
     }
 }
@@ -986,7 +992,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     }, []);
 
     const fase = f12.fase;
-    const [aoLigado, setAoLigado] = useState(true);
+    // Celular começa sem a oclusão em tempo real: era o que travava o aparelho
+    // (o monitor de desempenho a liga de volta se sobrar fôlego).
+    const [aoLigado, setAoLigado] = useState(() => !(typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches));
     // Resolução até 1,5× e SMAA: sem isso cada chanfro e borda de oclusão
     // serrilhava na tela de celular. Cai para 1× se o aparelho sofrer.
     const [qualidade, setQualidade] = useState(true);
@@ -1184,7 +1192,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0d2029', touchAction: 'none', display: 'flex', flexDirection: 'column' }}>
         <Canvas
                 style={{ flex: '1 1 0', height: 0, minHeight: 0, width: '100%' }}
-                dpr={qualidade ? [1, 1.5] : 1}
+                dpr={qualidade ? [1, 1.25] : .85}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: true }}
                 onCreated={({ gl, scene, camera }) => {

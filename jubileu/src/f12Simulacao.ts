@@ -25,7 +25,7 @@
 import {
     ARENA, meioY, dentroDaArena, BOCA_ALVO, CICLO_DA_BOCA, bocaNoInstante, vulneravel,
     VIDA_MAXIMA, ataqueDaVez, LIMIAR_DA_VIRADA,
-    nascerLeque, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
+    nascerLeque, nascerCruz, nascerLustre, nascerTeleguiado, nascerNaves, nascerMare, nascerElevadores,
     nascerTiro, TIRO, NAVE, MARE, frestaDaMare,
     novaNave, passoDaNave, arrastarNave, tomarToque,
     passoDoProjetil, saiuDeCena, encostou, tiroNaBoca,
@@ -196,6 +196,8 @@ export function simular(politica: Partial<Politica> = {}): Resultado {
             else if (qual === 'teleguiado') projeteis.push(nascerTeleguiado());
             else if (qual === 'naves') projeteis.push(...nascerNaves());
             else if (qual === 'mare') { faseMare += 1.7; projeteis.push(nascerMare(faseMare)); }
+            else if (qual === 'cruz') projeteis.push(...nascerCruz(n.x * 0.5, n.y));
+            else if (qual === 'lustre') projeteis.push(...nascerLustre(n.x, n.y));
             else { faixa = (faixa + 2) % 5; projeteis.push(...nascerElevadores(faixa)); }
         }
 
