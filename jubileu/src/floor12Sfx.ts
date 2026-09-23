@@ -125,11 +125,15 @@ export function tocarBocaAbrindo(): void {
 /** A boca cuspindo. Cada ataque tem o seu, para dar para reconhecer de ouvido. */
 export function tocarAtaque(nome: string): void {
     switch (nome) {
-        case 'leque':      for (let i = 0; i < 5; i++) bipe('square', 520, 300, 0.09, 0.05, i * 0.035); break;
-        case 'teleguiado': bipe('sine', 1200, 300, 0.55, 0.07); break;
+        // leque: cartas de baralho jogadas — cinco estalos de ruído agudo em leque
+        case 'leque':      for (let i = 0; i < 5; i++) { ruido(0.05, 0.12, 6000, i * 0.04); bipe('square', 620 + i * 60, 300, 0.07, 0.03, i * 0.04); } break;
+        // teleguiado: um assobio que desce, como míssil de desenho
+        case 'teleguiado': bipe('sine', 1800, 500, 0.7, 0.09); bipe('sine', 1830, 510, 0.7, 0.05); break;
         case 'naves':      for (let i = 0; i < 4; i++) bipe('triangle', 700 + i * 90, 400, 0.13, 0.045, i * 0.07); break;
-        case 'mare':       ruido(0.75, 0.10, 700); bipe('sine', 150, 60, 0.7, 0.06); break;
-        case 'elevadores': for (let i = 0; i < 4; i++) bipe('square', 200, 130, 0.16, 0.05, i * 0.09); break;
+        // maré: onda — ruído largo que cresce e rebenta
+        case 'mare':       ruido(1.0, 0.18, 500); ruido(0.5, 0.1, 3000, 0.4); bipe('sine', 150, 60, 0.9, 0.08); break;
+        // elevadores: catraca de engrenagem e o 'ding' grave de chegada
+        case 'elevadores': for (let i = 0; i < 6; i++) ruido(0.03, 0.14, 2200, i * 0.06); bipe('sine', 660, 660, 0.4, 0.09, 0.38); break;
         default:           bipe('square', 400, 200, 0.2, 0.05);
     }
 }
@@ -201,7 +205,18 @@ function agendar(): void {
         // 1 e 3, em sino. É a assinatura — o mesmo desenho do telégrafo.
         if (compasso % 2 === 0 && s % 2 === 0 && s < 8) {
             const graus = [0, 7, 3, 0];
-            nota('sine', raiz * 8 * Math.pow(2, graus[s / 2] / 12), t, SEMI * 2.6, 0.07, 5000, m.bus);
+            // Em triângulo e uma oitava abaixo do sino do aviso: parente, não gêmeo —
+            // o jogador aprende "sino agudo = ataque" sem a música confundir.
+            nota('triangle', raiz * 4 * Math.pow(2, graus[s / 2] / 12), t, SEMI * 2.6, 0.08, 2200, m.bus);
+        }
+        // O ÓRGÃO DO SAGUÃO: acorde sustentado a cada compasso (fundamental,
+        // terça, quinta), baixinho — é o "hotel grande" por trás da marcha.
+        if (s === 0) for (const semi of [0, compasso === 3 ? 4 : 3, 7])
+            nota('sawtooth', raiz * 2 * Math.pow(2, semi / 12), t, SEMI * 15.5, 0.025, 900, m.bus);
+        // Na segunda forma entra um contracanto nos compassos 2 e 4.
+        if (m.forte && compasso % 2 === 1 && s % 4 === 0) {
+            const graus = [12, 10, 7, 5];
+            nota('square', raiz * 4 * Math.pow(2, graus[s / 4] / 12), t, SEMI * 3.5, 0.03, 1800, m.bus);
         }
         if (s % 4 === 0) bumbo(t, m.bus);
         if (s === 4 || s === 12) chiado(t, 0.14, 0.22, 1800, 'bandpass', m.bus);
@@ -234,7 +249,7 @@ export function abaixarMusica(dur: number): void {
     const g = m.bus.gain, t = c.currentTime;
     g.cancelScheduledValues(t);
     g.setValueAtTime(Math.max(0.0001, g.value), t);
-    g.linearRampToValueAtTime(0.18, t + 0.05);
+    g.linearRampToValueAtTime(0.09, t + 0.05);   // ~12 dB
     g.linearRampToValueAtTime(0.36, t + dur);
 }
 export function pararMusica(fade = 0.8): void {
