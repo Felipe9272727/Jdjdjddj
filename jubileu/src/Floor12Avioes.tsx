@@ -18,6 +18,7 @@ import { f12Transformation, F12_PALETTE as FP } from './f12Presentation';
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mat64, Avatar64, useAvatarRefs, type AvatarRefs } from './Floor5Player64';
 import { f12, NAVE, ENQUADRAMENTO, type Nave } from './f12Boss';
 
@@ -58,10 +59,24 @@ const CORES = {
 const ENVERGADURA_MODELADA = 5.30;
 const ESCALA_DO_AVIAO = ENQUADRAMENTO.envergadura / ENVERGADURA_MODELADA;
 
-/** Uma caixa, que é como todo este jogo é feito. */
+/**
+ * Uma caixa — mas de quina arredondada. Caixa de quina viva é o que fazia o
+ * avião, o objeto mais perto da câmera, parecer papelão: o chanfro pega o
+ * brilho do sol na borda. As geometrias são guardadas por medida.
+ */
+const caixas = new Map<string, THREE.BufferGeometry>();
+const caixa = (a: [number, number, number]) => {
+    const k = a.join(',');
+    let g = caixas.get(k);
+    if (!g) {
+        g = new RoundedBoxGeometry(a[0], a[1], a[2], 3, Math.min(...a) * .38);
+        caixas.set(k, g);
+    }
+    return g;
+};
 const B: React.FC<{ args: [number, number, number]; p?: [number, number, number]; r?: [number, number, number]; m: THREE.Material }> =
     ({ args, p = [0, 0, 0], r = [0, 0, 0], m }) => (
-        <mesh position={p} rotation={r} material={m}><boxGeometry args={args} /></mesh>
+        <mesh position={p} rotation={r} material={m} geometry={caixa(args)} />
     );
 
 /**
