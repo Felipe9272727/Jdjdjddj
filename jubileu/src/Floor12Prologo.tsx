@@ -27,7 +27,7 @@ import { meioY } from './f12Boss';
 import { tocarDing } from './floor12Sfx';
 
 /** Duração do prólogo, em segundos. A intro antiga começa quando ele acaba. */
-export const PROLOGO = 7.6;
+export const PROLOGO = 6.5;
 
 /** Estado compartilhado: a câmera da luta cede o quadro enquanto isto vale. */
 export const prologo = { ativo: false, t: 0 };
@@ -127,9 +127,12 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             fov = 52;
         } else {
             // 4. a queda: a câmera vai à beira e tomba para baixo
+            // e depois MERGULHA atrás dele: céu vazio com um cisco caindo lia
+            // como tela de carregamento. A câmera cai junto, um pouco acima.
             const k = ease((t - PASSO_ATE - .15) / .8);
-            cam.set(mao(6) * 2, 1.9 - k * .6, PORTA_Z + .4 - k * .9);
-            alvo.set(0, y + 1, z - .2 - (1 - k) * 6);
+            const seg = ease((t - PASSO_ATE - .7) / .6);
+            cam.set(mao(6) * 2 + seg * 1.2, THREE.MathUtils.lerp(1.9 - k * .6, y + 3.2, seg), PORTA_Z + .4 - k * .9 + seg * 1.6);
+            alvo.set(0, y + .6, z - .2 - (1 - k) * 6 - seg * 3);
             fov = 52 + k * 14;
         }
         camera.position.copy(cam).add(ORIGEM);

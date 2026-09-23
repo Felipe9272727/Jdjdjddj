@@ -125,11 +125,11 @@ const CabineDeDentro: React.FC<{ portaRef: React.MutableRefObject<number>; sumin
                 {/* as portas */}
                 <mesh ref={esq} position={[-0.62, 0, -1.79]}>
                     <boxGeometry args={[1.24, 2.7, 0.1]} />
-                    <meshLambertMaterial color="#8e97a6" flatShading />
+                    <meshStandardMaterial color="#b8bcc4" metalness={.85} roughness={.3} />
                 </mesh>
                 <mesh ref={dir} position={[0.62, 0, -1.79]}>
                     <boxGeometry args={[1.24, 2.7, 0.1]} />
-                    <meshLambertMaterial color="#8e97a6" flatShading />
+                    <meshStandardMaterial color="#b8bcc4" metalness={.85} roughness={.3} />
                 </mesh>
             </group>
         );
@@ -1399,9 +1399,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
             {fase === 'abatido' && <FechamentoDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
-                <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
+                <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(15px, 2.8vh, 19px)', pointerEvents: 'none' }}>
                     {legendaIntro}
-                    <div style={{ fontSize: '0.72em', opacity: .6, marginTop: 4 }}>toque para pular</div>
+                    <div style={{ fontSize: '0.75em', opacity: .85, marginTop: 4 }}>toque para pular</div>
                 </div>
             )}
         </div>
