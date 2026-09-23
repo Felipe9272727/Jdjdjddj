@@ -337,7 +337,7 @@ export const Floor12Cabeca: React.FC<{
             <Floor12BossCrown />
             <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
             {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
-            <group ref={engrenagens} visible={false} position={[2.05, -.35, 2.75]} rotation={[0, .55, 0]}>
+            <group ref={engrenagens} visible={false} position={[2.0, -.35, 3.02]} rotation={[0, .55, 0]} scale={.8}>
                 <mesh material={M.interior} scale={[.95, .8, .25]}>
                     <sphereGeometry args={[1, 16, 10]} />
                 </mesh>
