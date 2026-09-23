@@ -185,18 +185,24 @@ export const Floor12Cabeca: React.FC<{
         if (dying) b.abertura = .4 + beat.tremor * .6;
         if (dv) b.abertura = Math.max(b.abertura, dv.engolir);
         if (tv) b.abertura = Math.max(b.abertura, tv.rugido);
+        // ── O CORPO INTEIRO AVISA ─────────────────────────────────────────
+        // Só a cara mexendo não lia de longe. Enquanto a boca abre, a cabeça
+        // sobe e recua como quem toma fôlego; na janela de tiro ela já voltou,
+        // então o alvo desenhado continua em cima da hitbox.
+        const tomaFolego = !dying && !dv && !tv && b.estado === 'abrindo'
+            ? Math.sin(Math.min(1, b.t / .7) * Math.PI) : 0;
         if (raiz.current) {
             raiz.current.visible = !gone && (!dying || beat.fall < .995);
             raiz.current.position.set(
                 (dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0)
                     + (tv ? Math.sin(ct * 71) * tv.tremor * .26 : 0),
-                ALTURA_DA_CABECA - (dying ? beat.fall * 26 : 0)
+                ALTURA_DA_CABECA + tomaFolego * .8 - (dying ? beat.fall * 26 : 0)
                     - (dv ? dv.engolir * 2.4 : 0),
                 ARENA.zCabeca - (dying ? beat.fall * 7 : 0)
                     + (dv ? avancoDaCabecaNaDerrota(dv.engolir) : 0)
                     + (tv ? tv.aproxima * 1.5 : 0));
             raiz.current.rotation.set(
-                (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0),
+                (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0) - tomaFolego * .12,
                 dying ? beat.fall * -.35 : 0,
                 dying ? Math.sin(ct * 23) * .018 * beat.tremor + beat.fall * .65 : 0);
         }
