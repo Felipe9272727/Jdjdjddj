@@ -1,5 +1,6 @@
 import { Floor12Atmosphere } from './Floor12Atmosphere';
 import { Floor12SkyDetails } from './Floor12SkyDetails';
+import { Floor12Trafego } from './Floor12Trafego';
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -113,6 +114,7 @@ export function Floor12Ceu() {
     <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
     <Floor12Skyline bossZ={ARENA.zCabeca} />
     <Floor12SkyDetails />
+    <Floor12Trafego bossZ={ARENA.zCabeca} />
     <Floor12Atmosphere />
     <Floor12Slipstream />
   </group>;
