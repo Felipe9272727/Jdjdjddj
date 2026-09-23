@@ -18,7 +18,7 @@ export function configureFloor12Sfx(context: AudioContext | null, destination?: 
     ctx = context;
     dest = destination ?? null;
 }
-export function clearFloor12Sfx(): void { pararMotor(); ctx = null; dest = null; }
+export function clearFloor12Sfx(): void { pararMotor(); pararMusica(0.2); ctx = null; dest = null; }
 
 function saida(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 
@@ -134,4 +134,88 @@ export function tocarVitoria(): void {
 }
 export function tocarDerrota(): void {
     [392, 330, 262, 196].forEach((f, i) => bipe('sawtooth', f, f * 0.94, 0.3, 0.07, i * 0.17));
+}
+
+// ── A MÚSICA DA LUTA ─────────────────────────────────────────────────────────
+// Sintetizada também, pelo mesmo motivo dos tiros: nada de baixar arquivo no
+// celular. Uma marcha em ré menor a 132 bpm — bumbo, caixa, baixo pulsando em
+// colcheias e um arpejo por cima. Passada a virada ela ENDURECE: entra o chimbal
+// em semicolcheias e o arpejo sobe uma oitava. O relógio é o do AudioContext,
+// agendado com folga (o padrão "lookahead"), então um quadro lento no celular
+// não atrasa nota nenhuma.
+const BPM = 132, SEMI = 60 / BPM / 4;
+// Progressão Dm – Bb – C – A, uma por compasso; graus em Hz da fundamental.
+const FUNDAMENTAIS = [73.42, 58.27, 65.41, 55.0];
+const ARPEJO = [0, 3, 7, 12, 7, 3, 0, 7];        // semitons: menor com oitava
+let musica: { id: number; passo: number; proxima: number; bus: GainNode; forte: boolean } | null = null;
+
+function nota(tipo: OscillatorType, f: number, t: number, dur: number, vol: number, corte: number, d: AudioNode): void {
+    const c = ctx!;
+    const o = c.createOscillator(), g = c.createGain(), fl = c.createBiquadFilter();
+    o.type = tipo; o.frequency.setValueAtTime(f, t);
+    fl.type = 'lowpass'; fl.frequency.value = corte;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(d);
+    o.start(t); o.stop(t + dur + 0.03);
+}
+function bumbo(t: number, d: AudioNode): void {
+    const c = ctx!, o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+    g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g); g.connect(d); o.start(t); o.stop(t + 0.25);
+}
+function chiado(t: number, dur: number, vol: number, corte: number, tipo: BiquadFilterType, d: AudioNode): void {
+    const c = ctx!, n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate);
+    const x = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = buf; f.type = tipo; f.frequency.value = corte; g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(d); s.start(t); s.stop(t + dur + 0.02);
+}
+function agendar(): void {
+    const m = musica, c = ctx;
+    if (!m || !c) return;
+    while (m.proxima < c.currentTime + 0.15) {
+        const t = m.proxima, p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
+        const raiz = FUNDAMENTAIS[compasso];
+        if (s % 4 === 0) bumbo(t, m.bus);
+        if (s === 4 || s === 12) chiado(t, 0.14, 0.22, 1800, 'bandpass', m.bus);
+        if (s % 2 === 0) nota('sawtooth', raiz * (s % 4 === 2 ? 2 : 1), t, SEMI * 1.8, 0.16, 420, m.bus);
+        if (s % 2 === 1 || m.forte) {
+            const semi = ARPEJO[(s >> (m.forte ? 0 : 1)) % ARPEJO.length];
+            nota('square', raiz * 4 * (m.forte ? 2 : 1) * Math.pow(2, semi / 12), t, SEMI * 0.9, m.forte ? 0.035 : 0.045, 2600, m.bus);
+        }
+        if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.1 : 0.05, 7000, 'highpass', m.bus);
+        m.passo++; m.proxima += SEMI;
+    }
+}
+export function iniciarMusica(): void {
+    const c = ctx, d = saida();
+    if (!c || !d || musica) return;
+    const bus = c.createGain();
+    bus.gain.setValueAtTime(0.0001, c.currentTime);
+    bus.gain.exponentialRampToValueAtTime(0.55, c.currentTime + 1.2);
+    bus.connect(d);
+    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, forte: false };
+    musica.id = window.setInterval(agendar, 40);
+    agendar();
+}
+export function musicaDaVirada(forte: boolean): void { if (musica) musica.forte = forte; }
+export function pararMusica(fade = 0.8): void {
+    const m = musica, c = ctx;
+    musica = null;
+    if (!m) return;
+    window.clearInterval(m.id);
+    if (!c) return;
+    m.bus.gain.cancelScheduledValues(c.currentTime);
+    m.bus.gain.setValueAtTime(m.bus.gain.value, c.currentTime);
+    m.bus.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + fade);
+    window.setTimeout(() => m.bus.disconnect(), fade * 1000 + 100);
+}
+/** O rugido da virada: ruído grave subindo e um serrote descendo, juntos. */
+export function tocarRugido(): void {
+    ruido(1.4, 0.35, 500); ruido(0.9, 0.2, 2400, 0.2);
+    bipe('sawtooth', 110, 38, 1.3, 0.16); bipe('sawtooth', 164, 55, 1.1, 0.1, 0.12);
 }

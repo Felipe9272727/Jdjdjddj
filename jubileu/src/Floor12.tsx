@@ -51,6 +51,7 @@ import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
+    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -977,6 +978,18 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     }, []);
 
     const fase = f12.fase;
+    // ── A TRILHA SEGUE A FASE ────────────────────────────────────────────
+    // Luta e virada têm música; a virada ruge e a marcha endurece dali em
+    // diante; vitória e derrota calam a marcha para os próprios sons tocarem.
+    const rugiu = useRef(false);
+    useEffect(() => {
+        if (fase === 'luta' || fase === 'virada') iniciarMusica();
+        else if (fase === 'vitoria' || fase === 'abatido' || fase === 'derrota' || fase === 'queda' || fase === 'despedida') pararMusica();
+        if (fase === 'virada' && !rugiu.current) { rugiu.current = true; tocarRugido(); }
+        if (fase === 'derrota') rugiu.current = false;
+        musicaDaVirada(f12.passouDaVirada);
+    }, [fase]);
+    useEffect(() => () => pararMusica(0.2), []);
     if (import.meta.env?.DEV && typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
         w.__f12fase = fase; w.__f12abertura = abertura.current;
