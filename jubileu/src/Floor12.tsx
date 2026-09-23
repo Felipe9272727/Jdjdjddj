@@ -1349,7 +1349,11 @@ const DicaDeControle: React.FC = () => {
     }, []);
     useEffect(() => {
         const id = window.setTimeout(() => setVisivel(false), 6000);
-        return () => window.clearTimeout(id);
+        // Quem já arrastou já aprendeu: o aviso sai no primeiro toque em vez
+        // de ficar deitado em cima da cabeça na tela deitada.
+        const aprendeu = () => setVisivel(false);
+        window.addEventListener('pointerdown', aprendeu, { once: true });
+        return () => { window.clearTimeout(id); window.removeEventListener('pointerdown', aprendeu); };
     }, []);
     if (!visivel) return null;
     // ── EM PAISAGEM ELA VAI PARA O TOPO ──────────────────────────────────
