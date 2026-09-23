@@ -41,7 +41,7 @@ function ArchitectureInstances({ pieces, color, glow = false, tints }: {
 
 /** A real skyline behind the fight, with silhouettes at several depths.
  * Batched windows and masonry keep the hotel readable without hundreds of draws. */
-const JANELAS = ['#8e7d55', '#a8894a', '#b39258', '#6d7f88', '#2e2a26', '#2e2a26', '#9a6a46'];
+const JANELAS = ['#b89c62', '#d2a650', '#e0b86a', '#7f98a6', '#2e2a26', '#2e2a26', '#c58150'];
 
 export function Floor12Skyline({ bossZ }: { bossZ: number }) {
   const architecture = useMemo(() => {
