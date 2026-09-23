@@ -1134,8 +1134,15 @@ export default function App() {
   useEffect(() => {
     if (currentLevel !== 5 || !audioCtx) return;
     configureFloor5RaceSfx(audioCtx, cartoonBusRef.current);
-    configureFloor12Sfx(audioCtx, cartoonBusRef.current);
     return () => clearFloor5RaceSfx();
+  }, [currentLevel, audioCtx]);
+  // ── Andar 12: o som dele era ligado dentro do bloco do ANDAR 5, então só
+  // tocava para quem tivesse passado pelo 5 na mesma sessão — e a saída do 12
+  // desligava de vez. Chegando direto, a música e os efeitos ficavam mudos.
+  useEffect(() => {
+    if (currentLevel !== 12 || !audioCtx) return;
+    configureFloor12Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor12Sfx();
   }, [currentLevel, audioCtx]);
   // ── Floor 6 audio + fresh escape-room state on every arrival.
   useEffect(() => {
