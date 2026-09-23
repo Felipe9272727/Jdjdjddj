@@ -119,9 +119,16 @@ export function tocarTiroIrmao(): void { bipe('square', 620, 240, 0.085, 0.04); 
  * jogador não ouvia a diferença entre errar e acertar. Agora é metal —
  * um "clanc" de ruído filtrado alto, duas parciais inarmônicas e um baque grave.
  */
+// Sequência: acertos seguidos (menos de 0,6 s entre eles) sobem meio tom cada,
+// até uma oitava. A sequência se ouve crescer — e zera quando o jogador erra o ritmo.
+let ultimoAcerto = -1, sequencia = 0;
 export function tocarAcerto(): void {
+    const agora = ctx?.currentTime ?? 0;
+    sequencia = agora - ultimoAcerto < 0.6 ? Math.min(12, sequencia + 1) : 0;
+    ultimoAcerto = agora;
+    const sobe = Math.pow(2, sequencia / 12);
     ruido(0.09, 0.2, 5200);
-    bipe('triangle', 1760, 1650, 0.22, 0.09); bipe('triangle', 2490, 2300, 0.16, 0.06);
+    bipe('triangle', 1760 * sobe, 1650 * sobe, 0.22, 0.09); bipe('triangle', 2490 * sobe, 2300 * sobe, 0.16, 0.06);
     bipe('sine', 130, 60, 0.16, 0.16);
 }
 
