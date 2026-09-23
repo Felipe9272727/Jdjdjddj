@@ -165,9 +165,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // o olhar: para a frente andando; SOBE para o mostrador na espera;
         // volta para a porta quando ela faz "ding"
         const olhaMostrador = ease((t - 2.0) / .6) * (1 - ease((t - 3.7) / .5));
-        let olhoY = THREE.MathUtils.lerp(OLHO - .1, 2.62, olhaMostrador);
+        let olhoY = THREE.MathUtils.lerp(OLHO - .1, 2.4, olhaMostrador);
         fov -= olhaMostrador * (retrato ? 22 : 12);
-        let olhoZ = -3;
+        let olhoZ = THREE.MathUtils.lerp(-3, .08, olhaMostrador);
         let roll = Math.sin(t * 3.1) * .01 * passo;
         // o passo para fora, e a queda
         const pisa = ease((t - 4.9) / .35);
