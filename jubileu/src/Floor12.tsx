@@ -402,7 +402,11 @@ const CameraDaLuta: React.FC<{
         // O deslocamento encolhe junto com a altura do quadro, pela mesma razão
         // com que a lente já fecha — é o mesmo problema, medido no outro eixo.
         const alturaDoQuadro = f12FrameHeight(recuo, f12ChaseFov(aspectoDaTela));
-        const acima = 6 * Math.min(1, alturaDoQuadro / 22);
+        // ── E O AVIÃO NÃO PODE TAMPAR A BOCA ─────────────────────────────
+        // Mirar é pôr o avião na frente da boca, e com a câmera logo atrás o
+        // próprio jogador escondia o alvo. Subindo a câmera ela olha de cima:
+        // o avião projeta ABAIXO da boca e o anel fica à vista.
+        const acima = 9 * Math.min(1, alturaDoQuadro / 22);
         const py = THREE.MathUtils.lerp(dentroY, atrasY + acima, suave);
         // O RECUO É MEDIDO, não escolhido no olho: ele vem de `ENQUADRAMENTO`,
         // que é onde a largura da arena, o aspecto da tela em pé e o tamanho do
