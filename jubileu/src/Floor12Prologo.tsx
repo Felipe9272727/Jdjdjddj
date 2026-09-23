@@ -114,9 +114,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             // 1. travelling baixo por trás
             cam.set(.55 + mao(0), .95 + mao(1), z + 2.9 * r);
             alvo.set(0, 1.3, z - 4);
-        } else if (t < 3.6) {
+        } else if (t < 3.0) {
             // 2. três quartos pela frente, empurrando
-            const k = ease((t - 2.2) / 1.4);
+            const k = ease((t - 2.2) / .8);
             cam.set(-1.2 + k * .15 + mao(2), 1.25 + mao(3), PORTA_Z + .6 - k * .2);
             fov = (r > 1 ? 60 : 44) - k * 4;
             alvo.set(0, 1.3, z);

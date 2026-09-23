@@ -166,7 +166,9 @@ const DiretorDaIntro: React.FC<{
     // O relógio começa NEGATIVO: os primeiros `PROLOGO` segundos são o
     // hóspede andando até o elevador (Floor12Prologo), e o zero continua
     // sendo o escuro dentro da cabine — a coreografia abaixo não mudou.
-    const t = useRef(-PROLOGO);
+    // Na bancada (`?f12fase=2`, só em DEV) a cena inteira é pulada.
+    const t = useRef(import.meta.env.DEV && typeof location !== 'undefined'
+        && new URLSearchParams(location.search).get('f12fase') === '2' ? F12_CINEMA.intro - .05 : -PROLOGO);
     const marcos = useRef({ ding: false, desdobrar: false, motor: false });
     // ── TOCAR PULA ───────────────────────────────────────────────────────
     // Catorze segundos na primeira vez são uma apresentação; para quem já
