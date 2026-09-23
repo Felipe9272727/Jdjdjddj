@@ -118,6 +118,8 @@ export function tocarAcerto(): void {
  */
 export function tocarBocaAbrindo(): void {
     abaixarMusica(0.6);
+    // o servo da mandíbula: um zumbido que sobe, embaixo da campainha
+    bipe('sawtooth', 70, 140, 0.55, 0.05); ruido(0.5, 0.05, 900);
     bipe('sine', 1320, 1320, 0.28, 0.2); bipe('triangle', 2640, 2640, 0.12, 0.05);
     bipe('sine', 990, 990, 0.42, 0.18, 0.16);
     bipe('sawtooth', 90, 260, 0.5, 0.07);
@@ -138,7 +140,7 @@ export function tocarAtaque(nome: string): void {
     }
 }
 
-export function tocarDano(): void { abaixarMusica(0.8); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
+export function tocarDano(): void { abaixarMusica(0.8); ruido(0.08, 0.2, 6000); bipe('triangle', 1900, 1500, 0.2, 0.05); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
 export function tocarExplosao(): void { ruido(0.6, 0.28, 1200); bipe('sawtooth', 180, 40, 0.6, 0.12); }
 export function tocarFalaDoIrmao(): void { bipe('square', 300, 380, 0.05, 0.035); }
 
@@ -160,7 +162,7 @@ export function tocarDerrota(): void {
 
 // ── A MÚSICA DA LUTA ─────────────────────────────────────────────────────────
 // Sintetizada também, pelo mesmo motivo dos tiros: nada de baixar arquivo no
-// celular. Uma marcha em ré menor a 132 bpm — bumbo, caixa, baixo pulsando em
+// celular. Uma marcha em ré menor a 144 bpm — bumbo, caixa, baixo pulsando em
 // colcheias e um arpejo por cima. Passada a virada ela ENDURECE: entra o chimbal
 // em semicolcheias e o arpejo sobe uma oitava. O relógio é o do AudioContext,
 // agendado com folga (o padrão "lookahead"), então um quadro lento no celular
@@ -169,7 +171,7 @@ const BPM = 144, SEMI = 60 / BPM / 4;
 // Progressão Dm – Bb – C – A, uma por compasso; graus em Hz da fundamental.
 const FUNDAMENTAIS = [73.42, 58.27, 65.41, 55.0];
 const ARPEJO = [0, 3, 7, 12, 7, 3, 0, 7];        // semitons: menor com oitava
-let musica: { id: number; passo: number; proxima: number; bus: GainNode; duck: GainNode; duckAte: number; forte: boolean; pedidoForte: boolean; pausa: number } | null = null;
+let musica: { id: number; passo: number; proxima: number; bus: GainNode; duck: GainNode; duckAte: number; forte: boolean; pedidoForte: boolean; pausa: number; rampa: number } | null = null;
 
 function nota(tipo: OscillatorType, f: number, t: number, dur: number, vol: number, corte: number, d: AudioNode): void {
     const c = ctx!;
@@ -230,8 +232,9 @@ function agendar(): void {
             nota('square', raiz * 4 * (m.forte ? 2 : 1) * Math.pow(2, semi / 12), t, SEMI * 0.9, m.forte ? 0.035 : 0.045, 2600, m.bus);
         }
         if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.1 : 0.05, 7000, 'highpass', m.bus);
-        // Depois da virada a marcha acelera (132 → 142 bpm): a música diz "piorou".
-        m.passo++; m.proxima += m.forte ? SEMI * 144 / 154 : SEMI;
+        // Depois da virada a marcha acelera (144 → 154 bpm, em rampa de um compasso).
+        m.passo++; m.rampa = m.forte ? Math.min(1, m.rampa + 1 / 16) : 0;
+        m.proxima += SEMI * (1 - m.rampa * (1 - 144 / 154));
     }
 }
 export function iniciarMusica(): void {
@@ -252,7 +255,7 @@ export function iniciarMusica(): void {
     sala.buffer = ir;
     const molhado = c.createGain(); molhado.gain.value = .22;
     bus.connect(sala); sala.connect(molhado); molhado.connect(duck);
-    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, duck, duckAte: 0, forte: false, pedidoForte: false, pausa: 0 };
+    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, duck, duckAte: 0, forte: false, pedidoForte: false, pausa: 0, rampa: 0 };
     musica.id = window.setInterval(agendar, 40);
     agendar();
 }
@@ -266,18 +269,20 @@ export function musicaDaVirada(forte: boolean): void {
     if (!forte) { musica.forte = musica.pedidoForte = false; return; }
     if (!musica.forte && !musica.pedidoForte) { musica.pedidoForte = true; musica.pausa = 16; }
 }
-/** Abaixa a música ~6 dB por `dur` segundos, para um aviso ou um dano passar. */
+/** Abaixa a música 6 dB por `dur` segundos (no máximo 1,5 s seguidos), para um aviso ou um dano passar. */
 export function abaixarMusica(dur: number): void {
     const m = musica, c = ctx;
     if (!m || !c) return;
     // Pedidos sobrepostos ESTENDEM o abaixar em vez de cortar o anterior.
-    const t = c.currentTime, ate = Math.max(m.duckAte, t + dur);
+    const t = c.currentTime;
+    // Teto de 1,5 s: numa sequência de danos a música não pode sumir de vez.
+    const ate = Math.min(t + 1.5, Math.max(m.duckAte, t + dur));
     m.duckAte = ate;
     const g = m.duck.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0.25, t + 0.15);            // ~12 dB, ataque 150 ms
-    g.setValueAtTime(0.25, ate);
+    g.linearRampToValueAtTime(0.5, t + 0.15);             // -6 dB, ataque 150 ms
+    g.setValueAtTime(0.5, ate);
     g.setTargetAtTime(1, ate, 0.13);                       // volta exponencial ~400 ms
 }
 export function pararMusica(fade = 0.8): void {
