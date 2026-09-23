@@ -72,7 +72,7 @@ export function Floor12Ceu() {
     const cupula = new THREE.SphereGeometry(10, 32, 16);
     const cores: number[] = [];
     const pos = cupula.getAttribute('position');
-    const alto = new THREE.Color('#6d6a8c'), meio = new THREE.Color('#c69a8a'), baixo = new THREE.Color('#2a2530');
+    const alto = new THREE.Color('#8a86b0'), meio = new THREE.Color('#e6b08e'), baixo = new THREE.Color('#3a3038');
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i) / 10;
@@ -112,6 +112,13 @@ export function Floor12Ceu() {
     <hemisphereLight args={['#c6b9c9', '#172b3a', 1.0]} />
     <directionalLight position={[-30, 22, 2]} color="#ffb877" intensity={2.6} />   {/* laranja de poente: o sol tinha que chegar nas torres e na cara */}
     <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
+    {/* ── O SOL ── baixo, atrás da cidade, fora do eixo da cabeça: sem um disco
+        no céu, "poente" era só uma cor. Fora do fog e do tonemapping, para o
+        bloom abrir um halo quente em volta dele. */}
+    <group position={[-58, 4, -230]}>
+      <mesh><sphereGeometry args={[11, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffc27a').multiplyScalar(1.7)} toneMapped={false} fog={false} /></mesh>
+      <mesh scale={1.9}><sphereGeometry args={[11, 32, 16]} /><meshBasicMaterial color="#ff9a55" transparent opacity={.18} fog={false} depthWrite={false} /></mesh>
+    </group>
     <Floor12Skyline bossZ={ARENA.zCabeca} />
     <Floor12SkyDetails />
     <Floor12Trafego bossZ={ARENA.zCabeca} />
