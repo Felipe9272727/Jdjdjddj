@@ -63,7 +63,16 @@ export function createFaceDetails(sculpt: THREE.BufferGeometry) {
       ember:new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(p=>p.clone().add(new THREE.Vector3(0,0,.037)))),18,.014,5,false),
     };
   });
-  material.dispose(); return {rims,cracks};
+  // Chapas nas bochechas: sem emenda, a porcelana lia como pele e a cara
+  // como gente de chapéu. Uma costura vertical e uma sob o olho, por lado.
+  const panels = [-1,1].flatMap(side => [
+    [[2.05,.35],[2.12,-.2],[2.02,-.75],[1.86,-1.2]],
+    [[1.0,.28],[1.6,.18],[2.2,.26],[2.7,.46]],
+  ].map(line => {
+    const points = line.map(([x,y]) => project(side*x,y)).filter((q): q is THREE.Vector3 => q !== null);
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),24,.03,5,false);
+  }));
+  material.dispose(); return {rims,cracks,panels};
 }
 
 /** A shallow curved chin with dark inner lining, not a solid ivory block. */

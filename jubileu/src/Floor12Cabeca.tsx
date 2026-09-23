@@ -77,7 +77,7 @@ export const Floor12Cabeca: React.FC<{
     const detail = faceAssets.cracks;
     useEffect(() => () => {
         tooth.dispose(); seams.forEach(g => g.dispose());
-        faceAssets.sculpt.dispose(); faceAssets.rims.forEach(g => g.dispose());
+        faceAssets.sculpt.dispose(); faceAssets.rims.forEach(g => g.dispose()); faceAssets.panels.forEach(g => g.dispose());
         detail.forEach(c => { c.edge.dispose(); c.ember.dispose(); });
     }, [tooth, seams, faceAssets, detail]);
     const brow = useMemo(() => {
@@ -325,6 +325,7 @@ export const Floor12Cabeca: React.FC<{
             <group ref={face}>
             <Floor12BossCrown />
             <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
+            {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.70, 16, 10]} />
