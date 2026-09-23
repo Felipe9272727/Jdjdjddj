@@ -468,7 +468,10 @@ const CameraDaLuta: React.FC<{
             // Em paisagem mirar mais alto (para o quepe não bater na barra)
             // empurrava o AVIÃO para fora do quadro. Com a barra virada fio, a
             // mira volta a ser a mesma da tela em pé e o avião aparece inteiro.
-            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2, suave),
+            // Em paisagem, +0,9: com a câmera um pouco mais recuada o avião tem
+            // folga embaixo, e é isso que tira a copa do quepe de baixo da barra.
+            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2
+                + (aspectoDaTela > 1.3 ? .9 : 0), suave),
             THREE.MathUtils.lerp(-6, -11, suave),
         );
 
