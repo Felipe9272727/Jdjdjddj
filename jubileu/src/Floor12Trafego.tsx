@@ -58,8 +58,8 @@ export function Floor12Trafego({ bossZ }: { bossZ: number }) {
         // carroceria baixa e comprida com "saias" de flutuador: sedã voador anos 50
         const corpo = new THREE.BoxGeometry(3.2, .7, 1.4);
         const cabine = new THREE.BoxGeometry(1.5, .55, 1.15); cabine.translate(-.15, .6, 0);
-        const farol = new THREE.BoxGeometry(.12, .18, 1.0); farol.translate(1.62, 0, 0);
-        const lanterna = new THREE.BoxGeometry(.12, .16, 1.0); lanterna.translate(-1.62, .05, 0);
+        const farol = new THREE.BoxGeometry(.14, .26, 1.4); farol.translate(1.62, 0, 0);
+        const lanterna = new THREE.BoxGeometry(.14, .24, 1.4); lanterna.translate(-1.62, .05, 0);
         return { corpo, cabine, farol, lanterna };
     }, []);
     const mats = useMemo(() => ({
@@ -98,6 +98,8 @@ export function Floor12Trafego({ bossZ }: { bossZ: number }) {
             tmp.position.set(x, f.y + Math.sin(t * 1.3 + carro.bob) * .18, f.z + (i % 2) * 1.8);
             // de frente para onde anda, com um tico de inclinação lateral
             tmp.rotation.set(0, f.sentido > 0 ? 0 : Math.PI, Math.sin(t * .9 + carro.bob) * .03);
+            // 1,8×: no tamanho real um carro a 60 unidades virava um cisco.
+            tmp.scale.setScalar(1.8);
             tmp.updateMatrix();
             for (const k of ['corpo', 'cabine', 'farol', 'lanterna'] as const) refs[k].current?.setMatrixAt(i, tmp.matrix);
         });
