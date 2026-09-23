@@ -116,7 +116,11 @@ export const Floor12Cabeca: React.FC<{
         costura: new THREE.MeshStandardMaterial({ color: '#0b2027', roughness: .62, metalness: .40 }),
         rebite: new THREE.MeshStandardMaterial({ color: '#c9a04a', roughness: .30, metalness: .85 }),
         recesso: new THREE.MeshStandardMaterial({ color: '#081a20', roughness: .85, metalness: .10 }),
-        porcelana: new THREE.MeshStandardMaterial({ color: '#c6b49b', roughness: .63, metalness: .03, vertexColors: true }),
+        // PORCELANA ESMALTADA, não pele: verniz (clearcoat) que reflete o céu
+        // do poente e um tom mais frio que o bege antigo. O brilho especular é
+        // o que diz "objeto fabricado" — pele não tem verniz.
+        porcelana: new THREE.MeshPhysicalMaterial({ color: '#d4c8b4', roughness: .42, metalness: .04,
+            clearcoat: .8, clearcoatRoughness: .18, vertexColors: true }),
         /**
          * A CHAPA DA MANDÍBULA.
          *
