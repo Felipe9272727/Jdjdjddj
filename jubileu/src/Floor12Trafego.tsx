@@ -32,8 +32,8 @@ export function Floor12Trafego({ bossZ }: { bossZ: number }) {
         { y: 7.5, z: bossZ - 66, sentido: -1, vel: 11, n: 6 },
         { y: 14, z: bossZ - 90, sentido: 1, vel: 7, n: 5 },
         { y: 19, z: bossZ - 96, sentido: -1, vel: 8, n: 5 },
-        // uma faixa alta e mais perto, que passa por cima da cabeça
-        { y: 25, z: bossZ - 30, sentido: 1, vel: 12, n: 4 },
+        // uma faixa alta, logo atrás da cabeça (mais perto que isso invadia o HUD)
+        { y: 21, z: bossZ - 48, sentido: 1, vel: 12, n: 4 },
     ], [bossZ]);
 
     const carros = useMemo(() => {
