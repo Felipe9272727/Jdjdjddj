@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { F12_PALETTE as P } from './f12Presentation';
 import { createCloudGeometry } from './f12CloudGeometry';
 import { Floor12MarDeNuvens, Y_DO_PISO } from './Floor12MarDeNuvens';
@@ -32,8 +33,11 @@ function ArchitectureInstances({ pieces, color, glow = false, tints }: {
     }
     ref.current.computeBoundingSphere();
   }, [pieces, tints]);
-  return <instancedMesh ref={ref} args={[undefined, undefined, pieces.length]}>
-    <boxGeometry args={[1, 1, 1]} />
+  // Quinas chanfradas: a caixa pura tem aresta de faca e não pega luz; o
+  // chanfro acende um fio de brilho em cada quina, e o prédio deixa de ser bloco.
+  const geo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, .045), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <instancedMesh ref={ref} args={[geo, undefined, pieces.length]}>
     {glow ? <meshBasicMaterial color={color} toneMapped={false} /> :
       <meshStandardMaterial color={tints ? '#ffffff' : color} roughness={.83} metalness={.18} />}
   </instancedMesh>;

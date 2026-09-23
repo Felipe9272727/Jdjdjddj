@@ -1,4 +1,4 @@
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
@@ -1256,6 +1256,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     `multisampling={0}` e uma passada só, porque isto roda em
                     celular. */}
                 <EffectComposer multisampling={0} enableNormalPass={false}>
+                    {/* ── OCLUSÃO EM TEMPO REAL (N8AO) ──────────────────────
+                        Raios traçados no buffer de profundidade a cada quadro:
+                        sombra de contato em toda dobra da cena — entre os gomos
+                        das nuvens, sob as sacadas, no encaixe do quepe, entre os
+                        dentes. É o que tira o ar de "caixas chapadas" do low
+                        poly. Meia resolução e qualidade de desempenho: celular. */}
+                    <N8AO halfRes quality="performance" aoRadius={3} distanceFalloff={1.2} intensity={2.4} color="#1d1420" />
                     <Bloom
                         intensity={0.85}
                         luminanceThreshold={0.62}

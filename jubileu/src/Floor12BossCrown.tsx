@@ -13,11 +13,11 @@ export function Floor12BossCrown() {
   useEffect(() => () => visor.dispose(), [visor]);
   return <group name="quepe-do-concierge" position={[0, 3.19, -.08]} scale={[.94, .88, .95]} rotation={[0, 0, -.025]}>
     <mesh position={[0, .60, -.05]} scale={[1, 1, .81]}>
-      <cylinderGeometry args={[3.08, 3.38, 1.40, 48]} />
+      <cylinderGeometry args={[3.08, 3.38, 1.40, 96]} />
       <meshStandardMaterial color="#173b45" metalness={.30} roughness={.48} />
     </mesh>
     <mesh position={[0, .04, .02]} scale={[1, 1, .84]}>
-      <cylinderGeometry args={[3.38, 3.31, .28, 48]} />
+      <cylinderGeometry args={[3.38, 3.31, .28, 96]} />
       <meshStandardMaterial color="#be924d" metalness={.78} roughness={.30} />
     </mesh>
     <mesh geometry={visor} position={[0, -.07, 2.3]} rotation={[-Math.PI / 2 + .12, 0, 0]}>
@@ -29,7 +29,7 @@ export function Floor12BossCrown() {
         <meshStandardMaterial color="#d5aa56" metalness={.72} roughness={.26} />
       </mesh>
       <mesh position={[0, .06, .16]}>
-        <torusGeometry args={[.15, .045, 6, 16]} />
+        <torusGeometry args={[.15, .045, 12, 32]} />
         <meshStandardMaterial color="#173b45" />
       </mesh>
       <mesh position={[0, -.17, .16]}>
@@ -42,7 +42,7 @@ export function Floor12BossCrown() {
       </mesh>
     </group>
     {[-1, 1].map(side => <mesh key={side} position={[side * 2.73, .42, 1.85]}>
-      <sphereGeometry args={[.15, 12, 8]} />
+      <sphereGeometry args={[.15, 24, 16]} />
       <meshStandardMaterial color="#d5aa56" metalness={.75} roughness={.28} />
     </mesh>)}
   </group>;

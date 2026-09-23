@@ -338,7 +338,7 @@ export const Floor12Cabeca: React.FC<{
             {seams.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
             {Array.from({length: 14}, (_,i) => <mesh key={i} material={M.rebite}
                 position={shellPoint(.55, Math.PI*(1.02+i/13*.96))}>
-                <sphereGeometry args={[.07, 8, 6]} />
+                <sphereGeometry args={[.07, 24, 16]} />
             </mesh>)}
 
             <group ref={face}>
@@ -350,18 +350,18 @@ export const Floor12Cabeca: React.FC<{
                 {/* O POÇO: fundo escuro de verdade (o mesmo material do fundo
                     dos olhos, que já prova que lê contra a porcelana). */}
                 <mesh material={M.recessoOlho} position={[0, -.1, .2]} scale={[1, .82, .3]}>
-                    <sphereGeometry args={[.95, 14, 8]} />
+                    <sphereGeometry args={[.95, 28, 16]} />
                 </mesh>
                 {/* A BORDA ARRANCADA: um anel de poucos lados, torto, na cor da
                     casca — chapa rasgada, não círculo desenhado. */}
                 <mesh material={M.peleEsc} position={[0, -.1, .34]} rotation={[0, 0, .4]} scale={[1.05, .86, 1]}>
-                    <torusGeometry args={[.95, .13, 4, 7]} />
+                    <torusGeometry args={[.95, .13, 12, 32]} />
                 </mesh>
                 {/* ENGRENAGENS DE DENTE: disco + dentes. Cada filho > 0 gira. */}
                 {[[-.3, .15, .42], [.36, -.18, .32], [-.1, -.45, .24]].map(([x, y, r], i) => (
                     <group key={i} position={[x, y, .4 + i * .03]}>
                         <mesh material={M.brasa} rotation={[Math.PI / 2, 0, 0]}>
-                            <cylinderGeometry args={[r, r, .08, 12]} />
+                            <cylinderGeometry args={[r, r, .08, 24]} />
                         </mesh>
                         {Array.from({ length: 8 }, (_, k) => {
                             const a = k * Math.PI / 4;
@@ -378,7 +378,7 @@ export const Floor12Cabeca: React.FC<{
             ))}
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
-                <sphereGeometry args={[R * 0.70, 16, 10]} />
+                <sphereGeometry args={[R * 0.70, 32, 20]} />
             </mesh>
 
             {/* ── OS OLHOS ── */}
@@ -404,17 +404,17 @@ export const Floor12Cabeca: React.FC<{
                             Por estar na frente da porcelana, a lente permanece
                             legível até com luz forte e vista de celular. */}
                         <mesh material={M.recessoOlho} position={[0, 0, -.15]} scale={[1.02, .71, .18]}>
-                            <sphereGeometry args={[1, 10, 6]} />
+                            <sphereGeometry args={[1, 24, 16]} />
                         </mesh>
                         <group position={[0, 0, .10]}>
                             <mesh material={M.iris}>
-                                <torusGeometry args={[.36, .065, 7, 20]} />
+                                <torusGeometry args={[.36, .065, 14, 40]} />
                             </mesh>
                             <mesh material={M.lente} scale={[1, 1, .52]}>
-                                <sphereGeometry args={[.22, 16, 10]} />
+                                <sphereGeometry args={[.22, 32, 20]} />
                             </mesh>
                             <mesh material={M.brilhoOlho} position={[0, 0, .13]}>
-                                <sphereGeometry args={[.05, 8, 6]} />
+                                <sphereGeometry args={[.05, 24, 16]} />
                             </mesh>
                         </group>
                     </group>
@@ -439,14 +439,14 @@ export const Floor12Cabeca: React.FC<{
                 nariz na primeira montagem. */}
             <group position={[0, -BOCA_ABAIXO_DO_CENTRO / (ESCALA / R), R * 0.42]}>
                 <mesh material={M.interior} position={[0, -.12, -.35]} scale={[2.38, 1.65, .72]}>
-                    <sphereGeometry args={[1, 32, 20]} />
+                    <sphereGeometry args={[1, 64, 40]} />
                 </mesh>
                 <mesh ref={garganta} material={M.brasa} position={[0, -0.2, 0.15]}>
-                    <sphereGeometry args={[.72, 20, 14]} />
+                    <sphereGeometry args={[.72, 40, 28]} />
                 </mesh>
                 <group ref={reator} position={[0, -.2, .48]}>
-                    <mesh material={M.peleEsc}><torusGeometry args={[1.23, .22, 8, 28]} /></mesh>
-                    <mesh material={M.brasa} position={[0, 0, .06]}><torusGeometry args={[1.18, .065, 6, 28]} /></mesh>
+                    <mesh material={M.peleEsc}><torusGeometry args={[1.23, .22, 16, 56]} /></mesh>
+                    <mesh material={M.brasa} position={[0, 0, .06]}><torusGeometry args={[1.18, .065, 12, 56]} /></mesh>
                     {Array.from({length: 8}, (_, i) => {
                         const a = i * Math.PI / 4;
                         return <mesh key={i} material={M.dente} position={[Math.cos(a)*1.18, Math.sin(a)*1.18, .12]} rotation={[0, 0, a]}>
@@ -475,7 +475,7 @@ export const Floor12Cabeca: React.FC<{
                         const n = fila ? 7 : 9, x = (i / (n - 1) - .5) * (fila ? 2.6 : 3.8);
                         return <mesh key={`${fila}-${i}`} material={M.rebite}
                             position={[x, y, 2.37 - .052 * x * x]}>
-                            <sphereGeometry args={[.075, 8, 6]} />
+                            <sphereGeometry args={[.075, 24, 16]} />
                         </mesh>;
                     }))}
                     <mesh material={M.rebite} position={[0, -1.1, 2.39]}>
@@ -490,7 +490,7 @@ export const Floor12Cabeca: React.FC<{
 
             {[-1, 1].map((lado, i) => (
                 <mesh key={lado} ref={m => { bracosDaMandibula.current[i] = m; }} material={M.mandibulaPlaca}>
-                    <cylinderGeometry args={[.11, .15, 1, 8]} />
+                    <cylinderGeometry args={[.11, .15, 1, 24]} />
                 </mesh>
             ))}
 
@@ -505,7 +505,7 @@ export const Floor12Cabeca: React.FC<{
                     </mesh>
                 ))}
                 <mesh material={M.mandibulaPlaca} scale={[1, 1, .6]}>
-                    <sphereGeometry args={[.24, 10, 8]} />
+                    <sphereGeometry args={[.24, 24, 16]} />
                 </mesh>
             </group>
 
@@ -569,7 +569,7 @@ export const AnelDaBoca: React.FC = () => {
  */
 export const AlvoDaBoca: React.FC = () => (
     <mesh position={[BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 1]}>
-        <sphereGeometry args={[BOCA_ALVO.raio, 16, 12]} />
+        <sphereGeometry args={[BOCA_ALVO.raio, 32, 24]} />
         <meshBasicMaterial color="#39ff88" wireframe transparent opacity={0.55} />
     </mesh>
 );
