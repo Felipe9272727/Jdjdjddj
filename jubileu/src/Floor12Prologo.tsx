@@ -18,7 +18,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { meioY } from './f12Boss';
+import { meioY, ARENA, ALTURA_DA_CABECA } from './f12Boss';
 import { tocarDing } from './floor12Sfx';
 
 /** Duração do prólogo, em segundos. A intro antiga entra quando ele acaba. */
@@ -28,6 +28,8 @@ export const PROLOGO = 7.0;
 export const prologo = { ativo: false, t: 0 };
 
 const ORIGEM = new THREE.Vector3(0, meioY() + 40, 34);
+/** A cabeça do chefe no referencial da cabine. */
+const CABECA_LOCAL = new THREE.Vector3(0, ALTURA_DA_CABECA, ARENA.zCabeca).sub(ORIGEM);
 const L = 1.35;      // meia-largura da cabine
 const FUNDO = 2.9;   // parede do fundo (z); a porta fica em z = 0
 const ALTO = 3.0;
@@ -212,8 +214,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             z -= cai * 1.3;
             // o olhar tomba para baixo, e ele gira sem controle
             const tomba = ease(cai / .7);
-            olhoY = y - 2 - tomba * 6;
-            olhoZ = z - 2.5 + tomba * 2.2;
+            // mira a CABEÇA lá embaixo: a queda é a revelação do chefe
+            olhoY = THREE.MathUtils.lerp(y - 2, CABECA_LOCAL.y, tomba);
+            olhoZ = THREE.MathUtils.lerp(z - 2.5, CABECA_LOCAL.z, tomba);
             roll = (retrato ? 2.4 : 1.2) * cai * cai * .8;
             x = Math.sin(cai * 5) * .3;
             fov += tomba * 10;
