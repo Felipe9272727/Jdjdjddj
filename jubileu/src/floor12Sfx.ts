@@ -223,18 +223,27 @@ function bumbo(t: number, d: AudioNode): void {
     g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g); g.connect(d); o.start(t); o.stop(t + 0.25);
 }
+// Um buffer de ruído só, reaproveitado: criar um por chimbal gerava lixo para o
+// coletor a cada semicolcheia, em plena luta.
+let ruidoBase: AudioBuffer | null = null;
 function chiado(t: number, dur: number, vol: number, corte: number, tipo: BiquadFilterType, d: AudioNode): void {
-    const c = ctx!, n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate);
-    const x = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const c = ctx!;
+    if (!ruidoBase || ruidoBase.sampleRate !== c.sampleRate) {
+        const n = Math.floor(c.sampleRate * 0.5);
+        ruidoBase = c.createBuffer(1, n, c.sampleRate);
+        const x = ruidoBase.getChannelData(0);
+        for (let i = 0; i < n; i++) x[i] = Math.random() * 2 - 1;
+    }
     const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
-    s.buffer = buf; f.type = tipo; f.frequency.value = corte; g.gain.value = vol;
+    s.buffer = ruidoBase; f.type = tipo; f.frequency.value = corte;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(g); g.connect(d); s.start(t); s.stop(t + dur + 0.02);
 }
 function agendar(): void {
     const m = musica, c = ctx;
     if (!m || !c) return;
-    while (m.proxima < c.currentTime + 0.15) {
+    // 0,3 s de folga: um quadro travado de até 300 ms no celular não engasga a música.
+    while (m.proxima < c.currentTime + 0.3) {
         const t = m.proxima;
         if (m.pausa > 0) { m.pausa--; m.proxima += SEMI; if (m.pausa === 0) { m.passo = 0; m.forte = m.pedidoForte; acordeDeOrgao(m.proxima, m.bus); } continue; }
         const p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
