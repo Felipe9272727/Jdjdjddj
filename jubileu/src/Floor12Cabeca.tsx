@@ -339,11 +339,11 @@ export const Floor12Cabeca: React.FC<{
             {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
             <group ref={engrenagens} visible={false} position={[2.0, -.35, 3.2]} rotation={[0, .55, 0]} scale={.8}>
                 {/* o buraco: um poço escuro com borda de chapa arrancada */}
-                <mesh material={M.interior} position={[0, -.1, .12]} scale={[1, .82, 1]}>
+                <mesh material={M.interior} position={[0, -.1, .26]} scale={[1, .82, 1]}>
                     <circleGeometry args={[.95, 14]} />
                 </mesh>
                 {[[-.3, .2, .45], [.35, -.15, .32], [-.15, -.4, .25]].map(([x, y, r], i) => (
-                    <mesh key={i} material={M.brasa} position={[x, y, .22]}>
+                    <mesh key={i} material={M.brasa} position={[x, y, .34]}>
                         <torusGeometry args={[r, r * .28, 5, 10]} />
                     </mesh>
                 ))}
