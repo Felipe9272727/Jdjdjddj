@@ -88,7 +88,7 @@ export function Floor12Ceu() {
     const alvo = pmrem.fromScene(ceu, .02);
     const antes = scene.environment, antesInt = scene.environmentIntensity;
     scene.environment = alvo.texture;
-    scene.environmentIntensity = .55;
+    scene.environmentIntensity = .85;   // o metal tem que pegar o poente de verdade
     pmrem.dispose(); cupula.dispose(); matCupula.dispose(); sol.geometry.dispose(); (sol.material as THREE.Material).dispose();
     return () => { scene.environment = antes; scene.environmentIntensity = antesInt; alvo.dispose(); };
   }, [gl, scene]);

@@ -1,4 +1,4 @@
-import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, N8AO, SMAA } from '@react-three/postprocessing';
 import { PerformanceMonitor } from '@react-three/drei';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
@@ -987,6 +987,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     const fase = f12.fase;
     const [aoLigado, setAoLigado] = useState(true);
+    // Resolução até 1,5× e SMAA: sem isso cada chanfro e borda de oclusão
+    // serrilhava na tela de celular. Cai para 1× se o aparelho sofrer.
+    const [qualidade, setQualidade] = useState(true);
     // ── A TRILHA SEGUE A FASE ────────────────────────────────────────────
     // Luta e virada têm música; a virada ruge e a marcha endurece dali em
     // diante; vitória e derrota calam a marcha para os próprios sons tocarem.
@@ -1181,7 +1184,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0d2029', touchAction: 'none', display: 'flex', flexDirection: 'column' }}>
         <Canvas
                 style={{ flex: '1 1 0', height: 0, minHeight: 0, width: '100%' }}
-                dpr={1}
+                dpr={qualidade ? [1, 1.5] : 1}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: true }}
                 onCreated={({ gl, scene, camera }) => {
@@ -1259,7 +1262,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     celular. */}
                 {/* Guarda de desempenho: abaixo de ~45 fps sustentados a oclusão
                     em tempo real se desliga (é o efeito mais caro da cena). */}
-                <PerformanceMonitor onDecline={() => setAoLigado(false)} />
+                <PerformanceMonitor onDecline={() => { setAoLigado(false); setQualidade(false); }} onIncline={() => { setAoLigado(true); setQualidade(true); }} />
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     {/* ── OCLUSÃO EM TEMPO REAL (N8AO) ──────────────────────
                         Raios traçados no buffer de profundidade a cada quadro:
@@ -1270,6 +1273,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     {/* Mais leve (era 2,4 e quase preto): forte demais, virava as
                         nuvens em pedra de barro. E some sozinho em celular fraco. */}
                     {aoLigado && <N8AO halfRes quality="performance" aoRadius={2.4} distanceFalloff={1.2} intensity={1.3} color="#3a2a36" />}
+                    <SMAA />
                     <Bloom
                         intensity={0.85}
                         luminanceThreshold={0.62}
