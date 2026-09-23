@@ -443,10 +443,10 @@ const CameraDaLuta: React.FC<{
         // para onde vai e ver de onde vem o ataque.
         alvo.current.set(
             THREE.MathUtils.lerp(0, n.x * 0.5, suave),
-            // Em paisagem o quadro é baixo e o quepe batia na barra de vida:
-            // mirar um pouco mais alto desce a cabeça inteira para dentro.
-            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2
-                + 1.1 * (1 - Math.min(1, alturaDoQuadro / 22)), suave),
+            // Em paisagem mirar mais alto (para o quepe não bater na barra)
+            // empurrava o AVIÃO para fora do quadro. Com a barra virada fio, a
+            // mira volta a ser a mesma da tela em pé e o avião aparece inteiro.
+            THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2, suave),
             THREE.MathUtils.lerp(-6, -11, suave),
         );
 
