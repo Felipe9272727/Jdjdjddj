@@ -52,7 +52,7 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
   // por andar, grade de janelas, caixa d'água, antena e luz de aviação.
   const architecture = useMemo(() => {
     const walls: Piece[] = [], brass: Piece[] = [], windows: Piece[] = [];
-    const stone: Piece[] = [], green: Piece[] = [], lights: Piece[] = [], signs: Piece[] = [];
+    const stone: Piece[] = [], green: Piece[] = [], lights: Piece[] = [], signs: Piece[] = [], sunlit: Piece[] = [];
     const bottom = -27;
     let seed = 7;
     const rnd = () => { const v = Math.sin(seed++ * 91.345) * 43758.5453; return v - Math.floor(v); };
@@ -63,7 +63,7 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
       // coroa escalonada com friso de latão
       for (let tier = 0; tier < 3; tier++) {
         const w = width * (1 - tier * .2), d = depth * (1 - tier * .2);
-        walls.push({ x, y: top + tier * 1.35, z, sx: w, sy: 1.4, sz: d });
+        sunlit.push({ x, y: top + tier * 1.35, z, sx: w, sy: 1.4, sz: d });   // a coroa pega o sol do poente
         brass.push({ x, y: top + tier * 1.35 + .7, z: z + .05, sx: w + .2, sy: .13, sz: d + .15 });
       }
       // pilastras de latão nas quinas da fachada
@@ -131,7 +131,7 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
       const x = -84 + k * 21 + (rnd() - .5) * 6, h = 30 + rnd() * 26;
       walls.push({ x, y: bottom + h / 2, z: bossZ - 140 - rnd() * 20, sx: 8 + rnd() * 5, sy: h, sz: 8 });
     }
-    return { walls, brass, windows, stone, green, lights, signs };
+    return { walls, brass, windows, stone, green, lights, signs, sunlit };
   }, [bossZ]);
   // 96 bancos (eram 64): as laterais viram paredes de nuvem, não fileiras.
   const clouds = useMemo(() => Array.from({ length: 96 }, (_, i) => {
@@ -173,6 +173,9 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
         iguais faziam das torres caixas de papelão; variadas, tem gente lá. */}
     <ArchitectureInstances pieces={architecture.windows} color="#8e7d55" tints={JANELAS} />
     <ArchitectureInstances pieces={architecture.stone} color="#46545b" />
+    {/* Coroas alaranjadas: de pé, as torres atrás da cabeça eram lajes cinza; o sol
+        batendo no topo é o que diz "poente" e separa prédio de névoa. */}
+    <ArchitectureInstances pieces={architecture.sunlit} color="#b8764c" />
     <ArchitectureInstances pieces={architecture.green} color="#3e5a3c" />
     <ArchitectureInstances pieces={architecture.lights} color="#ff5040" glow />
     <LetreirosNeon pieces={architecture.signs} />
