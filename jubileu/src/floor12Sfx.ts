@@ -167,7 +167,7 @@ const BPM = 132, SEMI = 60 / BPM / 4;
 // Progressão Dm – Bb – C – A, uma por compasso; graus em Hz da fundamental.
 const FUNDAMENTAIS = [73.42, 58.27, 65.41, 55.0];
 const ARPEJO = [0, 3, 7, 12, 7, 3, 0, 7];        // semitons: menor com oitava
-let musica: { id: number; passo: number; proxima: number; bus: GainNode; forte: boolean } | null = null;
+let musica: { id: number; passo: number; proxima: number; bus: GainNode; forte: boolean; pedidoForte: boolean; pausa: number } | null = null;
 
 function nota(tipo: OscillatorType, f: number, t: number, dur: number, vol: number, corte: number, d: AudioNode): void {
     const c = ctx!;
@@ -198,7 +198,9 @@ function agendar(): void {
     const m = musica, c = ctx;
     if (!m || !c) return;
     while (m.proxima < c.currentTime + 0.15) {
-        const t = m.proxima, p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
+        const t = m.proxima;
+        if (m.pausa > 0) { m.pausa--; m.proxima += SEMI; if (m.pausa === 0) { m.passo = 0; m.forte = m.pedidoForte; } continue; }
+        const p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
         // Depois da virada tudo sobe uma terça menor: a mesma marcha, mais aflita.
         const raiz = FUNDAMENTAIS[compasso] * (m.forte ? Math.pow(2, 3 / 12) : 1);
         // O TEMA DO CHEFE: a campainha do balcão (ré–lá–fá–ré) nos compassos
@@ -237,11 +239,20 @@ export function iniciarMusica(): void {
     bus.gain.setValueAtTime(0.0001, c.currentTime);
     bus.gain.exponentialRampToValueAtTime(0.36, c.currentTime + 1.2);   // abaixo dos tiros: o jogo fala primeiro
     bus.connect(d);
-    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, forte: false };
+    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, forte: false, pedidoForte: false, pausa: 0 };
     musica.id = window.setInterval(agendar, 40);
     agendar();
 }
-export function musicaDaVirada(forte: boolean): void { if (musica) musica.forte = forte; }
+/**
+ * A virada não troca a música no meio do compasso (soava como defeito): ela
+ * fica pedida e entra no próximo tempo forte do ciclo, depois de um compasso
+ * de silêncio para o rugido respirar.
+ */
+export function musicaDaVirada(forte: boolean): void {
+    if (!musica) return;
+    if (!forte) { musica.forte = musica.pedidoForte = false; return; }
+    if (!musica.forte && !musica.pedidoForte) { musica.pedidoForte = true; musica.pausa = 16; }
+}
 /** Abaixa a música ~6 dB por `dur` segundos, para um aviso ou um dano passar. */
 export function abaixarMusica(dur: number): void {
     const m = musica, c = ctx;
