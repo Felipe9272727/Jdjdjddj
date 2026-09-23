@@ -147,7 +147,9 @@ export function tocarDesdobrar(): void {
     for (let i = 0; i < 6; i++) bipe('square', 160 + i * 55, 90 + i * 30, 0.12, 0.05, i * 0.12);
     ruido(0.5, 0.14, 2200, 0.5);
 }
-export function tocarDing(): void { bipe('sine', 1320, 1320, 0.16, 0.09); bipe('sine', 990, 990, 0.36, 0.07, 0.1); }
+// O ding do elevador fica em OUTRA altura (mi–dó): 1320/990 é do aviso de ataque,
+// e tocar o aviso na chegada ensinava "perigo" onde não havia nenhum.
+export function tocarDing(): void { bipe('triangle', 1318.5, 1318.5, 0.2, 0.08); bipe('triangle', 1046.5, 1046.5, 0.5, 0.07, 0.12); }
 
 export function tocarVitoria(): void {
     [523, 659, 784, 1047].forEach((f, i) => bipe('square', f, f, 0.22, 0.07, i * 0.13));
@@ -163,7 +165,7 @@ export function tocarDerrota(): void {
 // em semicolcheias e o arpejo sobe uma oitava. O relógio é o do AudioContext,
 // agendado com folga (o padrão "lookahead"), então um quadro lento no celular
 // não atrasa nota nenhuma.
-const BPM = 132, SEMI = 60 / BPM / 4;
+const BPM = 144, SEMI = 60 / BPM / 4;
 // Progressão Dm – Bb – C – A, uma por compasso; graus em Hz da fundamental.
 const FUNDAMENTAIS = [73.42, 58.27, 65.41, 55.0];
 const ARPEJO = [0, 3, 7, 12, 7, 3, 0, 7];        // semitons: menor com oitava
@@ -214,7 +216,7 @@ function agendar(): void {
         // O ÓRGÃO DO SAGUÃO: acorde sustentado a cada compasso (fundamental,
         // terça, quinta), baixinho — é o "hotel grande" por trás da marcha.
         if (s === 0) for (const semi of [0, compasso === 3 ? 4 : 3, 7])
-            nota('sawtooth', raiz * 2 * Math.pow(2, semi / 12), t, SEMI * 15.5, 0.025, 900, m.bus);
+            nota('sawtooth', raiz * 2 * Math.pow(2, semi / 12), t, SEMI * 15.5, 0.06, 900, m.bus);
         // Na segunda forma entra um contracanto nos compassos 2 e 4.
         if (m.forte && compasso % 2 === 1 && s % 4 === 0) {
             const graus = [12, 10, 7, 5];
@@ -229,7 +231,7 @@ function agendar(): void {
         }
         if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.1 : 0.05, 7000, 'highpass', m.bus);
         // Depois da virada a marcha acelera (132 → 142 bpm): a música diz "piorou".
-        m.passo++; m.proxima += m.forte ? SEMI * 132 / 142 : SEMI;
+        m.passo++; m.proxima += m.forte ? SEMI * 144 / 154 : SEMI;
     }
 }
 export function iniciarMusica(): void {
@@ -242,6 +244,14 @@ export function iniciarMusica(): void {
     // dos avisos não brigam pelo mesmo parâmetro.
     const duck = c.createGain(); duck.gain.value = 1;
     bus.connect(duck); duck.connect(d);
+    // O SAGUÃO: um reverb curto (resposta de ruído decaindo, gerada aqui)
+    // em paralelo, baixo. Tira a marcha da caixinha e põe num salão.
+    const sala = c.createConvolver(), n = Math.floor(c.sampleRate * 1.6);
+    const ir = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
+    sala.buffer = ir;
+    const molhado = c.createGain(); molhado.gain.value = .22;
+    bus.connect(sala); sala.connect(molhado); molhado.connect(duck);
     musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, duck, duckAte: 0, forte: false, pedidoForte: false, pausa: 0 };
     musica.id = window.setInterval(agendar, 40);
     agendar();

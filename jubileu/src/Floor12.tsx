@@ -984,7 +984,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const rugiu = useRef(false);
     useEffect(() => {
         if (fase === 'luta' || fase === 'virada') iniciarMusica();
-        else if (fase === 'vitoria' || fase === 'abatido' || fase === 'derrota' || fase === 'queda' || fase === 'despedida') pararMusica();
+        // Na queda e no abate a música CORTA (0,15 s): o golpe final soa sozinho.
+        else if (fase === 'queda' || fase === 'abatido') pararMusica(0.15);
+        else if (fase === 'vitoria' || fase === 'derrota' || fase === 'despedida') pararMusica();
         if (fase === 'virada' && !rugiu.current) { rugiu.current = true; tocarRugido(); }
         if (fase === 'derrota') rugiu.current = false;
         musicaDaVirada(f12.passouDaVirada);
