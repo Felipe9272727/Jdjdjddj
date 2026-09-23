@@ -1413,7 +1413,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {fase === 'abatido' && <LegendaDaDerrota clock={cinemaClock} />}
             {fase === 'abatido' && <FechamentoDaDerrota clock={cinemaClock} />}
             {(fase === 'intro' || fase === 'virando') && (
-                <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(15px, 2.8vh, 19px)', pointerEvents: 'none' }}>
+                <div data-testid="f12-intro-caption" style={{ ...t64, position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, padding: '26px 12px calc(env(safe-area-inset-bottom) + 12px)', background: 'linear-gradient(0deg, rgba(8,16,22,.72), rgba(8,16,22,0))', textAlign: 'center', fontSize: 'clamp(15px, 2.8vh, 19px)', pointerEvents: 'none' }}>
                     {legendaIntro}
                     <div style={{ fontSize: '0.75em', opacity: .85, marginTop: 4 }}>toque para pular</div>
                 </div>

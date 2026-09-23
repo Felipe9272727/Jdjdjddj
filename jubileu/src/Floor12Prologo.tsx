@@ -57,6 +57,32 @@ function texturaDoPiso(): THREE.CanvasTexture {
     return t;
 }
 
+/**
+ * A face do mostrador: 9 a 13 em volta da meia-lua, com o 12 em vermelho.
+ * O ponteiro gira de +0,55 (o 11) a -0,62 (o 12); os números seguem a mesma
+ * escala, então o que o jogador lê é o que o ponteiro marca.
+ */
+function texturaDoMostrador(): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#f3e7c8'; g.fillRect(0, 0, 256, 256);
+    const passo = -1.17;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let n = 10; n <= 13; n++) {
+        const rot = .55 + (n - 11) * passo * .72;
+        if (Math.abs(rot) > 1.45) continue;
+        const x = 128 - Math.sin(rot) * 88, y = 128 - Math.cos(rot) * 88;
+        g.fillStyle = n === 12 ? '#9c1d1d' : '#2a1a12';
+        g.font = `bold ${n === 12 ? 46 : 38}px Georgia, serif`;
+        g.fillText(String(n), x, y);
+        g.strokeStyle = '#2a1a12'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(128 - Math.sin(rot) * 118, 128 - Math.cos(rot) * 118);
+        g.lineTo(128 - Math.sin(rot) * 108, 128 - Math.cos(rot) * 108); g.stroke();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
 /** O leque art déco da luminária e das portas: raios de latão numa geometria só. */
 function leque(raio: number, n: number, abertura = Math.PI): THREE.BufferGeometry {
     const pos: number[] = [], nor: number[] = [];
@@ -95,6 +121,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         teto: new THREE.MeshStandardMaterial({ color: '#efe4cc', roughness: .7 }),
         luz: new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff0cf').multiplyScalar(1.6), toneMapped: false }),
         mostrador: new THREE.MeshStandardMaterial({ color: '#f3e7c8', roughness: .5, emissive: '#f3d38a', emissiveIntensity: .35 }),
+        numeros: new THREE.MeshStandardMaterial({ map: texturaDoMostrador(), roughness: .5, emissive: '#f3d38a', emissiveIntensity: .3, emissiveMap: texturaDoMostrador() }),
+        luzFraca: new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffe4b8').multiplyScalar(.95) }),
         escuro: new THREE.MeshStandardMaterial({ color: '#1b1210', roughness: .6 }),
         veludo: new THREE.MeshStandardMaterial({ color: '#6d1624', roughness: .95 }),
     }), []);
@@ -114,7 +142,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
 
         // ── O MOSTRADOR: o ponteiro sobe de 11 para 12 enquanto ele espera ──
         const sobe = ease((t - 1.6) / 1.9);
-        if (ponteiro.current) ponteiro.current.rotation.z = THREE.MathUtils.lerp(.55, -.62, sobe) + Math.sin(t * 30) * .006 * (1 - sobe);
+        if (ponteiro.current) ponteiro.current.rotation.z = THREE.MathUtils.lerp(.55, .55 - 1.17 * .72, sobe) + Math.sin(t * 30) * .006 * (1 - sobe);
         if (botao12.current) botao12.current.emissiveIntensity = t < 3.6 ? 1.6 : Math.max(.2, 1.6 - (t - 3.6) * 2);
 
         // ── A PORTA ─────────────────────────────────────────────────────
@@ -137,7 +165,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // o olhar: para a frente andando; SOBE para o mostrador na espera;
         // volta para a porta quando ela faz "ding"
         const olhaMostrador = ease((t - 2.0) / .6) * (1 - ease((t - 3.7) / .5));
-        let olhoY = THREE.MathUtils.lerp(OLHO - .1, 2.72, olhaMostrador);
+        let olhoY = THREE.MathUtils.lerp(OLHO - .1, 2.62, olhaMostrador);
+        fov -= olhaMostrador * (retrato ? 22 : 12);
         let olhoZ = -3;
         let roll = Math.sin(t * 3.1) * .01 * passo;
         // o passo para fora, e a queda
@@ -183,7 +212,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
     ));
     return (
         <group ref={raiz} position={ORIGEM.toArray()} name="prologo-elevador">
-            <pointLight position={[0, 2.7, 1.9]} color="#ffe2b0" intensity={4} distance={7} decay={1.6} />
+            <pointLight position={[0, 2.7, 1.9]} color="#ffe2b0" intensity={2.4} distance={7} decay={1.6} />
             <pointLight ref={luzDaPorta} position={[0, 1.6, -.6]} color="#ffb98a" intensity={0} distance={6} />
             <ambientLight intensity={.18} />
 
@@ -207,7 +236,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
                     {/* arandelas em leque entre os painéis */}
                     {[1.0, 1.9].map((pz) => (
                         <group key={pz} position={[lado * (L - .04), 2.2, pz]} rotation={[0, -lado * Math.PI / 2, 0]}>
-                            <mesh material={M.luz}><circleGeometry args={[.09, 24, 0, Math.PI]} /></mesh>
+                            <mesh material={M.luzFraca}><circleGeometry args={[.09, 24, 0, Math.PI]} /></mesh>
                             <mesh material={M.latao}><torusGeometry args={[.1, .012, 6, 24, Math.PI]} /></mesh>
                         </group>
                     ))}
@@ -242,14 +271,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             ))}
             {/* o mostrador em meia-lua */}
             <group position={[0, 2.5, .08]}>
-                <mesh material={M.mostrador}><circleGeometry args={[.26, 40, 0, Math.PI]} /></mesh>
+                <mesh material={M.numeros}><circleGeometry args={[.26, 40, 0, Math.PI]} /></mesh>
                 <mesh material={M.latao}><torusGeometry args={[.26, .018, 8, 40, Math.PI]} /></mesh>
-                {Array.from({ length: 7 }, (_, i) => (
-                    <mesh key={i} material={M.escuro} rotation={[0, 0, Math.PI * (.12 + i * .76 / 6)]} position={[0, 0, .005]}>
-                        <boxGeometry args={[.44, .008, .004]} />
-                    </mesh>
-                ))}
-                <mesh material={M.mostrador} position={[0, 0, .006]}><circleGeometry args={[.18, 32, 0, Math.PI]} /></mesh>
                 <group ref={ponteiro} position={[0, 0, .012]}>
                     <mesh material={M.escuro} position={[0, .11, 0]}><boxGeometry args={[.012, .22, .004]} /></mesh>
                 </group>
