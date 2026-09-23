@@ -1071,6 +1071,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     // no plano do avião dividida pela largura da tela. Sem isso o arrasto teria
     // um "ganho" arbitrário que mudaria de celular para celular.
     const arrasto = useRef<{ id: number; x: number; y: number } | null>(null);
+    // O anel do dedo: mostra onde o toque está ancorado (o arrasto é relativo).
+    const anelDoDedo = useRef<HTMLDivElement>(null);
+    const moverAnel = (x: number, y: number, ligado: boolean) => {
+        const el = anelDoDedo.current; if (!el) return;
+        el.style.opacity = ligado ? '1' : '0';
+        el.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+    };
 
     const pixelParaMundo = useCallback(() => {
         // O fov é o da CÂMERA DE VERDADE (fecha em paisagem): com o de retrato
@@ -1092,6 +1099,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             e.preventDefault();
             touchAtivo.current = true;
             arrasto.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+            moverAnel(e.clientX, e.clientY, true);
             (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         },
         onPointerMove: (e: React.PointerEvent) => {
@@ -1108,18 +1116,19 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             // Y da tela cresce para baixo; o do mundo, para cima.
             arrastarNave(nave.current, dx * k, -dy * k);
             a.x = e.clientX; a.y = e.clientY;
+            moverAnel(e.clientX, e.clientY, true);
         },
         onPointerUp: (e: React.PointerEvent) => {
             if (arrasto.current?.id !== e.pointerId) return;
-            touchAtivo.current = false; arrasto.current = null;
+            touchAtivo.current = false; arrasto.current = null; moverAnel(0, 0, false);
         },
         onPointerCancel: (e: React.PointerEvent) => {
             if (arrasto.current?.id !== e.pointerId) return;
-            touchAtivo.current = false; arrasto.current = null;
+            touchAtivo.current = false; arrasto.current = null; moverAnel(0, 0, false);
         },
         onLostPointerCapture: (e: React.PointerEvent) => {
             if (arrasto.current?.id !== e.pointerId) return;
-            touchAtivo.current = false; arrasto.current = null;
+            touchAtivo.current = false; arrasto.current = null; moverAnel(0, 0, false);
         },
     };
 
@@ -1318,6 +1327,11 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             )}
             {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
                 alguém tem de dizer que a tela é o joystick. */}
+            {mostrarControles && <div ref={anelDoDedo} style={{
+                position: 'absolute', left: 0, top: 0, width: 44, height: 44, borderRadius: '50%',
+                border: '2px solid rgba(255,255,255,.45)', pointerEvents: 'none', zIndex: 2,
+                opacity: 0, transition: 'opacity .15s',
+            }} />}
             {mostrarDica && <DicaDeControle />}
             {mostrarControles && <Floor12ChargeMeter arma={arma} />}
 

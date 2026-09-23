@@ -353,8 +353,9 @@ export function abaixarMusica(dur: number): void {
     const g = m.duck.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0.5, t + 0.15);             // -6 dB, ataque 150 ms
-    g.setValueAtTime(0.5, ate);
+    // -3 dB: com cinco ataques em ciclo, -6 dB deixava a marcha sempre caindo.
+    g.linearRampToValueAtTime(0.7, t + 0.15);
+    g.setValueAtTime(0.7, ate);
     g.setTargetAtTime(1, ate, 0.13);                       // volta exponencial ~400 ms
 }
 export function pararMusica(fade = 0.8): void {
