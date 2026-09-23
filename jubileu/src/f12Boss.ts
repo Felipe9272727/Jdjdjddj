@@ -184,7 +184,7 @@ export function bocaNoInstante(t: number): BocaAgora {
 /** A cabeça só pode ser ferida com a boca aberta — é o ponto fraco. */
 export const vulneravel = (b: BocaAgora): boolean => b.estado === 'aberta';
 
-// ── OS CINCO ATAQUES ─────────────────────────────────────────────────────────
+// ── OS ATAQUES ─────────────────────────────────────────────────────────
 //
 // Cada um é uma referência à lore de um andar, porque é o hotel inteiro que
 // está cuspindo pela boca dela.
@@ -531,7 +531,7 @@ export function nascerLustre(alvoX: number, alvoY: number): Projetil[] {
  * célula de uma grade 3x3 da arena. A célula onde o jogador está é SEMPRE
  * atingida; a vazia é a mais longe dele. Parado, apanha — tem de atravessar.
  */
-export const CHUVA = Object.freeze({ raio: .62, voo: 2.2 });
+export const CHUVA = Object.freeze({ raio: .8, voo: 2.0 });
 export function nascerChuva(alvoX: number, alvoY: number): Projetil[] {
     const cx = (i: number) => (i - 1) * ARENA.x * .66;
     const cy = (j: number) => ARENA.yBaixo + (ARENA.yAlto - ARENA.yBaixo) * (j + .5) / 3;
@@ -564,13 +564,15 @@ export function nascerChuva(alvoX: number, alvoY: number): Projetil[] {
 export function nascerPinca(): Projetil[] {
     const fora: Projetil[] = [];
     const z0 = ARENA.zCabeca + 1.2, voo = 2.1, vz = (ARENA.zNave - z0) / voo;
-    for (const lado of [-1, 1]) for (let j = 0; j < 5; j++) {
+    // Quatro fileiras (vão de 2,2 > os 1,76 que a nave pede) e as paredes
+    // PARAM a 1,5 do centro: o corredor do meio é seguro de verdade.
+    for (const lado of [-1, 1]) for (let j = 0; j < 4; j++) {
         const x0 = lado * (ARENA.x + .4);
         fora.push({
             id: novoId(), tipo: 'leque',
-            x: x0, y: ARENA.yBaixo + .4 + j * 1.6, z: z0,
-            vx: -lado * (ARENA.x + .4 - .95) / voo, vy: 0, vz,
-            r: .46, t: 0, p: lado,
+            x: x0, y: ARENA.yBaixo + .5 + j * 2.2, z: z0,
+            vx: -lado * (ARENA.x + .4 - 1.5) / voo, vy: 0, vz,
+            r: .46, t: 0, p: lado * 2,
         });
     }
     return fora;
@@ -843,7 +845,8 @@ export function passoDoProjetil(
         const antes = p.x;
         p.x = p.base + Math.sin(p.t * NAVES.ondaHz * Math.PI * 2 + (p.p ?? 0)) * NAVES.ondaAmp;
         p.vx = d > 0 ? (p.x - antes) / d : 0;
-    } else {
+    } else if (!(p.p !== undefined && Math.abs(p.p) === 2 && Math.abs(p.x) <= 1.5)) {
+        // (p = ±2 marca a parede da porta giratória: ela para a 1,5 do centro)
         p.x += p.vx * d;
     }
 }

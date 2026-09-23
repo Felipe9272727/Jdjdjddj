@@ -743,6 +743,8 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
 };
 
 /** A boca cospe o padrão pedido. */
+const SEM_ESCOLTA = new Set<NomeDoAtaque>(['teleguiado', 'chuva', 'pinca', 'mare']);
+
 function cuspir(
     qual: NomeDoAtaque, alvo: Nave,
     faixa: React.MutableRefObject<number>, faseMare: React.MutableRefObject<number>,
@@ -750,7 +752,8 @@ function cuspir(
     // ── DEPOIS DA VIRADA, ELA ATACA EM DUPLA ─────────────────────────────
     // Todo ataque vem acompanhado de um fio vermelho: é o que faz a segunda
     // metade ser difícil de verdade, e não só a primeira com outra cor.
-    if (f12.passouDaVirada && qual !== 'teleguiado') f12.projeteis.push(nascerTeleguiado());
+    if (f12.passouDaVirada && !SEM_ESCOLTA.has(qual)) f12.projeteis.push(nascerTeleguiado());
+    // (os de posição exata — goteira, porta, maré — vêm sozinhos: com míssil junto viravam cara ou coroa)
     switch (qual) {
         case 'leque':
             f12.projeteis.push(...nascerLeque(alvo.x * 0.4, alvo.y));

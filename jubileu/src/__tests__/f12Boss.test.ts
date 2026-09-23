@@ -870,3 +870,18 @@ describe('o primeiro ataque DEPOIS da virada é um dos anunciados', () => {
         expect(logo).toContain('elevadores');
     });
 });
+
+describe('f12 — a porta giratória deixa o meio livre', () => {
+    it('uma nave parada em x=0 atravessa as duas paredes sem encostar', async () => {
+        const { nascerPinca, passoDoProjetil, encostou, NAVE, meioY } = await import('../f12Boss');
+        for (const y of [1.5, meioY(), 6.5]) {
+            const ps = nascerPinca();
+            for (let t = 0; t < 3.2; t += 1 / 60) {
+                for (const p of ps) {
+                    passoDoProjetil(p, 0, y, 1 / 60);
+                    expect(encostou(p, 0, y, NAVE.raio), `y=${y} t=${t.toFixed(2)}`).toBe(false);
+                }
+            }
+        }
+    });
+});

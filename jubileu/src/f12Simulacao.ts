@@ -192,7 +192,7 @@ export function simular(politica: Partial<Politica> = {}): Resultado {
         if (b.estado === 'aberta' && cuspiu !== ciclo) {
             cuspiu = ciclo; aberturas++;
             const qual = ataqueDaVez(ciclo, viradaEm);
-            if (viradaEm >= 0 && qual !== 'teleguiado') projeteis.push(nascerTeleguiado());
+            if (viradaEm >= 0 && !['teleguiado', 'chuva', 'pinca', 'mare'].includes(qual)) projeteis.push(nascerTeleguiado());
             if (qual === 'leque') projeteis.push(...nascerLeque(n.x * 0.4, n.y));
             else if (qual === 'teleguiado') projeteis.push(nascerTeleguiado());
             else if (qual === 'naves') projeteis.push(...nascerNaves());
