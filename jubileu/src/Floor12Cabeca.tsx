@@ -291,7 +291,7 @@ export const Floor12Cabeca: React.FC<{
         if (engrenagens.current) {
             engrenagens.current.visible = f12.passouDaVirada && !gone;
             engrenagens.current.children.forEach((g, i) => {
-                if (i > 0) g.rotation.z += dt * (i % 2 ? 1.6 : -2.3);
+                if (i > 1) g.rotation.z += dt * (i % 2 ? 1.6 : -2.3);
             });
         }
 
@@ -338,14 +338,32 @@ export const Floor12Cabeca: React.FC<{
             <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
             {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
             <group ref={engrenagens} visible={false} position={[2.0, -.35, 3.2]} rotation={[0, .55, 0]} scale={.8}>
-                {/* o buraco: um poço escuro com borda de chapa arrancada */}
-                <mesh material={M.interior} position={[0, -.1, .26]} scale={[1, .82, 1]}>
-                    <circleGeometry args={[.95, 14]} />
+                {/* O POÇO: fundo escuro de verdade (o mesmo material do fundo
+                    dos olhos, que já prova que lê contra a porcelana). */}
+                <mesh material={M.recessoOlho} position={[0, -.1, .2]} scale={[1, .82, .3]}>
+                    <sphereGeometry args={[.95, 14, 8]} />
                 </mesh>
-                {[[-.3, .2, .45], [.35, -.15, .32], [-.15, -.4, .25]].map(([x, y, r], i) => (
-                    <mesh key={i} material={M.brasa} position={[x, y, .34]}>
-                        <torusGeometry args={[r, r * .28, 5, 10]} />
-                    </mesh>
+                {/* A BORDA ARRANCADA: um anel de poucos lados, torto, na cor da
+                    casca — chapa rasgada, não círculo desenhado. */}
+                <mesh material={M.peleEsc} position={[0, -.1, .34]} rotation={[0, 0, .4]} scale={[1.05, .86, 1]}>
+                    <torusGeometry args={[.95, .13, 4, 7]} />
+                </mesh>
+                {/* ENGRENAGENS DE DENTE: disco + dentes. Cada filho > 0 gira. */}
+                {[[-.3, .15, .42], [.36, -.18, .32], [-.1, -.45, .24]].map(([x, y, r], i) => (
+                    <group key={i} position={[x, y, .4 + i * .03]}>
+                        <mesh material={M.brasa} rotation={[Math.PI / 2, 0, 0]}>
+                            <cylinderGeometry args={[r, r, .08, 12]} />
+                        </mesh>
+                        {Array.from({ length: 8 }, (_, k) => {
+                            const a = k * Math.PI / 4;
+                            return <mesh key={k} material={M.rebite} position={[Math.cos(a) * r, Math.sin(a) * r, 0]} rotation={[0, 0, a]}>
+                                <boxGeometry args={[r * .45, r * .3, .1]} />
+                            </mesh>;
+                        })}
+                        <mesh material={M.recessoOlho} position={[0, 0, .05]}>
+                            <circleGeometry args={[r * .35, 8]} />
+                        </mesh>
+                    </group>
                 ))}
             </group>
             {/* têmporas achatadas, para não ser uma bola perfeita */}
