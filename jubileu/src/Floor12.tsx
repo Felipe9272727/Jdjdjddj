@@ -51,7 +51,7 @@ import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
-    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido,
+    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido, tocarMorteDoChefe,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -777,7 +777,7 @@ function acabar(F: Ferramentas, como: 'vitoria' | 'derrota'): void {
     f12.linhaDoDialogo = 0;
     f12.projeteis = [];
     if (como === 'derrota') { pararMotor(); tocarDerrota(); }
-    else tocarBocaAbrindo();
+    else tocarMorteDoChefe();
     F.avisar();
 }
 
@@ -1139,7 +1139,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         return () => { window.removeEventListener('blur', limparTeclas); window.removeEventListener('keydown', baixo); window.removeEventListener('keyup', cima); };
     }, []);
 
-    const mostrarControles = fase === 'luta';
+    // A dica é aula de primeira vez: uma por sessão, não a cada fase de luta.
+    const mostrarControles = fase === 'luta' && !dicaJaDada.valor;
     const vidaFrac = Math.max(0, f12.vida / VIDA_MAXIMA);
     const baixa = typeof window !== 'undefined' && window.innerHeight < 520;
 
@@ -1362,6 +1363,7 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
  * sozinha depois de seis segundos: um aviso que fica para sempre vira sujeira
  * em cima de um jogo que já tem muita coisa acontecendo.
  */
+const dicaJaDada = { valor: false };
 const DicaDeControle: React.FC = () => {
     const [visivel, setVisivel] = useState(true);
     // Uma tela BAIXA é uma tela deitada. Medir a altura em vez de perguntar a
@@ -1383,7 +1385,7 @@ const DicaDeControle: React.FC = () => {
         window.addEventListener('pointerdown', aprendeu, { once: true });
         return () => { window.clearTimeout(id); window.removeEventListener('pointerdown', aprendeu); };
     }, []);
-    if (!visivel) return null;
+    if (!visivel) { dicaJaDada.valor = true; return null; }
     // ── EM PAISAGEM ELA VAI PARA O TOPO ──────────────────────────────────
     //
     // Rente ao fundo ela funciona em retrato, onde sobra céu embaixo do avião.

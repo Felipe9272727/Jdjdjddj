@@ -167,7 +167,7 @@ const BPM = 132, SEMI = 60 / BPM / 4;
 // Progressão Dm – Bb – C – A, uma por compasso; graus em Hz da fundamental.
 const FUNDAMENTAIS = [73.42, 58.27, 65.41, 55.0];
 const ARPEJO = [0, 3, 7, 12, 7, 3, 0, 7];        // semitons: menor com oitava
-let musica: { id: number; passo: number; proxima: number; bus: GainNode; forte: boolean; pedidoForte: boolean; pausa: number } | null = null;
+let musica: { id: number; passo: number; proxima: number; bus: GainNode; duck: GainNode; duckAte: number; forte: boolean; pedidoForte: boolean; pausa: number } | null = null;
 
 function nota(tipo: OscillatorType, f: number, t: number, dur: number, vol: number, corte: number, d: AudioNode): void {
     const c = ctx!;
@@ -199,7 +199,7 @@ function agendar(): void {
     if (!m || !c) return;
     while (m.proxima < c.currentTime + 0.15) {
         const t = m.proxima;
-        if (m.pausa > 0) { m.pausa--; m.proxima += SEMI; if (m.pausa === 0) { m.passo = 0; m.forte = m.pedidoForte; } continue; }
+        if (m.pausa > 0) { m.pausa--; m.proxima += SEMI; if (m.pausa === 0) { m.passo = 0; m.forte = m.pedidoForte; acordeDeOrgao(m.proxima, m.bus); } continue; }
         const p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
         // Depois da virada tudo sobe uma terça menor: a mesma marcha, mais aflita.
         const raiz = FUNDAMENTAIS[compasso] * (m.forte ? Math.pow(2, 3 / 12) : 1);
@@ -238,8 +238,11 @@ export function iniciarMusica(): void {
     const bus = c.createGain();
     bus.gain.setValueAtTime(0.0001, c.currentTime);
     bus.gain.exponentialRampToValueAtTime(0.36, c.currentTime + 1.2);   // abaixo dos tiros: o jogo fala primeiro
-    bus.connect(d);
-    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, forte: false, pedidoForte: false, pausa: 0 };
+    // O abaixar vive num nó próprio: o volume da música e o "sai da frente"
+    // dos avisos não brigam pelo mesmo parâmetro.
+    const duck = c.createGain(); duck.gain.value = 1;
+    bus.connect(duck); duck.connect(d);
+    musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, duck, duckAte: 0, forte: false, pedidoForte: false, pausa: 0 };
     musica.id = window.setInterval(agendar, 40);
     agendar();
 }
@@ -257,11 +260,15 @@ export function musicaDaVirada(forte: boolean): void {
 export function abaixarMusica(dur: number): void {
     const m = musica, c = ctx;
     if (!m || !c) return;
-    const g = m.bus.gain, t = c.currentTime;
+    // Pedidos sobrepostos ESTENDEM o abaixar em vez de cortar o anterior.
+    const t = c.currentTime, ate = Math.max(m.duckAte, t + dur);
+    m.duckAte = ate;
+    const g = m.duck.gain;
     g.cancelScheduledValues(t);
-    g.setValueAtTime(Math.max(0.0001, g.value), t);
-    g.linearRampToValueAtTime(0.09, t + 0.05);   // ~12 dB
-    g.linearRampToValueAtTime(0.36, t + dur);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0.25, t + 0.15);            // ~12 dB, ataque 150 ms
+    g.setValueAtTime(0.25, ate);
+    g.setTargetAtTime(1, ate, 0.13);                       // volta exponencial ~400 ms
 }
 export function pararMusica(fade = 0.8): void {
     const m = musica, c = ctx;
@@ -272,10 +279,27 @@ export function pararMusica(fade = 0.8): void {
     m.bus.gain.cancelScheduledValues(c.currentTime);
     m.bus.gain.setValueAtTime(m.bus.gain.value, c.currentTime);
     m.bus.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + fade);
-    window.setTimeout(() => m.bus.disconnect(), fade * 1000 + 100);
+    window.setTimeout(() => { m.bus.disconnect(); m.duck.disconnect(); }, fade * 1000 + 100);
 }
 /** O rugido da virada: ruído grave subindo e um serrote descendo, juntos. */
 export function tocarRugido(): void {
     ruido(1.4, 0.35, 500); ruido(0.9, 0.2, 2400, 0.2);
     bipe('sawtooth', 110, 38, 1.3, 0.16); bipe('sawtooth', 164, 55, 1.1, 0.1, 0.12);
+}
+
+/** O acorde que abre a segunda forma: órgão de saguão, grave e cheio. */
+function acordeDeOrgao(t: number, d: AudioNode): void {
+    const raiz = FUNDAMENTAIS[0] * Math.pow(2, 3 / 12);
+    for (const [semi, v] of [[-12, .12], [0, .1], [3, .08], [7, .08], [12, .05]] as const)
+        nota('sawtooth', raiz * 2 * Math.pow(2, semi / 12), t, 2.4, v, 1400, d);
+}
+/**
+ * A cabeça morrendo. Era o mesmo estouro de uma camareira abatida — o chefe
+ * merece peso: um mergulho sub-grave, ruído longo que abre e fecha e, por
+ * cima, a campainha do balcão desafinando até parar. O hotel fechou.
+ */
+export function tocarMorteDoChefe(): void {
+    ruido(2.4, 0.35, 700); ruido(1.2, 0.2, 3500, 0.25);
+    bipe('sine', 90, 24, 2.2, 0.3); bipe('sawtooth', 120, 30, 1.8, 0.1, 0.1);
+    bipe('sine', 1320, 700, 1.6, 0.08, 0.5); bipe('sine', 990, 480, 1.9, 0.06, 0.8);
 }
