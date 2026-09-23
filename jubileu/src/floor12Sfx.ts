@@ -122,7 +122,13 @@ export function pararMotor(): void {
 // ── OS EVENTOS ───────────────────────────────────────────────────────────────
 // Tiro: altura sorteada ±6% a cada disparo e uma cauda grave curta — o mesmo
 // bipe idêntico trinta vezes por segundo cansava o ouvido em um minuto.
+// No máximo ~12 sons de tiro por segundo: a rajada dispara ~30 balas/s, e três
+// fontes por bala eram vozes demais para um Android médio (estalava).
+let ultimoTiro = -1;
 export function tocarTiro(): void {
+    const agora = ctx?.currentTime ?? 0;
+    if (agora - ultimoTiro < 0.08) return;
+    ultimoTiro = agora;
     // Estalo de ruído + baque grave, e só um fio do bipe quadrado por cima: o
     // quadrado puro, trinta vezes por segundo, virava agulha no alto-falante
     // e tapava os avisos.
@@ -238,7 +244,9 @@ function nota(tipo: OscillatorType, f: number, t: number, dur: number, vol: numb
 }
 function bumbo(t: number, d: AudioNode): void {
     const c = ctx!, o = c.createOscillator(), g = c.createGain();
-    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+    // 120→70 Hz e um estalo por cima: a 140→40 Hz o bumbo sumia no alto-falante do celular.
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.16);
+    chiado(t, 0.012, 0.18, 2500, 'bandpass', d);
     g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g); g.connect(d); o.start(t); o.stop(t + 0.25);
 }
