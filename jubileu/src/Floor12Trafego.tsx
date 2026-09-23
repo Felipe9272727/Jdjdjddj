@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { f12 } from './f12Boss';
 
 /** Uma faixa: altura, profundidade, sentido, velocidade e quantos carros. */
 type Faixa = { y: number; z: number; sentido: 1 | -1; vel: number; n: number };
@@ -88,12 +89,25 @@ export function Floor12Trafego({ bossZ }: { bossZ: number }) {
     }, [carros]);
 
     const tmp = useMemo(() => new THREE.Object3D(), []);
-    useFrame(({ clock }) => {
+    // ── A CIDADE REAGE À LUTA ────────────────────────────────────────────
+    // Trânsito que só dá voltas é papel de parede. Depois da virada a cidade
+    // entra em pânico: os carros FREIAM (a distância é acumulada, então a
+    // freada é suave, sem salto) e o farol vira pisca-alerta âmbar.
+    const andado = useRef(0);
+    const ritmo = useRef(1);
+    const farolNormal = useMemo(() => mats.farol.color.clone(), [mats]);
+    const alerta = useMemo(() => new THREE.Color('#ffb020').multiplyScalar(2.6), []);
+    useFrame(({ clock }, dt) => {
         const t = clock.elapsedTime;
+        const panico = f12.passouDaVirada && f12.fase !== 'vitoria' && f12.fase !== 'despedida';
+        ritmo.current += ((panico ? .35 : 1) - ritmo.current) * Math.min(1, dt * 1.5);
+        andado.current += Math.min(dt, .1) * ritmo.current;
+        if (panico) mats.farol.color.copy(Math.sin(t * 9) > 0 ? alerta : farolNormal);
+        else mats.farol.color.copy(farolNormal);
         carros.forEach((carro, i) => {
             const f = carro.faixa;
             // posição ao longo da faixa, dando a volta no fim do vão
-            const s = ((carro.fase + t * f.vel) % (2 * MEIO_VAO) + 2 * MEIO_VAO) % (2 * MEIO_VAO);
+            const s = ((carro.fase + andado.current * f.vel) % (2 * MEIO_VAO) + 2 * MEIO_VAO) % (2 * MEIO_VAO);
             const x = f.sentido * (s - MEIO_VAO);
             tmp.position.set(x, f.y + Math.sin(t * 1.3 + carro.bob) * .18, f.z + (i % 2) * 1.8);
             // de frente para onde anda, com um tico de inclinação lateral
