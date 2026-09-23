@@ -17,6 +17,15 @@ let dest: AudioNode | null = null;
 export function configureFloor12Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
     ctx = context;
     dest = destination ?? null;
+    // Um compressor na saída do andar: ruídos empilhados (dano + explosão +
+    // música) estouravam o alto-falante do celular. Ele segura o pico.
+    if (ctx) {
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 6;
+        comp.attack.value = 0.004; comp.release.value = 0.18;
+        comp.connect(dest ?? ctx.destination);
+        dest = comp;
+    }
 }
 export function clearFloor12Sfx(): void { pararMotor(); pararMusica(0.2); ctx = null; dest = null; }
 
@@ -317,4 +326,14 @@ export function tocarMorteDoChefe(): void {
     ruido(2.4, 0.35, 700); ruido(1.2, 0.2, 3500, 0.25);
     bipe('sine', 90, 24, 2.2, 0.3); bipe('sawtooth', 120, 30, 1.8, 0.1, 0.1);
     bipe('sine', 1320, 700, 1.6, 0.08, 0.5); bipe('sine', 990, 480, 1.9, 0.06, 0.8);
+}
+
+/** O tiro carregado acertando: campainha grave + baque — a recompensa soa diferente. */
+export function tocarAcertoCarregado(): void {
+    bipe('sine', 660, 660, 0.6, 0.14); bipe('triangle', 1320, 1250, 0.4, 0.07);
+    bipe('sine', 110, 40, 0.5, 0.22); ruido(0.25, 0.18, 2500);
+}
+/** O irmão tomando um tiro: clanc curto e um bipe de robô, mais baixo, sem abaixar a música. */
+export function tocarDanoIrmao(): void {
+    ruido(0.06, 0.08, 4000); bipe('square', 480, 380, 0.12, 0.035, 0.05);
 }

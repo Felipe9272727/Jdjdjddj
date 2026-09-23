@@ -51,7 +51,7 @@ import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
-    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido, tocarMorteDoChefe,
+    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido, tocarMorteDoChefe, tocarAcertoCarregado, tocarDanoIrmao,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -681,7 +681,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
                         cor: p.carregado ? '#ffd575' : '#9fe8ff',
                         forca: p.carregado ? 2.4 : 1,
                     });
-                    if (p.carregado) { F.sacode.current = .25; tocarExplosao(); } else tocarAcerto();
+                    if (p.carregado) { F.sacode.current = .25; tocarAcertoCarregado(); } else tocarAcerto();
                     if (virou) abrirAVirada(F);
                     if (f12.vida <= 0) { acabar(F, 'vitoria'); return; }
                     F.avisar();
@@ -697,7 +697,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             }
             // ataque × irmão (ele perde vidas, mas nunca morre: some e volta)
             if (encostou(p, ir.x, ir.y, NAVE.raio) && tomarToque(ir)) {
-                tocarDano();
+                tocarDanoIrmao();   // o dele é outro: o jogador não pode achar que perdeu vida
                 if (ir.vidas <= 0) ir.vidas = 2;      // ele se remenda; é robô
             }
         }
