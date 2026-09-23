@@ -590,7 +590,7 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
             // jogador na luta) abria em silêncio. Com a abertura na frente, o
             // mesmo ataque duas vezes são duas strings diferentes.
             F.gritoRef.current = `${abertura}|${fichaDoAtaque(qual).grito}`;
-            tocarBocaAbrindo();
+            tocarBocaAbrindo(qual);
             F.avisar();
         }
 

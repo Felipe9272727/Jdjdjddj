@@ -130,12 +130,17 @@ export function tocarAcerto(): void {
  * duas notas (a mesma do "ding" da abertura) — o concierge chamando o próximo
  * hóspede. Alto, e a música abaixa por baixo para ele passar.
  */
-export function tocarBocaAbrindo(): void {
+// Quantas batidas de campainha cada ataque tem: dá para saber o que vem pelo
+// ouvido, antes de ver. Leque 1, teleguiado 2, naves 3, maré 1 grave, elevadores 4.
+const BATIDAS: Record<string, number> = { leque: 1, teleguiado: 2, naves: 3, mare: 1, elevadores: 4 };
+export function tocarBocaAbrindo(ataque = ''): void {
+    const n = BATIDAS[ataque] ?? 1, grave = ataque === 'mare' ? .5 : 1;
+    for (let i = 1; i < n; i++) bipe('sine', 1320 * grave, 1320 * grave, 0.12, 0.13, 0.42 + (i - 1) * 0.1);
     abaixarMusica(0.6);
     // o servo da mandíbula: um zumbido que sobe, embaixo da campainha
     bipe('sawtooth', 70, 140, 0.55, 0.05); ruido(0.5, 0.05, 900);
-    bipe('sine', 1320, 1320, 0.28, 0.2); bipe('triangle', 2640, 2640, 0.12, 0.05);
-    bipe('sine', 990, 990, 0.42, 0.18, 0.16);
+    bipe('sine', 1320 * grave, 1320 * grave, 0.28, 0.2); bipe('triangle', 2640 * grave, 2640 * grave, 0.12, 0.05);
+    bipe('sine', 990 * grave, 990 * grave, 0.42, 0.18, 0.16);
     bipe('sawtooth', 90, 260, 0.5, 0.07);
 }
 /** A boca cuspindo. Cada ataque tem o seu, para dar para reconhecer de ouvido. */
