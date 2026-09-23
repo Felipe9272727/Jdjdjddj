@@ -157,6 +157,19 @@ const DiretorDaIntro: React.FC<{
 }> = ({ portaRef, aberturaRef, sumindoRef, camRef, introProgressRef, introAtivaRef, avisar }) => {
     const t = useRef(0);
     const marcos = useRef({ ding: false, desdobrar: false, motor: false });
+    // ── TOCAR PULA ───────────────────────────────────────────────────────
+    // Catorze segundos na primeira vez são uma apresentação; para quem já
+    // viu (ou só quer voar) são uma espera. Um toque depois do "ding" leva o
+    // relógio para o fim da cena: todo o resto dela é função de `tt`, então
+    // o avião, a câmera e a porta caem na pose final sozinhos.
+    useEffect(() => {
+        const pular = () => {
+            if ((f12.fase === 'intro' || f12.fase === 'virando') && t.current > 1.2)
+                t.current = Math.max(t.current, F12_CINEMA.intro - .05);
+        };
+        window.addEventListener('pointerdown', pular);
+        return () => window.removeEventListener('pointerdown', pular);
+    }, []);
     useFrame((_, rawDt) => {
         if (f12.fase !== 'intro' && f12.fase !== 'virando') {
             introAtivaRef.current = false;
