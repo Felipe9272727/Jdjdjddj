@@ -133,10 +133,11 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
     }
     return { walls, brass, windows, stone, green, lights, signs };
   }, [bossZ]);
-  const clouds = useMemo(() => Array.from({ length: 64 }, (_, i) => {
+  // 96 bancos (eram 64): as laterais viram paredes de nuvem, não fileiras.
+  const clouds = useMemo(() => Array.from({ length: 96 }, (_, i) => {
     const seed = Math.sin(i * 127.1 + 31.7) * 43758.5453;
     const r = seed - Math.floor(seed), side = i % 2 ? -1 : 1;
-    const layer = Math.floor(i / 16), cluster = Math.floor(i / 2) % 8;
+    const layer = Math.floor(i / 16), cluster = Math.floor(i / 2) % 8;   // 6 camadas de profundidade
     return { x: side * (22 + cluster * 6.5 + r * 3),
       // Os bancos laterais REPOUSAM sobre o mar de nuvens. Eles moravam em
       // y ~ -17, que fica ABAIXO do piso novo: sem isto viravam 64 bolhas
