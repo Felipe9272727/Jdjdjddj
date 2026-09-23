@@ -166,7 +166,10 @@ export function tocarAcerto(): void {
 const BATIDAS: Record<string, number> = { leque: 1, teleguiado: 2, naves: 3, mare: 1, elevadores: 4 };
 export function tocarBocaAbrindo(ataque = ''): void {
     vibrar([18, 50, 18]);
-    const n = BATIDAS[ataque] ?? 1, grave = ataque === 'mare' ? .5 : 1;
+    // Além da contagem, cada ataque tem a SUA altura: contar 3 contra 4 batidas
+    // sob fogo não dá; a nota diz qual é antes de a contagem terminar.
+    const ALTURA: Record<string, number> = { leque: 1, teleguiado: 1.26, naves: .84, mare: .5, elevadores: 1.5 };
+    const n = BATIDAS[ataque] ?? 1, grave = ALTURA[ataque] ?? 1;
     for (let i = 1; i < n; i++) bipe('sine', 1320 * grave, 1320 * grave, 0.12, 0.13, 0.42 + (i - 1) * 0.1);
     abaixarMusica(0.5 + (BATIDAS[ataque] ?? 1) * 0.12);   // o abaixar dura o tanto que as batidas duram
     // o servo da mandíbula: um zumbido que sobe, embaixo da campainha
