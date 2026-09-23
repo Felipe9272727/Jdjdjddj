@@ -41,6 +41,7 @@ const ease = (x: number) => { const c = THREE.MathUtils.clamp(x, 0, 1); return c
 
 export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }> = ({ tempo }) => {
     const camera = useThree((s) => s.camera);
+    const size = useThree((s) => s.size);
     const raiz = useRef<THREE.Group>(null);
     const portaE = useRef<THREE.Mesh>(null), portaD = useRef<THREE.Mesh>(null);
     const luzDaPorta = useRef<THREE.PointLight>(null);
@@ -106,20 +107,22 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // Balanço de câmera na mão: dois senos fora de fase, pequenos.
         const mao = (a: number) => Math.sin(t * 1.7 + a) * .035 + Math.sin(t * 3.1 + a * 2) * .018;
         const cam = tmp.pos, alvo = tmp.alvo;
+        // Em pé a lente é estreita: a câmera recua para o corpo caber.
+        const r = size.width < size.height ? 1.55 : 1;
         let fov = 50;
         if (t < 2.2) {
             // 1. travelling baixo por trás
-            cam.set(.55 + mao(0), .75 + mao(1), z + 2.6);
+            cam.set(.55 + mao(0), .95 + mao(1), z + 2.9 * r);
             alvo.set(0, 1.3, z - 4);
         } else if (t < 3.6) {
             // 2. três quartos pela frente, empurrando
             const k = ease((t - 2.2) / 1.4);
-            cam.set(-1.2 + k * .15 + mao(2), 1.35 + mao(3), PORTA_Z + .9 - k * .2);
-            alvo.set(0, 1.45, z);
-            fov = 42 - k * 4;
+            cam.set(-1.2 + k * .15 + mao(2), 1.25 + mao(3), PORTA_Z + .6 - k * .2);
+            fov = (r > 1 ? 60 : 44) - k * 4;
+            alvo.set(0, 1.3, z);
         } else if (t < PASSO_ATE + .15) {
             // 3. por cima do ombro: a porta abre para o céu
-            cam.set(.55 + mao(4), 1.95 + mao(5), z + 1.9);
+            cam.set(.9 + mao(4), 2.35 + mao(5), z + 2.2 * r);
             alvo.set(0, .6, PORTA_Z - 12);
             fov = 52;
         } else {
