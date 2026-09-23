@@ -98,9 +98,18 @@ export function pararMotor(): void {
 }
 
 // ── OS EVENTOS ───────────────────────────────────────────────────────────────
-export function tocarTiro(): void { bipe('square', 900, 320, 0.075, 0.055); }
+export function tocarTiro(): void { bipe('square', 900, 320, 0.075, 0.08); }
 export function tocarTiroIrmao(): void { bipe('square', 620, 240, 0.085, 0.04); }
-export function tocarAcerto(): void { bipe('square', 1500, 900, 0.05, 0.05); }
+/**
+ * O ACERTO tem de soar diferente do TIRO: os dois eram bipes quadrados e o
+ * jogador não ouvia a diferença entre errar e acertar. Agora é metal —
+ * um "clanc" de ruído filtrado alto, duas parciais inarmônicas e um baque grave.
+ */
+export function tocarAcerto(): void {
+    ruido(0.09, 0.2, 5200);
+    bipe('triangle', 1760, 1650, 0.22, 0.09); bipe('triangle', 2490, 2300, 0.16, 0.06);
+    bipe('sine', 130, 60, 0.16, 0.16);
+}
 
 /** A boca abrindo: o telegrafo sonoro do ataque. */
 export function tocarBocaAbrindo(): void {
@@ -188,7 +197,8 @@ function agendar(): void {
             nota('square', raiz * 4 * (m.forte ? 2 : 1) * Math.pow(2, semi / 12), t, SEMI * 0.9, m.forte ? 0.035 : 0.045, 2600, m.bus);
         }
         if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.1 : 0.05, 7000, 'highpass', m.bus);
-        m.passo++; m.proxima += SEMI;
+        // Depois da virada a marcha acelera (132 → 142 bpm): a música diz "piorou".
+        m.passo++; m.proxima += m.forte ? SEMI * 132 / 142 : SEMI;
     }
 }
 export function iniciarMusica(): void {
@@ -196,7 +206,7 @@ export function iniciarMusica(): void {
     if (!c || !d || musica) return;
     const bus = c.createGain();
     bus.gain.setValueAtTime(0.0001, c.currentTime);
-    bus.gain.exponentialRampToValueAtTime(0.55, c.currentTime + 1.2);
+    bus.gain.exponentialRampToValueAtTime(0.36, c.currentTime + 1.2);   // abaixo dos tiros: o jogo fala primeiro
     bus.connect(d);
     musica = { id: 0, passo: 0, proxima: c.currentTime + 0.1, bus, forte: false };
     musica.id = window.setInterval(agendar, 40);
