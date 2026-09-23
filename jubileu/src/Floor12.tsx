@@ -429,7 +429,7 @@ const CameraDaLuta: React.FC<{
             // Em paisagem o quadro é baixo e o quepe batia na barra de vida:
             // mirar um pouco mais alto desce a cabeça inteira para dentro.
             THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2
-                + 2.2 * (1 - Math.min(1, alturaDoQuadro / 22)), suave),
+                + 1.1 * (1 - Math.min(1, alturaDoQuadro / 22)), suave),
             THREE.MathUtils.lerp(-6, -11, suave),
         );
 
