@@ -474,7 +474,7 @@ export const AnelDaBoca: React.FC = () => {
         const pulso = 1 + Math.sin(state.clock.elapsedTime * 7) * 0.07;
         a.scale.setScalar(pulso);
         const m = a.material as THREE.MeshBasicMaterial;
-        m.opacity = 0.55 + Math.sin(state.clock.elapsedTime * 7) * 0.2;
+        m.opacity = 0.7 + Math.sin(state.clock.elapsedTime * 7) * 0.25;
     });
     return (
         // Z À FRENTE DA CARA, e isto é conta, não gosto: na altura da boca o
@@ -482,8 +482,10 @@ export const AnelDaBoca: React.FC = () => {
         // -21 (a primeira tentativa) o anel nascia DENTRO da cabeça e o próprio
         // chefe o escondia — a única pista visual da regra do jogo, invisível.
         <mesh ref={anel} position={[BOCA_ALVO.x, BOCA_ALVO.y, ARENA.zCabeca + 8.6]} visible={false}>
-            <ringGeometry args={[BOCA_ALVO.raio * 0.82, BOCA_ALVO.raio, 28]} />
-            <meshBasicMaterial color="#71fff0" transparent opacity={0.6} side={THREE.DoubleSide} fog={false} />
+            {/* Grosso e QUENTE: fino e ciano, ele sumia entre os dentes e
+                parecia do mesmo time que os olhos, que não são alvo. */}
+            <ringGeometry args={[BOCA_ALVO.raio * 0.68, BOCA_ALVO.raio, 32]} />
+            <meshBasicMaterial color="#ffc93a" transparent opacity={0.75} side={THREE.DoubleSide} fog={false} toneMapped={false} />
         </mesh>
     );
 };

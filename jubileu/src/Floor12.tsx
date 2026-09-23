@@ -1114,6 +1114,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     const mostrarControles = fase === 'luta';
     const vidaFrac = Math.max(0, f12.vida / VIDA_MAXIMA);
+    const baixa = typeof window !== 'undefined' && window.innerHeight < 520;
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0d2029', touchAction: 'none', display: 'flex', flexDirection: 'column' }}>
@@ -1215,9 +1216,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         para vermelho, ela SOME — justamente o readout de que a
                         cena trata. O jogador lia "a cabeça mudou" num balão sem
                         poder ver a barra que mudou. */}
-                    <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: '8%', right: '8%', zIndex: 3, pointerEvents: 'none' }}>
-                        <div style={{ ...t64, fontSize: 12, marginBottom: 3, textAlign: 'center' }}>A CABEÇA</div>
-                        <div style={{ height: 16, background: 'rgba(0,0,0,0.5)', border: '3px solid #11131a', borderRadius: 9, overflow: 'hidden' }}>
+                    {/* EM PAISAGEM ela vira um fio no topo: o quadro é baixo e a
+                        barra cheia deitava em cima do quepe, a silhueta que mais
+                        diz quem é o chefe. */}
+                    <div style={{ position: 'absolute', top: baixa ? 'calc(env(safe-area-inset-top) + 4px)' : 'calc(env(safe-area-inset-top) + 14px)', left: baixa ? '22%' : '8%', right: baixa ? '22%' : '8%', zIndex: 3, pointerEvents: 'none' }}>
+                        <div style={{ ...t64, fontSize: baixa ? 9 : 12, marginBottom: baixa ? 1 : 3, textAlign: 'center' }}>A CABEÇA</div>
+                        <div style={{ height: baixa ? 7 : 16, background: 'rgba(0,0,0,0.5)', border: `${baixa ? 2 : 3}px solid #11131a`, borderRadius: 9, overflow: 'hidden' }}>
                             <div style={{
                                 width: `${vidaFrac * 100}%`, height: '100%',
                                 background: f12.passouDaVirada
