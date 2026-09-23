@@ -44,14 +44,16 @@ import { Floor12Ceu } from './Floor12Ceu';
 import { Floor12Cabeca, AnelDaBoca } from './Floor12Cabeca';
 import { Floor12Projeteis } from './Floor12Projeteis';
 import { AviaoDoJogador, AviaoDoIrmao } from './Floor12Avioes';
-import { newFlightWeapon, stepFlightWeapon, type FlightWeapon } from './f12FlightWeapon';
+import { newFlightWeapon, stepFlightWeapon, FLIGHT_WEAPON, type FlightWeapon } from './f12FlightWeapon';
+/** A rajada estava cheia no quadro anterior? (o aviso toca só na virada para cheia) */
+let rajadaCheiaAntes = false;
 import { Floor12Estilhacos, type PedidoDeEstilhaco } from './Floor12Estilhacos';
 import { f12IntroCamera, f12ChaseDistance, f12ChaseFov, f12FrameHeight } from './f12Presentation';
 import {
     configureFloor12Sfx, tocarMotor, pararMotor, tocarTiro, tocarTiroIrmao,
     tocarAcerto, tocarBocaAbrindo, tocarAtaque, tocarDano, tocarExplosao,
     tocarFalaDoIrmao, tocarDesdobrar, tocarDing, tocarVitoria, tocarDerrota,
-    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido, tocarMorteDoChefe, tocarAcertoCarregado, tocarDanoIrmao,
+    iniciarMusica, pararMusica, musicaDaVirada, tocarRugido, tocarMorteDoChefe, tocarAcertoCarregado, tocarDanoIrmao, tocarRajadaPronta,
 } from './floor12Sfx';
 
 // ═══ A INTRODUÇÃO ════════════════════════════════════════════════════════════
@@ -607,6 +609,11 @@ const DiretorDaLuta: React.FC<Ferramentas> = (F) => {
         // ── AS ARMAS ─────────────────────────────────────────────────────
         const moving = Math.hypot(n.vx, n.vy) > .12;
         const shots = stepFlightWeapon(F.arma.current, dtDoRelogio, F.touchAtivo.current || F.gatilho.current, moving);
+        // Rajada CHEIA avisa na mão e no ouvido: o jogador parado para carregar
+        // está olhando os tiros, não o medidor.
+        const cheia = F.arma.current.charge >= FLIGHT_WEAPON.chargeLimit - 1e-6;
+        if (cheia && !rajadaCheiaAntes) tocarRajadaPronta();
+        rajadaCheiaAntes = cheia;
         if (F.arma.current.missile) {
             // ── O DISPARO PRECISA SER UM EVENTO, E NÃO SÓ UM SOM ──────────
             //
@@ -1331,6 +1338,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {(fase === 'intro' || fase === 'virando') && (
                 <div data-testid="f12-intro-caption" style={{ ...t64, flex: '0 0 auto', padding: '10px 12px calc(env(safe-area-inset-bottom) + 10px)', background: '#10242d', textAlign: 'center', fontSize: 'clamp(12px, 2.5vh, 16px)', pointerEvents: 'none' }}>
                     {legendaIntro}
+                    <div style={{ fontSize: '0.72em', opacity: .6, marginTop: 4 }}>toque para pular</div>
                 </div>
             )}
         </div>

@@ -390,3 +390,9 @@ export function tocarAcertoCarregado(): void {
 export function tocarDanoIrmao(): void {
     ruido(0.06, 0.08, 4000); bipe('square', 480, 380, 0.12, 0.035, 0.05);
 }
+
+/** A rajada acabou de encher: um tique curto de latão e um toque na mão. */
+export function tocarRajadaPronta(): void {
+    vibrar(12);
+    bipe('triangle', 1760, 1760, 0.09, 0.06); bipe('triangle', 2637, 2637, 0.12, 0.05, 0.07);
+}
