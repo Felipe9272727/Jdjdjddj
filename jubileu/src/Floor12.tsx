@@ -1090,9 +1090,16 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         onPointerMove: (e: React.PointerEvent) => {
             const a = arrasto.current;
             if (!a || a.id !== e.pointerId || f12.fase !== 'luta') return;
+            // ── ZONA MORTA DE 3 px ─────────────────────────────────────────
+            // Um polegar PARADO treme um ou dois pixels, e cada tremida contava
+            // como voo: a rajada, que carrega com o avião parado, nunca enchia.
+            // O movimento pequeno não é perdido — ele acumula (a âncora só anda
+            // quando o passo é aplicado), então o 1:1 continua valendo.
+            const dx = e.clientX - a.x, dy = e.clientY - a.y;
+            if (Math.hypot(dx, dy) < 3) return;
             const k = pixelParaMundo();
             // Y da tela cresce para baixo; o do mundo, para cima.
-            arrastarNave(nave.current, (e.clientX - a.x) * k, -(e.clientY - a.y) * k);
+            arrastarNave(nave.current, dx * k, -dy * k);
             a.x = e.clientX; a.y = e.clientY;
         },
         onPointerUp: (e: React.PointerEvent) => {
