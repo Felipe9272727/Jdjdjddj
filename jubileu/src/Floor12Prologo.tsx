@@ -99,8 +99,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // ── A PORTA ────────────────────────────────────────────────────
         if (t > 3.0 && !ding.current) { ding.current = true; tocarDing(); }
         const abre = ease((t - 3.2) / 1.0);
-        if (portaE.current) portaE.current.position.x = -.62 - abre * 1.2;
-        if (portaD.current) portaD.current.position.x = .62 + abre * 1.2;
+        if (portaE.current) portaE.current.position.x = -.62 - abre * 1.8;
+        if (portaD.current) portaD.current.position.x = .62 + abre * 1.8;
         if (luzDaPorta.current) luzDaPorta.current.intensity = abre * 14;
 
         // ── A CÂMERA ───────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         let fov = 50;
         if (t < 2.2) {
             // 1. travelling baixo por trás
-            cam.set(.55 + mao(0), .95 + mao(1), z + 2.9 * r);
+            cam.set((r > 1 ? 1.05 : .55) + mao(0), .95 + (r - 1) * .7 + mao(1), z + 2.9 * r);
             alvo.set(0, 1.3, z - 4);
         } else if (t < 3.0) {
             // 2. três quartos pela frente, empurrando
@@ -122,9 +122,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             alvo.set(0, 1.3, z);
         } else if (t < PASSO_ATE + .15) {
             // 3. por cima do ombro: a porta abre para o céu
-            cam.set(.9 + mao(4), 2.35 + mao(5), z + 2.2 * r);
+            cam.set(1.2 + mao(4), 2.35 + mao(5), z + 2.2 * r);
             alvo.set(0, .6, PORTA_Z - 12);
-            fov = 52;
+            fov = r > 1 ? 62 : 52;
         } else {
             // 4. a queda: a câmera vai à beira e tomba para baixo
             // e depois MERGULHA atrás dele: céu vazio com um cisco caindo lia
