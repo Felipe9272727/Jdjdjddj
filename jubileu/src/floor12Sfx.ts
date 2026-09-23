@@ -278,7 +278,7 @@ function agendar(): void {
         // Na segunda forma entra um contracanto nos compassos 2 e 4.
         if (m.forte && compasso % 2 === 1 && s % 4 === 0) {
             const graus = [12, 10, 7, 5];
-            nota('square', raiz * 4 * Math.pow(2, graus[s / 4] / 12), t, SEMI * 3.5, 0.03, 1800, m.bus);
+            nota('square', raiz * 4 * Math.pow(2, graus[s / 4] / 12), t, SEMI * 3.5, 0.065, 1800, m.bus);   // alto o bastante para o celular ouvir a virada
         }
         if (s % 4 === 0) bumbo(t, m.bus);
         if (s === 4 || s === 12) chiado(t, 0.14, 0.22, 1800, 'bandpass', m.bus);
@@ -287,7 +287,7 @@ function agendar(): void {
             const semi = ARPEJO[(s >> (m.forte ? 0 : 1)) % ARPEJO.length];
             nota('square', raiz * 4 * (m.forte ? 2 : 1) * Math.pow(2, semi / 12), t, SEMI * 0.9, m.forte ? 0.035 : 0.045, 2600, m.bus);
         }
-        if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.1 : 0.05, 7000, 'highpass', m.bus);
+        if (m.forte) chiado(t, 0.035, s % 4 === 2 ? 0.14 : 0.08, 7000, 'highpass', m.bus);
         // Depois da virada a marcha acelera (144 → 154 bpm, em rampa de um compasso).
         m.passo++; m.rampa = m.forte ? Math.min(1, m.rampa + 1 / 16) : 0;
         m.proxima += SEMI * (1 - m.rampa * (1 - 144 / 154));
