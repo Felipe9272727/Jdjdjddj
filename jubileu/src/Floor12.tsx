@@ -2,7 +2,7 @@ import { EffectComposer, Bloom, N8AO, SMAA } from '@react-three/postprocessing';
 import { PerformanceMonitor } from '@react-three/drei';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
-import { nascerMissilCarregado, danoDoTiro, expressao } from './f12Boss';
+import { nascerMissilCarregado, danoDoTiro, expressao, LIMIAR_DA_VIRADA } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
 /**
  * Floor12.tsx — ANDAR 12: "A CABEÇA".
@@ -1041,6 +1041,12 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             f12.fase = 'luta';
             f12.bocaT = 0;                 // o compasso recomeça limpo dos dois lados
             tocarMotor();
+            // Só para a bancada de fotos: `?f12fase=2` pula direto para depois
+            // da virada, no estado VIVO (um import externo pega outra cópia).
+            if (import.meta.env.DEV && typeof location !== 'undefined'
+                && new URLSearchParams(location.search).get('f12fase') === '2') {
+                f12.passouDaVirada = true; f12.vida = Math.min(f12.vida, LIMIAR_DA_VIRADA - 1);
+            }
         } else if (f12.fase === 'derrota') {
             // Recomeça a luta, mas mantendo o que a cabeça já perdeu seria
             // cruel do avesso: ela volta inteira e o jogador também.
