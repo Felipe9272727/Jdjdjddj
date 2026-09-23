@@ -50,7 +50,11 @@ export function createCloudGeometry() {
     const sun = THREE.MathUtils.smoothstep(positions.getY(i) - positions.getX(i) * .15, -.58, 1.05);
     color.copy(shade).lerp(light, sun);
     const rim = THREE.MathUtils.smoothstep(positions.getY(i) - positions.getX(i) * .45, .10, .90);
-    color.lerp(sunset, rim * .30);
+    // Borda quente mais forte (era .30): sem ela a nuvem lia como plástico
+    // malva chapado; com o sol do poente contornando o topo, lê como vapor.
+    color.lerp(sunset, rim * .55);
+    const topo = THREE.MathUtils.smoothstep(positions.getY(i), .35, .95);
+    color.lerp(new THREE.Color('#f3d2b4'), topo * .35);
     // os vales do encaroçado ficam mais escuros: sombra de contato entre gomos
     color.multiplyScalar(.86 + .14 * THREE.MathUtils.clamp(encaroco[i] + .5, 0, 1));
     color.toArray(colors, i * 3);
