@@ -1,7 +1,7 @@
 import { Floor12Atmosphere } from './Floor12Atmosphere';
 import { Floor12SkyDetails } from './Floor12SkyDetails';
 import { Floor12Trafego } from './Floor12Trafego';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ARENA, f12 } from './f12Boss';
@@ -92,6 +92,9 @@ export function Floor12Ceu() {
     pmrem.dispose(); cupula.dispose(); matCupula.dispose(); sol.geometry.dispose(); (sol.material as THREE.Material).dispose();
     return () => { scene.environment = antes; scene.environmentIntensity = antesInt; alvo.dispose(); };
   }, [gl, scene]);
+  const chave = useRef<THREE.DirectionalLight>(null), frio = useRef<THREE.DirectionalLight>(null);
+  const hemi = useRef<THREE.HemisphereLight>(null);
+  const corPoente = useMemo(() => new THREE.Color('#ffb877'), []), corBrasa = useMemo(() => new THREE.Color('#ff6a3a'), []);
   useFrame((state, dt) => {
     sky.time.value = state.clock.elapsedTime;
     const a = 1 - Math.exp(-Math.min(dt, .1) * .8);
@@ -99,6 +102,15 @@ export function Floor12Ceu() {
     sky.topColor.value.lerp(second ? colors.storm : colors.top, a);
     sky.horizonColor.value.lerp(second ? colors.stormHorizon : colors.horizon, a);
     colors.fog.color.copy(sky.horizonColor.value).multiplyScalar(.65);
+    // ── A FASE 2 MUDA A LUZ, NÃO SÓ O CÉU ──────────────────────────────
+    // Só o céu virando passava despercebido: a cena continuava iluminada
+    // igual. Na virada o poente vira brasa (chave vermelha e mais forte), o
+    // preenchimento esfria e escurece e a névoa fecha.
+    const k = chave.current, h = hemi.current, fr = frio.current;
+    if (k) { k.color.lerp(second ? corBrasa : corPoente, a); k.intensity += ((second ? 3.4 : 2.6) - k.intensity) * a; }
+    if (h) h.intensity += ((second ? .6 : 1.0) - h.intensity) * a;
+    if (fr) fr.intensity += ((second ? .6 : 1.3) - fr.intensity) * a;
+    colors.fog.far += ((second ? 150 : 215) - colors.fog.far) * a;
   });
   return <group>
     <mesh position={[0, 0, -30]} renderOrder={-10}>
@@ -109,9 +121,9 @@ export function Floor12Ceu() {
     {/* Luz de lado, não de frente: com o preenchimento alto e a chave quase
         atrás da câmera, o rosto saía chapado e o volume sumia. Menos céu e a
         chave mais de lado desenham bochecha, nariz e arcada. */}
-    <hemisphereLight args={['#c6b9c9', '#172b3a', 1.0]} />
-    <directionalLight position={[-30, 22, 2]} color="#ffb877" intensity={2.6} />   {/* laranja de poente: o sol tinha que chegar nas torres e na cara */}
-    <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
+    <hemisphereLight ref={hemi} args={['#c6b9c9', '#172b3a', 1.0]} />
+    <directionalLight ref={chave} position={[-30, 22, 2]} color="#ffb877" intensity={2.6} />   {/* laranja de poente: o sol tinha que chegar nas torres e na cara */}
+    <directionalLight ref={frio} position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
     {/* ── O SOL ── baixo, atrás da cidade, fora do eixo da cabeça: sem um disco
         no céu, "poente" era só uma cor. Fora do fog e do tonemapping, para o
         bloom abrir um halo quente em volta dele. */}
