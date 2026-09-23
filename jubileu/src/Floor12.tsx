@@ -1262,7 +1262,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     celular. */}
                 {/* Guarda de desempenho: abaixo de ~45 fps sustentados a oclusão
                     em tempo real se desliga (é o efeito mais caro da cena). */}
-                <PerformanceMonitor onDecline={() => { setAoLigado(false); setQualidade(false); }} onIncline={() => { setAoLigado(true); setQualidade(true); }} />
+                <PerformanceMonitor flipflops={3} onFallback={() => { setAoLigado(false); setQualidade(false); }}
+                    onDecline={() => { if (aoLigado) setAoLigado(false); else setQualidade(false); }}
+                    onIncline={() => { if (!qualidade) setQualidade(true); else setAoLigado(true); }} />
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     {/* ── OCLUSÃO EM TEMPO REAL (N8AO) ──────────────────────
                         Raios traçados no buffer de profundidade a cada quadro:
@@ -1272,7 +1274,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         poly. Meia resolução e qualidade de desempenho: celular. */}
                     {/* Mais leve (era 2,4 e quase preto): forte demais, virava as
                         nuvens em pedra de barro. E some sozinho em celular fraco. */}
-                    {aoLigado && <N8AO halfRes quality="performance" aoRadius={2.4} distanceFalloff={1.2} intensity={1.3} color="#3a2a36" />}
+                    {aoLigado && <N8AO halfRes quality="performance" aoRadius={1.2} distanceFalloff={1.2} intensity={1.3} color="#3a2a36" />}
                     <SMAA />
                     <Bloom
                         intensity={0.85}

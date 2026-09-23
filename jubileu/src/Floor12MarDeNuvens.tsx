@@ -146,7 +146,10 @@ export function Floor12MarDeNuvens({ bossZ }: { bossZ: number }) {
             <planeGeometry args={[420, 360, 1, 1]} />
         </mesh>
         <instancedMesh ref={ref} args={[geo, undefined, bolhas.length]}>
-            <meshStandardMaterial vertexColors roughness={1} />
+            {/* o mesmo "vapor" das nuvens laterais: brilho próprio suaviza o lado escuro */}
+            <meshStandardMaterial vertexColors roughness={1}
+                onBeforeCompile={sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+                    '#include <emissivemap_fragment>\n  totalEmissiveRadiance += diffuseColor.rgb * 0.32;'); }} />
         </instancedMesh>
     </group>;
 }

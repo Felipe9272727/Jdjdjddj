@@ -173,7 +173,9 @@ export function tocarBocaAbrindo(ataque = ''): void {
     for (let i = 1; i < n; i++) bipe('sine', 1320 * grave, 1320 * grave, 0.12, 0.13, 0.42 + (i - 1) * 0.1);
     abaixarMusica(0.5 + (BATIDAS[ataque] ?? 1) * 0.12);   // o abaixar dura o tanto que as batidas duram
     // o servo da mandíbula: um zumbido que sobe, embaixo da campainha
-    bipe('sawtooth', 70, 140, 0.55, 0.05); ruido(0.5, 0.05, 900);
+    // o servo entra DEPOIS das batidas: por cima delas, mascarava a contagem
+    const depois = 0.42 + n * 0.1;
+    bipe('sawtooth', 70, 140, 0.55, 0.05, depois); ruido(0.5, 0.05, 900, depois);
     bipe('sine', 1320 * grave, 1320 * grave, 0.28, 0.2); bipe('triangle', 2640 * grave, 2640 * grave, 0.12, 0.05);
     bipe('sine', 990 * grave, 990 * grave, 0.42, 0.18, 0.16);
     bipe('sawtooth', 90, 260, 0.5, 0.07);
@@ -405,6 +407,6 @@ export function tocarDanoIrmao(): void {
 
 /** A rajada acabou de encher: um tique curto de latão e um toque na mão. */
 export function tocarRajadaPronta(): void {
-    vibrar(12);
+    vibrar(30);
     bipe('triangle', 1760, 1760, 0.09, 0.06); bipe('triangle', 2637, 2637, 0.12, 0.05, 0.07);
 }

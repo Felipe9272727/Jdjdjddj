@@ -153,6 +153,20 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
       sx: 5.5 + r * 4, sy: 3.3 + r * 3.2, sz: 5 + r * 4 };
   }), [bossZ]);
   const cloudRef = useRef<THREE.InstancedMesh>(null);
+  // ── NUVEM É VAPOR, NÃO MASSINHA ───────────────────────────────────────
+  // Luz "envolvente": o lado escuro não termina num corte seco; parte da cor
+  // própria da nuvem volta como brilho (a luz que atravessa o vapor). É o
+  // truque barato de subsurface dos jogos estilizados.
+  const nuvemMat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    m.onBeforeCompile = sh => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance += diffuseColor.rgb * 0.32;');
+    };
+    m.customProgramCacheKey = () => 'f12-nuvem-vapor';
+    return m;
+  }, []);
+  useEffect(() => () => nuvemMat.dispose(), [nuvemMat]);
   const cloudGeometry = useMemo(createCloudGeometry, []);
   useEffect(() => () => cloudGeometry.dispose(), [cloudGeometry]);
   useLayoutEffect(() => {
@@ -185,8 +199,7 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
     <LetreirosNeon pieces={architecture.signs} />
     {/* O chão inteiro, e não só as laterais: ver Floor12MarDeNuvens. */}
     <Floor12MarDeNuvens bossZ={bossZ} />
-    <instancedMesh ref={cloudRef} args={[cloudGeometry, undefined, clouds.length]}>
-      <meshStandardMaterial vertexColors roughness={1} />
+    <instancedMesh ref={cloudRef} args={[cloudGeometry, nuvemMat, clouds.length]}>
     </instancedMesh>
   </group>;
 }
