@@ -59,6 +59,38 @@ export function Floor12Ceu() {
     scene.background = new THREE.Color(P.sky);
     return () => { scene.fog = oldFog; scene.background = oldBackground; };
   }, [scene, colors]);
+  // ── O METAL REFLETE O CÉU ─────────────────────────────────────────────────
+  // Latão e aço sem mapa de ambiente refletem o nada: rebite, aro de lente e
+  // quepe saíam foscos, cor de plástico. Um céu de crepúsculo em miniatura
+  // (sol quente de lado, horizonte malva, mar escuro embaixo) passa pelo
+  // PMREM uma vez só e vira reflexo de verdade em todo material do andar —
+  // custo zero por quadro depois disso, o que importa no celular.
+  const gl = useThree(s => s.gl);
+  useEffect(() => {
+    const ceu = new THREE.Scene();
+    const cupula = new THREE.SphereGeometry(10, 32, 16);
+    const cores: number[] = [];
+    const pos = cupula.getAttribute('position');
+    const alto = new THREE.Color('#6d6a8c'), meio = new THREE.Color('#c69a8a'), baixo = new THREE.Color('#2a2530');
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) / 10;
+      if (y > 0) c.copy(meio).lerp(alto, Math.min(1, y * 1.6)); else c.copy(meio).lerp(baixo, Math.min(1, -y * 3));
+      cores.push(c.r, c.g, c.b);
+    }
+    cupula.setAttribute('color', new THREE.Float32BufferAttribute(cores, 3));
+    const matCupula = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide });
+    ceu.add(new THREE.Mesh(cupula, matCupula));
+    const sol = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd9a0').multiplyScalar(6) }));
+    sol.position.set(-7, 4.5, 1); ceu.add(sol);
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const alvo = pmrem.fromScene(ceu, .02);
+    const antes = scene.environment, antesInt = scene.environmentIntensity;
+    scene.environment = alvo.texture;
+    scene.environmentIntensity = .55;
+    pmrem.dispose(); cupula.dispose(); matCupula.dispose(); sol.geometry.dispose(); (sol.material as THREE.Material).dispose();
+    return () => { scene.environment = antes; scene.environmentIntensity = antesInt; alvo.dispose(); };
+  }, [gl, scene]);
   useFrame((state, dt) => {
     sky.time.value = state.clock.elapsedTime;
     const a = 1 - Math.exp(-Math.min(dt, .1) * .8);
