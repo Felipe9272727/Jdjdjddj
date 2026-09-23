@@ -13,7 +13,7 @@ export function Floor12FlightFeedback({ nave, arma }: {
   const flashes = useRef<THREE.Group>(null);
   const halo = useRef<THREE.Group>(null);
   const M = useMemo(() => ({
-    charge: new THREE.MeshBasicMaterial({ color: '#71fff0', transparent: true, opacity: .85, depthWrite: false, toneMapped: false }),
+    charge: new THREE.MeshBasicMaterial({ color: '#71fff0', transparent: true, opacity: .6, depthWrite: false, toneMapped: false }),
     aura: new THREE.MeshBasicMaterial({ color: '#71fff0', transparent: true, opacity: .35, depthWrite: false, toneMapped: false }),
     shot: new THREE.MeshBasicMaterial({ color: '#f2ffef', toneMapped: false }),
   }), []);
@@ -27,11 +27,13 @@ export function Floor12FlightFeedback({ nave, arma }: {
     const full = gun.charge >= FLIGHT_WEAPON.chargeLimit - 1e-6;
     M.charge.color.set(full ? '#ffd575' : '#71fff0');
     M.aura.color.copy(M.charge.color);
-    M.aura.opacity = .13 + ratio * .3 + (full ? Math.sin(clock.elapsedTime * 9) * .12 : 0);
+    // O halo é medidor, não moldura: translúcido e justo, para o avião
+    // continuar sendo a coisa mais legível dentro dele.
+    M.aura.opacity = .08 + ratio * .16 + (full ? Math.sin(clock.elapsedTime * 9) * .08 : 0);
     if (halo.current) {
       halo.current.visible = ratio > .03;
       halo.current.rotation.z = clock.elapsedTime * (full ? 2.5 : .65);
-      halo.current.scale.setScalar(.72 + ratio * .35 + (full ? Math.sin(clock.elapsedTime * 9) * .035 : 0));
+      halo.current.scale.setScalar(.6 + ratio * .22 + (full ? Math.sin(clock.elapsedTime * 9) * .03 : 0));
     }
     if (ticks.current) {
       ticks.current.visible = gun.charge >= .25 || gun.remaining > 0;
