@@ -110,7 +110,7 @@ export function Floor12Ceu() {
         atrás da câmera, o rosto saía chapado e o volume sumia. Menos céu e a
         chave mais de lado desenham bochecha, nariz e arcada. */}
     <hemisphereLight args={['#c6b9c9', '#172b3a', 1.0]} />
-    <directionalLight position={[-30, 22, 2]} color="#ffddaa" intensity={2.3} />
+    <directionalLight position={[-30, 22, 2]} color="#ffb877" intensity={2.6} />   {/* laranja de poente: o sol tinha que chegar nas torres e na cara */}
     <directionalLight position={[17, 10, -20]} color="#74cbe2" intensity={1.3} />
     <Floor12Skyline bossZ={ARENA.zCabeca} />
     <Floor12SkyDetails />
