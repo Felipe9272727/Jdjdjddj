@@ -111,9 +111,16 @@ export function tocarAcerto(): void {
     bipe('sine', 130, 60, 0.16, 0.16);
 }
 
-/** A boca abrindo: o telegrafo sonoro do ataque. */
+/**
+ * A boca abrindo: o telegrafo sonoro do ataque. É a CAMPAINHA DO BALCÃO,
+ * duas notas (a mesma do "ding" da abertura) — o concierge chamando o próximo
+ * hóspede. Alto, e a música abaixa por baixo para ele passar.
+ */
 export function tocarBocaAbrindo(): void {
-    bipe('sawtooth', 90, 260, 0.5, 0.09);
+    abaixarMusica(0.6);
+    bipe('sine', 1320, 1320, 0.28, 0.2); bipe('triangle', 2640, 2640, 0.12, 0.05);
+    bipe('sine', 990, 990, 0.42, 0.18, 0.16);
+    bipe('sawtooth', 90, 260, 0.5, 0.07);
 }
 /** A boca cuspindo. Cada ataque tem o seu, para dar para reconhecer de ouvido. */
 export function tocarAtaque(nome: string): void {
@@ -127,7 +134,7 @@ export function tocarAtaque(nome: string): void {
     }
 }
 
-export function tocarDano(): void { ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
+export function tocarDano(): void { abaixarMusica(0.8); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
 export function tocarExplosao(): void { ruido(0.6, 0.28, 1200); bipe('sawtooth', 180, 40, 0.6, 0.12); }
 export function tocarFalaDoIrmao(): void { bipe('square', 300, 380, 0.05, 0.035); }
 
@@ -188,7 +195,14 @@ function agendar(): void {
     if (!m || !c) return;
     while (m.proxima < c.currentTime + 0.15) {
         const t = m.proxima, p = m.passo % 64, compasso = Math.floor(p / 16), s = p % 16;
-        const raiz = FUNDAMENTAIS[compasso];
+        // Depois da virada tudo sobe uma terça menor: a mesma marcha, mais aflita.
+        const raiz = FUNDAMENTAIS[compasso] * (m.forte ? Math.pow(2, 3 / 12) : 1);
+        // O TEMA DO CHEFE: a campainha do balcão (ré–lá–fá–ré) nos compassos
+        // 1 e 3, em sino. É a assinatura — o mesmo desenho do telégrafo.
+        if (compasso % 2 === 0 && s % 2 === 0 && s < 8) {
+            const graus = [0, 7, 3, 0];
+            nota('sine', raiz * 8 * Math.pow(2, graus[s / 2] / 12), t, SEMI * 2.6, 0.07, 5000, m.bus);
+        }
         if (s % 4 === 0) bumbo(t, m.bus);
         if (s === 4 || s === 12) chiado(t, 0.14, 0.22, 1800, 'bandpass', m.bus);
         if (s % 2 === 0) nota('sawtooth', raiz * (s % 4 === 2 ? 2 : 1), t, SEMI * 1.8, 0.16, 420, m.bus);
@@ -213,6 +227,16 @@ export function iniciarMusica(): void {
     agendar();
 }
 export function musicaDaVirada(forte: boolean): void { if (musica) musica.forte = forte; }
+/** Abaixa a música ~6 dB por `dur` segundos, para um aviso ou um dano passar. */
+export function abaixarMusica(dur: number): void {
+    const m = musica, c = ctx;
+    if (!m || !c) return;
+    const g = m.bus.gain, t = c.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(Math.max(0.0001, g.value), t);
+    g.linearRampToValueAtTime(0.18, t + 0.05);
+    g.linearRampToValueAtTime(0.36, t + dur);
+}
 export function pararMusica(fade = 0.8): void {
     const m = musica, c = ctx;
     musica = null;
