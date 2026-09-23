@@ -234,7 +234,7 @@ export const Floor12Cabeca: React.FC<{
         // em vez de um buraco.
         if (garganta.current) {
             const m = garganta.current.material as THREE.MeshLambertMaterial;
-            m.emissiveIntensity = dying ? (1 - beat.rupture) * (2 + beat.tremor * 5) : 0.25 + b.abertura * 1.5;
+            m.emissiveIntensity = dying ? (1 - beat.rupture) * (2 + beat.tremor * 5) : 0.7 + b.abertura * 1.2;   // fechada, ainda brilha entre os dentes: o alvo nunca some
             garganta.current.scale.setScalar(0.85 + b.abertura * 0.3);
         }
 
@@ -448,7 +448,7 @@ export const Floor12Cabeca: React.FC<{
                 Sem ela, só o quepe dizia "concierge": a silhueta lia como
                 cabeçudo genérico. Latão, abaixo do queixo, fora da boca e da
                 hitbox — é o uniforme do hotel preso no próprio casco. */}
-            <group position={[0, -3.95, 2.05]}>
+            <group position={[0, -3.85, 2.05]} scale={.72}>
                 {[-1, 1].map(lado => (
                     <mesh key={lado} material={M.gravata} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
                         <coneGeometry args={[.5, 1.05, 4]} />
