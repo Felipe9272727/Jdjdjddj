@@ -37,6 +37,17 @@ import {
  */
 export const ESCALA = 7.2;
 
+/** [x, largura, altura (0 = caiu), coroa de latão] de cada dente. */
+type Dente = [number, number, number, boolean];
+const DENTES_DE_CIMA: Dente[] = [
+    [-1.75, .86, .78, false], [-1.05, 1, 1.08, false], [-0.35, .92, .9, true],
+    [0.35, 1, 0, false], [1.05, .95, 1.1, false], [1.75, .82, .7, false],
+];
+const DENTES_DE_BAIXO: Dente[] = [
+    [-1.75, .8, .72, false], [-1.05, .96, .92, true], [-0.35, 1, 1.05, false],
+    [0.35, .9, .84, false], [1.05, 1, 1, false], [1.75, .85, 0, false],
+];
+
 const CORES = {
     pele: '#233f46',        // um cinza-lilás de gesso velho: parede de hotel
     peleEsc: '#12313a',
@@ -44,7 +55,7 @@ const CORES = {
     brasa: '#ff7a3a',       // o que arde lá dentro
     olho: '#f4f1e4',
     pupila: '#062d32',
-    dente: '#e9e3d2',
+    dente: '#b9ab8a',       // marfim velho: branco puro era dente de desenho
     ferida: '#c8443a',
 };
 
@@ -373,14 +384,20 @@ export const Floor12Cabeca: React.FC<{
                     })}
                 </group>
                 {/* dentes de cima, presos ao crânio */}
-                {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                    <mesh key={i} material={M.dente} geometry={tooth} position={[x, .84, 1.06 - x*x*.055]} rotation={[0, -x*.055, 0]} />
+                {/* ── DENTES DE MÁQUINA, NÃO DE BONECO ──
+                    Seis retângulos iguais e brancos eram o sorriso de um
+                    boneco infantil. Dente de máquina velha é peça trocada:
+                    alturas diferentes, um que caiu, uma coroa de latão. */}
+                {DENTES_DE_CIMA.map(([x, sx, sy, latao], i) => sy > 0 && (
+                    <mesh key={i} material={latao ? M.rebite : M.dente} geometry={tooth}
+                        position={[x, .84 + (1 - sy) * .27, 1.06 - x*x*.055]} rotation={[0, -x*.055, (i % 2 ? .05 : -.04)]} scale={[sx, sy, 1]} />
                 ))}
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
                     <mesh geometry={jaw} material={[M.mandibulaPlaca, M.interior]} position={[0, -.75, 1.15]} />
-                    {[-1.75, -1.05, -0.35, 0.35, 1.05, 1.75].map((x, i) => (
-                        <mesh key={i} material={M.dente} geometry={tooth} position={[x, -.18, 2.10 - x*x*.055]} rotation={[0, -x*.055, Math.PI]} />
+                    {DENTES_DE_BAIXO.map(([x, sx, sy, latao], i) => sy > 0 && (
+                        <mesh key={i} material={latao ? M.rebite : M.dente} geometry={tooth}
+                            position={[x, -.18 - (1 - sy) * .27, 2.10 - x*x*.055]} rotation={[0, -x*.055, Math.PI + (i % 2 ? -.05 : .04)]} scale={[sx, sy, 1]} />
                     ))}
                 </group>
             </group>
