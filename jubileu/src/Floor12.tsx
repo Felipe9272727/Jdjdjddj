@@ -1192,7 +1192,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0d2029', touchAction: 'none', display: 'flex', flexDirection: 'column' }}>
         <Canvas
                 style={{ flex: '1 1 0', height: 0, minHeight: 0, width: '100%' }}
-                dpr={qualidade ? [1, 1.25] : .85}
+                dpr={qualidade ? [1, 1.25] : 1}
                 camera={{ fov: ENQUADRAMENTO.fov, near: 0.1, far: 320, position: [0, meioY() + 0.35, 0.55] }}
                 gl={{ antialias: true }}
                 onCreated={({ gl, scene, camera }) => {

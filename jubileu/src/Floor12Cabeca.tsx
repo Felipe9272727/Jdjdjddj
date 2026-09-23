@@ -216,10 +216,10 @@ export const Floor12Cabeca: React.FC<{
             if (!dying && !dv && !tv) {
                 const hm = humor.current;
                 const olhaX = THREE.MathUtils.clamp((naveRef?.current.x ?? 0) * .03, -.12, .12);
-                inclina.current += ((olhaX + hm.deb * .14 * Math.sin(t * 3) + hm.desconfia * .1) - inclina.current) * Math.min(1, dt * 3);
+                inclina.current += ((olhaX + hm.deb * .22 * Math.sin(t * 3) + hm.desconfia * .18) - inclina.current) * Math.min(1, dt * 3);
                 raiz.current.rotation.z += inclina.current;
                 raiz.current.rotation.y += olhaX * .8;
-                raiz.current.rotation.x += -hm.dor * .12 + hm.deb * Math.abs(Math.sin(t * 17)) * .03;
+                raiz.current.rotation.x += -hm.dor * .22 + hm.deb * Math.abs(Math.sin(t * 17)) * .03;
             }
         }
 
@@ -227,7 +227,7 @@ export const Floor12Cabeca: React.FC<{
         // Ela GIRA num pivô atrás do queixo, não desliza para baixo: mandíbula
         // que translada lê como gaveta.
         if (mandibula.current) mandibula.current.rotation.x = b.abertura * 0.86
-            + (b.estado === 'fechada' ? humor.current.deb * Math.abs(Math.sin(t * 17)) * .16 : 0);
+            + (b.estado === 'fechada' ? humor.current.deb * Math.abs(Math.sin(t * 17)) * .3 : 0);
         // Dois braços acompanham a mandíbula: o queixo não flutua abaixo da
         // máscara quando o chefe escancara a boca. Tudo fica fora da hitbox.
         for (let i = 0; i < 2; i++) {
@@ -276,11 +276,11 @@ export const Floor12Cabeca: React.FC<{
         const dor = calmo ? Math.min(1, flashRef.current * 1.6) : 0;
         const ciclo = (t % 7.3) / 7.3;
         const desconfia = calmo && b.estado === 'fechada' ? Math.max(0, Math.sin((ciclo - .62) / .3 * Math.PI)) * (ciclo > .62 && ciclo < .92 ? 1 : 0) : 0;
-        const raiva = f12.passouDaVirada && calmo ? Math.sin(t * 31) * .025 : 0;
+        const raiva = f12.passouDaVirada && calmo ? Math.sin(t * 31) * .06 - .12 : 0;
         humor.current = { deb, dor, desconfia, raiva };
-        const olhoArregala = 1 + dor * .35;
-        if (olhoE.current) olhoE.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - deb * .55));
-        if (olhoD.current) olhoD.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - desconfia * .6));
+        const olhoArregala = 1 + dor * .7;
+        if (olhoE.current) olhoE.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - deb * .85));
+        if (olhoD.current) olhoD.current.scale.y = Math.max(.08, aperto * olhoArregala * (1 - desconfia * .85));
         // ── O AVISO TEM DE SE VER DE LONGE ────────────────────────────────
         // 0,15 rad de franzir não lia no celular. Enquanto a boca ABRE (o
         // telégrafo), a arcada desce forte e as lentes acendem; aberta, volta
@@ -301,12 +301,12 @@ export const Floor12Cabeca: React.FC<{
         // contorno, e o franzir ao abrir a boca ainda serve de aviso de ataque.
         const hm = humor.current;
         if (sobrE.current) {
-            sobrE.current.rotation.z = -0.24 - franzir + hm.dor * .5 + hm.deb * .12 + hm.raiva;
-            sobrE.current.position.y = 2.05 + hm.dor * .28 - hm.deb * .08;
+            sobrE.current.rotation.z = -0.24 - franzir + hm.dor * .9 + hm.deb * .2 + hm.raiva;
+            sobrE.current.position.y = 2.05 + hm.dor * .55 - hm.deb * .16;
         }
         if (sobrD.current) {
-            sobrD.current.rotation.z = 0.24 + franzir - hm.dor * .5 - hm.deb * .38 + hm.desconfia * .22 - hm.raiva;
-            sobrD.current.position.y = 2.05 + hm.dor * .28 + hm.deb * .34 - hm.desconfia * .12;
+            sobrD.current.rotation.z = 0.24 + franzir - hm.dor * .9 - hm.deb * .7 + hm.desconfia * .4 - hm.raiva;
+            sobrD.current.position.y = 2.05 + hm.dor * .55 + hm.deb * .6 - hm.desconfia * .22;
         }
 
         // Mouth and collision stay anchored. The upper face breathes and recoils.
