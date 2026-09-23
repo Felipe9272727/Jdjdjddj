@@ -62,7 +62,7 @@ function leque(raio: number, n: number, abertura = Math.PI): THREE.BufferGeometr
     const pos: number[] = [], nor: number[] = [];
     for (let i = 0; i < n; i++) {
         const a = -abertura / 2 + (i + .5) * abertura / n;
-        const b = new THREE.BoxGeometry(.018, raio, .012).toNonIndexed();
+        const b = new THREE.BoxGeometry(.026, raio, .014).toNonIndexed();
         b.translate(0, raio / 2, 0); b.rotateZ(a);
         pos.push(...(b.getAttribute('position').array as Float32Array));
         nor.push(...(b.getAttribute('normal').array as Float32Array));
@@ -120,8 +120,8 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // ── A PORTA ─────────────────────────────────────────────────────
         if (t > 3.6 && !ding.current) { ding.current = true; tocarDing(); }
         const abre = ease((t - 3.8) / 1.0);
-        if (portaE.current) portaE.current.position.x = -.5 - abre * 1.0;
-        if (portaD.current) portaD.current.position.x = .5 + abre * 1.0;
+        if (portaE.current) portaE.current.position.x = -.54 - abre * 1.08;
+        if (portaD.current) portaD.current.position.x = .54 + abre * 1.08;
         if (luzDaPorta.current) luzDaPorta.current.intensity = abre * 10;
 
         // ── A CÂMERA: os olhos dele ──────────────────────────────────────
@@ -129,7 +129,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         const retrato = size.width < size.height;
         let fov = retrato ? 76 : 60;
         const andar = ease(t / 2.2);
-        let z = THREE.MathUtils.lerp(FUNDO - .25, .95, andar);
+        let z = THREE.MathUtils.lerp(FUNDO - .2, 1.45, andar);
         // passo de gente: o balanço vertical e o lateral vêm do mesmo ciclo
         const passo = t < 2.2 ? (1 - andar * .6) : 0;
         let y = OLHO + Math.abs(Math.sin(t * 6.2)) * .045 * passo;
@@ -142,7 +142,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         let roll = Math.sin(t * 3.1) * .01 * passo;
         // o passo para fora, e a queda
         const pisa = ease((t - 4.9) / .35);
-        z -= pisa * .9;
+        z -= pisa * 1.4;
         const cai = Math.max(0, t - 5.15);
         if (cai > 0) {
             y -= 4.9 * cai * cai;
@@ -229,9 +229,13 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
 
             {/* ── A FRENTE: moldura, mostrador e as portas ── */}
             {([-1, 1] as const).map((lado) => (
-                <mesh key={lado} material={M.nogueira} position={[lado * 1.2, ALTO / 2, 0]}><boxGeometry args={[.3, ALTO, .14]} /></mesh>
+                <mesh key={lado} material={M.nogueira} position={[lado * 1.65, ALTO / 2, 0]}><boxGeometry args={[1.2, ALTO, .14]} /></mesh>
             ))}
-            <mesh material={M.nogueira} position={[0, 2.72, 0]}><boxGeometry args={[2.1, .56, .14]} /></mesh>
+            <mesh material={M.nogueira} position={[0, 2.72, 0]}><boxGeometry args={[4.5, .56, .14]} /></mesh>
+            {/* o poço atrás das portas: bolsos escuros onde elas se recolhem */}
+            {([-1, 1] as const).map((lado) => (
+                <mesh key={`b${lado}`} material={M.escuro} position={[lado * 1.65, 1.25, -.2]}><boxGeometry args={[1.25, 2.5, .04]} /></mesh>
+            ))}
             <mesh material={M.latao} position={[0, 2.44, .08]}><boxGeometry args={[2.14, .04, .04]} /></mesh>
             {([-1, 1] as const).map((lado) => (
                 <mesh key={lado} material={M.latao} position={[lado * 1.05, 1.22, .08]}><boxGeometry args={[.04, 2.44, .04]} /></mesh>
@@ -265,9 +269,13 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             </group>
             {/* as portas: aço escovado com o leque de latão gravado */}
             {([-1, 1] as const).map((lado) => (
-                <group key={lado} ref={lado < 0 ? portaE : portaD} position={[lado * .5, 1.22, -.1]}>
-                    <mesh material={M.aco}><boxGeometry args={[1.0, 2.44, .05]} /></mesh>
-                    <group position={[-lado * .5, -.2, .03]}>
+                <group key={lado} ref={lado < 0 ? portaE : portaD} position={[lado * .54, 1.22, -.1]}>
+                    <mesh material={M.aco}><boxGeometry args={[1.12, 2.46, .05]} /></mesh>
+                    {/* o arco de latão do leque */}
+                    <mesh material={M.latao} position={[-lado * .56, -.2, .03]} rotation={[0, 0, lado > 0 ? Math.PI / 2 : -Math.PI / 2]}>
+                        <torusGeometry args={[.56, .02, 8, 32, Math.PI / 2]} />
+                    </mesh>
+                    <group position={[-lado * .56, -.2, .03]}>
                         <mesh material={M.latao} geometry={G.lequePorta} rotation={[0, 0, -lado * Math.PI / 2]} />
                     </group>
                     <mesh material={M.latao} position={[0, .9, .03]}><boxGeometry args={[.92, .03, .01]} /></mesh>

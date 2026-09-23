@@ -199,7 +199,7 @@ const DiretorDaIntro: React.FC<{
         if (typeof document === 'undefined' || !document.hidden) t.current += Math.min(rawDt, .25);
         // O prólogo JÁ abriu a porta e jogou o hóspede no vazio: a intro
         // antiga entra a partir das portas abertas, sem repetir o "ding".
-        if (antes < 0 && t.current >= 0) { t.current = 2.6; marcos.current.ding = true; }
+        if (antes < 0 && t.current >= 0) { t.current = 3.0; marcos.current.ding = true; }
         // Bancada: `?f12t=3.2` congela o prólogo nesse instante (só em DEV).
         if (import.meta.env.DEV && tCongelado !== null) t.current = tCongelado - PROLOGO;
         const tt = t.current;
