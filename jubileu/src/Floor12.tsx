@@ -2,6 +2,7 @@ import { EffectComposer, Bloom, N8AO, SMAA } from '@react-three/postprocessing';
 import { PerformanceMonitor } from '@react-three/drei';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
+import { Floor12Prologo, PROLOGO, prologo } from './Floor12Prologo';
 import { nascerMissilCarregado, danoDoTiro, expressao, LIMIAR_DA_VIRADA } from './f12Boss';
 import { Floor12FlightFeedback, Floor12ChargeMeter } from './Floor12FlightFeedback';
 /**
@@ -150,6 +151,9 @@ const CabineDeDentro: React.FC<{ portaRef: React.MutableRefObject<number>; sumin
  * acontecer. E a câmera só recua DEPOIS de as asas existirem, senão ela revela
  * um cubo voando e a transformação perde o efeito.
  */
+/** Relógio do prólogo, escrito pelo diretor da intro e lido pelo prólogo. */
+const tempoDoPrologo = { current: 99 };
+
 const DiretorDaIntro: React.FC<{
     portaRef: React.MutableRefObject<number>;
     aberturaRef: React.MutableRefObject<number>;
@@ -159,7 +163,10 @@ const DiretorDaIntro: React.FC<{
     introAtivaRef: React.MutableRefObject<boolean>;
     avisar: () => void;
 }> = ({ portaRef, aberturaRef, sumindoRef, camRef, introProgressRef, introAtivaRef, avisar }) => {
-    const t = useRef(0);
+    // O relógio começa NEGATIVO: os primeiros `PROLOGO` segundos são o
+    // hóspede andando até o elevador (Floor12Prologo), e o zero continua
+    // sendo o escuro dentro da cabine — a coreografia abaixo não mudou.
+    const t = useRef(-PROLOGO);
     const marcos = useRef({ ding: false, desdobrar: false, motor: false });
     // ── TOCAR PULA ───────────────────────────────────────────────────────
     // Catorze segundos na primeira vez são uma apresentação; para quem já
@@ -168,7 +175,7 @@ const DiretorDaIntro: React.FC<{
     // o avião, a câmera e a porta caem na pose final sozinhos.
     useEffect(() => {
         const pular = () => {
-            if ((f12.fase === 'intro' || f12.fase === 'virando') && t.current > 1.2)
+            if ((f12.fase === 'intro' || f12.fase === 'virando') && t.current > -PROLOGO + .4)
                 t.current = Math.max(t.current, F12_CINEMA.intro - .05);
         };
         window.addEventListener('pointerdown', pular);
@@ -178,12 +185,14 @@ const DiretorDaIntro: React.FC<{
     useFrame((_, rawDt) => {
         if (f12.fase !== 'intro' && f12.fase !== 'virando') {
             introAtivaRef.current = false;
+            tempoDoPrologo.current = 99;
             return;
         }
         introAtivaRef.current = true;
         // Cinematic time must not run in slow motion below 20 FPS.
         if (typeof document === 'undefined' || !document.hidden) t.current += Math.min(rawDt, .25);
         const tt = t.current;
+        tempoDoPrologo.current = tt + PROLOGO;
         const progress = THREE.MathUtils.clamp(tt / F12_CINEMA.intro, 0, 1);
         introProgressRef.current = progress;
 
@@ -237,6 +246,7 @@ const CameraDaLuta: React.FC<{
     const size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     useFrame((_, rawDt) => {
+        if (prologo.ativo) return;   // o prólogo dirige a própria câmera
         const dt = Math.min(rawDt, 0.05);
         const n = naveRef.current;
         const aspectoDaTela = size.width / Math.max(1, size.height);
@@ -1236,6 +1246,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <CabineDeDentro portaRef={porta} sumindoRef={sumindo} />
                 <AviaoDoJogador naveRef={nave} aberturaRef={abertura} heliceRef={helice} visivelRef={visivel} />
                 <AviaoDoIrmao naveRef={irmao} falandoRef={falando} introRef={introProgress} />
+                <Floor12Prologo tempo={tempoDoPrologo} />
                 <DiretorDaIntro portaRef={porta} aberturaRef={abertura} sumindoRef={sumindo}
                     camRef={cam} introProgressRef={introProgress} introAtivaRef={introAtiva}
                     avisar={() => { visivel.current = true; avisar(); }} />
