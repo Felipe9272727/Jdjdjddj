@@ -241,7 +241,13 @@ export const Floor12Cabeca: React.FC<{
         const blink = dying ? 1 : blinkScale(t, b.abertura);
         const aperto = dying ? Math.max(.04, 1 - beat.rupture) : (1 - b.abertura * .32) * blink;
         for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.y = aperto;
-        const franzir = b.abertura * 0.15;
+        // ── O AVISO TEM DE SE VER DE LONGE ────────────────────────────────
+        // 0,15 rad de franzir não lia no celular. Enquanto a boca ABRE (o
+        // telégrafo), a arcada desce forte e as lentes acendem; aberta, volta
+        // ao meio-termo. É o segundo canal do aviso, para quem olha os olhos.
+        const avisando = b.estado === 'abrindo' ? Math.sin(Math.min(1, b.t / .55) * Math.PI * .5) : 0;
+        const franzir = b.abertura * 0.15 + avisando * 0.32;
+        M.lente.emissiveIntensity = dying ? .26 : .26 + avisando * 1.4;
         // ── O ÂNGULO DE REPOUSO DA ARCADA ────────────────────────────────
         // Era 0,18 rad: quase horizontal, com as pontas de fora um tico para
         // cima. Isso é sobrancelha ARQUEADA, e sobrancelha arqueada é susto —
