@@ -1361,7 +1361,8 @@ const DicaDeControle: React.FC = () => {
         return () => window.removeEventListener('resize', medir);
     }, []);
     useEffect(() => {
-        const id = window.setTimeout(() => setVisivel(false), 6000);
+        // Deitada, ela cobre a testa do chefe: dura menos.
+        const id = window.setTimeout(() => setVisivel(false), window.innerHeight < 520 ? 2500 : 6000);
         // Quem já arrastou já aprendeu: o aviso sai no primeiro toque em vez
         // de ficar deitado em cima da cabeça na tela deitada.
         const aprendeu = () => setVisivel(false);

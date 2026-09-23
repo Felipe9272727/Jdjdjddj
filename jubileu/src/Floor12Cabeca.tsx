@@ -448,7 +448,7 @@ export const Floor12Cabeca: React.FC<{
                 Sem ela, só o quepe dizia "concierge": a silhueta lia como
                 cabeçudo genérico. Latão, abaixo do queixo, fora da boca e da
                 hitbox — é o uniforme do hotel preso no próprio casco. */}
-            <group position={[0, -4.12, 2.1]} scale={.72}>
+            <group position={[0, -3.92, 2.75]} scale={.72}>
                 {[-1, 1].map(lado => (
                     <mesh key={lado} material={M.gravata} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
                         <coneGeometry args={[.5, 1.05, 4]} />
