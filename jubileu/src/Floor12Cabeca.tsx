@@ -196,13 +196,13 @@ export const Floor12Cabeca: React.FC<{
             raiz.current.position.set(
                 (dying ? Math.sin(ct * 32) * beat.tremor * .10 : 0)
                     + (tv ? Math.sin(ct * 71) * tv.tremor * .26 : 0),
-                ALTURA_DA_CABECA + tomaFolego * .8 - (dying ? beat.fall * 26 : 0)
+                ALTURA_DA_CABECA + tomaFolego * 1.8 - (dying ? beat.fall * 26 : 0)
                     - (dv ? dv.engolir * 2.4 : 0),
                 ARENA.zCabeca - (dying ? beat.fall * 7 : 0)
                     + (dv ? avancoDaCabecaNaDerrota(dv.engolir) : 0)
                     + (tv ? tv.aproxima * 1.5 : 0));
             raiz.current.rotation.set(
-                (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0) - tomaFolego * .12,
+                (dying ? beat.fall * .9 : 0) + (dv ? dv.engolir * .22 : 0) - tomaFolego * .16,
                 dying ? beat.fall * -.35 : 0,
                 dying ? Math.sin(ct * 23) * .018 * beat.tremor + beat.fall * .65 : 0);
         }
@@ -254,6 +254,10 @@ export const Floor12Cabeca: React.FC<{
         const avisando = b.estado === 'abrindo' ? Math.sin(Math.min(1, b.t / .55) * Math.PI * .5) : 0;
         const franzir = b.abertura * 0.15 + avisando * 0.32;
         M.lente.emissiveIntensity = dying ? .26 : .26 + avisando * 1.4;
+        // ── DEPOIS DA VIRADA, OS OLHOS FICAM VERMELHOS ──────────────────────
+        // A virada era uma cena e passava: dali em diante a cabeça voltava a
+        // ser a mesma. Lente vermelha até o fim diz "fase dois" sem HUD.
+        M.lente.emissive.set(f12.passouDaVirada ? '#e2372b' : '#3f8f88');
         // ── O ÂNGULO DE REPOUSO DA ARCADA ────────────────────────────────
         // Era 0,18 rad: quase horizontal, com as pontas de fora um tico para
         // cima. Isso é sobrancelha ARQUEADA, e sobrancelha arqueada é susto —
