@@ -192,7 +192,11 @@ const DiretorDaIntro: React.FC<{
         }
         introAtivaRef.current = true;
         // Cinematic time must not run in slow motion below 20 FPS.
+        const antes = t.current;
         if (typeof document === 'undefined' || !document.hidden) t.current += Math.min(rawDt, .25);
+        // O prólogo JÁ abriu a porta e jogou o hóspede no vazio: a intro
+        // antiga entra a partir das portas abertas, sem repetir o "ding".
+        if (antes < 0 && t.current >= 0) { t.current = 2.6; marcos.current.ding = true; }
         const tt = t.current;
         tempoDoPrologo.current = tt + PROLOGO;
         const progress = THREE.MathUtils.clamp(tt / F12_CINEMA.intro, 0, 1);
@@ -998,8 +1002,8 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const p = introProgress.current;
             if (prologo.ativo) {
                 const t = prologo.t;
-                setLegendaIntro(t < 2.2 ? 'ANDAR 12 · FIM DO EXPEDIENTE' : t < 3.3 ? 'DING.'
-                    : t < 4.4 ? 'ESSA NÃO É A PORTA CERTA…' : 'NÃO HÁ CHÃO.');
+                setLegendaIntro(t < 2.3 ? 'FIM DO EXPEDIENTE.' : t < 3.4 ? 'ANDAR 11… 12.'
+                    : t < 4.5 ? 'DING.' : t < 5.0 ? 'AS PORTAS SE ABREM…' : 'NÃO HÁ CHÃO.');
                 return;
             }
             setLegendaIntro(p < .08 ? 'ANDAR 12' : p < .26 ? 'AS PORTAS SE ABREM…'
