@@ -132,7 +132,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             const k = ease((t - PASSO_ATE - .15) / .8);
             const seg = ease((t - PASSO_ATE - .7) / .6);
             cam.set(mao(6) * 2 + seg * 1.2, THREE.MathUtils.lerp(1.9 - k * .6, y + 3.2, seg), PORTA_Z + .4 - k * .9 + seg * 1.6);
-            alvo.set(0, y + .6, z - .2 - (1 - k) * 6 - seg * 3);
+            alvo.set(0, y + .6 - seg * 1.5, z - .2 - (1 - k) * 6);
             fov = 52 + k * 14;
         }
         camera.position.copy(cam).add(ORIGEM);
