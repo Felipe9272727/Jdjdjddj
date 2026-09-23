@@ -123,8 +123,13 @@ export function pararMotor(): void {
 // Tiro: altura sorteada ±6% a cada disparo e uma cauda grave curta — o mesmo
 // bipe idêntico trinta vezes por segundo cansava o ouvido em um minuto.
 export function tocarTiro(): void {
+    // Estalo de ruído + baque grave, e só um fio do bipe quadrado por cima: o
+    // quadrado puro, trinta vezes por segundo, virava agulha no alto-falante
+    // e tapava os avisos.
     const v = 1 + (Math.random() - .5) * .12;
-    bipe('square', 900 * v, 320 * v, 0.075, 0.07); bipe('triangle', 220 * v, 120, 0.09, 0.03);
+    ruido(0.03, 0.09, 3200 * v);
+    bipe('triangle', 240 * v, 110, 0.07, 0.05);
+    bipe('square', 900 * v, 380 * v, 0.05, 0.025);
 }
 export function tocarTiroIrmao(): void { bipe('square', 620, 240, 0.085, 0.04); }
 /**
