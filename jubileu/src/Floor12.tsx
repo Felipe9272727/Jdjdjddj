@@ -153,6 +153,9 @@ const CabineDeDentro: React.FC<{ portaRef: React.MutableRefObject<number>; sumin
  */
 /** Relógio do prólogo, escrito pelo diretor da intro e lido pelo prólogo. */
 const tempoDoPrologo = { current: 99 };
+const tCongelado: number | null = typeof location !== 'undefined'
+    && new URLSearchParams(location.search).has('f12t')
+    ? parseFloat(new URLSearchParams(location.search).get('f12t') ?? '0') : null;
 
 const DiretorDaIntro: React.FC<{
     portaRef: React.MutableRefObject<number>;
@@ -197,6 +200,8 @@ const DiretorDaIntro: React.FC<{
         // O prólogo JÁ abriu a porta e jogou o hóspede no vazio: a intro
         // antiga entra a partir das portas abertas, sem repetir o "ding".
         if (antes < 0 && t.current >= 0) { t.current = 2.6; marcos.current.ding = true; }
+        // Bancada: `?f12t=3.2` congela o prólogo nesse instante (só em DEV).
+        if (import.meta.env.DEV && tCongelado !== null) t.current = tCongelado - PROLOGO;
         const tt = t.current;
         tempoDoPrologo.current = tt + PROLOGO;
         const progress = THREE.MathUtils.clamp(tt / F12_CINEMA.intro, 0, 1);
