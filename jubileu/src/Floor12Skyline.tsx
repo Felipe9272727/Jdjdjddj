@@ -7,8 +7,10 @@ import { Floor12MarDeNuvens, Y_DO_PISO } from './Floor12MarDeNuvens';
 
 type Piece = { x: number; y: number; z: number; sx: number; sy: number; sz: number };
 
-function ArchitectureInstances({ pieces, color, glow = false }: {
+function ArchitectureInstances({ pieces, color, glow = false, tints }: {
   pieces: Piece[]; color: string; glow?: boolean;
+  /** Uma cor por peça, sorteada da lista (a cor-base vira branco). */
+  tints?: string[];
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -20,17 +22,27 @@ function ArchitectureInstances({ pieces, color, glow = false }: {
       dummy.updateMatrix(); ref.current!.setMatrixAt(i, dummy.matrix);
     });
     ref.current.instanceMatrix.needsUpdate = true;
+    if (tints) {
+      const c = new THREE.Color();
+      pieces.forEach((_, i) => {
+        const r = Math.sin(i * 78.233) * 43758.5453;
+        ref.current!.setColorAt(i, c.set(tints[Math.floor((r - Math.floor(r)) * tints.length)]));
+      });
+      if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+    }
     ref.current.computeBoundingSphere();
-  }, [pieces]);
+  }, [pieces, tints]);
   return <instancedMesh ref={ref} args={[undefined, undefined, pieces.length]}>
     <boxGeometry args={[1, 1, 1]} />
     {glow ? <meshBasicMaterial color={color} toneMapped={false} /> :
-      <meshStandardMaterial color={color} roughness={.83} metalness={.18} />}
+      <meshStandardMaterial color={tints ? '#ffffff' : color} roughness={.83} metalness={.18} />}
   </instancedMesh>;
 }
 
 /** A real skyline behind the fight, with silhouettes at several depths.
  * Batched windows and masonry keep the hotel readable without hundreds of draws. */
+const JANELAS = ['#8e7d55', '#a8894a', '#b39258', '#6d7f88', '#2e2a26', '#2e2a26', '#9a6a46'];
+
 export function Floor12Skyline({ bossZ }: { bossZ: number }) {
   const architecture = useMemo(() => {
     const walls: Piece[] = [], brass: Piece[] = [], windows: Piece[] = [];
@@ -97,7 +109,9 @@ export function Floor12Skyline({ bossZ }: { bossZ: number }) {
         Elas disputavam a atenção com os projéteis e ganhavam. Continuam acesas,
         porque hotel à noite tem janela acesa, mas descem de protagonista a
         textura: o quente agora é reservado para o que machuca. */}
-    <ArchitectureInstances pieces={architecture.windows} color="#8e7d55" />
+    {/* Janelas de cores diferentes — quarto aceso, abajur, TV, apagado. Todas
+        iguais faziam das torres caixas de papelão; variadas, tem gente lá. */}
+    <ArchitectureInstances pieces={architecture.windows} color="#8e7d55" tints={JANELAS} />
     {/* O chão inteiro, e não só as laterais: ver Floor12MarDeNuvens. */}
     <Floor12MarDeNuvens bossZ={bossZ} />
     <instancedMesh ref={cloudRef} args={[cloudGeometry, undefined, clouds.length]}>

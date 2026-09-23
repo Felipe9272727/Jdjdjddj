@@ -115,7 +115,12 @@ export function Floor12Trafego({ bossZ }: { bossZ: number }) {
             // 1,8×: no tamanho real um carro a 60 unidades virava um cisco.
             tmp.scale.setScalar(1.8);
             tmp.updateMatrix();
-            for (const k of ['corpo', 'cabine', 'farol', 'lanterna'] as const) refs[k].current?.setMatrixAt(i, tmp.matrix);
+            refs.corpo.current?.setMatrixAt(i, tmp.matrix);
+            refs.cabine.current?.setMatrixAt(i, tmp.matrix);
+            // No pânico as luzes crescem: pisca-alerta pequeno sumia na tela do celular.
+            if (panico) { tmp.scale.set(1.8, 3.6, 2.4); tmp.updateMatrix(); }
+            refs.farol.current?.setMatrixAt(i, tmp.matrix);
+            refs.lanterna.current?.setMatrixAt(i, tmp.matrix);
         });
         for (const k of ['corpo', 'cabine', 'farol', 'lanterna'] as const) {
             const m = refs[k].current; if (m) m.instanceMatrix.needsUpdate = true;
