@@ -53,7 +53,7 @@ export function f12IntroCamera(progress: number) {
 }
 
 export function f12ChaseDistance(aspect: number) {
-  return 19 - 7 * f12Ease((aspect - .65) / .65);
+  return 19 - 5.8 * f12Ease((aspect - .65) / .65);
 }
 
 /**

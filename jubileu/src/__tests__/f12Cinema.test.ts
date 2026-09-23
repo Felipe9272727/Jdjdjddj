@@ -138,7 +138,11 @@ describe('a paisagem não pode encolher o chefe', () => {
     // chegar perto, a largura não está sendo desperdiçada — está sendo gasta na
     // altura, que é obrigatória.
     it('a paisagem gasta a largura quase até o teto geométrico', () => {
-        const FOLGA = 1.0;   // o avião precisa de céu acima e abaixo da arena
+        // O avião precisa de céu acima e abaixo da arena — e o QUEPE, que fica
+        // acima dela, precisa caber abaixo da barra do chefe. Com folga 1,0 a
+        // lente cortava a copa do quepe em toda foto em paisagem (quatro
+        // críticos seguidos apontaram); 2,3 é a copa mais a faixa da barra.
+        const FOLGA = 2.3;
         const teto = ARENA_LARGURA / ((ARENA_ALTURA + FOLGA) * PAISAGEM);
         const real = ARENA_LARGURA / quadro(PAISAGEM).larg;
         expect(real).toBeGreaterThan(teto * 0.95);
