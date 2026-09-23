@@ -168,7 +168,8 @@ const DiretorDaIntro: React.FC<{
                 t.current = Math.max(t.current, F12_CINEMA.intro - .05);
         };
         window.addEventListener('pointerdown', pular);
-        return () => window.removeEventListener('pointerdown', pular);
+        window.addEventListener('keydown', pular);
+        return () => { window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); };
     }, []);
     useFrame((_, rawDt) => {
         if (f12.fase !== 'intro' && f12.fase !== 'virando') {

@@ -89,6 +89,7 @@ export const Floor12Cabeca: React.FC<{
             bevelSize: .05, bevelThickness: .04, bevelSegments: 2 });
     }, []);
     const face = useRef<THREE.Group>(null);
+    const engrenagens = useRef<THREE.Group>(null);
     const mandibula = useRef<THREE.Group>(null);
     const garganta = useRef<THREE.Mesh>(null);
     const reator = useRef<THREE.Group>(null);
@@ -284,6 +285,16 @@ export const Floor12Cabeca: React.FC<{
             }
         }
 
+        // ── A SEGUNDA FORMA ──────────────────────────────────────────────
+        // Passada a virada, a chapa da bochecha direita não está mais lá: por
+        // baixo, engrenagens em brasa girando. É a cabeça mostrando o que é.
+        if (engrenagens.current) {
+            engrenagens.current.visible = f12.passouDaVirada && !gone;
+            engrenagens.current.children.forEach((g, i) => {
+                if (i > 0) g.rotation.z += dt * (i % 2 ? 1.6 : -2.3);
+            });
+        }
+
         // ── O PISCA DE DANO ──────────────────────────────────────────────
         if (flashRef.current > 0) flashRef.current = Math.max(0, flashRef.current - dt * 4.5);
         const brilho = flashRef.current;
@@ -326,6 +337,16 @@ export const Floor12Cabeca: React.FC<{
             <Floor12BossCrown />
             <Floor12Facework material={M.porcelana} geometry={faceAssets.sculpt} rims={faceAssets.rims} />
             {faceAssets.panels.map((g, i) => <mesh key={i} geometry={g} material={M.costura} />)}
+            <group ref={engrenagens} visible={false} position={[2.05, -.35, 2.75]} rotation={[0, .55, 0]}>
+                <mesh material={M.interior} scale={[.95, .8, .25]}>
+                    <sphereGeometry args={[1, 16, 10]} />
+                </mesh>
+                {[[-.3, .2, .45], [.35, -.15, .32], [-.15, -.4, .25]].map(([x, y, r], i) => (
+                    <mesh key={i} material={M.brasa} position={[x, y, .22]}>
+                        <torusGeometry args={[r, r * .28, 5, 10]} />
+                    </mesh>
+                ))}
+            </group>
             {/* têmporas achatadas, para não ser uma bola perfeita */}
             <mesh material={M.peleEsc} position={[0, R * 0.25, -R * 0.25]}>
                 <sphereGeometry args={[R * 0.70, 16, 10]} />
