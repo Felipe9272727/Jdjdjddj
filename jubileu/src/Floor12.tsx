@@ -1066,7 +1066,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const arrasto = useRef<{ id: number; x: number; y: number } | null>(null);
 
     const pixelParaMundo = useCallback(() => {
-        const meiaV = Math.tan((ENQUADRAMENTO.fov * Math.PI) / 180 / 2);
+        // O fov é o da CÂMERA DE VERDADE (fecha em paisagem): com o de retrato
+        // o dedo e a nave desencontravam quando o celular deitava.
+        const meiaV = Math.tan((f12ChaseFov(window.innerWidth / Math.max(1, window.innerHeight)) * Math.PI) / 180 / 2);
         // R3F updates the perspective camera with the live viewport aspect;
         // using the portrait authoring constant here made drag sensitivity wrong
         // as soon as the player rotated the device or played on desktop.
@@ -1142,7 +1144,11 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     }, []);
 
     // A dica é aula de primeira vez: uma por sessão, não a cada fase de luta.
-    const mostrarControles = fase === 'luta' && !dicaJaDada.valor;
+    const mostrarControles = fase === 'luta';
+    // A dica tem flag PRÓPRIA. Ela chegou a reusar `mostrarControles`, que
+    // também monta a superfície de arrasto: quando a dica sumia, o toque sumia
+    // junto e a nave parava de obedecer ao dedo.
+    const mostrarDica = mostrarControles && !dicaJaDada.valor;
     const vidaFrac = Math.max(0, f12.vida / VIDA_MAXIMA);
     const baixa = typeof window !== 'undefined' && window.innerHeight < 520;
 
@@ -1298,7 +1304,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             )}
             {/* O aviso, só nos primeiros segundos da luta: sem joystick na tela,
                 alguém tem de dizer que a tela é o joystick. */}
-            {mostrarControles && <DicaDeControle />}
+            {mostrarDica && <DicaDeControle />}
             {mostrarControles && <Floor12ChargeMeter arma={arma} />}
 
             {/* a legenda da introdução: sem ela o jogador não sabe que o
