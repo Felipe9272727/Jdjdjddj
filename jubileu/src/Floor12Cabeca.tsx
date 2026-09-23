@@ -395,6 +395,21 @@ export const Floor12Cabeca: React.FC<{
                 {/* a mandíbula: pivô ATRÁS, para ela girar como maxilar */}
                 <group ref={mandibula} position={[0, 0.5, -0.9]}>
                     <mesh geometry={jaw} material={[M.mandibulaPlaca, M.interior]} position={[0, -.75, 1.15]} />
+                    {/* ── A FERRAGEM DO QUEIXO ──
+                        Lisa, a mandíbula era uma tigela escura pendurada: a peça
+                        que mais barateava a cabeça. Rebite e tira de latão dizem
+                        "chapa aparafusada", e acompanham o giro por serem filhos
+                        do mesmo grupo. O Z segue a curva da chapa (-0,052·x²). */}
+                    {[-.55, -1.62].flatMap((y, fila) => Array.from({ length: fila ? 7 : 9 }, (_, i) => {
+                        const n = fila ? 7 : 9, x = (i / (n - 1) - .5) * (fila ? 2.6 : 3.8);
+                        return <mesh key={`${fila}-${i}`} material={M.rebite}
+                            position={[x, y, 2.37 - .052 * x * x]}>
+                            <sphereGeometry args={[.075, 8, 6]} />
+                        </mesh>;
+                    }))}
+                    <mesh material={M.rebite} position={[0, -1.1, 2.39]}>
+                        <boxGeometry args={[.16, 1.05, .07]} />
+                    </mesh>
                     {DENTES_DE_BAIXO.map(([x, sx, sy, latao], i) => sy > 0 && (
                         <mesh key={i} material={latao ? M.rebite : M.dente} geometry={tooth}
                             position={[x, -.18 - (1 - sy) * .27, 2.10 - x*x*.055]} rotation={[0, -x*.055, Math.PI + (i % 2 ? -.05 : .04)]} scale={[sx, sy, 1]} />
