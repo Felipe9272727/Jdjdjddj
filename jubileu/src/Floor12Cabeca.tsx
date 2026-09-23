@@ -128,6 +128,8 @@ export const Floor12Cabeca: React.FC<{
          * olho vai para a cara, e a boca só pesa quando ABRE e a garganta
          * acende — que é exatamente quando o jogo quer que o jogador olhe.
          */
+        /** Carmim de uniforme de hotel: em latão ela sumia na sombra do queixo. */
+        gravata: new THREE.MeshStandardMaterial({ color: '#a3202a', roughness: .45, metalness: .1, emissive: new THREE.Color('#3a0508') }),
         mandibulaPlaca: new THREE.MeshStandardMaterial({
             color: '#3c4a4e', roughness: .38, metalness: .62,
         }),
@@ -143,8 +145,8 @@ export const Floor12Cabeca: React.FC<{
         recessoOlho: new THREE.MeshStandardMaterial({ color: '#05161c', roughness: .92, metalness: .05 }),
         /** A lente. Ela EMITE — é o que faz um olho de máquina parecer ligado. */
         lente: new THREE.MeshStandardMaterial({
-            color: '#0e3b44', roughness: .18, metalness: .35,
-            emissive: new THREE.Color('#42bcb1'), emissiveIntensity: .32,
+            color: '#1a3438', roughness: .18, metalness: .35,
+            emissive: new THREE.Color('#3f8f88'), emissiveIntensity: .26,
         }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
@@ -431,7 +433,7 @@ export const Floor12Cabeca: React.FC<{
                 hitbox — é o uniforme do hotel preso no próprio casco. */}
             <group position={[0, -3.95, 2.05]}>
                 {[-1, 1].map(lado => (
-                    <mesh key={lado} material={M.rebite} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
+                    <mesh key={lado} material={M.gravata} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
                         <coneGeometry args={[.5, 1.05, 4]} />
                     </mesh>
                 ))}
