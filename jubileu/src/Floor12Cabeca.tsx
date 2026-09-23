@@ -131,7 +131,9 @@ export const Floor12Cabeca: React.FC<{
         mandibulaPlaca: new THREE.MeshStandardMaterial({
             color: '#3c4a4e', roughness: .38, metalness: .62,
         }),
-        brilhoOlho: new THREE.MeshBasicMaterial({ color: '#a0fff1', toneMapped: false }),
+        // O olho era o ponto mais aceso da tela e não é alvo: acenava para o tiro
+        // errado. Ele fica ligado, mas abaixo da garganta, que é o alvo.
+        brilhoOlho: new THREE.MeshBasicMaterial({ color: '#6fc9bf' }),
         peleEsc: mat64(CORES.peleEsc),
         interior: mat64(CORES.interior),
         brasa: mat64(CORES.brasa, CORES.brasa, 0.9),
@@ -142,7 +144,7 @@ export const Floor12Cabeca: React.FC<{
         /** A lente. Ela EMITE — é o que faz um olho de máquina parecer ligado. */
         lente: new THREE.MeshStandardMaterial({
             color: '#0e3b44', roughness: .18, metalness: .35,
-            emissive: new THREE.Color('#42bcb1'), emissiveIntensity: .58,
+            emissive: new THREE.Color('#42bcb1'), emissiveIntensity: .32,
         }),
         pupila: mat64(CORES.pupila),
         dente: mat64(CORES.dente),
@@ -422,6 +424,21 @@ export const Floor12Cabeca: React.FC<{
                     <cylinderGeometry args={[.11, .15, 1, 8]} />
                 </mesh>
             ))}
+
+            {/* ── A GRAVATA-BORBOLETA ──
+                Sem ela, só o quepe dizia "concierge": a silhueta lia como
+                cabeçudo genérico. Latão, abaixo do queixo, fora da boca e da
+                hitbox — é o uniforme do hotel preso no próprio casco. */}
+            <group position={[0, -3.95, 2.05]}>
+                {[-1, 1].map(lado => (
+                    <mesh key={lado} material={M.rebite} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
+                        <coneGeometry args={[.5, 1.05, 4]} />
+                    </mesh>
+                ))}
+                <mesh material={M.mandibulaPlaca} scale={[1, 1, .6]}>
+                    <sphereGeometry args={[.24, 10, 8]} />
+                </mesh>
+            </group>
 
             {/* ── AS FERIDAS ── */}
             {detail.map((crack, i) => (
