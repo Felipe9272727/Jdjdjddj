@@ -1403,7 +1403,8 @@ const Mira: React.FC<{ naveRef: React.MutableRefObject<Nave> }> = ({ naveRef }) 
         const alinhado = Math.hypot(n.x - BOCA_ALVO.x, n.y - BOCA_ALVO.y) < BOCA_ALVO.raio;
         const mat = m.material as THREE.MeshBasicMaterial;
         mat.color.set(alinhado ? '#b6ff4a' : '#ffffff');
-        mat.opacity = alinhado ? 0.5 : 0.16;
+        // Fio fino: forte demais, ele cortava a cara ao meio e escondia o aviso.
+        mat.opacity = alinhado ? 0.3 : 0.1;
     });
     return (
         <mesh ref={traco} visible={false}>

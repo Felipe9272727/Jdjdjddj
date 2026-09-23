@@ -39,12 +39,25 @@ function ArchitectureInstances({ pieces, color, glow = false, tints }: {
   useEffect(() => () => geo.dispose(), [geo]);
   return <instancedMesh ref={ref} args={[geo, undefined, pieces.length]}>
     {glow ? <meshBasicMaterial color={color} toneMapped={false} /> :
-      <meshStandardMaterial color={tints ? '#ffffff' : color} roughness={.83} metalness={.18} />}
+      <meshStandardMaterial color={tints ? '#ffffff' : color} roughness={.83} metalness={.18}
+        onBeforeCompile={degradeVertical} customProgramCacheKey={() => 'f12-degrade-vertical'} />}
   </instancedMesh>;
 }
 
 /** A real skyline behind the fight, with silhouettes at several depths.
  * Batched windows and masonry keep the hotel readable without hundreds of draws. */
+/**
+ * DEGRADÊ VERTICAL: prédio de verdade ao entardecer é escuro no pé (sombra da
+ * cidade, névoa) e acende no alto (sol raso). Pela altura no MUNDO, então vale
+ * para toda peça instanciada sem textura nenhuma — a "luz assada" da arquitetura.
+ */
+function degradeVertical(sh: { vertexShader: string; fragmentShader: string }) {
+  sh.vertexShader = 'varying float vAltura;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n  vAltura = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).y;');
+  sh.fragmentShader = 'varying float vAltura;\n' + sh.fragmentShader.replace('#include <color_fragment>',
+    '#include <color_fragment>\n  diffuseColor.rgb *= mix(.55, 1.25, smoothstep(-10.0, 24.0, vAltura));');
+}
+
 const JANELAS = ['#b89c62', '#d2a650', '#e0b86a', '#7f98a6', '#2e2a26', '#2e2a26', '#c58150'];
 
 export function Floor12Skyline({ bossZ }: { bossZ: number }) {
