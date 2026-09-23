@@ -115,9 +115,9 @@ export function Floor12Ceu() {
     {/* ── O SOL ── baixo, atrás da cidade, fora do eixo da cabeça: sem um disco
         no céu, "poente" era só uma cor. Fora do fog e do tonemapping, para o
         bloom abrir um halo quente em volta dele. */}
-    <group position={[25, 10, -205]}>
-      <mesh><sphereGeometry args={[11, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffc27a').multiplyScalar(1.7)} toneMapped={false} fog={false} /></mesh>
-      <mesh scale={1.9}><sphereGeometry args={[11, 32, 16]} /><meshBasicMaterial color="#ff9a55" transparent opacity={.18} fog={false} depthWrite={false} /></mesh>
+    <group position={[30, 17, -150]}>
+      <mesh><sphereGeometry args={[7, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffc27a').multiplyScalar(1.7)} toneMapped={false} fog={false} /></mesh>
+      <mesh scale={1.9}><sphereGeometry args={[7, 32, 16]} /><meshBasicMaterial color="#ff9a55" transparent opacity={.18} fog={false} depthWrite={false} /></mesh>
     </group>
     <Floor12Skyline bossZ={ARENA.zCabeca} />
     <Floor12SkyDetails />
