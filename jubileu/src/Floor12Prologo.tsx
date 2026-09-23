@@ -83,6 +83,40 @@ function texturaDoMostrador(): THREE.CanvasTexture {
     return t;
 }
 
+/** Aço escovado da porta: riscos verticais finos e um quadro rebaixado. */
+function texturaDaPorta(): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#8d9098'; g.fillRect(0, 0, 128, 256);
+    for (let x = 0; x < 128; x++) {
+        g.globalAlpha = .08 + Math.random() * .14;
+        g.fillStyle = Math.random() > .5 ? '#c9ccd2' : '#5a5d64';
+        g.fillRect(x, 0, 1, 256);
+    }
+    g.globalAlpha = 1;
+    // o quadro rebaixado: sombra por baixo, luz por cima
+    g.strokeStyle = '#4b4e55'; g.lineWidth = 4; g.strokeRect(14, 16, 100, 224);
+    g.strokeStyle = '#c4c7cd'; g.lineWidth = 2; g.strokeRect(18, 20, 92, 216);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+}
+
+/** Teto em caixotões: grade creme com filetes dourados. */
+function texturaDoTeto(): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#e6d8b8'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const x = 8 + i * 83, y = 8 + j * 83;
+        const grad = g.createLinearGradient(x, y, x + 74, y + 74);
+        grad.addColorStop(0, '#f4ead2'); grad.addColorStop(1, '#cdbb94');
+        g.fillStyle = grad; g.fillRect(x, y, 74, 74);
+        g.strokeStyle = '#b8893a'; g.lineWidth = 3; g.strokeRect(x + 4, y + 4, 66, 66);
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
 /** O leque art déco da luminária e das portas: raios de latão numa geometria só. */
 function leque(raio: number, n: number, abertura = Math.PI): THREE.BufferGeometry {
     const pos: number[] = [], nor: number[] = [];
@@ -116,9 +150,9 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         nogueiraClara: new THREE.MeshPhysicalMaterial({ color: '#8a4f2c', roughness: .4, clearcoat: .9, clearcoatRoughness: .15 }),
         latao: new THREE.MeshStandardMaterial({ color: '#e0b155', metalness: .95, roughness: .22 }),
         espelho: new THREE.MeshStandardMaterial({ color: '#c9c2b8', metalness: 1, roughness: .05 }),
-        aco: new THREE.MeshStandardMaterial({ color: '#7d828b', metalness: .8, roughness: .42 }),
+        aco: new THREE.MeshStandardMaterial({ map: texturaDaPorta(), metalness: .75, roughness: .34 }),
         piso: new THREE.MeshPhysicalMaterial({ map: texturaDoPiso(), roughness: .18, clearcoat: 1, clearcoatRoughness: .05 }),
-        teto: new THREE.MeshStandardMaterial({ color: '#efe4cc', roughness: .7 }),
+        teto: new THREE.MeshStandardMaterial({ map: texturaDoTeto(), roughness: .55 }),
         luz: new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff0cf').multiplyScalar(1.6), toneMapped: false }),
         mostrador: new THREE.MeshStandardMaterial({ color: '#f3e7c8', roughness: .5, emissive: '#f3d38a', emissiveIntensity: .35 }),
         numeros: new THREE.MeshStandardMaterial({ map: texturaDoMostrador(), roughness: .5, emissive: '#f3d38a', emissiveIntensity: .3, emissiveMap: texturaDoMostrador() }),
@@ -150,7 +184,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         const abre = ease((t - 3.8) / 1.0);
         if (portaE.current) portaE.current.position.x = -.54 - abre * 1.08;
         if (portaD.current) portaD.current.position.x = .54 + abre * 1.08;
-        if (luzDaPorta.current) luzDaPorta.current.intensity = abre * 10;
+        if (luzDaPorta.current) luzDaPorta.current.intensity = abre * 5;
 
         // ── A CÂMERA: os olhos dele ──────────────────────────────────────
         const cam = tmp.pos, alvo = tmp.alvo;
@@ -180,7 +214,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
             const tomba = ease(cai / .7);
             olhoY = y - 2 - tomba * 6;
             olhoZ = z - 2.5 + tomba * 2.2;
-            roll = cai * 2.4;
+            roll = (retrato ? 2.4 : 1.2) * cai * cai * .8;
             x = Math.sin(cai * 5) * .3;
             fov += tomba * 10;
         }
