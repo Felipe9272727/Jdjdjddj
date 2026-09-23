@@ -1,4 +1,5 @@
 import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
+import { PerformanceMonitor } from '@react-three/drei';
 import { F12_CINEMA, CENA_DA_DERROTA, CENA_DA_VIRADA, cinemaEase, victoryBeat, defeatBeat, turnBeat, avancoDaCabecaNaDerrota } from './f12Cinema';
 import { Floor12CinemaEffects } from './Floor12CinemaEffects';
 import { nascerMissilCarregado, danoDoTiro } from './f12Boss';
@@ -985,6 +986,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     }, []);
 
     const fase = f12.fase;
+    const [aoLigado, setAoLigado] = useState(true);
     // ── A TRILHA SEGUE A FASE ────────────────────────────────────────────
     // Luta e virada têm música; a virada ruge e a marcha endurece dali em
     // diante; vitória e derrota calam a marcha para os próprios sons tocarem.
@@ -1255,6 +1257,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     de charme por cima de tudo, é um holofote no que EMITE.
                     `multisampling={0}` e uma passada só, porque isto roda em
                     celular. */}
+                {/* Guarda de desempenho: abaixo de ~45 fps sustentados a oclusão
+                    em tempo real se desliga (é o efeito mais caro da cena). */}
+                <PerformanceMonitor onDecline={() => setAoLigado(false)} />
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     {/* ── OCLUSÃO EM TEMPO REAL (N8AO) ──────────────────────
                         Raios traçados no buffer de profundidade a cada quadro:
@@ -1262,7 +1267,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         das nuvens, sob as sacadas, no encaixe do quepe, entre os
                         dentes. É o que tira o ar de "caixas chapadas" do low
                         poly. Meia resolução e qualidade de desempenho: celular. */}
-                    <N8AO halfRes quality="performance" aoRadius={3} distanceFalloff={1.2} intensity={2.4} color="#1d1420" />
+                    {/* Mais leve (era 2,4 e quase preto): forte demais, virava as
+                        nuvens em pedra de barro. E some sozinho em celular fraco. */}
+                    {aoLigado && <N8AO halfRes quality="performance" aoRadius={2.4} distanceFalloff={1.2} intensity={1.3} color="#3a2a36" />}
                     <Bloom
                         intensity={0.85}
                         luminanceThreshold={0.62}
