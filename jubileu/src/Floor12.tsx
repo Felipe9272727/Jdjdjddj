@@ -1314,11 +1314,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         diz quem é o chefe. */}
                     <div style={{ position: 'absolute', top: baixa ? 'calc(env(safe-area-inset-top) + 4px)' : 'calc(env(safe-area-inset-top) + 14px)', left: baixa ? '22%' : '8%', right: baixa ? '22%' : '8%', zIndex: 3, pointerEvents: 'none' }}>
                         <div style={{ ...t64, fontSize: baixa ? 9 : 12, marginBottom: baixa ? 1 : 3, textAlign: 'center' }}>A CABEÇA</div>
-                        <div style={{ height: baixa ? 7 : 16, background: 'rgba(0,0,0,0.5)', border: `${baixa ? 2 : 3}px solid #11131a`, borderRadius: 9, overflow: 'hidden' }}>
+                        <div style={{ position: 'relative', height: baixa ? 11 : 16, background: 'rgba(0,0,0,0.5)', border: `${baixa ? 1 : 3}px solid #11131a`, borderRadius: 9, overflow: 'hidden', boxShadow: '0 0 0 1px rgba(255,236,200,.45)' }}>
+                            {/* marca da virada, na metade */}
+                            <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 2, background: 'rgba(255,240,210,.8)', zIndex: 1 }} />
                             <div style={{
                                 width: `${vidaFrac * 100}%`, height: '100%',
                                 background: f12.passouDaVirada
-                                    ? 'linear-gradient(180deg,#ff7a3a,#c8443a)'
+                                    ? 'linear-gradient(180deg,#ffb35a,#ff5a3a)'
                                     : 'linear-gradient(180deg,#9dff6b,#3f9638)',
                                 transition: 'width 0.15s linear',
                             }} />

@@ -44,7 +44,7 @@ const CORES = {
     // pobre", mas no valor antigo ele sumia contra as nuvens e lia como inimigo.
     irmao: '#a3b1b8',
     irmaoEsc: '#6c7a82',
-    irmaoLuz: '#ff6b4a',
+    irmaoLuz: '#3fe0c8',   // luz amiga: mesmo verde-água do jogador, nunca a cor de inimigo
 };
 
 /**
@@ -332,7 +332,7 @@ export const AviaoDoIrmao: React.FC<{
         corpo: mat64('#91a1a4'), corpoEsc: mat64('#273e47'),
         metal: mat64(CORES.ferro), metalEsc: mat64(CORES.ferroEsc),
         helice: mat64(CORES.helice),
-        luz: () => mat64(CORES.irmaoLuz, CORES.irmaoLuz, 0.35),
+        luz: () => mat64(CORES.irmaoLuz, CORES.irmaoLuz, 1.1),
         olho: mat64('#75e6e0', '#75e6e0', 0.8),
     }), []);
 
