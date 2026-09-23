@@ -1006,8 +1006,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     : t < 4.5 ? 'DING.' : t < 5.0 ? 'AS PORTAS SE ABREM…' : 'NÃO HÁ CHÃO.');
                 return;
             }
-            setLegendaIntro(p < .08 ? 'ANDAR 12' : p < .26 ? 'AS PORTAS SE ABREM…'
-                : p < .52 ? 'O ELEVADOR SE DESDOBRA…' : p < .70 ? 'MOTORES ACESOS.'
+            setLegendaIntro(p < .52 ? 'O ELEVADOR SE DESDOBRA…' : p < .70 ? 'MOTORES ACESOS.'
                 : p < .86 ? 'TROCO-63, NA SUA ALA.' : 'PRÓXIMA PARADA: O IMPOSSÍVEL.');
         }, 120);
         return () => window.clearInterval(id);

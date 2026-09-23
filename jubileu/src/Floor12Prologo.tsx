@@ -90,7 +90,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         nogueiraClara: new THREE.MeshPhysicalMaterial({ color: '#8a4f2c', roughness: .4, clearcoat: .9, clearcoatRoughness: .15 }),
         latao: new THREE.MeshStandardMaterial({ color: '#e0b155', metalness: .95, roughness: .22 }),
         espelho: new THREE.MeshStandardMaterial({ color: '#c9c2b8', metalness: 1, roughness: .05 }),
-        aco: new THREE.MeshStandardMaterial({ color: '#c3c6cc', metalness: .9, roughness: .28 }),
+        aco: new THREE.MeshStandardMaterial({ color: '#7d828b', metalness: .8, roughness: .42 }),
         piso: new THREE.MeshPhysicalMaterial({ map: texturaDoPiso(), roughness: .18, clearcoat: 1, clearcoatRoughness: .05 }),
         teto: new THREE.MeshStandardMaterial({ color: '#efe4cc', roughness: .7 }),
         luz: new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff0cf').multiplyScalar(1.6), toneMapped: false }),
@@ -179,7 +179,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
     ));
     return (
         <group ref={raiz} position={ORIGEM.toArray()} name="prologo-elevador">
-            <pointLight position={[0, 2.7, 1.5]} color="#ffe2b0" intensity={7} distance={7} decay={1.6} />
+            <pointLight position={[0, 2.7, 1.9]} color="#ffe2b0" intensity={4} distance={7} decay={1.6} />
             <pointLight ref={luzDaPorta} position={[0, 1.6, -.6]} color="#ffb98a" intensity={0} distance={6} />
             <ambientLight intensity={.18} />
 
