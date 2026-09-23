@@ -107,7 +107,12 @@ export function pararMotor(): void {
 }
 
 // ── OS EVENTOS ───────────────────────────────────────────────────────────────
-export function tocarTiro(): void { bipe('square', 900, 320, 0.075, 0.08); }
+// Tiro: altura sorteada ±6% a cada disparo e uma cauda grave curta — o mesmo
+// bipe idêntico trinta vezes por segundo cansava o ouvido em um minuto.
+export function tocarTiro(): void {
+    const v = 1 + (Math.random() - .5) * .12;
+    bipe('square', 900 * v, 320 * v, 0.075, 0.07); bipe('triangle', 220 * v, 120, 0.09, 0.03);
+}
 export function tocarTiroIrmao(): void { bipe('square', 620, 240, 0.085, 0.04); }
 /**
  * O ACERTO tem de soar diferente do TIRO: os dois eram bipes quadrados e o
@@ -150,7 +155,14 @@ export function tocarAtaque(nome: string): void {
 }
 
 export function tocarDano(): void { abaixarMusica(0.8); ruido(0.08, 0.2, 6000); bipe('triangle', 1900, 1500, 0.2, 0.05); ruido(0.32, 0.22, 900); bipe('sawtooth', 240, 70, 0.34, 0.10); }
-export function tocarExplosao(): void { ruido(0.6, 0.28, 1200); bipe('sawtooth', 180, 40, 0.6, 0.12); }
+// Explosão em camadas: estalo, corpo grave, destroços e um eco atrasado.
+export function tocarExplosao(): void {
+    ruido(0.05, 0.25, 7000);
+    bipe('sine', 110, 34, 0.55, 0.22);
+    ruido(0.6, 0.26, 1200); bipe('sawtooth', 180, 40, 0.6, 0.1);
+    ruido(0.35, 0.08, 3000, 0.12);                      // chapa raspando
+    ruido(0.4, 0.07, 900, 0.28);                        // o eco
+}
 export function tocarFalaDoIrmao(): void { bipe('square', 300, 380, 0.05, 0.035); }
 
 /** O elevador virando avião: metal se desdobrando. */
