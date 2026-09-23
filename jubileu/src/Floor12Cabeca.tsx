@@ -537,11 +537,7 @@ export const Floor12Cabeca: React.FC<{
                 Sem ela, só o quepe dizia "concierge": a silhueta lia como
                 cabeçudo genérico. Latão, abaixo do queixo, fora da boca e da
                 hitbox — é o uniforme do hotel preso no próprio casco. */}
-            {/* a gola: amarra a gravata no queixo, senão ela flutuava solta */}
-            <mesh material={M.mandibulaPlaca} position={[0, -3.62, 2.2]} rotation={[Math.PI / 2 - .25, 0, 0]} scale={[1, 1, .55]}>
-                <torusGeometry args={[.95, .13, 12, 40, Math.PI]} />
-            </mesh>
-            <group position={[0, -3.6, 2.8]} scale={.72}>
+            <group position={[0, -3.8, 3.05]} scale={.78}>
                 {[-1, 1].map(lado => (
                     <mesh key={lado} material={M.gravata} position={[lado * .62, 0, 0]} rotation={[0, 0, lado * Math.PI / 2]} scale={[1, 1, .45]}>
                         <coneGeometry args={[.5, 1.05, 4]} />
