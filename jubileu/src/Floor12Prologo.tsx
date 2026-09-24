@@ -226,7 +226,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // o elevador, e não só a porta dele.
         const olhaEmVolta = cai > 0 ? 0 : 1 - ease((t - .6) / 1.3);
         cam.set(x, y, z);
-        alvo.set(x * .5 + olhaEmVolta * 2.6, olhoY - olhaEmVolta * .25, olhoZ + olhaEmVolta * 3.2);
+        alvo.set(x * .5 + olhaEmVolta * 1.2, olhoY - olhaEmVolta * .3, olhoZ + olhaEmVolta * 3.1);
         camera.position.copy(cam).add(ORIGEM);
         camera.lookAt(alvo.add(ORIGEM));
         camera.rotateZ(roll);
