@@ -236,10 +236,20 @@ const CameraDeExplorar: React.FC<{
         if (!ativo) return;
         const j = jog.current;
         const retrato = size.width < size.height;
-        const dist = retrato ? 8.5 : 7, alto = retrato ? 4.2 : 3.4;
+        const dist = retrato ? 10.5 : 8, alto = retrato ? 5.2 : 3.8;
         const quer = new THREE.Vector3(j.x, j.y + 1.3, j.z);
-        // numa conversa, o olhar vai para o meio entre o jogador e quem fala
-        if (foco.current) quer.lerp(foco.current, .5);
+        // Numa conversa, o olhar vai para o meio entre o jogador e quem fala, e
+        // a câmera dá a volta para o lado: por trás do jogador, quem fala
+        // ficava escondido atrás dele.
+        if (foco.current) {
+            quer.lerp(foco.current, .5);
+            let quero = Math.atan2(j.x - foco.current.x, j.z - foco.current.z) + .75;
+            let d = quero - yaw.current;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            quero = yaw.current + d;
+            yaw.current += (quero - yaw.current) * Math.min(1, dt * 2.5);
+        }
         alvo.current.lerp(quer, 1 - Math.exp(-dt * 6));
         const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist, j.y + alto, j.z + Math.cos(yaw.current) * dist);
         camera.position.lerp(pos, 1 - Math.exp(-dt * 5));
