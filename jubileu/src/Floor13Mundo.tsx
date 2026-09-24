@@ -208,6 +208,20 @@ function texturaDeTelha(): THREE.CanvasTexture {
     return texTelha;
 }
 
+/** Latão escovado: riscos horizontais finos e uma fileira de rebites. */
+let texEscovada: THREE.CanvasTexture | null = null;
+function texturaEscovada(): THREE.CanvasTexture {
+    if (texEscovada) return texEscovada;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 64, 128);
+    for (let y = 0; y < 128; y++) { g.fillStyle = `rgba(${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},.08)`; g.fillRect(0, y, 64, 1); }
+    g.fillStyle = '#2a2a2a';
+    for (const y of [8, 120]) for (let x = 6; x < 64; x += 13) { g.beginPath(); g.arc(x, y, 2.5, 0, Math.PI * 2); g.fill(); }
+    texEscovada = new THREE.CanvasTexture(c);
+    return texEscovada;
+}
+
 /** Textura com uma runa branca pintada em madeira escura. */
 function texturaRuna(runa: string): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -272,7 +286,7 @@ export const CasaComprida: React.FC<{
                 // latão em duas folhas, como porta de elevador (a casa certa as abre)
                 ? [-1, 1].map((l) => <mesh key={l} name="folha" userData={{ lado: l }} position={[l * .2625, 0, 0]}>
                     <boxGeometry args={[.52, 1.6, .1]} />
-                    <meshStandardMaterial color={P13.latao} metalness={1} roughness={.3} emissive="#b8782a" emissiveIntensity={.35} />
+                    <meshStandardMaterial color={P13.latao} metalness={1} roughness={.35} roughnessMap={texturaEscovada()} />
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
             {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}

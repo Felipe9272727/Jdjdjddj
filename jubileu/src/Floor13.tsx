@@ -338,18 +338,23 @@ const CameraDeExplorar: React.FC<{
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
+    const empurraPorta = useRef(0);
     useFrame((_, dt) => {
         if (!ativo) return;
         const j = jog.current;
         if (portaAlvo.current) {
             // a porta abre: a câmera entra devagar, olhando para a luz de dentro
             const [porta, frente] = [portaAlvo.current, portaFrente.current!];
-            camera.position.lerp(porta.clone().addScaledVector(frente, 1.6).add(new THREE.Vector3(0, .35, 0)), 1 - Math.exp(-dt * .9));
+            // travada: 3 m à frente da porta, na altura do olho, e só então
+            // um empurrão lento para dentro (nada de vir de onde estava e
+            // atravessar telhado)
+            empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
+            camera.position.copy(porta).addScaledVector(frente, 3.2 - empurraPorta.current * 1.4).add(new THREE.Vector3(0, .7, 0));
             camera.lookAt(porta);
             return;
         }
         const retrato = size.width < size.height;
-        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 6.5 : 3.8;
+        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 7.2 : 3.8;
         // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
         const ombro = foco.current ? 0 : .9;
         // mira 2 m à frente do jogador: ele desce para o terço de baixo e o caminho aparece
@@ -687,7 +692,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     portaFrente.current = new THREE.Vector3(Math.sin(l.angulo), 0, Math.cos(l.angulo));
                     portaAlvo.current = new THREE.Vector3(l.x, l.y + .8, l.z).addScaledVector(portaFrente.current, 2.85);
                 }
-                window.setTimeout(() => onExit?.(), 4200);
+                window.setTimeout(() => onExit?.(), 6500);
             } else abrirDialogo(r.falas, null);
         }
         bump();
@@ -858,8 +863,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             </div>}
 
             {/* ── A CASA CERTA: as portas abrem como as de um elevador ── */}
-            {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 4.2s ease-in forwards', background: '#fff7e6' }}>
-                <style>{'@keyframes f13branco{0%{opacity:0}75%{opacity:0}100%{opacity:1}}'}</style>
+            {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 6.5s ease-in forwards', background: '#fff7e6' }}>
+                <style>{'@keyframes f13branco{0%{opacity:0}78%{opacity:0}100%{opacity:1}}'}</style>
                 <div style={{ ...t13, position: 'absolute', top: '44%', width: '100%', textAlign: 'center', fontSize: 20, color: '#7a5520', textShadow: 'none' }}>DING.</div>
             </div>}
         </div>
