@@ -100,8 +100,8 @@ function matPoeira(i: number): THREE.SpriteMaterial {
 }
 
 // destroços no terço esquerdo, a cidade à direita
-const HEROI = new THREE.Vector3(3.5, 3.4, 42.5);
-const DESTROCOS = new THREE.Vector3(1.5, 1.6, 30.5);
+const HEROI = new THREE.Vector3(6, 3.4, 41.5);
+const DESTROCOS = new THREE.Vector3(-.4, 1.4, 31.5);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
