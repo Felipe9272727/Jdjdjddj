@@ -18,6 +18,7 @@ import { CASAS, CASA_CERTA } from './f13Lore';
 import { ILHAS, PONTES, LUGAR_DAS_CASAS, SINO } from './f13Mundo';
 import { pbr } from './f13Texturas';
 import { fundirEstaticos } from './f13Fundir';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** Funde o que está parado debaixo deste grupo depois de montado (ver f13Fundir). */
 function useFundir(ref: React.RefObject<THREE.Object3D | null>, celula?: number) {
@@ -878,8 +879,10 @@ function distTrilha(x: number, z: number): number {
 const Trilhas: React.FC = () => {
     const malha = useMemo(() => {
         const g = new THREE.DodecahedronGeometry(1, 1);
-        g.scale(.32, .05, .26);
-        const m = new THREE.MeshStandardMaterial({ color: '#b3a894', ...pbr('rocha', .4, .4) });
+        const gp = g.getAttribute('position');
+        for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .3; gp.setXYZ(i, gp.getX(i) * f, gp.getY(i), gp.getZ(i) * f); }
+        g.scale(.24, .035, .19); g.computeVertexNormals();
+        const m = new THREE.MeshStandardMaterial({ color: '#e0d6c4', ...pbr('rocha', .3, .3), roughness: .95 });
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
@@ -891,7 +894,7 @@ const Trilhas: React.FC = () => {
                 if (s > L) continue;
                 const x = t.a.x + d.x * s + lado.x * l * (.3 + r() * .12), z = t.a.y + d.y * s + lado.y * l * (.3 + r() * .12);
                 o.position.set(x, t.y + .01, z); o.rotation.set(0, r() * 3, 0);
-                const e = .8 + r() * .45; o.scale.set(e, 1, e * (.8 + r() * .4)); o.updateMatrix(); ms.push(o.matrix.clone());
+                const e = .7 + r() * .5; o.scale.set(e, 1, e * (.7 + r() * .5)); o.updateMatrix(); ms.push(o.matrix.clone());
             }
         }
         const im = new THREE.InstancedMesh(g, m, ms.length);
@@ -902,10 +905,56 @@ const Trilhas: React.FC = () => {
     return <primitive object={malha} />;
 };
 
+/**
+ * A borda das ilhas: pedras meio enterradas e arbustos correndo pela beira,
+ * com vãos nas cabeceiras das pontes. Sem isso o chão acabava num corte reto
+ * contra o céu (instanciado: duas chamadas).
+ */
+const Borda: React.FC = () => {
+    const [pedras, moitas] = useMemo(() => {
+        let k = 17; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+        const o = new THREE.Object3D(), mp: THREE.Matrix4[] = [], mm: THREE.Matrix4[] = [];
+        for (const il of ILHAS) {
+            const n = Math.round(il.r * 2 * Math.PI / 1.1);
+            for (let i = 0; i < n; i++) {
+                const a = i / n * Math.PI * 2 + r() * .3, d = il.r * (.9 + r() * .08);
+                const x = il.x + Math.cos(a) * d, z = il.z + Math.sin(a) * d;
+                if (distTrilha(x, z) < 1.8) continue;   // cabeceira de ponte livre
+                if (r() < .55) {
+                    const e = .22 + r() * .4;
+                    o.position.set(x, il.y - e * .25, z); o.rotation.set(r() * 3, r() * 3, r() * 3); o.scale.set(e * (1 + r() * .5), e * .7, e);
+                    o.updateMatrix(); mp.push(o.matrix.clone());
+                } else {
+                    const e = .3 + r() * .35;
+                    o.position.set(x, il.y + e * .25, z); o.rotation.set(0, r() * 3, 0); o.scale.set(e * 1.3, e * .8, e);
+                    o.updateMatrix(); mm.push(o.matrix.clone());
+                }
+            }
+        }
+        const gp = new THREE.DodecahedronGeometry(1, 1);
+        const pp = gp.getAttribute('position');
+        for (let i = 0; i < pp.count; i++) { const f = 1 + ruido(pp.getX(i) * 2, pp.getY(i) * 2, pp.getZ(i) * 2) * .18; pp.setXYZ(i, pp.getX(i) * f, pp.getY(i) * f, pp.getZ(i) * f); }
+        gp.computeVertexNormals();
+        const ip = new THREE.InstancedMesh(gp, new THREE.MeshStandardMaterial({ color: '#9a8f80', ...pbr('rocha', .6, .6) }), mp.length);
+        mp.forEach((m, i) => ip.setMatrixAt(i, m));
+        // moita: bolas de folhagem fundidas numa geometria só
+        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 1).translate(x, y, z));
+        const gm = mergeGeometries(partes)!;
+        const pm = gm.getAttribute('position');
+        for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }
+        gm.computeVertexNormals();
+        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#4d6e2e', roughness: .95, flatShading: true }), mm.length);
+        mm.forEach((m, i) => im.setMatrixAt(i, m));
+        for (const x of [ip, im]) { x.castShadow = true; x.receiveShadow = true; x.computeBoundingSphere(); }
+        return [ip, im];
+    }, []);
+    return <><primitive object={pedras} /><primitive object={moitas} /></>;
+};
+
 /** Onde ficam as tochas (x, y, z): o Floor13 também as usa como obstáculo. */
 export const TOCHAS = [
     [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [3.6, 3, -12.3], [-3.6, 3, -12.3],
-    [-15, 1, 6.5], [16, 2, 5], [-5, 3, -30],
+    [-15, 1, 6.5], [17.4, 2, 1.2], [-5, 3, -30],
 ] as const;
 /** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
 const Tochas: React.FC = () => {
@@ -953,6 +1002,7 @@ export const Floor13Mundo: React.FC<{
         <Decoracao />
         <Grama />
         <Trilhas />
+        <Borda />
         <Tochas />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}

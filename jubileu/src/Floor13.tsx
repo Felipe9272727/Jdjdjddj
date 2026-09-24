@@ -851,6 +851,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         (window as unknown as { __f13?: unknown }).__f13 = {
             ir: (x: number, z: number, ang = 0, yawCam = ang) => { const j = jog.current; j.x = x; j.z = z; j.y = chaoEm(x, z) ?? 0; j.ang = ang; yaw.current = yawCam; j.levantando = 0; },
             estado: () => est.current,
+            onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
