@@ -1,5 +1,11 @@
 /**
- * floor13Sfx.ts — os sons de Vindhjem, sintetizados (sem arquivos).
+ * floor13Sfx.ts — os sons de Vindhjem.
+ *
+ * Gravações CC0 onde o ouvido nota a diferença: passos (Kenney, Impact
+ * Sounds), sino, baques e porta (Kenney, Impact Sounds / RPG Audio), o vento
+ * com pássaros e a música "Vikings at Shore" (OpenGameArt, CC0). O resto
+ * continua sintetizado, e cada som gravado cai de volta na síntese enquanto
+ * o arquivo não carregou.
  *
  * Vento de altitude contínuo, o motor tossindo e morrendo na queda, o baque
  * no feno, o sino do templo, um "blip" de fala por viking (cada um num tom),
@@ -13,6 +19,32 @@ let ruidoBuf: AudioBuffer | null = null;
 let eco: ConvolverNode | null = null;
 
 const saida = (): AudioNode | null => dest ?? ctx?.destination ?? null;
+
+// ── AMOSTRAS GRAVADAS ────────────────────────────────────────────────────────
+const ARQUIVOS = import.meta.glob('./assets/f13/som/*.mp3', { eager: true, import: 'default' }) as Record<string, string>;
+const amostras = new Map<string, AudioBuffer>();
+function carregarAmostras(c: AudioContext): void {
+    for (const [caminho, url] of Object.entries(ARQUIVOS)) {
+        const nome = caminho.split('/').pop()!.replace('.mp3', '');
+        if (amostras.has(nome)) continue;
+        fetch(url).then((r) => r.arrayBuffer()).then((b) => c.decodeAudioData(b))
+            .then((buf) => { amostras.set(nome, buf); }).catch(() => { /* fica na síntese */ });
+    }
+}
+/** Toca uma amostra (ou uma das variantes `nome_0..n`). Devolve false se não houver. */
+function toca(nome: string, vol: number, { taxa = 1, reverb = 0, atraso = 0 } = {}): boolean {
+    const c = ctx, d = saida(); if (!c || !d) return false;
+    const variantes = [...amostras.keys()].filter((k) => k === nome || k.startsWith(nome + '_'));
+    if (!variantes.length) return false;
+    const buf = amostras.get(variantes[Math.floor(Math.random() * variantes.length)])!;
+    const t = c.currentTime + atraso;
+    const src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = taxa * (.94 + Math.random() * .12);
+    const g = c.createGain(); g.gain.value = vol;
+    src.connect(g); g.connect(d);
+    if (reverb > 0 && eco) { const e = c.createGain(); e.gain.value = reverb; g.connect(e); e.connect(eco); }
+    src.start(t);
+    return true;
+}
 
 export function configureFloor13Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
     ctx = context; dest = destination ?? null;
@@ -32,6 +64,7 @@ export function configureFloor13Sfx(context: AudioContext | null, destination?: 
         const volta = ctx.createGain(); volta.gain.value = .35;
         conv.connect(volta); volta.connect(comp);
         eco = conv;
+        carregarAmostras(ctx);
     }
 }
 export function clearFloor13Sfx(): void { pararVento(); pararAmbiente(); ctx = null; dest = null; }
@@ -110,18 +143,24 @@ export function tocarMotorMorrendo(): void {
     sopro(1.5, .08, 500);
 }
 export function tocarQueda(): void {
-    // baque grave + estalo de madeira + o feno assentando
+    // baque grave + estalo de madeira + o feno assentando; por cima, a
+    // madeira e o metal de verdade do avião se partindo
+    toca('queda_madeira', .9, { taxa: .8, reverb: .4 }); toca('queda_metal', .6, { taxa: .75, atraso: .05, reverb: .4 });
     tom('sine', 90, 28, 1.1, .55, 0, .6); tom('triangle', 60, 30, .6, .3);
     sopro(.12, .5, 5000, 0, 'highpass'); sopro(.25, .3, 2200, .03, 'bandpass');
     sopro(1.8, .12, 700, .25); sopro(1.2, .08, 3200, .4, 'bandpass');
 }
 export function tocarSino(): void {
-    // sino de bronze: parciais inarmônicas com decaimento longo e muita sala
+    // sino de bronze gravado, meio tom abaixo, com muita sala; se não
+    // carregou, parciais inarmônicas com decaimento longo
+    if (toca('sino', .9, { taxa: .7, reverb: .9 })) { tom('sine', 196, 195.6, 4.5, .08, 0, .9); return; }
     for (const [f, v] of [[196, .12], [392, .2], [470, .06], [784, .08], [1175, .045], [1560, .02]] as const) tom('sine', f, f * .998, 4.5, v, 0, .9);
 }
-export function tocarDingDaCasa(): void { tom('triangle', 1318.5, 1318.5, .25, .09); tom('triangle', 1046.5, 1046.5, .7, .08, .14); }
+export function tocarPortaAbrindo(): void { toca('porta_abre', .8, { taxa: .85, reverb: .3 }); }
+export function tocarDingDaCasa(): void { tocarPortaAbrindo(); tom('triangle', 1318.5, 1318.5, .25, .09); tom('triangle', 1046.5, 1046.5, .7, .08, .14); }
 export function tocarPegar(): void {
     // tinido de ferro e madeira: ruído em ressonâncias estreitas, não chiptune
+    if (toca('pegar_metal', .7, { reverb: .2 })) return;
     for (const [f, v, a] of [[880, .2, 0], [1760, .12, .01], [2640, .06, .02]] as const) {
         const c = ctx, d = saida(), b = ruido(); if (!c || !d || !b) return;
         const t = c.currentTime + a;
@@ -174,9 +213,26 @@ export function tocarDesconexao(): void { tom('sine', 1000, 1000, .9, .08); sopr
  * soprado pelo vento) com filtro respirando, e de tempos em tempos uma trompa
  * distante e o ranger das cordas das pontes.
  */
-let leito: { oscs: OscillatorNode[]; g: GainNode; id: number } | null = null;
+let leito: { oscs: OscillatorNode[]; g: GainNode; id: number; laços?: AudioBufferSourceNode[] } | null = null;
+function laco(nome: string, vol: number, g: GainNode): AudioBufferSourceNode | null {
+    const c = ctx, buf = amostras.get(nome); if (!c || !buf) return null;
+    const src = c.createBufferSource(); src.buffer = buf; src.loop = true;
+    const v = c.createGain(); v.gain.value = vol; src.connect(v); v.connect(g); src.start();
+    return src;
+}
 export function tocarAmbiente(): void {
     const c = ctx, d = saida(); if (!c || !d || leito) return;
+    // com as gravações carregadas: a música dos vikings baixinha e o vento
+    // com pássaros; o bordão sintetizado só se elas ainda não chegaram
+    if (amostras.has('musica') && amostras.has('vento_passaros')) {
+        const g = c.createGain(); g.gain.value = .0001;
+        g.gain.exponentialRampToValueAtTime(1, c.currentTime + 4);
+        g.connect(d);
+        const laços = [laco('musica', .22, g), laco('vento_passaros', .35, g)].filter(Boolean) as AudioBufferSourceNode[];
+        const id = window.setInterval(() => { if (Math.random() < .5) toca('rangido', .12, { taxa: .8 + Math.random() * .3, reverb: .5 }); }, 11000);
+        leito = { oscs: [], g, id, laços };
+        return;
+    }
     const g = c.createGain(); g.gain.value = .0001;
     g.gain.exponentialRampToValueAtTime(.035, c.currentTime + 4);
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
@@ -195,8 +251,9 @@ export function tocarAmbiente(): void {
 }
 export function pararAmbiente(): void {
     if (!leito || !ctx) { leito = null; return; }
-    const { oscs, g, id } = leito; leito = null;
+    const { oscs, g, id, laços } = leito; leito = null;
     window.clearInterval(id);
+    laços?.forEach((l) => l.stop(ctx!.currentTime + 1.1));
     g.gain.setValueAtTime(Math.max(.0001, g.gain.value), ctx.currentTime);
     g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + 1);
     oscs.forEach((o) => o.stop(ctx!.currentTime + 1.1));
@@ -204,8 +261,12 @@ export function pararAmbiente(): void {
 
 /** Passo: tábua oca na ponte, grama abafada na ilha. */
 export function tocarPasso(madeira: boolean): void {
+    if (toca(madeira ? 'passo_madeira' : 'passo_grama', madeira ? .35 : .3)) return;
     if (madeira) { tom('sine', 180 + Math.random() * 30, 90, .09, .06); sopro(.05, .05, 2200); }
     else sopro(.08, .05, 600 + Math.random() * 300);
 }
 /** O corpo de Halvard batendo no chão. */
-export function tocarCorpoCaindo(): void { tom('sine', 110, 40, .5, .35, 0, .5); sopro(.3, .2, 900); }
+export function tocarCorpoCaindo(): void {
+    toca('corpo', 1, { taxa: .8, reverb: .3 });
+    tom('sine', 110, 40, .5, .35, 0, .5); sopro(.3, .2, 900);
+}
