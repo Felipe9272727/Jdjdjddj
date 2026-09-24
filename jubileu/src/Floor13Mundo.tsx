@@ -72,7 +72,7 @@ const Ceu: React.FC = () => {
 /** O mar de nuvens lá embaixo e alguns bancos soltos entre as ilhas. */
 const Nuvens: React.FC = () => {
     const geo = useMemo(() => createCloudGeometry(), []);
-    const mat = useMemo(() => new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#6b7a8a', emissiveIntensity: .25 }), []);
+    const mat = useMemo(() => new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#6b7a8a', emissiveIntensity: .08 }), []);
     const ref = useRef<THREE.InstancedMesh>(null);
     const lista = useMemo(() => {
         const l: { x: number; y: number; z: number; s: number }[] = [];

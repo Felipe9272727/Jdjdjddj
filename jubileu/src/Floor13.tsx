@@ -110,6 +110,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
     const abertura = useRef(1), helice = useRef(0);
     const refs = useAvatarRefs();
     const fumaca = useRef<THREE.Group>(null), poeira = useRef<THREE.Group>(null), lascas = useRef<THREE.Group>(null);
+    const sulco = useRef<THREE.Mesh>(null);
     const puffs = useRef(Array.from({ length: 28 }, () => ({ p: new THREE.Vector3(), t: 99 })));
     const proximoPuff = useRef(0);
     const tmp = useMemo(() => ({ tan: new THREE.Vector3(), lado: new THREE.Vector3(), cam: new THREE.Vector3(), olho: new THREE.Vector3(), alvo: new THREE.Vector3() }), []);
@@ -131,8 +132,8 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
                 // derrapa 0,3 s e quica antes de assentar no feno
                 const d = Math.min(1, (t - 10.45) / .3);
                 const quique = Math.sin(d * Math.PI) * .45 * (1 - d);
-                g.position.set(-2.2 + (1 - d) * 1.4, 1.35 + quique, 33.4 + (1 - d) * 1.2);
-                g.rotation.set(-.55 * d, 1.9, .2 + (1 - d) * .5);   // asa de frente para a lente, não de fio
+                g.position.set(-2.2 + (1 - d) * 1.4, 1.05 + quique, 33.4 + (1 - d) * 1.2);   // afundado no feno
+                g.rotation.set(-.55 * d, 1.9, .2 + (1 - d) * .5 + d * .26);   // asa de frente para a lente, não de fio
             }
         }
         // o motor tossindo: tranco na rolagem; morto: a hélice para
@@ -184,6 +185,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             });
         }
 
+        if (sulco.current) sulco.current.visible = t > 10.45;
         // lascas de madeira e feno voando no baque, com gravidade
         if (lascas.current) {
             lascas.current.visible = pq > 0 && pq < 2;
@@ -249,6 +251,10 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         <group ref={fumaca}>
             {puffs.current.map((_, i) => <sprite key={i} visible={false} material={matFumaca(i)} />)}
         </group>
+        {/* o sulco que o avião abriu na grama */}
+        <mesh ref={sulco} position={[.2, .03, 35.2]} rotation={[-Math.PI / 2, 0, .9]} visible={false}>
+            <planeGeometry args={[1.6, 5]} /><meshStandardMaterial color="#5a4128" roughness={1} transparent opacity={.85} />
+        </mesh>
         <group ref={lascas} visible={false}>
             {Array.from({ length: 18 }, (_, i) => <mesh key={i}><boxGeometry args={[.08, .04, .35]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
         </group>
@@ -355,7 +361,8 @@ const CameraDeExplorar: React.FC<{
             // atravessar telhado)
             empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
             // desliza até a moldura da porta (0,8 s) em vez de saltar para ela
-            const quer = porta.clone().addScaledVector(frente, 3.2 - empurraPorta.current * 1.4).add(new THREE.Vector3(0, .7, 0));
+            // 4 m, na altura do olho, levemente de baixo: o beiral sai do quadro
+            const quer = porta.clone().addScaledVector(frente, 4 - empurraPorta.current * 2).add(new THREE.Vector3(0, .25, 0));
             camera.position.lerp(quer, 1 - Math.exp(-dt * 5));
             olharPorta.current.lerp(porta, 1 - Math.exp(-dt * 6));
             camera.lookAt(olharPorta.current);
@@ -388,7 +395,7 @@ const CameraDeExplorar: React.FC<{
         camera.lookAt(alvo.current);
         if (entidadeNaCena.valor) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov += ((retrato ? 66 : 55) - camera.fov) * Math.min(1, dt * 3);
+            camera.fov += ((retrato ? 60 : 55) - camera.fov) * Math.min(1, dt * 3);
             camera.updateProjectionMatrix();
         }
     });
