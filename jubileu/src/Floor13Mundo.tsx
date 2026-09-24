@@ -222,6 +222,35 @@ function texturaEscovada(): THREE.CanvasTexture {
     return texEscovada;
 }
 
+/**
+ * O que se vê pela porta certa: uma cabine de elevador em perspectiva —
+ * paredes de latão convergindo para uma luz no fundo, e o piso xadrez.
+ */
+let texCabine: THREE.CanvasTexture | null = null;
+function texturaDeCabine(): THREE.CanvasTexture {
+    if (texCabine) return texCabine;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 200;
+    const g = c.getContext('2d')!;
+    const fundo = { x: 40, y: 50, w: 48, h: 90 };
+    const lat = (a: number) => `rgba(${200 + a},${150 + a * .6},${70},1)`;
+    g.fillStyle = lat(0); g.beginPath(); g.moveTo(0, 0); g.lineTo(fundo.x, fundo.y); g.lineTo(fundo.x, fundo.y + fundo.h); g.lineTo(0, 200); g.fill();
+    g.fillStyle = lat(-30); g.beginPath(); g.moveTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(128, 200); g.fill();
+    g.fillStyle = '#f1e2c2'; g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x, fundo.y); g.fill();
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) {
+        g.fillStyle = (i + j) % 2 ? '#2a2020' : '#e9e1d2';
+        const t0 = i / 6, t1 = (i + 1) / 6;
+        const y0 = fundo.y + fundo.h + (200 - fundo.y - fundo.h) * t0, y1 = fundo.y + fundo.h + (200 - fundo.y - fundo.h) * t1;
+        const l0 = fundo.x * (1 - t0), r0 = 128 - (128 - fundo.x - fundo.w) * (1 - t0);
+        const l1 = fundo.x * (1 - t1), r1 = 128 - (128 - fundo.x - fundo.w) * (1 - t1);
+        const a0 = l0 + (r0 - l0) * j / 4, b0 = l0 + (r0 - l0) * (j + 1) / 4, a1 = l1 + (r1 - l1) * j / 4, b1 = l1 + (r1 - l1) * (j + 1) / 4;
+        g.beginPath(); g.moveTo(a0, y0); g.lineTo(b0, y0); g.lineTo(b1, y1); g.lineTo(a1, y1); g.fill();
+    }
+    const gr = g.createRadialGradient(64, 95, 4, 64, 95, 40); gr.addColorStop(0, '#fffbe8'); gr.addColorStop(1, '#ffd98a');
+    g.fillStyle = gr; g.fillRect(fundo.x, fundo.y, fundo.w, fundo.h);
+    texCabine = new THREE.CanvasTexture(c); texCabine.colorSpace = THREE.SRGBColorSpace;
+    return texCabine;
+}
+
 /** Textura com uma runa branca pintada em madeira escura. */
 function texturaRuna(runa: string): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -300,7 +329,7 @@ export const CasaComprida: React.FC<{
                 <coneGeometry args={[.9, 1.8, 24, 1, true]} />
                 <meshBasicMaterial color="#ffe2a8" transparent opacity={.18} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
             </mesh>}
-            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
+            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.4)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             ))}

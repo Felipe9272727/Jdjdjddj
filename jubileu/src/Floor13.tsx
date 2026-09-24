@@ -51,6 +51,8 @@ const entidadeNaCena = { valor: false };
 /** Estado de movimento do jogador (mutável, lido a cada quadro). */
 interface Jog { x: number; y: number; z: number; ang: number; vy: number; seguro: { x: number; z: number }; levantando: number; andando: number }
 
+const ICONE_DA_PISTA: Record<Pista, string> = { latao: '🚪', fumaca: '🏚', botao: '🔔' };
+
 const t13: React.CSSProperties = {
     fontFamily: 'monospace', fontWeight: 900, color: '#FFE3A0', letterSpacing: 1.5,
     textShadow: '2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000', userSelect: 'none',
@@ -97,8 +99,9 @@ function matPoeira(i: number): THREE.SpriteMaterial {
     return (matsPoeira[i] ??= new THREE.SpriteMaterial({ map: texPoeira, transparent: true, depthWrite: false }));
 }
 
-const HEROI = new THREE.Vector3(7.5, 3.6, 42);
-const DESTROCOS = new THREE.Vector3(-2, 1.1, 33.2);
+// destroços no terço esquerdo, a cidade à direita
+const HEROI = new THREE.Vector3(3.5, 3.4, 42.5);
+const DESTROCOS = new THREE.Vector3(1.5, 1.6, 30.5);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
@@ -828,7 +831,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
                 {(Object.keys(PISTAS) as Pista[]).map((p) => (
-                    <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .45 }}>{e.pistas.has(p) ? '◆' : '◇'} {e.pistas.has(p) ? PISTAS[p].nome : '???'}</div>
+                    <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
                 ))}
                 {BUSCAS.some((b) => e.buscas[b.id] !== 'nova') && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '6px 0 2px' }}>ᛒ BUSCAS</div>}
                 {BUSCAS.filter((b) => e.buscas[b.id] !== 'nova').map((b) => (
