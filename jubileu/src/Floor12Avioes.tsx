@@ -329,7 +329,7 @@ export const AviaoDoIrmao: React.FC<{
     const olho = useRef<THREE.MeshStandardMaterial | null>(null);
 
     const M = useMemo(() => ({
-        corpo: mat64('#91a1a4'), corpoEsc: mat64('#273e47'),
+        corpo: mat64(CORES.irmao), corpoEsc: mat64(CORES.irmaoEsc),
         metal: mat64(CORES.ferro), metalEsc: mat64(CORES.ferroEsc),
         helice: mat64(CORES.helice),
         luz: () => mat64(CORES.irmaoLuz, CORES.irmaoLuz, 1.1),
