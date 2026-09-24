@@ -169,7 +169,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
 const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number }> = Object.freeze([
     ...LUGAR_DAS_CASAS.map((l) => ({ x: l.x, z: l.z, r: 2.6 })),
     { x: -7.5, z: 4, r: 2.4 }, { x: 7.8, z: 12.5, r: 2.4 },
-    { x: 0, z: 8, r: 1.4 }, { x: 0, z: 2, r: .7 },
+    { x: 0, z: 8, r: 1.4 }, { x: 4.2, z: 1.5, r: .7 },
     { x: -6, z: 12, r: 1 }, { x: -3.2, z: 14, r: 1 }, { x: 6, z: 11, r: 1 },
     { x: -23, z: 4.5 - 1.5, r: 1.1 },
     { x: SINO.x, z: SINO.z, r: 1.3 }, { x: -2, z: 33, r: 1.3 },

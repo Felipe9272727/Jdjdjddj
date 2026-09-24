@@ -321,7 +321,7 @@ const Praca: React.FC = () => {
                 {[-.5, 0, .5].map((dx, k) => <mesh key={dx} position={[dx, 1, .1]}><sphereGeometry args={[.13, 10, 8]} /><meshStandardMaterial color={['#c9442e', '#e0b155', '#6f9a4a'][k]} /></mesh>)}
             </group>
         ))}
-        <mesh position={[0, 1.2, 2]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#8a8478" flatShading /></mesh>
+        <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#8a8478" flatShading /></mesh>
         <mesh position={[0, .25, 8]}><cylinderGeometry args={[1.2, 1.3, .5, 20]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
         <mesh position={[0, .52, 8]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1, 20]} /><meshStandardMaterial color="#3d6b8a" metalness={.3} roughness={.2} /></mesh>
     </group>;
