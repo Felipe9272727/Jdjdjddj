@@ -1538,7 +1538,7 @@ const DicaDeControle: React.FC = () => {
             {/* UMA linha, e rente à borda. Duas linhas a 30 px do fundo caíam em
                 cima do avião do jogador — o tutorial tapava a coisa que ele
                 estava aprendendo a pilotar. */}
-            ARRASTE PARA VOAR E ATIRAR · PARAR CARREGA A RAJADA
+            ARRASTE: VOA E ATIRA · PARADO: RAJADA
         </div>
     );
 };
