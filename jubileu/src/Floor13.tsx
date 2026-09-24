@@ -25,6 +25,7 @@ import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama } from './Floor13
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
+import { pbr } from './f13Texturas';
 import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -127,6 +128,75 @@ function texturaDoSulco(): THREE.CanvasTexture {
     texSulco = new THREE.CanvasTexture(c); texSulco.colorSpace = THREE.SRGBColorSpace;
     return texSulco;
 }
+
+/** Mostrador de instrumento: fundo escuro, marcas e números em marfim. */
+const mostradores = new Map<string, THREE.CanvasTexture>();
+function texturaDeMostrador(rotulo: string, marcas: number, vermelho = 0): THREE.CanvasTexture {
+    const chave = `${rotulo}:${marcas}:${vermelho}`;
+    let t = mostradores.get(chave); if (t) return t;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    const gr = g.createRadialGradient(64, 58, 6, 64, 64, 62); gr.addColorStop(0, '#2b2a26'); gr.addColorStop(1, '#0e0d0b');
+    g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
+    if (vermelho) { g.strokeStyle = '#c23a22'; g.lineWidth = 7; g.beginPath(); g.arc(64, 64, 50, -Math.PI / 2 + Math.PI * 2 * (1 - vermelho), -Math.PI / 2 + Math.PI * 2 * .999); g.stroke(); }
+    g.strokeStyle = '#efe3c8'; g.fillStyle = '#efe3c8'; g.font = 'bold 13px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < marcas * 5; i++) {
+        const a = -Math.PI / 2 + i / (marcas * 5) * Math.PI * 2, grande = i % 5 === 0, r0 = grande ? 44 : 50;
+        g.lineWidth = grande ? 3 : 1.2; g.beginPath(); g.moveTo(64 + Math.cos(a) * r0, 64 + Math.sin(a) * r0); g.lineTo(64 + Math.cos(a) * 57, 64 + Math.sin(a) * 57); g.stroke();
+        if (grande) g.fillText(String(i / 5), 64 + Math.cos(a) * 34, 64 + Math.sin(a) * 34);
+    }
+    g.font = 'bold 11px monospace'; g.fillStyle = '#d9b85a'; g.fillText(rotulo, 64, 86);
+    t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; mostradores.set(chave, t);
+    return t;
+}
+
+/**
+ * A cabine vista de dentro: painel de madeira com três relógios (altímetro
+ * que desaba no mergulho, conta-giros que morre com o motor, óleo) e a
+ * lâmpada de pane piscando; montantes de latão do para-brisa nas bordas.
+ * Fica no espaço do casco (anda, rola e treme com ele).
+ */
+const Cabine: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
+    const alt = useRef<THREE.Group>(null), rpm = useRef<THREE.Group>(null), oleo = useRef<THREE.Group>(null);
+    const lampada = useRef<THREE.MeshStandardMaterial>(null);
+    useFrame(() => {
+        const t = tRef.current;
+        const tosse = t > 2.6 && t < 5 ? Math.sin(t * 23) * .35 : 0;
+        const giro = t < 2.6 ? .72 : t < 5 ? .6 + tosse * .3 : Math.max(0, .6 * (1 - (t - 5) / 1.5));
+        if (rpm.current) rpm.current.rotation.z = -giro * Math.PI * 2 * .8;
+        // altímetro: gira para trás cada vez mais rápido no mergulho
+        const altura = t < 7.4 ? 3.2 - t * .05 : Math.max(0, 2.83 - (t - 7.4) ** 2 * .3);
+        if (alt.current) alt.current.rotation.z = -altura * Math.PI * 2;
+        if (oleo.current) oleo.current.rotation.z = -(t < 2.6 ? .55 : Math.max(.05, .55 - (t - 2.6) * .12)) * Math.PI * 2 * .8;
+        if (lampada.current) lampada.current.emissiveIntensity = t > 2.6 && t < 10.45 && Math.sin(t * 12) > 0 ? 4 : .15;
+    });
+    const Relogio: React.FC<{ x: number; r: number; rotulo: string; marcas: number; vermelho?: number; agulha: React.RefObject<THREE.Group | null> }> = ({ x, r, rotulo, marcas, vermelho, agulha }) => (
+        <group position={[x, 0, .031]}>
+            <mesh><circleGeometry args={[r, 28]} /><meshBasicMaterial map={texturaDeMostrador(rotulo, marcas, vermelho)} /></mesh>
+            <mesh position={[0, 0, .004]}><torusGeometry args={[r, r * .12, 6, 28]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.35} /></mesh>
+            <group ref={agulha} position={[0, 0, .006]}>
+                <mesh position={[0, r * .38, 0]}><boxGeometry args={[r * .07, r * .82, .002]} /><meshBasicMaterial color="#f4e8cc" /></mesh>
+            </group>
+            {/* vidro do mostrador: um reflexo leve */}
+            <mesh position={[0, 0, .009]}><circleGeometry args={[r, 28]} /><meshStandardMaterial color="#ffffff" transparent opacity={.08} roughness={.05} metalness={.2} /></mesh>
+        </group>
+    );
+    return <group position={[0, 0, .1]}>
+        {/* o painel: tampo de madeira inclinado para o piloto, forro escuro */}
+        <group position={[0, .93, 0]} rotation={[-.35, 0, 0]}>
+            <mesh><boxGeometry args={[.7, .17, .06]} /><meshStandardMaterial {...pbr('carvalho', .6, .2)} color="#5a3a24" roughness={.7} /></mesh>
+            <mesh position={[0, .095, .01]}><boxGeometry args={[.72, .025, .09]} /><meshStandardMaterial color="#2a1c12" roughness={.9} /></mesh>
+            <Relogio x={-.11} r={.045} rotulo="ALT" marcas={10} agulha={alt} />
+            <Relogio x={0} r={.052} rotulo="RPM" marcas={8} vermelho={.2} agulha={rpm} />
+            <Relogio x={.11} r={.04} rotulo="ÓLEO" marcas={4} vermelho={.25} agulha={oleo} />
+            <mesh position={[.19, .03, .035]}><sphereGeometry args={[.011, 12, 8]} /><meshStandardMaterial ref={lampada} color="#5a1008" emissive="#ff2a10" emissiveIntensity={.15} /></mesh>
+            {[-.2, -.17].map((x) => <mesh key={x} position={[x, -.03, .04]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.008, .008, .02, 10]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.3} /></mesh>)}
+        </group>
+        {/* montantes do para-brisa e a travessa de cima */}
+        {[-1, 1].map((l) => <mesh key={l} position={[l * .19, 1.26, -.02]} rotation={[.1, 0, l * .18]}><boxGeometry args={[.022, .6, .03]} /><meshStandardMaterial color="#8a6a2a" metalness={.8} roughness={.4} /></mesh>)}
+        <mesh position={[0, 1.55, -.05]}><boxGeometry args={[.6, .03, .04]} /><meshStandardMaterial color="#8a6a2a" metalness={.8} roughness={.4} /></mesh>
+    </group>;
+};
 
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
@@ -282,8 +352,10 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         const b = balanco.current;
         if (b) {
             b.updateMatrixWorld(true);
-            b.localToWorld(tmp.cam.set(0, .95, .55));
-            b.localToWorld(tmp.olho.set(0, .55, -8));
+            // olho alto o bastante para o nariz e a hélice ficarem abaixo da
+            // linha do painel (antes eram um borrão escuro no meio da cidade)
+            b.localToWorld(tmp.cam.set(0, 1.2, .62));
+            b.localToWorld(tmp.olho.set(0, .9, -8));
             const cidade = new THREE.Vector3(0, 3, 0);
             const vira = THREE.MathUtils.smoothstep(t, 6.2, 8.4) * (1 - THREE.MathUtils.smoothstep(t, 9.2, 9.9)) * .55
                 + THREE.MathUtils.smoothstep(t, 10.9, 12.2) * .85;
@@ -299,6 +371,9 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             // a cabeça rola com o avião; depois do baque, tomba e se endireita
             const tomba = t > 10.45 ? .35 * Math.max(0, 1 - (t - 10.6) / 1.4) : 0;
             camera.rotateZ(Math.sin(t * .9) * .03 * voo + tomba);
+            // o baque sacode a cabeça de verdade (girando, não só deslocando)
+            const baque = Math.max(0, 1 - Math.abs(t - 10.5) / .35);
+            if (baque > 0) { camera.rotateX(Math.sin(t * 67) * .06 * baque); camera.rotateY(Math.cos(t * 59) * .05 * baque); }
         }
         if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov = 72 - 6 * THREE.MathUtils.smoothstep(t, 10.9, 12.4);
@@ -310,6 +385,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         <group ref={aviao}>
             <group ref={balanco} rotation={[0, Math.PI, 0]}>
                 <CascoDoElevador aberturaRef={abertura} heliceRef={helice} />
+                <Cabine tRef={tRef} />
                 {/* o piloto é o próprio hóspede, o mesmo modelo que se joga depois */}
                 {/* o piloto é o hóspede — e a câmera é a cabeça dele, então o corpo não é desenhado */}
             </group>
@@ -322,10 +398,10 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             <planeGeometry args={[1.6, 5]} /><meshStandardMaterial map={texturaDoSulco()} roughness={1} transparent depthWrite={false} />
         </mesh>
         <group ref={lascas} visible={false}>
-            {Array.from({ length: 18 }, (_, i) => <mesh key={i}><boxGeometry args={[.08, .04, .35]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
+            {Array.from({ length: 30 }, (_, i) => <mesh key={i}><boxGeometry args={[.06 + (i % 3) * .03, .03, .2 + (i % 4) * .08]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
         </group>
         <group ref={poeira} visible={false}>
-            {Array.from({ length: 16 }, (_, i) => <sprite key={i} material={matPoeira(i)} />)}
+            {Array.from({ length: 26 }, (_, i) => <sprite key={i} material={matPoeira(i)} />)}
         </group>
     </group>;
 };
@@ -694,6 +770,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const tQueda = useRef(0);
     const [legenda, setLegenda] = useState(LEGENDAS_DA_QUEDA[0].texto);
     const [flash, setFlash] = useState(0);
+    const [apagao, setApagao] = useState(0);
     const jog = useRef<Jog>({ x: INICIO.x, y: 0, z: INICIO.z, ang: Math.PI, vy: 0, seguro: { ...INICIO }, levantando: 1, andando: 0 });
     const entrada = useRef({ x: 0, z: 0 });
     const yaw = useRef(0);
@@ -786,8 +863,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (t > 2.6 && !marcos.tosse) { marcos.tosse = true; tocarMotorTossindo(); }
             if (t > 5.0 && !marcos.morre) { marcos.morre = true; tocarMotorMorrendo(); }
             if (t > 10.4 && !marcos.baque) { marcos.baque = true; tocarQueda(); }
-            setFlash(t > 10.4 ? Math.max(0, .35 - (t - 10.4) / .25) : 0);
-            if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); tocarAmbiente(); return; }
+            // o baque: clarão curto, depois tudo apaga (o hóspede apaga) e os
+            // olhos se reabrem devagar, de cima e de baixo, como pálpebras
+            setFlash(t > 10.4 ? Math.max(0, .55 - (t - 10.4) / .12) : 0);
+            setApagao(t < 10.5 ? 0 : t < 10.62 ? (t - 10.5) / .12 : t < 11.1 ? 1 : Math.max(0, 1 - (t - 11.1) / .9));
+            if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); setApagao(0); tocarAmbiente(); return; }
             raf = requestAnimationFrame(passo);
         };
         raf = requestAnimationFrame(passo);
@@ -1026,6 +1106,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
+            {apagao > 0 && fase === 'queda' && <>
+                {/* pálpebras: fecham juntas no apagão e se abrem do meio para fora */}
+                <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${Math.min(1, apagao * 1.15) * 50.5}%`, background: '#050302', borderRadius: '0 0 50% 50% / 0 0 18% 18%', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${Math.min(1, apagao * 1.15) * 50.5}%`, background: '#050302', borderRadius: '50% 50% 0 0 / 18% 18% 0 0', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, background: '#050302', opacity: Math.max(0, apagao - .15), pointerEvents: 'none' }} />
+            </>}
 
             {/* ── HUD: pistas e buscas ── */}
             {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
