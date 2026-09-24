@@ -257,7 +257,7 @@ export const CasaComprida: React.FC<{
                     <meshStandardMaterial color={P13.latao} metalness={1} roughness={.3} emissive="#b8782a" emissiveIntensity={.35} />
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
-            {latao && <mesh position={[0, 0, -.2]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
+            {latao && <mesh position={[0, 0, -.045]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             ))}
