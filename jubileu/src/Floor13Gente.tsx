@@ -64,6 +64,7 @@ export const Viking: React.FC<{
         pelica: new THREE.MeshStandardMaterial({ color: '#8f7a62', roughness: 1, flatShading: true }),
         capa: new THREE.MeshStandardMaterial({ color: new THREE.Color(ficha.tunica).multiplyScalar(.6), roughness: .9, side: THREE.DoubleSide }),
         cabelo: new THREE.MeshStandardMaterial({ color: ficha.id === 'eira' ? '#d9a44a' : ficha.id === 'ragnhild' ? '#b0452a' : '#c9a36a', roughness: .8 }),
+        capuz: new THREE.MeshStandardMaterial({ color: '#2c4a6e', roughness: .95, side: THREE.DoubleSide }),
     }), [ficha]);
     const G = useMemo(() => {
         const tronco = new THREE.CylinderGeometry(.24, .34, .78, 20, 3);
@@ -252,7 +253,15 @@ export const Viking: React.FC<{
                     {[-1, 1].map((l) => <mesh key={l} position={[l * .06, -.14, .16]} material={M.barba}><cylinderGeometry args={[.03, .015, .22, 8]} /></mesh>)}
                     {[-1, 1].map((l) => <mesh key={l} position={[l * .06, -.23, .16]} material={M.fivela}><torusGeometry args={[.02, .008, 6, 10]} /></mesh>)}
                 </>}
-                {!crianca && !ficha.barba && <>
+                {/* o hóspede de capuz: é a nuca que se vê o andar inteiro, então
+                    ela precisa de forma — dobras, bico caído e a borda da abertura */}
+                {(ficha.id as string) === 'hospede' && <>
+                    <mesh position={[0, .22, -.03]} rotation={[-.35, 0, 0]} material={M.capuz} scale={[1.12, 1.15, 1.12]}><sphereGeometry args={[.27, 22, 16, Math.PI * .72, Math.PI * 1.56]} /></mesh>
+                    <mesh position={[0, .38, -.24]} rotation={[-1.1, 0, 0]} material={M.capuz}><coneGeometry args={[.1, .32, 12]} /></mesh>
+                    <mesh position={[0, .2, .06]} rotation={[.35, 0, 0]} material={M.cinto}><torusGeometry args={[.25, .018, 6, 26, Math.PI]} /></mesh>
+                    {[-1, 1].map((l) => <mesh key={l} position={[l * .23, .05, -.02]} material={M.capuz} scale={[.5, 1, 1]}><sphereGeometry args={[.13, 12, 10]} /></mesh>)}
+                </>}
+                {!crianca && !ficha.barba && (ficha.id as string) !== 'hospede' && <>
                     <mesh position={[0, .26, -.05]} material={M.cabelo} scale={[1.05, 1.08, 1]}><sphereGeometry args={[.26, 18, 14, 0, Math.PI * 2, 0, Math.PI * .6]} /></mesh>
                     <mesh position={[0, -.05, -.2]} material={M.cabelo}><cylinderGeometry args={[.05, .025, .55, 8]} /></mesh>
                 </>}
