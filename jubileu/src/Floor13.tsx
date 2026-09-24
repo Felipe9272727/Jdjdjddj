@@ -327,7 +327,8 @@ const CameraDeExplorar: React.FC<{
     jog: React.MutableRefObject<Jog>; yaw: React.MutableRefObject<number>; ativo: boolean;
     foco: React.MutableRefObject<THREE.Vector3 | null>;
     portaAlvo: React.MutableRefObject<THREE.Vector3 | null>;
-}> = ({ jog, yaw, ativo, foco, portaAlvo }) => {
+    portaFrente: React.MutableRefObject<THREE.Vector3 | null>;
+}> = ({ jog, yaw, ativo, foco, portaAlvo, portaFrente }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
@@ -336,8 +337,9 @@ const CameraDeExplorar: React.FC<{
         const j = jog.current;
         if (portaAlvo.current) {
             // a porta abre: a câmera entra devagar, olhando para a luz de dentro
-            camera.position.lerp(portaAlvo.current.clone().add(new THREE.Vector3(0, .6, 0)), 1 - Math.exp(-dt * .9));
-            camera.lookAt(portaAlvo.current);
+            const [porta, frente] = [portaAlvo.current, portaFrente.current!];
+            camera.position.lerp(porta.clone().addScaledVector(frente, 1.6).add(new THREE.Vector3(0, .35, 0)), 1 - Math.exp(-dt * .9));
+            camera.lookAt(porta);
             return;
         }
         const retrato = size.width < size.height;
@@ -522,6 +524,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const yaw = useRef(0);
     const foco = useRef<THREE.Vector3 | null>(null);
     const portaAlvo = useRef<THREE.Vector3 | null>(null);
+    const portaFrente = useRef<THREE.Vector3 | null>(null);
     const [alvo, setAlvo] = useState<Alvo | null>(null);
     const [falas, setFalas] = useState<Fala[] | null>(null);
     const [linha, setLinha] = useState(0);
@@ -668,7 +671,12 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const r = baterNaCasa(e, a.i);
             if (r.certa) {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
-                { const l = LUGAR_DAS_CASAS[a.i]; portaAlvo.current = new THREE.Vector3(l.x + Math.sin(l.angulo) * 2.9, l.y + .9, l.z + Math.cos(l.angulo) * 2.9); }
+                {
+                    // a porta (no centro da folha) e a direção para fora dela
+                    const l = LUGAR_DAS_CASAS[a.i];
+                    portaFrente.current = new THREE.Vector3(Math.sin(l.angulo), 0, Math.cos(l.angulo));
+                    portaAlvo.current = new THREE.Vector3(l.x, l.y + .8, l.z).addScaledVector(portaFrente.current, 2.85);
+                }
                 window.setTimeout(() => onExit?.(), 4200);
             } else abrirDialogo(r.falas, null);
         }
@@ -759,9 +767,9 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     ? <CenaDaQueda tRef={tQueda} />
                     : <>
                         <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
-                        <Viking ficha={HOSPEDE} x={0} y={0} z={0} estado={estadoDoHospede} controle={jog} />
+                        {fase !== 'elevador' && <Viking ficha={HOSPEDE} x={0} y={0} z={0} estado={estadoDoHospede} controle={jog} />}
                     </>}
-                <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
+                <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
