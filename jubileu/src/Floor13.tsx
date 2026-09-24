@@ -22,15 +22,15 @@ import { CascoDoElevador } from './Floor12Avioes';
 import { Floor13Mundo } from './Floor13Mundo';
 import { Viking, Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import {
-    NPCS, PISTAS, BUSCAS, ENTIDADE, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
+    NPCS, PISTAS, BUSCAS, ENTIDADE, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
-    chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, MARTELO, OVELHAS, SINO,
+    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, MARTELO, OVELHAS, SINO,
     novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
 } from './f13Mundo';
 import {
     tocarVento, pararVento, tocarMotorTossindo, tocarMotorMorrendo, tocarQueda, tocarSino, tocarDingDaCasa,
-    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao, tocarAmbiente, pararAmbiente,
+    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao, tocarAmbiente, pararAmbiente, tocarPasso, tocarCorpoCaindo,
 } from './floor13Sfx';
 
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
@@ -40,6 +40,8 @@ type Alvo =
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 11.6;
+/** O hóspede, no mesmo desenho dos moradores: jaqueta azul, sem elmo. */
+const HOSPEDE = { id: 'hospede', nome: 'Você', oficio: 'hóspede', tunica: '#3b6fb0', barba: null, primeira: [], depois: [] } as unknown as FichaNpc;
 /** Bancada: `?f13t=5` congela a queda nesse instante (só em DEV). */
 const tFixo: number | null = typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13t')
     ? parseFloat(new URLSearchParams(location.search).get('f13t') ?? '0') : null;
@@ -95,6 +97,10 @@ function matPoeira(i: number): THREE.SpriteMaterial {
     return (matsPoeira[i] ??= new THREE.SpriteMaterial({ map: texPoeira, transparent: true, depthWrite: false }));
 }
 
+const HEROI = new THREE.Vector3(4.2, 2.1, 38.6);
+const DESTROCOS = new THREE.Vector3(-2, 1.1, 33.2);
+const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
+
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const aviao = useRef<THREE.Group>(null), balanco = useRef<THREE.Group>(null);
@@ -113,10 +119,15 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         CAMINHO.getTangentAt(Math.min(.999, u), tmp.tan);
         const g = aviao.current;
         if (g) {
-            g.visible = t < 10.45;
-            g.position.copy(pos);
-            tmp.alvo.copy(pos).add(tmp.tan);
-            g.lookAt(tmp.alvo);
+            if (t < 10.45) {
+                g.position.copy(pos);
+                tmp.alvo.copy(pos).add(tmp.tan);
+                g.lookAt(tmp.alvo);
+            } else {
+                // os destroços: o avião fica de nariz enfiado no feno
+                g.position.set(-2.2, 1.35, 33.4);
+                g.rotation.set(-.55, 2.6, .35);
+            }
         }
         // o motor tossindo: tranco na rolagem; morto: a hélice para
         const tosse = t > 2.6 ? Math.max(0, Math.sin(t * 9)) * Math.min(1, (t - 2.6)) : 0;
@@ -173,22 +184,23 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         // perto o bastante para o avião continuar sendo o assunto do plano
         const revela = tmp.tan.clone().multiplyScalar(-13 * rr).add(new THREE.Vector3(0, 6.5 * rr, 0));
         tmp.cam.copy(atras).lerp(deLado, k1).lerp(revela, k2).add(pos);
-        // o baque, visto de fora: a câmera ESCORREGA para a pose de pouso
-        // (antes era um salto no 10,2 e lia como corte seco)
-        tmp.cam.lerp(new THREE.Vector3(5, 5, 42), THREE.MathUtils.smoothstep(t, 9.4, 10.3));
-        // o baque: um soco de câmera para dentro do feno
-        tmp.cam.lerp(new THREE.Vector3(1.5, 2.6, 37.5), THREE.MathUtils.smoothstep(t, 10.3, 10.7));
+        // ── O POUSO: UM SÓ MOVIMENTO ATÉ O PLANO HERÓI ──────────────────
+        // Da perseguição a câmera desce, numa curva só (smootherstep de 1,6 s),
+        // até um três-quartos baixo dos destroços no feno. Sem dois alvos
+        // encadeados e sem troca de lente brusca: era isso que lia como salto.
+        const pouso = smoother((t - 9.2) / 1.6);
+        tmp.cam.lerp(HEROI, pouso);
         // o motor morrendo e o baque tremem o quadro
         const tranco = Math.max(0, 1 - Math.abs(t - 5.05) / .18) + Math.max(0, 1 - Math.abs(t - 10.45) / .3) * 1.6;
         tmp.cam.x += Math.sin(t * 91) * tranco * .35; tmp.cam.y += Math.cos(t * 77) * tranco * .25;
         camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * 3.2));
         // o olhar: o avião, e no mergulho metade do olhar vai para a cidade
-        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .4 * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
+        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .4 * (1 - pouso)).lerp(DESTROCOS, pouso);
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 14 * THREE.MathUtils.smoothstep(t, 10.3, 10.7);
+            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 12 * pouso;
             camera.updateProjectionMatrix();
         }
     });
@@ -228,6 +240,7 @@ const Jogador: React.FC<{
 }> = ({ jog, entrada, yaw, ativo }) => {
     const refs = useAvatarRefs();
     const g = useRef<THREE.Group>(null);
+    const ultimoPasso = useRef(false);
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, .05), j = jog.current, t = clock.elapsedTime;
         const o = g.current; if (!o) return;
@@ -252,6 +265,13 @@ const Jogador: React.FC<{
             while (da < -Math.PI) da += Math.PI * 2;
             j.ang += da * Math.min(1, dt * 12);
             j.andando = Math.min(1, j.andando + dt * 6);
+            // um som por passo: a fase do ciclo cruzando zero
+            const fase = Math.sin(t * 9);
+            if ((fase > 0) !== ultimoPasso.current) {
+                ultimoPasso.current = fase > 0;
+                const naIlha = ILHAS_R.some((il) => Math.hypot(j.x - il.x, j.z - il.z) <= il.r);
+                tocarPasso(!naIlha);
+            }
         } else j.andando = Math.max(0, j.andando - dt * 6);
         // ── O CHÃO: ilha, ponte ou céu ───────────────────────────────────
         const chao = chaoEm(j.x, j.z);
@@ -271,7 +291,7 @@ const Jogador: React.FC<{
         set(refs.armL, -Math.sin(f) * .6 * a); set(refs.armR, Math.sin(f) * .6 * a);
         if (refs.body.current) refs.body.current.position.y = Math.abs(Math.sin(f)) * .06 * a;
     });
-    return <group ref={g}><Avatar64 refs={refs} /></group>;
+    return <group ref={g} visible={false}><Avatar64 refs={refs} /></group>;
 };
 
 /** Câmera de terceira pessoa: atrás e acima, girando com o dedo direito. */
@@ -444,6 +464,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const sinoRef = useRef<THREE.Group>(null), portaCerta = useRef<THREE.Group>(null);
     const balancoDoSino = useRef(0);
     const falando = useRef<IdNpc | null>(null);
+    const estadoDoHospede = useRef<EstadoVisualNpc>({ olharPara: null, falando: false, possessao: 0, caido: false });
 
     // Bancada (só em DEV): `window.__f13` teleporta, dá pistas e lê o estado.
     useEffect(() => {
@@ -532,6 +553,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             tocarDesconexao(); setConexao(true);
             const h = npcVis.halvard.current;
             h.possessao = 0; h.caido = true;
+            window.setTimeout(() => tocarCorpoCaindo(), 820);
             est.current.entidade = 'caido';
             // o preto dura pouco: a queda dele TEM de ser vista
             window.setTimeout(() => setConexao(false), 800);
@@ -657,7 +679,10 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Martelo visivel={!e.temMartelo} />
                 {fase === 'queda'
                     ? <CenaDaQueda tRef={tQueda} />
-                    : <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />}
+                    : <>
+                        <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
+                        <Viking ficha={HOSPEDE} x={0} y={0} z={0} estado={estadoDoHospede} controle={jog} />
+                    </>}
                 <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />

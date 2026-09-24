@@ -9,6 +9,8 @@ let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
 let vento: { src: AudioBufferSourceNode; g: GainNode } | null = null;
 let ruidoBuf: AudioBuffer | null = null;
+/** Envio para a reverberação (sino, vozes, baques). */
+let eco: ConvolverNode | null = null;
 
 const saida = (): AudioNode | null => dest ?? ctx?.destination ?? null;
 
@@ -19,6 +21,17 @@ export function configureFloor13Sfx(context: AudioContext | null, destination?: 
         comp.threshold.value = -16; comp.ratio.value = 4;
         comp.connect(dest ?? ctx.destination);
         dest = comp;
+        // reverberação de céu aberto: um impulso sintetizado, longo e ralo
+        const len = Math.floor(ctx.sampleRate * 2.6);
+        const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+        for (let ch = 0; ch < 2; ch++) {
+            const d = ir.getChannelData(ch);
+            for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * (i < 800 ? i / 800 : 1);
+        }
+        const conv = ctx.createConvolver(); conv.buffer = ir;
+        const volta = ctx.createGain(); volta.gain.value = .35;
+        conv.connect(volta); volta.connect(comp);
+        eco = conv;
     }
 }
 export function clearFloor13Sfx(): void { pararVento(); pararAmbiente(); ctx = null; dest = null; }
@@ -33,7 +46,7 @@ function ruido(): AudioBuffer | null {
     return ruidoBuf;
 }
 
-function tom(tipo: OscillatorType, f0: number, f1: number, dur: number, vol: number, atraso = 0): void {
+function tom(tipo: OscillatorType, f0: number, f1: number, dur: number, vol: number, atraso = 0, reverb = 0): void {
     const c = ctx, d = saida(); if (!c || !d) return;
     const t = c.currentTime + atraso;
     const o = c.createOscillator(); o.type = tipo;
@@ -41,6 +54,7 @@ function tom(tipo: OscillatorType, f0: number, f1: number, dur: number, vol: num
     const g = c.createGain();
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     o.connect(g); g.connect(d); o.start(t); o.stop(t + dur + .05);
+    if (reverb > 0 && eco) { const r = c.createGain(); r.gain.value = reverb; g.connect(r); r.connect(eco); }
 }
 
 function sopro(dur: number, vol: number, corte: number, atraso = 0, tipo: BiquadFilterType = 'lowpass'): void {
@@ -84,7 +98,8 @@ export function tocarMotorTossindo(): void {
 export function tocarMotorMorrendo(): void { tom('sawtooth', 120, 30, 1.8, .1); sopro(1.5, .08, 500); }
 export function tocarQueda(): void { tom('sine', 90, 30, .9, .5); sopro(.9, .4, 1400); sopro(1.6, .15, 400, .2); }
 export function tocarSino(): void {
-    for (const [f, v] of [[392, .22], [784, .09], [1175, .05], [196, .12]] as const) tom('triangle', f, f * .998, 3.5, v);
+    // sino de bronze: parciais inarmônicas com decaimento longo e muita sala
+    for (const [f, v] of [[196, .12], [392, .2], [470, .06], [784, .08], [1175, .045], [1560, .02]] as const) tom('sine', f, f * .998, 4.5, v, 0, .9);
 }
 export function tocarDingDaCasa(): void { tom('triangle', 1318.5, 1318.5, .25, .09); tom('triangle', 1046.5, 1046.5, .7, .08, .14); }
 export function tocarPegar(): void { tom('square', 660, 990, .1, .05); tom('square', 990, 1320, .12, .04, .08); }
@@ -96,7 +111,7 @@ const TOM_DA_VOZ: Record<string, number> = {
 };
 export function tocarFala(quem: string): void {
     const f = TOM_DA_VOZ[quem] ?? 240;
-    tom('square', f, f * 1.12, .07, .035); tom('square', f * 1.2, f, .08, .03, .09);
+    tom('square', f, f * 1.12, .07, .035, 0, .3); tom('square', f * 1.2, f, .08, .03, .09, .3);
 }
 
 /** A entidade: chiado digital e um tom que quebra. */
@@ -138,3 +153,11 @@ export function pararAmbiente(): void {
     g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + 1);
     oscs.forEach((o) => o.stop(ctx!.currentTime + 1.1));
 }
+
+/** Passo: tábua oca na ponte, grama abafada na ilha. */
+export function tocarPasso(madeira: boolean): void {
+    if (madeira) { tom('sine', 180 + Math.random() * 30, 90, .09, .06); sopro(.05, .05, 2200); }
+    else sopro(.08, .05, 600 + Math.random() * 300);
+}
+/** O corpo de Halvard batendo no chão. */
+export function tocarCorpoCaindo(): void { tom('sine', 110, 40, .5, .35, 0, .5); sopro(.3, .2, 900); }

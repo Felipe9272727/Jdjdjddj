@@ -30,7 +30,9 @@ export const Viking: React.FC<{
     estado: React.MutableRefObject<EstadoVisualNpc>;
     /** Um tique de glitch antes da possessão (o aviso de que algo vem). */
     tique?: boolean;
-}> = ({ ficha, x, y, z, ronda, estado, tique }) => {
+    /** Se dado, é o JOGADOR: posição, direção e passo vêm daqui. */
+    controle?: React.MutableRefObject<{ x: number; y: number; z: number; ang: number; andando: number; levantando: number }>;
+}> = ({ ficha, x, y, z, ronda, estado, tique, controle }) => {
     const raiz = useRef<THREE.Group>(null), corpo = useRef<THREE.Group>(null);
     const bracoE = useRef<THREE.Group>(null), bracoD = useRef<THREE.Group>(null);
     const pernaE = useRef<THREE.Group>(null), pernaD = useRef<THREE.Group>(null);
@@ -65,6 +67,7 @@ export const Viking: React.FC<{
         };
     }, []);
     const boca = useRef<THREE.Mesh>(null), sobrE = useRef<THREE.Mesh>(null), sobrD = useRef<THREE.Mesh>(null);
+    const olhos = useRef<(THREE.Group | null)[]>([]);
     const capa = useRef<THREE.Group>(null), luzVerde = useRef<THREE.PointLight>(null);
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
@@ -81,16 +84,21 @@ export const Viking: React.FC<{
         if (sobrE.current) { sobrE.current.position.y = .31 + sob; sobrE.current.rotation.z = e.possessao > 0 ? -.4 : .08; }
         if (sobrD.current) { sobrD.current.position.y = .31 + sob; sobrD.current.rotation.z = e.possessao > 0 ? .4 : -.08; }
         if (capa.current) capa.current.rotation.x = .12 + Math.sin(t * 1.6 + x) * .06;
+        // piscar: a cada ~4 s, um décimo de segundo
+        const pisca = ((t + x * 1.7) % 4.2) < .12 ? .1 : 1;
+        olhos.current.forEach((o) => { if (o) o.scale.y = pisca; });
         if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 3 + Math.sin(t * 30) * 1.5 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
         let px = x, pz = z, andando = false, direcao = giro.current;
+        const ctl = controle?.current;
+        if (ctl) { px = ctl.x; pz = ctl.z; direcao = ctl.ang; andando = ctl.andando > .15; }
         if (ronda && !e.falando && !e.olharPara) {
             const a = t * .45;
             px = x + Math.cos(a) * ronda; pz = z + Math.sin(a) * ronda;
             direcao = -a; andando = true;
         }
-        g.position.set(px, y, pz);
+        g.position.set(px, ctl ? ctl.y : y, pz);
         if (e.olharPara && !e.caido) {
             tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz);
             direcao = Math.atan2(tmp.x, tmp.z);
@@ -99,7 +107,8 @@ export const Viking: React.FC<{
         while (dd > Math.PI) dd -= Math.PI * 2;
         while (dd < -Math.PI) dd += Math.PI * 2;
         giro.current += dd * Math.min(1, d * 6);
-        g.rotation.y = giro.current;
+        g.rotation.y = ctl ? ctl.ang : giro.current;
+        if (ctl) g.rotation.x = -ctl.levantando * 1.35;
 
         // ── O QUE O CORPO FAZ ────────────────────────────────────────────
         const set = (r: React.RefObject<THREE.Group | null>, v: number) => { if (r.current) r.current.rotation.x = v; };
@@ -111,7 +120,7 @@ export const Viking: React.FC<{
             set(bracoE, 0); set(bracoD, 0); set(pernaE, 0); set(pernaD, 0);
             return;
         }
-        g.rotation.x = 0;
+        if (!ctl) g.rotation.x = 0;
         // antes de ser tomado, um tique: um quadro em cada tanto ele "pula"
         M.olho.color.set(e.possessao > 0 ? '#3dff8a' : '#1b1210');
         if (e.possessao > 0) {
@@ -125,13 +134,16 @@ export const Viking: React.FC<{
             return;
         }
         g.scale.setScalar(escala);
-        if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; }
+        if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; c.rotation.y = 0; }
         if (tique && c && Math.floor(t * 10) % 37 === 0) c.position.x = .06;
         if (cabeca.current) cabeca.current.rotation.z = 0;
         if (andando) {
-            const f = t * 7;
-            set(pernaE, Math.sin(f) * .7); set(pernaD, -Math.sin(f) * .7);
-            set(bracoE, -Math.sin(f) * .5); set(bracoD, Math.sin(f) * .5);
+            // passo com peso: quadril sobe duas vezes por ciclo e o tronco
+            // gira contra as pernas
+            const f = t * (ctl ? 9 : 7);
+            set(pernaE, Math.sin(f) * .75); set(pernaD, -Math.sin(f) * .75);
+            set(bracoE, -Math.sin(f) * .55); set(bracoD, Math.sin(f) * .55);
+            if (c) { c.position.y = Math.abs(Math.sin(f)) * .06; c.rotation.y = Math.sin(f) * .1; }
         } else if (e.falando) {
             set(pernaE, 0); set(pernaD, 0);
             set(bracoE, -.4 + Math.sin(t * 5) * .35); set(bracoD, -.2 + Math.sin(t * 4 + 1) * .25);
@@ -177,7 +189,7 @@ export const Viking: React.FC<{
                 <mesh position={[0, .2, 0]} material={M.pele} scale={[1, 1.08, .95]}><sphereGeometry args={[.25, 24, 18]} /></mesh>
                 {/* nariz, olhos com esclera e pupila, sobrancelhas, boca */}
                 <mesh position={[0, .18, .24]} rotation={[Math.PI / 2 - .3, 0, 0]} material={M.pele}><coneGeometry args={[.045, .12, 10]} /></mesh>
-                {[-1, 1].map((l) => <group key={l} position={[l * .09, .25, .215]}>
+                {[-1, 1].map((l) => <group key={l} ref={(o) => { olhos.current[l < 0 ? 0 : 1] = o; }} position={[l * .09, .25, .215]}>
                     <mesh material={M.esclera} scale={[1, .8, .5]}><sphereGeometry args={[.038, 12, 10]} /></mesh>
                     <mesh position={[0, 0, .017]} material={M.olho}><sphereGeometry args={[.02, 10, 8]} /></mesh>
                 </group>)}
@@ -197,7 +209,7 @@ export const Viking: React.FC<{
                 {crianca && [-1, 1].map((l) => <mesh key={l} position={[l * .24, .12, -.02]} material={M.cabelo}><cylinderGeometry args={[.045, .025, .38, 8]} /></mesh>)}
                 {crianca && <mesh position={[0, .3, -.04]} material={M.cabelo} scale={[1.05, 1.05, 1.02]}><sphereGeometry args={[.26, 18, 14, 0, Math.PI * 2, 0, Math.PI * .55]} /></mesh>}
                 {/* elmo de ferro com protetor de nariz (e chifres só para os que gostam) */}
-                {!crianca && ficha.id !== 'ragnhild' && ficha.id !== 'sigrun' && <>
+                {!crianca && ficha.id !== 'ragnhild' && ficha.id !== 'sigrun' && (ficha.id as string) !== 'hospede' && <>
                     <mesh position={[0, .3, 0]} material={M.elmo}><sphereGeometry args={[.27, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
                     <mesh position={[0, .3, 0]} material={M.cinto}><torusGeometry args={[.27, .02, 6, 28]} /></mesh>
                     <mesh position={[0, .23, .27]} material={M.elmo}><boxGeometry args={[.035, .16, .02]} /></mesh>
