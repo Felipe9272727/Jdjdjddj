@@ -6,7 +6,7 @@
  * em volta de tudo, barcos navegando o céu. Só desenho: onde se pisa e quem
  * está onde vêm de `f13Mundo.ts`.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -456,6 +456,46 @@ const Passaros: React.FC = () => {
     </group>;
 };
 
+/**
+ * Grama de verdade: milhares de lâminas instanciadas por ilha, balançando com
+ * o vento num vertex shader (a ponta anda, a base fica). O miolo pisado de
+ * cada ilha fica mais ralo.
+ */
+const tempoGrama = { value: 0 };
+const Grama: React.FC = () => {
+    const { geo, mat, n, mats } = useMemo(() => {
+        const g = new THREE.PlaneGeometry(.06, .34, 1, 3); g.translate(0, .17, 0);
+        const m = new THREE.MeshStandardMaterial({ color: '#7fae52', side: THREE.DoubleSide, roughness: .9 });
+        m.onBeforeCompile = (sh) => {
+            sh.uniforms.uT = tempoGrama;
+            sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+                vec4 wp = instanceMatrix * vec4(0.,0.,0.,1.);
+                float k = position.y / .34;
+                transformed.x += sin(uT * 2.1 + wp.x * .7 + wp.z * .5) * .09 * k * k;
+                transformed.z += cos(uT * 1.7 + wp.z * .6) * .05 * k * k;`);
+        };
+        let k = 23;
+        const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+        const ms: THREE.Matrix4[] = [];
+        const o = new THREE.Object3D();
+        for (const il of ILHAS) {
+            const qtd = Math.round(il.r * il.r * 9);
+            for (let i = 0; i < qtd; i++) {
+                const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * il.r * .97;
+                if (d < il.r * .3 && rnd() < .8) continue;
+                o.position.set(il.x + Math.cos(a) * d, il.y, il.z + Math.sin(a) * d);
+                o.rotation.set(0, rnd() * Math.PI, (rnd() - .5) * .3);
+                o.scale.set(1, .6 + rnd() * .9, 1);
+                o.updateMatrix(); ms.push(o.matrix.clone());
+            }
+        }
+        return { geo: g, mat: m, n: ms.length, mats: ms };
+    }, []);
+    const ref = useRef<THREE.InstancedMesh>(null);
+    useEffect(() => { const m = ref.current; if (!m) return; mats.forEach((x, i) => m.setMatrixAt(i, x)); m.instanceMatrix.needsUpdate = true; }, [mats]);
+    useFrame(({ clock }) => { tempoGrama.value = clock.elapsedTime; });
+    return <instancedMesh ref={ref} args={[geo, mat, n]} frustumCulled={false} />;
+};
 export const Floor13Mundo: React.FC<{
     portaCertaRef?: React.Ref<THREE.Group>;
     sinoRef?: React.Ref<THREE.Group>;
@@ -474,6 +514,7 @@ export const Floor13Mundo: React.FC<{
         <Nuvens />
         <Frota />
         <Decoracao />
+        <Grama />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
         {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}

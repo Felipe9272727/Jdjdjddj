@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
@@ -173,7 +173,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
 
         // ── A CÂMERA: um plano só, que muda de lugar sem cortar ──────────
         tmp.lado.crossVectors(tmp.tan, THREE.Object3D.DEFAULT_UP).normalize();
-        const k1 = THREE.MathUtils.smoothstep(t, 3.6, 5.2);   // perseguição → lado
+        const k1 = THREE.MathUtils.smoothstep(t, 3.4, 4.8);   // perseguição → lado (e segura de lado ~1,5 s)
         const k2 = THREE.MathUtils.smoothstep(t, 6.4, 7.8);   // lado → atrás e alto (revela a cidade)
         // Em pé a lente é estreita: tudo mais longe, e uma órbita lenta no
         // começo para o plano não ficar parado.
@@ -198,6 +198,14 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .4 * (1 - pouso)).lerp(DESTROCOS, pouso);
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
+        // Rede de segurança do enquadramento: se o avião escapa para a borda
+        // (a lente é estreita em pé), o olhar puxa de volta para ele.
+        if (t < 10.45) {
+            camera.updateMatrixWorld();
+            const ndc = pos.clone().project(camera);
+            const fuga = Math.max(0, Math.abs(ndc.x) - .55, Math.abs(ndc.y) - .7);
+            if (fuga > 0 || ndc.z > 1) { olhar.current.lerp(pos, Math.min(1, fuga * 2 + (ndc.z > 1 ? 1 : 0))); camera.lookAt(olhar.current); }
+        }
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
         if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 12 * pouso;
@@ -434,9 +442,39 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
         }
     });
     return <directionalLight ref={luz} intensity={2.4} color="#fff0d2" castShadow
-        shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-.0004}
+        shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-.0004}
         shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
         shadow-camera-near={1} shadow-camera-far={120} />;
+};
+
+/**
+ * Reflexo de ambiente: o céu de Vindhjem (azul em cima, âmbar no horizonte,
+ * terra embaixo) vira um mapa PMREM. Sem ele todo metal refletia preto e o
+ * elmo de ferro lia como um aquário de vidro.
+ */
+const Ambiente: React.FC = () => {
+    const gl = useThree((s) => s.gl), scene = useThree((s) => s.scene);
+    useEffect(() => {
+        const cena = new THREE.Scene();
+        const geo = new THREE.SphereGeometry(10, 32, 16);
+        const cor = new Float32Array(geo.getAttribute('position').count * 3);
+        const alto = new THREE.Color('#8fb6e0'), meio = new THREE.Color('#f3d6ae'), baixo = new THREE.Color('#5a4a38'), c = new THREE.Color();
+        const p = geo.getAttribute('position');
+        for (let i = 0; i < p.count; i++) {
+            const y = p.getY(i) / 10;
+            if (y > 0) c.copy(meio).lerp(alto, Math.min(1, y * 1.6)); else c.copy(meio).lerp(baixo, Math.min(1, -y * 2.5));
+            cor.set([c.r, c.g, c.b], i * 3);
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+        cena.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+        const pm = new THREE.PMREMGenerator(gl);
+        const alvo = pm.fromScene(cena, .04);
+        const antes = scene.environment;
+        scene.environment = alvo.texture; scene.environmentIntensity = .7;
+        pm.dispose(); geo.dispose();
+        return () => { scene.environment = antes; alvo.dispose(); };
+    }, [gl, scene]);
+    return null;
 };
 
 // ═══ O ANDAR ═════════════════════════════════════════════════════════════════
@@ -670,6 +708,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <hemisphereLight args={['#dfe9f5', '#6b5a44', 1.1]} />
                 <Sol jog={jog} />
                 <directionalLight position={[40, 20, 60]} intensity={.6} color="#9ec3ff" />
+                <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
@@ -693,6 +732,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .18 : 0} />
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
+                    <BrightnessContrast brightness={-.02} contrast={.12} />
                 </EffectComposer>
             </Canvas>
 
@@ -748,6 +788,10 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 </div>
                 {!(glitch && linha === falas.length - 1) && <div style={{ position: 'absolute', right: 12, bottom: 8, fontSize: 14, color: glitch ? '#3dff8a' : '#6b4a2e' }}>▶</div>}
             </div>}
+            {glitch && <>
+                <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '9vh', background: '#000', pointerEvents: 'none', animation: 'f13barra .8s ease-out' }} />
+                <style>{'@keyframes f13barra{from{height:0}}'}</style>
+            </>}
             {glitch && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'screen', opacity: .5,
                 background: 'repeating-linear-gradient(0deg, rgba(61,255,138,.10) 0 2px, transparent 2px 4px)', animation: 'f13treme .3s steps(3) infinite' }}>
                 <style>{'@keyframes f13treme{0%{transform:translate(0,0)}33%{transform:translate(-2px,1px)}66%{transform:translate(2px,-1px)}100%{transform:translate(0,0)}}'}</style>
