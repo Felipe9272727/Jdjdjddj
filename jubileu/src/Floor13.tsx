@@ -494,7 +494,7 @@ const Radar: React.FC<{
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
         tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
-        CASAS.forEach((_, i) => { const p = portaDaCasa(i); tenta({ tipo: 'casa', i }, p.x, p.z, 1.9); });
+        CASAS.forEach((_, i) => { const p = portaDaCasa(i); tenta({ tipo: 'casa', i }, p.x, p.z, 3.6); });
         const k = chaveDoAlvo(achou);
         if (k !== ultimo.current) { ultimo.current = k; aoMudar(achou); }
     });
@@ -670,7 +670,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             estado: () => est.current,
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
-            casaCerta: () => { const p = portaDaCasa(CASA_CERTA), l = LUGAR_DAS_CASAS[CASA_CERTA]; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
+            casaCerta: () => { const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
         };
     }, []);
 
@@ -686,7 +686,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             const por = (x: number, z: number) => { const p = pertoDe(x, z); j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 0; j.ang = p.yaw + Math.PI; yaw.current = p.yaw; j.levantando = 0; };
             const npc = LUGAR_DOS_NPCS[inicio as IdNpc];
             if (inicio === 'casaCerta') {
-                const p = portaDaCasa(CASA_CERTA), l = LUGAR_DAS_CASAS[CASA_CERTA];
+                // de frente para a porta, fora do beiral (na soleira a câmera
+                // em primeira pessoa ficava dentro do telhado)
+                const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 };
                 (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump();
                 j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0;
             } else if (inicio === 'entidade') {
