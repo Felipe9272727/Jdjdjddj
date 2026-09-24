@@ -282,8 +282,8 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         const b = balanco.current;
         if (b) {
             b.updateMatrixWorld(true);
-            b.localToWorld(tmp.cam.set(0, .62, .75));
-            b.localToWorld(tmp.olho.set(0, .35, -8));
+            b.localToWorld(tmp.cam.set(0, .95, .55));
+            b.localToWorld(tmp.olho.set(0, .55, -8));
             const cidade = new THREE.Vector3(0, 3, 0);
             const vira = THREE.MathUtils.smoothstep(t, 6.2, 8.4) * (1 - THREE.MathUtils.smoothstep(t, 9.2, 9.9)) * .55
                 + THREE.MathUtils.smoothstep(t, 10.9, 12.2) * .85;
