@@ -22,6 +22,14 @@ export interface EstadoVisualNpc {
 }
 
 const pele = '#e2b08a';
+const SOMBRA = (() => {
+    const c = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    if (!c) return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+    c.width = c.height = 64; const g = c.getContext('2d')!;
+    const r = g.createRadialGradient(32, 32, 4, 32, 32, 32); r.addColorStop(0, 'rgba(20,16,10,.55)'); r.addColorStop(1, 'rgba(20,16,10,0)');
+    g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+    return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+})();
 
 export const Viking: React.FC<{
     ficha: FichaNpc;
@@ -93,7 +101,7 @@ export const Viking: React.FC<{
         const pisca = ((t + x * 1.7) % 4.2) < .12 ? .1 : 1;
         olhos.current.forEach((o) => { if (o) o.scale.y = pisca; });
         if (marcaRef.current) { marcaRef.current.position.y = 2.75 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5; }
-        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? .8 + Math.sin(t * 30) * .3 : 0;
+        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 1.8 + Math.sin(t * 9) * .8 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
         let px = x, pz = z, andando = false, direcao = giro.current;
@@ -143,12 +151,16 @@ export const Viking: React.FC<{
             if (c) c.position.x = ((q * 7919) % 5 - 2) * .03 * e.possessao;
             g.scale.setScalar(escala * (1 + ((q * 31) % 3 - 1) * .02));
             if (cabeca.current) cabeca.current.rotation.z = .35 * e.possessao;
-            set(bracoE, 0); set(bracoD, 0);
+            // marionete: braços erguidos por fios invisíveis, em quadros duros
+            set(bracoE, -1.3 + ((q * 13) % 3) * .12); set(bracoD, -1.1 - ((q * 7) % 3) * .12);
+            if (bracoE.current) bracoE.current.rotation.z = -.5; if (bracoD.current) bracoD.current.rotation.z = .5;
+            if (cabeca.current) cabeca.current.rotation.x = ((q * 11) % 3 - 1) * .12;
             return;
         }
         g.scale.setScalar(escala);
         if (!andando) joelhos.current.forEach((j) => { if (j) j.rotation.x *= .8; });
         if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; c.rotation.y = 0; }
+        if (bracoE.current) bracoE.current.rotation.z = 0; if (bracoD.current) bracoD.current.rotation.z = 0;
         if (tique && c && Math.floor(t * 10) % 37 === 0) c.position.x = .06;
         if (cabeca.current) cabeca.current.rotation.z = 0;
         if (andando) {
@@ -178,6 +190,8 @@ export const Viking: React.FC<{
         {marca && !controle && <group ref={marcaRef} position={[0, 2.75, 0]}>
             <mesh><octahedronGeometry args={[.16, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
         </group>}
+        {/* sombra de contato: um disco escuro e macio sob os pés */}
+        {!controle && <mesh position={[0, .03, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.5, 20]} /></mesh>}
         {/* a luz verde da entidade, só acesa na possessão */}
         <pointLight ref={luzVerde} position={[0, 1.9, 1.2]} color="#3dff8a" intensity={0} distance={4} />
         <group ref={corpo}>

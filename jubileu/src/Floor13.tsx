@@ -106,7 +106,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
     const aviao = useRef<THREE.Group>(null), balanco = useRef<THREE.Group>(null);
     const abertura = useRef(1), helice = useRef(0);
     const refs = useAvatarRefs();
-    const fumaca = useRef<THREE.Group>(null), poeira = useRef<THREE.Group>(null);
+    const fumaca = useRef<THREE.Group>(null), poeira = useRef<THREE.Group>(null), lascas = useRef<THREE.Group>(null);
     const puffs = useRef(Array.from({ length: 28 }, () => ({ p: new THREE.Vector3(), t: 99 })));
     const proximoPuff = useRef(0);
     const tmp = useMemo(() => ({ tan: new THREE.Vector3(), lado: new THREE.Vector3(), cam: new THREE.Vector3(), olho: new THREE.Vector3(), alvo: new THREE.Vector3() }), []);
@@ -175,6 +175,15 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             });
         }
 
+        // lascas de madeira e feno voando no baque, com gravidade
+        if (lascas.current) {
+            lascas.current.visible = pq > 0 && pq < 2;
+            lascas.current.children.forEach((c, i) => {
+                const a = i * 2.4, v = 3 + (i % 5);
+                c.position.set(-2.2 + Math.cos(a) * v * pq * .6, 1.4 + v * pq - 4.9 * pq * pq, 33.4 + Math.sin(a) * v * pq * .6);
+                c.rotation.set(pq * (5 + i), pq * 3, i);
+            });
+        }
         // ── A CÂMERA: um plano só, que muda de lugar sem cortar ──────────
         tmp.lado.crossVectors(tmp.tan, THREE.Object3D.DEFAULT_UP).normalize();
         const k1 = THREE.MathUtils.smoothstep(t, 3.4, 4.8);   // perseguição → lado (e segura de lado ~1,5 s)
@@ -228,6 +237,9 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         </group>
         <group ref={fumaca}>
             {puffs.current.map((_, i) => <sprite key={i} visible={false} material={matFumaca(i)} />)}
+        </group>
+        <group ref={lascas} visible={false}>
+            {Array.from({ length: 18 }, (_, i) => <mesh key={i}><boxGeometry args={[.08, .04, .35]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
         </group>
         <group ref={poeira} visible={false}>
             {Array.from({ length: 16 }, (_, i) => <sprite key={i} material={matPoeira(i)} />)}
@@ -320,10 +332,10 @@ const CameraDeExplorar: React.FC<{
         if (!ativo) return;
         const j = jog.current;
         const retrato = size.width < size.height;
-        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 4 : 3.1;
+        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 5 : 3.4;
         // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
         const ombro = foco.current ? 0 : .9;
-        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro, j.y + 1.8, j.z - Math.sin(yaw.current) * ombro);
+        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro, j.y + 2.5, j.z - Math.sin(yaw.current) * ombro);
         // Numa conversa, o olhar vai para o meio entre o jogador e quem fala, e
         // a câmera dá a volta para o lado: por trás do jogador, quem fala
         // ficava escondido atrás dele.

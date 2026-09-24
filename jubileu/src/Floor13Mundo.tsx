@@ -224,6 +224,7 @@ export const CasaComprida: React.FC<{
     runa?: string; latao?: boolean; fumaca?: boolean; botao?: boolean; escala?: number;
     portaRef?: React.Ref<THREE.Group>;
 }> = ({ runa, latao = false, fumaca = true, botao = false, escala = 1, portaRef }) => {
+    const musgo = runa ? (runa.charCodeAt(0) % 5) / 5 : 0;
     const parede = useMemo(() => new RoundedBoxGeometry(3.4, 1.9, 5.6, 2, .08), []);
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
     return <group scale={escala}>
@@ -234,7 +235,7 @@ export const CasaComprida: React.FC<{
         )))}
         {/* telhado em A coberto de turfa */}
         {[-1, 1].map((lado) => (
-            <mesh key={lado} position={[lado * .98, 2.55, 0]} rotation={[0, 0, -lado * .78]} castShadow>
+            <mesh key={lado} position={[lado * .98, 2.55, 0]} rotation={[0, 0, -lado * .78]} castShadow scale={[1, 1 + musgo * .5, 1]}>
                 <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial color={P13.turfa} roughness={1} />
             </mesh>
         ))}
@@ -520,7 +521,8 @@ export const Floor13Mundo: React.FC<{
         {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
         {CASAS.map((c, i) => {
             const l = LUGAR_DAS_CASAS[i];
-            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, l.angulo, 0]}>
+            // cada casa com seu jeito: comprimento, torção e escala próprios
+            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, l.angulo + ((i * 37) % 7 - 3) * .03, 0]} scale={[1 + (i % 3 - 1) * .08, 1 + ((i * 5) % 3 - 1) * .1, 1 + ((i * 3) % 4) * .09]}>
                 <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao}
                     portaRef={i === CASA_CERTA ? portaCertaRef : undefined} />
             </group>;
