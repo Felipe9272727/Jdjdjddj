@@ -65,10 +65,22 @@ const Ceu: React.FC = () => {
         {/* o sol baixo da tarde: disco quente com halo (o disco claro sozinho lia como lua) */}
         <group position={[-120, 60, -220]}>
             <mesh><sphereGeometry args={[10, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(1.5)} toneMapped={false} fog={false} /></mesh>
-            <mesh scale={2.2}><sphereGeometry args={[10, 32, 16]} /><meshBasicMaterial color="#ffb070" transparent opacity={.22} fog={false} depthWrite={false} /></mesh>
+            <sprite scale={90}><spriteMaterial map={texturaDeHalo()} color="#ffb878" transparent depthWrite={false} fog={false} blending={THREE.AdditiveBlending} /></sprite>
         </group>
     </>;
 };
+
+/** Halo radial que some suave até a borda (a esfera translúcida tinha borda dura). */
+let texHalo: THREE.CanvasTexture | null = null;
+function texturaDeHalo(): THREE.CanvasTexture {
+    if (texHalo) return texHalo;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,.7)'); gr.addColorStop(.25, 'rgba(255,255,255,.3)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    texHalo = new THREE.CanvasTexture(c); return texHalo;
+}
 
 /** O mar de nuvens lá embaixo e alguns bancos soltos entre as ilhas. */
 const Nuvens: React.FC = () => {
