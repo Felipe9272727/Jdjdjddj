@@ -159,9 +159,13 @@ export const Viking: React.FC<{
             g.scale.setScalar(escala * (1 + ((q * 31) % 3 - 1) * .02));
             if (cabeca.current) cabeca.current.rotation.z = .35 * e.possessao;
             // marionete: braços erguidos por fios invisíveis, em quadros duros
-            set(bracoE, -1.3 + ((q * 13) % 3) * .12); set(bracoD, -1.1 - ((q * 7) % 3) * .12);
-            if (bracoE.current) bracoE.current.rotation.z = -.5; if (bracoD.current) bracoD.current.rotation.z = .5;
-            if (cabeca.current) cabeca.current.rotation.x = ((q * 11) % 3 - 1) * .12;
+            // um fio só puxa: o braço esquerdo alto, o direito pendurado e
+            // torto, o queixo erguido (os olhos saem de baixo da aba), os
+            // pés na ponta — marionete torta, não um T
+            set(bracoE, -2.1 + ((q * 13) % 3) * .12); set(bracoD, -.35 - ((q * 7) % 3) * .1);
+            if (bracoE.current) bracoE.current.rotation.z = -.25; if (bracoD.current) bracoD.current.rotation.z = .18;
+            if (cabeca.current) cabeca.current.rotation.x = -.22 + ((q * 11) % 3 - 1) * .1;
+            joelhos.current.forEach((j, i) => { if (j) j.rotation.x = i ? .35 : .1; });
             return;
         }
         g.scale.setScalar(escala);

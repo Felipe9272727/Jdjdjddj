@@ -894,6 +894,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: GIRAR ▶
             </div>}
 
+            {/* a faixa de baixo do cinemascope vem antes da caixa: fica por trás dela */}
+            {glitch && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '9vh', background: '#000', pointerEvents: 'none', animation: 'f13barra .8s ease-out' }} />}
             {/* ── A CAIXA DE DIÁLOGO ── */}
             {falas && <div onPointerDown={(ev) => { ev.stopPropagation(); avancar(); }}
                 style={{
