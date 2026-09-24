@@ -159,17 +159,23 @@ def uv(obj, tipo='cube', tam=.4):
     else: bpy.ops.uv.sphere_project()
     bpy.ops.object.mode_set(mode='OBJECT')
 
-# ── a pele não atravessa a roupa: encolhe o corpo onde há pano por cima ───
+# ── a pele não atravessa a roupa: some o corpo que o pano cobre ───────────
+# (um raio da face para fora que bate num pano a menos de 7 cm = face
+# coberta, que nunca aparece e só serve para furar o tecido ao dobrar)
 from mathutils.bvhtree import BVHTree
 dg = bpy.context.evaluated_depsgraph_get()
 panos = [BVHTree.FromObject(o, dg) for o in cena.objects if o.type == 'MESH' and o.name in ('tunica', 'calca', 'botas')]
-mw = corpo_px.matrix_world; mi = mw.inverted()
-for v in corpo_px.data.vertices:
-    p = mw @ v.co; n = (mw.to_3x3() @ v.normal).normalized()
+mw = corpo_px.matrix_world; n3 = mw.to_3x3()
+cobertas = []
+for p_ in corpo_px.data.polygons:
+    c = mw @ p_.center; n = (n3 @ p_.normal).normalized()
     for arv in panos:
-        hit = arv.find_nearest(p, .03)
-        if hit[0] is not None:
-            v.co = mi @ (p - n * .018); break
+        if arv.ray_cast(c - n * .005, n, .07)[0] is not None and arv.ray_cast(c - n * .005, -n, .03)[0] is None:
+            cobertas.append(p_.index); break
+bm = bmesh.new(); bm.from_mesh(corpo_px.data); bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[bm.faces[i] for i in cobertas], context='FACES_ONLY')
+bm.to_mesh(corpo_px.data); bm.free()
+print('## faces cobertas apagadas', len(cobertas))
 
 # medidas do corpo gerado
 pelve, _ = osso_mundo('pelvis')
@@ -255,7 +261,7 @@ pesos_manuais(capa, pesos_capa)
 # gola: anel de pele assentado na base do pescoço, sobre os ombros
 rxn, ryn, cyn = largura_em(pesc.z, .02)
 bpy.ops.mesh.primitive_torus_add(major_radius=1, minor_radius=.3, major_segments=40, minor_segments=10, location=(0, cyn + .005, pesc.z - .015))
-go = bpy.context.object; go.name = 'gola'; go.scale = (rxn + .075, ryn + .06, .07)
+go = bpy.context.object; go.name = 'gola'; go.scale = (rxn + .05, ryn + .045, .055)
 bm = bmesh.new(); bm.from_mesh(go.data)
 for v in bm.verts: v.co += v.normal * random.uniform(-.02, .05)
 bm.to_mesh(go.data); bm.free()

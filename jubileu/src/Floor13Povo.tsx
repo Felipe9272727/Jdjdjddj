@@ -93,6 +93,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         m.traverse((o) => {
             const me = o as THREE.Mesh;
             if (!me.isMesh) return;
+            // a gola de pele ainda lê como um prato em volta do pescoço: fora
+            // até ser refeita como pele caída sobre os ombros
+            if (me.name.startsWith('gola')) { me.visible = false; return; }
             me.castShadow = true; me.receiveShadow = true;
             me.frustumCulled = false;
             const mat = (me.material as THREE.MeshStandardMaterial).clone();
@@ -112,7 +115,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             if (/^(cabelo|barba|bigode|sobrancelhas|cilios)/.test(me.name)) {
                 mat.alphaTest = .4; mat.transparent = false; mat.side = THREE.DoubleSide; mat.depthWrite = true;
             } else {
-                mat.transparent = false; mat.alphaTest = 0; mat.side = THREE.FrontSide;
+                // opaco sempre; duas faces porque a malha do MakeHuman tem
+                // faces com o enrolamento trocado (com uma face só, o rosto
+                // abria buracos e mostrava a boca por dentro)
+                mat.transparent = false; mat.alphaTest = 0; mat.depthWrite = true; mat.side = THREE.DoubleSide;
             }
         });
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null };
