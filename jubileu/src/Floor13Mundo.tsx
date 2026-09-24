@@ -426,35 +426,80 @@ export const CasaComprida: React.FC<{
 };
 
 /** Barco viking que navega o céu. A proa aponta para +z local. */
+/**
+ * Casco de drakkar: seções em U ao longo do comprimento, afinando para as
+ * pontas e subindo nelas (a linha de borda curva dos barcos vikings), com
+ * UV corrido para as tábuas acompanharem o casco.
+ */
+function geoCasco(L = 8, W = 1.25, D = .9): THREE.BufferGeometry {
+    const N = 28, M = 12, pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    for (let i = 0; i <= N; i++) {
+        const t = i / N, u = t * 2 - 1;
+        const w = W * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(u), 2.4)), .55);
+        const topo = .35 + 1.1 * Math.pow(Math.abs(u), 5);
+        const fundo = topo - D * (1 - .55 * u * u) - (1 - Math.abs(u)) * .05;
+        for (let k = 0; k <= M; k++) {
+            const s = k / M * 2 - 1;
+            const y = topo - (topo - fundo) * Math.pow(1 - s * s, .6);
+            pos.push(w * s, y, u * L / 2);
+            uv.push(t * 5, k / M * 2);
+        }
+    }
+    for (let i = 0; i < N; i++) for (let k = 0; k < M; k++) {
+        const a = i * (M + 1) + k, b = a + M + 1;
+        idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    return g;
+}
+/** Pescoço e cabeça de dragão da proa: um tubo que sobe e se curva. */
+function geoDragao(): THREE.BufferGeometry {
+    const c = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 1.35, 3.95), new THREE.Vector3(0, 2.1, 4.35), new THREE.Vector3(0, 2.75, 4.2), new THREE.Vector3(0, 2.95, 4.75),
+    ]);
+    return new THREE.TubeGeometry(c, 24, .13, 10, false);
+}
+
 export const Barco: React.FC<{ vela?: string; escala?: number }> = ({ vela = P13.vela1, escala = 1 }) => {
     const velaTex = useMemo(() => {
-        const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+        const c = document.createElement('canvas'); c.width = 128; c.height = 128;
         const g = c.getContext('2d')!;
-        for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? P13.vela2 : vela; g.fillRect(i * 8, 0, 8, 64); }
+        for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? P13.vela2 : vela; g.fillRect(i * 16, 0, 16, 128); }
+        // pano gasto: manchas e a borda mais escura
+        for (let k = 0; k < 400; k++) { g.fillStyle = `rgba(60,40,20,${Math.random() * .06})`; g.fillRect(Math.random() * 128, Math.random() * 128, 3, 3); }
         const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
     }, [vela]);
+    const casco = useMemo(() => geoCasco(), []);
+    const dragao = useMemo(() => geoDragao(), []);
+    const vela3d = useMemo(() => {
+        // vela estufada pelo vento
+        const g = new THREE.PlaneGeometry(3.6, 2.6, 12, 8);
+        const p = g.getAttribute('position');
+        for (let i = 0; i < p.count; i++) { const x = p.getX(i) / 1.8, y = p.getY(i) / 1.3; p.setZ(i, (1 - x * x) * (1 - y * y * .6) * .55); }
+        g.computeVertexNormals(); return g;
+    }, []);
     return <group scale={escala}>
-        {/* casco: meio tubo alongado */}
-        <mesh rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, .55]}>
-            <cylinderGeometry args={[1, 1, 7, 18, 1, true, Math.PI / 2, Math.PI]} />
-            <meshStandardMaterial color={P13.madeira} side={THREE.DoubleSide} roughness={.8} />
-        </mesh>
-        {[-1, 1].map((f) => (
-            <mesh key={f} position={[0, .6, f * 3.8]} rotation={[-f * .5, 0, 0]}>
-                <coneGeometry args={[.28, 1.8, 8]} /><meshStandardMaterial color={P13.madeiraEsc} />
-            </mesh>
-        ))}
-        <mesh position={[0, 2, 0]}><cylinderGeometry args={[.08, .1, 4.4, 8]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
-        <mesh position={[0, 2.5, .1]}><planeGeometry args={[3.4, 2.4]} /><meshStandardMaterial map={velaTex} side={THREE.DoubleSide} /></mesh>
-        {[-1, 1].map((lado) => [-2.4, -1.2, 0, 1.2, 2.4].map((z, i) => (
-            <mesh key={`${lado}${z}`} position={[lado * .98, .15, z]} rotation={[0, 0, Math.PI / 2]}>
-                <cylinderGeometry args={[.3, .3, .05, 12]} /><meshStandardMaterial color={P13.escudo[(i + (lado > 0 ? 1 : 0)) % 4]} />
-            </mesh>
+        <mesh geometry={casco} castShadow><meshStandardMaterial {...pbr('carvalho', 1, 1)} color="#b89070" side={THREE.DoubleSide} /></mesh>
+        {/* amurada: a faixa de tábua escura no topo do casco */}
+        <mesh geometry={dragao} castShadow><meshStandardMaterial {...pbr('carvalho', .5, 2)} color="#8a6448" /></mesh>
+        <mesh position={[0, 3.05, 4.85]} rotation={[.5, 0, 0]}><coneGeometry args={[.16, .5, 10]} /><meshStandardMaterial color="#6b4a2e" /></mesh>
+        <mesh position={[0, 1.45, -4.05]} rotation={[-.3, 0, 0]}><coneGeometry args={[.1, 1.1, 8]} /><meshStandardMaterial color="#6b4a2e" /></mesh>
+        <mesh position={[0, 2.3, 0]}><cylinderGeometry args={[.07, .1, 4.4, 10]} /><meshStandardMaterial {...pbr('carvalho', .3, 2)} /></mesh>
+        <mesh position={[0, 4.35, .05]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[.05, .05, 3.8, 8]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+        <mesh geometry={vela3d} position={[0, 3.05, .1]} castShadow><meshStandardMaterial map={velaTex} side={THREE.DoubleSide} roughness={.9} /></mesh>
+        {[-1, 1].map((lado) => [-2.6, -1.6, -.6, .4, 1.4, 2.4].map((z, i) => (
+            <group key={`${lado}${z}`} position={[lado * 1.2, .42, z]} rotation={[0, 0, lado * Math.PI / 2]}>
+                <mesh><cylinderGeometry args={[.36, .36, .05, 20]} /><meshStandardMaterial color={P13.escudo[(i + (lado > 0 ? 1 : 0)) % 4]} roughness={.7} /></mesh>
+                <mesh position={[0, lado * .04, 0]}><sphereGeometry args={[.08, 10, 8]} /><meshStandardMaterial color="#9aa0a8" metalness={.85} roughness={.35} /></mesh>
+            </group>
         )))}
-        {/* remos batendo no ar */}
-        {[-1, 1].map((lado) => [-1.8, -.6, .6, 1.8].map((z) => (
-            <mesh key={`r${lado}${z}`} position={[lado * 1.5, -.2, z]} rotation={[0, 0, lado * .9]}>
-                <boxGeometry args={[.06, 1.6, .12]} /><meshStandardMaterial color={P13.tabua} />
+        {/* remos */}
+        {[-1, 1].map((lado) => [-2.1, -1.1, -.1, .9, 1.9].map((z) => (
+            <mesh key={`r${lado}${z}`} position={[lado * 1.75, .05, z]} rotation={[0, 0, lado * 1.05]}>
+                <cylinderGeometry args={[.035, .035, 2, 6]} /><meshStandardMaterial color={P13.tabua} />
             </mesh>
         )))}
     </group>;

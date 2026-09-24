@@ -24,6 +24,7 @@ import { CascoDoElevador } from './Floor12Avioes';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
+import { Floor13Vida } from './Floor13Vida';
 import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -670,7 +671,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             estado: () => est.current,
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
-            casaCerta: () => { const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
+            casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
         };
     }, []);
 
@@ -913,6 +914,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {/* contraluz fria: separa as silhuetas do chão verde */}
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
+                <Floor13Vida />
                 <Sol jog={jog} />
                 <LuzDaCamera />
                 <Ambiente />

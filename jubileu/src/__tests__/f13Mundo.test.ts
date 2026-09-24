@@ -87,8 +87,12 @@ describe('f13 — conversas, buscas e a entidade', () => {
     it('a fala da entidade termina cortada, sem ponto final', () => {
         expect(ENTIDADE[ENTIDADE.length - 1].texto).not.toMatch(/[.!?…]$/);
     });
-    it('bater na casa certa abre o elevador', () => {
+    it('a casa certa só abre com as três pistas', () => {
         const e = novoEstado13();
+        expect(baterNaCasa(e, CASA_CERTA).certa).toBe(false);
+        e.pistas.add('latao'); e.pistas.add('fumaca');
+        expect(baterNaCasa(e, CASA_CERTA).certa).toBe(false);
+        e.pistas.add('botao');
         expect(baterNaCasa(e, CASA_CERTA).certa).toBe(true);
         expect(baterNaCasa(e, (CASA_CERTA + 1) % CASAS.length).certa).toBe(false);
     });

@@ -69,8 +69,8 @@ export const portaDaCasa = (i: number) => {
 export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; ronda?: number }>> = Object.freeze({
     ragnhild: { x: -5, z: 11 },
     ulfgar: { x: 5.5, z: 6 },
-    eira: { x: 0, z: 9, ronda: 3.2 },
-    brokk: { x: -23, z: 4.5 },
+    eira: { x: 0, z: 11.5, ronda: 2 },   // corre em volta, não dentro, do poço
+    brokk: { x: -21, z: 3.6 },   // ao lado da bigorna, fora do fogo
     sigrun: { x: -6, z: 3.5 },
     torvald: { x: 20, z: 8 },
     astrid: { x: 1.8, z: -12.5 },
@@ -146,7 +146,10 @@ export function tocarSino(e: Estado13): void {
 export const entidadeAcorda = (e: Estado13) => e.entidade === 'nao' && e.pistas.size >= 2;
 
 /** Bater numa porta: `certa` = é o elevador. */
+/** Quem acha a porta por acaso não passa: ela só cede a quem juntou as três pistas. */
+export const PORTA_TRANCADA: Fala[] = [{ quem: 'A porta', texto: '…O latão está frio e não cede. Tem um botão aqui, mas você não sabe o que ele faz. Ainda não. Pergunte aos moradores.' }];
 export function baterNaCasa(e: Estado13, i: number): { certa: boolean; falas: Fala[] } {
     e.casasBatidas.add(i);
+    if (i === CASA_CERTA && e.pistas.size < 3) return { certa: false, falas: PORTA_TRANCADA };
     return { certa: i === CASA_CERTA, falas: CASAS[i].resposta };
 }

@@ -82,10 +82,12 @@ interface Props {
     marca?: string | null;
     /** Sentado (o piloto na cabine), numa escala própria. */
     sentado?: boolean;
+    /** Velocidade angular da ronda (rad/s) e fase inicial. */
+    rondaVel?: number; rondaFase?: number;
     escalaExtra?: number;
 }
 
-const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1 }) => {
+const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1, rondaVel = .45, rondaFase = 0 }) => {
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
@@ -150,6 +152,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const marcaRef = useRef<THREE.Group>(null);
     const luzVerde = useRef<THREE.PointLight>(null);
     const giro = useRef(0);
+    const quadro = useRef(0);
     const queda = useRef(0);
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const crianca = ficha.id === 'eira';
@@ -171,7 +174,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const ctl = controle?.current;
         if (ctl) { px = ctl.x; pz = ctl.z; direcao = ctl.ang; andando = ctl.andando > .15; }
         if (ronda && !e.falando && !e.olharPara) {
-            const a = t * .45;
+            const a = t * rondaVel + rondaFase;
             px = x + Math.cos(a) * ronda; pz = z + Math.sin(a) * ronda;
             direcao = -a; andando = true;
         }
@@ -183,6 +186,12 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         giro.current += dd * Math.min(1, d * 6);
         g.rotation.set(ctl ? -ctl.levantando * 1.35 : 0, ctl ? ctl.ang : giro.current, 0);
         g.scale.setScalar(escala);
+        // longe da câmera ninguém nota o esqueleto: além de 28 m só se move
+        // a cada 4 quadros, além de 70 m nem é desenhado
+        const dist = g.position.distanceTo(camera.position);
+        g.visible = dist < 70 || !!sentado;
+        if (!g.visible) return;
+        if (dist > 28 && !ctl && (++quadro.current & 3)) return;
 
         // braços caídos ao lado do corpo (o rig vem em pose de A), dedos
         // meio fechados: mão relaxada, não espalmada
@@ -245,7 +254,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         j('neck_01', 0);
         j('foot_l', 0); j('foot_r', 0); j('clavicle_l', 0); j('clavicle_r', 0);
         if (andando) {
-            const f = t * (ctl ? 9 : 7);
+            const f = t * (ctl ? 9 : rondaVel > .9 ? 12 : 7);
             const s = Math.sin(f);
             g.position.y += Math.abs(Math.cos(f)) * .035;
             j('pelvis', 0, s * .12, s * .03);
