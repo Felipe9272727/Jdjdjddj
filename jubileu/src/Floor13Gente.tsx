@@ -290,7 +290,7 @@ function texturaDeLa(): THREE.CanvasTexture {
     if (texLa) return texLa;
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#cfc8ba'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#ddd6c8'; g.fillRect(0, 0, 128, 128);
     let k = 5; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
     for (let i = 0; i < 420; i++) {
         const x = r() * 128, y = r() * 128, rr = 2.5 + r() * 4;
@@ -323,7 +323,7 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
     const g = useRef<THREE.Group>(null);
     const cabeca = useRef<THREE.Group>(null);
     const pernas = useRef<(THREE.Group | null)[]>([]);
-    const la = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 1, map: texturaDeLa(), bumpMap: texturaDeLa(), bumpScale: 3 }), []);
+    const la = useMemo(() => new THREE.MeshStandardMaterial({ color: '#fffaf0', roughness: 1, map: texturaDeLa(), bumpMap: texturaDeLa(), bumpScale: 1.4 }), []);
     const pret = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: .8 }), []);
     const casco = useMemo(() => new THREE.MeshStandardMaterial({ color: '#141210', roughness: .5 }), []);
     const sumiu = useRef(0);
