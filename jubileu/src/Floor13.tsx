@@ -169,9 +169,10 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         tmp.cam.x += Math.sin(t * 91) * tranco * .35; tmp.cam.y += Math.cos(t * 77) * tranco * .25;
         camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * 3.2));
         // o olhar: o avião, e no mergulho metade do olhar vai para a cidade
-        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), Math.max(k2 * .5, THREE.MathUtils.smoothstep(t, 2, 4) * .25) * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
+        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .4 * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
+        if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
         if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 14 * THREE.MathUtils.smoothstep(t, 10.3, 10.7);
             camera.updateProjectionMatrix();
