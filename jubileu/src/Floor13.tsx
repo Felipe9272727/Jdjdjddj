@@ -272,8 +272,35 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             if (fuga > 0 || ndc.z > 1) { olhar.current.lerp(pos, Math.min(1, fuga * 2 + (ndc.z > 1 ? 1 : 0))); camera.lookAt(olhar.current); }
         }
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
+        // ── PRIMEIRA PESSOA: o hóspede está na cabine ────────────────────
+        // Tudo acima calcula o avião; a câmera, porém, é a cabeça do
+        // piloto: ela anda com o casco (balanço, rolagem, tranco) e olha
+        // pelo nariz. No mergulho a cabeça vira para a cidade que aparece
+        // embaixo; no baque, sacode e fica caída de lado; depois ergue
+        // devagar e encara Vindhjem.
+        const b = balanco.current;
+        if (b) {
+            b.updateMatrixWorld(true);
+            b.localToWorld(tmp.cam.set(0, .62, .75));
+            b.localToWorld(tmp.olho.set(0, .35, -8));
+            const cidade = new THREE.Vector3(0, 3, 0);
+            const vira = THREE.MathUtils.smoothstep(t, 6.2, 8.4) * (1 - THREE.MathUtils.smoothstep(t, 9.2, 9.9)) * .55
+                + THREE.MathUtils.smoothstep(t, 10.9, 12.2) * .85;
+            tmp.olho.lerp(cidade, vira);
+            const tranco = Math.max(0, 1 - Math.abs(t - 5.05) / .25) * .6 + Math.max(0, 1 - Math.abs(t - 10.45) / .5) * 1.5;
+            tmp.cam.x += Math.sin(t * 91) * tranco * .06; tmp.cam.y += Math.cos(t * 77) * tranco * .05;
+            // vento e motor: um tremor fino o tempo todo em voo
+            const voo = t < 10.45 ? 1 : 0;
+            tmp.cam.y += Math.sin(t * 43) * .004 * voo;
+            camera.position.copy(tmp.cam);
+            olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * (t > 10.4 ? 3 : 8)));
+            camera.lookAt(olhar.current);
+            // a cabeça rola com o avião; depois do baque, tomba e se endireita
+            const tomba = t > 10.45 ? .35 * Math.max(0, 1 - (t - 10.6) / 1.4) : 0;
+            camera.rotateZ(Math.sin(t * .9) * .03 * voo + tomba);
+        }
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov = 56 - 5 * THREE.MathUtils.smoothstep(t, .5, 4.5) + 13 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 6 * THREE.MathUtils.smoothstep(t, 7.6, 10.2) - 8 * smoother((t - 10.75) / 1.5);
+            camera.fov = 72 - 6 * THREE.MathUtils.smoothstep(t, 10.9, 12.4);
             camera.updateProjectionMatrix();
         }
     });
@@ -283,7 +310,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             <group ref={balanco} rotation={[0, Math.PI, 0]}>
                 <CascoDoElevador aberturaRef={abertura} heliceRef={helice} />
                 {/* o piloto é o próprio hóspede, o mesmo modelo que se joga depois */}
-                <Viking ficha={HOSPEDE} x={0} y={-.62} z={.25} estado={estadoDoPiloto} sentado escalaExtra={.42} />
+                {/* o piloto é o hóspede — e a câmera é a cabeça dele, então o corpo não é desenhado */}
             </group>
         </group>
         <group ref={fumaca}>
@@ -377,11 +404,12 @@ const Jogador: React.FC<{
 
 /** Câmera de terceira pessoa: atrás e acima, girando com o dedo direito. */
 const CameraDeExplorar: React.FC<{
-    jog: React.MutableRefObject<Jog>; yaw: React.MutableRefObject<number>; ativo: boolean;
+    jog: React.MutableRefObject<Jog>; yaw: React.MutableRefObject<number>; pitch: React.MutableRefObject<number>; ativo: boolean;
     foco: React.MutableRefObject<THREE.Vector3 | null>;
     portaAlvo: React.MutableRefObject<THREE.Vector3 | null>;
     portaFrente: React.MutableRefObject<THREE.Vector3 | null>;
-}> = ({ jog, yaw, ativo, foco, portaAlvo, portaFrente }) => {
+}> = ({ jog, yaw, pitch, ativo, foco, portaAlvo, portaFrente }) => {
+    const passo = useRef(0);
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
@@ -407,55 +435,32 @@ const CameraDeExplorar: React.FC<{
             return;
         }
         const retrato = size.width < size.height;
+        // ── PRIMEIRA PESSOA ─────────────────────────────────────────────
+        // os olhos do hóspede: 1,72 m acima do pé, com o balanço do passo
+        passo.current += dt * (j.andando > .1 ? 9 : 0);
+        const bob = Math.sin(passo.current) * .045 * j.andando, lado = Math.cos(passo.current * .5) * .03 * j.andando;
+        const ent = entidadeNaCena.valor;
+        const olho = new THREE.Vector3(j.x + Math.cos(yaw.current) * lado, j.y + 1.72 + bob - j.levantando * 1.2, j.z - Math.sin(yaw.current) * lado);
+        camera.position.lerp(olho, 1 - Math.exp(-dt * 18));
         if (foco.current) {
-            // conversa: plano por cima do ombro, na altura dos olhos — quem
-            // fala enche o quadro, o ombro do hóspede fica na borda
-            const f = foco.current, ent = entidadeNaCena.valor;
-            const dx = f.x - j.x, dz = f.z - j.z, L = Math.hypot(dx, dz) || 1;
-            const ux = dx / L, uz = dz / L;
+            // conversa: o olhar vai sozinho para o rosto de quem fala
+            const f = foco.current, chaoF = chaoEm(f.x, f.z) ?? j.y;
             empurra.current = ent ? Math.min(1, empurra.current + dt * .12) : 0;
-            const tras = (retrato ? 1.5 : 1.4) - empurra.current * .4, lado = retrato ? 1.05 : .95;
-            const chaoF = chaoEm(f.x, f.z) ?? j.y;
-            const pos = new THREE.Vector3(j.x - ux * tras - uz * lado, j.y + (ent ? 1.55 : 1.85), j.z - uz * tras + ux * lado);
-            const olhar = new THREE.Vector3(f.x, chaoF + (ent ? 2.15 : 1.72), f.z);
-            camera.position.lerp(pos, 1 - Math.exp(-dt * 4));
-            alvo.current.lerp(olhar, 1 - Math.exp(-dt * 5));
-            yaw.current = Math.atan2(-ux, -uz);
+            alvo.current.lerp(new THREE.Vector3(f.x, chaoF + (ent ? 2.05 : 1.78), f.z), 1 - Math.exp(-dt * 4));
+            const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
+            yaw.current = Math.atan2(-dx, -dz);
+            pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
             camera.lookAt(alvo.current);
             if (ent) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
-            if (camera instanceof THREE.PerspectiveCamera) {
-                camera.fov += ((retrato ? 50 : 40) - camera.fov) * Math.min(1, dt * 3);
-                camera.updateProjectionMatrix();
-            }
-            return;
+        } else {
+            empurra.current = 0;
+            const cp = Math.cos(pitch.current);
+            alvo.current.set(camera.position.x - Math.sin(yaw.current) * cp, camera.position.y + Math.sin(pitch.current), camera.position.z - Math.cos(yaw.current) * cp);
+            camera.lookAt(alvo.current);
+            camera.rotateZ(-lado * .15);
         }
-        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 7.2 : 3.8;
-        // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
-        const ombro = foco.current ? 0 : .9;
-        // mira 2 m à frente do jogador: ele desce para o terço de baixo e o caminho aparece
-        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro - Math.sin(yaw.current) * (foco.current ? 0 : 2), j.y + 2.2, j.z - Math.sin(yaw.current) * ombro - Math.cos(yaw.current) * (foco.current ? 0 : 2));
-        // Numa conversa, o olhar vai para o meio entre o jogador e quem fala, e
-        // a câmera dá a volta para o lado: por trás do jogador, quem fala
-        // ficava escondido atrás dele.
-        if (foco.current) {
-            quer.lerp(foco.current, entidadeNaCena.valor ? .85 : .5);
-            let quero = Math.atan2(j.x - foco.current.x, j.z - foco.current.z) + (entidadeNaCena.valor ? 1.3 : .75);
-            let d = quero - yaw.current;
-            while (d > Math.PI) d -= Math.PI * 2;
-            while (d < -Math.PI) d += Math.PI * 2;
-            quero = yaw.current + d;
-            yaw.current += (quero - yaw.current) * Math.min(1, dt * 2.5);
-        }
-        alvo.current.lerp(quer, 1 - Math.exp(-dt * 6));
-        // na entidade, a câmera se aproxima devagar e entorta alguns graus
-        empurra.current = entidadeNaCena.valor ? Math.min(1, empurra.current + dt * .12) : 0;
-        const k = entidadeNaCena.valor ? .6 - empurra.current * .3 : 1;
-        const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist * k + Math.cos(yaw.current) * ombro, j.y + alto * k, j.z + Math.cos(yaw.current) * dist * k - Math.sin(yaw.current) * ombro);
-        camera.position.lerp(pos, 1 - Math.exp(-dt * 5));
-        camera.lookAt(alvo.current);
-        if (entidadeNaCena.valor) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov += ((retrato ? 60 : 55) - camera.fov) * Math.min(1, dt * 3);
+            camera.fov += ((retrato ? 78 : 68) - (ent ? 12 * empurra.current : 0) - camera.fov) * Math.min(1, dt * 3);
             camera.updateProjectionMatrix();
         }
     });
@@ -626,6 +631,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const jog = useRef<Jog>({ x: INICIO.x, y: 0, z: INICIO.z, ang: Math.PI, vy: 0, seguro: { ...INICIO }, levantando: 1, andando: 0 });
     const entrada = useRef({ x: 0, z: 0 });
     const yaw = useRef(0);
+    const pitch = useRef(-.08);
     const foco = useRef<THREE.Vector3 | null>(null);
     const portaAlvo = useRef<THREE.Vector3 | null>(null);
     const portaFrente = useRef<THREE.Vector3 | null>(null);
@@ -818,7 +824,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const acao = useRef<() => void>(() => { });
     acao.current = () => { if (fase === 'dialogo') avancar(); else agir(); };
 
-    const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0 });
+    const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number; cy: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0, cy: 0 });
     const [jaAndou, setJaAndou] = useState(false);
     useEffect(() => { if (fase !== 'explorar') return; const id = window.setTimeout(() => setJaAndou(true), 6000); return () => window.clearTimeout(id); }, [fase]);
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
@@ -828,7 +834,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         if (ev.clientX < w * .55 && toque.current.id === null) {
             toque.current.id = ev.pointerId; toque.current.ox = ev.clientX; toque.current.oy = ev.clientY;
             setStick({ ox: ev.clientX, oy: ev.clientY, x: 0, y: 0 });
-        } else if (toque.current.cam === null) { toque.current.cam = ev.pointerId; toque.current.cx = ev.clientX; }
+        } else if (toque.current.cam === null) { toque.current.cam = ev.pointerId; toque.current.cx = ev.clientX; toque.current.cy = ev.clientY; }
     };
     const onMove = (ev: React.PointerEvent) => {
         const t = toque.current;
@@ -840,7 +846,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (!jaAndou && d > 20) setJaAndou(true);
             setStick({ ox: t.ox, oy: t.oy, x: dx, y: dy });
         } else if (ev.pointerId === t.cam) {
-            yaw.current -= (ev.clientX - t.cx) * .008; t.cx = ev.clientX;
+            yaw.current -= (ev.clientX - t.cx) * .006; t.cx = ev.clientX;
+            pitch.current = THREE.MathUtils.clamp(pitch.current - (ev.clientY - t.cy) * .005, -1.1, 1.1); t.cy = ev.clientY;
         }
     };
     const onUp = (ev: React.PointerEvent) => {
@@ -858,7 +865,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={nivel === 2 ? [1, 1.25] : nivel === 1 ? 1 : .8} shadows="soft"
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={nivel === 2 ? [1, 1.5] : 1} shadows="soft"
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
@@ -882,12 +889,12 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     ? <CenaDaQueda tRef={tQueda} />
                     : <>
                         <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
-                        {fase !== 'elevador' && <Viking ficha={HOSPEDE} x={0} y={0} z={0} estado={estadoDoHospede} controle={jog} />}
+                        {/* primeira pessoa: o corpo do hóspede não é desenhado */}
                     </>}
-                <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
+                <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
-                <EffectComposer multisampling={0}>
+                <EffectComposer multisampling={4}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
                     {nivel > 0 && <N8AO aoRadius={1.6} intensity={2.2} distanceFalloff={.6} halfRes quality="performance" />}
                     <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
@@ -935,7 +942,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
             {fase === 'explorar' && !jaAndou && !alvo && <div style={{ fontFamily: 'Georgia, serif', color: '#2a1d14', letterSpacing: .5, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap', opacity: .9, pointerEvents: 'none' }}>
-                ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: GIRAR ▶
+                ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: OLHAR ▶
             </div>}
 
             {/* a faixa de baixo do cinemascope vem antes da caixa: fica por trás dela */}
