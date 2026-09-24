@@ -338,6 +338,74 @@ export const Carroca: React.FC = () => (
     </group>
 );
 
+/**
+ * Vida entre os pontos de interesse: pedras, tufos de grama que balançam no
+ * vento, barris e flores, espalhados perto da borda de cada ilha (o miolo fica
+ * livre para caminhar). Tudo instanciado: quatro chamadas de desenho.
+ */
+const Decoracao: React.FC = () => {
+    const itens = useMemo(() => {
+        let k = 11;
+        const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+        const l: { tipo: number; x: number; y: number; z: number; s: number; r: number }[] = [];
+        for (const il of ILHAS) {
+            const n = Math.round(il.r * 5);
+            for (let i = 0; i < n; i++) {
+                const a = rnd() * Math.PI * 2, d = il.r * (.72 + rnd() * .24);
+                l.push({ tipo: i % 7 === 0 ? 2 : i % 3 === 0 ? 0 : i % 5 === 0 ? 3 : 1, x: il.x + Math.cos(a) * d, y: il.y, z: il.z + Math.sin(a) * d, s: .6 + rnd() * .8, r: rnd() * 6 });
+            }
+        }
+        return l;
+    }, []);
+    const geos = useMemo(() => [
+        new THREE.DodecahedronGeometry(.35, 0),
+        (() => { const g = new THREE.ConeGeometry(.12, .5, 4); g.translate(0, .25, 0); return g; })(),
+        (() => { const g = new THREE.CylinderGeometry(.28, .28, .6, 10); g.translate(0, .3, 0); return g; })(),
+        new THREE.SphereGeometry(.09, 6, 4),
+    ], []);
+    const mats = useMemo(() => [
+        new THREE.MeshStandardMaterial({ color: P13.pedra, flatShading: true }),
+        new THREE.MeshStandardMaterial({ color: P13.gramaEsc }),
+        new THREE.MeshStandardMaterial({ color: P13.tabua }),
+        new THREE.MeshStandardMaterial({ color: '#e8c8e0', emissive: '#6a3a5a', emissiveIntensity: .2 }),
+    ], []);
+    const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
+    const tmp = useMemo(() => new THREE.Object3D(), []);
+    const porTipo = useMemo(() => [0, 1, 2, 3].map((t) => itens.filter((i) => i.tipo === t)), [itens]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        porTipo.forEach((lista, tipo) => {
+            const m = refs.current[tipo]; if (!m) return;
+            lista.forEach((it, i) => {
+                tmp.position.set(it.x, it.y + (tipo === 3 ? .12 : 0), it.z);
+                tmp.rotation.set(tipo === 1 ? Math.sin(t * 2 + it.r) * .15 : 0, it.r, tipo === 1 ? Math.cos(t * 1.7 + it.r) * .12 : 0);
+                tmp.scale.setScalar(it.s);
+                tmp.updateMatrix(); m.setMatrixAt(i, tmp.matrix);
+            });
+            m.instanceMatrix.needsUpdate = true;
+        });
+    });
+    return <>{porTipo.map((lista, tipo) => (
+        <instancedMesh key={tipo} ref={(m) => { refs.current[tipo] = m; }} args={[geos[tipo], mats[tipo], lista.length]} frustumCulled={false} />
+    ))}</>;
+};
+
+/** Pássaros em bando, dando voltas altas sobre a cidade. */
+const Passaros: React.FC = () => {
+    const g = useRef<THREE.Group>(null);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime, o = g.current; if (!o) return;
+        o.position.set(Math.cos(t * .12) * 30, 18 + Math.sin(t * .3) * 2, Math.sin(t * .12) * 30);
+        o.rotation.y = -t * .12;
+        o.children.forEach((c, i) => { c.rotation.z = Math.sin(t * 9 + i) * .6; });
+    });
+    return <group ref={g}>
+        {[[0, 0], [-1.2, 1], [1.2, 1], [-2.4, 2], [2.4, 2]].map(([x, z], i) => (
+            <mesh key={i} position={[x, 0, z]}><boxGeometry args={[.9, .04, .2]} /><meshBasicMaterial color="#2a2622" /></mesh>
+        ))}
+    </group>;
+};
+
 export const Floor13Mundo: React.FC<{
     portaCertaRef?: React.Ref<THREE.Group>;
     sinoRef?: React.Ref<THREE.Group>;
@@ -355,6 +423,8 @@ export const Floor13Mundo: React.FC<{
         <Ceu />
         <Nuvens />
         <Frota />
+        <Decoracao />
+        <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
         {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
         {CASAS.map((c, i) => {

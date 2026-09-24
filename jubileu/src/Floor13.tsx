@@ -63,8 +63,23 @@ function progressoDaQueda(t: number): number {
     return Math.min(1, planar + mergulho * mergulho * .45);
 }
 
+/** Fumaça macia: um sprite com degradê radial (esferas liam como discos). */
+let texFumaca: THREE.CanvasTexture | null = null;
+const matsFumaca: THREE.SpriteMaterial[] = [];
+function matFumaca(i: number): THREE.SpriteMaterial {
+    if (!texFumaca) {
+        const c = document.createElement('canvas'); c.width = c.height = 64;
+        const g = c.getContext('2d')!;
+        const r = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+        r.addColorStop(0, 'rgba(70,64,60,1)'); r.addColorStop(.5, 'rgba(70,64,60,.55)'); r.addColorStop(1, 'rgba(70,64,60,0)');
+        g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+        texFumaca = new THREE.CanvasTexture(c);
+    }
+    return (matsFumaca[i] ??= new THREE.SpriteMaterial({ map: texFumaca, transparent: true, depthWrite: false }));
+}
+
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
-    const camera = useThree((s) => s.camera);
+    const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const aviao = useRef<THREE.Group>(null), balanco = useRef<THREE.Group>(null);
     const abertura = useRef(1), helice = useRef(0);
     const refs = useAvatarRefs();
@@ -108,11 +123,13 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         }
         puffs.current.forEach((p, i) => {
             p.t += dt;
-            const m = fumaca.current?.children[i] as THREE.Mesh | undefined; if (!m) return;
-            m.visible = p.t < 1.6 && m.position.distanceTo(camera.position) > 2.2;
+            const m = fumaca.current?.children[i] as THREE.Sprite | undefined; if (!m) return;
+            m.visible = p.t < 1.6;
             m.position.copy(p.p); m.position.y += p.t * .6;
-            m.scale.setScalar(.4 + p.t * 1.6);
-            (m.material as THREE.MeshBasicMaterial).opacity = .55 * (1 - p.t / 1.6);
+            m.scale.setScalar(Math.min(2.5, .6 + p.t * 1.5));
+            // some perto da lente em vez de sumir de uma vez
+            const perto = THREE.MathUtils.smoothstep(m.position.distanceTo(camera.position), 1.5, 5);
+            m.material.opacity = .6 * (1 - p.t / 1.6) * perto;
         });
         // a poeira do baque no feno
         const pq = Math.max(0, t - 10.4);
@@ -130,8 +147,12 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         tmp.lado.crossVectors(tmp.tan, THREE.Object3D.DEFAULT_UP).normalize();
         const k1 = THREE.MathUtils.smoothstep(t, 3.6, 5.2);   // perseguição → lado
         const k2 = THREE.MathUtils.smoothstep(t, 6.4, 7.8);   // lado → atrás e alto (revela a cidade)
-        const atras = tmp.tan.clone().multiplyScalar(-7).addScaledVector(tmp.lado, 3).add(new THREE.Vector3(0, 2, 0));
-        const deLado = tmp.lado.clone().multiplyScalar(8.5).addScaledVector(tmp.tan, 1).add(new THREE.Vector3(0, .8, 0));
+        // Em pé a lente é estreita: tudo mais longe, e uma órbita lenta no
+        // começo para o plano não ficar parado.
+        const rr = size.width < size.height ? 1.45 : 1;
+        const orbita = Math.min(t, 3.6) * .1;
+        const atras = tmp.tan.clone().multiplyScalar(-7 * rr).addScaledVector(tmp.lado, 3 * rr + Math.sin(orbita) * 4).add(new THREE.Vector3(0, 2 * rr, 0));
+        const deLado = tmp.lado.clone().multiplyScalar(8.5 * rr).addScaledVector(tmp.tan, 1).add(new THREE.Vector3(0, .8, 0));
         const revela = tmp.tan.clone().multiplyScalar(-22).add(new THREE.Vector3(0, 12, 0));
         tmp.cam.copy(atras).lerp(deLado, k1).lerp(revela, k2).add(pos);
         // o baque, visto de fora: a câmera ESCORREGA para a pose de pouso
@@ -139,7 +160,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         tmp.cam.lerp(new THREE.Vector3(5, 5, 42), THREE.MathUtils.smoothstep(t, 9.4, 10.6));
         camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * 3.2));
         // o olhar: o avião, e no mergulho metade do olhar vai para a cidade
-        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .8 * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
+        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), Math.max(k2 * .8, THREE.MathUtils.smoothstep(t, 2, 4) * .25) * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
         if (camera instanceof THREE.PerspectiveCamera) {
@@ -156,7 +177,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             </group>
         </group>
         <group ref={fumaca}>
-            {puffs.current.map((_, i) => <mesh key={i} visible={false}><sphereGeometry args={[.5, 8, 6]} /><meshBasicMaterial color="#3a3634" transparent depthWrite={false} /></mesh>)}
+            {puffs.current.map((_, i) => <sprite key={i} visible={false} material={matFumaca(i)} />)}
         </group>
         <group ref={poeira} visible={false}>
             {Array.from({ length: 14 }, (_, i) => <mesh key={i}><sphereGeometry args={[.6, 8, 6]} /><meshBasicMaterial color="#e6d3a0" transparent depthWrite={false} /></mesh>)}
@@ -247,7 +268,7 @@ const CameraDeExplorar: React.FC<{
         // ficava escondido atrás dele.
         if (foco.current) {
             quer.lerp(foco.current, entidadeNaCena.valor ? .85 : .5);
-            let quero = Math.atan2(j.x - foco.current.x, j.z - foco.current.z) + .75;
+            let quero = Math.atan2(j.x - foco.current.x, j.z - foco.current.z) + (entidadeNaCena.valor ? 1.3 : .75);
             let d = quero - yaw.current;
             while (d > Math.PI) d -= Math.PI * 2;
             while (d < -Math.PI) d += Math.PI * 2;
@@ -255,7 +276,8 @@ const CameraDeExplorar: React.FC<{
             yaw.current += (quero - yaw.current) * Math.min(1, dt * 2.5);
         }
         alvo.current.lerp(quer, 1 - Math.exp(-dt * 6));
-        const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist, j.y + alto, j.z + Math.cos(yaw.current) * dist);
+        const k = entidadeNaCena.valor ? .6 : 1;
+        const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist * k, j.y + alto * k, j.z + Math.cos(yaw.current) * dist * k);
         camera.position.lerp(pos, 1 - Math.exp(-dt * 5));
         camera.lookAt(alvo.current);
         if (camera instanceof THREE.PerspectiveCamera) {
@@ -277,7 +299,6 @@ const Radar: React.FC<{
         const j = jog.current, e = est.current;
         const perto = (x: number, z: number, r: number) => Math.hypot(j.x - x, j.z - z) < r;
         const hl = LUGAR_DOS_NPCS.halvard;
-        if (entidadeAcorda(e) && perto(hl.x, hl.z, 3.2)) { aoEntidade(); return; }
         let achou: Alvo | null = null, melhor = Infinity;
         const tenta = (a: Alvo, x: number, z: number, r: number) => {
             const d = Math.hypot(j.x - x, j.z - z);
@@ -453,7 +474,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             est.current.entidade = 'caido';
             // o preto dura pouco: a queda dele TEM de ser vista
             window.setTimeout(() => setConexao(false), 800);
-            window.setTimeout(() => { entidadeNaCena.valor = false; fecharDialogo(); setAviso('Halvard caiu duro. Ninguém em volta parece notar.'); }, 2400);
+            window.setTimeout(() => { entidadeNaCena.valor = false; fecharDialogo(); setAviso('Halvard caiu duro. Ninguém em volta parece notar.'); }, 3800);
         }, 350);
         return () => window.clearTimeout(id);
     }, [glitch, falas, linha, digitado, npcVis, fecharDialogo]);
@@ -478,6 +499,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (nova) setAviso(`PISTA: ${PISTAS[nova].nome}`);
         };
         if (a.tipo === 'npc') {
+            // Halvard, com duas pistas já ditas, não é mais Halvard.
+            if (a.id === 'halvard' && entidadeAcorda(e)) { comecarEntidade(); return; }
             abrirDialogo(falarCom(e, a.id), a.id, avisarPista);
         } else if (a.tipo === 'martelo') {
             pegarMartelo(e); tocarPegar(); setAviso('Você pegou o martelo de Brokk.'); setAlvo(null);
@@ -494,7 +517,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             } else abrirDialogo(r.falas, null);
         }
         bump();
-    }, [alvo, fase, abrirDialogo, achadas, onExit]);
+    }, [alvo, fase, abrirDialogo, achadas, onExit, comecarEntidade]);
 
     useEffect(() => { if (!aviso) return; const id = window.setTimeout(() => setAviso(null), 3200); return () => window.clearTimeout(id); }, [aviso]);
 
@@ -565,7 +588,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
-                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} />;
+                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)} />;
                 })}
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
                 <Martelo visivel={!e.temMartelo} />
@@ -623,13 +646,17 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     position: 'absolute', left: 10, right: 10, bottom: 'calc(env(safe-area-inset-bottom) + 12px)', minHeight: 96,
                     background: glitch ? 'rgba(4,14,8,.93)' : 'rgba(28,18,12,.92)', border: `3px solid ${glitch ? '#3dff8a' : '#b8893a'}`,
                     borderRadius: 12, padding: '10px 14px', cursor: 'pointer',
-                    transform: glitch ? `translate(${(Math.random() - .5) * 4}px, ${(Math.random() - .5) * 3}px)` : undefined,
+                    animation: glitch ? 'f13treme .18s steps(2) infinite' : undefined,
                 }}>
                 <div style={{ ...t13, fontSize: 13, color: glitch ? '#3dff8a' : '#ffd07a', marginBottom: 4 }}>{falas[linha].quem}</div>
                 <div style={{ fontFamily: glitch ? 'monospace' : 'Georgia, serif', fontSize: 16, lineHeight: 1.35, color: glitch ? '#b8ffd2' : '#f3e7c8' }}>
                     {falas[linha].texto.slice(0, digitado)}{glitch && linha === falas.length - 1 && digitado >= falas[linha].texto.length ? '█' : ''}
                 </div>
                 {!(glitch && linha === falas.length - 1) && <div style={{ ...t13, position: 'absolute', right: 12, bottom: 8, fontSize: 12 }}>▶</div>}
+            </div>}
+            {glitch && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'screen', opacity: .5,
+                background: 'repeating-linear-gradient(0deg, rgba(61,255,138,.10) 0 2px, transparent 2px 4px)', animation: 'f13treme .3s steps(3) infinite' }}>
+                <style>{'@keyframes f13treme{0%{transform:translate(0,0)}33%{transform:translate(-2px,1px)}66%{transform:translate(2px,-1px)}100%{transform:translate(0,0)}}'}</style>
             </div>}
             {conexao && <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                 <div style={{ fontFamily: 'monospace', color: '#3dff8a', fontSize: 18, letterSpacing: 3 }}>{CONEXAO_ENCERRADA}</div>

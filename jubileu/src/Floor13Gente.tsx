@@ -28,7 +28,9 @@ export const Viking: React.FC<{
     x: number; y: number; z: number;
     ronda?: number;
     estado: React.MutableRefObject<EstadoVisualNpc>;
-}> = ({ ficha, x, y, z, ronda, estado }) => {
+    /** Um tique de glitch antes da possessão (o aviso de que algo vem). */
+    tique?: boolean;
+}> = ({ ficha, x, y, z, ronda, estado, tique }) => {
     const raiz = useRef<THREE.Group>(null), corpo = useRef<THREE.Group>(null);
     const bracoE = useRef<THREE.Group>(null), bracoD = useRef<THREE.Group>(null);
     const pernaE = useRef<THREE.Group>(null), pernaD = useRef<THREE.Group>(null);
@@ -41,7 +43,7 @@ export const Viking: React.FC<{
         elmo: new THREE.MeshStandardMaterial({ color: '#9aa0a8', metalness: .7, roughness: .35 }),
         chifre: new THREE.MeshStandardMaterial({ color: '#efe3c8', roughness: .6 }),
         cinto: new THREE.MeshStandardMaterial({ color: '#2a1d14' }),
-        olho: new THREE.MeshBasicMaterial({ color: '#1b1210' }),
+        olho: new THREE.MeshBasicMaterial({ color: '#1b1210', toneMapped: false }),
     }), [ficha]);
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
@@ -76,20 +78,26 @@ export const Viking: React.FC<{
         if (e.caido) {
             // duro no chão: cai de costas, e fica
             g.rotation.x += (-Math.PI / 2 - g.rotation.x) * Math.min(1, d * 7);
-            g.position.y = y + .25;
+            g.position.y = y + .25; g.scale.setScalar(escala);
             set(bracoE, 0); set(bracoD, 0); set(pernaE, 0); set(pernaD, 0);
             return;
         }
         g.rotation.x = 0;
+        // antes de ser tomado, um tique: um quadro em cada tanto ele "pula"
+        M.olho.color.set(e.possessao > 0 ? '#3dff8a' : '#1b1210');
         if (e.possessao > 0) {
-            // possuído: trava, treme em quadros duros, cabeça inclina
+            // possuído: levita, trava, treme em quadros duros, olhos verdes
             const q = Math.floor(t * 14);
-            if (c) c.position.x = ((q * 7919) % 5 - 2) * .02 * e.possessao;
+            g.position.y = y + .3 + Math.sin(t * 3) * .05;
+            if (c) c.position.x = ((q * 7919) % 5 - 2) * .03 * e.possessao;
+            g.scale.setScalar(escala * (1 + ((q * 31) % 3 - 1) * .02));
             if (cabeca.current) cabeca.current.rotation.z = .35 * e.possessao;
             set(bracoE, 0); set(bracoD, 0);
             return;
         }
+        g.scale.setScalar(escala);
         if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; }
+        if (tique && c && Math.floor(t * 10) % 37 === 0) c.position.x = .06;
         if (cabeca.current) cabeca.current.rotation.z = 0;
         if (andando) {
             const f = t * 7;
