@@ -40,6 +40,8 @@ type Alvo =
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 11.6;
+/** A entidade em cena: a câmera fecha mais nela. */
+const entidadeNaCena = { valor: false };
 
 /** Estado de movimento do jogador (mutável, lido a cada quadro). */
 interface Jog { x: number; y: number; z: number; ang: number; vy: number; seguro: { x: number; z: number }; levantando: number; andando: number }
@@ -107,7 +109,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         puffs.current.forEach((p, i) => {
             p.t += dt;
             const m = fumaca.current?.children[i] as THREE.Mesh | undefined; if (!m) return;
-            m.visible = p.t < 1.6;
+            m.visible = p.t < 1.6 && m.position.distanceTo(camera.position) > 2.2;
             m.position.copy(p.p); m.position.y += p.t * .6;
             m.scale.setScalar(.4 + p.t * 1.6);
             (m.material as THREE.MeshBasicMaterial).opacity = .55 * (1 - p.t / 1.6);
@@ -127,15 +129,17 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         // ── A CÂMERA: um plano só, que muda de lugar sem cortar ──────────
         tmp.lado.crossVectors(tmp.tan, THREE.Object3D.DEFAULT_UP).normalize();
         const k1 = THREE.MathUtils.smoothstep(t, 3.6, 5.2);   // perseguição → lado
-        const k2 = THREE.MathUtils.smoothstep(t, 7.0, 8.4);   // lado → atrás e alto (revela a cidade)
+        const k2 = THREE.MathUtils.smoothstep(t, 6.4, 7.8);   // lado → atrás e alto (revela a cidade)
         const atras = tmp.tan.clone().multiplyScalar(-7).addScaledVector(tmp.lado, 3).add(new THREE.Vector3(0, 2, 0));
         const deLado = tmp.lado.clone().multiplyScalar(8.5).addScaledVector(tmp.tan, 1).add(new THREE.Vector3(0, .8, 0));
-        const revela = tmp.tan.clone().multiplyScalar(-11).add(new THREE.Vector3(0, 5.5, 0));
+        const revela = tmp.tan.clone().multiplyScalar(-22).add(new THREE.Vector3(0, 12, 0));
         tmp.cam.copy(atras).lerp(deLado, k1).lerp(revela, k2).add(pos);
-        if (t > 10.2) tmp.cam.set(4, 4.5, 40);   // o baque, visto de fora
-        camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * (t > 10.2 ? 6 : 3.2)));
+        // o baque, visto de fora: a câmera ESCORREGA para a pose de pouso
+        // (antes era um salto no 10,2 e lia como corte seco)
+        tmp.cam.lerp(new THREE.Vector3(5, 5, 42), THREE.MathUtils.smoothstep(t, 9.4, 10.6));
+        camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * 3.2));
         // o olhar: o avião, e no mergulho metade do olhar vai para a cidade
-        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .45);
+        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .8 * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
         if (camera instanceof THREE.PerspectiveCamera) {
@@ -242,7 +246,7 @@ const CameraDeExplorar: React.FC<{
         // a câmera dá a volta para o lado: por trás do jogador, quem fala
         // ficava escondido atrás dele.
         if (foco.current) {
-            quer.lerp(foco.current, .5);
+            quer.lerp(foco.current, entidadeNaCena.valor ? .85 : .5);
             let quero = Math.atan2(j.x - foco.current.x, j.z - foco.current.z) + .75;
             let d = quero - yaw.current;
             while (d > Math.PI) d -= Math.PI * 2;
@@ -447,7 +451,9 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const h = npcVis.halvard.current;
             h.possessao = 0; h.caido = true;
             est.current.entidade = 'caido';
-            window.setTimeout(() => { setConexao(false); fecharDialogo(); setAviso('Halvard caiu duro. Ninguém em volta parece notar.'); }, 1600);
+            // o preto dura pouco: a queda dele TEM de ser vista
+            window.setTimeout(() => setConexao(false), 800);
+            window.setTimeout(() => { entidadeNaCena.valor = false; fecharDialogo(); setAviso('Halvard caiu duro. Ninguém em volta parece notar.'); }, 2400);
         }, 350);
         return () => window.clearTimeout(id);
     }, [glitch, falas, linha, digitado, npcVis, fecharDialogo]);
@@ -456,6 +462,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         if (est.current.entidade !== 'nao') return;
         est.current.entidade = 'falando';
         npcVis.halvard.current.possessao = 1;
+        entidadeNaCena.valor = true;
         tocarGlitch();
         setGlitch(true);
         abrirDialogo([...ENTIDADE], 'halvard');
@@ -607,7 +614,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
             {fase === 'explorar' && !e.conversou.size && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 90px)', textAlign: 'center', fontSize: 12, opacity: .9, pointerEvents: 'none' }}>
-                ARRASTE À ESQUERDA: ANDAR · À DIREITA: GIRAR
+                ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 
             {/* ── A CAIXA DE DIÁLOGO ── */}

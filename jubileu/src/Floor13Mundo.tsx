@@ -201,7 +201,7 @@ export const CasaComprida: React.FC<{
         <group ref={portaRef} position={[0, .8, 2.82]}>
             <mesh><boxGeometry args={[1.05, 1.6, .1]} />
                 {latao
-                    ? <meshStandardMaterial color={P13.latao} metalness={.9} roughness={.25} />
+                    ? <meshStandardMaterial color={P13.latao} metalness={.9} roughness={.25} emissive="#b8782a" emissiveIntensity={.45} />
                     : <meshStandardMaterial color={P13.carvalho} roughness={.8} />}
             </mesh>
             {!latao && [-.3, 0, .3].map((x) => (
