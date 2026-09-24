@@ -191,7 +191,7 @@ export const Floor12Prologo: React.FC<{ tempo: React.MutableRefObject<number> }>
         // ── A CÂMERA: os olhos dele ──────────────────────────────────────
         const cam = tmp.pos, alvo = tmp.alvo;
         const retrato = size.width < size.height;
-        let fov = retrato ? 76 : 60;
+        let fov = retrato ? 66 : 58;
         const andar = ease(t / 2.2);
         let z = THREE.MathUtils.lerp(FUNDO - .2, 1.45, andar);
         // passo de gente: o balanço vertical e o lateral vêm do mesmo ciclo

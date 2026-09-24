@@ -109,7 +109,8 @@ export const CascoDoElevador: React.FC<{
     const cauda = useRef<THREE.Group>(null), nariz = useRef<THREE.Group>(null);
     const helice = useRef<THREE.Group>(null), vidro = useRef<THREE.Group>(null);
     const M = useMemo(() => ({
-        hull: mat64(FP.hull), dark: mat64(FP.hullDark), ivory: mat64(FP.ivory),
+        // um brilho frio no casco: o avião é o único tom azulado sobre as nuvens rosadas
+        hull: mat64(FP.hull, '#2f6f7a', .35), dark: mat64(FP.hullDark), ivory: mat64(FP.ivory, '#1f4f58', .18),
         brass: mat64(FP.brass), trim: mat64(FP.brassDark),
         engine: mat64(FP.friendly, FP.friendly, .8), black: mat64('#091a24'),
         glass: new THREE.MeshLambertMaterial({ color: FP.glass, transparent: true, opacity: .34,
