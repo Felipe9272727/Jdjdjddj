@@ -187,7 +187,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         // ── A CÂMERA: um plano só, que muda de lugar sem cortar ──────────
         tmp.lado.crossVectors(tmp.tan, THREE.Object3D.DEFAULT_UP).normalize();
         const k1 = THREE.MathUtils.smoothstep(t, 3.4, 4.8);   // perseguição → lado (e segura de lado ~1,5 s)
-        const k2 = THREE.MathUtils.smoothstep(t, 6.4, 7.8);   // lado → atrás e alto (revela a cidade)
+        const k2 = THREE.MathUtils.smoothstep(t, 6.0, 8.6);   // lado → atrás e alto (revela a cidade)
         // Em pé a lente é estreita: tudo mais longe, e uma órbita lenta no
         // começo para o plano não ficar parado.
         const rr = size.width < size.height ? 1.45 : 1;
@@ -751,7 +751,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.6} luminanceThreshold={.85} />
+                    <Bloom mipmapBlur intensity={.6} luminanceThreshold={.94} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
@@ -764,7 +764,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
             {fase === 'queda' && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(0deg, rgba(8,16,22,.7), rgba(8,16,22,0))', pointerEvents: 'none' }}>
                 {legenda}
-                <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>
+                {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
 

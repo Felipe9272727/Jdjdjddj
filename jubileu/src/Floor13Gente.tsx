@@ -92,7 +92,8 @@ export const Viking: React.FC<{
         const t = clock.elapsedTime, e = estado.current;
         // ── O ROSTO E O MANTO ────────────────────────────────────────────
         const falaAberta = e.falando ? Math.abs(Math.sin(t * 13)) * Math.abs(Math.sin(t * 5.3)) : 0;
-        if (boca.current) boca.current.scale.set(e.possessao > 0 ? 1.4 : 1, e.possessao > 0 ? 3.5 : 1 + falaAberta * 3.2, 1);
+        // possuído: a mandíbula treme em vez de escancarar
+        if (boca.current) boca.current.scale.set(e.possessao > 0 ? 1.2 : 1, e.possessao > 0 ? 1.6 + Math.abs(Math.sin(t * 37)) * 1.2 : 1 + falaAberta * 3.2, 1);
         const sob = e.possessao > 0 ? -.03 : e.falando ? Math.sin(t * 3.1) * .015 + .01 : 0;
         if (sobrE.current) { sobrE.current.position.y = .31 + sob; sobrE.current.rotation.z = e.possessao > 0 ? -.4 : .08; }
         if (sobrD.current) { sobrD.current.position.y = .31 + sob; sobrD.current.rotation.z = e.possessao > 0 ? .4 : -.08; }
@@ -249,8 +250,10 @@ export const Viking: React.FC<{
                 {crianca && <mesh position={[0, .3, -.04]} material={M.cabelo} scale={[1.05, 1.05, 1.02]}><sphereGeometry args={[.26, 18, 14, 0, Math.PI * 2, 0, Math.PI * .55]} /></mesh>}
                 {/* elmo de ferro com protetor de nariz (e chifres só para os que gostam) */}
                 {!crianca && ficha.id !== 'ragnhild' && ficha.id !== 'sigrun' && (ficha.id as string) !== 'hospede' && <>
-                    <mesh position={[0, .3, 0]} material={M.elmo}><sphereGeometry args={[.27, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
-                    <mesh position={[0, .3, 0]} material={M.cinto}><torusGeometry args={[.27, .02, 6, 28]} /></mesh>
+                    {/* elmo justo no crânio, com aba de testa: o de antes engolia a cabeça */}
+                    <mesh position={[0, .35, -.02]} material={M.elmo} scale={[1, .82, 1]}><sphereGeometry args={[.255, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
+                    <mesh position={[0, .35, -.02]} rotation={[Math.PI / 2, 0, 0]} material={M.cinto}><torusGeometry args={[.256, .022, 6, 28]} /></mesh>
+                    <mesh position={[0, .34, .2]} rotation={[.35, 0, 0]} material={M.elmo}><boxGeometry args={[.3, .04, .08]} /></mesh>
                     <mesh position={[0, .23, .27]} material={M.elmo}><boxGeometry args={[.035, .16, .02]} /></mesh>
                     {ficha.id !== 'halvard' && [-1, 1].map((l) => (
                         <mesh key={l} position={[l * .28, .42, 0]} rotation={[0, 0, -l * 1.05]} material={M.chifre}><coneGeometry args={[.045, .26, 10]} /></mesh>
