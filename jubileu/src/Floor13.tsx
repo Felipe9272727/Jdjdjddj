@@ -22,7 +22,7 @@ import { CascoDoElevador } from './Floor12Avioes';
 import { Floor13Mundo } from './Floor13Mundo';
 import { Viking, Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import {
-    NPCS, PISTAS, BUSCAS, ENTIDADE, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
+    NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
     ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, MARTELO, OVELHAS, SINO,
@@ -220,7 +220,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         if (t < 10.45) {
             camera.updateMatrixWorld();
             const ndc = pos.clone().project(camera);
-            const fuga = Math.max(0, Math.abs(ndc.x) - .55, Math.abs(ndc.y) - .7);
+            const fuga = Math.max(0, Math.abs(ndc.x) - .4, Math.abs(ndc.y) - .6);
             if (fuga > 0 || ndc.z > 1) { olhar.current.lerp(pos, Math.min(1, fuga * 2 + (ndc.z > 1 ? 1 : 0))); camera.lookAt(olhar.current); }
         }
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
@@ -326,13 +326,20 @@ const Jogador: React.FC<{
 const CameraDeExplorar: React.FC<{
     jog: React.MutableRefObject<Jog>; yaw: React.MutableRefObject<number>; ativo: boolean;
     foco: React.MutableRefObject<THREE.Vector3 | null>;
-}> = ({ jog, yaw, ativo, foco }) => {
+    portaAlvo: React.MutableRefObject<THREE.Vector3 | null>;
+}> = ({ jog, yaw, ativo, foco, portaAlvo }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
     useFrame((_, dt) => {
         if (!ativo) return;
         const j = jog.current;
+        if (portaAlvo.current) {
+            // a porta abre: a câmera entra devagar, olhando para a luz de dentro
+            camera.position.lerp(portaAlvo.current.clone().add(new THREE.Vector3(0, .6, 0)), 1 - Math.exp(-dt * .9));
+            camera.lookAt(portaAlvo.current);
+            return;
+        }
         const retrato = size.width < size.height;
         const dist = retrato ? 9.5 : 7.5, alto = retrato ? 6.5 : 3.8;
         // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
@@ -433,13 +440,17 @@ const Vivo: React.FC<{
             sinoRef.current.rotation.x = Math.sin(clock.elapsedTime * 5.5) * .5 * balanco.current;
         }
         // a porta de latão se abre ao meio, como a de um elevador
-        if (portaCerta.current && abrindo) portaCerta.current.scale.x = Math.max(.02, portaCerta.current.scale.x - dt * .9);
+        if (portaCerta.current && abrindo) portaCerta.current.children.forEach((c) => {
+            if (c.name !== 'folha') return;
+            const alvo = (c.userData.lado as number) * .78;
+            c.position.x += (alvo - c.position.x) * Math.min(1, dt * 1.6);
+        });
     });
     return null;
 };
 
 /**
- * O sol que faz sombra. Um mapa de 1024 cobrindo só 36 unidades em volta do
+ * O sol que faz sombra. Um mapa de 2048 cobrindo só 36 unidades em volta do
  * jogador, que anda junto com ele: sombra nítida onde se olha, custo fixo.
  */
 const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
@@ -510,6 +521,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const entrada = useRef({ x: 0, z: 0 });
     const yaw = useRef(0);
     const foco = useRef<THREE.Vector3 | null>(null);
+    const portaAlvo = useRef<THREE.Vector3 | null>(null);
     const [alvo, setAlvo] = useState<Alvo | null>(null);
     const [falas, setFalas] = useState<Fala[] | null>(null);
     const [linha, setLinha] = useState(0);
@@ -533,6 +545,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             estado: () => est.current,
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
+            casaCerta: () => { const p = portaDaCasa(CASA_CERTA), l = LUGAR_DAS_CASAS[CASA_CERTA]; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
         };
     }, []);
 
@@ -655,7 +668,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const r = baterNaCasa(e, a.i);
             if (r.certa) {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
-                window.setTimeout(() => onExit?.(), 3200);
+                { const l = LUGAR_DAS_CASAS[a.i]; portaAlvo.current = new THREE.Vector3(l.x + Math.sin(l.angulo) * 2.9, l.y + .9, l.z + Math.cos(l.angulo) * 2.9); }
+                window.setTimeout(() => onExit?.(), 4200);
             } else abrirDialogo(r.falas, null);
         }
         bump();
@@ -747,11 +761,11 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
                         <Viking ficha={HOSPEDE} x={0} y={0} z={0} estado={estadoDoHospede} controle={jog} />
                     </>}
-                <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} />
+                <CameraDeExplorar jog={jog} yaw={yaw} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.6} luminanceThreshold={.94} />
+                    <Bloom mipmapBlur intensity={.6} luminanceThreshold={1} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
@@ -826,8 +840,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             </div>}
 
             {/* ── A CASA CERTA: as portas abrem como as de um elevador ── */}
-            {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 3.2s ease-in forwards', background: '#fff7e6' }}>
-                <style>{'@keyframes f13branco{0%{opacity:0}60%{opacity:0}100%{opacity:1}}'}</style>
+            {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 4.2s ease-in forwards', background: '#fff7e6' }}>
+                <style>{'@keyframes f13branco{0%{opacity:0}75%{opacity:0}100%{opacity:1}}'}</style>
                 <div style={{ ...t13, position: 'absolute', top: '44%', width: '100%', textAlign: 'center', fontSize: 20, color: '#7a5520', textShadow: 'none' }}>DING.</div>
             </div>}
         </div>

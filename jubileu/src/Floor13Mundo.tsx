@@ -250,11 +250,14 @@ export const CasaComprida: React.FC<{
         {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
         {/* a porta */}
         <group ref={portaRef} position={[0, .8, 2.82]}>
-            <mesh><boxGeometry args={[1.05, 1.6, .1]} />
-                {latao
-                    ? <meshStandardMaterial color={P13.latao} metalness={.9} roughness={.25} emissive="#b8782a" emissiveIntensity={.45} />
-                    : <meshStandardMaterial color={P13.carvalho} roughness={.8} />}
-            </mesh>
+            {latao
+                // latão em duas folhas, como porta de elevador (a casa certa as abre)
+                ? [-1, 1].map((l) => <mesh key={l} name="folha" userData={{ lado: l }} position={[l * .2625, 0, 0]}>
+                    <boxGeometry args={[.52, 1.6, .1]} />
+                    <meshStandardMaterial color={P13.latao} metalness={1} roughness={.3} emissive="#b8782a" emissiveIntensity={.35} />
+                </mesh>)
+                : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
+            {latao && <mesh position={[0, 0, -.2]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             ))}
