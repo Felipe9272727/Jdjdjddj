@@ -42,7 +42,7 @@ export const Viking: React.FC<{
         calca: new THREE.MeshStandardMaterial({ color: '#4a3a2c', roughness: .9 }),
         pele: new THREE.MeshStandardMaterial({ color: pele, roughness: .7 }),
         barba: new THREE.MeshStandardMaterial({ color: ficha.barba ?? '#6b4a2b', roughness: .9 }),
-        elmo: new THREE.MeshStandardMaterial({ color: '#9aa0a8', metalness: .7, roughness: .35 }),
+        elmo: new THREE.MeshStandardMaterial({ color: '#7d828a', metalness: .55, roughness: .62 }),   // ferro batido, fosco: liso e espelhado lia como aquário
         chifre: new THREE.MeshStandardMaterial({ color: '#efe3c8', roughness: .6 }),
         cinto: new THREE.MeshStandardMaterial({ color: '#2a1d14' }),
         olho: new THREE.MeshBasicMaterial({ color: '#1b1210', toneMapped: false }),
