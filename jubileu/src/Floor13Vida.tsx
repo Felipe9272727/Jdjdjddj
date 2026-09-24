@@ -102,12 +102,12 @@ export const Floor13Vida: React.FC = () => {
         <Viking ficha={crianca('#6f9a4a')} x={5.5} y={0} z={6.5} ronda={1.8} rondaVel={1.1} rondaFase={.7} estado={estados[2]} />
         <Bicho url={husky} x={.5} z={2.5} raio={2.4} vel={3.4} fase={3.6} />
         <Bicho url={shiba} x={-21} z={9} parado="Idle_2_HeadLow" fase={2.4} />
-        <Bicho url={shiba} x={2.5} z={27} raio={2.2} vel={.9} />
+        <Bicho url={shiba} x={-4} z={27} raio={1} vel={.7} />
         <Bicho url={husky} x={6} z={-18} parado="Eating" fase={-.8} />
         {/* gatos: a raposa da Quaternius remodelada (tools/blender/f13_bichos.py) */}
         <Bicho url={gato} x={-3.5} z={6.5} raio={1} vel={.45} fase={1} pelagem="cinza" />
         {/* em cima do balcão da barraca do meio, atrás das frutas */}
-        <Bicho url={gato} x={-3.28} z={13.78} y={.9} parado="Idle" fase={1.67} pelagem="preto" />
+        <Bicho url={gato} x={-3.33} z={13.71} y={.9} parado="Idle" fase={1.67} pelagem="preto" />
         {/* enrolado na borda do poço */}
         <Bicho url={gato} x={1.1} z={8} y={.63} parado="Idle_2_HeadLow" fase={0} />
     </Suspense>;

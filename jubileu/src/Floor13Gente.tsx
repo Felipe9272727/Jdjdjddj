@@ -284,10 +284,48 @@ export const Viking: React.FC<{
 };
 
 /** Ovelha fujona: fofa, balança, pula quando é achada. */
+/** Lã: cachinhos (anéis claros com miolo sombreado) num canvas, cor e relevo. */
+let texLa: THREE.CanvasTexture | null = null;
+function texturaDeLa(): THREE.CanvasTexture {
+    if (texLa) return texLa;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#cfc8ba'; g.fillRect(0, 0, 128, 128);
+    let k = 5; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+    for (let i = 0; i < 420; i++) {
+        const x = r() * 128, y = r() * 128, rr = 2.5 + r() * 4;
+        const gr = g.createRadialGradient(x - rr * .3, y - rr * .3, .5, x, y, rr);
+        gr.addColorStop(0, '#fbf8f1'); gr.addColorStop(.7, '#e6dfd1'); gr.addColorStop(1, 'rgba(150,140,125,.8)');
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+    }
+    texLa = new THREE.CanvasTexture(c); texLa.wrapS = texLa.wrapT = THREE.RepeatWrapping; texLa.repeat.set(3, 2);
+    texLa.colorSpace = THREE.SRGBColorSpace;
+    return texLa;
+}
+/** Corpo de lã: um elipsoide só, cheio de calombos (não mais bolas soltas). */
+let geoLa: THREE.BufferGeometry | null = null;
+function geometriaDeLa(): THREE.BufferGeometry {
+    if (geoLa) return geoLa;
+    const g = new THREE.IcosahedronGeometry(1, 5);
+    const p = g.getAttribute('position'), v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).normalize();
+        const lombo = 1 + .07 * Math.sin(v.x * 11 + v.y * 3) * Math.sin(v.z * 9 + v.y * 7) + .05 * Math.sin(v.x * 23 + v.z * 17) * Math.cos(v.y * 19);
+        // barriga mais reta que o lombo
+        const y = v.y < 0 ? v.y * .78 : v.y;
+        p.setXYZ(i, v.x * .4 * lombo, y * .36 * lombo, v.z * .56 * lombo);
+    }
+    g.computeVertexNormals();
+    geoLa = g; return g;
+}
+
 export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: React.MutableRefObject<boolean> }> = ({ x, y, z, achadaRef }) => {
     const g = useRef<THREE.Group>(null);
-    const la = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f1ece2', roughness: 1 }), []);
-    const pret = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a2622' }), []);
+    const cabeca = useRef<THREE.Group>(null);
+    const pernas = useRef<(THREE.Group | null)[]>([]);
+    const la = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 1, map: texturaDeLa(), bumpMap: texturaDeLa(), bumpScale: 3 }), []);
+    const pret = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: .8 }), []);
+    const casco = useMemo(() => new THREE.MeshStandardMaterial({ color: '#141210', roughness: .5 }), []);
     const sumiu = useRef(0);
     useFrame(({ clock }, dt) => {
         const o = g.current; if (!o) return;
@@ -299,22 +337,35 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
             o.scale.setScalar(Math.max(.001, 1 - sumiu.current));
             return;
         }
-        o.position.set(x + Math.sin(t * .4 + x) * .3, y + Math.abs(Math.sin(t * 3 + z)) * .05, z);
+        // pasta: passinhos curtos, cabeça abaixando para comer e subindo
+        const anda = Math.max(0, Math.sin(t * .4 + x));
+        o.position.set(x + Math.sin(t * .4 + x) * .3, y, z);
         o.rotation.y = Math.sin(t * .3 + z) * 1.2;
+        if (cabeca.current) cabeca.current.rotation.x = .35 + (Math.sin(t * .7 + z) > .3 ? .6 : 0) + Math.sin(t * 6) * .03;
+        pernas.current.forEach((p, i) => { if (p) p.rotation.x = Math.sin(t * 7 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI : 0)) * .35 * anda; });
     });
     return <group ref={g}>
-        {[[0, .55, 0, .45], [.25, .6, .15, .32], [-.25, .6, -.12, .32], [0, .72, -.25, .3], [0, .7, .25, .3]].map(([a, b, c, r], i) => (
-            <mesh key={i} position={[a, b, c]} material={la}><sphereGeometry args={[r, 10, 8]} /></mesh>
-        ))}
-        {/* cabeça de ovelha: focinho alongado, orelhas caídas, olhos */}
-        <group position={[0, .72, .56]} rotation={[.35, 0, 0]}>
-            <mesh material={pret} scale={[.8, .85, 1.25]}><sphereGeometry args={[.16, 16, 12]} /></mesh>
-            <mesh material={pret} position={[0, -.04, .17]} scale={[.7, .65, 1]}><sphereGeometry args={[.1, 12, 10]} /></mesh>
-            {[-1, 1].map((l) => <mesh key={l} material={pret} position={[l * .14, .04, -.02]} rotation={[0, 0, l * 1.1]} scale={[.35, 1, .6]}><sphereGeometry args={[.09, 10, 8]} /></mesh>)}
-            {[-1, 1].map((l) => <mesh key={'o' + l} position={[l * .08, .05, .1]}><sphereGeometry args={[.022, 8, 6]} /><meshStandardMaterial color="#e8d8a0" roughness={.2} /></mesh>)}
+        <mesh geometry={geometriaDeLa()} material={la} position={[0, .62, 0]} castShadow />
+        {/* rabinho de lã */}
+        <mesh material={la} position={[0, .66, -.54]}><sphereGeometry args={[.08, 10, 8]} /></mesh>
+        {/* cabeça de ovelha: topete de lã, focinho alongado, orelhas caídas, olhos */}
+        <group ref={cabeca} position={[0, .76, .5]}>
+            <mesh material={la} position={[0, .1, -.02]} scale={[1, .7, 1]}><sphereGeometry args={[.13, 12, 10]} /></mesh>
+            <group position={[0, 0, .08]} rotation={[.4, 0, 0]}>
+                <mesh material={pret} scale={[.8, .85, 1.25]}><sphereGeometry args={[.14, 16, 12]} /></mesh>
+                <mesh material={pret} position={[0, -.03, .15]} scale={[.7, .65, 1]}><sphereGeometry args={[.09, 12, 10]} /></mesh>
+                {[-1, 1].map((l) => <mesh key={l} material={pret} position={[l * .13, .03, -.03]} rotation={[0, 0, l * 1.2]} scale={[.35, 1, .6]}><sphereGeometry args={[.08, 10, 8]} /></mesh>)}
+                {[-1, 1].map((l) => <mesh key={'o' + l} position={[l * .075, .045, .09]}><sphereGeometry args={[.02, 8, 6]} /><meshStandardMaterial color="#e8d8a0" roughness={.2} /></mesh>)}
+            </group>
         </group>
-        {[[-.18, -.2], [.18, -.2], [-.18, .22], [.18, .22]].map(([a, c], i) => (
-            <mesh key={i} position={[a, .18, c]} material={pret}><cylinderGeometry args={[.035, .03, .36, 8]} /></mesh>
+        {/* pernas: coxa escondida na lã, canela fina, joelho e casco */}
+        {[[-.17, .3], [.17, .3], [-.17, -.28], [.17, -.28]].map(([a, c], i) => (
+            <group key={i} ref={(r) => { pernas.current[i] = r; }} position={[a, .42, c]}>
+                <mesh material={pret} position={[0, -.1, 0]}><cylinderGeometry args={[.045, .035, .22, 8]} /></mesh>
+                <mesh material={pret} position={[0, -.21, 0]}><sphereGeometry args={[.04, 8, 6]} /></mesh>
+                <mesh material={pret} position={[0, -.31, 0]}><cylinderGeometry args={[.03, .03, .2, 8]} /></mesh>
+                <mesh material={casco} position={[0, -.405, .01]}><cylinderGeometry args={[.036, .042, .05, 8]} /></mesh>
+            </group>
         ))}
     </group>;
 };

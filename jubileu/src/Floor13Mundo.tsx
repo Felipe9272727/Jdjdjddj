@@ -346,6 +346,22 @@ function texturaDeCabine(): THREE.CanvasTexture {
 }
 
 /** Textura com uma runa branca pintada em madeira escura. */
+/** Faixa de runas entalhadas numa pedra: fundo transparente, sulco escuro, ocre gasto. */
+let texPedraRunica: THREE.CanvasTexture | null = null;
+function texturaDePedraRunica(): THREE.CanvasTexture {
+    if (texPedraRunica) return texPedraRunica;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 200;
+    const g = c.getContext('2d')!;
+    g.strokeStyle = 'rgba(120,70,30,.75)'; g.lineWidth = 3; g.strokeRect(8, 6, 48, 188);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 26px serif';
+    'ᚠᚢᚦᚨᚱᚲᚷ'.split('').forEach((r, i) => {
+        g.fillStyle = 'rgba(25,18,12,.85)'; g.fillText(r, 32, 22 + i * 26 + 1.5);
+        g.fillStyle = 'rgba(170,100,45,.8)'; g.fillText(r, 32, 22 + i * 26);
+    });
+    texPedraRunica = new THREE.CanvasTexture(c); texPedraRunica.colorSpace = THREE.SRGBColorSpace;
+    return texPedraRunica;
+}
+
 function texturaRuna(runa: string): THREE.CanvasTexture {
     // placa de carvalho com veio, borda chanfrada e a runa entalhada (sulco
     // escuro com a luz pegando na aresta de cima), pintada de ocre gasto
@@ -418,7 +434,7 @@ const CasaCompridaModelo: React.FC<{
     return <group ref={raiz} scale={escala}>
         <primitive object={casca} />
         {/* chaminé */}
-        <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
+        <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color="#b0a698" {...pbr('rocha', .5, .8)} /></mesh>
         {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
         {/* chaminé fria: fuligem azulada e pingentes de gelo — lê de longe pelo contraste */}
         {!fumaca && <group position={[.9, 3.6, -1.2]}>
@@ -583,7 +599,7 @@ const Forja: React.FC = () => {
     const fogo = useRef<THREE.PointLight>(null);
     useFrame(({ clock }) => { if (fogo.current) fogo.current.intensity = 6 + Math.sin(clock.elapsedTime * 13) * 1.5 + Math.sin(clock.elapsedTime * 7) * 1; });
     return <group position={[ilha.x, ilha.y, ilha.z - 1.5]}>
-        <mesh position={[0, .5, 0]}><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
+        <mesh position={[0, .5, 0]}><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
         <mesh position={[0, 1.05, 0]}><boxGeometry args={[1.1, .12, .8]} /><meshBasicMaterial color={new THREE.Color('#ff7a2a').multiplyScalar(2)} toneMapped={false} /></mesh>
         <pointLight ref={fogo} position={[0, 1.5, 0]} color="#ff8a3a" distance={9} intensity={6} />
         <mesh position={[1.8, .45, .8]}><boxGeometry args={[.6, .5, .3]} /><meshStandardMaterial color="#3a3a3e" metalness={.7} roughness={.4} /></mesh>
@@ -620,12 +636,21 @@ const Praca: React.FC = () => {
                 {[[-.84, -.4, 2.3], [.84, -.4, 2.3], [-.84, .5, 1.92], [.84, .5, 1.92]].map(([dx, dz, h]) => <mesh key={`${dx}${dz}`} position={[dx, h / 2, dz]}><boxGeometry args={[.08, h, .08]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
                 <mesh position={[0, 2.13, .05]} rotation={[.33, 0, 0]}><boxGeometry args={[1.92, .03, 1.22]} /><meshStandardMaterial map={texturaDeToldo(P13.escudo[i % 3])} roughness={.95} /></mesh>
                 {/* a sanefa: pano listrado caindo na frente do toldo */}
-                <mesh position={[0, 1.8, .64]}><boxGeometry args={[1.92, .22, .02]} /><meshStandardMaterial map={texturaDeToldo(P13.escudo[i % 3])} roughness={.95} /></mesh>
-                {[-.5, 0, .5].map((dx, k) => <mesh key={dx} position={[dx, 1, .1]}><sphereGeometry args={[.13, 10, 8]} /><meshStandardMaterial color={['#c9442e', '#e0b155', '#6f9a4a'][k]} roughness={.55} /></mesh>)}
+                <mesh position={[0, 1.82, .63]}><boxGeometry args={[1.92, .26, .02]} /><meshStandardMaterial map={texturaDeToldo(P13.escudo[i % 3])} roughness={.95} /></mesh>
+                {/* cestos de vime no balcão, cada um com um montinho de fruta */}
+                {[-.55, 0, .55].map((dx, k) => <group key={dx} position={[dx, .9, .14]}>
+                    <mesh position={[0, .05, 0]}><cylinderGeometry args={[.19, .14, .1, 14, 1, true]} /><meshStandardMaterial {...pbr('tabua', .5, .2)} color="#c9a46a" side={THREE.DoubleSide} /></mesh>
+                    <mesh position={[0, .02, 0]}><cylinderGeometry args={[.14, .14, .02, 14]} /><meshStandardMaterial color="#6b4a2e" /></mesh>
+                    {[[0, 0], [.07, .05], [-.07, .04], [.03, -.07], [-.05, -.05], [0, .01]].map(([fx, fz], f) => (
+                        <mesh key={f} position={[fx, f === 5 ? .14 : .08, fz]}><sphereGeometry args={[.055, 10, 8]} /><meshStandardMaterial color={['#c9442e', '#e0b155', '#6f9a4a'][k]} roughness={.5} /></mesh>
+                    ))}
+                </group>)}
             </group>
         ))}
-        <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#8a8478" flatShading /></mesh>
-        <mesh position={[0, .25, 8]}><cylinderGeometry args={[1.2, 1.3, .5, 20]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
+        {/* pedra rúnica: rocha de verdade com a faixa de runas pintada de ocre */}
+        <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#9a9082" {...pbr('rocha', .6, 1.4)} /></mesh>
+        <mesh position={[4.2 + Math.sin(.3) * .205, 1.3, 1.5 + Math.cos(.3) * .205]} rotation={[0, .3, 0]}><planeGeometry args={[.6, 1.9]} /><meshStandardMaterial map={texturaDePedraRunica()} transparent depthWrite={false} roughness={.9} polygonOffset polygonOffsetFactor={-2} /></mesh>
+        <mesh position={[0, .25, 8]}><cylinderGeometry args={[1.2, 1.3, .5, 24]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 3, .5)} /></mesh>
         {/* a borda de pedra do poço (onde o gato cochila) e a água um palmo abaixo */}
         <mesh position={[0, .52, 8]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1.1, .13, 8, 28]} /><meshStandardMaterial color={P13.pedra} {...pbr('rocha', 2, .3)} /></mesh>
         <mesh position={[0, .44, 8]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1, 20]} /><meshStandardMaterial color="#23404f" metalness={0} roughness={.12} envMapIntensity={.55} /></mesh>
@@ -750,6 +775,10 @@ const Grama: React.FC = () => {
                 rajada = rajada * rajada;
                 float balanco = sin(uT * 2.6 + wp.x * 1.3 + wp.z * .9) * .08 + rajada * .32;
                 transformed.z += balanco * k * k;
+                // perto do olho a lâmina encolhe (em primeira pessoa elas enchiam
+                // meia tela, serrilhadas): some de 0,6 m e está inteira a 2,6 m
+                float perto = smoothstep(.6, 2.6, distance(cameraPosition.xz, (modelMatrix * wp).xz));
+                transformed *= mix(.12, 1., perto);
                 transformed.y -= balanco * balanco * k * k * .35;
                 vTom = aTom; vAlt = k;`);
             sh.fragmentShader = 'varying vec3 vTom;\nvarying float vAlt;\n' + sh.fragmentShader
@@ -780,6 +809,7 @@ const Grama: React.FC = () => {
                     const ra = rnd() * Math.PI * 2, rd = Math.sqrt(rnd()) * .35;
                     const x = cx + Math.cos(ra) * rd, z = cz + Math.sin(ra) * rd;
                     if (Math.hypot(x - il.x, z - il.z) > il.r * .985) continue;
+                    if (distTrilha(x, z) < .75) continue;
                     o.position.set(x, il.y, z);
                     o.rotation.set((rnd() - .5) * .35, rnd() * Math.PI * 2, (rnd() - .5) * .35);
                     const e = alta * (.6 + rnd() * .6);
@@ -824,12 +854,62 @@ const Grama: React.FC = () => {
     });
     return <>{blocos.map((b, i) => <primitive key={i} object={b} />)}</>;
 };
+/** Trilhas de pedra: do centro de cada ilha até a cabeceira de cada ponte. */
+const TRILHAS: ReadonlyArray<{ a: THREE.Vector2; b: THREE.Vector2; y: number }> = PONTES.flatMap((p) => {
+    const A = ILHAS.find((i) => i.id === p.de)!, B = ILHAS.find((i) => i.id === p.para)!;
+    const d = new THREE.Vector2(B.x - A.x, B.z - A.z).normalize();
+    return [
+        { a: new THREE.Vector2(A.x, A.z).addScaledVector(d, A.r * .22), b: new THREE.Vector2(A.x, A.z).addScaledVector(d, A.r - .5), y: A.y },
+        { a: new THREE.Vector2(B.x, B.z).addScaledVector(d, -B.r * .22), b: new THREE.Vector2(B.x, B.z).addScaledVector(d, -(B.r - .5)), y: B.y },
+    ];
+});
+const _pt = new THREE.Vector2();
+/** Distância (m) até a trilha mais próxima. */
+function distTrilha(x: number, z: number): number {
+    let m = Infinity;
+    for (const t of TRILHAS) {
+        const ab = _pt.copy(t.b).sub(t.a), L2 = ab.lengthSq();
+        const k = Math.max(0, Math.min(1, ((x - t.a.x) * ab.x + (z - t.a.y) * ab.y) / L2));
+        m = Math.min(m, Math.hypot(x - (t.a.x + ab.x * k), z - (t.a.y + ab.y * k)));
+    }
+    return m;
+}
+/** As lajes das trilhas: pedras chatas instanciadas, duas por passo, desencontradas. */
+const Trilhas: React.FC = () => {
+    const malha = useMemo(() => {
+        const g = new THREE.DodecahedronGeometry(1, 1);
+        g.scale(.32, .05, .26);
+        const m = new THREE.MeshStandardMaterial({ color: '#b3a894', ...pbr('rocha', .4, .4) });
+        const ms: THREE.Matrix4[] = [];
+        const o = new THREE.Object3D();
+        let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+        for (const t of TRILHAS) {
+            const L = t.a.distanceTo(t.b), n = Math.floor(L / .62);
+            const d = _pt.copy(t.b).sub(t.a).normalize().clone(), lado = new THREE.Vector2(-d.y, d.x);
+            for (let i = 0; i <= n; i++) for (const l of [-1, 1]) {
+                const s = i * .62 + (l > 0 ? .31 : 0);
+                if (s > L) continue;
+                const x = t.a.x + d.x * s + lado.x * l * (.3 + r() * .12), z = t.a.y + d.y * s + lado.y * l * (.3 + r() * .12);
+                o.position.set(x, t.y + .01, z); o.rotation.set(0, r() * 3, 0);
+                const e = .8 + r() * .45; o.scale.set(e, 1, e * (.8 + r() * .4)); o.updateMatrix(); ms.push(o.matrix.clone());
+            }
+        }
+        const im = new THREE.InstancedMesh(g, m, ms.length);
+        ms.forEach((mm, i) => im.setMatrixAt(i, mm));
+        im.receiveShadow = true; im.computeBoundingSphere();
+        return im;
+    }, []);
+    return <primitive object={malha} />;
+};
+
+/** Onde ficam as tochas (x, y, z): o Floor13 também as usa como obstáculo. */
+export const TOCHAS = [
+    [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [3.6, 3, -12.3], [-3.6, 3, -12.3],
+    [-15, 1, 6.5], [16, 2, 5], [-5, 3, -30],
+] as const;
 /** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
 const Tochas: React.FC = () => {
-    const lugares = useMemo(() => [
-        [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [3.6, 3, -12.3], [-3.6, 3, -12.3],
-        [-15, 1, 6.5], [16, 2, 5], [-5, 3, -30],
-    ] as const, []);
+    const lugares = TOCHAS;
     const luzes = useRef<(THREE.PointLight | null)[]>([]);
     const chamas = useRef<(THREE.Mesh | null)[]>([]);
     useFrame(({ clock }) => {
@@ -872,6 +952,7 @@ export const Floor13Mundo: React.FC<{
         <Frota />
         <Decoracao />
         <Grama />
+        <Trilhas />
         <Tochas />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}

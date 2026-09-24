@@ -21,7 +21,7 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
-import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama } from './Floor13Mundo';
+import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
@@ -415,7 +415,12 @@ const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number }> = Object.fr
     // barracas: 1,9 × 1,3 m com o toldo — raio que cobre as pontas do balcão
     { x: -6, z: 12, r: 1.25 }, { x: -3.2, z: 14, r: 1.25 }, { x: 6, z: 11, r: 1.25 },
     { x: -23, z: 4.5 - 1.5, r: 1.1 },
-    { x: SINO.x, z: SINO.z, r: 1.3 }, { x: -2, z: 33, r: 1.3 },
+    // o templo: os quatro mourões ficam a 1,27 m do sino — o raio os cobre
+    { x: SINO.x, z: SINO.z, r: 1.75 }, { x: -2, z: 33, r: 1.3 },
+    // mourões do telheiro da forja e as tochas: a câmera (primeira pessoa)
+    // entrava neles e um poste enchia a tela
+    ...[[-24.4, 3.5], [-21.6, 3.5], [-24.4, 6.1], [-21.6, 6.1]].map(([x, z]) => ({ x, z, r: .45 })),
+    ...TOCHAS.map(([x, , z]) => ({ x, z, r: .4 })),
 ]);
 
 const Jogador: React.FC<{
@@ -1106,12 +1111,15 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
-            {apagao > 0 && fase === 'queda' && <>
-                {/* pálpebras: fecham juntas no apagão e se abrem do meio para fora */}
-                <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${Math.min(1, apagao * 1.15) * 50.5}%`, background: '#050302', borderRadius: '0 0 50% 50% / 0 0 18% 18%', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${Math.min(1, apagao * 1.15) * 50.5}%`, background: '#050302', borderRadius: '50% 50% 0 0 / 18% 18% 0 0', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', inset: 0, background: '#050302', opacity: Math.max(0, apagao - .15), pointerEvents: 'none' }} />
-            </>}
+            {apagao > 0 && fase === 'queda' && <div style={{
+                // pálpebras macias: uma elipse de visão que se fecha até o preto,
+                // com borda esfumada e grão (nada de recorte duro)
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                background: `radial-gradient(ellipse ${Math.max(0, 1 - apagao) * 120 + 1}% ${Math.max(0, 1 - apagao) * 70 + 1}% at 50% 50%, rgba(5,3,2,0) 0%, rgba(5,3,2,${Math.min(1, apagao * 1.4)}) 100%)`,
+            }}>
+                <div style={{ position: 'absolute', inset: 0, background: '#050302', opacity: Math.max(0, apagao * 1.2 - .25) }} />
+                <div style={{ position: 'absolute', inset: 0, opacity: .12 * apagao, backgroundImage: 'repeating-radial-gradient(circle at 37% 61%, rgba(255,255,255,.5) 0 1px, transparent 1px 3px)', mixBlendMode: 'overlay' }} />
+            </div>}
 
             {/* ── HUD: pistas e buscas ── */}
             {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>

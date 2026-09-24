@@ -125,8 +125,14 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const n = mat.name;
             if (n === 'tunica') mat.color.copy(tunica).multiplyScalar(1.15);
             else if (n === 'capa') mat.color.copy(tunica).multiplyScalar(.55);
-            else if (n === 'calca') mat.color.set('#6a5a48');
-            else if (n === 'bota' || n === 'couro') mat.color.set('#8a6448');
+            else if (n === 'calca') {
+                mat.color.set('#6a5a48');
+                // o cano da bota varava a calça no joelho (a mancha vermelha): a
+                // calça ganha um empurrãozinho de profundidade e cobre o cano
+                mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -8;
+            }
+            else if (n === 'bota') mat.color.set('#4e3826');
+            else if (n === 'couro') mat.color.set('#8a6448');
             else if (n === 'pelo') mat.color.set('#b59a7c');
             else if (n === 'metal') mat.color.set('#9aa0a8');
             else if (n === 'capuz') mat.color.set('#7a8fb0');
@@ -198,7 +204,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             if ((OSSOS as readonly string[]).includes(b.name)) j[b.name] = new Junta(b, raiz.current!);
             if (DEDOS.some((k) => b.name.startsWith(k))) d.push(new Junta(b, raiz.current!));
         });
-        juntas.current = j; dedos.current = d;
+        // as mãos do MakeHuman saem grandes para estes corpos
+        for (const n of ['hand_l', 'hand_r']) j[n]?.osso.scale.setScalar(.9);
+                juntas.current = j; dedos.current = d;
     }, [modelo]);
 
     const marcaRef = useRef<THREE.Group>(null);
@@ -270,7 +278,11 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // (0,92 passava da vertical: os braços iam para trás das costas e as
         // mãos varavam a saia na frente — os "dedos soltos" na cintura)
         const baixaE = -.74, baixaD = .74;
-        dedos.current.forEach((f, i) => e.caido ? f.girar(0) : f.girar(0, 0, (i % 3 === 0 ? .12 : .24) * (f.osso.name.endsWith('_l') ? -1 : 1)));
+        // dedos dobrando para a palma (eixo x), não abrindo de lado: mão
+        // relaxada em vez de garra
+        dedos.current.forEach((f, i) => { const c = (i % 3 === 0 ? .3 : .6) * (f.osso.name.endsWith('_l') ? -1 : 1); if (e.caido) f.girar(0); else f.girar(c, 0, 0); });
+        // punho alinhado ao antebraço, palma virada para a coxa
+        const maoSolta = () => { J.hand_l?.girar(0, .5, 0); J.hand_r?.girar(0, -.5, 0); };
         const respira = Math.sin(t * 1.7 + x);
         if (sentado) {
             // na cabine: coxas para a frente, canelas para baixo, mãos no manche
@@ -341,6 +353,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             j('upperarm_l', s * .45, 0, baixaE); j('upperarm_r', -s * .45, 0, baixaD);
             j('lowerarm_l', -.35 - Math.max(0, s) * .3); j('lowerarm_r', -.35 - Math.max(0, -s) * .3);
             j('head', -.04, s * .05);
+            maoSolta();
             return;
         }
         j('pelvis', 0, 0, Math.sin(t * .6 + x) * .025);
@@ -355,7 +368,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             return;
         }
         j('head', respira * .02, Math.sin(t * .35 + x) * .25);
-        j('hand_l', 0); j('hand_r', 0);
+        maoSolta();
         // o gesto do ofício
         if (ficha.id === 'brokk') {
             const m = Math.abs(Math.sin(t * 3));

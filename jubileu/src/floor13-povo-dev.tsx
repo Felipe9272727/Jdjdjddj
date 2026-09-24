@@ -35,7 +35,9 @@ const Ceu: React.FC = () => { const c = useMemo(() => novoCeu(), []); return <pr
 
 const Camera: React.FC<{ alvoX: number }> = ({ alvoX }) => {
     useFrame(({ camera }) => {
-        if (PERTO && MEIO) { camera.position.set(alvoX + .4, 1.35, 2.7 * LADO); camera.lookAt(alvoX, 1.1, 0); }
+        if (PERTO && busca.has('joelho')) { camera.position.set(alvoX + .5, .55, .9 * LADO); camera.lookAt(alvoX, .5, 0); }
+        else if (PERTO && busca.has('mao')) { camera.position.set(alvoX + .55, 1.05, 1.0 * LADO); camera.lookAt(alvoX + .25, 1.0, 0); }
+        else if (PERTO && MEIO) { camera.position.set(alvoX + .4, 1.35, 2.7 * LADO); camera.lookAt(alvoX, 1.1, 0); }
         else if (PERTO) { const d = POSE === 'caido'; camera.position.set(alvoX + .15, d ? 2.2 : 1.85, (d ? 1.4 : 1.25) * LADO); camera.lookAt(alvoX, d ? .1 : 1.78, d ? -1 : 0); }
         else { camera.position.set(0, 1.5, 11.5 * LADO); camera.lookAt(0, 1.05, 0); }
     });
