@@ -306,9 +306,15 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
         {[[0, .55, 0, .45], [.25, .6, .15, .32], [-.25, .6, -.12, .32], [0, .72, -.25, .3], [0, .7, .25, .3]].map(([a, b, c, r], i) => (
             <mesh key={i} position={[a, b, c]} material={la}><sphereGeometry args={[r, 10, 8]} /></mesh>
         ))}
-        <mesh position={[0, .7, .55]} material={pret}><boxGeometry args={[.26, .28, .3]} /></mesh>
+        {/* cabeça de ovelha: focinho alongado, orelhas caídas, olhos */}
+        <group position={[0, .72, .56]} rotation={[.35, 0, 0]}>
+            <mesh material={pret} scale={[.8, .85, 1.25]}><sphereGeometry args={[.16, 16, 12]} /></mesh>
+            <mesh material={pret} position={[0, -.04, .17]} scale={[.7, .65, 1]}><sphereGeometry args={[.1, 12, 10]} /></mesh>
+            {[-1, 1].map((l) => <mesh key={l} material={pret} position={[l * .14, .04, -.02]} rotation={[0, 0, l * 1.1]} scale={[.35, 1, .6]}><sphereGeometry args={[.09, 10, 8]} /></mesh>)}
+            {[-1, 1].map((l) => <mesh key={'o' + l} position={[l * .08, .05, .1]}><sphereGeometry args={[.022, 8, 6]} /><meshStandardMaterial color="#e8d8a0" roughness={.2} /></mesh>)}
+        </group>
         {[[-.18, -.2], [.18, -.2], [-.18, .22], [.18, .22]].map(([a, c], i) => (
-            <mesh key={i} position={[a, .18, c]} material={pret}><boxGeometry args={[.08, .36, .08]} /></mesh>
+            <mesh key={i} position={[a, .18, c]} material={pret}><cylinderGeometry args={[.035, .03, .36, 8]} /></mesh>
         ))}
     </group>;
 };
