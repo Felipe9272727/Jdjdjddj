@@ -290,11 +290,11 @@ export const CasaComprida: React.FC<{
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
             {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
-            {latao && <mesh position={[0, 0, -.045]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
+            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             ))}
-            <mesh position={[.34, 0, .08]}><torusGeometry args={[.08, .02, 6, 14]} /><meshStandardMaterial color={latao ? '#8a6a2a' : '#2a2a2a'} metalness={.6} /></mesh>
+            {!latao && <mesh position={[.34, 0, .08]}><torusGeometry args={[.08, .02, 6, 14]} /><meshStandardMaterial color="#2a2a2a" metalness={.6} /></mesh>}
         </group>
         {botao && <mesh position={[.85, 1.05, 2.84]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[.07, .07, .05, 14]} /><meshStandardMaterial color="#ffd79a" emissive="#ffb347" emissiveIntensity={1.4} />
