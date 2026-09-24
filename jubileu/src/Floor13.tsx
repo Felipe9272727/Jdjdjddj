@@ -626,7 +626,7 @@ function pertoDe(x: number, z: number): { x: number; z: number; yaw: number } {
     const il = ILHAS_R.reduce((a, b) => Math.hypot(x - b.x, z - b.z) < Math.hypot(x - a.x, z - a.z) ? b : a);
     let dx = il.x - x, dz = il.z - z; const d = Math.hypot(dx, dz);
     if (d < .5) { dx = 0; dz = 1; } else { dx /= d; dz /= d; }
-    const px = x + dx * 2.2, pz = z + dz * 2.2;
+    const px = x + dx * 3, pz = z + dz * 3;
     return { x: px, z: pz, yaw: Math.atan2(-(x - px), -(z - pz)) };
 }
 

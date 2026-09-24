@@ -764,7 +764,7 @@ const Grama: React.FC = () => {
         tempoGrama.value = clock.elapsedTime;
         for (const b of blocos) {
             centro.copy(b.boundingSphere!.center);
-            b.visible = centro.distanceTo(camera.position) < 58 + b.boundingSphere!.radius;
+            b.visible = centro.distanceTo(camera.position) < 42 + b.boundingSphere!.radius;
         }
     });
     return <>{blocos.map((b, i) => <primitive key={i} object={b} />)}</>;
