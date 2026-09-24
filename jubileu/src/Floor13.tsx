@@ -688,9 +688,17 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
                 {
                     // a porta (no centro da folha) e a direção para fora dela
-                    const l = LUGAR_DAS_CASAS[a.i];
-                    portaFrente.current = new THREE.Vector3(Math.sin(l.angulo), 0, Math.cos(l.angulo));
-                    portaAlvo.current = new THREE.Vector3(l.x, l.y + .8, l.z).addScaledVector(portaFrente.current, 2.85);
+                    // a posição REAL da porta no mundo (as casas têm torção e escala próprias)
+                    const pc = portaCerta.current;
+                    if (pc) {
+                        pc.updateWorldMatrix(true, false);
+                        portaAlvo.current = pc.getWorldPosition(new THREE.Vector3());
+                        portaFrente.current = pc.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+                    } else {
+                        const l = LUGAR_DAS_CASAS[a.i];
+                        portaFrente.current = new THREE.Vector3(Math.sin(l.angulo), 0, Math.cos(l.angulo));
+                        portaAlvo.current = new THREE.Vector3(l.x, l.y + .8, l.z).addScaledVector(portaFrente.current, 2.85);
+                    }
                 }
                 window.setTimeout(() => onExit?.(), 6500);
             } else abrirDialogo(r.falas, null);
