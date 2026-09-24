@@ -15,11 +15,12 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast, N8AO, ToneMapping } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
-import { Floor13Mundo } from './Floor13Mundo';
+import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL } from './Floor13Mundo';
 import { Viking, Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
@@ -529,7 +530,7 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
     useFrame((_, dt) => {
         const l = luz.current; if (!l) return;
         const j = jog.current;
-        l.position.set(j.x - 30, j.y + 40, j.z - 20);
+        l.position.set(j.x + DIRECAO_DO_SOL.x * 60, j.y + DIRECAO_DO_SOL.y * 60, j.z + DIRECAO_DO_SOL.z * 60);
         l.target.position.set(j.x, j.y, j.z); l.target.updateMatrixWorld();
         // uma vez, depois que tudo montou: todo mundo projeta e recebe sombra
         feito.current += dt;
@@ -542,10 +543,10 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
             feito.current = 10;
         }
     });
-    return <directionalLight ref={luz} intensity={2.8} color="#ffd9a0" castShadow
+    return <directionalLight ref={luz} intensity={4.2} color="#ffd6a0" castShadow shadow-radius={4}
         shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-.0004}
         shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
-        shadow-camera-near={1} shadow-camera-far={120} />;
+        shadow-camera-near={1} shadow-camera-far={140} shadow-normalBias={.03} />;
 };
 
 /**
@@ -557,22 +558,12 @@ const Ambiente: React.FC = () => {
     const gl = useThree((s) => s.gl), scene = useThree((s) => s.scene);
     useEffect(() => {
         const cena = new THREE.Scene();
-        const geo = new THREE.SphereGeometry(10, 32, 16);
-        const cor = new Float32Array(geo.getAttribute('position').count * 3);
-        const alto = new THREE.Color('#8fb6e0'), meio = new THREE.Color('#f3d6ae'), baixo = new THREE.Color('#5a4a38'), c = new THREE.Color();
-        const p = geo.getAttribute('position');
-        for (let i = 0; i < p.count; i++) {
-            const y = p.getY(i) / 10;
-            if (y > 0) c.copy(meio).lerp(alto, Math.min(1, y * 1.6)); else c.copy(meio).lerp(baixo, Math.min(1, -y * 2.5));
-            cor.set([c.r, c.g, c.b], i * 3);
-        }
-        geo.setAttribute('color', new THREE.BufferAttribute(cor, 3));
-        cena.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+        const ceu = novoCeu(); cena.add(ceu);
         const pm = new THREE.PMREMGenerator(gl);
         const alvo = pm.fromScene(cena, .04);
         const antes = scene.environment;
-        scene.environment = alvo.texture; scene.environmentIntensity = .7;
-        pm.dispose(); geo.dispose();
+        scene.environment = alvo.texture; scene.environmentIntensity = .55;
+        pm.dispose(); ceu.geometry.dispose(); ceu.material.dispose();
         return () => { scene.environment = antes; alvo.dispose(); };
     }, [gl, scene]);
     return null;
@@ -821,14 +812,14 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.25]} shadows
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.5]} shadows="soft"
+                gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
-                onCreated={({ scene }) => { scene.fog = new THREE.Fog('#e9d2b0', 70, 330); }}>
-                <hemisphereLight args={['#dfe9f5', '#6b5a44', .7]} />
+                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
+                <hemisphereLight args={['#bcd4f0', '#4a3f30', .35]} />
                 {/* contraluz fria: separa as silhuetas do chão verde */}
-                <directionalLight position={[40, 18, 70]} intensity={.5} color="#a9c8ff" />
+                <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <Sol jog={jog} />
-                <directionalLight position={[40, 20, 60]} intensity={.3} color="#9ec3ff" />
                 <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -849,13 +840,16 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={1.3} luminanceSmoothing={.2} />
+                    {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
+                    <N8AO aoRadius={1.6} intensity={2.2} distanceFalloff={.6} halfRes quality="medium" />
+                    <Bloom mipmapBlur intensity={.55} luminanceThreshold={.9} luminanceSmoothing={.25} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
-                    <HueSaturation saturation={glitch ? -.65 : 0} />
+                    <HueSaturation saturation={glitch ? -.65 : .14} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .06 : 0} />
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
-                    <BrightnessContrast brightness={-.02} contrast={.12} />
+                    <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                    <BrightnessContrast brightness={0} contrast={.06} />
                 </EffectComposer>
             </Canvas>
 

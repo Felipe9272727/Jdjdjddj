@@ -9,10 +9,12 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { createCloudGeometry } from './f12CloudGeometry';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { ILHAS, PONTES, LUGAR_DAS_CASAS, SINO } from './f13Mundo';
+import { pbr } from './f13Texturas';
 
 // ── PALETA ───────────────────────────────────────────────────────────────────
 export const P13 = Object.freeze({
@@ -39,10 +41,13 @@ function geoRocha(r: number, semente: number): THREE.BufferGeometry {
         p.setXYZ(i, x * (1 + n * .18 * k), y + n * .6 * k, z * (1 + n * .18 * k));
     }
     g.computeVertexNormals();
+    // UV cilíndrica para a textura de rocha: volta inteira em u, altura em v
+    const uv = g.getAttribute('uv');
+    for (let i = 0; i < p.count; i++) uv.setXY(i, uv.getX(i), -p.getY(i) / (r * 1.8));
     const ng = g.toNonIndexed();
     // gradiente: lábio quente em cima, base fria e escura embaixo
     const q = ng.getAttribute('position'), cor = new Float32Array(q.count * 3);
-    const topo = new THREE.Color('#9a8670'), base = new THREE.Color('#3b3a44'), c = new THREE.Color();
+    const topo = new THREE.Color('#e8dccb'), base = new THREE.Color('#77778a'), c = new THREE.Color();
     for (let k = 0; k < q.count; k++) {
         const h = Math.min(1, Math.max(0, -q.getY(k) / (r * 1.9)));
         c.copy(topo).lerp(base, Math.pow(h, .7));
@@ -52,22 +57,26 @@ function geoRocha(r: number, semente: number): THREE.BufferGeometry {
     return ng;
 }
 
-/** Céu em degradê: uma esfera por dentro com shader barato. */
+/** Direção do sol baixo da tarde (a mesma que a luz de sombra usa). */
+export const DIRECAO_DO_SOL = new THREE.Vector3(-120, 42, -220).normalize();
+
+/**
+ * O céu é espalhamento atmosférico de verdade (modelo de Preetham, o `Sky`
+ * do three): o azul, o alaranjado do horizonte e o brilho em volta do sol
+ * saem da física, não de um degradê pintado. O mesmo céu vira a luz
+ * ambiente (ver `Ambiente` em Floor13.tsx).
+ */
+export function novoCeu(): Sky {
+    const ceu = new Sky();
+    ceu.scale.setScalar(450);
+    const u = ceu.material.uniforms;
+    u.turbidity.value = 5.5; u.rayleigh.value = 1.6; u.mieCoefficient.value = .006; u.mieDirectionalG.value = .86;
+    u.sunPosition.value.copy(DIRECAO_DO_SOL);
+    return ceu;
+}
 const Ceu: React.FC = () => {
-    const mat = useMemo(() => new THREE.ShaderMaterial({
-        side: THREE.BackSide, depthWrite: false, fog: false,
-        uniforms: { alto: { value: new THREE.Color(P13.ceuAlto) }, baixo: { value: new THREE.Color(P13.ceuBaixo) } },
-        vertexShader: 'varying vec3 v; void main(){ v = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-        fragmentShader: 'uniform vec3 alto; uniform vec3 baixo; varying vec3 v; void main(){ float k = smoothstep(-.15, .55, v.y); gl_FragColor = vec4(mix(baixo, alto, k), 1.); }',
-    }), []);
-    return <>
-        <mesh material={mat} renderOrder={-10}><sphereGeometry args={[400, 32, 16]} /></mesh>
-        {/* o sol baixo da tarde: disco quente com halo (o disco claro sozinho lia como lua) */}
-        <group position={[-120, 60, -220]}>
-            <mesh><sphereGeometry args={[10, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(1.5)} toneMapped={false} fog={false} /></mesh>
-            <sprite scale={90}><spriteMaterial map={texturaDeHalo()} color="#ffb878" transparent depthWrite={false} fog={false} blending={THREE.AdditiveBlending} /></sprite>
-        </group>
-    </>;
+    const ceu = useMemo(() => novoCeu(), []);
+    return <primitive object={ceu} />;
 };
 
 /** Halo radial que some suave até a borda (a esfera translúcida tinha borda dura). */
@@ -124,7 +133,8 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
     const topo = useMemo(() => {
         const g = new THREE.CylinderGeometry(r, r * .97, .36, 48, 1, false).toNonIndexed();
         const p = g.getAttribute('position'), cor = new Float32Array(p.count * 3);
-        const a = new THREE.Color(P13.grama), b = new THREE.Color(P13.gramaEsc), terra = new THREE.Color('#9a8052'), c = new THREE.Color();
+        // multiplicam a textura de grama: tons perto do branco
+        const a = new THREE.Color('#9fd060'), b = new THREE.Color('#6f9a40'), terra = new THREE.Color('#c8b088'), c = new THREE.Color();
         for (let k = 0; k < p.count; k++) {
             const x = p.getX(k), z = p.getZ(k);
             const n = ruido(x * .7 + i, 0, z * .7) * .5 + .5;
@@ -138,11 +148,11 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         return g;
     }, [r, i]);
     return <group position={[x, y, z]}>
-        <mesh position={[0, -.18, 0]} receiveShadow geometry={topo}><meshStandardMaterial vertexColors roughness={.95} /></mesh>
+        <mesh position={[0, -.18, 0]} receiveShadow geometry={topo}><meshStandardMaterial vertexColors {...pbr('grama', Math.round(r / 1.6))} normalScale={new THREE.Vector2(.8, .8)} /></mesh>
         {/* a franja de grama que escorre pela borda */}
-        <mesh position={[0, -.42, 0]}><cylinderGeometry args={[r * 1.01, r * .99, .22, 40, 1, true]} /><meshStandardMaterial color={P13.gramaEsc} roughness={1} side={THREE.DoubleSide} /></mesh>
-        <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#6b5238" roughness={1} /></mesh>
-        <mesh geometry={rocha}><meshStandardMaterial vertexColors roughness={.9} flatShading /></mesh>
+        <mesh position={[0, -.42, 0]}><cylinderGeometry args={[r * 1.01, r * .99, .22, 40, 1, true]} /><meshStandardMaterial color={P13.gramaEsc} {...pbr('grama', 8, 1)} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#8a6a4a" {...pbr('rocha', 6, .5)} /></mesh>
+        <mesh geometry={rocha}><meshStandardMaterial vertexColors {...pbr('rocha', 3, 2)} /></mesh>
         {/* raízes e pedras soltas penduradas: o que diz "isto voa" */}
         {[0, 1, 2].map((k) => (
             <mesh key={k} position={[Math.cos(k * 2.1 + i) * r * .5, -r * 1.9 - k * .8, Math.sin(k * 2.1 + i) * r * .5]}>
@@ -167,7 +177,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
     return <group>
         {tabuas.map((p, i) => (
             <mesh key={i} position={p} rotation={[0, ang, (i % 3 - 1) * .02]}>
-                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial map={texturaDeMadeira()} color={i % 4 ? '#e0c8a8' : '#b89878'} roughness={.9} />
+                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial {...pbr('carvalho', .5, .25)} color={i % 4 ? '#ffffff' : '#d8c8b8'} />
             </mesh>
         ))}
         {[-1, 1].map((lado) => tabuas.filter((_, i) => i % 5 === 0).map((p, i) => (
@@ -311,7 +321,7 @@ export const CasaComprida: React.FC<{
     const parede = useMemo(() => new RoundedBoxGeometry(3.4, 1.9, 5.6, 2, .08), []);
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
     return <group scale={escala}>
-        <mesh geometry={parede} position={[0, .95, 0]} castShadow><meshStandardMaterial map={texturaDeMadeira()} color="#a07a58" roughness={.85} /></mesh>
+        <mesh geometry={parede} position={[0, .95, 0]} castShadow receiveShadow><meshStandardMaterial {...pbr('tabua', 2, 1)} color="#d8c0a8" /></mesh>
         {/* vigas verticais nas paredes */}
         {[-1, 1].map((lado) => [-2.2, -1.1, 0, 1.1, 2.2].map((z) => (
             <mesh key={`${lado}${z}`} position={[lado * 1.72, .95, z]}><boxGeometry args={[.1, 1.95, .16]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
@@ -319,7 +329,7 @@ export const CasaComprida: React.FC<{
         {/* telhado em A coberto de turfa */}
         {[-1, 1].map((lado) => (
             <mesh key={lado} position={[lado * .98, 2.55, 0]} rotation={[0, 0, -lado * .78]} castShadow scale={[1, 1 + musgo * .5, 1]}>
-                <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial map={texturaDeTelha()} roughness={1} />
+                <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial {...pbr('musgo', 1.5, 3)} color="#e0f0c8" />
             </mesh>
         ))}
         {/* as proas de dragão cruzadas na frente e atrás */}
@@ -556,41 +566,85 @@ const Passaros: React.FC = () => {
  */
 const tempoGrama = { value: 0 };
 const Grama: React.FC = () => {
-    const { geo, mat, n, mats } = useMemo(() => {
-        const g = new THREE.PlaneGeometry(.06, .34, 1, 3); g.translate(0, .17, 0);
-        const m = new THREE.MeshStandardMaterial({ color: '#7fae52', side: THREE.DoubleSide, roughness: .9 });
+    // campo de lâminas: cada lâmina é uma fita afinada e curvada (5 gomos),
+    // instanciada às dezenas de milhares. A cor vai da raiz sombria à ponta
+    // dourada, cada touceira puxa um verde diferente, e o vento chega em
+    // rajadas que atravessam a ilha — não um balanço uniforme.
+    const { geo, mat, n, mats, tons } = useMemo(() => {
+        const G = 5, A = .5, L = .065;
+        const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+        for (let i = 0; i <= G; i++) {
+            const t = i / G, w = L * (1 - t * t * .92), curva = t * t * .18;
+            pos.push(-w / 2, t * A, curva, w / 2, t * A, curva);
+            uvs.push(0, t, 1, t);
+            if (i < G) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: .7, color: '#ffffff' });
         m.onBeforeCompile = (sh) => {
             sh.uniforms.uT = tempoGrama;
-            sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+            sh.vertexShader = 'uniform float uT;\nattribute vec3 aTom;\nvarying vec3 vTom;\nvarying float vAlt;\n' + sh.vertexShader
+                .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = normalize(vec3(0., 1., .6));')
+                .replace('#include <begin_vertex>', `#include <begin_vertex>
                 vec4 wp = instanceMatrix * vec4(0.,0.,0.,1.);
-                float k = position.y / .34;
-                transformed.x += sin(uT * 2.1 + wp.x * .7 + wp.z * .5) * .09 * k * k;
-                transformed.z += cos(uT * 1.7 + wp.z * .6) * .05 * k * k;
-                vRaiz = k;`).replace('void main() {', 'varying float vRaiz;\nvoid main() {');
-            sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying float vRaiz;\nvoid main() {')
-                .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= mix(.45, 1.15, vRaiz);');
+                float k = uv.y;
+                float rajada = sin(wp.x * .18 + uT * 1.3) * .5 + .5;
+                rajada = rajada * rajada;
+                float balanco = sin(uT * 2.6 + wp.x * 1.3 + wp.z * .9) * .08 + rajada * .32;
+                transformed.z += balanco * k * k;
+                transformed.y -= balanco * balanco * k * k * .35;
+                vTom = aTom; vAlt = k;`);
+            sh.fragmentShader = 'varying vec3 vTom;\nvarying float vAlt;\n' + sh.fragmentShader
+                .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize((viewMatrix * vec4(0., 1., .25, 0.)).xyz);')
+                .replace('#include <color_fragment>', `#include <color_fragment>
+                vec3 raiz = vec3(.07, .13, .04), meio = vTom, ponta = mix(vTom, vec3(.78, .8, .38), .3);
+                diffuseColor.rgb = vAlt < .5 ? mix(raiz, meio, smoothstep(0., .5, vAlt)) : mix(meio, ponta, smoothstep(.5, 1., vAlt));`)
+                // translucidez: a lâmina contra o sol brilha por dentro
+                .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+                totalEmissiveRadiance += vTom * .05 * vAlt;`);
         };
         let k = 23;
         const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
         const ms: THREE.Matrix4[] = [];
+        const cores: number[] = [];
         const o = new THREE.Object3D();
+        const c = new THREE.Color();
         for (const il of ILHAS) {
-            const qtd = Math.round(il.r * il.r * 9);
-            for (let i = 0; i < qtd; i++) {
+            // em touceiras: um centro sorteado e ~14 lâminas em volta dele
+            const touceiras = Math.round(il.r * il.r * 6.5);
+            for (let t = 0; t < touceiras; t++) {
                 const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * il.r * .97;
-                if (d < il.r * .3 && rnd() < .8) continue;
-                o.position.set(il.x + Math.cos(a) * d, il.y, il.z + Math.sin(a) * d);
-                o.rotation.set(0, rnd() * Math.PI, (rnd() - .5) * .3);
-                o.scale.set(1, .6 + rnd() * .9, 1);
-                o.updateMatrix(); ms.push(o.matrix.clone());
+                if (d < il.r * .26 && rnd() < .6) continue;
+                const cx = il.x + Math.cos(a) * d, cz = il.z + Math.sin(a) * d;
+                c.setHSL(.24 + (rnd() - .5) * .07, .55 + rnd() * .2, .17 + rnd() * .08);
+                const alta = .7 + rnd() * .8;
+                for (let l = 0; l < 11; l++) {
+                    const ra = rnd() * Math.PI * 2, rd = Math.sqrt(rnd()) * .35;
+                    const x = cx + Math.cos(ra) * rd, z = cz + Math.sin(ra) * rd;
+                    if (Math.hypot(x - il.x, z - il.z) > il.r * .985) continue;
+                    o.position.set(x, il.y, z);
+                    o.rotation.set((rnd() - .5) * .35, rnd() * Math.PI * 2, (rnd() - .5) * .35);
+                    const e = alta * (.6 + rnd() * .6);
+                    o.scale.set(1 + rnd() * .5, e, 1);
+                    o.updateMatrix(); ms.push(o.matrix.clone());
+                    cores.push(c.r * (.85 + rnd() * .3), c.g * (.85 + rnd() * .3), c.b);
+                }
             }
         }
-        return { geo: g, mat: m, n: ms.length, mats: ms };
+        return { geo: g, mat: m, n: ms.length, mats: ms, tons: new Float32Array(cores) };
     }, []);
     const ref = useRef<THREE.InstancedMesh>(null);
-    useEffect(() => { const m = ref.current; if (!m) return; mats.forEach((x, i) => m.setMatrixAt(i, x)); m.instanceMatrix.needsUpdate = true; }, [mats]);
+    useEffect(() => {
+        const m = ref.current; if (!m) return;
+        mats.forEach((x, i) => m.setMatrixAt(i, x)); m.instanceMatrix.needsUpdate = true;
+        m.geometry.setAttribute('aTom', new THREE.InstancedBufferAttribute(tons, 3));
+    }, [mats, tons]);
     useFrame(({ clock }) => { tempoGrama.value = clock.elapsedTime; });
-    return <instancedMesh ref={ref} args={[geo, mat, n]} frustumCulled={false} />;
+    return <instancedMesh ref={ref} args={[geo, mat, n]} frustumCulled={false} receiveShadow />;
 };
 /** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
 const Tochas: React.FC = () => {
