@@ -821,6 +821,10 @@ const Grama: React.FC = () => {
                     const x = cx + Math.cos(ra) * rd, z = cz + Math.sin(ra) * rd;
                     if (Math.hypot(x - il.x, z - il.z) > il.r * .985) continue;
                     if (distTrilha(x, z) < .75) continue;
+                    // nem dentro da casa nem na soleira: a lâmina atravessava o
+                    // vão da porta de latão aberta (entrava no elevador)
+                    if (LUGAR_DAS_CASAS.some((l) => Math.hypot(x - l.x, z - l.z) < 2.4
+                        || Math.hypot(x - l.x - Math.sin(l.angulo) * 3.1, z - l.z - Math.cos(l.angulo) * 3.1) < 1.5)) continue;
                     o.position.set(x, il.y, z);
                     o.rotation.set((rnd() - .5) * .35, rnd() * Math.PI * 2, (rnd() - .5) * .35);
                     const e = alta * (.6 + rnd() * .6);
