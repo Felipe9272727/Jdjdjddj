@@ -96,11 +96,13 @@ export const Floor13Vida: React.FC = () => {
     const estados = useMemo(() => [livre(), livre(), livre()], []);
     return <Suspense fallback={null}>
         {/* pega-pega: duas crianças no mesmo círculo, meia volta atrás uma da outra —
-            longe da Sigrun, do Halvard e da pedra rúnica (antes a roda passava por dentro da Sigrun) */}
-        <Viking ficha={crianca('#b0452a')} x={.5} y={0} z={2.5} ronda={2.4} rondaVel={1.3} estado={estados[0]} />
-        <Viking ficha={crianca('#2f5d62')} x={.5} y={0} z={2.5} ronda={2.4} rondaVel={1.3} rondaFase={2.2} estado={estados[1]} />
+            longe da Sigrun, do Halvard e da pedra rúnica (antes a roda passava por dentro da Sigrun),
+            e fora da linha do poço (de quem chega pela praça, a menina de vermelho
+            parecia em pé na borda dele) */}
+        <Viking ficha={crianca('#b0452a')} x={-3.2} y={0} z={5} ronda={1.6} rondaVel={1.3} estado={estados[0]} />
+        <Viking ficha={crianca('#2f5d62')} x={-3.2} y={0} z={5} ronda={1.6} rondaVel={1.3} rondaFase={2.2} estado={estados[1]} />
         <Viking ficha={crianca('#6f9a4a')} x={5.5} y={0} z={6.5} ronda={1.8} rondaVel={1.1} rondaFase={.7} estado={estados[2]} />
-        <Bicho url={husky} x={.5} z={2.5} raio={2.4} vel={3.4} fase={3.6} />
+        <Bicho url={husky} x={-3.2} z={5} raio={1.6} vel={3.4} fase={3.6} />
         <Bicho url={shiba} x={-21} z={9} parado="Idle_2_HeadLow" fase={2.4} />
         <Bicho url={shiba} x={-4} z={27} raio={1} vel={.7} />
         <Bicho url={husky} x={6} z={-18} parado="Eating" fase={-.8} />

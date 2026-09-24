@@ -64,7 +64,13 @@ class Junta {
         // repouso · (R⁻¹ · giro · R): o giro acontece em eixos do personagem
         this.osso.quaternion.copy(this.repouso).multiply(this.inv.clone().multiply(this.q).multiply(this.noModelo));
     }
+    /** Dobra no eixo x do PRÓPRIO osso (o dedo fecha para a palma). */
+    dobrar(a: number) {
+        this.q.setFromAxisAngle(_eixoX, a);
+        this.osso.quaternion.copy(this.repouso).multiply(this.q);
+    }
 }
+const _eixoX = new THREE.Vector3(1, 0, 0);
 
 type Juntas = Record<string, Junta>;
 const OSSOS = ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'neck_01', 'head',
@@ -120,7 +126,19 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             me.userData.semSombra = !me.castShadow;
             if (DETALHE.test(me.name)) detalhes.push(me);
             me.frustumCulled = false;
-            const mat = (me.material as THREE.MeshStandardMaterial).clone();
+            let mat = (me.material as THREE.MeshStandardMaterial).clone();
+            if (me.name.startsWith('corpo')) {
+                // pele: o difuso do MakeHuman sob o sol lia como gesso (mão e
+                // rosto chapados, quase brancos). Tom mais quente e fundo, e um
+                // brilho aveludado avermelhado na borda — o sangue sob a pele
+                const orig = mat;
+                mat = new THREE.MeshPhysicalMaterial({
+                    name: orig.name, map: orig.map, color: '#e4c3b0', roughness: .55, metalness: 0,
+                    sheen: .3, sheenColor: new THREE.Color('#c8604a'), sheenRoughness: .45,
+                    specularIntensity: .35, envMapIntensity: .6,
+                });
+                orig.dispose();
+            }
             me.material = mat;
             const n = mat.name;
             if (n === 'tunica') mat.color.copy(tunica).multiplyScalar(1.15);
@@ -185,7 +203,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         }
         // cinto e fivela são rígidos, presos ao osso da pelve, no tamanho
         // adulto: na criança boiavam em volta do pano. Ela anda sem cinto.
-        if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) me.visible = false; }
+        // (e sai da lista de miudezas: o recorte por distância a religava — o
+        // quadrado preto boiando no vestido)
+        if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) { me.visible = false; const i = detalhes.indexOf(me as THREE.Mesh); if (i >= 0) detalhes.splice(i, 1); } }
         if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes };
     }, [scene, ficha.tunica]);
@@ -280,7 +300,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const baixaE = -.74, baixaD = .74;
         // dedos dobrando para a palma (eixo x), não abrindo de lado: mão
         // relaxada em vez de garra
-        dedos.current.forEach((f, i) => { const c = (i % 3 === 0 ? .3 : .6) * (f.osso.name.endsWith('_l') ? -1 : 1); if (e.caido) f.girar(0); else f.girar(c, 0, 0); });
+        // no eixo do próprio osso: girando no eixo do personagem, com a mão
+        // pendendo de lado, o indicador abria para fora (mão em garra torta)
+        dedos.current.forEach((f) => { const n = f.osso.name; f.dobrar(e.caido ? .1 : n.includes('_01') ? .3 : n.includes('_02') ? .55 : .4); });
         // punho alinhado ao antebraço, palma virada para a coxa
         const maoSolta = () => { J.hand_l?.girar(0, .5, 0); J.hand_r?.girar(0, -.5, 0); };
         const respira = Math.sin(t * 1.7 + x);
