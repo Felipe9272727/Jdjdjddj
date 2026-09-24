@@ -190,6 +190,24 @@ export function texturaDeMadeira(): THREE.CanvasTexture {
     return texMadeira;
 }
 
+/** Telhas de turfa em escama: fileiras alternadas com borda escura. */
+let texTelha: THREE.CanvasTexture | null = null;
+function texturaDeTelha(): THREE.CanvasTexture {
+    if (texTelha) return texTelha;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#6d8a3e'; g.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 9; x++) {
+        const cx = x * 16 + (y % 2 ? 8 : 0), cy = y * 16 + 12;
+        g.fillStyle = `rgb(${90 + Math.random() * 30},${118 + Math.random() * 30},${50 + Math.random() * 20})`;
+        g.beginPath(); g.ellipse(cx, cy, 8, 9, 0, 0, Math.PI); g.fill();
+        g.strokeStyle = 'rgba(30,40,15,.6)'; g.lineWidth = 1.5; g.stroke();
+    }
+    texTelha = new THREE.CanvasTexture(c); texTelha.colorSpace = THREE.SRGBColorSpace;
+    texTelha.wrapS = texTelha.wrapT = THREE.RepeatWrapping; texTelha.repeat.set(2, 3);
+    return texTelha;
+}
+
 /** Textura com uma runa branca pintada em madeira escura. */
 function texturaRuna(runa: string): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -236,7 +254,7 @@ export const CasaComprida: React.FC<{
         {/* telhado em A coberto de turfa */}
         {[-1, 1].map((lado) => (
             <mesh key={lado} position={[lado * .98, 2.55, 0]} rotation={[0, 0, -lado * .78]} castShadow scale={[1, 1 + musgo * .5, 1]}>
-                <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial color={P13.turfa} roughness={1} />
+                <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial map={texturaDeTelha()} roughness={1} />
             </mesh>
         ))}
         {/* as proas de dragão cruzadas na frente e atrás */}
@@ -257,6 +275,7 @@ export const CasaComprida: React.FC<{
                     <meshStandardMaterial color={P13.latao} metalness={1} roughness={.3} emissive="#b8782a" emissiveIntensity={.35} />
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
+            {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
             {latao && <mesh position={[0, 0, -.045]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
@@ -476,7 +495,10 @@ const Grama: React.FC = () => {
                 vec4 wp = instanceMatrix * vec4(0.,0.,0.,1.);
                 float k = position.y / .34;
                 transformed.x += sin(uT * 2.1 + wp.x * .7 + wp.z * .5) * .09 * k * k;
-                transformed.z += cos(uT * 1.7 + wp.z * .6) * .05 * k * k;`);
+                transformed.z += cos(uT * 1.7 + wp.z * .6) * .05 * k * k;
+                vRaiz = k;`).replace('void main() {', 'varying float vRaiz;\nvoid main() {');
+            sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying float vRaiz;\nvoid main() {')
+                .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= mix(.45, 1.15, vRaiz);');
         };
         let k = 23;
         const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };

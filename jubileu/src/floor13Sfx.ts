@@ -116,7 +116,7 @@ const TOM_DA_VOZ: Record<string, number> = {
 };
 export function tocarFala(quem: string): void {
     const c = ctx, d = saida(); if (!c || !d) return;
-    const f0 = TOM_DA_VOZ[quem.replace(/[█ ]/g, '')] ?? 240;
+    const f0 = TOM_DA_VOZ[quem.replace(/[█▚▞ ]/g, '')] ?? 240;
     // um balbucio de 4-6 sílabas: dente-de-serra na altura da voz passando por
     // dois filtros de formante que trocam de vogal a cada sílaba
     const VOGAIS = [[730, 1090], [270, 2290], [300, 870], [530, 1840], [570, 840]];

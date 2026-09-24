@@ -147,6 +147,12 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         for (const a of [refs.armL, refs.armR]) if (a.current) a.current.rotation.x = t > 7.4 ? -2.6 + Math.sin(t * 12) * .3 : -1.15;
 
         // fumaça saindo do motor depois do primeiro engasgo
+        if (t > 10.5 && t > proximoPuff.current) {
+            // os destroços continuam fumegando
+            proximoPuff.current = t + .18;
+            const livre = puffs.current.find((p) => p.t > 1.6) ?? puffs.current[0];
+            livre.p.set(-1.6 + Math.random() * .4, 1.6, 33.2); livre.t = 0;
+        }
         if (t > 2.6 && t < 10.4 && t > proximoPuff.current) {
             proximoPuff.current = t + (t > 5 ? .06 : .14);
             const livre = puffs.current.find((p) => p.t > 1.6) ?? puffs.current[0];
@@ -442,6 +448,10 @@ const Vivo: React.FC<{
             sinoRef.current.rotation.x = Math.sin(clock.elapsedTime * 5.5) * .5 * balanco.current;
         }
         // a porta de latão se abre ao meio, como a de um elevador
+        if (portaCerta.current && abrindo) {
+            const luz = portaCerta.current.getObjectByName('luzDeDentro') as THREE.PointLight | undefined;
+            if (luz) luz.intensity = Math.min(6, luz.intensity + dt * 3);
+        }
         if (portaCerta.current && abrindo) portaCerta.current.children.forEach((c) => {
             if (c.name !== 'folha') return;
             const alvo = (c.userData.lado as number) * .78;
@@ -475,7 +485,7 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
             feito.current = 10;
         }
     });
-    return <directionalLight ref={luz} intensity={2.4} color="#fff0d2" castShadow
+    return <directionalLight ref={luz} intensity={2.8} color="#ffd9a0" castShadow
         shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-.0004}
         shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
         shadow-camera-near={1} shadow-camera-far={120} />;
@@ -748,11 +758,11 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.25]} shadows
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.Fog('#e9d2b0', 70, 330); }}>
-                <hemisphereLight args={['#dfe9f5', '#6b5a44', 1.1]} />
+                <hemisphereLight args={['#dfe9f5', '#6b5a44', .7]} />
                 {/* contraluz fria: separa as silhuetas do chão verde */}
-                <directionalLight position={[40, 18, 70]} intensity={.9} color="#a9c8ff" />
+                <directionalLight position={[40, 18, 70]} intensity={.5} color="#a9c8ff" />
                 <Sol jog={jog} />
-                <directionalLight position={[40, 20, 60]} intensity={.6} color="#9ec3ff" />
+                <directionalLight position={[40, 20, 60]} intensity={.3} color="#9ec3ff" />
                 <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -773,7 +783,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.6} luminanceThreshold={1} />
+                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={.9} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
@@ -816,7 +826,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !jaAndou && <div style={{ ...t13, fontFamily: 'Georgia, serif', letterSpacing: .5, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !jaAndou && !alvo && <div style={{ ...t13, fontFamily: 'Georgia, serif', letterSpacing: .5, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, opacity: .9, pointerEvents: 'none' }}>
                 ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 

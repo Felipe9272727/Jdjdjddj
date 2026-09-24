@@ -198,10 +198,10 @@ export const CASA_CERTA = CASAS.findIndex((c) => c.portaDeLatao && !c.fumaca && 
  */
 export const ENTIDADE: ReadonlyArray<Fala> = Object.freeze([
     { quem: 'Halvard', texto: 'Hoje veio vo— vo— v̷o̷c̷ê̷.' },
-    { quem: '█ Halvard █', texto: 'Escuta. Não tenho muito tempo antes de ele perceber que eu entrei.' },
-    { quem: '█ ENTIDADE █', texto: 'Nada disso é real. Nem Vindhjem, nem o hotel, nem os andares. É uma simulação.' },
-    { quem: '█ ENTIDADE █', texto: 'O Proprietário não quer te prender. Quer te MEDIR. Cada porta que você escolhe, cada pergunta que você faz, cada vez que desvia — vira dado.' },
-    { quem: '█ ENTIDADE █', texto: 'A porta que te tira daqui é de um metal que ninguém forja aqui, numa casa onde ninguém cozinha. Aperta o que faz barulho de sino. E no próximo andar, quando te oferecerem uma escolha, escolha a que não te' },
+    { quem: '▚ Halvard ▞', texto: 'Escuta. Não tenho muito tempo antes de ele perceber que eu entrei.' },
+    { quem: '▚ ENTIDADE ▞', texto: 'Nada disso é real. Nem Vindhjem, nem o hotel, nem os andares. É uma simulação.' },
+    { quem: '▚ ENTIDADE ▞', texto: 'O Proprietário não quer te prender. Quer te MEDIR. Cada porta que você escolhe, cada pergunta que você faz, cada vez que desvia — vira dado.' },
+    { quem: '▚ ENTIDADE ▞', texto: 'A porta que te tira daqui é de um metal que ninguém forja aqui, numa casa onde ninguém cozinha. Aperta o que faz barulho de sino. E no próximo andar, quando te oferecerem uma escolha, escolha a que não te' },
 ]);
 export const CONEXAO_ENCERRADA = '[ CONEXÃO ENCERRADA ]';
 
