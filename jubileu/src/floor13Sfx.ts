@@ -21,7 +21,7 @@ export function configureFloor13Sfx(context: AudioContext | null, destination?: 
         dest = comp;
     }
 }
-export function clearFloor13Sfx(): void { pararVento(); ctx = null; dest = null; }
+export function clearFloor13Sfx(): void { pararVento(); pararAmbiente(); ctx = null; dest = null; }
 
 function ruido(): AudioBuffer | null {
     if (!ctx) return null;
@@ -105,3 +105,36 @@ export function tocarGlitch(): void {
     tom('square', 80, 1600, .4, .06); tom('square', 1600, 60, .5, .05, .35);
 }
 export function tocarDesconexao(): void { tom('sine', 1000, 1000, .9, .08); sopro(.4, .3, 6000, .9, 'highpass'); }
+
+/**
+ * O leito musical de Vindhjem: um bordão grave em quinta (como um tagelharpa
+ * soprado pelo vento) com filtro respirando, e de tempos em tempos uma trompa
+ * distante e o ranger das cordas das pontes.
+ */
+let leito: { oscs: OscillatorNode[]; g: GainNode; id: number } | null = null;
+export function tocarAmbiente(): void {
+    const c = ctx, d = saida(); if (!c || !d || leito) return;
+    const g = c.createGain(); g.gain.value = .0001;
+    g.gain.exponentialRampToValueAtTime(.035, c.currentTime + 4);
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
+    const lfo = c.createOscillator(); lfo.frequency.value = .07;
+    const lg = c.createGain(); lg.gain.value = 250; lfo.connect(lg); lg.connect(f.frequency);
+    const oscs = [73.4, 110, 146.8].map((fr, i) => {
+        const o = c.createOscillator(); o.type = i === 2 ? 'triangle' : 'sawtooth'; o.frequency.value = fr;
+        o.detune.value = (i - 1) * 6; o.connect(f); o.start(); return o;
+    });
+    f.connect(g); g.connect(d); lfo.start(); oscs.push(lfo);
+    const id = window.setInterval(() => {
+        if (Math.random() < .5) { tom('sawtooth', 146.8, 146.8, 2.4, .025); tom('sawtooth', 220, 220, 2.2, .015, .1); }
+        else for (let i = 0; i < 3; i++) sopro(.25, .05, 700, i * .3, 'bandpass');
+    }, 9000);
+    leito = { oscs, g, id };
+}
+export function pararAmbiente(): void {
+    if (!leito || !ctx) { leito = null; return; }
+    const { oscs, g, id } = leito; leito = null;
+    window.clearInterval(id);
+    g.gain.setValueAtTime(Math.max(.0001, g.gain.value), ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + 1);
+    oscs.forEach((o) => o.stop(ctx!.currentTime + 1.1));
+}

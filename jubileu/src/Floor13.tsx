@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
@@ -30,7 +30,7 @@ import {
 } from './f13Mundo';
 import {
     tocarVento, pararVento, tocarMotorTossindo, tocarMotorMorrendo, tocarQueda, tocarSino, tocarDingDaCasa,
-    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao,
+    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao, tocarAmbiente, pararAmbiente,
 } from './floor13Sfx';
 
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
@@ -153,18 +153,24 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         const orbita = Math.min(t, 3.6) * .1;
         const atras = tmp.tan.clone().multiplyScalar(-7 * rr).addScaledVector(tmp.lado, 3 * rr + Math.sin(orbita) * 4).add(new THREE.Vector3(0, 2 * rr, 0));
         const deLado = tmp.lado.clone().multiplyScalar(8.5 * rr).addScaledVector(tmp.tan, 1).add(new THREE.Vector3(0, .8, 0));
-        const revela = tmp.tan.clone().multiplyScalar(-22).add(new THREE.Vector3(0, 12, 0));
+        // perto o bastante para o avião continuar sendo o assunto do plano
+        const revela = tmp.tan.clone().multiplyScalar(-13 * rr).add(new THREE.Vector3(0, 6.5 * rr, 0));
         tmp.cam.copy(atras).lerp(deLado, k1).lerp(revela, k2).add(pos);
         // o baque, visto de fora: a câmera ESCORREGA para a pose de pouso
         // (antes era um salto no 10,2 e lia como corte seco)
-        tmp.cam.lerp(new THREE.Vector3(5, 5, 42), THREE.MathUtils.smoothstep(t, 9.4, 10.6));
+        tmp.cam.lerp(new THREE.Vector3(5, 5, 42), THREE.MathUtils.smoothstep(t, 9.4, 10.3));
+        // o baque: um soco de câmera para dentro do feno
+        tmp.cam.lerp(new THREE.Vector3(1.5, 2.6, 37.5), THREE.MathUtils.smoothstep(t, 10.3, 10.7));
+        // o motor morrendo e o baque tremem o quadro
+        const tranco = Math.max(0, 1 - Math.abs(t - 5.05) / .18) + Math.max(0, 1 - Math.abs(t - 10.45) / .3) * 1.6;
+        tmp.cam.x += Math.sin(t * 91) * tranco * .35; tmp.cam.y += Math.cos(t * 77) * tranco * .25;
         camera.position.lerp(tmp.cam, 1 - Math.exp(-dt * 3.2));
         // o olhar: o avião, e no mergulho metade do olhar vai para a cidade
-        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), Math.max(k2 * .8, THREE.MathUtils.smoothstep(t, 2, 4) * .25) * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
+        tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), Math.max(k2 * .5, THREE.MathUtils.smoothstep(t, 2, 4) * .25) * (1 - THREE.MathUtils.smoothstep(t, 9.6, 10.4)));
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov += ((t > 7.4 ? 64 : 52) - camera.fov) * Math.min(1, dt * 2);
+            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 14 * THREE.MathUtils.smoothstep(t, 10.3, 10.7);
             camera.updateProjectionMatrix();
         }
     });
@@ -257,6 +263,7 @@ const CameraDeExplorar: React.FC<{
 }> = ({ jog, yaw, ativo, foco }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
+    const empurra = useRef(0);
     useFrame((_, dt) => {
         if (!ativo) return;
         const j = jog.current;
@@ -276,10 +283,13 @@ const CameraDeExplorar: React.FC<{
             yaw.current += (quero - yaw.current) * Math.min(1, dt * 2.5);
         }
         alvo.current.lerp(quer, 1 - Math.exp(-dt * 6));
-        const k = entidadeNaCena.valor ? .6 : 1;
+        // na entidade, a câmera se aproxima devagar e entorta alguns graus
+        empurra.current = entidadeNaCena.valor ? Math.min(1, empurra.current + dt * .12) : 0;
+        const k = entidadeNaCena.valor ? .6 - empurra.current * .3 : 1;
         const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist * k, j.y + alto * k, j.z + Math.cos(yaw.current) * dist * k);
         camera.position.lerp(pos, 1 - Math.exp(-dt * 5));
         camera.lookAt(alvo.current);
+        if (entidadeNaCena.valor) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
         if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov += ((retrato ? 66 : 55) - camera.fov) * Math.min(1, dt * 3);
             camera.updateProjectionMatrix();
@@ -359,6 +369,36 @@ const Vivo: React.FC<{
     return null;
 };
 
+/**
+ * O sol que faz sombra. Um mapa de 1024 cobrindo só 36 unidades em volta do
+ * jogador, que anda junto com ele: sombra nítida onde se olha, custo fixo.
+ */
+const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
+    const luz = useRef<THREE.DirectionalLight>(null);
+    const scene = useThree((s) => s.scene);
+    const feito = useRef(0);
+    useFrame((_, dt) => {
+        const l = luz.current; if (!l) return;
+        const j = jog.current;
+        l.position.set(j.x - 30, j.y + 40, j.z - 20);
+        l.target.position.set(j.x, j.y, j.z); l.target.updateMatrixWorld();
+        // uma vez, depois que tudo montou: todo mundo projeta e recebe sombra
+        feito.current += dt;
+        if (feito.current > .5 && feito.current < 10) {
+            scene.traverse((o) => {
+                const m = o as THREE.Mesh;
+                if (!m.isMesh || 'isInstancedMesh' in m || m.material instanceof THREE.ShaderMaterial || m.material instanceof THREE.MeshBasicMaterial) return;
+                m.castShadow = true; m.receiveShadow = true;
+            });
+            feito.current = 10;
+        }
+    });
+    return <directionalLight ref={luz} intensity={2.4} color="#fff0d2" castShadow
+        shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-.0004}
+        shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
+        shadow-camera-near={1} shadow-camera-far={120} />;
+};
+
 // ═══ O ANDAR ═════════════════════════════════════════════════════════════════
 export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const est = useRef(novoEstado13());
@@ -410,13 +450,13 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (t > 5.0 && !marcos.morre) { marcos.morre = true; tocarMotorMorrendo(); }
             if (t > 10.4 && !marcos.baque) { marcos.baque = true; tocarQueda(); }
             setFlash(t > 10.4 ? Math.max(0, 1 - (t - 10.4) / 1.2) : 0);
-            if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); return; }
+            if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); tocarAmbiente(); return; }
             raf = requestAnimationFrame(passo);
         };
         raf = requestAnimationFrame(passo);
         const pular = () => { if (tQueda.current > .5 && tQueda.current < 10.3) tQueda.current = 10.3; };
         window.addEventListener('pointerdown', pular); window.addEventListener('keydown', pular);
-        return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); pararVento(); };
+        return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); pararVento(); pararAmbiente(); };
     }, []);
 
     // ── DIÁLOGO ──────────────────────────────────────────────────────────
@@ -579,11 +619,11 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.25]} shadows={false}
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.25]} shadows
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.Fog('#e9d2b0', 70, 330); }}>
                 <hemisphereLight args={['#dfe9f5', '#6b5a44', 1.1]} />
-                <directionalLight position={[-60, 80, -40]} intensity={2.4} color="#fff0d2" />
+                <Sol jog={jog} />
                 <directionalLight position={[40, 20, 60]} intensity={.6} color="#9ec3ff" />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -600,6 +640,11 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
                     <Bloom mipmapBlur intensity={.6} luminanceThreshold={.85} />
+                    {/* a entidade drena a cor do mundo e suja a imagem */}
+                    <HueSaturation saturation={glitch ? -.65 : 0} />
+                    <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
+                    <Noise opacity={glitch ? .18 : 0} />
+                    <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
                 </EffectComposer>
             </Canvas>
 
@@ -611,7 +656,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
 
             {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 12, background: 'rgba(20,14,10,.66)', border: '2px solid #b8893a', borderRadius: 10, padding: '6px 9px', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
+            {fase !== 'queda' && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, background: 'rgba(20,14,10,.66)', border: '2px solid #b8893a', borderRadius: 10, padding: '6px 9px', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#ffd07a', marginBottom: 3 }}>A CASA CERTA</div>
                 {(Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .45 }}>{e.pistas.has(p) ? '◆' : '◇'} {e.pistas.has(p) ? PISTAS[p].nome : '???'}</div>
@@ -636,7 +681,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !e.conversou.size && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 90px)', textAlign: 'center', fontSize: 12, opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !e.conversou.size && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 13, opacity: .9, pointerEvents: 'none' }}>
                 ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 

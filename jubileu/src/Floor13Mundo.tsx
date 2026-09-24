@@ -96,8 +96,28 @@ const Nuvens: React.FC = () => {
 /** Uma ilha: tampo de grama com borda de terra e a rocha pendurada. */
 const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: number }> = ({ x, y, z, r, i }) => {
     const rocha = useMemo(() => geoRocha(r, i * 3.1), [r, i]);
+    // tampo com manchas: grama clara e escura misturadas por ruído, e terra
+    // batida no miolo (onde se anda mais)
+    const topo = useMemo(() => {
+        const g = new THREE.CylinderGeometry(r, r * .97, .36, 48, 1, false).toNonIndexed();
+        const p = g.getAttribute('position'), cor = new Float32Array(p.count * 3);
+        const a = new THREE.Color(P13.grama), b = new THREE.Color(P13.gramaEsc), terra = new THREE.Color('#9a8052'), c = new THREE.Color();
+        for (let k = 0; k < p.count; k++) {
+            const x = p.getX(k), z = p.getZ(k);
+            const n = ruido(x * .7 + i, 0, z * .7) * .5 + .5;
+            c.copy(a).lerp(b, n);
+            const d = Math.hypot(x, z) / r;
+            if (d < .35) c.lerp(terra, (1 - d / .35) * .45);
+            cor.set([c.r, c.g, c.b], k * 3);
+        }
+        g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+        g.computeVertexNormals();
+        return g;
+    }, [r, i]);
     return <group position={[x, y, z]}>
-        <mesh position={[0, -.18, 0]} receiveShadow><cylinderGeometry args={[r, r * .97, .36, 40]} /><meshStandardMaterial color={P13.grama} roughness={.95} /></mesh>
+        <mesh position={[0, -.18, 0]} receiveShadow geometry={topo}><meshStandardMaterial vertexColors roughness={.95} /></mesh>
+        {/* a franja de grama que escorre pela borda */}
+        <mesh position={[0, -.42, 0]}><cylinderGeometry args={[r * 1.01, r * .99, .22, 40, 1, true]} /><meshStandardMaterial color={P13.gramaEsc} roughness={1} side={THREE.DoubleSide} /></mesh>
         <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#6b5238" roughness={1} /></mesh>
         <mesh geometry={rocha}><meshStandardMaterial color={P13.pedra} roughness={.9} flatShading /></mesh>
         {/* raízes e pedras soltas penduradas: o que diz "isto voa" */}
