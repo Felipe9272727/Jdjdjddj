@@ -135,8 +135,20 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
     const tmp = useMemo(() => ({ tan: new THREE.Vector3(), lado: new THREE.Vector3(), cam: new THREE.Vector3(), olho: new THREE.Vector3(), alvo: new THREE.Vector3() }), []);
     const olhar = useRef(new THREE.Vector3(0, 0, 0));
 
+    const chamuscado = useRef(false);
     useFrame((_, dt) => {
         const t = tRef.current;
+        // no impacto o casco apaga: sem o brilho de fábrica, com a tinta
+        // escurecida — destroço, não vitrine (o bloom estourava as asas)
+        if (t >= 10.45 && !chamuscado.current && aviao.current) {
+            chamuscado.current = true;
+            aviao.current.traverse((o) => {
+                const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+                if (!m || !('emissive' in m) || !(o as THREE.Mesh).isMesh) return;
+                const c = m.clone(); c.emissiveIntensity = 0; c.color.multiplyScalar(.62); c.roughness = Math.max(c.roughness, .8);
+                (o as THREE.Mesh).material = c;
+            });
+        }
         const u = progressoDaQueda(t);
         const pos = CAMINHO.getPointAt(u);
         CAMINHO.getTangentAt(Math.min(.999, u), tmp.tan);

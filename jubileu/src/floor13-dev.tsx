@@ -45,7 +45,7 @@ export const Floor13Dev: React.FC = () => {
                 border: '4px solid #11131a', borderRadius: 16, padding: '18px 34px',
                 boxShadow: '0 6px 0 #11131a', cursor: 'pointer',
             }}>
-                ANDAR 13 — VINDHJEM ⛵
+                ANDAR 13 — VINDHJEM
             </button>
         </div>
     );
