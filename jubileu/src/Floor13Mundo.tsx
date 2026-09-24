@@ -9,6 +9,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useGLTF } from '@react-three/drei';
+import casaGlb from './assets/f13/casa.glb';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import nuvensAtlas from './assets/f13/nuvens.webp';
@@ -335,11 +337,19 @@ function texturaDeCabine(): THREE.CanvasTexture {
 
 /** Textura com uma runa branca pintada em madeira escura. */
 function texturaRuna(runa: string): THREE.CanvasTexture {
-    const c = document.createElement('canvas'); c.width = c.height = 64;
+    // placa de carvalho com veio, borda chanfrada e a runa entalhada (sulco
+    // escuro com a luz pegando na aresta de cima), pintada de ocre gasto
+    const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#3f2a1a'; g.fillRect(0, 0, 64, 64);
-    g.fillStyle = '#efe3c8'; g.font = 'bold 44px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(runa, 32, 34);
+    const fundo = g.createLinearGradient(0, 0, 128, 128); fundo.addColorStop(0, '#6e4a2c'); fundo.addColorStop(1, '#4e331d');
+    g.fillStyle = fundo; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(30,18,8,${.08 + Math.random() * .12})`; g.lineWidth = 1 + Math.random(); g.beginPath(); const y = Math.random() * 128; g.moveTo(0, y); g.bezierCurveTo(40, y + 6, 80, y - 6, 128, y + Math.random() * 4); g.stroke(); }
+    g.strokeStyle = 'rgba(20,12,6,.7)'; g.lineWidth = 8; g.strokeRect(4, 4, 120, 120);
+    g.strokeStyle = 'rgba(200,160,110,.25)'; g.lineWidth = 2; g.strokeRect(9, 9, 110, 110);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 84px serif';
+    g.fillStyle = 'rgba(240,210,160,.35)'; g.fillText(runa, 64, 66);
+    g.fillStyle = '#2a170a'; g.fillText(runa, 64, 69);
+    g.fillStyle = 'rgba(190,120,50,.55)'; g.fillText(runa, 64, 69);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
@@ -363,31 +373,21 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
 };
 
 /** Casa comprida viking. A porta olha para +z local. */
-export const CasaComprida: React.FC<{
+const CasaCompridaModelo: React.FC<{
     runa?: string; latao?: boolean; fumaca?: boolean; botao?: boolean; escala?: number;
     portaRef?: React.Ref<THREE.Group>;
 }> = ({ runa, latao = false, fumaca = true, botao = false, escala = 1, portaRef }) => {
-    const musgo = runa ? (runa.charCodeAt(0) % 5) / 5 : 0;
-    const parede = useMemo(() => new RoundedBoxGeometry(3.4, 1.9, 5.6, 2, .08), []);
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
+    // a casca (paredes de tábuas, vigas, telhado de turfa, empenas com
+    // dragões, batente entalhado) é o modelo do Blender: tools/blender/f13_casa.py
+    const { scene } = useGLTF(casaGlb);
+    const casca = useMemo(() => {
+        const c = scene.clone();
+        c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+        return c;
+    }, [scene]);
     return <group scale={escala}>
-        <mesh geometry={parede} position={[0, .95, 0]} castShadow receiveShadow><meshStandardMaterial {...pbr('tabua', 2, 1)} color="#d8c0a8" /></mesh>
-        {/* vigas verticais nas paredes */}
-        {[-1, 1].map((lado) => [-2.2, -1.1, 0, 1.1, 2.2].map((z) => (
-            <mesh key={`${lado}${z}`} position={[lado * 1.72, .95, z]}><boxGeometry args={[.1, 1.95, .16]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
-        )))}
-        {/* telhado em A coberto de turfa */}
-        {[-1, 1].map((lado) => (
-            <mesh key={lado} position={[lado * .98, 2.55, 0]} rotation={[0, 0, -lado * .78]} castShadow scale={[1, 1 + musgo * .5, 1]}>
-                <boxGeometry args={[2.75, .2, 6.2]} /><meshStandardMaterial {...pbr('musgo', 1.5, 3)} color="#e0f0c8" />
-            </mesh>
-        ))}
-        {/* as proas de dragão cruzadas na frente e atrás */}
-        {[-1, 1].map((f) => [-1, 1].map((lado) => (
-            <mesh key={`${f}${lado}`} position={[lado * .35, 3.55, f * 3.05]} rotation={[f * .35, 0, lado * .55]}>
-                <coneGeometry args={[.1, 1.3, 6]} /><meshStandardMaterial color={P13.madeiraEsc} />
-            </mesh>
-        )))}
+        <primitive object={casca} />
         {/* chaminé */}
         <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
         {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
@@ -415,10 +415,10 @@ export const CasaComprida: React.FC<{
         {botao && <mesh position={[.85, 1.05, 2.84]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[.07, .07, .05, 14]} /><meshStandardMaterial color="#ffd79a" emissive="#ffb347" emissiveIntensity={1.4} />
         </mesh>}
-        {tex && <mesh position={[0, 1.95, 2.84]}><planeGeometry args={[.55, .55]} /><meshStandardMaterial map={tex} /></mesh>}
+        {tex && <mesh position={[0, 2.35, 2.88]}><planeGeometry args={[.5, .5]} /><meshStandardMaterial map={tex} /></mesh>}
         {/* escudos pendurados na lateral */}
         {[-1.6, 0, 1.6].map((z, i) => (
-            <mesh key={z} position={[1.8, 1.1, z]} rotation={[0, Math.PI / 2, 0]}>
+            <mesh key={z} position={[1.98, 1.1, z]} rotation={[0, Math.PI / 2, 0]}>
                 <cylinderGeometry args={[.38, .38, .06, 16]} /><meshStandardMaterial color={P13.escudo[i % 4]} />
             </mesh>
         ))}
@@ -426,6 +426,10 @@ export const CasaComprida: React.FC<{
 };
 
 /** Barco viking que navega o céu. A proa aponta para +z local. */
+/** A casa só aparece quando o modelo carrega (sem travar o resto da cena). */
+export const CasaComprida: React.FC<React.ComponentProps<typeof CasaCompridaModelo>> = (p) =>
+    <React.Suspense fallback={null}><CasaCompridaModelo {...p} /></React.Suspense>;
+
 /**
  * Casco de drakkar: seções em U ao longo do comprimento, afinando para as
  * pontas e subindo nelas (a linha de borda curva dos barcos vikings), com
@@ -768,8 +772,8 @@ const Grama: React.FC = () => {
 /** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
 const Tochas: React.FC = () => {
     const lugares = useMemo(() => [
-        [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [2.6, 3, -12.8], [-2.6, 3, -12.8],
-        [-15, 1, 6.5], [16, 2, 5], [0, 3, -18],
+        [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [3.6, 3, -12.3], [-3.6, 3, -12.3],
+        [-15, 1, 6.5], [16, 2, 5], [-5, 3, -30],
     ] as const, []);
     const luzes = useRef<(THREE.PointLight | null)[]>([]);
     const chamas = useRef<(THREE.Mesh | null)[]>([]);

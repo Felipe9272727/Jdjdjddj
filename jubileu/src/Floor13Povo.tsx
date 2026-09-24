@@ -164,7 +164,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // o rig do MakeHuman repousa com o cotovelo dobrado ~0,65 rad: os
         // números de antebraço abaixo contam a partir do braço reto
         const j = (n: string, ax: number, ay = 0, az = 0) => J[n]?.girar(n.startsWith('lowerarm') ? ax + .65 : ax, ay, az);
-        if (marcaRef.current) { marcaRef.current.position.y = 2.45 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5; }
+        if (marcaRef.current) {
+            // a marca é para achar quem tem conversa de longe; de perto some
+            const d = g.position.distanceTo(camera.position);
+            marcaRef.current.visible = d > 5;
+            marcaRef.current.scale.setScalar(Math.min(1, .5 + d / 30));
+            marcaRef.current.position.y = 2.45 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5;
+        }
         if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 1.6 + Math.sin(t * 9) * .7 : 0;
         if (olhos) {
             olhos.emissive.setRGB(e.possessao > 0 ? .3 : 0, e.possessao > 0 ? 2.6 : 0, e.possessao > 0 ? 1 : 0);
@@ -302,7 +308,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     return <group ref={raiz}>
         <primitive object={modelo} />
         {marca && !controle && <group ref={marcaRef} position={[0, 2.45, 0]}>
-            <mesh><octahedronGeometry args={[.13, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
+            <mesh><octahedronGeometry args={[.09, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
         </group>}
         {!controle && <mesh position={[0, .02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.45, 20]} /></mesh>}
         <pointLight ref={luzVerde} position={[0, 1.75, .9]} color="#3dff8a" intensity={0} distance={3.5} />
