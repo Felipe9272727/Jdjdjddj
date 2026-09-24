@@ -19,7 +19,7 @@ export const P13 = Object.freeze({
     ceuAlto: '#5f97d1', ceuBaixo: '#f3d6ae', sol: '#fff1c9',
     grama: '#6f9a4a', gramaEsc: '#4f7a36', pedra: '#7b7064', pedraEsc: '#4a4038',
     madeira: '#6b4a2e', madeiraEsc: '#3f2a1a', tabua: '#8a6440', corda: '#c9b186',
-    telhado: '#5b3b25', turfa: '#6d8a3e', latao: '#e0b155', carvalho: '#5a3a22',
+    telhado: '#5b3b25', turfa: '#6d8a3e', latao: '#e0b155', carvalho: '#3f2616',
     vela1: '#b33a2e', vela2: '#efe3c8', escudo: ['#b33a2e', '#2f5d62', '#c9a13a', '#efe3c8'],
 });
 
@@ -280,16 +280,26 @@ export const CasaComprida: React.FC<{
         {/* chaminé */}
         <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
         {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
+        {/* chaminé fria: fuligem azulada e pingentes de gelo — lê de longe pelo contraste */}
+        {!fumaca && <group position={[.9, 3.6, -1.2]}>
+            <mesh><boxGeometry args={[.5, .08, .5]} /><meshStandardMaterial color="#b8d4e8" roughness={.3} /></mesh>
+            {[-.18, 0, .18].map((x, i) => <mesh key={i} position={[x, -.14 - (i % 2) * .05, .25]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.035, .22 + (i % 2) * .1, 6]} /><meshStandardMaterial color="#dff0ff" roughness={.1} transparent opacity={.85} /></mesh>)}
+        </group>}
         {/* a porta */}
         <group ref={portaRef} position={[0, .8, 2.82]}>
             {latao
                 // latão em duas folhas, como porta de elevador (a casa certa as abre)
                 ? [-1, 1].map((l) => <mesh key={l} name="folha" userData={{ lado: l }} position={[l * .2625, 0, 0]}>
                     <boxGeometry args={[.52, 1.6, .1]} />
-                    <meshStandardMaterial color={P13.latao} metalness={1} roughness={.35} roughnessMap={texturaEscovada()} />
+                    <meshPhysicalMaterial color={P13.latao} metalness={1} roughness={.35} roughnessMap={texturaEscovada()} clearcoat={.8} clearcoatRoughness={.15} envMapIntensity={1.6} />
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
             {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
+            {/* o cone de luz que sai pelo vão (só visível com a porta aberta) */}
+            {latao && !fumaca && botao && <mesh name="cone" position={[0, -.1, .9]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, .01, 1]}>
+                <coneGeometry args={[.9, 1.8, 24, 1, true]} />
+                <meshBasicMaterial color="#ffe2a8" transparent opacity={.18} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>}
             {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial color={new THREE.Color('#ffe2a8').multiplyScalar(2.2)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>

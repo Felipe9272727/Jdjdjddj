@@ -441,6 +441,7 @@ const Vivo: React.FC<{
     portaCerta: React.RefObject<THREE.Group | null>; abrindo: boolean;
 }> = ({ jog, npcVis, sinoRef, balanco, portaCerta, abrindo }) => {
     const p = useMemo(() => new THREE.Vector3(), []);
+    const tempoPorta = useRef(0);
     useFrame(({ clock }, dt) => {
         const j = jog.current;
         p.set(j.x, j.y, j.z);
@@ -456,11 +457,16 @@ const Vivo: React.FC<{
         if (portaCerta.current && abrindo) {
             const luz = portaCerta.current.getObjectByName('luzDeDentro') as THREE.PointLight | undefined;
             if (luz) luz.intensity = Math.min(6, luz.intensity + dt * 3);
+            const cone = portaCerta.current.getObjectByName('cone') as THREE.Mesh | undefined;
+            if (cone) cone.scale.y = Math.min(1, cone.scale.y + dt * .8);
         }
         if (portaCerta.current && abrindo) portaCerta.current.children.forEach((c) => {
             if (c.name !== 'folha') return;
+            // 0,4 s com a porta fechada (o ding), depois as folhas abrem em ~1,2 s
+            tempoPorta.current += dt / 2;   // (o forEach roda duas folhas por quadro)
+            if (tempoPorta.current < .4) return;
             const alvo = (c.userData.lado as number) * .78;
-            c.position.x += (alvo - c.position.x) * Math.min(1, dt * 1.6);
+            c.position.x += (alvo - c.position.x) * Math.min(1, dt * 2.4);
         });
     });
     return null;
@@ -796,7 +802,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={.9} />
+                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={1.05} luminanceSmoothing={.2} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
@@ -839,7 +845,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !jaAndou && !alvo && <div style={{ ...t13, fontFamily: 'Georgia, serif', letterSpacing: .5, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !jaAndou && !alvo && <div style={{ fontFamily: 'Georgia, serif', color: '#2a1d14', letterSpacing: .5, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap', opacity: .9, pointerEvents: 'none' }}>
                 ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 
