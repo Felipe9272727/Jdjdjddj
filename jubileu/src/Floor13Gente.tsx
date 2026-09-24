@@ -44,7 +44,28 @@ export const Viking: React.FC<{
         chifre: new THREE.MeshStandardMaterial({ color: '#efe3c8', roughness: .6 }),
         cinto: new THREE.MeshStandardMaterial({ color: '#2a1d14' }),
         olho: new THREE.MeshBasicMaterial({ color: '#1b1210', toneMapped: false }),
+        esclera: new THREE.MeshStandardMaterial({ color: '#f1ebe0', roughness: .4 }),
+        boca: new THREE.MeshStandardMaterial({ color: '#5a2320', roughness: .6 }),
+        faixa: new THREE.MeshStandardMaterial({ color: '#8a7a5c', roughness: 1 }),
+        couro: new THREE.MeshStandardMaterial({ color: '#4a2f1d', roughness: .55 }),
+        fivela: new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: .9, roughness: .3 }),
+        pelica: new THREE.MeshStandardMaterial({ color: '#8f7a62', roughness: 1, flatShading: true }),
+        capa: new THREE.MeshStandardMaterial({ color: new THREE.Color(ficha.tunica).multiplyScalar(.6), roughness: .9, side: THREE.DoubleSide }),
+        cabelo: new THREE.MeshStandardMaterial({ color: ficha.id === 'eira' ? '#d9a44a' : ficha.id === 'ragnhild' ? '#b0452a' : '#c9a36a', roughness: .8 }),
     }), [ficha]);
+    const G = useMemo(() => {
+        const tronco = new THREE.CylinderGeometry(.24, .34, .78, 20, 3);
+        const manto = new THREE.TorusGeometry(.26, .09, 8, 22); manto.rotateX(Math.PI / 2); manto.scale(1.1, 1, .85);
+        return {
+            tronco, manto,
+            coxa: new THREE.CapsuleGeometry(.1, .22, 4, 10),
+            canela: new THREE.CapsuleGeometry(.085, .2, 4, 10),
+            bota: (() => { const g = new THREE.CapsuleGeometry(.09, .14, 4, 10); g.rotateX(Math.PI / 2); return g; })(),
+            braco: new THREE.CapsuleGeometry(.085, .3, 4, 10),
+        };
+    }, []);
+    const boca = useRef<THREE.Mesh>(null), sobrE = useRef<THREE.Mesh>(null), sobrD = useRef<THREE.Mesh>(null);
+    const capa = useRef<THREE.Group>(null), luzVerde = useRef<THREE.PointLight>(null);
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
     const giro = useRef(0);
@@ -53,6 +74,14 @@ export const Viking: React.FC<{
     useFrame(({ clock }, dt) => {
         const g = raiz.current; if (!g) return;
         const t = clock.elapsedTime, e = estado.current;
+        // ── O ROSTO E O MANTO ────────────────────────────────────────────
+        const falaAberta = e.falando ? Math.abs(Math.sin(t * 13)) * Math.abs(Math.sin(t * 5.3)) : 0;
+        if (boca.current) boca.current.scale.set(e.possessao > 0 ? 1.4 : 1, e.possessao > 0 ? 3.5 : 1 + falaAberta * 3.2, 1);
+        const sob = e.possessao > 0 ? -.03 : e.falando ? Math.sin(t * 3.1) * .015 + .01 : 0;
+        if (sobrE.current) { sobrE.current.position.y = .31 + sob; sobrE.current.rotation.z = e.possessao > 0 ? -.4 : .08; }
+        if (sobrD.current) { sobrD.current.position.y = .31 + sob; sobrD.current.rotation.z = e.possessao > 0 ? .4 : -.08; }
+        if (capa.current) capa.current.rotation.x = .12 + Math.sin(t * 1.6 + x) * .06;
+        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 3 + Math.sin(t * 30) * 1.5 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
         let px = x, pz = z, andando = false, direcao = giro.current;
@@ -117,40 +146,66 @@ export const Viking: React.FC<{
     });
 
     return <group ref={raiz} scale={escala}>
+        {/* a luz verde da entidade, só acesa na possessão */}
+        <pointLight ref={luzVerde} position={[0, 1.9, .6]} color="#3dff8a" intensity={0} distance={4} />
         <group ref={corpo}>
-            {[[-.17, pernaE], [.17, pernaD]].map(([dx, r]) => (
-                <group key={dx as number} ref={r as React.RefObject<THREE.Group>} position={[dx as number, .8, 0]}>
-                    <mesh position={[0, -.38, 0]} material={M.calca}><boxGeometry args={[.25, .75, .27]} /></mesh>
-                    <mesh position={[0, -.78, .06]} material={M.cinto}><boxGeometry args={[.27, .12, .38]} /></mesh>
+            {/* pernas: calça de lã enfaixada até o joelho e bota de couro */}
+            {[[-.15, pernaE], [.15, pernaD]].map(([dx, r]) => (
+                <group key={dx as number} ref={r as React.RefObject<THREE.Group>} position={[dx as number, .82, 0]}>
+                    <mesh position={[0, -.2, 0]} material={M.calca} geometry={G.coxa} />
+                    <mesh position={[0, -.52, 0]} material={M.faixa} geometry={G.canela} />
+                    <mesh position={[0, -.76, .05]} material={M.couro} geometry={G.bota} />
                 </group>
             ))}
-            <mesh position={[0, 1.15, 0]} material={M.tunica}><boxGeometry args={[.66, .75, .4]} /></mesh>
-            <mesh position={[0, .82, 0]} material={M.tunica}><boxGeometry args={[.74, .2, .44]} /></mesh>
-            <mesh position={[0, .98, 0]} material={M.cinto}><boxGeometry args={[.68, .08, .42]} /></mesh>
-            {[[-.43, bracoE], [.43, bracoD]].map(([dx, r]) => (
-                <group key={dx as number} ref={r as React.RefObject<THREE.Group>} position={[dx as number, 1.45, 0]}>
-                    <mesh position={[0, -.26, 0]} material={M.tunica}><boxGeometry args={[.2, .55, .22]} /></mesh>
-                    <mesh position={[0, -.58, 0]} material={M.pele}><boxGeometry args={[.17, .15, .19]} /></mesh>
+            {/* túnica que abre em saia, cinto com fivela, manto de pele nos ombros */}
+            <mesh position={[0, 1.1, 0]} material={M.tunica} geometry={G.tronco} />
+            <mesh position={[0, .98, 0]} material={M.cinto}><torusGeometry args={[.3, .045, 8, 28]} /></mesh>
+            <mesh position={[0, .98, .3]} material={M.fivela}><boxGeometry args={[.1, .08, .03]} /></mesh>
+            <mesh position={[0, 1.5, -.02]} material={M.pelica} geometry={G.manto} />
+            <group ref={capa} position={[0, 1.48, -.2]}>
+                <mesh position={[0, -.45, 0]} material={M.capa}><boxGeometry args={[.6, .95, .03]} /></mesh>
+            </group>
+            {/* braços com mão */}
+            {[[-.36, bracoE], [.36, bracoD]].map(([dx, r]) => (
+                <group key={dx as number} ref={r as React.RefObject<THREE.Group>} position={[dx as number, 1.42, 0]}>
+                    <mesh position={[0, -.24, 0]} material={M.tunica} geometry={G.braco} />
+                    <mesh position={[0, -.44, 0]} material={M.couro}><cylinderGeometry args={[.075, .07, .1, 12]} /></mesh>
+                    <mesh position={[0, -.54, 0]} material={M.pele}><sphereGeometry args={[.075, 12, 10]} /></mesh>
                 </group>
             ))}
-            <group ref={cabeca} position={[0, 1.55, 0]}>
-                <mesh position={[0, .27, 0]} material={M.pele}><boxGeometry args={[.52, .5, .48]} /></mesh>
-                <mesh position={[-.12, .3, .245]} material={M.olho}><boxGeometry args={[.07, .09, .01]} /></mesh>
-                <mesh position={[.12, .3, .245]} material={M.olho}><boxGeometry args={[.07, .09, .01]} /></mesh>
-                {ficha.barba && <mesh position={[0, .06, .22]} material={M.barba}><boxGeometry args={[.5, .38, .14]} /></mesh>}
-                {!ficha.barba && !crianca && <mesh position={[0, .35, -.2]} material={M.barba}><boxGeometry args={[.5, .6, .14]} /></mesh>}
-                {crianca && [-1, 1].map((l) => <mesh key={l} position={[l * .3, .25, -.05]} material={M.barba}><boxGeometry args={[.1, .45, .12]} /></mesh>)}
-                {!crianca && <>
-                    <mesh position={[0, .5, 0]} material={M.elmo}><sphereGeometry args={[.3, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
-                    <mesh position={[0, .52, 0]} material={M.cinto}><torusGeometry args={[.29, .03, 6, 20]} /></mesh>
-                    {ficha.id !== 'ragnhild' && ficha.id !== 'sigrun' && [-1, 1].map((l) => (
-                        <mesh key={l} position={[l * .3, .62, 0]} rotation={[0, 0, -l * .9]} material={M.chifre}><coneGeometry args={[.06, .32, 8]} /></mesh>
+            <group ref={cabeca} position={[0, 1.62, 0]}>
+                <mesh position={[0, .2, 0]} material={M.pele} scale={[1, 1.08, .95]}><sphereGeometry args={[.25, 24, 18]} /></mesh>
+                {/* nariz, olhos com esclera e pupila, sobrancelhas, boca */}
+                <mesh position={[0, .18, .24]} rotation={[Math.PI / 2 - .3, 0, 0]} material={M.pele}><coneGeometry args={[.045, .12, 10]} /></mesh>
+                {[-1, 1].map((l) => <group key={l} position={[l * .09, .25, .215]}>
+                    <mesh material={M.esclera} scale={[1, .8, .5]}><sphereGeometry args={[.038, 12, 10]} /></mesh>
+                    <mesh position={[0, 0, .017]} material={M.olho}><sphereGeometry args={[.02, 10, 8]} /></mesh>
+                </group>)}
+                <mesh ref={sobrE} position={[-.09, .31, .22]} material={M.barba}><boxGeometry args={[.09, .022, .03]} /></mesh>
+                <mesh ref={sobrD} position={[.09, .31, .22]} material={M.barba}><boxGeometry args={[.09, .022, .03]} /></mesh>
+                <mesh ref={boca} position={[0, .08, .225]} material={M.boca}><boxGeometry args={[.09, .025, .02]} /></mesh>
+                {/* barba cheia com duas tranças, ou cabelo trançado */}
+                {ficha.barba && <>
+                    <mesh position={[0, .02, .14]} material={M.barba} scale={[1, 1.1, .7]}><sphereGeometry args={[.19, 16, 12, 0, Math.PI * 2, Math.PI * .35, Math.PI * .65]} /></mesh>
+                    {[-1, 1].map((l) => <mesh key={l} position={[l * .06, -.14, .16]} material={M.barba}><cylinderGeometry args={[.03, .015, .22, 8]} /></mesh>)}
+                    {[-1, 1].map((l) => <mesh key={l} position={[l * .06, -.23, .16]} material={M.fivela}><torusGeometry args={[.02, .008, 6, 10]} /></mesh>)}
+                </>}
+                {!crianca && !ficha.barba && <>
+                    <mesh position={[0, .26, -.05]} material={M.cabelo} scale={[1.05, 1.08, 1]}><sphereGeometry args={[.26, 18, 14, 0, Math.PI * 2, 0, Math.PI * .6]} /></mesh>
+                    <mesh position={[0, -.05, -.2]} material={M.cabelo}><cylinderGeometry args={[.05, .025, .55, 8]} /></mesh>
+                </>}
+                {crianca && [-1, 1].map((l) => <mesh key={l} position={[l * .24, .12, -.02]} material={M.cabelo}><cylinderGeometry args={[.045, .025, .38, 8]} /></mesh>)}
+                {crianca && <mesh position={[0, .3, -.04]} material={M.cabelo} scale={[1.05, 1.05, 1.02]}><sphereGeometry args={[.26, 18, 14, 0, Math.PI * 2, 0, Math.PI * .55]} /></mesh>}
+                {/* elmo de ferro com protetor de nariz (e chifres só para os que gostam) */}
+                {!crianca && ficha.id !== 'ragnhild' && ficha.id !== 'sigrun' && <>
+                    <mesh position={[0, .3, 0]} material={M.elmo}><sphereGeometry args={[.27, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
+                    <mesh position={[0, .3, 0]} material={M.cinto}><torusGeometry args={[.27, .02, 6, 28]} /></mesh>
+                    <mesh position={[0, .23, .27]} material={M.elmo}><boxGeometry args={[.035, .16, .02]} /></mesh>
+                    {ficha.id !== 'halvard' && [-1, 1].map((l) => (
+                        <mesh key={l} position={[l * .28, .42, 0]} rotation={[0, 0, -l * 1.05]} material={M.chifre}><coneGeometry args={[.045, .26, 10]} /></mesh>
                     ))}
                 </>}
             </group>
-            {ficha.id === 'brokk' && <group position={[.43, .85, .15]}>
-                <mesh material={M.cinto}><boxGeometry args={[.06, .5, .06]} /></mesh>
-            </group>}
         </group>
     </group>;
 };

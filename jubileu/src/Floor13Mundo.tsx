@@ -144,7 +144,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
     return <group>
         {tabuas.map((p, i) => (
             <mesh key={i} position={p} rotation={[0, ang, (i % 3 - 1) * .02]}>
-                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial color={i % 4 ? P13.tabua : P13.madeira} roughness={.9} />
+                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial map={texturaDeMadeira()} color={i % 4 ? '#e0c8a8' : '#b89878'} roughness={.9} />
             </mesh>
         ))}
         {[-1, 1].map((lado) => tabuas.filter((_, i) => i % 5 === 0).map((p, i) => (
@@ -159,6 +159,26 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
         })}
     </group>;
 };
+
+/** Madeira: veios verticais escuros e nós, desenhados num canvas e repetidos. */
+let texMadeira: THREE.CanvasTexture | null = null;
+export function texturaDeMadeira(): THREE.CanvasTexture {
+    if (texMadeira) return texMadeira;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#8a6440'; g.fillRect(0, 0, 128, 256);
+    for (let x = 0; x < 128; x += 16) {
+        g.fillStyle = 'rgba(40,24,12,.55)'; g.fillRect(x, 0, 2, 256);
+        for (let k = 0; k < 40; k++) {
+            g.fillStyle = `rgba(${Math.random() > .5 ? '60,38,20' : '170,130,90'},${.08 + Math.random() * .12})`;
+            g.fillRect(x + 2 + Math.random() * 13, Math.random() * 256, 1, 20 + Math.random() * 60);
+        }
+        if (Math.random() > .4) { g.fillStyle = 'rgba(50,30,15,.5)'; g.beginPath(); g.ellipse(x + 8, Math.random() * 256, 3, 5, 0, 0, Math.PI * 2); g.fill(); }
+    }
+    texMadeira = new THREE.CanvasTexture(c);
+    texMadeira.colorSpace = THREE.SRGBColorSpace; texMadeira.wrapS = texMadeira.wrapT = THREE.RepeatWrapping; texMadeira.repeat.set(2, 1);
+    return texMadeira;
+}
 
 /** Textura com uma runa branca pintada em madeira escura. */
 function texturaRuna(runa: string): THREE.CanvasTexture {
@@ -197,7 +217,7 @@ export const CasaComprida: React.FC<{
     const parede = useMemo(() => new RoundedBoxGeometry(3.4, 1.9, 5.6, 2, .08), []);
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
     return <group scale={escala}>
-        <mesh geometry={parede} position={[0, .95, 0]} castShadow><meshStandardMaterial color={P13.madeira} roughness={.85} /></mesh>
+        <mesh geometry={parede} position={[0, .95, 0]} castShadow><meshStandardMaterial map={texturaDeMadeira()} color="#a07a58" roughness={.85} /></mesh>
         {/* vigas verticais nas paredes */}
         {[-1, 1].map((lado) => [-2.2, -1.1, 0, 1.1, 2.2].map((z) => (
             <mesh key={`${lado}${z}`} position={[lado * 1.72, .95, z]}><boxGeometry args={[.1, 1.95, .16]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>

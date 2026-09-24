@@ -81,6 +81,20 @@ function matFumaca(i: number): THREE.SpriteMaterial {
     return (matsFumaca[i] ??= new THREE.SpriteMaterial({ map: texFumaca, transparent: true, depthWrite: false }));
 }
 
+const matsPoeira: THREE.SpriteMaterial[] = [];
+let texPoeira: THREE.CanvasTexture | null = null;
+function matPoeira(i: number): THREE.SpriteMaterial {
+    if (!texPoeira) {
+        const c = document.createElement('canvas'); c.width = c.height = 64;
+        const g = c.getContext('2d')!;
+        const r = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+        r.addColorStop(0, 'rgba(236,214,160,1)'); r.addColorStop(.6, 'rgba(236,214,160,.4)'); r.addColorStop(1, 'rgba(236,214,160,0)');
+        g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+        texPoeira = new THREE.CanvasTexture(c);
+    }
+    return (matsPoeira[i] ??= new THREE.SpriteMaterial({ map: texPoeira, transparent: true, depthWrite: false }));
+}
+
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const aviao = useRef<THREE.Group>(null), balanco = useRef<THREE.Group>(null);
@@ -142,7 +156,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
                 const a = i / poeira.current!.children.length * Math.PI * 2;
                 c.position.set(-2 + Math.cos(a) * pq * 3, 1 + pq * (1 + (i % 3) * .4), 33 + Math.sin(a) * pq * 3);
                 c.scale.setScalar(.5 + pq * 1.2);
-                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .7 * Math.max(0, 1 - pq / 1.6);
+                (c as THREE.Sprite).material.opacity = .8 * Math.max(0, 1 - pq / 1.6);
             });
         }
 
@@ -190,7 +204,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             {puffs.current.map((_, i) => <sprite key={i} visible={false} material={matFumaca(i)} />)}
         </group>
         <group ref={poeira} visible={false}>
-            {Array.from({ length: 14 }, (_, i) => <mesh key={i}><sphereGeometry args={[.6, 8, 6]} /><meshBasicMaterial color="#e6d3a0" transparent depthWrite={false} /></mesh>)}
+            {Array.from({ length: 16 }, (_, i) => <sprite key={i} material={matPoeira(i)} />)}
         </group>
     </group>;
 };
@@ -272,8 +286,10 @@ const CameraDeExplorar: React.FC<{
         if (!ativo) return;
         const j = jog.current;
         const retrato = size.width < size.height;
-        const dist = retrato ? 10.5 : 8, alto = retrato ? 5.2 : 3.8;
-        const quer = new THREE.Vector3(j.x, j.y + 1.3, j.z);
+        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 4 : 3.1;
+        // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
+        const ombro = foco.current ? 0 : .9;
+        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro, j.y + 1.8, j.z - Math.sin(yaw.current) * ombro);
         // Numa conversa, o olhar vai para o meio entre o jogador e quem fala, e
         // a câmera dá a volta para o lado: por trás do jogador, quem fala
         // ficava escondido atrás dele.
@@ -290,7 +306,7 @@ const CameraDeExplorar: React.FC<{
         // na entidade, a câmera se aproxima devagar e entorta alguns graus
         empurra.current = entidadeNaCena.valor ? Math.min(1, empurra.current + dt * .12) : 0;
         const k = entidadeNaCena.valor ? .6 - empurra.current * .3 : 1;
-        const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist * k, j.y + alto * k, j.z + Math.cos(yaw.current) * dist * k);
+        const pos = new THREE.Vector3(j.x + Math.sin(yaw.current) * dist * k + Math.cos(yaw.current) * ombro, j.y + alto * k, j.z + Math.cos(yaw.current) * dist * k - Math.sin(yaw.current) * ombro);
         camera.position.lerp(pos, 1 - Math.exp(-dt * 5));
         camera.lookAt(alvo.current);
         if (entidadeNaCena.valor) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
@@ -454,7 +470,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (t > 2.6 && !marcos.tosse) { marcos.tosse = true; tocarMotorTossindo(); }
             if (t > 5.0 && !marcos.morre) { marcos.morre = true; tocarMotorMorrendo(); }
             if (t > 10.4 && !marcos.baque) { marcos.baque = true; tocarQueda(); }
-            setFlash(t > 10.4 ? Math.max(0, 1 - (t - 10.4) / 1.2) : 0);
+            setFlash(t > 10.4 ? Math.max(0, .75 - (t - 10.4) / .6) : 0);
             if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); tocarAmbiente(); return; }
             raf = requestAnimationFrame(passo);
         };
@@ -588,6 +604,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     acao.current = () => { if (fase === 'dialogo') avancar(); else agir(); };
 
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0 });
+    const [jaAndou, setJaAndou] = useState(false);
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
         if (fase !== 'explorar') return;
@@ -604,6 +621,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             const d = Math.hypot(dx, dy), R = 60;
             if (d > R) { dx = dx / d * R; dy = dy / d * R; }
             entrada.current = { x: dx / R, z: dy / R };
+            if (!jaAndou && d > 20) setJaAndou(true);
             setStick({ ox: t.ox, oy: t.oy, x: dx, y: dy });
         } else if (ev.pointerId === t.cam) {
             yaw.current -= (ev.clientX - t.cx) * .008; t.cx = ev.clientX;
@@ -686,7 +704,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !e.conversou.size && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 13, opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !jaAndou && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 13, opacity: .9, pointerEvents: 'none' }}>
                 ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 
@@ -694,15 +712,16 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {falas && <div onPointerDown={(ev) => { ev.stopPropagation(); avancar(); }}
                 style={{
                     position: 'absolute', left: 10, right: 10, bottom: 'calc(env(safe-area-inset-bottom) + 12px)', minHeight: 96,
-                    background: glitch ? 'rgba(4,14,8,.93)' : 'rgba(28,18,12,.92)', border: `3px solid ${glitch ? '#3dff8a' : '#b8893a'}`,
+                    background: glitch ? 'rgba(4,14,8,.93)' : 'linear-gradient(180deg,#efe0bf,#d9c399)', border: `3px solid ${glitch ? '#3dff8a' : '#6b4a2e'}`,
+                    boxShadow: glitch ? '0 0 18px rgba(61,255,138,.35)' : '0 6px 18px rgba(0,0,0,.45), inset 0 0 24px rgba(107,74,46,.35)',
                     borderRadius: 12, padding: '10px 14px', cursor: 'pointer',
                     animation: glitch ? 'f13treme .18s steps(2) infinite' : undefined,
                 }}>
-                <div style={{ ...t13, fontSize: 13, color: glitch ? '#3dff8a' : '#ffd07a', marginBottom: 4 }}>{falas[linha].quem}</div>
-                <div style={{ fontFamily: glitch ? 'monospace' : 'Georgia, serif', fontSize: 16, lineHeight: 1.35, color: glitch ? '#b8ffd2' : '#f3e7c8' }}>
+                <div style={glitch ? { ...t13, fontSize: 13, color: '#3dff8a', marginBottom: 4 } : { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 15, color: '#7a2f1f', letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase' }}>ᚱ {falas[linha].quem}</div>
+                <div style={{ fontFamily: glitch ? 'monospace' : 'Georgia, serif', fontSize: 17, lineHeight: 1.4, color: glitch ? '#b8ffd2' : '#2a1d14' }}>
                     {falas[linha].texto.slice(0, digitado)}{glitch && linha === falas.length - 1 && digitado >= falas[linha].texto.length ? '█' : ''}
                 </div>
-                {!(glitch && linha === falas.length - 1) && <div style={{ ...t13, position: 'absolute', right: 12, bottom: 8, fontSize: 12 }}>▶</div>}
+                {!(glitch && linha === falas.length - 1) && <div style={{ position: 'absolute', right: 12, bottom: 8, fontSize: 14, color: glitch ? '#3dff8a' : '#6b4a2e' }}>▶</div>}
             </div>}
             {glitch && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'screen', opacity: .5,
                 background: 'repeating-linear-gradient(0deg, rgba(61,255,138,.10) 0 2px, transparent 2px 4px)', animation: 'f13treme .3s steps(3) infinite' }}>
