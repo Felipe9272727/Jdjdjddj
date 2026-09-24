@@ -471,7 +471,9 @@ const CameraDaLuta: React.FC<{
             // Em paisagem, +0,9: com a câmera um pouco mais recuada o avião tem
             // folga embaixo, e é isso que tira a copa do quepe de baixo da barra.
             THREE.MathUtils.lerp(dentroY, n.y * 0.35 + meioY() * 0.35 + BOCA_ALVO.y * 0.3 + 2
-                + (aspectoDaTela > 1.3 ? .9 : 0), suave),
+                // em pé, -1,3: a cabeça sobe para o terço de cima e o avião ganha
+                // céu para ler o que vem, em vez de nuvem vazia embaixo dele
+                + (aspectoDaTela > 1.3 ? .9 : aspectoDaTela < .8 ? -1.3 : 0), suave),
             THREE.MathUtils.lerp(-6, -11, suave),
         );
 
