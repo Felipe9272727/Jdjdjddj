@@ -96,7 +96,12 @@ export function tocarMotorTossindo(): void {
     }
 }
 export function tocarMotorMorrendo(): void { tom('sawtooth', 120, 30, 1.8, .1); sopro(1.5, .08, 500); }
-export function tocarQueda(): void { tom('sine', 90, 30, .9, .5); sopro(.9, .4, 1400); sopro(1.6, .15, 400, .2); }
+export function tocarQueda(): void {
+    // baque grave + estalo de madeira + o feno assentando
+    tom('sine', 90, 28, 1.1, .55, 0, .6); tom('triangle', 60, 30, .6, .3);
+    sopro(.12, .5, 5000, 0, 'highpass'); sopro(.25, .3, 2200, .03, 'bandpass');
+    sopro(1.8, .12, 700, .25); sopro(1.2, .08, 3200, .4, 'bandpass');
+}
 export function tocarSino(): void {
     // sino de bronze: parciais inarmônicas com decaimento longo e muita sala
     for (const [f, v] of [[196, .12], [392, .2], [470, .06], [784, .08], [1175, .045], [1560, .02]] as const) tom('sine', f, f * .998, 4.5, v, 0, .9);
@@ -110,8 +115,27 @@ const TOM_DA_VOZ: Record<string, number> = {
     Ragnhild: 330, Ulfgar: 150, Eira: 560, Brokk: 120, Sigrun: 300, Torvald: 170, Astrid: 280, Halvard: 190,
 };
 export function tocarFala(quem: string): void {
-    const f = TOM_DA_VOZ[quem] ?? 240;
-    tom('square', f, f * 1.12, .07, .035, 0, .3); tom('square', f * 1.2, f, .08, .03, .09, .3);
+    const c = ctx, d = saida(); if (!c || !d) return;
+    const f0 = TOM_DA_VOZ[quem.replace(/[█ ]/g, '')] ?? 240;
+    // um balbucio de 4-6 sílabas: dente-de-serra na altura da voz passando por
+    // dois filtros de formante que trocam de vogal a cada sílaba
+    const VOGAIS = [[730, 1090], [270, 2290], [300, 870], [530, 1840], [570, 840]];
+    const n = 4 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+        const t = c.currentTime + i * .085, dur = .075;
+        const o = c.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f0 * (1 + (Math.random() - .5) * .12), t);
+        const [f1, f2] = VOGAIS[Math.floor(Math.random() * VOGAIS.length)];
+        const g = c.createGain();
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.05, t + .015); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+        for (const [ff, q] of [[f1, 8], [f2, 10]]) {
+            const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = q;
+            o.connect(bp); bp.connect(g);
+        }
+        g.connect(d);
+        if (eco) { const r = c.createGain(); r.gain.value = .25; g.connect(r); r.connect(eco); }
+        o.start(t); o.stop(t + dur + .03);
+    }
 }
 
 /** A entidade: chiado digital e um tom que quebra. */

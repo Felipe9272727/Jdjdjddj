@@ -32,7 +32,9 @@ export const Viking: React.FC<{
     tique?: boolean;
     /** Se dado, é o JOGADOR: posição, direção e passo vêm daqui. */
     controle?: React.MutableRefObject<{ x: number; y: number; z: number; ang: number; andando: number; levantando: number }>;
-}> = ({ ficha, x, y, z, ronda, estado, tique, controle }) => {
+    /** Marca flutuante: '!' tem pista, '?' tem conversa/busca. */
+    marca?: string | null;
+}> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca }) => {
     const raiz = useRef<THREE.Group>(null), corpo = useRef<THREE.Group>(null);
     const bracoE = useRef<THREE.Group>(null), bracoD = useRef<THREE.Group>(null);
     const pernaE = useRef<THREE.Group>(null), pernaD = useRef<THREE.Group>(null);
@@ -68,6 +70,7 @@ export const Viking: React.FC<{
     }, []);
     const boca = useRef<THREE.Mesh>(null), sobrE = useRef<THREE.Mesh>(null), sobrD = useRef<THREE.Mesh>(null);
     const olhos = useRef<(THREE.Group | null)[]>([]);
+    const marcaRef = useRef<THREE.Group>(null);
     const capa = useRef<THREE.Group>(null), luzVerde = useRef<THREE.PointLight>(null);
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
@@ -88,6 +91,7 @@ export const Viking: React.FC<{
         // piscar: a cada ~4 s, um décimo de segundo
         const pisca = ((t + x * 1.7) % 4.2) < .12 ? .1 : 1;
         olhos.current.forEach((o) => { if (o) o.scale.y = pisca; });
+        if (marcaRef.current) { marcaRef.current.position.y = 2.75 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5; }
         if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? .8 + Math.sin(t * 30) * .3 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
@@ -166,6 +170,9 @@ export const Viking: React.FC<{
     });
 
     return <group ref={raiz} scale={escala}>
+        {marca && !controle && <group ref={marcaRef} position={[0, 2.75, 0]}>
+            <mesh><octahedronGeometry args={[.16, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
+        </group>}
         {/* a luz verde da entidade, só acesa na possessão */}
         <pointLight ref={luzVerde} position={[0, 1.9, 1.2]} color="#3dff8a" intensity={0} distance={4} />
         <group ref={corpo}>
@@ -193,13 +200,13 @@ export const Viking: React.FC<{
                     <mesh position={[0, -.54, 0]} material={M.pele}><sphereGeometry args={[.075, 12, 10]} /></mesh>
                 </group>
             ))}
-            <group ref={cabeca} position={[0, 1.62, 0]}>
+            <group ref={cabeca} position={[0, 1.62, 0]} scale={1.28}>
                 <mesh position={[0, .2, 0]} material={M.pele} scale={[1, 1.08, .95]}><sphereGeometry args={[.25, 24, 18]} /></mesh>
                 {/* nariz, olhos com esclera e pupila, sobrancelhas, boca */}
                 <mesh position={[0, .18, .24]} rotation={[Math.PI / 2 - .3, 0, 0]} material={M.pele}><coneGeometry args={[.045, .12, 10]} /></mesh>
                 {[-1, 1].map((l) => <group key={l} ref={(o) => { olhos.current[l < 0 ? 0 : 1] = o; }} position={[l * .09, .25, .215]}>
-                    <mesh material={M.esclera} scale={[1, .8, .5]}><sphereGeometry args={[.038, 12, 10]} /></mesh>
-                    <mesh position={[0, 0, .017]} material={M.olho}><sphereGeometry args={[.02, 10, 8]} /></mesh>
+                    <mesh material={M.esclera} scale={[1, .85, .5]}><sphereGeometry args={[.05, 12, 10]} /></mesh>
+                    <mesh position={[0, 0, .022]} material={M.olho}><sphereGeometry args={[.027, 10, 8]} /></mesh>
                 </group>)}
                 <mesh ref={sobrE} position={[-.09, .31, .22]} material={M.barba}><boxGeometry args={[.09, .022, .03]} /></mesh>
                 <mesh ref={sobrD} position={[.09, .31, .22]} material={M.barba}><boxGeometry args={[.09, .022, .03]} /></mesh>

@@ -97,7 +97,7 @@ function matPoeira(i: number): THREE.SpriteMaterial {
     return (matsPoeira[i] ??= new THREE.SpriteMaterial({ map: texPoeira, transparent: true, depthWrite: false }));
 }
 
-const HEROI = new THREE.Vector3(6, 3.2, 40.5);
+const HEROI = new THREE.Vector3(7.5, 3.6, 42);
 const DESTROCOS = new THREE.Vector3(-2, 1.1, 33.2);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
@@ -126,7 +126,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             } else {
                 // os destroços: o avião fica de nariz enfiado no feno
                 g.position.set(-2.2, 1.35, 33.4);
-                g.rotation.set(-.55, 2.6, .35);
+                g.rotation.set(-.55, 1.9, .2);   // asa de frente para a lente, não de fio
             }
         }
         // o motor tossindo: tranco na rolagem; morto: a hélice para
@@ -188,7 +188,9 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         // Da perseguição a câmera desce, numa curva só (smootherstep de 1,6 s),
         // até um três-quartos baixo dos destroços no feno. Sem dois alvos
         // encadeados e sem troca de lente brusca: era isso que lia como salto.
-        const pouso = smoother((t - 9.2) / 1.6);
+        // persegue até o impacto; no baque segura parado 0,3 s; depois um
+        // empurrão lento de 1,5 s até o plano herói
+        const pouso = t < 10.45 ? smoother((t - 9.4) / 1.05) * .55 : .55 + .45 * smoother((t - 10.75) / 1.5);
         tmp.cam.lerp(HEROI, pouso);
         // o motor morrendo e o baque tremem o quadro
         const tranco = Math.max(0, 1 - Math.abs(t - 5.05) / .18) + Math.max(0, 1 - Math.abs(t - 10.45) / .3) * 1.6;
@@ -208,7 +210,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         }
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 12 * pouso;
+            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 12 * smoother((t - 10.75) / 1.5);
             camera.updateProjectionMatrix();
         }
     });
@@ -588,7 +590,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         if (!glitch || !falas || linha !== falas.length - 1) return;
         if (digitado < falas[linha].texto.length) return;
         const id = window.setTimeout(() => {
-            tocarDesconexao(); setConexao(true);
+            tocarDesconexao(); setConexao(true); pararAmbiente(); window.setTimeout(() => tocarAmbiente(), 4200);
             const h = npcVis.halvard.current;
             h.possessao = 0; h.caido = true;
             window.setTimeout(() => tocarCorpoCaindo(), 820);
@@ -712,7 +714,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
-                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)} />;
+                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
+                        marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} />;
                 })}
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
                 <Martelo visivel={!e.temMartelo} />
@@ -730,7 +733,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
-                    <Noise opacity={glitch ? .18 : 0} />
+                    <Noise opacity={glitch ? .06 : 0} />
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
                     <BrightnessContrast brightness={-.02} contrast={.12} />
                 </EffectComposer>
