@@ -42,8 +42,8 @@ const CORES = {
     // o irmão é o mesmo robô do andar 5 com a paleta azedada
     // Mais claro que antes: o cinza-azedo continua dizendo "o irmão mais
     // pobre", mas no valor antigo ele sumia contra as nuvens e lia como inimigo.
-    irmao: '#a3b1b8',
-    irmaoEsc: '#6c7a82',
+    irmao: '#8cc4b4',   // verde-água desbotado: da família do jogador, nunca cinza de destroço
+    irmaoEsc: '#3f6f68',
     irmaoLuz: '#3fe0c8',   // luz amiga: mesmo verde-água do jogador, nunca a cor de inimigo
 };
 
