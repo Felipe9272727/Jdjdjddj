@@ -893,14 +893,26 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 // centro da volta está o poço); ela para quando o hóspede chega
                 const o = npcOnde[inicio as IdNpc].current;
                 let dx = o.x - npc.x, dz = o.z - npc.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-                const px = o.x + dx * 2.6, pz = o.z + dz * 2.6;
-                let qx = px, qz = pz;
+                // o ponto de chegada gira em volta dela até achar um lugar com
+                // folga: a 1,2 m de uma barraca o olho ficava dentro do toldo
+                // (uma listra de lona enchia um terço da tela)
+                const a0 = Math.atan2(dx, dz);
+                let qx = o.x + dx * 2.6, qz = o.z + dz * 2.6;
+                for (let k = 0; k < 24; k++) {
+                    const a = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12;
+                    const cx = o.x + Math.sin(a) * 2.6, cz = o.z + Math.cos(a) * 2.6;
+                    const folga = OBSTACULOS.every((ob) => Math.hypot(cx - ob.x, cz - ob.z) >= ob.r + 1.4);
+                    if (folga && chaoEm(cx, cz) !== null && Math.hypot(cx - npc.x, cz - npc.z) >= npc.ronda + .8) { qx = cx; qz = cz; break; }
+                }
                 for (const ob of OBSTACULOS) {
                     const ddx = qx - ob.x, ddz = qz - ob.z, dd = Math.hypot(ddx, ddz), r = ob.r + .45;
                     if (dd < r && dd > 1e-4) { qx = ob.x + ddx / dd * r; qz = ob.z + ddz / dd * r; }
                 }
                 const yq = Math.atan2(-(o.x - qx), -(o.z - qz));
                 j.x = qx; j.z = qz; j.y = chaoEm(qx, qz) ?? 0; j.ang = yq + Math.PI; yaw.current = yq; j.levantando = 0;
+                // ela para já no próximo quadro (a quadro lento ela ainda corria um
+                // quarto da volta antes de notar o hóspede e saía do quadro)
+                npcVis[inicio as IdNpc].current.olharPara = new THREE.Vector3(qx, j.y, qz);
             } else if (npc) por(npc.x, npc.z);
         }, 400);
         return () => window.clearTimeout(id);
