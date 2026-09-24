@@ -62,10 +62,11 @@ const Ceu: React.FC = () => {
     }), []);
     return <>
         <mesh material={mat} renderOrder={-10}><sphereGeometry args={[400, 32, 16]} /></mesh>
-        <mesh position={[-120, 70, -220]}>
-            <sphereGeometry args={[12, 32, 16]} />
-            <meshBasicMaterial color={new THREE.Color(P13.sol).multiplyScalar(1.6)} toneMapped={false} fog={false} />
-        </mesh>
+        {/* o sol baixo da tarde: disco quente com halo (o disco claro sozinho lia como lua) */}
+        <group position={[-120, 60, -220]}>
+            <mesh><sphereGeometry args={[10, 32, 16]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(1.5)} toneMapped={false} fog={false} /></mesh>
+            <mesh scale={2.2}><sphereGeometry args={[10, 32, 16]} /><meshBasicMaterial color="#ffb070" transparent opacity={.22} fog={false} depthWrite={false} /></mesh>
+        </group>
     </>;
 };
 

@@ -104,6 +104,25 @@ const HEROI = new THREE.Vector3(6, 3.4, 41.5);
 const DESTROCOS = new THREE.Vector3(-.4, 1.4, 31.5);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
+/** Sulco de terra com borda esfumada e torrões: nada de retângulo chapado. */
+let texSulco: THREE.CanvasTexture | null = null;
+function texturaDoSulco(): THREE.CanvasTexture {
+    if (texSulco) return texSulco;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 192;
+    const g = c.getContext('2d')!;
+    const gr = g.createLinearGradient(0, 0, 64, 0);
+    gr.addColorStop(0, 'rgba(90,65,40,0)'); gr.addColorStop(.3, 'rgba(90,65,40,.9)'); gr.addColorStop(.5, 'rgba(60,42,26,1)');
+    gr.addColorStop(.7, 'rgba(90,65,40,.9)'); gr.addColorStop(1, 'rgba(90,65,40,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 192);
+    g.globalCompositeOperation = 'destination-in';
+    const gv = g.createLinearGradient(0, 0, 0, 192); gv.addColorStop(0, 'rgba(0,0,0,0)'); gv.addColorStop(.25, 'rgba(0,0,0,1)'); gv.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = gv; g.fillRect(0, 0, 64, 192);
+    g.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${70 + Math.random() * 40},${50 + Math.random() * 30},30,.9)`; g.beginPath(); g.arc(8 + Math.random() * 48, 40 + Math.random() * 150, 1 + Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+    texSulco = new THREE.CanvasTexture(c); texSulco.colorSpace = THREE.SRGBColorSpace;
+    return texSulco;
+}
+
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const aviao = useRef<THREE.Group>(null), balanco = useRef<THREE.Group>(null);
@@ -253,7 +272,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         </group>
         {/* o sulco que o avião abriu na grama */}
         <mesh ref={sulco} position={[.2, .03, 35.2]} rotation={[-Math.PI / 2, 0, .9]} visible={false}>
-            <planeGeometry args={[1.6, 5]} /><meshStandardMaterial color="#5a4128" roughness={1} transparent opacity={.85} />
+            <planeGeometry args={[1.6, 5]} /><meshStandardMaterial map={texturaDoSulco()} roughness={1} transparent depthWrite={false} />
         </mesh>
         <group ref={lascas} visible={false}>
             {Array.from({ length: 18 }, (_, i) => <mesh key={i}><boxGeometry args={[.08, .04, .35]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
@@ -829,7 +848,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             </Canvas>
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
-            {fase === 'queda' && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(0deg, rgba(8,16,22,.7), rgba(8,16,22,0))', pointerEvents: 'none' }}>
+            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(0deg, rgba(8,16,22,.7), rgba(8,16,22,0))', pointerEvents: 'none' }}>
                 {legenda}
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
@@ -838,7 +857,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* ── HUD: pistas e buscas ── */}
             {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
-                {(Object.keys(PISTAS) as Pista[]).map((p) => (
+                {e.pistas.size === 0 ? <div style={{ opacity: .7 }}>0/3 pistas — pergunte aos moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
                 ))}
                 {BUSCAS.some((b) => e.buscas[b.id] !== 'nova') && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '6px 0 2px' }}>ᛒ BUSCAS</div>}
