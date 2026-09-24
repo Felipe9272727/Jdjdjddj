@@ -80,9 +80,12 @@ interface Props {
     tique?: boolean;
     controle?: React.MutableRefObject<{ x: number; y: number; z: number; ang: number; andando: number; levantando: number }>;
     marca?: string | null;
+    /** Sentado (o piloto na cabine), numa escala própria. */
+    sentado?: boolean;
+    escalaExtra?: number;
 }
 
-const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca }) => {
+const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1 }) => {
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
@@ -147,12 +150,14 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const queda = useRef(0);
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const crianca = ficha.id === 'eira';
-    const escala = ESCALA * (crianca ? .95 : 1);
+    const escala = ESCALA * (crianca ? .95 : 1) * escalaExtra;
 
     useFrame(({ clock, camera }, dt) => {
         const g = raiz.current, J = juntas.current; if (!g || !J.pelvis) return;
         const t = clock.elapsedTime, e = estado.current, d = Math.min(dt, .05);
-        const j = (n: string, ax: number, ay = 0, az = 0) => J[n]?.girar(ax, ay, az);
+        // o rig do MakeHuman repousa com o cotovelo dobrado ~0,65 rad: os
+        // números de antebraço abaixo contam a partir do braço reto
+        const j = (n: string, ax: number, ay = 0, az = 0) => J[n]?.girar(n.startsWith('lowerarm') ? ax + .65 : ax, ay, az);
         if (marcaRef.current) { marcaRef.current.position.y = 2.45 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5; }
         if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 1.6 + Math.sin(t * 9) * .7 : 0;
         if (olhos) {
@@ -179,8 +184,18 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // braços caídos ao lado do corpo (o rig vem em pose de A), dedos
         // meio fechados: mão relaxada, não espalmada
         const baixaE = -.92, baixaD = .92;
-        dedos.current.forEach((f, i) => f.girar(0, 0, (i % 3 === 0 ? .25 : .45) * (f.osso.name.endsWith('_l') ? -1 : 1)));
+        dedos.current.forEach((f, i) => e.caido ? f.girar(0) : f.girar(0, 0, (i % 3 === 0 ? .25 : .45) * (f.osso.name.endsWith('_l') ? -1 : 1)));
         const respira = Math.sin(t * 1.7 + x);
+        if (sentado) {
+            // na cabine: coxas para a frente, canelas para baixo, mãos no manche
+            g.rotation.set(0, 0, 0); g.position.set(x, y, z);
+            j('pelvis', 0); j('spine_01', -.1); j('spine_02', .05); j('spine_03', .05, 0, respira * .01);
+            j('thigh_l', -1.45, 0, .08); j('thigh_r', -1.45, 0, -.08); j('calf_l', 1.35); j('calf_r', 1.35);
+            j('upperarm_l', -.7, 0, baixaE + .35); j('upperarm_r', -.7, 0, baixaD - .35);
+            j('lowerarm_l', -.9); j('lowerarm_r', -.9);
+            j('head', Math.sin(t * 7) * .04, Math.sin(t * 2.3) * .15);
+            return;
+        }
 
         if (e.caido) {
             // duro: rígido um instante, tomba de costas de uma vez e quica;
@@ -193,8 +208,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             g.rotation.z = .2 * baque;
             g.position.y = y + .12 * tomba + quica * .4;
             j('pelvis', 0); j('spine_01', 0); j('spine_02', 0); j('spine_03', 0); j('neck_01', 0); j('head', -.2 * baque, .3 * baque);
-            j('upperarm_l', -.2 * baque, 0, baixaE + .9 * baque); j('upperarm_r', .1 * baque, 0, baixaD - .6 * baque);
-            j('lowerarm_l', -.3 * baque); j('lowerarm_r', -.1);
+            // braços no chão, abertos com o baque — nada apontando para o céu
+            j('upperarm_l', 0, 0, baixaE + .35 * baque); j('upperarm_r', 0, 0, baixaD - .25 * baque);
+            j('lowerarm_l', .05); j('lowerarm_r', .05); j('hand_l', 0); j('hand_r', 0);
+            j('clavicle_l', 0); j('clavicle_r', 0); j('foot_l', .3); j('foot_r', .3);
             j('thigh_l', 0); j('thigh_r', -.4 * baque); j('calf_l', 0); j('calf_r', .8 * baque);
             return;
         }

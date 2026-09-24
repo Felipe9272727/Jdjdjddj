@@ -44,6 +44,7 @@ const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i'
 
 export const DURACAO_DA_QUEDA = 12.6;
 /** O hóspede, no mesmo desenho dos moradores: jaqueta azul, sem elmo. */
+const estadoDoPiloto = { current: { olharPara: null, falando: false, possessao: 0, caido: false } } as React.MutableRefObject<EstadoVisualNpc>;
 const HOSPEDE = { id: 'hospede', nome: 'Você', oficio: 'hóspede', tunica: '#3b6fb0', barba: null, primeira: [], depois: [] } as unknown as FichaNpc;
 /** Bancada: `?f13t=5` congela a queda nesse instante (só em DEV). */
 const tFixo: number | null = typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13t')
@@ -281,7 +282,8 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         <group ref={aviao}>
             <group ref={balanco} rotation={[0, Math.PI, 0]}>
                 <CascoDoElevador aberturaRef={abertura} heliceRef={helice} />
-                <group position={[0, -.44, .25]} scale={.46}><Avatar64 refs={refs} /></group>
+                {/* o piloto é o próprio hóspede, o mesmo modelo que se joga depois */}
+                <Viking ficha={HOSPEDE} x={0} y={-.62} z={.25} estado={estadoDoPiloto} sentado escalaExtra={.42} />
             </group>
         </group>
         <group ref={fumaca}>
@@ -547,6 +549,22 @@ const Vivo: React.FC<{
  * O sol que faz sombra. Um mapa de 2048 cobrindo só 36 unidades em volta do
  * jogador, que anda junto com ele: sombra nítida onde se olha, custo fixo.
  */
+/**
+ * Luz de preenchimento que sai da câmera: com o sol baixo atrás das ilhas,
+ * quem fala virava silhueta preta. Fraca e fria, sem sombra — só devolve
+ * o rosto e a roupa, como o rebatedor de um set.
+ */
+const LuzDaCamera: React.FC = () => {
+    const luz = useRef<THREE.DirectionalLight>(null);
+    useFrame(({ camera }) => {
+        const l = luz.current; if (!l) return;
+        l.position.copy(camera.position);
+        camera.getWorldDirection(l.target.position); l.target.position.multiplyScalar(10).add(camera.position);
+        l.target.updateMatrixWorld();
+    });
+    return <directionalLight ref={luz} intensity={.9} color="#d8e2ff" />;
+};
+
 const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     const scene = useThree((s) => s.scene);
@@ -849,6 +867,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
                 <Sol jog={jog} />
+                <LuzDaCamera />
                 <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {

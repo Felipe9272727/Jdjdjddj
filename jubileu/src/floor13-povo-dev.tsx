@@ -33,7 +33,7 @@ const Ceu: React.FC = () => { const c = useMemo(() => novoCeu(), []); return <pr
 
 const Camera: React.FC<{ alvoX: number }> = ({ alvoX }) => {
     useFrame(({ camera }) => {
-        if (PERTO) { camera.position.set(alvoX + .15, 1.85, 1.25 * LADO); camera.lookAt(alvoX, 1.78, 0); }
+        if (PERTO) { const d = POSE === 'caido'; camera.position.set(alvoX + .15, d ? 2.2 : 1.85, (d ? 1.4 : 1.25) * LADO); camera.lookAt(alvoX, d ? .1 : 1.78, d ? -1 : 0); }
         else { camera.position.set(0, 1.5, 11.5 * LADO); camera.lookAt(0, 1.05, 0); }
     });
     return null;
