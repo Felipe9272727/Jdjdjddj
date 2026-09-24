@@ -100,7 +100,7 @@ function matPoeira(i: number): THREE.SpriteMaterial {
 }
 
 // destroços no terço esquerdo, a cidade à direita
-const HEROI = new THREE.Vector3(5, 4.3, 41.5);
+const HEROI = new THREE.Vector3(3.2, 5.6, 42.5);
 const DESTROCOS = new THREE.Vector3(-1.6, 1.2, 31.5);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
