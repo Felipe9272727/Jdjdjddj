@@ -381,7 +381,7 @@ const CameraDeExplorar: React.FC<{
             empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
             // desliza até a moldura da porta (0,8 s) em vez de saltar para ela
             // 4 m, na altura do olho, levemente de baixo: o beiral sai do quadro
-            const quer = porta.clone().addScaledVector(frente, 4 - empurraPorta.current * 2).add(new THREE.Vector3(0, .25, 0));
+            const quer = porta.clone().addScaledVector(frente, 4 - empurraPorta.current * 2).add(new THREE.Vector3(0, .7, 0));
             camera.position.lerp(quer, 1 - Math.exp(-dt * 5));
             olharPorta.current.lerp(porta, 1 - Math.exp(-dt * 6));
             camera.lookAt(olharPorta.current);
@@ -491,8 +491,6 @@ const Vivo: React.FC<{
         if (portaCerta.current && abrindo) {
             const luz = portaCerta.current.getObjectByName('luzDeDentro') as THREE.PointLight | undefined;
             if (luz) luz.intensity = Math.min(6, luz.intensity + dt * 3);
-            const cone = portaCerta.current.getObjectByName('cone') as THREE.Mesh | undefined;
-            if (cone) cone.scale.y = Math.min(1, cone.scale.y + dt * .8);
         }
         if (portaCerta.current && abrindo) portaCerta.current.children.forEach((c) => {
             if (c.name !== 'folha') return;

@@ -225,7 +225,8 @@ function texturaEscovada(): THREE.CanvasTexture {
 
 /**
  * O que se vê pela porta certa: uma cabine de elevador em perspectiva —
- * paredes de latão convergindo para uma luz no fundo, e o piso xadrez.
+ * paredes de latão almofadadas convergindo para uma luz no fundo, painel de
+ * botões à direita e piso de tábuas escuras.
  */
 let texCabine: THREE.CanvasTexture | null = null;
 function texturaDeCabine(): THREE.CanvasTexture {
@@ -237,15 +238,23 @@ function texturaDeCabine(): THREE.CanvasTexture {
     g.fillStyle = lat(0); g.beginPath(); g.moveTo(0, 0); g.lineTo(fundo.x, fundo.y); g.lineTo(fundo.x, fundo.y + fundo.h); g.lineTo(0, 200); g.fill();
     g.fillStyle = lat(-30); g.beginPath(); g.moveTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(128, 200); g.fill();
     g.fillStyle = '#f1e2c2'; g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x, fundo.y); g.fill();
-    for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) {
-        g.fillStyle = (i + j) % 2 ? '#2a2020' : '#e9e1d2';
-        const t0 = i / 6, t1 = (i + 1) / 6;
-        const y0 = fundo.y + fundo.h + (200 - fundo.y - fundo.h) * t0, y1 = fundo.y + fundo.h + (200 - fundo.y - fundo.h) * t1;
-        const l0 = fundo.x * (1 - t0), r0 = 128 - (128 - fundo.x - fundo.w) * (1 - t0);
-        const l1 = fundo.x * (1 - t1), r1 = 128 - (128 - fundo.x - fundo.w) * (1 - t1);
-        const a0 = l0 + (r0 - l0) * j / 4, b0 = l0 + (r0 - l0) * (j + 1) / 4, a1 = l1 + (r1 - l1) * j / 4, b1 = l1 + (r1 - l1) * (j + 1) / 4;
-        g.beginPath(); g.moveTo(a0, y0); g.lineTo(b0, y0); g.lineTo(b1, y1); g.lineTo(a1, y1); g.fill();
-    }
+    // piso: tábuas escuras em perspectiva
+    g.fillStyle = '#3a2618'; g.beginPath(); g.moveTo(0, 200); g.lineTo(128, 200); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(fundo.x, fundo.y + fundo.h); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1;
+    for (let j = 1; j < 6; j++) { g.beginPath(); g.moveTo(128 * j / 6, 200); g.lineTo(fundo.x + fundo.w * j / 6, fundo.y + fundo.h); g.stroke(); }
+    // almofadas nas paredes: frisos verticais escuros e filete claro
+    const friso = (x0: number, lado: 1 | -1) => {
+        for (let k = 1; k < 4; k++) {
+            const t = k / 4, xa = x0 + (lado > 0 ? fundo.x : -(128 - fundo.x - fundo.w)) * t;
+            const ya = fundo.y * t, yb = 200 - (200 - fundo.y - fundo.h) * t;
+            g.strokeStyle = 'rgba(70,40,10,.6)'; g.beginPath(); g.moveTo(xa, ya); g.lineTo(xa, yb); g.stroke();
+            g.strokeStyle = 'rgba(255,235,170,.5)'; g.beginPath(); g.moveTo(xa + lado, ya); g.lineTo(xa + lado, yb); g.stroke();
+        }
+    };
+    friso(0, 1); friso(128, -1);
+    // painel de botões na parede direita
+    g.fillStyle = '#5a3a14'; g.fillRect(100, 88, 10, 34);
+    for (let k = 0; k < 4; k++) { g.fillStyle = k === 1 ? '#fff2b0' : '#e0b860'; g.beginPath(); g.arc(105, 93 + k * 8, 2.2, 0, 7); g.fill(); }
     const gr = g.createRadialGradient(64, 95, 4, 64, 95, 40); gr.addColorStop(0, '#fffbe8'); gr.addColorStop(1, '#ffd98a');
     g.fillStyle = gr; g.fillRect(fundo.x, fundo.y, fundo.w, fundo.h);
     texCabine = new THREE.CanvasTexture(c); texCabine.colorSpace = THREE.SRGBColorSpace;
@@ -325,11 +334,6 @@ export const CasaComprida: React.FC<{
                 </mesh>)
                 : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
             {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
-            {/* o cone de luz que sai pelo vão (só visível com a porta aberta) */}
-            {latao && !fumaca && botao && <mesh name="cone" position={[0, -.1, .9]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, .01, 1]}>
-                <coneGeometry args={[.9, 1.8, 24, 1, true]} />
-                <meshBasicMaterial color="#ffe2a8" transparent opacity={.18} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
-            </mesh>}
             {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.4)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
