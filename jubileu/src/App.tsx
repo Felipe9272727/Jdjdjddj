@@ -350,6 +350,8 @@ export default function App() {
   // the pending variant across the currentLevel render so the normal Floor 8
   // arrival effect does not immediately erase a direct YOURSELF jump.
   const floor8StartVariantRef = useRef<string | null>(null);
+  // destino do Modo Criador dentro do Andar 13 (morador, casa certa, entidade…)
+  const [f13Inicio, setF13Inicio] = useState<string | undefined>(undefined);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -1520,6 +1522,7 @@ export default function App() {
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       } else if (startLevel === 12 || startLevel === 13) {
+        setF13Inicio(startLevel === 13 ? startVariant : undefined);
         // Andar 12 — A CABEÇA. Igual ao andar 5: as portas ficam ABERTAS e o
         // overlay monta com a introdução dele (o elevador se desdobrando em
         // avião). Com as portas fechadas o overlay nem monta, e a tela ficaria
@@ -2850,7 +2853,7 @@ export default function App() {
       {/* Andar 12 — a luta aérea. Overlay próprio, como o andar 5: ele tem
           Canvas, câmera e controles dele, e o mundo do hotel fica por baixo. */}
       {currentLevel === 12 && !doorsClosed && <Floor12 onExit={handleFloor12Exit} />}
-      {currentLevel === 13 && !doorsClosed && <Floor13 onExit={handleFloor13Exit} />}
+      {currentLevel === 13 && !doorsClosed && <Floor13 onExit={handleFloor13Exit} inicio={f13Inicio} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}

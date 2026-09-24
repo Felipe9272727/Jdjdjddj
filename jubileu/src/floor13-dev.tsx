@@ -32,7 +32,7 @@ export const Floor13Dev: React.FC = () => {
         setRodando(true);
     };
 
-    if (rodando) return <Floor13 onExit={() => setRodando(false)} />;
+    if (rodando) return <Floor13 onExit={() => setRodando(false)} inicio={new URLSearchParams(window.location.search).get('inicio') ?? undefined} />;
 
     return (
         <div style={{
