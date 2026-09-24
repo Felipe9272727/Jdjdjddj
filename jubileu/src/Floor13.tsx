@@ -213,6 +213,8 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         tmp.olho.copy(pos).lerp(new THREE.Vector3(0, 0, 8), k2 * .4 * (1 - pouso)).lerp(DESTROCOS, pouso);
         olhar.current.lerp(tmp.olho, 1 - Math.exp(-dt * 6));
         camera.lookAt(olhar.current);
+        // durante o rádio: a câmera chega perto aos poucos e rola de leve
+        if (t < 5.2) camera.rotateZ(Math.sin(t * .8) * .045 * THREE.MathUtils.smoothstep(t, .5, 2.5));
         // Rede de segurança do enquadramento: se o avião escapa para a borda
         // (a lente é estreita em pé), o olhar puxa de volta para ele.
         if (t < 10.45) {
@@ -223,7 +225,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         }
         if (import.meta.env.DEV) (window as unknown as { __f13cam?: unknown }).__f13cam = { cam: camera.position.toArray(), aviao: pos.toArray(), olhar: olhar.current.toArray(), t };
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov = 52 + 12 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 12 * smoother((t - 10.75) / 1.5);
+            camera.fov = 56 - 5 * THREE.MathUtils.smoothstep(t, .5, 4.5) + 13 * THREE.MathUtils.smoothstep(t, 6.4, 8.4) - 6 * THREE.MathUtils.smoothstep(t, 7.6, 10.2) - 8 * smoother((t - 10.75) / 1.5);
             camera.updateProjectionMatrix();
         }
     });
@@ -332,10 +334,11 @@ const CameraDeExplorar: React.FC<{
         if (!ativo) return;
         const j = jog.current;
         const retrato = size.width < size.height;
-        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 5 : 3.4;
+        const dist = retrato ? 9.5 : 7.5, alto = retrato ? 6.5 : 3.8;
         // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
         const ombro = foco.current ? 0 : .9;
-        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro, j.y + 2.5, j.z - Math.sin(yaw.current) * ombro);
+        // mira 2 m à frente do jogador: ele desce para o terço de baixo e o caminho aparece
+        const quer = new THREE.Vector3(j.x + Math.cos(yaw.current) * ombro - Math.sin(yaw.current) * (foco.current ? 0 : 2), j.y + 2.2, j.z - Math.sin(yaw.current) * ombro - Math.cos(yaw.current) * (foco.current ? 0 : 2));
         // Numa conversa, o olhar vai para o meio entre o jogador e quem fala, e
         // a câmera dá a volta para o lado: por trás do jogador, quem fala
         // ficava escondido atrás dele.
@@ -732,6 +735,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
+                    if (glitch && n.id !== 'halvard' && Math.hypot(jog.current.x - l.x, jog.current.z - l.z) < 7) return null;
                     return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
                         marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} />;
                 })}

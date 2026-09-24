@@ -159,7 +159,9 @@ export const Viking: React.FC<{
         }
         g.scale.setScalar(escala);
         if (!andando) joelhos.current.forEach((j) => { if (j) j.rotation.x *= .8; });
-        if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; c.rotation.y = 0; }
+        if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; c.rotation.y = 0; c.rotation.z = Math.sin(t * .6 + x) * .025; }
+        // respiração: o peito enche e esvazia
+        if (c) c.scale.set(1 + Math.sin(t * 1.8 + x) * .012, 1, 1 + Math.sin(t * 1.8 + x) * .02);
         if (bracoE.current) bracoE.current.rotation.z = 0; if (bracoD.current) bracoD.current.rotation.z = 0;
         if (tique && c && Math.floor(t * 10) % 37 === 0) c.position.x = .06;
         if (cabeca.current) cabeca.current.rotation.z = 0;

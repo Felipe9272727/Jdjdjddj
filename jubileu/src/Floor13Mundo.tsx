@@ -497,6 +497,32 @@ const Grama: React.FC = () => {
     useFrame(({ clock }) => { tempoGrama.value = clock.elapsedTime; });
     return <instancedMesh ref={ref} args={[geo, mat, n]} frustumCulled={false} />;
 };
+/** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
+const Tochas: React.FC = () => {
+    const lugares = useMemo(() => [
+        [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [2.6, 3, -12.8], [-2.6, 3, -12.8],
+        [-15, 1, 6.5], [16, 2, 5], [0, 3, -18],
+    ] as const, []);
+    const luzes = useRef<(THREE.PointLight | null)[]>([]);
+    const chamas = useRef<(THREE.Mesh | null)[]>([]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        lugares.forEach((_, i) => {
+            const f = .75 + Math.sin(t * 11 + i * 3) * .15 + Math.sin(t * 23 + i) * .1;
+            if (luzes.current[i]) luzes.current[i]!.intensity = 2.2 * f;
+            if (chamas.current[i]) chamas.current[i]!.scale.set(1, f * 1.2, 1);
+        });
+    });
+    return <>{lugares.map(([x, y, z], i) => (
+        <group key={i} position={[x, y, z]}>
+            <mesh position={[0, .8, 0]}><cylinderGeometry args={[.05, .07, 1.6, 6]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            <mesh position={[0, 1.62, 0]}><cylinderGeometry args={[.1, .07, .14, 8]} /><meshStandardMaterial color="#3a3a3e" metalness={.6} roughness={.5} /></mesh>
+            <mesh ref={(m) => { chamas.current[i] = m; }} position={[0, 1.82, 0]}><coneGeometry args={[.09, .3, 8]} /><meshBasicMaterial color={new THREE.Color('#ffae45').multiplyScalar(2.2)} toneMapped={false} /></mesh>
+            {i % 2 === 0 && <pointLight ref={(l) => { luzes.current[i] = l; }} position={[0, 1.9, 0]} color="#ff9a45" distance={6} intensity={2} />}
+        </group>
+    ))}</>;
+};
+
 export const Floor13Mundo: React.FC<{
     portaCertaRef?: React.Ref<THREE.Group>;
     sinoRef?: React.Ref<THREE.Group>;
@@ -516,6 +542,7 @@ export const Floor13Mundo: React.FC<{
         <Frota />
         <Decoracao />
         <Grama />
+        <Tochas />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
         {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
