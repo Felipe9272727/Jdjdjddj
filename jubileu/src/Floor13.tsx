@@ -125,8 +125,11 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
                 g.lookAt(tmp.alvo);
             } else {
                 // os destroços: o avião fica de nariz enfiado no feno
-                g.position.set(-2.2, 1.35, 33.4);
-                g.rotation.set(-.55, 1.9, .2);   // asa de frente para a lente, não de fio
+                // derrapa 0,3 s e quica antes de assentar no feno
+                const d = Math.min(1, (t - 10.45) / .3);
+                const quique = Math.sin(d * Math.PI) * .45 * (1 - d);
+                g.position.set(-2.2 + (1 - d) * 1.4, 1.35 + quique, 33.4 + (1 - d) * 1.2);
+                g.rotation.set(-.55 * d, 1.9, .2 + (1 - d) * .5);   // asa de frente para a lente, não de fio
             }
         }
         // o motor tossindo: tranco na rolagem; morto: a hélice para
@@ -167,7 +170,8 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
                 const a = i / poeira.current!.children.length * Math.PI * 2;
                 c.position.set(-2 + Math.cos(a) * pq * 3, 1 + pq * (1 + (i % 3) * .4), 33 + Math.sin(a) * pq * 3);
                 c.scale.setScalar(.5 + pq * 1.2);
-                (c as THREE.Sprite).material.opacity = .8 * Math.max(0, 1 - pq / 1.6);
+                // perto da lente a poeira some (antes cobria o avião e estourava no bloom)
+                (c as THREE.Sprite).material.opacity = .35 * Math.max(0, 1 - pq / 1.6) * THREE.MathUtils.smoothstep(c.position.distanceTo(camera.position), 2.5, 6);
             });
         }
 
@@ -708,6 +712,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.Fog('#e9d2b0', 70, 330); }}>
                 <hemisphereLight args={['#dfe9f5', '#6b5a44', 1.1]} />
+                {/* contraluz fria: separa as silhuetas do chão verde */}
+                <directionalLight position={[40, 18, 70]} intensity={.9} color="#a9c8ff" />
                 <Sol jog={jog} />
                 <directionalLight position={[40, 20, 60]} intensity={.6} color="#9ec3ff" />
                 <Ambiente />
@@ -747,7 +753,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
 
             {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
+            {fase !== 'queda' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
                 {(Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .45 }}>{e.pistas.has(p) ? '◆' : '◇'} {e.pistas.has(p) ? PISTAS[p].nome : '???'}</div>
@@ -772,7 +778,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !jaAndou && <div style={{ ...t13, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 13, opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !jaAndou && <div style={{ ...t13, fontFamily: 'Georgia, serif', letterSpacing: .5, position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, opacity: .9, pointerEvents: 'none' }}>
                 ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
             </div>}
 

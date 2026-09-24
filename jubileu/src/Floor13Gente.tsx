@@ -71,6 +71,7 @@ export const Viking: React.FC<{
     const boca = useRef<THREE.Mesh>(null), sobrE = useRef<THREE.Mesh>(null), sobrD = useRef<THREE.Mesh>(null);
     const olhos = useRef<(THREE.Group | null)[]>([]);
     const marcaRef = useRef<THREE.Group>(null);
+    const joelhos = useRef<(THREE.Group | null)[]>([]);
     const capa = useRef<THREE.Group>(null), luzVerde = useRef<THREE.PointLight>(null);
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
@@ -146,6 +147,7 @@ export const Viking: React.FC<{
             return;
         }
         g.scale.setScalar(escala);
+        if (!andando) joelhos.current.forEach((j) => { if (j) j.rotation.x *= .8; });
         if (c) { c.position.x = 0; c.position.y = Math.sin(t * 1.8 + x) * .02; c.rotation.y = 0; }
         if (tique && c && Math.floor(t * 10) % 37 === 0) c.position.x = .06;
         if (cabeca.current) cabeca.current.rotation.z = 0;
@@ -156,6 +158,9 @@ export const Viking: React.FC<{
             set(pernaE, Math.sin(f) * .75); set(pernaD, -Math.sin(f) * .75);
             set(bracoE, -Math.sin(f) * .55); set(bracoD, Math.sin(f) * .55);
             if (c) { c.position.y = Math.abs(Math.sin(f)) * .06; c.rotation.y = Math.sin(f) * .1; }
+            // o joelho dobra na volta da perna (quando ela vai para a frente no ar)
+            if (joelhos.current[0]) joelhos.current[0].rotation.x = Math.max(0, -Math.cos(f)) * .9;
+            if (joelhos.current[1]) joelhos.current[1].rotation.x = Math.max(0, Math.cos(f)) * .9;
         } else if (e.falando) {
             set(pernaE, 0); set(pernaD, 0);
             set(bracoE, -.4 + Math.sin(t * 5) * .35); set(bracoD, -.2 + Math.sin(t * 4 + 1) * .25);
@@ -180,8 +185,11 @@ export const Viking: React.FC<{
             {[[-.15, pernaE], [.15, pernaD]].map(([dx, r]) => (
                 <group key={dx as number} ref={r as React.RefObject<THREE.Group>} position={[dx as number, .82, 0]}>
                     <mesh position={[0, -.2, 0]} material={M.calca} geometry={G.coxa} />
-                    <mesh position={[0, -.52, 0]} material={M.faixa} geometry={G.canela} />
-                    <mesh position={[0, -.76, .05]} material={M.couro} geometry={G.bota} />
+                    {/* joelho: a canela dobra, o passo tem duas fases */}
+                    <group position={[0, -.36, 0]} ref={(o) => { joelhos.current[(dx as number) < 0 ? 0 : 1] = o; }}>
+                        <mesh position={[0, -.16, 0]} material={M.faixa} geometry={G.canela} />
+                        <mesh position={[0, -.4, .05]} material={M.couro} geometry={G.bota} />
+                    </group>
                 </group>
             ))}
             {/* túnica que abre em saia, cinto com fivela, manto de pele nos ombros */}
