@@ -617,6 +617,42 @@ const Ambiente: React.FC = () => {
 };
 
 // ═══ O ANDAR ═════════════════════════════════════════════════════════════════
+// ── VIAGEM RÁPIDA (só na rota de desenvolvedor `?f13`) ─────────────────
+const MODO_DEV = typeof window !== 'undefined' && /[?&]f13\b/.test(window.location.search);
+type Dev13 = { ir: (x: number, z: number, ang?: number, yaw?: number) => void; pistas: (...p: Pista[]) => void; pular: () => void; casaCerta: () => void };
+const ViagemRapida: React.FC = () => {
+    const [aberto, setAberto] = useState(false);
+    const dev = () => (window as unknown as { __f13?: Dev13 }).__f13;
+    // para 2,2 m do ponto, do lado do centro da ilha (nunca na borda), e
+    // olhando para ele; espera a queda terminar antes de mover
+    const ir = (x: number, z: number) => {
+        dev()?.pular(); setAberto(false);
+        const il = ILHAS_R.reduce((a, b) => Math.hypot(x - b.x, z - b.z) < Math.hypot(x - a.x, z - a.z) ? b : a);
+        let dx = il.x - x, dz = il.z - z; const d = Math.hypot(dx, dz);
+        if (d < .5) { dx = 0; dz = 1; } else { dx /= d; dz /= d; }
+        const px = x + dx * 2.2, pz = z + dz * 2.2;
+        const yaw = Math.atan2(-(x - px), -(z - pz));
+        window.setTimeout(() => dev()?.ir(px, pz, yaw + Math.PI, yaw), 400);
+    };
+    const itens: [string, () => void][] = [
+        ['⏭ Pular a queda', () => { dev()?.pular(); setAberto(false); }],
+        ...(Object.entries(LUGAR_DOS_NPCS) as [IdNpc, { x: number; z: number }][]).map(([id, l]) =>
+            [`🧔 ${NPCS.find((n) => n.id === id)!.nome}`, () => ir(l.x, l.z)] as [string, () => void]),
+        ['🔨 Martelo', () => ir(MARTELO.x, MARTELO.z)],
+        ['🔔 Sino', () => ir(SINO.x, SINO.z)],
+        ['🐑 Ovelha', () => ir(OVELHAS[0].x, OVELHAS[0].z)],
+        ['🚪 Casa certa', () => { dev()?.pular(); dev()?.casaCerta(); setAberto(false); }],
+        ['✦ Todas as pistas', () => { dev()?.pistas('latao', 'fumaca', 'botao'); setAberto(false); }],
+        ['🏁 Início', () => { dev()?.pular(); setAberto(false); window.setTimeout(() => dev()?.ir(INICIO.x, INICIO.z, Math.PI, 0), 400); }],
+    ];
+    return <div onPointerDown={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', right: 8, zIndex: 90, fontFamily: 'monospace', fontSize: 12 }}>
+        <button onClick={() => setAberto((a) => !a)} style={{ background: 'rgba(10,20,30,.8)', color: '#ffd76a', border: '1px solid #ffd76a', borderRadius: 8, padding: '6px 10px' }}>⚡ DEV</button>
+        {aberto && <div style={{ marginTop: 6, background: 'rgba(10,20,30,.92)', border: '1px solid #445', borderRadius: 8, padding: 6, display: 'grid', gap: 4, maxHeight: '70vh', overflowY: 'auto' }}>
+            {itens.map(([r, f]) => <button key={r} onClick={f} style={{ textAlign: 'left', background: '#1c2a3a', color: '#e8eef5', border: 'none', borderRadius: 6, padding: '6px 10px' }}>{r}</button>)}
+        </div>}
+    </div>;
+};
+
 export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const est = useRef(novoEstado13());
     const [, bump] = useReducer((x: number) => x + 1, 0);
@@ -945,6 +981,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: OLHAR ▶
             </div>}
 
+            {MODO_DEV && <ViagemRapida />}
             {/* a faixa de baixo do cinemascope vem antes da caixa: fica por trás dela */}
             {glitch && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '9vh', background: '#000', pointerEvents: 'none', animation: 'f13barra .8s ease-out' }} />}
             {/* ── A CAIXA DE DIÁLOGO ── */}

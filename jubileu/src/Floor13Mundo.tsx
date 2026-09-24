@@ -621,7 +621,7 @@ const Grama: React.FC = () => {
     // dourada, cada touceira puxa um verde diferente, e o vento chega em
     // rajadas que atravessam a ilha — não um balanço uniforme.
     const { geo, mat, mats, tons } = useMemo(() => {
-        const G = 4, A = .5, L = .065;
+        const G = 4, A = .3, L = .05;
         const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
         for (let i = 0; i <= G; i++) {
             const t = i / G, w = L * (1 - t * t * .92), curva = t * t * .18;
