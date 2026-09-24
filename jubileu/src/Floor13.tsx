@@ -471,24 +471,32 @@ const CameraDeExplorar: React.FC<{
 /** Acha o que está ao alcance e avisa quando muda. */
 const Radar: React.FC<{
     jog: React.MutableRefObject<Jog>; est: React.MutableRefObject<ReturnType<typeof novoEstado13>>;
-    ativo: boolean; aoMudar: (a: Alvo | null) => void; aoEntidade: () => void;
-}> = ({ jog, est, ativo, aoMudar, aoEntidade }) => {
+    ativo: boolean; aoMudar: (a: Alvo | null) => void; aoEntidade: () => void; yaw: React.MutableRefObject<number>;
+}> = ({ jog, est, ativo, aoMudar, aoEntidade, yaw }) => {
     const ultimo = useRef('');
-    useFrame(() => {
+    useFrame(({ clock }) => {
         if (!ativo) return;
         const j = jog.current, e = est.current;
         const perto = (x: number, z: number, r: number) => Math.hypot(j.x - x, j.z - z) < r;
         const hl = LUGAR_DOS_NPCS.halvard;
         let achou: Alvo | null = null, melhor = Infinity;
         const tenta = (a: Alvo, x: number, z: number, r: number) => {
+            // só o que está à frente do olhar (primeira pessoa), e o mais
+            // centrado vence: o de trás ou fora da tela não ganha o botão
             const d = Math.hypot(j.x - x, j.z - z);
-            if (d < r && d < melhor) { melhor = d; achou = a; }
+            if (d >= r) return;
+            let ang = Math.atan2(-(x - j.x), -(z - j.z)) - yaw.current;
+            while (ang > Math.PI) ang -= Math.PI * 2;
+            while (ang < -Math.PI) ang += Math.PI * 2;
+            if (d > 1 && Math.abs(ang) > 1.05) return;
+            const nota = d * (1 + Math.abs(ang) * 1.5);
+            if (nota < melhor) { melhor = nota; achou = a; }
         };
         for (const [id, l] of Object.entries(LUGAR_DOS_NPCS) as [IdNpc, { x: number; z: number; ronda?: number }][]) {
             if (id === 'halvard' && e.entidade === 'caido') continue;
             if (l.ronda) {
                 // a menina corre em volta do poço: acha pela posição de agora
-                const a = performance.now() / 1000 * .45;
+                const a = clock.elapsedTime * .45;   // o mesmo relógio da ronda em Floor13Povo
                 tenta({ tipo: 'npc', id }, l.x + Math.cos(a) * l.ronda, l.z + Math.sin(a) * l.ronda, 2.4);
             } else tenta({ tipo: 'npc', id }, l.x, l.z, 2.3);
         }
@@ -934,7 +942,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                         {/* primeira pessoa: o corpo do hóspede não é desenhado */}
                     </>}
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
-                <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
+                <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={4}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
