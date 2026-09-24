@@ -11,7 +11,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { createCloudGeometry } from './f12CloudGeometry';
+import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { ILHAS, PONTES, LUGAR_DAS_CASAS, SINO } from './f13Mundo';
 import { pbr } from './f13Texturas';
@@ -70,8 +70,15 @@ export function novoCeu(): Sky {
     const ceu = new Sky();
     ceu.scale.setScalar(450);
     const u = ceu.material.uniforms;
-    u.turbidity.value = 5.5; u.rayleigh.value = 1.6; u.mieCoefficient.value = .006; u.mieDirectionalG.value = .86;
+    u.turbidity.value = 4; u.rayleigh.value = 1.5; u.mieCoefficient.value = .0025; u.mieDirectionalG.value = .78;
     u.sunPosition.value.copy(DIRECAO_DO_SOL);
+    // o Preetham sai em radiância física, clara demais para esta cena: um
+    // terço, para o céu ficar azul e o horizonte âmbar em vez de branco
+    ceu.material.fragmentShader = ceu.material.fragmentShader
+        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .34, 1.0 );')
+        // o disco do sol vem 19000× mais forte que o céu: cegava a tela
+        // inteira pelo bloom. Fica um disco quente, visível sem ofuscar
+        .replace('vSunE * 19000.0 * Fex', 'vSunE * 700.0 * Fex');
     return ceu;
 }
 const Ceu: React.FC = () => {
@@ -93,36 +100,79 @@ function texturaDeHalo(): THREE.CanvasTexture {
 
 /** O mar de nuvens lá embaixo e alguns bancos soltos entre as ilhas. */
 const Nuvens: React.FC = () => {
-    const geo = useMemo(() => createCloudGeometry(), []);
-    const mat = useMemo(() => new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#6b7a8a', emissiveIntensity: .08 }), []);
-    const ref = useRef<THREE.InstancedMesh>(null);
-    const lista = useMemo(() => {
-        const l: { x: number; y: number; z: number; s: number }[] = [];
+    // impostores: nuvens de volume renderizadas no Cycles (ver
+    // tools/blender/f13_nuvens.py) num atlas 2×2; aqui viram cartões que
+    // giram só em torno do eixo vertical — o fundo reto fica sempre reto — e
+    // são tingidos pelo sol (topo quente, barriga lilás, como no céu)
+    const { geo, mat, lista } = useMemo(() => {
+        const g = new THREE.PlaneGeometry(1, 1); g.translate(0, .5, 0);
+        const m = new THREE.ShaderMaterial({
+            transparent: true, depthWrite: false, fog: true,
+            uniforms: {
+                ...THREE.UniformsLib.fog,
+                mapa: { value: new THREE.TextureLoader().load(nuvensAtlas, (t) => { t.colorSpace = THREE.SRGBColorSpace; }) },
+                sol: { value: new THREE.Color('#ffe2b8') }, sombra: { value: new THREE.Color('#8f86a8') },
+            },
+            vertexShader: `
+                attribute float aCel;
+                varying vec2 vUv; varying float vY;
+                #include <fog_pars_vertex>
+                void main() {
+                    vec4 centro = modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.);
+                    vec3 escala = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), 1.);
+                    vec3 paraCam = cameraPosition - centro.xyz; paraCam.y = 0.; paraCam = normalize(paraCam);
+                    vec3 lado = normalize(cross(vec3(0., 1., 0.), paraCam));
+                    vec3 p = centro.xyz + lado * position.x * escala.x + vec3(0., 1., 0.) * position.y * escala.y;
+                    vec4 mvPosition = viewMatrix * vec4(p, 1.);
+                    gl_Position = projectionMatrix * mvPosition;
+                    float cx = mod(aCel, 2.), cy = floor(aCel / 2.);
+                    vUv = vec2((uv.x + cx) * .5, (uv.y + (1. - cy)) * .5);
+                    vY = uv.y;
+                    #include <fog_vertex>
+                }`,
+            fragmentShader: `
+                uniform sampler2D mapa; uniform vec3 sol; uniform vec3 sombra;
+                varying vec2 vUv; varying float vY;
+                #include <fog_pars_fragment>
+                void main() {
+                    vec4 c = texture2D(mapa, vUv);
+                    if (c.a < .01) discard;
+                    float l = dot(c.rgb, vec3(.33));
+                    vec3 cor = mix(sombra, sol, smoothstep(.35, .95, l + vY * .25)) * (.75 + l * .55);
+                    gl_FragColor = vec4(cor, c.a);
+                    #include <tonemapping_fragment>
+                    #include <colorspace_fragment>
+                    #include <fog_fragment>
+                }`,
+        });
+        const l: { x: number; y: number; z: number; s: number; c: number }[] = [];
         let k = 7;
         const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
-        for (let i = 0; i < 120; i++) {
-            const a = rnd() * Math.PI * 2, d = 20 + rnd() * 170;
-            l.push({ x: Math.cos(a) * d, y: -16 - rnd() * 8, z: Math.sin(a) * d, s: 7 + rnd() * 9 });
+        // o mar de nuvens embaixo e alguns bancos soltos na altura das ilhas
+        for (let i = 0; i < 150; i++) {
+            const a = rnd() * Math.PI * 2, d = 18 + rnd() * 190;
+            l.push({ x: Math.cos(a) * d, y: -24 - rnd() * 10, z: Math.sin(a) * d, s: 26 + rnd() * 30, c: Math.floor(rnd() * 4) });
         }
-        for (let i = 0; i < 14; i++) {
-            const a = rnd() * Math.PI * 2, d = 40 + rnd() * 50;
-            l.push({ x: Math.cos(a) * d, y: 4 + rnd() * 14, z: Math.sin(a) * d, s: 3 + rnd() * 3 });
+        for (let i = 0; i < 18; i++) {
+            const a = rnd() * Math.PI * 2, d = 45 + rnd() * 70;
+            l.push({ x: Math.cos(a) * d, y: 2 + rnd() * 16, z: Math.sin(a) * d, s: 12 + rnd() * 12, c: Math.floor(rnd() * 4) });
         }
-        return l;
+        return { geo: g, mat: m, lista: l };
     }, []);
-    const tmp = useMemo(() => new THREE.Object3D(), []);
-    useFrame(({ clock }) => {
+    const ref = useRef<THREE.InstancedMesh>(null);
+    useEffect(() => {
         const m = ref.current; if (!m) return;
-        const t = clock.elapsedTime;
-        lista.forEach((c, i) => {
-            tmp.position.set(c.x + Math.sin(t * .03 + i) * 2, c.y, c.z);
-            tmp.scale.set(c.s * 1.5, c.s * .7, c.s);
-            tmp.rotation.set(0, i, 0);
-            tmp.updateMatrix(); m.setMatrixAt(i, tmp.matrix);
-        });
+        const o = new THREE.Object3D();
+        lista.forEach((c, i) => { o.position.set(c.x, c.y, c.z); o.scale.set(c.s, c.s * .5, 1); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
         m.instanceMatrix.needsUpdate = true;
+        m.geometry.setAttribute('aCel', new THREE.InstancedBufferAttribute(new Float32Array(lista.map((c) => c.c)), 1));
+    }, [lista]);
+    useFrame(({ clock }) => {
+        // deriva lenta: o mar de nuvens anda
+        const m = ref.current; if (!m) return;
+        m.position.x = Math.sin(clock.elapsedTime * .01) * 6;
     });
-    return <instancedMesh ref={ref} args={[geo, mat, lista.length]} frustumCulled={false} />;
+    return <instancedMesh ref={ref} args={[geo, mat, lista.length]} frustumCulled={false} renderOrder={-5} />;
 };
 
 /** Uma ilha: tampo de grama com borda de terra e a rocha pendurada. */
@@ -570,8 +620,8 @@ const Grama: React.FC = () => {
     // instanciada às dezenas de milhares. A cor vai da raiz sombria à ponta
     // dourada, cada touceira puxa um verde diferente, e o vento chega em
     // rajadas que atravessam a ilha — não um balanço uniforme.
-    const { geo, mat, n, mats, tons } = useMemo(() => {
-        const G = 5, A = .5, L = .065;
+    const { geo, mat, mats, tons } = useMemo(() => {
+        const G = 4, A = .5, L = .065;
         const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
         for (let i = 0; i <= G; i++) {
             const t = i / G, w = L * (1 - t * t * .92), curva = t * t * .18;
@@ -635,16 +685,40 @@ const Grama: React.FC = () => {
                 }
             }
         }
-        return { geo: g, mat: m, n: ms.length, mats: ms, tons: new Float32Array(cores) };
+        return { geo: g, mat: m, mats: ms, tons: new Float32Array(cores) };
     }, []);
-    const ref = useRef<THREE.InstancedMesh>(null);
-    useEffect(() => {
-        const m = ref.current; if (!m) return;
-        mats.forEach((x, i) => m.setMatrixAt(i, x)); m.instanceMatrix.needsUpdate = true;
-        m.geometry.setAttribute('aTom', new THREE.InstancedBufferAttribute(tons, 3));
-    }, [mats, tons]);
-    useFrame(({ clock }) => { tempoGrama.value = clock.elapsedTime; });
-    return <instancedMesh ref={ref} args={[geo, mat, n]} frustumCulled={false} receiveShadow />;
+    // em blocos de 9 m: cada bloco é um InstancedMesh com a própria esfera
+    // envolvente, então o que está fora da tela nem vai para a GPU, e o que
+    // está longe (onde uma lâmina tem menos de um pixel) some
+    const blocos = useMemo(() => {
+        const porBloco = new Map<string, number[]>();
+        const p = new THREE.Vector3();
+        mats.forEach((m, i) => {
+            p.setFromMatrixPosition(m);
+            const k = `${Math.floor(p.x / 9)}:${Math.floor(p.z / 9)}`;
+            let l = porBloco.get(k); if (!l) porBloco.set(k, l = []); l.push(i);
+        });
+        return [...porBloco.values()].map((ids) => {
+            const g = geo.clone();
+            const im = new THREE.InstancedMesh(g, mat, ids.length);
+            const cor = new Float32Array(ids.length * 3);
+            ids.forEach((id, i) => { im.setMatrixAt(i, mats[id]); cor.set(tons.subarray(id * 3, id * 3 + 3), i * 3); });
+            g.setAttribute('aTom', new THREE.InstancedBufferAttribute(cor, 3));
+            im.instanceMatrix.needsUpdate = true;
+            im.computeBoundingSphere();
+            im.receiveShadow = true;
+            return im;
+        });
+    }, [geo, mat, mats, tons]);
+    const centro = useMemo(() => new THREE.Vector3(), []);
+    useFrame(({ clock, camera }) => {
+        tempoGrama.value = clock.elapsedTime;
+        for (const b of blocos) {
+            centro.copy(b.boundingSphere!.center);
+            b.visible = centro.distanceTo(camera.position) < 58 + b.boundingSphere!.radius;
+        }
+    });
+    return <>{blocos.map((b, i) => <primitive key={i} object={b} />)}</>;
 };
 /** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
 const Tochas: React.FC = () => {

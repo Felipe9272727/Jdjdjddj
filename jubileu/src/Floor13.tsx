@@ -15,13 +15,15 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast, N8AO, ToneMapping } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL } from './Floor13Mundo';
-import { Viking, Ovelha, type EstadoVisualNpc } from './Floor13Gente';
+import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
+import { Viking } from './Floor13Povo';
 import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -403,6 +405,28 @@ const CameraDeExplorar: React.FC<{
             return;
         }
         const retrato = size.width < size.height;
+        if (foco.current) {
+            // conversa: plano por cima do ombro, na altura dos olhos — quem
+            // fala enche o quadro, o ombro do hóspede fica na borda
+            const f = foco.current, ent = entidadeNaCena.valor;
+            const dx = f.x - j.x, dz = f.z - j.z, L = Math.hypot(dx, dz) || 1;
+            const ux = dx / L, uz = dz / L;
+            empurra.current = ent ? Math.min(1, empurra.current + dt * .12) : 0;
+            const tras = (retrato ? 1.5 : 1.4) - empurra.current * .4, lado = retrato ? 1.05 : .95;
+            const chaoF = chaoEm(f.x, f.z) ?? j.y;
+            const pos = new THREE.Vector3(j.x - ux * tras - uz * lado, j.y + (ent ? 1.55 : 1.85), j.z - uz * tras + ux * lado);
+            const olhar = new THREE.Vector3(f.x, chaoF + (ent ? 2.15 : 1.72), f.z);
+            camera.position.lerp(pos, 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(olhar, 1 - Math.exp(-dt * 5));
+            yaw.current = Math.atan2(-ux, -uz);
+            camera.lookAt(alvo.current);
+            if (ent) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov += ((retrato ? 50 : 40) - camera.fov) * Math.min(1, dt * 3);
+                camera.updateProjectionMatrix();
+            }
+            return;
+        }
         const dist = retrato ? 9.5 : 7.5, alto = retrato ? 7.2 : 3.8;
         // câmera de ombro: o jogador fica um pouco à esquerda, o mundo no centro
         const ombro = foco.current ? 0 : .9;
@@ -562,7 +586,7 @@ const Ambiente: React.FC = () => {
         const pm = new THREE.PMREMGenerator(gl);
         const alvo = pm.fromScene(cena, .04);
         const antes = scene.environment;
-        scene.environment = alvo.texture; scene.environmentIntensity = .55;
+        scene.environment = alvo.texture; scene.environmentIntensity = .85;
         pm.dispose(); ceu.geometry.dispose(); ceu.material.dispose();
         return () => { scene.environment = antes; alvo.dispose(); };
     }, [gl, scene]);
@@ -574,6 +598,10 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const est = useRef(novoEstado13());
     const [, bump] = useReducer((x: number) => x + 1, 0);
     const [fase, setFase] = useState<Fase>('queda');
+    // qualidade adaptativa: começa bonita; se o aparelho não segura ~45 qps,
+    // baixa a resolução e depois desliga a oclusão ambiente — nesta ordem,
+    // porque a resolução custa menos ao olho do que perder o AO
+    const [nivel, setNivel] = useState(2);
     const tQueda = useRef(0);
     const [legenda, setLegenda] = useState(LEGENDAS_DA_QUEDA[0].texto);
     const [flash, setFlash] = useState(0);
@@ -812,13 +840,14 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={[1, 1.5]} shadows="soft"
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={nivel === 2 ? [1, 1.25] : nivel === 1 ? 1 : .8} shadows="soft"
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
-                <hemisphereLight args={['#bcd4f0', '#4a3f30', .35]} />
+                <hemisphereLight args={['#bcd4f0', '#5a4a36', .6]} />
                 {/* contraluz fria: separa as silhuetas do chão verde */}
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
+                <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
                 <Sol jog={jog} />
                 <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
@@ -841,8 +870,8 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
-                    <N8AO aoRadius={1.6} intensity={2.2} distanceFalloff={.6} halfRes quality="medium" />
-                    <Bloom mipmapBlur intensity={.55} luminanceThreshold={.9} luminanceSmoothing={.25} />
+                    {nivel > 0 && <N8AO aoRadius={1.6} intensity={2.2} distanceFalloff={.6} halfRes quality="performance" />}
+                    <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : .14} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
