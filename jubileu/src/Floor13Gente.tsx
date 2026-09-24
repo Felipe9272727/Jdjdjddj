@@ -133,8 +133,8 @@ export const Viking: React.FC<{
             // possuído: levita, trava, treme em quadros duros, olhos verdes
             const q = Math.floor(t * 14);
             g.position.y = y + .3 + Math.sin(t * 3) * .05;
-            // a cabeça trava na câmera: ele encara quem está jogando, não o personagem
-            if (cabeca.current) { tmp.copy(camera.position).sub(g.position); cabeca.current.rotation.y = Math.atan2(tmp.x, tmp.z) - g.rotation.y; }
+            // o corpo inteiro trava de frente para a câmera: ele encara quem joga
+            tmp.copy(camera.position).sub(g.position); g.rotation.y = Math.atan2(tmp.x, tmp.z);
             if (c) c.position.x = ((q * 7919) % 5 - 2) * .03 * e.possessao;
             g.scale.setScalar(escala * (1 + ((q * 31) % 3 - 1) * .02));
             if (cabeca.current) cabeca.current.rotation.z = .35 * e.possessao;
