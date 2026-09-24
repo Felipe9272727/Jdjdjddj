@@ -39,7 +39,7 @@ type Alvo =
     | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
-export const DURACAO_DA_QUEDA = 11.6;
+export const DURACAO_DA_QUEDA = 12.6;
 /** O hóspede, no mesmo desenho dos moradores: jaqueta azul, sem elmo. */
 const HOSPEDE = { id: 'hospede', nome: 'Você', oficio: 'hóspede', tunica: '#3b6fb0', barba: null, primeira: [], depois: [] } as unknown as FichaNpc;
 /** Bancada: `?f13t=5` congela a queda nesse instante (só em DEV). */
@@ -97,7 +97,7 @@ function matPoeira(i: number): THREE.SpriteMaterial {
     return (matsPoeira[i] ??= new THREE.SpriteMaterial({ map: texPoeira, transparent: true, depthWrite: false }));
 }
 
-const HEROI = new THREE.Vector3(4.2, 2.1, 38.6);
+const HEROI = new THREE.Vector3(6, 3.2, 40.5);
 const DESTROCOS = new THREE.Vector3(-2, 1.1, 33.2);
 const smoother = (x: number) => { const c = Math.max(0, Math.min(1, x)); return c * c * c * (c * (c * 6 - 15) + 10); };
 
@@ -491,7 +491,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             if (t > 2.6 && !marcos.tosse) { marcos.tosse = true; tocarMotorTossindo(); }
             if (t > 5.0 && !marcos.morre) { marcos.morre = true; tocarMotorMorrendo(); }
             if (t > 10.4 && !marcos.baque) { marcos.baque = true; tocarQueda(); }
-            setFlash(t > 10.4 ? Math.max(0, .75 - (t - 10.4) / .6) : 0);
+            setFlash(t > 10.4 ? Math.max(0, .35 - (t - 10.4) / .25) : 0);
             if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); tocarAmbiente(); return; }
             raf = requestAnimationFrame(passo);
         };
@@ -704,12 +704,12 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
 
             {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, background: 'rgba(20,14,10,.66)', border: '2px solid #b8893a', borderRadius: 10, padding: '6px 9px', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
-                <div style={{ color: '#ffd07a', marginBottom: 3 }}>A CASA CERTA</div>
+            {fase !== 'queda' && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
+                <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
                 {(Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .45 }}>{e.pistas.has(p) ? '◆' : '◇'} {e.pistas.has(p) ? PISTAS[p].nome : '???'}</div>
                 ))}
-                {BUSCAS.some((b) => e.buscas[b.id] !== 'nova') && <div style={{ color: '#ffd07a', margin: '5px 0 2px' }}>BUSCAS</div>}
+                {BUSCAS.some((b) => e.buscas[b.id] !== 'nova') && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '6px 0 2px' }}>ᛒ BUSCAS</div>}
                 {BUSCAS.filter((b) => e.buscas[b.id] !== 'nova').map((b) => (
                     <div key={b.id} style={{ opacity: e.buscas[b.id] === 'feita' ? .5 : 1, textDecoration: e.buscas[b.id] === 'feita' ? 'line-through' : 'none' }}>
                         {e.buscas[b.id] === 'pronta' ? '★' : '·'} {b.titulo}{b.id === 'ovelhas' && e.buscas[b.id] === 'ativa' ? ` (${e.ovelhas.filter(Boolean).length}/3)` : ''}

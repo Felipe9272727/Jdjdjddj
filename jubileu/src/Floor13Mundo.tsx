@@ -39,7 +39,17 @@ function geoRocha(r: number, semente: number): THREE.BufferGeometry {
         p.setXYZ(i, x * (1 + n * .18 * k), y + n * .6 * k, z * (1 + n * .18 * k));
     }
     g.computeVertexNormals();
-    return g.toNonIndexed();
+    const ng = g.toNonIndexed();
+    // gradiente: lábio quente em cima, base fria e escura embaixo
+    const q = ng.getAttribute('position'), cor = new Float32Array(q.count * 3);
+    const topo = new THREE.Color('#9a8670'), base = new THREE.Color('#3b3a44'), c = new THREE.Color();
+    for (let k = 0; k < q.count; k++) {
+        const h = Math.min(1, Math.max(0, -q.getY(k) / (r * 1.9)));
+        c.copy(topo).lerp(base, Math.pow(h, .7));
+        cor.set([c.r, c.g, c.b], k * 3);
+    }
+    ng.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+    return ng;
 }
 
 /** Céu em degradê: uma esfera por dentro com shader barato. */
@@ -119,7 +129,7 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         {/* a franja de grama que escorre pela borda */}
         <mesh position={[0, -.42, 0]}><cylinderGeometry args={[r * 1.01, r * .99, .22, 40, 1, true]} /><meshStandardMaterial color={P13.gramaEsc} roughness={1} side={THREE.DoubleSide} /></mesh>
         <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#6b5238" roughness={1} /></mesh>
-        <mesh geometry={rocha}><meshStandardMaterial color={P13.pedra} roughness={.9} flatShading /></mesh>
+        <mesh geometry={rocha}><meshStandardMaterial vertexColors roughness={.9} flatShading /></mesh>
         {/* raízes e pedras soltas penduradas: o que diz "isto voa" */}
         {[0, 1, 2].map((k) => (
             <mesh key={k} position={[Math.cos(k * 2.1 + i) * r * .5, -r * 1.9 - k * .8, Math.sin(k * 2.1 + i) * r * .5]}>
@@ -197,13 +207,13 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
         const g = ref.current; if (!g) return;
         g.children.forEach((c, i) => {
             const t = (clock.elapsedTime * .35 + i / g.children.length) % 1;
-            c.position.set(Math.sin(t * 5 + i) * .2 + t * .6, y + t * 3, 0);
-            c.scale.setScalar(.25 + t * .7);
+            c.position.set(Math.sin(t * 5 + i) * .3 + t * 1.2, y + t * 5, 0);
+            c.scale.setScalar(.35 + t * 1.3);
             ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .55 * (1 - t);
         });
     });
     return <group ref={ref}>
-        {Array.from({ length: 6 }, (_, i) => (
+        {Array.from({ length: 9 }, (_, i) => (
             <mesh key={i}><sphereGeometry args={[1, 10, 8]} /><meshBasicMaterial color="#d9d4cc" transparent depthWrite={false} /></mesh>
         ))}
     </group>;

@@ -53,7 +53,9 @@ export interface LugarDaCasa { x: number; z: number; y: number; angulo: number }
 export const LUGAR_DAS_CASAS: ReadonlyArray<LugarDaCasa> = Object.freeze(CASAS.map((_, i) => {
     const c = ilha('casas');
     const th = Math.PI + Math.PI * (i + .5) / CASAS.length;
-    const x = c.x + Math.cos(th) * 8.6, z = c.z + Math.sin(th) * 8.6;
+    // alternando perto/longe: de longe as sete casas não viram um paredão só
+    const rr = i % 2 ? 6.9 : 8.9;
+    const x = c.x + Math.cos(th) * rr, z = c.z + Math.sin(th) * rr;
     // a porta aponta para o centro da ilha
     return { x, z, y: c.y, angulo: Math.atan2(c.x - x, c.z - z) };
 }));

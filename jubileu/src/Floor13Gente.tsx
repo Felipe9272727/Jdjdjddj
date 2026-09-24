@@ -72,9 +72,10 @@ export const Viking: React.FC<{
     const crianca = ficha.id === 'eira';
     const escala = crianca ? .72 : 1;
     const giro = useRef(0);
+    const queda = useRef(0);
     const tmp = useMemo(() => new THREE.Vector3(), []);
 
-    useFrame(({ clock }, dt) => {
+    useFrame(({ clock, camera }, dt) => {
         const g = raiz.current; if (!g) return;
         const t = clock.elapsedTime, e = estado.current;
         // ── O ROSTO E O MANTO ────────────────────────────────────────────
@@ -87,7 +88,7 @@ export const Viking: React.FC<{
         // piscar: a cada ~4 s, um décimo de segundo
         const pisca = ((t + x * 1.7) % 4.2) < .12 ? .1 : 1;
         olhos.current.forEach((o) => { if (o) o.scale.y = pisca; });
-        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 3 + Math.sin(t * 30) * 1.5 : 0;
+        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? .8 + Math.sin(t * 30) * .3 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
         let px = x, pz = z, andando = false, direcao = giro.current;
@@ -115,18 +116,25 @@ export const Viking: React.FC<{
         const c = corpo.current;
         if (e.caido) {
             // duro no chão: cai de costas, e fica
-            g.rotation.x += (-Math.PI / 2 - g.rotation.x) * Math.min(1, d * 7);
-            g.position.y = y + .25; g.scale.setScalar(escala);
+            // duro: fica rígido um instante, tomba de uma vez e quica
+            queda.current += d;
+            const q = queda.current, tomba = q < .15 ? 0 : Math.min(1, ((q - .15) / .35) ** 2);
+            const quica = q > .5 ? Math.abs(Math.sin((q - .5) * 14)) * Math.exp(-(q - .5) * 7) * .12 : 0;
+            g.rotation.x = -Math.PI / 2 * tomba + quica;
+            g.position.y = y + .25 * tomba + quica * .5; g.scale.setScalar(escala);
             set(bracoE, 0); set(bracoD, 0); set(pernaE, 0); set(pernaD, 0);
             return;
         }
         if (!ctl) g.rotation.x = 0;
         // antes de ser tomado, um tique: um quadro em cada tanto ele "pula"
-        M.olho.color.set(e.possessao > 0 ? '#3dff8a' : '#1b1210');
+        // olhos da entidade acima de 1: o bloom pega e eles brilham
+        if (e.possessao > 0) M.olho.color.setRGB(.5, 3, 1.2); else M.olho.color.set('#1b1210');
         if (e.possessao > 0) {
             // possuído: levita, trava, treme em quadros duros, olhos verdes
             const q = Math.floor(t * 14);
             g.position.y = y + .3 + Math.sin(t * 3) * .05;
+            // a cabeça trava na câmera: ele encara quem está jogando, não o personagem
+            if (cabeca.current) { tmp.copy(camera.position).sub(g.position); cabeca.current.rotation.y = Math.atan2(tmp.x, tmp.z) - g.rotation.y; }
             if (c) c.position.x = ((q * 7919) % 5 - 2) * .03 * e.possessao;
             g.scale.setScalar(escala * (1 + ((q * 31) % 3 - 1) * .02));
             if (cabeca.current) cabeca.current.rotation.z = .35 * e.possessao;
@@ -159,7 +167,7 @@ export const Viking: React.FC<{
 
     return <group ref={raiz} scale={escala}>
         {/* a luz verde da entidade, só acesa na possessão */}
-        <pointLight ref={luzVerde} position={[0, 1.9, .6]} color="#3dff8a" intensity={0} distance={4} />
+        <pointLight ref={luzVerde} position={[0, 1.9, 1.2]} color="#3dff8a" intensity={0} distance={4} />
         <group ref={corpo}>
             {/* pernas: calça de lã enfaixada até o joelho e bota de couro */}
             {[[-.15, pernaE], [.15, pernaD]].map(([dx, r]) => (
