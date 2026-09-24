@@ -71,6 +71,14 @@ const OSSOS = ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'neck_01', 'head',
     'clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r',
     'thigh_l', 'calf_l', 'foot_l', 'thigh_r', 'calf_r', 'foot_r'] as const;
 const DEDOS = ['index', 'middle', 'ring', 'pinky'];
+/** Peças que projetam sombra (o resto só recebe). */
+const SOMBREIA = /^(corpo|tunica|saia|capa|cabelo|barba|elmo|chifres|capuz)/;
+/** Miudezas que somem de longe (a mais de DIST_DETALHE m ninguém vê um cílio). */
+const DETALHE = /^(cilios|sobrancelhas|fivela|bigode)/;
+const DIST_DETALHE = 11;
+/** Além disto o morador não é desenhado (a névoa já o apagou quase todo). */
+const DIST_MAX = 48;
+const _esfera = new THREE.Sphere(), _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
 
 interface Props {
     ficha: FichaNpc;
@@ -91,9 +99,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
-    const { modelo, olhos } = useMemo(() => {
+    const { modelo, olhos, vestido, detalhes } = useMemo(() => {
         const m = clonarComEsqueleto(scene) as THREE.Object3D;
         let olhos: THREE.MeshStandardMaterial | null = null;
+        const detalhes: THREE.Mesh[] = [];
         const tunica = new THREE.Color(ficha.tunica);
         m.traverse((o) => {
             const me = o as THREE.Mesh;
@@ -101,7 +110,11 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // a gola de pele ainda lê como um prato em volta do pescoço: fora
             // até ser refeita como pele caída sobre os ombros
             if (me.name.startsWith('gola')) { me.visible = false; return; }
-            me.castShadow = true; me.receiveShadow = true;
+            // sombra só das peças grandes: cílio, fivela, calça sob a túnica
+            // e bota não mudam a silhueta no chão e dobravam as chamadas
+            me.castShadow = SOMBREIA.test(me.name); me.receiveShadow = true;
+            me.userData.semSombra = !me.castShadow;
+            if (DETALHE.test(me.name)) detalhes.push(me);
             me.frustumCulled = false;
             const mat = (me.material as THREE.MeshStandardMaterial).clone();
             me.material = mat;
@@ -129,7 +142,19 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
                 mat.shadowSide = THREE.BackSide;
             }
         });
-        return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null };
+        // vestido longo (a barra abaixo do joelho): a calça por baixo não
+        // aparece nunca — sai da cena — e o passo fica curto para as pernas
+        // não varar o pano
+        m.updateMatrixWorld(true);
+        const saia = m.getObjectByName('saia') as THREE.Mesh | undefined;
+        const alto = new THREE.Box3().setFromObject(m);
+        let vestido = false;
+        if (saia) {
+            const b = new THREE.Box3().setFromObject(saia);
+            vestido = (b.min.y - alto.min.y) / Math.max(.01, alto.max.y - alto.min.y) < .3;
+        }
+        if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
+        return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes };
     }, [scene, ficha.tunica]);
 
     const juntas = useRef<Juntas>({});
@@ -195,14 +220,23 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // longe da câmera ninguém nota o esqueleto: além de 28 m só se move
         // a cada 4 quadros, além de 70 m nem é desenhado
         const dist = g.position.distanceTo(camera.position);
-        g.visible = dist < 70 || !!sentado;
+        // fora do quadro não se desenha nem se anima (a sombra de quem está
+        // colado atrás da câmera ainda conta: perto, fica visível)
+        _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+        _frustum.setFromProjectionMatrix(_pv);
+        _esfera.center.set(g.position.x, g.position.y + escala * .9, g.position.z); _esfera.radius = escala * 1.3;
+        g.visible = !!sentado || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
         if (!g.visible) return;
+        const perto = dist < DIST_DETALHE;
+        for (const m of detalhes) m.visible = perto;
         if (dist > 28 && !ctl && (++quadro.current & 3)) return;
 
         // braços caídos ao lado do corpo (o rig vem em pose de A), dedos
         // meio fechados: mão relaxada, não espalmada
-        const baixaE = -.92, baixaD = .92;
-        dedos.current.forEach((f, i) => e.caido ? f.girar(0) : f.girar(0, 0, (i % 3 === 0 ? .25 : .45) * (f.osso.name.endsWith('_l') ? -1 : 1)));
+        // (0,92 passava da vertical: os braços iam para trás das costas e as
+        // mãos varavam a saia na frente — os "dedos soltos" na cintura)
+        const baixaE = -.74, baixaD = .74;
+        dedos.current.forEach((f, i) => e.caido ? f.girar(0) : f.girar(0, 0, (i % 3 === 0 ? .12 : .24) * (f.osso.name.endsWith('_l') ? -1 : 1)));
         const respira = Math.sin(t * 1.7 + x);
         if (sentado) {
             // na cabine: coxas para a frente, canelas para baixo, mãos no manche
@@ -263,10 +297,12 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const f = t * (ctl ? 9 : rondaVel > .9 ? 12 : 7);
             const s = Math.sin(f);
             g.position.y += Math.abs(Math.cos(f)) * .035;
-            j('pelvis', 0, s * .12, s * .03);
-            j('spine_01', .04, -s * .15);
-            j('thigh_l', -s * .6); j('thigh_r', s * .6);
-            j('calf_l', Math.max(0, -Math.cos(f)) * .95 + .05); j('calf_r', Math.max(0, Math.cos(f)) * .95 + .05);
+            j('pelvis', 0, s * .07, s * .03);
+            // torção pequena contra a pelve: o cinto é rígido na pelve e saltava da túnica
+            j('spine_01', .04, -s * .04);
+            const passo = vestido ? .3 : .6, dobra = vestido ? .45 : .95;
+            j('thigh_l', -s * passo); j('thigh_r', s * passo);
+            j('calf_l', Math.max(0, -Math.cos(f)) * dobra + .05); j('calf_r', Math.max(0, Math.cos(f)) * dobra + .05);
             j('foot_l', s * .2); j('foot_r', -s * .2);
             j('upperarm_l', s * .45, 0, baixaE); j('upperarm_r', -s * .45, 0, baixaD);
             j('lowerarm_l', -.35 - Math.max(0, s) * .3); j('lowerarm_r', -.35 - Math.max(0, -s) * .3);
@@ -300,8 +336,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             j('upperarm_r', -.6 + Math.sin(t * 1.3) * .35, 0, baixaD - .2); j('lowerarm_r', -.9);
             j('upperarm_l', .05, 0, baixaE); j('lowerarm_l', -.2);
         } else {
+            // antebraço quase no repouso do rig: a mão pende ao lado da coxa
             j('upperarm_l', Math.sin(t * 1.7 + x) * .04, 0, baixaE); j('upperarm_r', -Math.sin(t * 1.7 + x) * .04, 0, baixaD);
-            j('lowerarm_l', -.18); j('lowerarm_r', -.18);
+            j('lowerarm_l', -.6); j('lowerarm_r', -.6);
         }
     });
 
@@ -311,7 +348,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             <mesh><octahedronGeometry args={[.09, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
         </group>}
         {!controle && <mesh position={[0, .02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.45, 20]} /></mesh>}
-        <pointLight ref={luzVerde} position={[0, 1.75, .9]} color="#3dff8a" intensity={0} distance={3.5} />
+        {/* a luz verde da possessão: só quem é possuído a carrega (luz apagada
+            ainda pesa em todo shader da cena) */}
+        {ficha.id === 'halvard' && !controle && <pointLight ref={luzVerde} position={[0, 1.75, .9]} color="#3dff8a" intensity={0} distance={3.5} />}
     </group>;
 };
 

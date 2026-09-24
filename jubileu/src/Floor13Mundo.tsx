@@ -6,7 +6,7 @@
  * em volta de tudo, barcos navegando o céu. Só desenho: onde se pisa e quem
  * está onde vêm de `f13Mundo.ts`.
  */
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
@@ -17,6 +17,12 @@ import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { ILHAS, PONTES, LUGAR_DAS_CASAS, SINO } from './f13Mundo';
 import { pbr } from './f13Texturas';
+import { fundirEstaticos } from './f13Fundir';
+
+/** Funde o que está parado debaixo deste grupo depois de montado (ver f13Fundir). */
+function useFundir(ref: React.RefObject<THREE.Object3D | null>, celula?: number) {
+    useLayoutEffect(() => (ref.current ? fundirEstaticos(ref.current, celula) : undefined), [ref, celula]);
+}
 
 // ── PALETA ───────────────────────────────────────────────────────────────────
 export const P13 = Object.freeze({
@@ -60,7 +66,7 @@ function geoRocha(r: number, semente: number): THREE.BufferGeometry {
 }
 
 /** Direção do sol baixo da tarde (a mesma que a luz de sombra usa). */
-export const DIRECAO_DO_SOL = new THREE.Vector3(-120, 42, -220).normalize();
+export const DIRECAO_DO_SOL = new THREE.Vector3(-120, 72, -220).normalize();
 
 /**
  * O céu é espalhamento atmosférico de verdade (modelo de Preetham, o `Sky`
@@ -77,7 +83,7 @@ export function novoCeu(): Sky {
     // o Preetham sai em radiância física, clara demais para esta cena: um
     // terço, para o céu ficar azul e o horizonte âmbar em vez de branco
     ceu.material.fragmentShader = ceu.material.fragmentShader
-        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .34, 1.0 );')
+        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .42, 1.0 );')
         // o disco do sol vem 19000× mais forte que o céu: cegava a tela
         // inteira pelo bloom. Fica um disco quente, visível sem ofuscar
         .replace('vSunE * 19000.0 * Fex', 'vSunE * 700.0 * Fex');
@@ -354,22 +360,39 @@ function texturaRuna(runa: string): THREE.CanvasTexture {
 }
 
 /** Fumaça de chaminé: bolinhas que sobem, crescem e somem. */
+/** Fumaça de chaminé: nove bolas numa malha instanciada só (uma chamada),
+ *  cada uma com a própria transparência (atributo `aAlfa`). */
+const geoFumaca = new THREE.SphereGeometry(1, 10, 8);
+const matFumaca = (() => {
+    const m = new THREE.MeshBasicMaterial({ color: '#d9d4cc', transparent: true, depthWrite: false });
+    m.onBeforeCompile = (sh) => {
+        sh.vertexShader = 'attribute float aAlfa;\nvarying float vAlfa;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlfa = aAlfa;');
+        sh.fragmentShader = 'varying float vAlfa;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vAlfa;');
+    };
+    return m;
+})();
 const Fumaca: React.FC<{ y: number }> = ({ y }) => {
-    const ref = useRef<THREE.Group>(null);
+    const N = 9;
+    const malha = useMemo(() => {
+        const g = geoFumaca.clone();
+        g.setAttribute('aAlfa', new THREE.InstancedBufferAttribute(new Float32Array(N), 1));
+        const im = new THREE.InstancedMesh(g, matFumaca, N);
+        im.frustumCulled = false; im.userData.vivo = true;
+        return im;
+    }, []);
+    const o = useMemo(() => new THREE.Object3D(), []);
     useFrame(({ clock }) => {
-        const g = ref.current; if (!g) return;
-        g.children.forEach((c, i) => {
-            const t = (clock.elapsedTime * .35 + i / g.children.length) % 1;
-            c.position.set(Math.sin(t * 5 + i) * .3 + t * 1.2, y + t * 5, 0);
-            c.scale.setScalar(.35 + t * 1.3);
-            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .55 * (1 - t);
-        });
+        const alfa = malha.geometry.getAttribute('aAlfa') as THREE.InstancedBufferAttribute;
+        for (let i = 0; i < N; i++) {
+            const t = (clock.elapsedTime * .35 + i / N) % 1;
+            o.position.set(Math.sin(t * 5 + i) * .3 + t * 1.2, y + t * 5, 0);
+            o.scale.setScalar(.35 + t * 1.3); o.updateMatrix();
+            malha.setMatrixAt(i, o.matrix); alfa.setX(i, .55 * (1 - t));
+        }
+        malha.instanceMatrix.needsUpdate = true; alfa.needsUpdate = true;
     });
-    return <group ref={ref}>
-        {Array.from({ length: 9 }, (_, i) => (
-            <mesh key={i}><sphereGeometry args={[1, 10, 8]} /><meshBasicMaterial color="#d9d4cc" transparent depthWrite={false} /></mesh>
-        ))}
-    </group>;
+    useEffect(() => () => malha.geometry.dispose(), [malha]);
+    return <primitive object={malha} />;
 };
 
 /** Casa comprida viking. A porta olha para +z local. */
@@ -386,7 +409,9 @@ const CasaCompridaModelo: React.FC<{
         c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
         return c;
     }, [scene]);
-    return <group scale={escala}>
+    const raiz = useRef<THREE.Group>(null);
+    useFundir(raiz);
+    return <group ref={raiz} scale={escala}>
         <primitive object={casca} />
         {/* chaminé */}
         <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color={P13.pedra} flatShading /></mesh>
@@ -397,7 +422,7 @@ const CasaCompridaModelo: React.FC<{
             {[-.18, 0, .18].map((x, i) => <mesh key={i} position={[x, -.14 - (i % 2) * .05, .25]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.035, .22 + (i % 2) * .1, 6]} /><meshStandardMaterial color="#dff0ff" roughness={.1} transparent opacity={.85} /></mesh>)}
         </group>}
         {/* a porta */}
-        <group ref={portaRef} position={[0, .8, 2.82]}>
+        <group ref={portaRef} position={[0, .8, 2.82]} userData={{ vivo: !!portaRef }}>
             {latao
                 // latão em duas folhas, como porta de elevador (a casa certa as abre)
                 ? [-1, 1].map((l) => <mesh key={l} name="folha" userData={{ lado: l }} position={[l * .2625, 0, 0]}>
@@ -485,7 +510,9 @@ export const Barco: React.FC<{ vela?: string; escala?: number }> = ({ vela = P13
         for (let i = 0; i < p.count; i++) { const x = p.getX(i) / 1.8, y = p.getY(i) / 1.3; p.setZ(i, (1 - x * x) * (1 - y * y * .6) * .55); }
         g.computeVertexNormals(); return g;
     }, []);
-    return <group scale={escala}>
+    const raiz = useRef<THREE.Group>(null);
+    useFundir(raiz);
+    return <group ref={raiz} scale={escala}>
         <mesh geometry={casco} castShadow><meshStandardMaterial {...pbr('carvalho', 1, 1)} color="#b89070" side={THREE.DoubleSide} /></mesh>
         {/* amurada: a faixa de tábua escura no topo do casco */}
         <mesh geometry={dragao} castShadow><meshStandardMaterial {...pbr('carvalho', .5, 2)} color="#8a6448" /></mesh>
@@ -527,7 +554,7 @@ const Frota: React.FC = () => {
             g.rotation.set(Math.sin(t * .5 + i) * .04, -a + (r.v > 0 ? Math.PI : 0), Math.sin(t * .8 + i) * .05);
         });
     });
-    return <>{rotas.map((r, i) => <group key={i} ref={(g) => { refs.current[i] = g; }}><Barco vela={r.vela} escala={r.e} /></group>)}</>;
+    return <>{rotas.map((r, i) => <group key={i} ref={(g) => { refs.current[i] = g; }} userData={{ vivo: true }}><Barco vela={r.vela} escala={r.e} /></group>)}</>;
 };
 
 /** O templo do sino, na ilha do leste. */
@@ -538,7 +565,7 @@ export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef
             <mesh key={`${x}${z}`} position={[x * .9, 2, z * .9]}><boxGeometry args={[.25, 4, .25]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
         ))}
         <mesh position={[0, 4.35, 0]} rotation={[0, Math.PI / 4, 0]}><coneGeometry args={[1.7, 1.4, 4]} /><meshStandardMaterial color={P13.telhado} flatShading /></mesh>
-        <group ref={sinoRef} position={[0, 3.6, 0]}>
+        <group ref={sinoRef} position={[0, 3.6, 0]} userData={{ vivo: true }}>
             <mesh position={[0, -.45, 0]}><cylinderGeometry args={[.25, .55, .8, 20, 1, true]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
         </group>
     </group>;
@@ -561,16 +588,34 @@ const Forja: React.FC = () => {
     </group>;
 };
 
+/** Lona listrada do toldo: a cor da barraca alternando com linho cru. */
+const toldos = new Map<string, THREE.CanvasTexture>();
+function texturaDeToldo(cor: string): THREE.CanvasTexture {
+    let t = toldos.get(cor);
+    if (t) return t;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 32;
+    const g = c.getContext('2d')!;
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#e8dcc0' : cor; g.fillRect(i * 16, 0, 16, 32); }
+    for (let k = 0; k < 300; k++) { g.fillStyle = `rgba(50,35,20,${Math.random() * .08})`; g.fillRect(Math.random() * 128, Math.random() * 32, 2, 2); }
+    t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; toldos.set(cor, t);
+    return t;
+}
+
 /** Praça do mercado: barracas com toldo listrado e uma pedra rúnica. */
 const Praca: React.FC = () => {
     const barracas = [[-6, 12, .4], [-3.2, 14, .1], [6, 11, -.4]];
     return <group>
         {barracas.map(([x, z, r], i) => (
             <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}>
-                <mesh position={[0, .45, 0]}><boxGeometry args={[1.8, .9, .9]} /><meshStandardMaterial color={P13.tabua} /></mesh>
-                {[-.8, .8].map((dx) => <mesh key={dx} position={[dx, 1.1, -.35]}><boxGeometry args={[.08, 2.2, .08]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
-                <mesh position={[0, 2.1, 0]} rotation={[-.35, 0, 0]}><boxGeometry args={[2, .05, 1.3]} /><meshStandardMaterial color={P13.escudo[i % 4]} /></mesh>
-                {[-.5, 0, .5].map((dx, k) => <mesh key={dx} position={[dx, 1, .1]}><sphereGeometry args={[.13, 10, 8]} /><meshStandardMaterial color={['#c9442e', '#e0b155', '#6f9a4a'][k]} /></mesh>)}
+                <mesh position={[0, .45, 0]}><boxGeometry args={[1.8, .9, .9]} /><meshStandardMaterial {...pbr('tabua', 1, .5)} color="#b58a5e" /></mesh>
+                {/* quatro mourões: os de trás mais altos, o toldo desce para a frente
+                    apoiado nos quatro (antes só dois o seguravam e a borda da
+                    frente, subindo no ar, lia como uma vara vermelha solta) */}
+                {[[-.84, -.4, 2.3], [.84, -.4, 2.3], [-.84, .5, 1.92], [.84, .5, 1.92]].map(([dx, dz, h]) => <mesh key={`${dx}${dz}`} position={[dx, h / 2, dz]}><boxGeometry args={[.08, h, .08]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
+                <mesh position={[0, 2.13, .05]} rotation={[.33, 0, 0]}><boxGeometry args={[1.92, .03, 1.22]} /><meshStandardMaterial map={texturaDeToldo(P13.escudo[i % 3])} roughness={.95} /></mesh>
+                {/* a sanefa: pano listrado caindo na frente do toldo */}
+                <mesh position={[0, 1.8, .64]}><boxGeometry args={[1.92, .22, .02]} /><meshStandardMaterial map={texturaDeToldo(P13.escudo[i % 3])} roughness={.95} /></mesh>
+                {[-.5, 0, .5].map((dx, k) => <mesh key={dx} position={[dx, 1, .1]}><sphereGeometry args={[.13, 10, 8]} /><meshStandardMaterial color={['#c9442e', '#e0b155', '#6f9a4a'][k]} roughness={.55} /></mesh>)}
             </group>
         ))}
         <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#8a8478" flatShading /></mesh>
@@ -651,7 +696,7 @@ const Passaros: React.FC = () => {
         o.rotation.y = -t * .12;
         o.children.forEach((c, i) => { c.rotation.z = Math.sin(t * 9 + i) * .6; });
     });
-    return <group ref={g}>
+    return <group ref={g} userData={{ vivo: true }}>
         {[[0, 0], [-1.2, 1], [1.2, 1], [-2.4, 2], [2.4, 2]].map(([x, z], i) => (
             <mesh key={i} position={[x, 0, z]}><boxGeometry args={[.9, .04, .2]} /><meshBasicMaterial color="#2a2622" /></mesh>
         ))}
@@ -664,6 +709,8 @@ const Passaros: React.FC = () => {
  * cada ilha fica mais ralo.
  */
 const tempoGrama = { value: 0 };
+/** Até onde a grama é desenhada (m); o Floor13 encurta nos níveis baixos. */
+export const alcanceDaGrama = { valor: 40 };
 const Grama: React.FC = () => {
     // campo de lâminas: cada lâmina é uma fita afinada e curvada (5 gomos),
     // instanciada às dezenas de milhares. A cor vai da raiz sombria à ponta
@@ -700,7 +747,7 @@ const Grama: React.FC = () => {
             sh.fragmentShader = 'varying vec3 vTom;\nvarying float vAlt;\n' + sh.fragmentShader
                 .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize((viewMatrix * vec4(0., 1., .25, 0.)).xyz);')
                 .replace('#include <color_fragment>', `#include <color_fragment>
-                vec3 raiz = vec3(.07, .13, .04), meio = vTom, ponta = mix(vTom, vec3(.78, .8, .38), .3);
+                vec3 raiz = vec3(.11, .19, .06), meio = vTom, ponta = mix(vTom, vec3(.78, .8, .38), .3);
                 diffuseColor.rgb = vAlt < .5 ? mix(raiz, meio, smoothstep(0., .5, vAlt)) : mix(meio, ponta, smoothstep(.5, 1., vAlt));`)
                 // translucidez: a lâmina contra o sol brilha por dentro
                 .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
@@ -764,7 +811,7 @@ const Grama: React.FC = () => {
         tempoGrama.value = clock.elapsedTime;
         for (const b of blocos) {
             centro.copy(b.boundingSphere!.center);
-            b.visible = centro.distanceTo(camera.position) < 42 + b.boundingSphere!.radius;
+            b.visible = centro.distanceTo(camera.position) < alcanceDaGrama.valor + b.boundingSphere!.radius;
         }
     });
     return <>{blocos.map((b, i) => <primitive key={i} object={b} />)}</>;
@@ -789,8 +836,9 @@ const Tochas: React.FC = () => {
         <group key={i} position={[x, y, z]}>
             <mesh position={[0, .8, 0]}><cylinderGeometry args={[.05, .07, 1.6, 6]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             <mesh position={[0, 1.62, 0]}><cylinderGeometry args={[.1, .07, .14, 8]} /><meshStandardMaterial color="#3a3a3e" metalness={.6} roughness={.5} /></mesh>
-            <mesh ref={(m) => { chamas.current[i] = m; }} position={[0, 1.82, 0]}><coneGeometry args={[.09, .3, 8]} /><meshBasicMaterial color={new THREE.Color('#ffae45').multiplyScalar(2.2)} toneMapped={false} /></mesh>
-            {i % 2 === 0 && <pointLight ref={(l) => { luzes.current[i] = l; }} position={[0, 1.9, 0]} color="#ff9a45" distance={6} intensity={2} />}
+            <mesh ref={(m) => { chamas.current[i] = m; }} position={[0, 1.82, 0]} userData={{ vivo: true }}><coneGeometry args={[.09, .3, 8]} /><meshBasicMaterial color={new THREE.Color('#ffae45').multiplyScalar(2.2)} toneMapped={false} /></mesh>
+            {/* duas tochas acesas de verdade bastam: cada luz a mais pesa em todo shader */}
+            {(i === 0 || i === 3) && <pointLight ref={(l) => { luzes.current[i] = l; }} position={[0, 1.9, 0]} color="#ff9a45" distance={6} intensity={2} />}
         </group>
     ))}</>;
 };
@@ -808,7 +856,9 @@ export const Floor13Mundo: React.FC<{
             largura: p.largura,
         };
     }), []);
-    return <group>
+    const raiz = useRef<THREE.Group>(null);
+    useFundir(raiz, 18);
+    return <group ref={raiz}>
         <Ceu />
         <Nuvens />
         <Frota />

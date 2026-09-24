@@ -21,7 +21,7 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
-import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL } from './Floor13Mundo';
+import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
@@ -571,6 +571,21 @@ const Vivo: React.FC<{
  * quem fala virava silhueta preta. Fraca e fria, sem sombra — só devolve
  * o rosto e a roupa, como o rebatedor de um set.
  */
+/** Bancada (só em DEV): chamadas de desenho, triângulos e luzes do quadro. */
+const Sonda: React.FC = () => {
+    useFrame(({ gl, scene }) => {
+        if (!import.meta.env.DEV) return;
+        let luzes = 0, pele = 0;
+        scene.traverseVisible((o) => { if ((o as THREE.PointLight).isPointLight) luzes++; if ((o as THREE.SkinnedMesh).isSkinnedMesh) pele++; });
+        // o compositor chama render várias vezes: soma o quadro inteiro
+        (window as unknown as { __f13cena?: unknown }).__f13cena = scene;
+        gl.info.autoReset = false;
+        (window as unknown as { __f13gl?: unknown }).__f13gl = { ...gl.info.render, luzes, pele, px: gl.getDrawingBufferSize(new THREE.Vector2()).toArray() };
+        gl.info.reset();
+    });
+    return null;
+};
+
 const LuzDaCamera: React.FC = () => {
     const luz = useRef<THREE.DirectionalLight>(null);
     useFrame(({ camera }) => {
@@ -582,10 +597,17 @@ const LuzDaCamera: React.FC = () => {
     return <directionalLight ref={luz} intensity={.9} color="#d8e2ff" />;
 };
 
-const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
+const escalaTmp = new THREE.Vector3();
+const Sol: React.FC<{ jog: React.MutableRefObject<Jog>; mapa: number }> = ({ jog, mapa }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     const scene = useThree((s) => s.scene);
     const feito = useRef(0);
+    // troca de nível: o mapa de sombra muda de tamanho (refeito no próximo quadro)
+    useEffect(() => {
+        const l = luz.current; if (!l) return;
+        l.shadow.mapSize.set(mapa, mapa);
+        l.shadow.map?.dispose(); l.shadow.map = null;
+    }, [mapa]);
     useFrame((_, dt) => {
         const l = luz.current; if (!l) return;
         const j = jog.current;
@@ -597,13 +619,19 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
             scene.traverse((o) => {
                 const m = o as THREE.Mesh;
                 if (!m.isMesh || 'isInstancedMesh' in m || m.material instanceof THREE.ShaderMaterial || m.material instanceof THREE.MeshBasicMaterial) return;
-                m.castShadow = true; m.receiveShadow = true;
+                m.receiveShadow = true;
+                // miudezas (pregos, argolas, frutas) não projetam: a sombra
+                // delas some no filtro e cada uma custava uma chamada a mais
+                if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+                m.getWorldScale(escalaTmp);
+                const r = m.geometry.boundingSphere!.radius * Math.max(escalaTmp.x, escalaTmp.y, escalaTmp.z);
+                m.castShadow = !m.userData.semSombra && r > .18;
             });
             feito.current = 10;
         }
     });
     return <directionalLight ref={luz} intensity={4.2} color="#ffd6a0" castShadow shadow-radius={4}
-        shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-.0004}
+        shadow-bias={-.0004}
         shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
         shadow-camera-near={1} shadow-camera-far={140} shadow-normalBias={.03} />;
 };
@@ -629,6 +657,13 @@ const Ambiente: React.FC = () => {
 };
 
 // ═══ O ANDAR ═════════════════════════════════════════════════════════════════
+/** Os três níveis de qualidade: o monitor desce um degrau se não segura ~40 qps. */
+const QUALIDADE = [
+    { dpr: 1 as number | [number, number], msaa: 0, ao: false, sombra: 1024, grama: 20 },
+    { dpr: [1, 1.25] as [number, number], msaa: 2, ao: true, sombra: 1024, grama: 30 },
+    { dpr: [1, 1.5] as [number, number], msaa: 4, ao: true, sombra: 2048, grama: 40 },
+] as const;
+
 // ── DESTINOS DO MODO CRIADOR ────────────────────────────────────────────
 /** Onde o Modo Criador pode largar o hóspede dentro de Vindhjem. */
 export type Inicio13 = 'explorar' | 'casaCerta' | 'entidade' | 'martelo' | 'sino' | 'ovelha' | IdNpc;
@@ -648,7 +683,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // qualidade adaptativa: começa bonita; se o aparelho não segura ~45 qps,
     // baixa a resolução e depois desliga a oclusão ambiente — nesta ordem,
     // porque a resolução custa menos ao olho do que perder o AO
-    const [nivel, setNivel] = useState(2);
+    // no celular (toque) já começa no nível do meio: a tela tem 3× a
+    // densidade de pixels e a GPU uma fração da de um computador
+    const [nivel, setNivel] = useState(() => (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 : 2));
+    const Q = QUALIDADE[nivel];
+    useEffect(() => { alcanceDaGrama.valor = Q.grama; }, [Q]);
     const tQueda = useRef(0);
     const [legenda, setLegenda] = useState(LEGENDAS_DA_QUEDA[0].texto);
     const [flash, setFlash] = useState(0);
@@ -917,17 +956,18 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={nivel === 2 ? [1, 1.5] : 1} shadows="soft"
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
-                <hemisphereLight args={['#bcd4f0', '#5a4a36', .6]} />
+                <hemisphereLight args={['#bcd4f0', '#6a5a42', .9]} />
                 {/* contraluz fria: separa as silhuetas do chão verde */}
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
                 <Floor13Vida />
-                <Sol jog={jog} />
+                <Sol jog={jog} mapa={Q.sombra} />
                 <LuzDaCamera />
+                {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -947,9 +987,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
-                <EffectComposer multisampling={4}>
+                <EffectComposer multisampling={Q.msaa}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
-                    {nivel > 0 && <N8AO aoRadius={1.6} intensity={2.2} distanceFalloff={.6} halfRes quality="performance" />}
+                    {Q.ao && <N8AO aoRadius={1.4} intensity={1.5} distanceFalloff={.6} halfRes quality="performance" />}
                     <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : .14} />

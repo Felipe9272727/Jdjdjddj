@@ -21,6 +21,8 @@ const busca = new URLSearchParams(window.location.search);
 const POSE = busca.get('pose') ?? '';
 const PERTO = busca.get('perto');
 /** De que lado a câmera olha: +1 = de +Z (a frente no jogo), -1 = de -Z. */
+/** `&meio=1`: plano médio (cintura e mãos) do `perto`. */
+const MEIO = busca.has('meio');
 const LADO = busca.get('lado') === 'tras' ? -1 : 1;
 
 const Um: React.FC<{ ficha: FichaNpc; x: number }> = ({ ficha, x }) => {
@@ -33,7 +35,8 @@ const Ceu: React.FC = () => { const c = useMemo(() => novoCeu(), []); return <pr
 
 const Camera: React.FC<{ alvoX: number }> = ({ alvoX }) => {
     useFrame(({ camera }) => {
-        if (PERTO) { const d = POSE === 'caido'; camera.position.set(alvoX + .15, d ? 2.2 : 1.85, (d ? 1.4 : 1.25) * LADO); camera.lookAt(alvoX, d ? .1 : 1.78, d ? -1 : 0); }
+        if (PERTO && MEIO) { camera.position.set(alvoX + .4, 1.35, 2.7 * LADO); camera.lookAt(alvoX, 1.1, 0); }
+        else if (PERTO) { const d = POSE === 'caido'; camera.position.set(alvoX + .15, d ? 2.2 : 1.85, (d ? 1.4 : 1.25) * LADO); camera.lookAt(alvoX, d ? .1 : 1.78, d ? -1 : 0); }
         else { camera.position.set(0, 1.5, 11.5 * LADO); camera.lookAt(0, 1.05, 0); }
     });
     return null;
