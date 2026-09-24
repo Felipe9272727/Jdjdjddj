@@ -1083,7 +1083,9 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         // Fim do bloco de fala: para onde ele leva.
         if (f12.fase === 'encontro' || f12.fase === 'virada') {
             f12.fase = 'luta';
-            f12.bocaT = 0;                 // o compasso recomeça limpo dos dois lados
+            // O compasso recomeça quase no fim do descanso: a boca começa a abrir
+            // em 0,6 s e o primeiro ataque sai antes de 1,5 s — sem tela parada.
+            f12.bocaT = BOCA.fechada - .6;
             tocarMotor();
             // Só para a bancada de fotos: `?f12fase=2` pula direto para depois
             // da virada, no estado VIVO (um import externo pega outra cópia).
@@ -1100,7 +1102,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             touchAtivo.current = false; gatilho.current = false;
             nave.current = novaNave(0, meioY());
             irmao.current = novaNave(-4, meioY() + 1.2, 3);
-            f12.fase = 'luta'; f12.bocaT = 0;
+            f12.fase = 'luta'; f12.bocaT = BOCA.fechada - .6;
             abertura.current = 1; cam.current = 1; sumindo.current = 1; visivel.current = true;
             // ── UMA REENTRADA, EM VEZ DE UM CORTE ────────────────────────
             // O card de derrota termina no preto e a luta recomeçava com um
