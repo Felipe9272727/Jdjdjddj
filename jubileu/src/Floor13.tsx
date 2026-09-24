@@ -336,7 +336,8 @@ const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number }> = Object.fr
     ...LUGAR_DAS_CASAS.map((l) => ({ x: l.x, z: l.z, r: 2.6 })),
     { x: -7.5, z: 4, r: 2.4 }, { x: 7.8, z: 12.5, r: 2.4 },
     { x: 0, z: 8, r: 1.4 }, { x: 4.2, z: 1.5, r: .7 },
-    { x: -6, z: 12, r: 1 }, { x: -3.2, z: 14, r: 1 }, { x: 6, z: 11, r: 1 },
+    // barracas: 1,9 × 1,3 m com o toldo — raio que cobre as pontas do balcão
+    { x: -6, z: 12, r: 1.25 }, { x: -3.2, z: 14, r: 1.25 }, { x: 6, z: 11, r: 1.25 },
     { x: -23, z: 4.5 - 1.5, r: 1.1 },
     { x: SINO.x, z: SINO.z, r: 1.3 }, { x: -2, z: 33, r: 1.3 },
 ]);
@@ -472,7 +473,8 @@ const CameraDeExplorar: React.FC<{
 const Radar: React.FC<{
     jog: React.MutableRefObject<Jog>; est: React.MutableRefObject<ReturnType<typeof novoEstado13>>;
     ativo: boolean; aoMudar: (a: Alvo | null) => void; aoEntidade: () => void; yaw: React.MutableRefObject<number>;
-}> = ({ jog, est, ativo, aoMudar, aoEntidade, yaw }) => {
+    onde: Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>;
+}> = ({ jog, est, ativo, aoMudar, aoEntidade, yaw, onde }) => {
     const ultimo = useRef('');
     useFrame(({ clock }) => {
         if (!ativo) return;
@@ -494,11 +496,9 @@ const Radar: React.FC<{
         };
         for (const [id, l] of Object.entries(LUGAR_DOS_NPCS) as [IdNpc, { x: number; z: number; ronda?: number }][]) {
             if (id === 'halvard' && e.entidade === 'caido') continue;
-            if (l.ronda) {
-                // a menina corre em volta do poço: acha pela posição de agora
-                const a = clock.elapsedTime * .45;   // o mesmo relógio da ronda em Floor13Povo
-                tenta({ tipo: 'npc', id }, l.x + Math.cos(a) * l.ronda, l.z + Math.sin(a) * l.ronda, 2.4);
-            } else tenta({ tipo: 'npc', id }, l.x, l.z, 2.3);
+            // quem faz ronda (a menina em volta do poço) é achado onde está agora
+            const o = onde[id].current;
+            tenta({ tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.4 : 2.3);
         }
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
@@ -528,15 +528,18 @@ const Vivo: React.FC<{
     jog: React.MutableRefObject<Jog>; npcVis: Record<IdNpc, React.MutableRefObject<EstadoVisualNpc>>;
     sinoRef: React.RefObject<THREE.Group | null>; balanco: React.MutableRefObject<number>;
     portaCerta: React.RefObject<THREE.Group | null>; abrindo: boolean;
-}> = ({ jog, npcVis, sinoRef, balanco, portaCerta, abrindo }) => {
+    onde: Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>;
+}> = ({ jog, npcVis, sinoRef, balanco, portaCerta, abrindo, onde }) => {
     const p = useMemo(() => new THREE.Vector3(), []);
     const tempoPorta = useRef(0);
     useFrame(({ clock }, dt) => {
         const j = jog.current;
         p.set(j.x, j.y, j.z);
         for (const n of NPCS) {
-            const l = LUGAR_DOS_NPCS[n.id];
-            npcVis[n.id].current.olharPara = Math.hypot(j.x - l.x, j.z - l.z) < 5 ? p : null;
+            // pela posição de agora: a menina da ronda só para quando o hóspede
+            // chega perto DELA, não do centro da volta
+            const o = onde[n.id].current, parar = LUGAR_DOS_NPCS[n.id].ronda ? 3.2 : 5;
+            npcVis[n.id].current.olharPara = Math.hypot(j.x - o.x, j.z - o.z) < parar ? p : null;
         }
         if (sinoRef.current) {
             balanco.current = Math.max(0, balanco.current - dt * .35);
@@ -707,6 +710,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const aoFimDoDialogo = useRef<(() => void) | null>(null);
     const [aviso, setAviso] = useState<string | null>(null);
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
+    const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const npcVis = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { olharPara: null, falando: false, possessao: 0, caido: false } as EstadoVisualNpc }])) as Record<IdNpc, React.MutableRefObject<EstadoVisualNpc>>, []);
     const sinoRef = useRef<THREE.Group>(null), portaCerta = useRef<THREE.Group>(null);
     const balancoDoSino = useRef(0);
@@ -748,7 +752,22 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             } else if (inicio === 'martelo') por(MARTELO.x, MARTELO.z);
             else if (inicio === 'sino') por(SINO.x, SINO.z);
             else if (inicio === 'ovelha') por(OVELHAS[0].x, OVELHAS[0].z);
-            else if (npc) por(npc.x, npc.z);
+            // quem faz ronda: chega onde a pessoa está agora, não no centro da volta
+            else if (npc?.ronda) {
+                // quem faz ronda (a menina em volta do poço): chega por fora da
+                // volta, a 2,6 m de onde ela está agora, de frente para ela (no
+                // centro da volta está o poço); ela para quando o hóspede chega
+                const o = npcOnde[inicio as IdNpc].current;
+                let dx = o.x - npc.x, dz = o.z - npc.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+                const px = o.x + dx * 2.6, pz = o.z + dz * 2.6;
+                let qx = px, qz = pz;
+                for (const ob of OBSTACULOS) {
+                    const ddx = qx - ob.x, ddz = qz - ob.z, dd = Math.hypot(ddx, ddz), r = ob.r + .45;
+                    if (dd < r && dd > 1e-4) { qx = ob.x + ddx / dd * r; qz = ob.z + ddz / dd * r; }
+                }
+                const yq = Math.atan2(-(o.x - qx), -(o.z - qz));
+                j.x = qx; j.z = qz; j.y = chaoEm(qx, qz) ?? 0; j.ang = yq + Math.PI; yaw.current = yq; j.levantando = 0;
+            } else if (npc) por(npc.x, npc.z);
         }, 400);
         return () => window.clearTimeout(id);
     }, [inicio]);
@@ -783,8 +802,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         setFalas(f); setLinha(0); setDigitado(0); setFase('dialogo');
         falando.current = quem;
         if (quem) {
-            const l = LUGAR_DOS_NPCS[quem];
-            foco.current = new THREE.Vector3(l.x, (chaoEm(l.x, l.z) ?? 0) + 1.6, l.z);
+            const o = npcOnde[quem].current;
+            foco.current = new THREE.Vector3(o.x, (chaoEm(o.x, o.z) ?? 0) + 1.6, o.z);
             npcVis[quem].current.falando = true;
         }
         aoFimDoDialogo.current = fim ?? null;
@@ -973,7 +992,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
                     if (glitch && n.id !== 'halvard' && Math.hypot(jog.current.x - l.x, jog.current.z - l.z) < 7) return null;
-                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
+                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} onde={npcOnde[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
                         marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} />;
                 })}
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
@@ -985,8 +1004,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                         {/* primeira pessoa: o corpo do hóspede não é desenhado */}
                     </>}
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
-                <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} />
-                <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
+                <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} onde={npcOnde} />
+                <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
                 <EffectComposer multisampling={Q.msaa}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
                     {Q.ao && <N8AO aoRadius={1.4} intensity={1.5} distanceFalloff={.6} halfRes quality="performance" />}

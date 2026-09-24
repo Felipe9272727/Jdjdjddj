@@ -76,6 +76,8 @@ const SOMBREIA = /^(corpo|tunica|saia|capa|cabelo|barba|elmo|chifres|capuz)/;
 /** Miudezas que somem de longe (a mais de DIST_DETALHE m ninguém vê um cílio). */
 const DETALHE = /^(cilios|sobrancelhas|fivela|bigode)/;
 const DIST_DETALHE = 11;
+/** Quanto a roupa (molde adulto) aperta na cintura da criança. */
+const AJUSTE_CRIANCA = .62;
 /** Além disto o morador não é desenhado (a névoa já o apagou quase todo). */
 const DIST_MAX = 48;
 const _esfera = new THREE.Sphere(), _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
@@ -93,9 +95,11 @@ interface Props {
     /** Velocidade angular da ronda (rad/s) e fase inicial. */
     rondaVel?: number; rondaFase?: number;
     escalaExtra?: number;
+    /** Onde o morador está agora (a ronda anda): quem o procura lê daqui. */
+    onde?: React.MutableRefObject<{ x: number; z: number }>;
 }
 
-const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1, rondaVel = .45, rondaFase = 0 }) => {
+const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1, rondaVel = .45, rondaFase = 0, onde }) => {
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
@@ -153,6 +157,29 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const b = new THREE.Box3().setFromObject(saia);
             vestido = (b.min.y - alto.min.y) / Math.max(.01, alto.max.y - alto.min.y) < .3;
         }
+        // a saia da criança saía em sino (a barra no dobro da largura do
+        // quadril) e o cinto rígido ficava boiando em volta do pano: afina a
+        // barra na geometria de repouso, mais quanto mais baixo
+        if (saia && ficha.id === 'eira') {
+            const g = saia.geometry = saia.geometry.clone();
+            // o GLB vem quantizado (inteiros normalizados): mexe numa cópia em float
+            const q = g.getAttribute('position') as THREE.BufferAttribute, f = new Float32Array(q.count * 3);
+            for (let i = 0; i < q.count; i++) { f[i * 3] = q.getX(i); f[i * 3 + 1] = q.getY(i); f[i * 3 + 2] = q.getZ(i); }
+            g.setAttribute('position', new THREE.BufferAttribute(f, 3)); g.deleteAttribute('normal');
+            g.computeBoundingBox();
+            const bb = g.boundingBox!, pos = g.getAttribute('position') as THREE.BufferAttribute;
+            const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2, alto = bb.max.y - bb.min.y;
+            for (let i = 0; i < pos.count; i++) {
+                // a roupa foi cortada no molde adulto: na cintura fecha para ~60%
+                // e a barra abre só um pouco
+                const t = (bb.max.y - pos.getY(i)) / alto, k = AJUSTE_CRIANCA * (1 + .18 * t);
+                pos.setX(i, cx + (pos.getX(i) - cx) * k); pos.setZ(i, cz + (pos.getZ(i) - cz) * k);
+            }
+            pos.needsUpdate = true; g.computeVertexNormals(); g.computeBoundingSphere();
+        }
+        // cinto e fivela são rígidos, presos ao osso da pelve, no tamanho
+        // adulto: na criança boiavam em volta do pano. Ela anda sem cinto.
+        if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) me.visible = false; }
         if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes };
     }, [scene, ficha.tunica]);
@@ -178,6 +205,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const luzVerde = useRef<THREE.PointLight>(null);
     const giro = useRef(0);
     const quadro = useRef(0);
+    const ultimo = useRef({ x: x + (ronda ?? 0), z });
     const queda = useRef(0);
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const crianca = ficha.id === 'eira';
@@ -208,8 +236,14 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const a = t * rondaVel + rondaFase;
             px = x + Math.cos(a) * ronda; pz = z + Math.sin(a) * ronda;
             direcao = -a; andando = true;
+            ultimo.current.x = px; ultimo.current.z = pz;
+        } else if (ronda) {
+            // parada para conversar: fica onde estava (antes voltava ao
+            // centro da ronda — a Eira aparecia dentro do poço)
+            px = ultimo.current.x; pz = ultimo.current.z;
         }
         g.position.set(px, ctl ? ctl.y : y, pz);
+        if (onde) { onde.current.x = px; onde.current.z = pz; }
         if (e.olharPara && !e.caido) { tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz); direcao = Math.atan2(tmp.x, tmp.z); }
         let dd = direcao - giro.current;
         while (dd > Math.PI) dd -= Math.PI * 2;
