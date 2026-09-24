@@ -122,6 +122,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
                 // faces com o enrolamento trocado (com uma face só, o rosto
                 // abria buracos e mostrava a boca por dentro)
                 mat.transparent = false; mat.alphaTest = 0; mat.depthWrite = true; mat.side = THREE.DoubleSide;
+                // sombra só das costas: com as duas faces projetando, a pele
+                // se auto-sombreava em listras (acne de sombra)
+                mat.shadowSide = THREE.BackSide;
             }
         });
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null };
