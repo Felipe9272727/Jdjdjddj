@@ -52,7 +52,7 @@ const HOSPEDE = { id: 'hospede', nome: 'Você', oficio: 'hóspede', tunica: '#3b
 const tFixo: number | null = typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13t')
     ? parseFloat(new URLSearchParams(location.search).get('f13t') ?? '0') : null;
 /** A entidade em cena: a câmera fecha mais nela. */
-const entidadeNaCena = { valor: false };
+const entidadeNaCena = { valor: false, linha: 0 };
 
 /** Estado de movimento do jogador (mutável, lido a cada quadro). */
 interface Jog { x: number; y: number; z: number; ang: number; vy: number; seguro: { x: number; z: number }; levantando: number; andando: number }
@@ -558,7 +558,7 @@ const CameraDeExplorar: React.FC<{
         const olho = new THREE.Vector3(j.x + Math.cos(yaw.current) * lado, j.y + 1.72 + bob - j.levantando * 1.2, j.z - Math.sin(yaw.current) * lado);
         if (ent && foco.current) {
             // a entidade: o olho recua 1,3 m (suave) para caber mão e rosto
-            const dx0 = foco.current.x - j.x, dz0 = foco.current.z - j.z, d0 = Math.hypot(dx0, dz0) || 1, k = Math.min(1, empurra.current * 4);
+            const dx0 = foco.current.x - j.x, dz0 = foco.current.z - j.z, d0 = Math.hypot(dx0, dz0) || 1, k = 1;
             olho.x -= dx0 / d0 * .9 * k; olho.z -= dz0 / d0 * .9 * k; olho.y += .1 * k;
         }
         camera.position.lerp(olho, 1 - Math.exp(-dt * 18));
@@ -580,7 +580,7 @@ const CameraDeExplorar: React.FC<{
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
             camera.lookAt(alvo.current);
-            if (ent) camera.rotateZ(.055 * Math.min(1, empurra.current * 3));
+            if (ent) camera.rotateZ((.05 + entidadeNaCena.linha * .045) * Math.min(1, empurra.current * 3) * (entidadeNaCena.linha % 2 ? -1 : 1));
         } else {
             empurra.current = 0;
             const cp = Math.cos(pitch.current);
@@ -589,7 +589,7 @@ const CameraDeExplorar: React.FC<{
             camera.rotateZ(-lado * .15);
         }
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov += ((retrato ? 78 : 68) - (ent ? 3 * empurra.current : 0) - camera.fov) * Math.min(1, dt * 3);
+            camera.fov += ((retrato ? 78 : 68) - (ent ? 3 + entidadeNaCena.linha * 3 : 0) - camera.fov) * Math.min(1, dt * 3);
             camera.updateProjectionMatrix();
         }
     });
@@ -834,6 +834,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [linha, setLinha] = useState(0);
     const [digitado, setDigitado] = useState(0);
     const [glitch, setGlitch] = useState(false);
+    // a entidade escala a cada fala: sobe mais, contorce mais, a câmera inclina mais
+    useEffect(() => {
+        entidadeNaCena.linha = glitch ? linha : 0;
+        if (glitch) npcVis.halvard.current.possessao = Math.min(2.2, 1 + linha * .4);
+    }, [glitch, linha]);
     const [conexao, setConexao] = useState(false);
     const aoFimDoDialogo = useRef<(() => void) | null>(null);
     const [aviso, setAviso] = useState<string | null>(null);
@@ -1186,7 +1191,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
             {/* ── O BOTÃO DE AÇÃO ── */}
             {fase === 'explorar' && alvo && <button onPointerDown={(ev) => { ev.stopPropagation(); agir(); }}
-                style={{ ...t13, position: 'absolute', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 26px)', fontSize: 15, color: '#fff', background: 'linear-gradient(180deg,#b8893a,#7a5520)', border: '3px solid #2a1d14', borderRadius: 14, padding: '12px 18px', cursor: 'pointer' }}>
+                // o mesmo pergaminho da dica e do HUD (antes era um botão marrom de outro jogo)
+                style={{ fontFamily: 'Georgia, serif', fontWeight: 700, letterSpacing: 1, position: 'absolute', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 22px)', fontSize: 15, color: '#2a1d14', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '12px 20px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', cursor: 'pointer', userSelect: 'none' }}>
                 {rotuloDoAlvo(alvo)}
             </button>}
 
@@ -1203,7 +1209,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             {/* ── A CAIXA DE DIÁLOGO ── */}
             {falas && <div onPointerDown={(ev) => { ev.stopPropagation(); avancar(); }}
                 style={{
-                    position: 'absolute', left: 10, right: 10, bottom: 'calc(env(safe-area-inset-bottom) + 12px)', minHeight: 96,
+                    // na entidade a caixa sobe acima da faixa preta de baixo: o cinemascope fica simétrico
+                    position: 'absolute', left: 10, right: 10, bottom: glitch ? 'calc(9vh + 8px)' : 'calc(env(safe-area-inset-bottom) + 12px)', minHeight: 96,
                     background: glitch ? 'rgba(4,14,8,.93)' : 'linear-gradient(180deg,#efe0bf,#d9c399)', border: `3px solid ${glitch ? '#3dff8a' : '#6b4a2e'}`,
                     boxShadow: glitch ? '0 0 18px rgba(61,255,138,.35)' : '0 6px 18px rgba(0,0,0,.45), inset 0 0 24px rgba(107,74,46,.35)',
                     borderRadius: 12, padding: '10px 14px', cursor: 'pointer',

@@ -692,13 +692,20 @@ const Decoracao: React.FC = () => {
         new THREE.DodecahedronGeometry(.35, 0),
         (() => { const g = new THREE.ConeGeometry(.12, .5, 4); g.translate(0, .25, 0); return g; })(),
         (() => { const g = new THREE.CylinderGeometry(.28, .28, .6, 10); g.translate(0, .3, 0); return g; })(),
-        new THREE.SphereGeometry(.09, 6, 4),
+        // flor de verdade: haste, cinco pétalas e o miolo (cores por vértice)
+        (() => {
+            const cor = (g: THREE.BufferGeometry, c: string) => { const k = new THREE.Color(c), n = g.getAttribute('position').count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([k.r, k.g, k.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g; };
+            const partes = [cor(new THREE.CylinderGeometry(.008, .01, .26, 5).translate(0, .13, 0), '#4f7a36')];
+            for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; partes.push(cor(new THREE.SphereGeometry(.03, 6, 4).scale(1.3, .35, .8).translate(Math.cos(a) * .035, .265, Math.sin(a) * .035), '#c9a0d8')); }
+            partes.push(cor(new THREE.SphereGeometry(.018, 6, 4).translate(0, .275, 0), '#f0c840'));
+            return mergeGeometries(partes.map((g) => g.index ? g.toNonIndexed() : g))!;
+        })(),
     ], []);
     const mats = useMemo(() => [
-        new THREE.MeshStandardMaterial({ color: P13.pedra, flatShading: true }),
+        new THREE.MeshStandardMaterial({ color: '#a89c8c', ...pbr('rocha', .5, .5) }),
         new THREE.MeshStandardMaterial({ color: P13.gramaEsc }),
         new THREE.MeshStandardMaterial({ color: P13.tabua }),
-        new THREE.MeshStandardMaterial({ color: '#e8c8e0', emissive: '#6a3a5a', emissiveIntensity: .2 }),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8 }),
     ], []);
     const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
     const tmp = useMemo(() => new THREE.Object3D(), []);
@@ -707,8 +714,11 @@ const Decoracao: React.FC = () => {
         const t = clock.elapsedTime;
         porTipo.forEach((lista, tipo) => {
             const m = refs.current[tipo]; if (!m) return;
+            // só os tufos balançam: o resto é posto uma vez
+            if (tipo !== 1 && m.userData.posto) return;
+            m.userData.posto = true;
             lista.forEach((it, i) => {
-                tmp.position.set(it.x, it.y + (tipo === 3 ? .12 : 0), it.z);
+                tmp.position.set(it.x, it.y, it.z);
                 tmp.rotation.set(tipo === 1 ? Math.sin(t * 2 + it.r) * .15 : 0, it.r, tipo === 1 ? Math.cos(t * 1.7 + it.r) * .12 : 0);
                 tmp.scale.setScalar(it.s);
                 tmp.updateMatrix(); m.setMatrixAt(i, tmp.matrix);

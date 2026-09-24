@@ -69,7 +69,7 @@ export const portaDaCasa = (i: number) => {
 export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; ronda?: number }>> = Object.freeze({
     ragnhild: { x: -5, z: 11 },
     ulfgar: { x: 5.5, z: 6 },
-    eira: { x: 0, z: 11.5, ronda: 2 },   // corre em volta, não dentro, do poço
+    eira: { x: 0, z: 12.2, ronda: 2 },   // corre em volta, não dentro, do poço
     brokk: { x: -21, z: 3.6 },   // ao lado da bigorna, fora do fogo
     sigrun: { x: -4.6, z: 1.6 },   // fora da casa de cenário da praça
     torvald: { x: 20, z: 8 },
