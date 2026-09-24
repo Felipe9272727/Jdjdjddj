@@ -317,7 +317,11 @@ function texturaDeCabine(): THREE.CanvasTexture {
     const lat = (a: number) => `rgba(${200 + a},${150 + a * .6},${70},1)`;
     g.fillStyle = lat(0); g.beginPath(); g.moveTo(0, 0); g.lineTo(fundo.x, fundo.y); g.lineTo(fundo.x, fundo.y + fundo.h); g.lineTo(0, 200); g.fill();
     g.fillStyle = lat(-30); g.beginPath(); g.moveTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(128, 200); g.fill();
-    g.fillStyle = '#f1e2c2'; g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x, fundo.y); g.fill();
+    // teto de latão escurecido com uma luminária no meio (era creme puro e,
+    // sem tone mapping, estourava em branco)
+    g.fillStyle = '#7a5a2c'; g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x, fundo.y); g.fill();
+    g.fillStyle = '#e8cf92'; g.beginPath(); g.moveTo(44, 14); g.lineTo(84, 14); g.lineTo(78, 32); g.lineTo(50, 32); g.fill();
+    g.strokeStyle = 'rgba(40,24,8,.6)'; g.lineWidth = 1.5; g.stroke();
     // piso: tábuas escuras em perspectiva
     g.fillStyle = '#3a2618'; g.beginPath(); g.moveTo(0, 200); g.lineTo(128, 200); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(fundo.x, fundo.y + fundo.h); g.fill();
     g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1;
@@ -335,7 +339,7 @@ function texturaDeCabine(): THREE.CanvasTexture {
     // painel de botões na parede direita
     g.fillStyle = '#5a3a14'; g.fillRect(100, 88, 10, 34);
     for (let k = 0; k < 4; k++) { g.fillStyle = k === 1 ? '#fff2b0' : '#e0b860'; g.beginPath(); g.arc(105, 93 + k * 8, 2.2, 0, 7); g.fill(); }
-    const gr = g.createRadialGradient(64, 95, 4, 64, 95, 40); gr.addColorStop(0, '#fffbe8'); gr.addColorStop(1, '#ffd98a');
+    const gr = g.createRadialGradient(64, 95, 4, 64, 95, 40); gr.addColorStop(0, '#fbe9c0'); gr.addColorStop(1, '#d9a85a');
     g.fillStyle = gr; g.fillRect(fundo.x, fundo.y, fundo.w, fundo.h);
     texCabine = new THREE.CanvasTexture(c); texCabine.colorSpace = THREE.SRGBColorSpace;
     return texCabine;
@@ -429,9 +433,11 @@ const CasaCompridaModelo: React.FC<{
                     <boxGeometry args={[.52, 1.6, .1]} />
                     <meshPhysicalMaterial color={P13.latao} metalness={1} roughness={.35} roughnessMap={texturaEscovada()} clearcoat={.8} clearcoatRoughness={.15} envMapIntensity={1.6} />
                 </mesh>)
-                : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial color={P13.carvalho} roughness={.8} /></mesh>}
+                : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial {...pbr('carvalho', .6, 1)} color="#6a4a30" roughness={.85} /></mesh>}
             {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
-            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.4)} toneMapped={false} /></mesh>}
+            {/* fundo escuro atrás da cabine: acima dela se via o avesso das tábuas */}
+            {latao && <mesh position={[0, .3, -.04]}><planeGeometry args={[1.4, 2.6]} /><meshBasicMaterial color="#1c130b" /></mesh>}
+            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.05)} toneMapped={false} /></mesh>}
             {!latao && [-.3, 0, .3].map((x) => (
                 <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             ))}
