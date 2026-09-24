@@ -60,8 +60,10 @@ import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
 import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
 import Floor12 from './Floor12';
+import Floor13 from './Floor13';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import { configureFloor12Sfx, clearFloor12Sfx } from './floor12Sfx';
+import { configureFloor13Sfx, clearFloor13Sfx } from './floor13Sfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
@@ -1144,6 +1146,11 @@ export default function App() {
     configureFloor12Sfx(audioCtx, cartoonBusRef.current);
     return () => clearFloor12Sfx();
   }, [currentLevel, audioCtx]);
+  useEffect(() => {
+    if (currentLevel !== 13 || !audioCtx) return;
+    configureFloor13Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor13Sfx();
+  }, [currentLevel, audioCtx]);
   // ── Floor 6 audio + fresh escape-room state on every arrival.
   useEffect(() => {
     if (currentLevel !== 6) return;
@@ -1512,7 +1519,7 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
-      } else if (startLevel === 12) {
+      } else if (startLevel === 12 || startLevel === 13) {
         // Andar 12 — A CABEÇA. Igual ao andar 5: as portas ficam ABERTAS e o
         // overlay monta com a introdução dele (o elevador se desdobrando em
         // avião). Com as portas fechadas o overlay nem monta, e a tela ficaria
@@ -1768,6 +1775,23 @@ export default function App() {
     playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
     setDoorsClosed(true);
     setDoorSoundTrigger(prev => prev + 1);
+    // O avião falha no caminho: o próximo andar é Vindhjem, o 13.
+    setNextElevatorDestination(13);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+
+  const handleFloor13Exit = useCallback(() => {
+    clearFloor13Sfx();
+    setGameState('outdoor');
+    setNightMode(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    // O andar 14 ainda não existe: a casa-elevador leva de volta ao saguão.
     setNextElevatorDestination(0);
     setZoomLevel(0);
     setElevatorTimer(20);
@@ -2826,6 +2850,7 @@ export default function App() {
       {/* Andar 12 — a luta aérea. Overlay próprio, como o andar 5: ele tem
           Canvas, câmera e controles dele, e o mundo do hotel fica por baixo. */}
       {currentLevel === 12 && !doorsClosed && <Floor12 onExit={handleFloor12Exit} />}
+      {currentLevel === 13 && !doorsClosed && <Floor13 onExit={handleFloor13Exit} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}

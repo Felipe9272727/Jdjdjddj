@@ -59,6 +59,7 @@ const Floor3Preview = lazy(() => import('./Floor3Preview.tsx'));
 // elevador. `lazy` aqui é seguro — este é o topo do DOM, fora de qualquer
 // Canvas do react-three-fiber (dentro do Canvas a suspensão derruba a árvore).
 const Floor12Dev = lazy(() => import('./floor12-dev.tsx'));
+const Floor13Dev = lazy(() => import('./floor13-dev.tsx'));
 const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
 // `?bancada` abre a bancada do cérebro do Nilo: cota do navegador, cronômetro
 // por etapa e erros na tela, sem o jogo em volta. Precisa estar AQUI porque o
@@ -98,6 +99,8 @@ const Floor10VelocidadeSala = lazy(() => import('./Floor10VelocidadeSala.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF12 = search.includes('f12');
+// DEV-ONLY: `?f13` abre Vindhjem direto (ver floor13-dev.tsx).
+const isF13 = /[?&]f13\b/.test(search);
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
 const isComparacao = search.includes('comparacao');
@@ -145,6 +148,8 @@ createRoot(document.getElementById('root')!).render(
       <Suspense fallback={null}><Floor2Preview /></Suspense>
     ) : isF3Preview ? (
       <Suspense fallback={null}><Floor3Preview /></Suspense>
+    ) : isF13 ? (
+      <Suspense fallback={null}><Floor13Dev /></Suspense>
     ) : isF12 ? (
       <Suspense fallback={null}><Floor12Dev /></Suspense>
     ) : (
