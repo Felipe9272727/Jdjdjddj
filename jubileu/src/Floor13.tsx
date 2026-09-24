@@ -356,7 +356,7 @@ const CameraDeExplorar: React.FC<{
             empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
             // desliza até a moldura da porta (0,8 s) em vez de saltar para ela
             const quer = porta.clone().addScaledVector(frente, 3.2 - empurraPorta.current * 1.4).add(new THREE.Vector3(0, .7, 0));
-            camera.position.lerp(quer, empurraPorta.current < .25 ? 1 - Math.exp(-dt * 5) : 1);
+            camera.position.lerp(quer, 1 - Math.exp(-dt * 5));
             olharPorta.current.lerp(porta, 1 - Math.exp(-dt * 6));
             camera.lookAt(olharPorta.current);
             return;
@@ -745,6 +745,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0 });
     const [jaAndou, setJaAndou] = useState(false);
+    useEffect(() => { if (fase !== 'explorar') return; const id = window.setTimeout(() => setJaAndou(true), 6000); return () => window.clearTimeout(id); }, [fase]);
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
         if (fase !== 'explorar') return;
@@ -810,7 +811,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} />
                 <EffectComposer multisampling={0}>
-                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={1.05} luminanceSmoothing={.2} />
+                    <Bloom mipmapBlur intensity={.7} luminanceThreshold={1.3} luminanceSmoothing={.2} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : 0} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />

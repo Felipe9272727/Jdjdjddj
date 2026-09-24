@@ -54,7 +54,7 @@ export const LUGAR_DAS_CASAS: ReadonlyArray<LugarDaCasa> = Object.freeze(CASAS.m
     const c = ilha('casas');
     const th = Math.PI + Math.PI * (i + .5) / CASAS.length;
     // alternando perto/longe: de longe as sete casas não viram um paredão só
-    const rr = i % 2 ? 6.9 : 8.9;
+    const rr = i % 2 ? 7.4 : 9.5;
     const x = c.x + Math.cos(th) * rr, z = c.z + Math.sin(th) * rr;
     // a porta aponta para o centro da ilha
     return { x, z, y: c.y, angulo: Math.atan2(c.x - x, c.z - z) };
