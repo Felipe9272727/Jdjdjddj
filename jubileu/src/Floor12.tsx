@@ -1370,9 +1370,13 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         </div>
                     </div>
                     {/* as vidas do jogador */}
-                    <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 14, fontSize: 20, zIndex: 3, pointerEvents: 'none' }}>
-                        {'✈'.repeat(Math.max(0, nave.current.vidas))}
-                        <span style={{ opacity: 0.25 }}>{'✈'.repeat(Math.max(0, VIDAS_DO_JOGADOR - nave.current.vidas))}</span>
+                    {/* Num chip escuro com borda de latão: solto sobre a cidade, o ✈ se perdia.
+                        A vida que acabou de cair pisca vermelha (key muda com as vidas). */}
+                    <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 58px)', left: 12, fontSize: 22, zIndex: 3, pointerEvents: 'none',
+                        background: 'rgba(12,18,24,.72)', border: '2px solid #b8893a', borderRadius: 10, padding: '2px 8px', letterSpacing: 2 }}>
+                        <span style={{ color: '#ffe3a0', textShadow: '0 0 6px rgba(255,200,120,.6)' }}>{'✈'.repeat(Math.max(0, nave.current.vidas))}</span>
+                        <span key={nave.current.vidas} style={{ opacity: 0.3, animation: 'f12vidaPerdida .6s ease-out' }}>{'✈'.repeat(Math.max(0, VIDAS_DO_JOGADOR - nave.current.vidas))}</span>
+                        <style>{'@keyframes f12vidaPerdida{0%{color:#ff4a3a;opacity:1;transform:scale(1.4)}100%{opacity:.3}}'}</style>
                     </div>
                     {/* o grito do ataque: o telegrafo escrito */}
                     <GritoDoAtaque gritoRef={gritoRef} />
