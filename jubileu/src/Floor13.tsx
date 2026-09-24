@@ -891,7 +891,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
             {fase === 'explorar' && !jaAndou && !alvo && <div style={{ fontFamily: 'Georgia, serif', color: '#2a1d14', letterSpacing: .5, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap', opacity: .9, pointerEvents: 'none' }}>
-                ◀ ARRASTE: ANDAR{retrato ? <br /> : ' · '}GIRAR: ARRASTE ▶
+                ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: GIRAR ▶
             </div>}
 
             {/* ── A CAIXA DE DIÁLOGO ── */}

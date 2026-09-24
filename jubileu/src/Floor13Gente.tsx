@@ -135,8 +135,14 @@ export const Viking: React.FC<{
             const q = queda.current, tomba = q < .15 ? 0 : Math.min(1, ((q - .15) / .35) ** 2);
             const quica = q > .5 ? Math.abs(Math.sin((q - .5) * 14)) * Math.exp(-(q - .5) * 7) * .12 : 0;
             g.rotation.x = -Math.PI / 2 * tomba + quica;
+            // não é uma tábua: no quique o corpo rola um pouco de lado, os
+            // braços se abrem com o baque e um joelho fica meio dobrado
+            const baque = q > .5 ? Math.min(1, (q - .5) / .25) : 0;
+            g.rotation.z = .22 * baque;
             g.position.y = y + .25 * tomba + quica * .5; g.scale.setScalar(escala);
-            set(bracoE, 0); set(bracoD, 0); set(pernaE, 0); set(pernaD, 0);
+            set(bracoE, -.25 * baque); set(bracoD, .15 * baque); set(pernaE, 0); set(pernaD, -.45 * baque);
+            if (bracoE.current) bracoE.current.rotation.z = .7 * baque;
+            if (bracoD.current) bracoD.current.rotation.z = -.5 * baque;
             return;
         }
         if (!ctl) g.rotation.x = 0;
