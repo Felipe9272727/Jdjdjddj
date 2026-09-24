@@ -95,7 +95,20 @@ export function tocarMotorTossindo(): void {
         sopro(.12, .12, 900, i * .38 + .05);
     }
 }
-export function tocarMotorMorrendo(): void { tom('sawtooth', 120, 30, 1.8, .1); sopro(1.5, .08, 500); }
+export function tocarMotorMorrendo(): void {
+    // o motor engasga (falhas em rajada) e a rotação despenca
+    const c = ctx, d = saida(); if (!c || !d) return;
+    const t = c.currentTime;
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(28, t + 2);
+    const ws = c.createWaveShaper(); const k = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const x = i / 128 - 1; k[i] = Math.tanh(x * 4); } ws.curve = k;
+    const g = c.createGain(); g.gain.setValueAtTime(.12, t);
+    for (let i = 0; i < 8; i++) { g.gain.setValueAtTime(i % 2 ? .02 : .12, t + i * .18 + Math.random() * .05); }
+    g.gain.exponentialRampToValueAtTime(.0001, t + 2.1);
+    o.connect(ws); ws.connect(g); g.connect(d); o.start(t); o.stop(t + 2.2);
+    sopro(1.5, .08, 500);
+}
 export function tocarQueda(): void {
     // baque grave + estalo de madeira + o feno assentando
     tom('sine', 90, 28, 1.1, .55, 0, .6); tom('triangle', 60, 30, .6, .3);
@@ -107,7 +120,18 @@ export function tocarSino(): void {
     for (const [f, v] of [[196, .12], [392, .2], [470, .06], [784, .08], [1175, .045], [1560, .02]] as const) tom('sine', f, f * .998, 4.5, v, 0, .9);
 }
 export function tocarDingDaCasa(): void { tom('triangle', 1318.5, 1318.5, .25, .09); tom('triangle', 1046.5, 1046.5, .7, .08, .14); }
-export function tocarPegar(): void { tom('square', 660, 990, .1, .05); tom('square', 990, 1320, .12, .04, .08); }
+export function tocarPegar(): void {
+    // tinido de ferro e madeira: ruído em ressonâncias estreitas, não chiptune
+    for (const [f, v, a] of [[880, .2, 0], [1760, .12, .01], [2640, .06, .02]] as const) {
+        const c = ctx, d = saida(), b = ruido(); if (!c || !d || !b) return;
+        const t = c.currentTime + a;
+        const s = c.createBufferSource(); s.buffer = b;
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 40;
+        const g = c.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .6);
+        s.connect(bp); bp.connect(g); g.connect(d); s.start(t, Math.random()); s.stop(t + .7);
+    }
+    tom('sine', 180, 120, .12, .12, 0, .3);
+}
 export function tocarBalido(): void { tom('sawtooth', 520, 470, .45, .05); tom('sawtooth', 540, 480, .45, .03, .03); }
 
 /** "Voz" de viking: um blip curto por fala, no tom de cada um. */

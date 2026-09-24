@@ -339,18 +339,23 @@ const CameraDeExplorar: React.FC<{
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
     const empurraPorta = useRef(0);
+    const olharPorta = useRef(new THREE.Vector3());
     useFrame((_, dt) => {
         if (!ativo) return;
         const j = jog.current;
         if (portaAlvo.current) {
+            if (empurraPorta.current === 0) olharPorta.current.copy(alvo.current);
             // a porta abre: a câmera entra devagar, olhando para a luz de dentro
             const [porta, frente] = [portaAlvo.current, portaFrente.current!];
             // travada: 3 m à frente da porta, na altura do olho, e só então
             // um empurrão lento para dentro (nada de vir de onde estava e
             // atravessar telhado)
             empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
-            camera.position.copy(porta).addScaledVector(frente, 3.2 - empurraPorta.current * 1.4).add(new THREE.Vector3(0, .7, 0));
-            camera.lookAt(porta);
+            // desliza até a moldura da porta (0,8 s) em vez de saltar para ela
+            const quer = porta.clone().addScaledVector(frente, 3.2 - empurraPorta.current * 1.4).add(new THREE.Vector3(0, .7, 0));
+            camera.position.lerp(quer, empurraPorta.current < .25 ? 1 - Math.exp(-dt * 5) : 1);
+            olharPorta.current.lerp(porta, 1 - Math.exp(-dt * 6));
+            camera.lookAt(olharPorta.current);
             return;
         }
         const retrato = size.width < size.height;
@@ -820,7 +825,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
 
             {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
+            {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
                 {(Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .45 }}>{e.pistas.has(p) ? '◆' : '◇'} {e.pistas.has(p) ? PISTAS[p].nome : '???'}</div>
@@ -878,7 +883,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
             {/* ── A CASA CERTA: as portas abrem como as de um elevador ── */}
             {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 6.5s ease-in forwards', background: '#fff7e6' }}>
-                <style>{'@keyframes f13branco{0%{opacity:0}78%{opacity:0}100%{opacity:1}}'}</style>
+                <style>{'@keyframes f13branco{0%{opacity:0}85%{opacity:0}100%{opacity:1}}'}</style>
                 <div style={{ ...t13, position: 'absolute', top: '44%', width: '100%', textAlign: 'center', fontSize: 20, color: '#7a5520', textShadow: 'none' }}>DING.</div>
             </div>}
         </div>
