@@ -552,8 +552,11 @@ const Vivo: React.FC<{
             // 0,4 s com a porta fechada (o ding), depois as folhas abrem em ~1,2 s
             tempoPorta.current += dt / 2;   // (o forEach roda duas folhas por quadro)
             if (tempoPorta.current < .4) return;
-            const alvo = (c.userData.lado as number) * .78;
+            // as folhas correm para dentro da parede (atrás das tábuas, z<0),
+            // como porta de elevador embutida — nada sobra para fora do batente
+            const alvo = (c.userData.lado as number) * .8;
             c.position.x += (alvo - c.position.x) * Math.min(1, dt * 2.4);
+            c.position.z += (-.14 - c.position.z) * Math.min(1, dt * 6);
         });
     });
     return null;
