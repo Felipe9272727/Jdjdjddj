@@ -40,6 +40,9 @@ type Alvo =
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 11.6;
+/** Bancada: `?f13t=5` congela a queda nesse instante (só em DEV). */
+const tFixo: number | null = typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13t')
+    ? parseFloat(new URLSearchParams(location.search).get('f13t') ?? '0') : null;
 /** A entidade em cena: a câmera fecha mais nela. */
 const entidadeNaCena = { valor: false };
 
@@ -444,6 +447,7 @@ export const Floor13: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         const passo = () => {
             const agora = performance.now();
             tQueda.current += Math.min(.1, (agora - antes) / 1000); antes = agora;
+            if (import.meta.env.DEV && tFixo !== null) tQueda.current = tFixo;
             const t = tQueda.current;
             setLegenda(LEGENDAS_DA_QUEDA.find((l) => t < l.ate)!.texto);
             if (t > 2.6 && !marcos.tosse) { marcos.tosse = true; tocarMotorTossindo(); }
