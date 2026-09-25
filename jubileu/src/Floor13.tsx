@@ -850,6 +850,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [aviso, setAviso] = useState<string | null>(null);
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
+    const erradas = useRef(0);
     const npcVis = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { olharPara: null, falando: false, possessao: 0, caido: false } as EstadoVisualNpc }])) as Record<IdNpc, React.MutableRefObject<EstadoVisualNpc>>, []);
     const sinoRef = useRef<THREE.Group>(null), portaCerta = useRef<THREE.Group>(null);
     const balancoDoSino = useRef(0);
@@ -1067,7 +1068,22 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 // daqui em diante a SaidaDoAndar conduz: olhar para trás, a
                 // chuva de runas, a cabine do elevador — e só então onExit
                 saidaT0.current = performance.now();
-            } else abrirDialogo(r.falas, null);
+            } else {
+                abrirDialogo(r.falas, null);
+                // porta errada: a vila repara. Na terceira, todo mundo para o
+                // que está fazendo e encara o forasteiro, em silêncio
+                if (a.i !== CASA_CERTA) {
+                    const n = ++erradas.current;
+                    const recado = n === 1 ? 'Uma cortina se mexe na casa vizinha.' : n === 2 ? 'Alguém na praça parou de falar.' : 'Vindhjem inteira parou para te olhar.';
+                    window.setTimeout(() => setAviso(recado), 1600);
+                    if (n >= 3) window.setTimeout(() => {
+                        tocarGlitch();
+                        const j = jog.current, olho = new THREE.Vector3(j.x, j.y + 1.6, j.z);
+                        for (const v of Object.values(npcVis)) if (!v.current.falando && !v.current.caido) v.current.olharPara = olho;
+                        window.setTimeout(() => { for (const v of Object.values(npcVis)) if (v.current.olharPara === olho) v.current.olharPara = null; }, 6500);
+                    }, 1600);
+                }
+            }
         }
         bump();
     }, [alvo, fase, abrirDialogo, achadas, onExit, comecarEntidade]);
