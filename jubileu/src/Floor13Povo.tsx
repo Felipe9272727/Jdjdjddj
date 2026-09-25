@@ -30,6 +30,10 @@ const MODELOS: Record<string, string> = { ulfgar, brokk, torvald, halvard, ragnh
 /** Os modelos saem do Blender com ~1,8 m; o mundo foi medido para ~2 m. */
 const ESCALA = 1.1;
 
+/** Como cada um fica parado quando não trabalha nem fala. */
+const JEITO: Readonly<Record<string, 'cruzados' | 'cintura' | 'costas' | 'solto'>> = {
+    sigrun: 'costas', torvald: 'costas',
+};
 const SOMBRA = (() => {
     const c = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (!c) return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
@@ -239,6 +243,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const quadro = useRef(0);
     const ultimo = useRef({ x: x + (ronda ?? 0), z });
     const queda = useRef(0);
+    const cabeca = useRef({ x: 0, y: 0 });
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const crianca = ficha.id === 'eira';
     const escala = ESCALA * (crianca ? .95 : 1) * escalaExtra;
@@ -382,9 +387,16 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             maoSolta();
             return;
         }
-        j('pelvis', 0, 0, Math.sin(t * .6 + x) * .025);
-        j('spine_01', 0);
-        j('thigh_l', 0, 0, .03); j('thigh_r', 0, 0, -.03); j('calf_l', .04); j('calf_r', .04);
+        // troca de peso: a cada ~9 s o corpo passa de uma perna para a outra
+        // (quadril sobe do lado do apoio, o outro joelho dobra); cada um no
+        // seu ritmo, para a praça não respirar em coro
+        const ritmo = 9 + (x * 7.3 % 4 + 4) % 4, fasePeso = Math.sin((t + x * 3.1) / ritmo * Math.PI * 2);
+        const peso = Math.max(-1, Math.min(1, fasePeso * 2.2));
+        j('pelvis', 0, peso * .04, peso * .05 + Math.sin(t * .6 + x) * .012);
+        j('spine_01', 0, 0, -peso * .03);
+        j('thigh_l', 0, 0, .03 + Math.max(0, peso) * .04); j('thigh_r', 0, 0, -.03 + Math.min(0, peso) * .04);
+        j('calf_l', .04 + Math.max(0, -peso) * .18); j('calf_r', .04 + Math.max(0, peso) * .18);
+        j('foot_l', -Math.max(0, -peso) * .12); j('foot_r', -Math.max(0, peso) * .12);
         if (e.falando) {
             // fala com o corpo: a cabeça acompanha as frases, as mãos desenham
             j('head', Math.sin(t * 3.1) * .06, Math.sin(t * 1.7) * .1, Math.sin(t * 2.3) * .04);
@@ -393,7 +405,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             j('hand_l', Math.sin(t * 6) * .2); j('hand_r', 0);
             return;
         }
-        j('head', respira * .02, Math.sin(t * .35 + x) * .25);
+        // o olhar passeia: fixa um ponto uns segundos e vira de uma vez (quem
+        // gira a cabeça em seno contínuo parece um ventilador)
+        const janela = Math.floor((t + x * 5) / 3.2), sorteio = ((janela * 9301 + 49297) % 233280) / 233280;
+        const olharY = (sorteio - .5) * .9, olharX = (((janela * 7) % 5) - 2) * .04;
+        const giroCab = cabeca.current; giroCab.y += (olharY - giroCab.y) * Math.min(1, d * 5); giroCab.x += (olharX - giroCab.x) * Math.min(1, d * 4);
+        j('neck_01', giroCab.x * .4, giroCab.y * .35);
+        j('head', respira * .02 + giroCab.x * .6, giroCab.y * .65);
         maoSolta();
         // o gesto do ofício
         if (ficha.id === 'brokk') {
@@ -409,9 +427,30 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             j('upperarm_r', -.6 + Math.sin(t * 1.3) * .35, 0, baixaD - .2); j('lowerarm_r', -.9);
             j('upperarm_l', .05, 0, baixaE); j('lowerarm_l', -.2);
         } else {
-            // antebraço quase no repouso do rig: a mão pende ao lado da coxa
-            j('upperarm_l', Math.sin(t * 1.7 + x) * .04, 0, baixaE); j('upperarm_r', -Math.sin(t * 1.7 + x) * .04, 0, baixaD);
-            j('lowerarm_l', -.6); j('lowerarm_r', -.6);
+            // cada um com o seu jeito de esperar
+            const b = Math.sin(t * 1.7 + x) * .04;
+            switch (JEITO[ficha.id as string] ?? 'solto') {
+                case 'cruzados':
+                    j('clavicle_l', 0, 0, .08); j('clavicle_r', 0, 0, -.08);
+                    j('upperarm_l', -.7 + b, .25, baixaE + .1); j('lowerarm_l', -1.7);
+                    j('upperarm_r', -.65 - b, -.25, baixaD - .1); j('lowerarm_r', -1.75);
+                    J.hand_l?.girar(0, .2, 0); J.hand_r?.girar(0, -.2, 0);
+                    break;
+                case 'cintura':
+                    j('upperarm_l', .1 + b, -.2, baixaE + .5); j('lowerarm_l', -1.35);
+                    j('upperarm_r', -b * .5, 0, baixaD); j('lowerarm_r', -.55);
+                    J.hand_l?.girar(-.3, .6, 0);
+                    break;
+                case 'costas':
+                    j('upperarm_l', .38 + b, 0, baixaE + .12); j('lowerarm_l', -.95);
+                    j('upperarm_r', .38 - b, 0, baixaD - .12); j('lowerarm_r', -.95);
+                    j('spine_03', -.06 - respira * .018);
+                    break;
+                default:
+                    // antebraço quase no repouso do rig: a mão pende ao lado da coxa
+                    j('upperarm_l', b, 0, baixaE); j('upperarm_r', -b, 0, baixaD);
+                    j('lowerarm_l', -.6 + Math.max(0, peso) * .08); j('lowerarm_r', -.6 + Math.max(0, -peso) * .08);
+            }
         }
     });
 
