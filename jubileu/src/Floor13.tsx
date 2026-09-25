@@ -243,7 +243,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
     const ajusteCabine = useRef<(() => void) | null>(null);
     const chamuscado = useRef(false);
     const domado = useRef(false);
-    useFrame((_, dt) => {
+    useFrame(({ scene }, dt) => {
         const t = tRef.current;
         // no impacto o casco apaga: sem o brilho de fábrica, com a tinta
         // escurecida — destroço, não vitrine (o bloom estourava as asas)
@@ -386,7 +386,9 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             // olho alto o bastante para o nariz e a hélice ficarem abaixo da
             // linha do painel (antes eram um borrão escuro no meio da cidade)
             b.localToWorld(tmp.cam.set(0, 1.2, .62));
-            b.localToWorld(tmp.olho.set(0, .9, -8));
+            // o olhar desce um pouco abaixo do horizonte: as ilhas no meio da
+            // janela, não o céu estourado de branco em cima delas
+            b.localToWorld(tmp.olho.set(0, -.6, -8));
             const cidade = new THREE.Vector3(0, 3, 0);
             const vira = THREE.MathUtils.smoothstep(t, 6.2, 8.4) * (1 - THREE.MathUtils.smoothstep(t, 9.2, 9.9)) * .55
                 + THREE.MathUtils.smoothstep(t, 10.9, 12.2) * .85;
@@ -411,6 +413,9 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             camera.updateProjectionMatrix();
         }
         ajusteCabine.current?.();
+        // na queda a câmera está longe da cidade: a névoa do chão (feita para
+        // quem anda) virava um lençol cinza na janela. Fina no voo, cheia ao pousar.
+        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .0042, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
     });
 
     return <group>
