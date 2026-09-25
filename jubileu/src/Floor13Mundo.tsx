@@ -719,6 +719,14 @@ export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef
             <mesh position={[0, -.4, 0]}><cylinderGeometry args={[.015, .015, .55, 5]} /><meshStandardMaterial color="#2e2a26" metalness={.6} /></mesh>
             <mesh position={[0, -.68, 0]}><sphereGeometry args={[.06, 10, 8]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
         </group>
+        {/* o médio e o agudo (f13Sinos), sob as travessas laterais */}
+        {([[-.9, .5], [.9, .38]] as const).map(([z, k]) => (
+            <group key={z} position={[0, 3.8, z]} scale={k}>
+                <mesh position={[0, .03, 0]}><torusGeometry args={[.07, .025, 6, 12]} /><meshStandardMaterial color="#8a6a2e" metalness={.85} roughness={.35} /></mesh>
+                <mesh castShadow><latheGeometry args={[PERFIL_DO_SINO, 24]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
+                <mesh position={[0, -.68, 0]}><sphereGeometry args={[.06, 10, 8]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
+            </group>
+        ))}
     </group>;
 };
 

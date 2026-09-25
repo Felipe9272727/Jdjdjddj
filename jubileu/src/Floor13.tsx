@@ -23,6 +23,7 @@ import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
 import { GatosDaVila, gatos, largarPeixe } from './f13Gatos';
+import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
@@ -46,7 +47,7 @@ import {
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
 type Alvo =
     | { tipo: 'npc'; id: IdNpc }
-    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' } | { tipo: 'peixe' } | { tipo: 'oferecer' };
+    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino'; i: number } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' } | { tipo: 'peixe' } | { tipo: 'oferecer' };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 12.6;
@@ -661,7 +662,19 @@ const Radar: React.FC<{
         }
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
-        tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
+        // os três sinos da viga: o mais perto do braço
+        // os três ficam a 0,9 m um do outro: vale o que está na frente do olhar
+        let si = -1;
+        if (sinoAoAlcance(j.x, j.z) >= 0) {
+            let melhor = Infinity;
+            const fx = -Math.sin(yaw.current), fz = -Math.cos(yaw.current);
+            LUGARES_DOS_SINOS.forEach((l, k) => {
+                const dx = l.x - j.x, dz = l.z - j.z, d = Math.hypot(dx, dz) || 1;
+                const desvio = 1 - (dx * fx + dz * fz) / d;
+                if (d < 3 && desvio < melhor) { melhor = desvio; si = k; }
+            });
+        }
+        if (si >= 0) tenta({ tipo: 'sino', i: si }, LUGARES_DOS_SINOS[si].x, LUGARES_DOS_SINOS[si].z, 2.4);
         if (busca.estado === 'solto') tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
         if (!gatos.peixeNaMao) tenta({ tipo: 'peixe' }, gatos.cesto.x, gatos.cesto.z, 2.2);
         else tenta({ tipo: 'oferecer' }, j.x - Math.sin(yaw.current), j.z - Math.cos(yaw.current), 1.5, 1.3);
@@ -1131,7 +1144,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (a.tipo === 'npc') {
             // Halvard, com duas pistas já ditas, não é mais Halvard.
             if (a.id === 'halvard' && entidadeAcorda(e)) { comecarEntidade(); return; }
-            abrirDialogo(falarCom(e, a.id), a.id, avisarPista);
+            const falas = [...falarCom(e, a.id)];
+            // o ferreiro sabe a melodia dos sinos da torre
+            if (a.id === 'brokk') { revelarMelodia(); falas.push({ quem: 'Brokk', texto: falaDoBrokk() } as typeof falas[number]); }
+            abrirDialogo(falas, a.id, avisarPista);
         } else if (a.tipo === 'martelo') {
             pegarMartelo(e); tocarPegar(); setAviso('Você pegou o martelo de Brokk.'); setAlvo(null);
         } else if (a.tipo === 'ovelha') {
@@ -1166,7 +1182,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (n === 2) window.setTimeout(() => setAviso('O cão larga o graveto e fareja a ponte, rabo em pé, olhando a ilha das casas.'), 6000);
             else setAviso(n === 0 ? 'Você joga o graveto. O cão dispara.' : 'De novo! Ele não cansa.');
         } else if (a.tipo === 'sino') {
-            marcarSino(e); tocarSino(); balancoDoSino.current = 1; setAviso('O sino ecoa por Vindhjem.');
+            marcarSino(e); tocarSinoDaTorre(a.i); if (a.i === 0) balancoDoSino.current = 1;
+            window.setTimeout(() => { if (sinos.avisoTempo > 0) setAviso(sinos.aviso); else setAviso('O sino ecoa por Vindhjem.'); }, 30);
         } else if (a.tipo === 'casa') {
             const primeiraVez = !e.casasBatidas.has(a.i);
             const r = baterNaCasa(e, a.i);
@@ -1271,7 +1288,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
+        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDoSino(a.i)
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
@@ -1297,6 +1314,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <Floor13Vida />
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
                 <GatosDaVila jog={jog} />
+                <SinosDaTorre />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />

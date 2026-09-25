@@ -212,7 +212,11 @@ const matsDaFolha = new Map<EstiloDePorta, THREE.Material>();
 const matFolha = (e: EstiloDePorta) => { let m = matsDaFolha.get(e); if (!m) matsDaFolha.set(e, m = materialDaFolha(e)); return m; };
 
 const ferro = new THREE.MeshStandardMaterial({ color: '#2c2a28', metalness: .7, roughness: .55 });
-const lataoMacico = new THREE.MeshStandardMaterial({ color: '#c89a4c', metalness: 1, roughness: .3, envMapIntensity: 1.2 });
+const lataoMacico = new THREE.MeshStandardMaterial({ color: '#c89a4c', metalness: 1, roughness: .3, envMapIntensity: 1.2, emissive: '#000000' });
+const _brasa = new THREE.Color('#ffb04a');
+/** Os sinos afinados fazem o latão das portas brilhar (0..1). Só muda a cor
+ *  emissiva — nada de luz nova, nenhum shader recompila. */
+export function brilhoDoLatao(v: number) { lataoMacico.emissive.copy(_brasa).multiplyScalar(v * .8); }
 /** Pano de luto: lã preta com dobras verticais (cor e relevo), para ler como tecido e não como buraco. */
 const panoPreto = (() => {
     const c = document.createElement('canvas'); c.width = 128; c.height = 32;
