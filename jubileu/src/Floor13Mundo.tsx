@@ -445,19 +445,42 @@ const MORADOR: ReadonlyArray<(typeof NPCS)[number] | null> = (() => {
     const de = (id: string, tunica: string) => { const n = NPCS.find((k) => k.id === id)!; return { ...n, tunica, id: n.id }; };
     return [de('torvald', '#6b5a3a'), de('ulfgar', '#4a5a6e'), de('ragnhild', '#5a4a5e'), null, de('brokk', '#7a4a2e'), de('sigrun', '#2a2622'), null];
 })();
+/**
+ * As duas luzes da porta que atende: uma de dentro (lareira ou luz fria) e uma
+ * de preenchimento na soleira. Sempre na cena, com intensidade 0 quando não há
+ * porta aberta — uma luz que entra ou sai da cena muda o número de luzes e
+ * recompila todos os shaders (a tela congelava quando o vizinho abria).
+ */
+const LuzesDaPorta: React.FC = () => {
+    const dentro = useRef<THREE.PointLight>(null), frente = useRef<THREE.PointLight>(null);
+    useFrame(({ clock }) => {
+        let melhor = -1, t0 = -Infinity;
+        for (const k in batidasNasCasas) if (batidasNasCasas[k] > t0) { t0 = batidasNasCasas[k]; melhor = +k; }
+        const a = melhor >= 0 ? aberturaDaPorta(melhor) : 0;
+        if (dentro.current) dentro.current.intensity = 0;
+        if (frente.current) frente.current.intensity = 0;
+        if (a <= .01 || !dentro.current || !frente.current) return;
+        const p = portaNoMundo(melhor), l = LUGAR_DAS_CASAS[melhor], fria = !CASAS[melhor].fumaca;
+        dentro.current.position.set(p.x - p.fx * .9, l.y + .9, p.z - p.fz * .9);
+        frente.current.position.set(p.x + p.fx * .9, l.y + 1.55, p.z + p.fz * .9);
+        dentro.current.color.set(fria ? '#9ab4d8' : '#ffb060');
+        dentro.current.intensity = a * (fria ? 1.2 : 6 + Math.sin(clock.elapsedTime * 11) * .9);
+        frente.current.intensity = a * 1.8;
+    });
+    return <><pointLight ref={dentro} distance={4} intensity={0} /><pointLight ref={frente} color="#ffe2c0" distance={3} intensity={0} /></>;
+};
 const MAT_VULTO = new THREE.MeshStandardMaterial({ color: '#2a1d16', roughness: .9 });
 /** O vão aceso e o morador parado nele, só enquanto a porta está aberta. */
 const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) => {
     const estadoMorador = useRef<EstadoVisualNpc>({ olharPara: null, falando: true, possessao: 0, caido: false });
-    const g = useRef<THREE.Group>(null), luz = useRef<THREE.PointLight>(null), luzFrente = useRef<THREE.PointLight>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
+    const g = useRef<THREE.Group>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
     useFrame(({ clock }) => {
         const a = aberturaDaPorta(indice);
-        if (g.current) g.current.visible = a > .01;
-        if (luz.current) luz.current.intensity = a * (fria ? 1.2 : 6 + Math.sin(clock.elapsedTime * 11) * .9);
-        if (luzFrente.current) luzFrente.current.intensity = a * 1.8;
+        // escala 0 e não 'invisível': assim entra na pré-compilação dos shaders
+        if (g.current) g.current.scale.setScalar(a > .01 ? 1 : 1e-4);
         if (vao.current) { if (fria) vao.current.color.setRGB(.012 * a, .016 * a, .024 * a); else vao.current.color.setRGB(.75 * a, .32 * a, .1 * a); }
     });
-    return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
+    return <group ref={g} position={[0, .8, 2.7]} scale={1e-4} userData={{ vivo: true }}>
         {/* o fundo do vestíbulo: o brilho da lareira na parede (ou nada, na casa fria) */}
         <mesh position={[0, .05, -1.13]}><planeGeometry args={[1.4, 1.7]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
         {/* quem mora: gente de verdade (o mesmo elenco da vila, com a roupa da casa), de frente para a porta, falando */}
@@ -467,9 +490,7 @@ const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) =
         {!fria && <mesh position={[.42, -.33, -.85]}><cylinderGeometry args={[.02, .02, .12, 8]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(2)} toneMapped={false} /></mesh>}
         <mesh position={[0, -.45, -1.1]}><boxGeometry args={[.7, .5, .06]} /><meshStandardMaterial color={fria ? '#2a2a2e' : '#6a5a50'} roughness={.95} /></mesh>
         {MORADOR[indice] && <Viking ficha={MORADOR[indice]!} x={.12} y={-.8} z={-.12} estado={estadoMorador} semRecorte escalaExtra={.7} />}
-        {/* luz de preenchimento na soleira, do lado de fora: o rosto de quem atende não fica em contraluz */}
-        <pointLight ref={luzFrente} position={[0, .75, .9]} color="#ffe2c0" intensity={0} distance={3} />
-        <pointLight ref={luz} position={[0, .1, -.9]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
+        {/* as luzes da porta que atende são duas só, compartilhadas (LuzesDaPorta) */}
     </group>;
 };
 /** Altura da cumeeira no modelo (tools/blender/f13_casa.py: parede 1,9 + 1,65 de telhado). */
@@ -1220,6 +1241,7 @@ export const Floor13Mundo: React.FC<{
     const avisa = useCallback(() => setProntas((n) => n + 1), []);
     useFundir(raiz, 18, prontas >= TOTAL_DE_CASAS ? 1 : 0);
     return <CasaPronta.Provider value={avisa}><group ref={raiz}>
+        <LuzesDaPorta />
         <Ceu />
         <Nuvens />
         <Frota />

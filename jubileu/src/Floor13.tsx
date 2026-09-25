@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
+import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
@@ -44,7 +45,7 @@ import {
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
 type Alvo =
     | { tipo: 'npc'; id: IdNpc }
-    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' };
+    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 12.6;
@@ -620,6 +621,9 @@ const PreCompila: React.FC<{ aoTerminar: () => void }> = ({ aoTerminar }) => {
     return null;
 };
 
+/** O que o Árni já contou e o que o banco está fazendo (lido pelo Radar). */
+const arni = { contada: -1, bancoLivre: false, sentado: false, falaDepois: 0 };
+
 /** Acha o que está ao alcance e avisa quando muda. */
 const Radar: React.FC<{
     jog: React.MutableRefObject<Jog>; est: React.MutableRefObject<ReturnType<typeof novoEstado13>>;
@@ -658,6 +662,7 @@ const Radar: React.FC<{
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
         tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
         if (busca.estado === 'solto') tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
+        if (!arni.sentado) tenta({ tipo: arni.bancoLivre ? 'banco' : 'arni' }, BANCO.x, BANCO.z, 2.8, 1.1);
         // bater: só com a PORTA à frente do olho (±43°) e o hóspede diante
         // dela — de lado, de costas ou olhando o céu não aparece o botão
         CASAS.forEach((_, i) => {
@@ -886,6 +891,40 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const erradas = useRef(0);
     const [compilado, setCompilado] = useState(false);
+    const arniFalando = useRef(false);
+    const [legendaBanco, setLegendaBanco] = useState<{ quem: string; texto: string } | null>(null);
+    const [aceitacao, setAceitacao] = useState(0);
+    const timersBanco = useRef<number[]>([]);
+    const sentarNoBanco = useCallback(() => {
+        // senta olhando o gramado das crianças; levantar (andar) desfaz a cena
+        const j = jog.current, tx = ASSENTO.x + Math.sin(BANCO.olhar) * 6, tz = ASSENTO.z + Math.cos(BANCO.olhar) * 6;
+        j.x = ASSENTO.x; j.z = ASSENTO.z; j.y = chaoEm(j.x, j.z) ?? 0;
+        yaw.current = Math.atan2(-(tx - j.x), -(tz - j.z)); j.ang = yaw.current + Math.PI;
+        arni.sentado = true; setAlvo(null); bump();
+        const falas = FALAS_DO_ARNI.banco, sussurros = FALAS_DO_ARNI.sussurro_do_glitch;
+        const roteiro: [number, { quem: string; texto: string } | null, boolean][] = [];
+        let t = 2500;
+        falas.forEach((f, i) => {
+            roteiro.push([t, f, false]); t += 6500;
+            if (sussurros[i]) { roteiro.push([t, sussurros[i], true]); t += 3500; }
+        });
+        roteiro.push([t, null, false]);
+        const ids = roteiro.map(([ms, f, glitchy]) => window.setTimeout(() => {
+            if (f) { setLegendaBanco(f); if (glitchy) tocarGlitch(); else tocarFala(f.quem); }
+            else { setLegendaBanco(null); setAceitacao(1); }
+        }, ms));
+        // levantou antes do fim: o velho fica, a cena acaba
+        const vigia = window.setInterval(() => {
+            const k = jog.current;
+            if (Math.hypot(k.x - ASSENTO.x, k.z - ASSENTO.z) > .7) {
+                timersBanco.current.forEach((x) => { window.clearTimeout(x); window.clearInterval(x); });
+                arni.sentado = false; setLegendaBanco(null); setAviso('Você levanta. O Árni continua olhando o gramado.'); bump();
+            }
+        }, 500);
+        timersBanco.current = [...ids, vigia];
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => () => timersBanco.current.forEach((x) => { window.clearTimeout(x); window.clearInterval(x); }), []);
+    useEffect(() => { if (aceitacao > 0) { timersBanco.current.forEach((x) => window.clearInterval(x)); efeitoChuva.estado = .16; } }, [aceitacao]); // eslint-disable-line react-hooks/exhaustive-deps
     const npcVis = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { olharPara: null, falando: false, possessao: 0, caido: false } as EstadoVisualNpc }])) as Record<IdNpc, React.MutableRefObject<EstadoVisualNpc>>, []);
     const sinoRef = useRef<THREE.Group>(null), portaCerta = useRef<THREE.Group>(null);
     const balancoDoSino = useRef(0);
@@ -1083,6 +1122,19 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         } else if (a.tipo === 'ovelha') {
             acharOvelha(e, a.i); achadas[a.i].current = true; tocarBalido();
             setAviso(`Ovelha achada (${e.ovelhas.filter(Boolean).length}/3). Ela volta sozinha para a Sigrun.`); setAlvo(null);
+        } else if (a.tipo === 'arni') {
+            const c = camadaDoArni(arni.contada, e.pistas.size, e.entidade);
+            if (c === null) {
+                abrirDialogo([FALAS_DO_ARNI.depois[arni.falaDepois++ % FALAS_DO_ARNI.depois.length]], null);
+            } else {
+                arni.contada = c;
+                const falas = [FALAS_DO_ARNI.camada0, FALAS_DO_ARNI.camada1, FALAS_DO_ARNI.camada2, FALAS_DO_ARNI.camada3][c];
+                arniFalando.current = true;
+                abrirDialogo([...falas], null, () => { arniFalando.current = false; if (c === 3) { arni.bancoLivre = true; bump(); } });
+            }
+            setAlvo(null);
+        } else if (a.tipo === 'banco') {
+            sentarNoBanco();
         } else if (a.tipo === 'graveto') {
             // arremessa para onde se olha, subindo um pouco; o shiba vai buscar
             const dir = new THREE.Vector3(-Math.sin(yaw.current), .7, -Math.cos(yaw.current));
@@ -1197,7 +1249,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
+        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
@@ -1213,12 +1265,16 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <LuzDaCamera intensidade={naCabine ? .2 : .9} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
-                {/* o mundo inteiro: some quando a simulação o desliga (a saída) */}
-                <group visible={!naCabine}>
+                {/* o mundo inteiro fica sempre montado e visível: esconder o grupo tirava
+                    da cena as tochas, a forja e o sol, e trocar o número de luzes
+                    recompila TODOS os shaders — a tela congelava na saída. A cabine é
+                    fechada: de dentro dela o mundo não aparece. */}
+                <group>
                 {/* contraluz fria: separa as silhuetas do chão verde */}
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <Floor13Vida />
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
+                <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -1239,7 +1295,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {/* a saída: olhar para trás, a chuva de runas, a cabine do elevador */}
                 {fase === 'elevador' && <SaidaDoAndar t0={saidaT0} porta={portaAlvo} frente={portaFrente} efeito={efeitoChuva}
                     aoEntrarNaCabine={() => setNaCabine(true)} aoFim={() => onExit?.()} />}
-                {naCabine && <CabineDoElevador />}
+                {/* sempre montada (lá embaixo, fora da vista): os materiais dela já entram na pré-compilação */}
+                <CabineDoElevador />
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} onde={npcOnde} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
@@ -1255,7 +1312,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                     <BrightnessContrast brightness={0} contrast={.06} />
                     {/* a simulação desligando o andar (só na saída) */}
-                    {fase === 'elevador' ? <primitive object={efeitoChuva} dispose={null} /> : <></>}
+                    {/* sempre no compositor (em 0 não desenha nada): entrar com ele no meio da cena recompilava o pós */}
+                    <primitive object={efeitoChuva} dispose={null} />
                 </EffectComposer>
             </Canvas>
 
@@ -1293,6 +1351,19 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 ))}
             </div>}
 
+            {/* ── O BANCO: as falas do Árni embaixo, devagar; os sussurros da entidade em verde, tortos ── */}
+            {legendaBanco && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 34px)', textAlign: 'center', pointerEvents: 'none',
+                fontFamily: legendaBanco.quem === 'Árni' ? 'Georgia, serif' : 'monospace', fontSize: legendaBanco.quem === 'Árni' ? 18 : 15, lineHeight: 1.45,
+                color: legendaBanco.quem === 'Árni' ? '#fff6e6' : '#3dff8a', letterSpacing: legendaBanco.quem === 'Árni' ? .3 : 2,
+                textShadow: '0 2px 8px rgba(0,0,0,.85)', transform: legendaBanco.quem === 'Árni' ? 'none' : 'skewX(-6deg)' }}>{legendaBanco.texto}</div>}
+            {/* ── O FINAL DA ACEITAÇÃO ── */}
+            {aceitacao === 1 && <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
+                background: 'radial-gradient(ellipse at 50% 60%, rgba(255,226,180,.18), rgba(255,236,210,.72))', animation: 'f13aceita 6s ease-out both', pointerEvents: aceitacao > 1 ? 'none' : 'auto' }}>
+                <style>{'@keyframes f13aceita{from{opacity:0}to{opacity:1}}'}</style>
+                <div style={{ fontFamily: 'Georgia, serif', fontSize: 30, color: '#3a2a1a', letterSpacing: 1 }}>Você ficou.</div>
+                <div style={{ fontFamily: 'Georgia, serif', fontSize: 14, color: '#6b4a2e', letterSpacing: 4, textTransform: 'uppercase' }}>final da aceitação</div>
+                <button onClick={() => setAceitacao(2)} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
+            </div>}
             {aviso && <div style={{ ...t13, position: 'absolute', top: '38%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .5, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '8px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', maxWidth: '86vw', pointerEvents: 'none' }}>{aviso}</div>}
 
             {/* ── O BOTÃO DE AÇÃO ── */}
