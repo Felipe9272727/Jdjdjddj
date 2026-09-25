@@ -160,6 +160,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // opaco e de uma face só — senão o avesso da cabeça aparece
             if (/^(cabelo|barba|bigode|sobrancelhas|cilios)/.test(me.name)) {
                 mat.alphaTest = .4; mat.transparent = false; mat.side = THREE.DoubleSide; mat.depthWrite = true;
+                // a textura da barba tem pixels cor de pele pintados entre os
+                // fios: liam como lascas cor de carne no pescoço. Tingida de
+                // castanho, a franja vira sombra de pelo; sem o brilho da pele.
+                if (/^(barba|bigode)/.test(me.name)) { mat.color.set('#8a7462'); mat.roughness = .85; }
             } else {
                 // opaco sempre; duas faces porque a malha do MakeHuman tem
                 // faces com o enrolamento trocado (com uma face só, o rosto
