@@ -418,16 +418,17 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
 };
 
 /** Casa comprida viking. A porta olha para +z local. */
-/** Quando cada casa foi batida (performance.now); o Floor13 marca, a casa atende. */
+/** Quando cada casa foi batida e quando a conversa acabou (performance.now); o Floor13 marca, a casa atende. */
 export const batidasNasCasas: Record<number, number> = {};
-/** 0 fechada … 1 aberta: abre em 0,6 s, fica aberta ~5 s, fecha em 0,8 s. */
+export const conversaAcabou: Record<number, number> = {};
+/** 0 fechada … 1 aberta: abre em 0,6 s e fica aberta enquanto o morador fala; fecha em 0,8 s depois. */
 function aberturaDaPorta(i: number): number {
     const t0 = batidasNasCasas[i]; if (t0 === undefined) return 0;
-    const t = (performance.now() - t0) / 1000;
-    if (t < .5) return 0;
-    if (t < 1.1) return THREE.MathUtils.smoothstep(t, .5, 1.1);
-    if (t < 6.2) return 1;
-    return 1 - THREE.MathUtils.smoothstep(t, 6.2, 7);
+    const agora = performance.now(), t = (agora - t0) / 1000;
+    const abre = THREE.MathUtils.smoothstep(t, .5, 1.1);
+    const fim = conversaAcabou[i];
+    if (fim === undefined || fim < t0) return abre;
+    return abre * (1 - THREE.MathUtils.smoothstep((agora - fim) / 1000, .4, 1.2));
 }
 const MAT_VULTO = new THREE.MeshStandardMaterial({ color: '#2a1d16', roughness: .9 });
 /** O vão aceso e o morador parado nele, só enquanto a porta está aberta. */
@@ -436,21 +437,28 @@ const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) =
     useFrame(({ clock }) => {
         const a = aberturaDaPorta(indice);
         if (g.current) g.current.visible = a > .01;
-        if (luz.current) luz.current.intensity = a * (fria ? .6 : 1.6 + Math.sin(clock.elapsedTime * 11) * .25);
-        if (vao.current) { if (fria) vao.current.color.setRGB(.16 * a, .2 * a, .26 * a); else vao.current.color.setRGB(.95 * a, .5 * a, .22 * a); }
+        if (luz.current) luz.current.intensity = a * (fria ? 1.2 : 3.2 + Math.sin(clock.elapsedTime * 11) * .5);
+        if (vao.current) { if (fria) vao.current.color.setRGB(.012 * a, .016 * a, .024 * a); else vao.current.color.setRGB(.3 * a, .11 * a, .03 * a); }
     });
     return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
-        <mesh position={[0, 0, -.02]}><planeGeometry args={[1.02, 1.58]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
+        {/* o fundo do vestíbulo: o brilho da lareira na parede (ou nada, na casa fria) */}
+        <mesh position={[0, .05, -1.13]}><planeGeometry args={[1.4, 1.7]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
         {/* o vulto: ombros, cabeça, contra a luz de dentro */}
-        <group position={[.14, -.1, -.08]} scale={.8}>
+        <group position={[.14, -.12, -.45]} scale={.82}>
             <mesh position={[0, -.2, 0]} material={MAT_VULTO}><capsuleGeometry args={[.2, .75, 4, 10]} /></mesh>
             <mesh position={[0, .45, 0]} material={MAT_VULTO}><sphereGeometry args={[.14, 12, 10]} /></mesh>
         </group>
-        <pointLight ref={luz} position={[0, .3, .4]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
+        <pointLight ref={luz} position={[0, .1, -.9]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
     </group>;
 };
 /** Forro escuro por dentro das casas (fecha as frestas entre as tábuas). */
 const FORRO = new THREE.MeshStandardMaterial({ color: '#1c140e', roughness: 1, side: THREE.DoubleSide });
+/** A parede da frente por dentro, com o vão da porta (1,05 × 1,6 m a 0 do chão da casa). */
+const FRENTE_COM_VAO = (() => {
+    const f = new THREE.Shape(); f.moveTo(-1.57, 0); f.lineTo(1.57, 0); f.lineTo(1.57, 2.1); f.lineTo(-1.57, 2.1); f.closePath();
+    const v = new THREE.Path(); v.moveTo(-.54, 0); v.lineTo(-.54, 1.62); v.lineTo(.54, 1.62); v.lineTo(.54, 0); v.closePath(); f.holes.push(v);
+    return new THREE.ShapeGeometry(f);
+})();
 /** A empena por dentro: triângulo sob a cumeeira, na frente e no fundo. */
 const EMPENA = (() => { const f = new THREE.Shape(); f.moveTo(-1.55, 0); f.lineTo(1.55, 0); f.lineTo(0, 1.25); f.closePath(); return new THREE.ShapeGeometry(f); })();
 const CasaCompridaModelo: React.FC<{
@@ -480,7 +488,14 @@ const CasaCompridaModelo: React.FC<{
             céu atrás da casa aparecia em riscos brancos pelas paredes e pela
             empena. Na casa do elevador a porta abre para a cabine: sem forro. */}
         {estilo !== 'elevador' && <group>
-            <mesh position={[0, 1.15, 0]} material={FORRO}><boxGeometry args={[3.15, 1.9, 5.3]} /></mesh>
+            {/* o forro vai até 1,1 m antes da frente: ali fica o vestíbulo que
+                se vê quando a porta abre (piso, paredes, teto), e a parede da
+                frente é forrada com o vão da porta aberto */}
+            <mesh position={[0, 1.15, -.55]} material={FORRO}><boxGeometry args={[3.15, 1.9, 4.2]} /></mesh>
+            <mesh position={[0, 0, 2.66]} material={FORRO} geometry={FRENTE_COM_VAO} />
+            <mesh position={[0, .02, 2.1]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[1.5, 1.1]} /><meshStandardMaterial color="#5a4030" {...pbr('tabua', .8, .6)} /></mesh>
+            {[-1, 1].map((l) => <mesh key={l} position={[l * .75, 1.1, 2.1]} rotation={[0, -l * Math.PI / 2, 0]}><planeGeometry args={[1.1, 1.8]} /><meshStandardMaterial color="#6b4a33" {...pbr('tabua', .6, .8)} /></mesh>)}
+            <mesh position={[0, 2.0, 2.1]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[1.5, 1.1]} /><meshStandardMaterial color="#3a281c" /></mesh>
             <mesh position={[0, 2.1, 2.65]} rotation={[0, Math.PI, 0]} material={FORRO} geometry={EMPENA} />
             <mesh position={[0, 2.1, -2.65]} material={FORRO} geometry={EMPENA} />
         </group>}

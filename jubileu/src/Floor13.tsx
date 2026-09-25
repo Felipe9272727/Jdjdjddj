@@ -21,7 +21,7 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
-import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas } from './Floor13Mundo';
+import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
@@ -1079,7 +1079,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             } else {
                 // quem mora atende: a porta entreabre (a trancada da casa certa não)
                 if (a.i !== CASA_CERTA) batidasNasCasas[a.i] = performance.now();
-                abrirDialogo(r.falas, null);
+                const casa = a.i;
+                abrirDialogo(r.falas, null, () => { conversaAcabou[casa] = performance.now(); });
                 // porta errada: a vila repara. Na terceira, todo mundo para o
                 // que está fazendo e encara o forasteiro, em silêncio
                 // conta porta errada diferente: bater de novo na mesma não é suspeito
@@ -1239,7 +1240,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
             {/* ── HUD: pistas e buscas ── */}
             {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
-                <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>ᚨ A CASA CERTA</div>
+                <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} A CASA CERTA</div>
                 {e.pistas.size === 0 ? <div style={{ opacity: .7 }}>0/3 pistas — pergunte aos moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
                 ))}
