@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
+import { GatosDaVila, gatos, largarPeixe } from './f13Gatos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
@@ -45,7 +46,7 @@ import {
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
 type Alvo =
     | { tipo: 'npc'; id: IdNpc }
-    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' };
+    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' } | { tipo: 'peixe' } | { tipo: 'oferecer' };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 12.6;
@@ -662,6 +663,8 @@ const Radar: React.FC<{
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
         tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
         if (busca.estado === 'solto') tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
+        if (!gatos.peixeNaMao) tenta({ tipo: 'peixe' }, gatos.cesto.x, gatos.cesto.z, 2.2);
+        else tenta({ tipo: 'oferecer' }, j.x - Math.sin(yaw.current), j.z - Math.cos(yaw.current), 1.5, 1.3);
         if (!arni.sentado) tenta({ tipo: arni.bancoLivre ? 'banco' : 'arni' }, BANCO.x, BANCO.z, 2.8, 1.1);
         // bater: só com a PORTA à frente do olho (±43°) e o hóspede diante
         // dela — de lado, de costas ou olhando o céu não aparece o botão
@@ -1139,6 +1142,13 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             setAlvo(null);
         } else if (a.tipo === 'banco') {
             sentarNoBanco();
+        } else if (a.tipo === 'peixe') {
+            if (gatos.pegar()) { tocarPegar(); setAviso('Você pega um peixe do caixote. Os gatos já sentiram o cheiro.'); }
+            setAlvo(null);
+        } else if (a.tipo === 'oferecer') {
+            const j = jog.current;
+            largarPeixe(j.x - Math.sin(yaw.current) * .95, j.z - Math.cos(yaw.current) * .95);
+            setAlvo(null); setAviso('Você deixa o peixe na grama.');
         } else if (a.tipo === 'graveto') {
             // arremessa para onde se olha, subindo um pouco; o shiba vai buscar
             const dir = new THREE.Vector3(-Math.sin(yaw.current), .7, -Math.cos(yaw.current));
@@ -1253,7 +1263,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
+        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
@@ -1278,6 +1288,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <Floor13Vida />
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
+                <GatosDaVila jog={jog} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
