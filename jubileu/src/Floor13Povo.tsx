@@ -116,10 +116,11 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
-    const { modelo, olhos, vestido, detalhes } = useMemo(() => {
+    const { modelo, olhos, vestido, detalhes, sombreiam } = useMemo(() => {
         const m = clonarComEsqueleto(scene) as THREE.Object3D;
         let olhos: THREE.MeshStandardMaterial | null = null;
         const detalhes: THREE.Mesh[] = [];
+        const sombreiam: THREE.Mesh[] = [];
         const tunica = new THREE.Color(ficha.tunica);
         m.traverse((o) => {
             const me = o as THREE.Mesh;
@@ -131,6 +132,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // e bota não mudam a silhueta no chão e dobravam as chamadas
             me.castShadow = SOMBREIA.test(me.name); me.receiveShadow = true;
             me.userData.semSombra = !me.castShadow;
+            if (me.castShadow) sombreiam.push(me);
             if (DETALHE.test(me.name)) detalhes.push(me);
             me.frustumCulled = false;
             let mat = (me.material as THREE.MeshStandardMaterial).clone();
@@ -218,7 +220,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // quadrado preto boiando no vestido)
         if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) { me.visible = false; const i = detalhes.indexOf(me as THREE.Mesh); if (i >= 0) detalhes.splice(i, 1); } }
         if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
-        return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes };
+        return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes, sombreiam };
     }, [scene, ficha.tunica]);
 
     const juntas = useRef<Juntas>({});
@@ -303,6 +305,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         if (!g.visible) return;
         const perto = dist < DIST_DETALHE;
         for (const m of detalhes) m.visible = perto;
+        // sombra de gente só de perto: de longe ninguém lê a silhueta no chão
+        // (e cada malha com pele entrava de novo na passada de sombra)
+        const sombraPerto = dist < 16;
+        for (const m of sombreiam) m.castShadow = sombraPerto;
         if (dist > 28 && !ctl && (++quadro.current & 3)) return;
 
         // braços caídos ao lado do corpo (o rig vem em pose de A), dedos
