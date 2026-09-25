@@ -892,6 +892,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const erradas = useRef(0);
     const [compilado, setCompilado] = useState(false);
     const arniFalando = useRef(false);
+    // o Árni começa do zero a cada entrada no andar (o estado mora fora do componente)
+    useEffect(() => { arni.contada = -1; arni.bancoLivre = false; arni.sentado = false; arni.falaDepois = 0; }, []);
     const [legendaBanco, setLegendaBanco] = useState<{ quem: string; texto: string } | null>(null);
     const [aceitacao, setAceitacao] = useState(0);
     const timersBanco = useRef<number[]>([]);
@@ -916,7 +918,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         // levantou antes do fim: o velho fica, a cena acaba
         const vigia = window.setInterval(() => {
             const k = jog.current;
-            if (Math.hypot(k.x - ASSENTO.x, k.z - ASSENTO.z) > .7) {
+            if (Math.hypot(k.x - ASSENTO.x, k.z - ASSENTO.z) > .7 || k.y < -2) {
                 timersBanco.current.forEach((x) => { window.clearTimeout(x); window.clearInterval(x); });
                 arni.sentado = false; setLegendaBanco(null); setAviso('Você levanta. O Árni continua olhando o gramado.'); bump();
             }
@@ -1362,7 +1364,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <style>{'@keyframes f13aceita{from{opacity:0}to{opacity:1}}'}</style>
                 <div style={{ fontFamily: 'Georgia, serif', fontSize: 30, color: '#3a2a1a', letterSpacing: 1 }}>Você ficou.</div>
                 <div style={{ fontFamily: 'Georgia, serif', fontSize: 14, color: '#6b4a2e', letterSpacing: 4, textTransform: 'uppercase' }}>final da aceitação</div>
-                <button onClick={() => setAceitacao(2)} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
+                <button onClick={() => { setAceitacao(2); arni.sentado = false; bump(); }} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
             </div>}
             {aviso && <div style={{ ...t13, position: 'absolute', top: '38%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .5, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '8px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', maxWidth: '86vw', pointerEvents: 'none' }}>{aviso}</div>}
 

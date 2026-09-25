@@ -25,8 +25,9 @@ import sigrun from './assets/f13/povo/sigrun.glb';
 import astrid from './assets/f13/povo/astrid.glb';
 import eira from './assets/f13/povo/eira.glb';
 import hospede from './assets/f13/povo/hospede.glb';
+import arni from './assets/f13/povo/arni.glb';
 
-const MODELOS: Record<string, string> = { ulfgar, brokk, torvald, halvard, ragnhild, sigrun, astrid, eira, hospede };
+const MODELOS: Record<string, string> = { ulfgar, brokk, torvald, halvard, ragnhild, sigrun, astrid, eira, hospede, arni };
 /** Os modelos saem do Blender com ~1,8 m; o mundo foi medido para ~2 m. */
 const ESCALA = 1.1;
 
@@ -34,6 +35,17 @@ const ESCALA = 1.1;
 const JEITO: Readonly<Record<string, 'cruzados' | 'cintura' | 'costas' | 'solto'>> = {
     sigrun: 'costas', torvald: 'costas',
 };
+/**
+ * O tom de pele de cada um (multiplica o difuso do MakeHuman): antes todos
+ * saíam com o mesmo '#e4c3b0' e pareciam irmãos. Quem vive no mar e na forja
+ * é curtido e avermelhado; a pastora, sardenta e clara; o velho, pálido e fino.
+ */
+const PELE: Record<string, string> = {
+    brokk: '#d9a488', torvald: '#d8ae92', halvard: '#dcb49c', ulfgar: '#ecd2c2', ragnhild: '#e9c4ae',
+    sigrun: '#f3d9c9', astrid: '#d7b39a', eira: '#f0cdb8', arni: '#eed8cc', hospede: '#e4c3b0',
+};
+/** A cor do cabelo de quem não usa o do modelo. */
+const CABELO: Record<string, string> = { arni: '#e9e6df', ulfgar: '#d9d4c7', brokk: '#8a3a22', sigrun: '#c9a063', astrid: '#3a2a20' };
 const _mundo = new THREE.Vector3();
 
 // ── O OFÍCIO NO CORPO ───────────────────────────────────────────────────────
@@ -83,9 +95,11 @@ function vestirOficio(m: THREE.Object3D, id: string) {
         const c = peca(new THREE.CylinderGeometry(.14, .11, .18, 14, 1, true), '#a8804a', .9); (c.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
         prender(m, 'pelvis', c, [.26, .92, .06]);
     } else if (id === 'torvald') {
-        // manto de pele sobre os ombros
-        const mt = peca(new THREE.TorusGeometry(.17, .075, 8, 20), '#8a7a64', 1); mt.rotation.x = Math.PI / 2; mt.scale.set(1.15, 1, .85);
-        prender(m, 'spine_03', mt, [0, 1.6, -.02]);
+        // o capitão leva a luneta de latão no cinto
+        const g = new THREE.Group();
+        const tubo = peca(new THREE.CylinderGeometry(.022, .03, .34, 10), '#b08a4a', .35, .85); tubo.rotation.z = .25; g.add(tubo);
+        const aro = peca(new THREE.CylinderGeometry(.034, .034, .03, 10), '#6b5230', .5, .6); aro.position.y = .15; aro.rotation.z = .25; g.add(aro);
+        prender(m, 'pelvis', g, [.24, .92, .05]);
     } else if (id === 'halvard') {
         // a vara de pescar nuvem, atravessada nas costas
         const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.rotation.z = .9;
@@ -203,7 +217,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
                 // brilho aveludado avermelhado na borda — o sangue sob a pele
                 const orig = mat;
                 mat = new THREE.MeshPhysicalMaterial({
-                    name: orig.name, map: orig.map, color: '#e4c3b0', roughness: .55, metalness: 0,
+                    name: orig.name, map: orig.map, color: PELE[ficha.id as string] ?? '#e4c3b0', roughness: (ficha.id as string) === 'arni' ? .7 : .55, metalness: 0,
                     sheen: .3, sheenColor: new THREE.Color('#c8604a'), sheenRoughness: .45,
                     specularIntensity: .35, envMapIntensity: .6,
                 });
@@ -224,6 +238,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             else if (n === 'pelo') mat.color.set('#b59a7c');
             else if (n === 'metal') mat.color.set('#9aa0a8');
             else if (n === 'capuz') mat.color.set('#7a8fb0');
+            if (/^(cabelo|bigode|sobrancelhas)/.test(me.name) && CABELO[ficha.id as string]) mat.color.set(CABELO[ficha.id as string]);
             if (me.name.startsWith('olhos') || n.includes('eye')) olhos = mat;
             // cabelo, barba, sobrancelhas e cílios do MakeHuman são cartões
             // com alfa: recorte e duas faces. O resto (pele inclusive) é
@@ -281,6 +296,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // quadrado preto boiando no vestido)
         if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) { me.visible = false; const i = detalhes.indexOf(me as THREE.Mesh); if (i >= 0) detalhes.splice(i, 1); } }
         if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
+        // o nasal do elmo foi feito para o rosto-base: com os rostos esculpidos
+        // ele boiava na testa como uma barra preta
+        m.getObjectByName('elmo_nasal')?.removeFromParent();
         vestirOficio(m, ficha.id as string);
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes, sombreiam };
     }, [scene, ficha.tunica]);

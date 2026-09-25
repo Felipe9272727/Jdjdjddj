@@ -41,6 +41,9 @@ info['skin_mhmat'] = CONF.get('pele', 'middleage_caucasian_male') + '/' + CONF.g
 info['skin_material_type'] = 'MAKESKIN'
 info['eyes_material_type'] = 'MAKESKIN'
 info['clothes'] = [c + '/' + c + '.mhclo' for c in CONF.get('roupas', [])]
+# o rosto de cada um: alvos de nariz, queixo, boca, olhos, orelhas, testa…
+# do MPFB ({"nose-hump-incr": .6, …}) — sem isto todos saíam com a mesma cara
+info['targets'] = [{'target': k, 'value': float(v)} for k, v in CONF.get('rosto', {}).items()]
 ajustes = HumanService.get_default_deserialization_settings()
 ajustes['subdiv_levels'] = 0
 ajustes['override_skin_model'] = 'MAKESKIN'

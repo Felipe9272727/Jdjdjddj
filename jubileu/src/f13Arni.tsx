@@ -38,7 +38,7 @@ export const FALAS_DO_ARNI = {
         { quem: "Árni", texto: "Tô bem, tô bem. Vai, rapaz, vai procurar. Depois você me conta." },
     ],
     camada2: [
-        { quem: "Você", texto: "Senhor, eu descobri uma coisa. Isso aqui não é real. Nada disso. É uma simulação, alguém tá olhando a gente, rindo." },
+        { quem: "Você", texto: "Senhor, eu descobri uma coisa. Isso aqui não é real. Nada disso. É tudo de mentira." },
         { quem: "Árni", texto: "Hm." },
         { quem: "Árni", texto: "Ah, meu filho. Como você pode ser tão pessimista? Olha em volta. Olha isso aqui." },
         { quem: "Árni", texto: "Real, falso... a minha esposa, a minha filha, a minha neta. Pra mim elas não deixaram de ser reais não." },
@@ -52,14 +52,14 @@ export const FALAS_DO_ARNI = {
         { quem: "Você", texto: "Mas se tudo que a gente sofreu foi falso, pra que serviu? Do que vale descobrir alguma coisa, se é tudo mentira?" },
         { quem: "Árni", texto: "Eu já perdi muita coisa, rapaz. Gente. Amigo. Teve uma época que eu perdi até eu mesmo." },
         { quem: "Árni", texto: "E demorou, viu. Demorou muito. Mas a paz veio. E ela não veio de fora não." },
-        { quem: "Árni", texto: "O mundo pode estar pegando fogo e ainda ter coisa bonita nele. É questão de onde você olha." },
+        { quem: "Árni", texto: "Teve um inverno que o celeiro pegou fogo. A neve ficou rosa. Tava tudo acabando e eu achei bonito. Fiquei com vergonha de achar bonito." },
         { quem: "Árni", texto: "Continua procurando o porquê. Só não faz da resposta uma condição pra viver." },
         { quem: "Árni", texto: "Esse lado do banco secou. O sol já vai descer. Se quiser, fica." },
     ],
     banco: [
         { quem: "Árni", texto: "Minha mulher sentava bem aí. Reclamava que o banco era duro." },
         { quem: "Árni", texto: "Olha as crianças. Os pais correndo atrás, preocupados. Isso é real, rapaz. Agora, isso é real." },
-        { quem: "Árni", texto: "Você tá respirando. Tá ouvindo. Tá sentindo a roupa no corpo. Isso já é viver, sabia?" },
+        { quem: "Árni", texto: "Você tá respirando. Tá ouvindo esse barulho das crianças. Tá sentindo a roupa pinicando. Isso aí já conta, viu. Já conta." },
         { quem: "Árni", texto: "Eu posso morrer amanhã e vou dizer: eu vivi. E tá de bom tamanho." },
         { quem: "Árni", texto: "Olha a vista." },
     ],
@@ -76,8 +76,8 @@ export const FALAS_DO_ARNI = {
     ],
 } as const satisfies Record<string, ReadonlyArray<Fala>>;
 
-/** O banco: borda oeste da praça, de frente para o gramado das crianças. */
-export const BANCO = Object.freeze({ x: -8.2, z: 13.4, olhar: Math.atan2(-3.2 - -8.2, 5 - 13.4) });
+/** O banco: na ilha do Árni (o mirante), de frente para a vila e o gramado das crianças lá embaixo. */
+export const BANCO = Object.freeze({ x: -15.2, z: 20.2, olhar: Math.atan2(-3.2 - -15.2, 5 - 20.2) });
 /** Onde o hóspede senta (à direita do Árni) e para onde olha. */
 export const ASSENTO = Object.freeze({ x: BANCO.x + Math.cos(BANCO.olhar) * .55, z: BANCO.z - Math.sin(BANCO.olhar) * .55 });
 
@@ -90,7 +90,8 @@ export function camadaDoArni(contada: number, pistas: number, entidade: 'nao' | 
 
 const corpo = (id: string, patch: Partial<FichaNpc>): FichaNpc => ({ ...NPCS.find((n) => n.id === id)!, ...patch });
 // o velho: o corpo do escaldo (barba branca), túnica de lã crua; a filha: o corpo da pastora
-const FICHA_ARNI = corpo('ulfgar', { nome: 'Árni', tunica: '#7a6e5e', barba: '#ece8de' });
+// o velho tem corpo próprio (tools/blender/f13_humano.py, idade máxima, rosto esculpido)
+const FICHA_ARNI = corpo('ulfgar', { id: 'arni' as FichaNpc['id'], nome: 'Árni', tunica: '#7a6e5e', barba: '#ece8de' });
 const FICHA_FILHA = corpo('sigrun', { nome: 'A filha', tunica: '#6e3f38' });
 
 /** O banco de tábuas, o velho sentado e a filha em pé ao lado, com a mão no ombro dele. */

@@ -19,6 +19,7 @@ import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, po
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
+import { BANCO } from './f13Arni';
 import { Viking } from './Floor13Povo';
 import { NPCS } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
@@ -34,7 +35,7 @@ function useFundir(ref: React.RefObject<THREE.Object3D | null>, celula?: number,
  * nove casas viram uma malha por quadra, não uma por casa.
  */
 const CasaPronta = React.createContext<() => void>(() => {});
-const TOTAL_DE_CASAS = 9;
+const TOTAL_DE_CASAS = 10;
 
 // ── PALETA ───────────────────────────────────────────────────────────────────
 export const P13 = Object.freeze({
@@ -1049,6 +1050,8 @@ const Grama: React.FC = () => {
                     const x = cx + Math.cos(ra) * rd, z = cz + Math.sin(ra) * rd;
                     if (Math.hypot(x - il.x, z - il.z) > il.r * .985) continue;
                     if (distTrilha(x, z) < 1) continue;
+                    // o banco do Árni: grama baixa em volta, a vista dele é o gramado das crianças
+                    if (Math.hypot(x - BANCO.x, z - BANCO.z) < 2.2) continue;
                     // nem dentro da casa nem na soleira: a lâmina atravessava o
                     // vão da porta de latão aberta (entrava no elevador)
                     if (dentroDeCasa(x, z, .1) || LUGAR_DAS_CASAS.some((_, i) => { const p = portaNoMundo(i); return Math.hypot(x - p.x - p.fx * .5, z - p.z - p.fz * .5) < 1.2; })) continue;
@@ -1261,6 +1264,8 @@ export const Floor13Mundo: React.FC<{
                     portaRef={i === CASA_CERTA ? portaCertaRef : undefined} indice={i} />
             </group>;
         })}
+        {/* a casa do Árni, no fundo do mirante, com a porta para o banco */}
+        <group position={[-19.6, -.4, 24.4]} rotation={[0, Math.atan2(-15.2 - -19.6, 20.2 - 24.4), 0]}><CasaComprida escala={.72} /></group>
         {/* duas casas de moradores na praça, só de cenário */}
         <group position={[-7.5, 0, 4]} rotation={[0, 1.1, 0]}><CasaComprida escala={.9} /></group>
         <group position={[7.8, 0, 12.5]} rotation={[0, -2.2, 0]}><CasaComprida escala={.9} /></group>

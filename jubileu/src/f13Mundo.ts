@@ -14,6 +14,8 @@ export const ILHAS: ReadonlyArray<Ilha> = Object.freeze([
     { id: 'casas', x: 0, z: -24, y: 3, r: 12.5 },
     { id: 'forja', x: -23, z: 6, y: 1, r: 6.5 },
     { id: 'templo', x: 23, z: 4, y: 2, r: 6.5 },
+    // a ilha do Árni: pequena, um pouco abaixo da praça, de frente para a vila
+    { id: 'mirante', x: -17, z: 22, y: -.4, r: 5.5 },
 ]);
 const ilha = (id: string) => ILHAS.find((i) => i.id === id)!;
 
@@ -23,6 +25,7 @@ export const PONTES: ReadonlyArray<Ponte> = Object.freeze([
     { de: 'praca', para: 'casas', largura: 2.6 },
     { de: 'praca', para: 'forja', largura: 2.2 },
     { de: 'praca', para: 'templo', largura: 2.2 },
+    { de: 'praca', para: 'mirante', largura: 1.8 },
 ]);
 
 /** Altura do chão em (x, z), ou `null` se ali é céu. */
