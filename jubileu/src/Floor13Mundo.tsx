@@ -590,15 +590,35 @@ const Forja: React.FC = () => {
     const ilha = ILHAS.find((i) => i.id === 'forja')!;
     const fogo = useRef<THREE.PointLight>(null);
     useFrame(({ clock }) => { if (fogo.current) fogo.current.intensity = 6 + Math.sin(clock.elapsedTime * 13) * 1.5 + Math.sin(clock.elapsedTime * 7) * 1; });
+    const ferro = <meshStandardMaterial color="#2e2e33" metalness={.8} roughness={.45} />;
     return <group position={[ilha.x, ilha.y, ilha.z - 1.5]}>
-        <mesh position={[0, .5, 0]}><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
+        {/* a fornalha: pedra de cantaria, boca em arco e a coifa afunilando até a chaminé */}
+        <mesh position={[0, .5, 0]} castShadow><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
         <mesh position={[0, 1.05, 0]}><boxGeometry args={[1.1, .12, .8]} /><meshBasicMaterial color={new THREE.Color('#ff7a2a').multiplyScalar(2)} toneMapped={false} /></mesh>
-        <pointLight ref={fogo} position={[0, 1.5, 0]} color="#ff8a3a" distance={9} intensity={6} />
-        <mesh position={[1.8, .45, .8]}><boxGeometry args={[.6, .5, .3]} /><meshStandardMaterial color="#3a3a3e" metalness={.7} roughness={.4} /></mesh>
+        <mesh position={[0, 1.6, -.2]} castShadow><cylinderGeometry args={[.28, .75, 1, 4, 1]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .8, .6)} flatShading /></mesh>
+        <mesh position={[0, 2.6, -.2]} castShadow><boxGeometry args={[.38, 1.3, .38]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .5, .8)} /></mesh>
+        <pointLight ref={fogo} position={[0, 1.5, .5]} color="#ff8a3a" distance={9} intensity={6} />
+        {/* a bigorna: corpo, cintura, mesa e o chifre, num cepo de tronco */}
+        <group position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
+            <mesh position={[0, .3, 0]} castShadow><cylinderGeometry args={[.26, .3, .6, 12]} /><meshStandardMaterial color="#6b4a2e" {...pbr('carvalho', .4, .4)} /></mesh>
+            <mesh position={[0, .68, 0]} castShadow><boxGeometry args={[.22, .16, .18]} />{ferro}</mesh>
+            <mesh position={[0, .81, 0]} castShadow><boxGeometry args={[.46, .1, .18]} />{ferro}</mesh>
+            <mesh position={[.32, .82, 0]} rotation={[0, 0, -Math.PI / 2]} castShadow><coneGeometry args={[.07, .2, 10]} />{ferro}</mesh>
+        </group>
+        {/* postes de tronco com mão-francesa e o telhado de duas águas em turfa */}
         {[[-1.4, -1], [1.4, -1], [-1.4, 1.6], [1.4, 1.6]].map(([x, z]) => (
-            <mesh key={`${x}${z}`} position={[x, 1.4, z]}><boxGeometry args={[.18, 2.8, .18]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            <group key={`${x}${z}`} position={[x, 0, z]}>
+                <mesh position={[0, 1.35, 0]} castShadow><cylinderGeometry args={[.1, .13, 2.7, 8]} /><meshStandardMaterial color="#5a3d26" {...pbr('carvalho', .3, 1.5)} /></mesh>
+                <mesh position={[-Math.sign(x) * .22, 2.45, 0]} rotation={[0, 0, Math.sign(x) * .8]}><boxGeometry args={[.07, .6, .07]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            </group>
         ))}
-        <mesh position={[0, 2.9, .3]} rotation={[.12, 0, 0]}><boxGeometry args={[3.4, .15, 3.2]} /><meshStandardMaterial color={P13.turfa} /></mesh>
+        {[-1, 1.6].map((z) => <mesh key={z} position={[0, 2.72, z]}><boxGeometry args={[3.1, .14, .16]} /><meshStandardMaterial color={P13.madeiraEsc} {...pbr('carvalho', .5, .3)} /></mesh>)}
+        <mesh position={[0, 3.35, .3]}><boxGeometry args={[.14, .14, 3.4]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+        {[-1, 1].map((l) => (
+            <mesh key={l} position={[l * .85, 3.02, .3]} rotation={[0, 0, -l * .62]} castShadow>
+                <boxGeometry args={[2.05, .16, 3.5]} /><meshStandardMaterial color={P13.turfa} {...pbr('grama', 2, .35)} />
+            </mesh>
+        ))}
     </group>;
 };
 
@@ -886,19 +906,20 @@ const Trilhas: React.FC = () => {
         const g = new THREE.DodecahedronGeometry(1, 1);
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .3; gp.setXYZ(i, gp.getX(i) * f, gp.getY(i), gp.getZ(i) * f); }
-        g.scale(.24, .035, .19); g.computeVertexNormals();
+        g.scale(.16, .03, .13); g.computeVertexNormals();
         const m = new THREE.MeshStandardMaterial({ color: '#e0d6c4', ...pbr('rocha', .3, .3), roughness: .95 });
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
         for (const t of TRILHAS) {
-            const L = t.a.distanceTo(t.b), n = Math.floor(L / .62);
+            const L = t.a.distanceTo(t.b), n = Math.floor(L / .44);
             const d = _pt.copy(t.b).sub(t.a).normalize().clone(), lado = new THREE.Vector2(-d.y, d.x);
             for (let i = 0; i <= n; i++) for (const l of [-1, 1]) {
-                const s = i * .62 + (l > 0 ? .31 : 0);
+                const s = i * .44 + (l > 0 ? .22 : 0);
                 if (s > L) continue;
-                const x = t.a.x + d.x * s + lado.x * l * (.3 + r() * .12), z = t.a.y + d.y * s + lado.y * l * (.3 + r() * .12);
-                o.position.set(x, t.y + .01, z); o.rotation.set(0, r() * 3, 0);
+                const x = t.a.x + d.x * s + lado.x * l * (.2 + r() * .1), z = t.a.y + d.y * s + lado.y * l * (.2 + r() * .1);
+                // meio enterradas: só o tampo aparece, a grama come a borda
+                o.position.set(x, t.y - .008, z); o.rotation.set((r() - .5) * .08, r() * 3, (r() - .5) * .08);
                 const e = .7 + r() * .5; o.scale.set(e, 1, e * (.7 + r() * .5)); o.updateMatrix(); ms.push(o.matrix.clone());
             }
         }
