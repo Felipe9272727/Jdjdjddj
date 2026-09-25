@@ -694,7 +694,7 @@ const Decoracao: React.FC = () => {
             const n = Math.round(il.r * 5);
             for (let i = 0; i < n; i++) {
                 const a = rnd() * Math.PI * 2, d = il.r * (.72 + rnd() * .24);
-                if (dentroDeCasa(il.x + Math.cos(a) * d, il.z + Math.sin(a) * d, .6)) continue;
+                if (dentroDeCasa(il.x + Math.cos(a) * d, il.z + Math.sin(a) * d, .6) || distTrilha(il.x + Math.cos(a) * d, il.z + Math.sin(a) * d) < 1.1) continue;
                 l.push({ tipo: i % 7 === 0 ? 2 : i % 3 === 0 ? 0 : i % 5 === 0 ? 3 : 1, x: il.x + Math.cos(a) * d, y: il.y, z: il.z + Math.sin(a) * d, s: .6 + rnd() * .8, r: rnd() * 6 });
             }
         }
@@ -702,8 +702,39 @@ const Decoracao: React.FC = () => {
     }, []);
     const geos = useMemo(() => [
         new THREE.DodecahedronGeometry(.35, 0),
-        (() => { const g = new THREE.ConeGeometry(.12, .5, 4); g.translate(0, .25, 0); return g; })(),
-        (() => { const g = new THREE.CylinderGeometry(.28, .28, .6, 10); g.translate(0, .3, 0); return g; })(),
+        // touceira: nove lâminas finas e curvas saindo de um ponto, em leque
+        // (era um cone de quatro faces: lia como um marcador verde no chão)
+        (() => {
+            const partes: THREE.BufferGeometry[] = [];
+            for (let i = 0; i < 9; i++) {
+                const g = new THREE.PlaneGeometry(.035, .5, 1, 4); g.translate(0, .25, 0);
+                const gp = g.getAttribute('position');
+                for (let v = 0; v < gp.count; v++) { const y = gp.getY(v); gp.setX(v, gp.getX(v) * (1 - y * 1.6)); gp.setZ(v, y * y * .5); }
+                g.rotateX(-.15 - (i % 3) * .12); g.rotateY(i / 9 * Math.PI * 2 + (i % 2) * .3); g.scale(1, .7 + (i % 4) * .15, 1);
+                partes.push(g.toNonIndexed());
+            }
+            const m = mergeGeometries(partes)!; m.deleteAttribute('uv'); m.computeVertexNormals(); return m;
+        })(),
+        // barril de aduelas: bojudo no meio, com dois aros escuros (cor por vértice)
+        (() => {
+            const pts: THREE.Vector2[] = [];
+            for (let i = 0; i <= 12; i++) { const y = i / 12; pts.push(new THREE.Vector2(.24 + Math.sin(y * Math.PI) * .05, y * .62)); }
+            const g = new THREE.LatheGeometry(pts, 16);
+            const gp = g.getAttribute('position'), cor = new Float32Array(gp.count * 3);
+            const madeira = new THREE.Color('#9a7048'), aro = new THREE.Color('#2e2a26');
+            for (let v = 0; v < gp.count; v++) {
+                const y = gp.getY(v) / .62, a = Math.atan2(gp.getZ(v), gp.getX(v));
+                const c = Math.abs(y - .18) < .04 || Math.abs(y - .82) < .04 ? aro : madeira;
+                const veio = .85 + .15 * Math.abs(Math.sin(a * 8));
+                cor.set([c.r * veio, c.g * veio, c.b * veio], v * 3);
+            }
+            g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+            const tampa = new THREE.CircleGeometry(.24, 16).rotateX(-Math.PI / 2).translate(0, .6, 0);
+            const tc = new Float32Array(tampa.getAttribute('position').count * 3).map((_, i) => [.45, .32, .2][i % 3]);
+            tampa.setAttribute('color', new THREE.BufferAttribute(tc, 3));
+            const m = mergeGeometries([g.toNonIndexed(), tampa.toNonIndexed()].map((x) => { x.deleteAttribute('uv'); return x; }))!;
+            m.computeVertexNormals(); return m;
+        })(),
         // flor de verdade: haste, cinco pétalas e o miolo (cores por vértice)
         (() => {
             const cor = (g: THREE.BufferGeometry, c: string) => { const k = new THREE.Color(c), n = g.getAttribute('position').count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([k.r, k.g, k.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g; };
@@ -715,8 +746,8 @@ const Decoracao: React.FC = () => {
     ], []);
     const mats = useMemo(() => [
         new THREE.MeshStandardMaterial({ color: '#a89c8c', ...pbr('rocha', .5, .5) }),
-        new THREE.MeshStandardMaterial({ color: P13.gramaEsc }),
-        new THREE.MeshStandardMaterial({ color: P13.tabua }),
+        new THREE.MeshStandardMaterial({ color: P13.gramaEsc, side: THREE.DoubleSide, roughness: .8 }),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .75 }),
         new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8 }),
     ], []);
     const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
@@ -832,13 +863,13 @@ const Grama: React.FC = () => {
                     const ra = rnd() * Math.PI * 2, rd = Math.sqrt(rnd()) * .35;
                     const x = cx + Math.cos(ra) * rd, z = cz + Math.sin(ra) * rd;
                     if (Math.hypot(x - il.x, z - il.z) > il.r * .985) continue;
-                    if (distTrilha(x, z) < .75) continue;
+                    if (distTrilha(x, z) < 1) continue;
                     // nem dentro da casa nem na soleira: a lâmina atravessava o
                     // vão da porta de latão aberta (entrava no elevador)
                     if (dentroDeCasa(x, z, .1) || LUGAR_DAS_CASAS.some((_, i) => { const p = portaNoMundo(i); return Math.hypot(x - p.x - p.fx * .5, z - p.z - p.fz * .5) < 1.2; })) continue;
                     o.position.set(x, il.y, z);
                     o.rotation.set((rnd() - .5) * .35, rnd() * Math.PI * 2, (rnd() - .5) * .35);
-                    const e = alta * (.6 + rnd() * .6);
+                    const e = Math.min(1.1, alta * (.6 + rnd() * .6));
                     o.scale.set(1 + rnd() * .5, e, 1);
                     o.updateMatrix(); ms.push(o.matrix.clone());
                     cores.push(c.r * (.85 + rnd() * .3), c.g * (.85 + rnd() * .3), c.b);
@@ -906,8 +937,8 @@ const Trilhas: React.FC = () => {
         const g = new THREE.DodecahedronGeometry(1, 1);
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .3; gp.setXYZ(i, gp.getX(i) * f, gp.getY(i), gp.getZ(i) * f); }
-        g.scale(.16, .03, .13); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ color: '#e0d6c4', ...pbr('rocha', .3, .3), roughness: .95 });
+        g.scale(.16, .018, .13); g.computeVertexNormals();
+        const m = new THREE.MeshStandardMaterial({ color: '#c9c2b6', ...pbr('rocha', .3, .15), roughness: .95 });
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
@@ -919,7 +950,7 @@ const Trilhas: React.FC = () => {
                 if (s > L) continue;
                 const x = t.a.x + d.x * s + lado.x * l * (.2 + r() * .1), z = t.a.y + d.y * s + lado.y * l * (.2 + r() * .1);
                 // meio enterradas: só o tampo aparece, a grama come a borda
-                o.position.set(x, t.y - .008, z); o.rotation.set((r() - .5) * .08, r() * 3, (r() - .5) * .08);
+                o.position.set(x, t.y - .012, z); o.rotation.set((r() - .5) * .08, r() * 3, (r() - .5) * .08);
                 const e = .7 + r() * .5; o.scale.set(e, 1, e * (.7 + r() * .5)); o.updateMatrix(); ms.push(o.matrix.clone());
             }
         }
