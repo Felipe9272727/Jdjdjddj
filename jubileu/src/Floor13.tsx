@@ -601,6 +601,9 @@ const Radar: React.FC<{
     onde: Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>;
 }> = ({ jog, est, ativo, aoMudar, aoEntidade, yaw, onde }) => {
     const ultimo = useRef('');
+    // fora da exploração (diálogo, saída) o alvo antigo não vale mais: ao
+    // voltar, o radar anuncia de novo o que estiver à frente, do zero
+    useEffect(() => { if (!ativo) { ultimo.current = ''; aoMudar(null); } }, [ativo, aoMudar]);
     useFrame(({ clock }) => {
         if (!ativo) return;
         const j = jog.current, e = est.current;
