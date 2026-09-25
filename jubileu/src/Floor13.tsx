@@ -1048,6 +1048,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         } else if (a.tipo === 'sino') {
             marcarSino(e); tocarSino(); balancoDoSino.current = 1; setAviso('O sino ecoa por Vindhjem.');
         } else if (a.tipo === 'casa') {
+            const primeiraVez = !e.casasBatidas.has(a.i);
             const r = baterNaCasa(e, a.i);
             if (r.certa) {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
@@ -1072,7 +1073,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 abrirDialogo(r.falas, null);
                 // porta errada: a vila repara. Na terceira, todo mundo para o
                 // que está fazendo e encara o forasteiro, em silêncio
-                if (a.i !== CASA_CERTA) {
+                // conta porta errada diferente: bater de novo na mesma não é suspeito
+                if (a.i !== CASA_CERTA && primeiraVez) {
                     const n = ++erradas.current;
                     const recado = n === 1 ? 'Uma cortina se mexe na casa vizinha.' : n === 2 ? 'Alguém na praça parou de falar.' : 'Vindhjem inteira parou para te olhar.';
                     window.setTimeout(() => setAviso(recado), 1600);
