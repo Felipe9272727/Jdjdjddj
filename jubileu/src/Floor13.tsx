@@ -1131,7 +1131,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage"
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
