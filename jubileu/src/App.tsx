@@ -1618,6 +1618,9 @@ export default function App() {
       setCartoonIntro(false); setCutsceneLine(0); setCartoonCutscene(true);
     };
     w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
+    // A saída do andar 12 sem precisar vencer a Cabeça (a bancada confere
+    // que o 13 começa direto, sem elevador).
+    if (import.meta.env.DEV) (w as unknown as { __f12Sair?: () => void }).__f12Sair = () => handleFloor12Exit();
     w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
     // Teleporte de teste: usado pela sonda da prisão do Andar 10 para pôr o
     // jogador numa placa sem precisar dirigir o personagem por 14 metros.
@@ -1767,25 +1770,24 @@ export default function App() {
   // ── Leave Floor 5 (the podium's ELEVADOR button): still going UP — the
   // ride continues to Floor 6, the fresh baseplate waiting to become a floor.
   /**
-   * Saída do ANDAR 12. Ele é o último andar escrito até aqui, então o elevador
-   * volta ao SAGUÃO em vez de subir para um 13 que não existe — mandar o
-   * jogador para um andar vazio é pior do que fechar o ciclo.
+   * Saída do ANDAR 12: o andar 13 é CONTINUAÇÃO DIRETA, sem elevador. O avião
+   * do 12 segue viagem, o motor tosse, o TROCO-63 some do rádio e o hóspede cai
+   * em Vindhjem — a abertura do Floor13 começa na cabine do mesmo avião. Nada
+   * de portas fechando nem de viagem de 20 s entre os dois.
    */
   const handleFloor12Exit = useCallback(() => {
     clearFloor12Sfx();
+    if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
+    setF13Inicio(undefined);
     setGameState('outdoor');
     setNightMode(false);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
-    setDoorsClosed(true);
-    setDoorSoundTrigger(prev => prev + 1);
-    // O avião falha no caminho: o próximo andar é Vindhjem, o 13.
-    setNextElevatorDestination(13);
+    setNextElevatorDestination(null);
+    setElevatorTimer(null);
+    setTravelPhase('idle');
+    setDoorsClosed(false);
     setZoomLevel(0);
-    setElevatorTimer(20);
-    setTravelPhase('closing');
-    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-    elevatorHumStopRef.current = createElevatorHum(audioCtx);
-  }, [audioCtx]);
+    setCurrentLevel(13);
+  }, []);
 
   const handleFloor13Exit = useCallback(() => {
     clearFloor13Sfx();

@@ -1398,7 +1398,7 @@ export const Floor12: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                         <div style={{ gridColumn: 1, fontFamily: 'monospace', fontWeight: 600, fontSize: 'clamp(13px, 2.7vh, 17px)', lineHeight: 1.35, color: '#f1ecdc' }}>{linha.texto}</div>
                         <button style={{ ...btn64, gridColumn: 2, gridRow: '1 / 3', fontSize: 13, padding: '10px 14px', minWidth: 46, background: ultimaLinha ? '#3d805b' : '#36545f' }}
                             onPointerDown={(e) => { e.stopPropagation(); avancarFala(); }}>
-                            {!ultimaLinha ? '▶' : fase === 'encontro' ? 'VOAR ✈' : fase === 'derrota' ? 'REPETIR' : fase === 'despedida' ? 'SUBIR ⬆' : 'CONTINUAR'}
+                            {!ultimaLinha ? '▶' : fase === 'encontro' ? 'VOAR ✈' : fase === 'derrota' ? 'REPETIR' : fase === 'despedida' ? 'SEGUIR VIAGEM ✈' : 'CONTINUAR'}
                         </button>
                     </div>
                 </div>

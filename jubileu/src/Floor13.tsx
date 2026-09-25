@@ -1178,6 +1178,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {legenda}
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
+            {/* o andar 12 acaba e o 13 começa no mesmo avião: a imagem sai do preto */}
+            {fase === 'queda' && !inicio && <div style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f13entra 1.1s ease-out forwards' }}>
+                <style>{'@keyframes f13entra{from{opacity:1}to{opacity:0}}'}</style>
+            </div>}
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
             {apagao > 0 && fase === 'queda' && <div style={{
                 // pálpebras macias: uma elipse de visão que se fecha até o preto,
