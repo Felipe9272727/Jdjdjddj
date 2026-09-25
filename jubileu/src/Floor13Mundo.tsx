@@ -453,14 +453,19 @@ const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) =
     useFrame(({ clock }) => {
         const a = aberturaDaPorta(indice);
         if (g.current) g.current.visible = a > .01;
-        if (luz.current) luz.current.intensity = a * (fria ? 1.2 : 3.2 + Math.sin(clock.elapsedTime * 11) * .5);
-        if (vao.current) { if (fria) vao.current.color.setRGB(.012 * a, .016 * a, .024 * a); else vao.current.color.setRGB(.3 * a, .11 * a, .03 * a); }
+        if (luz.current) luz.current.intensity = a * (fria ? 1.2 : 6 + Math.sin(clock.elapsedTime * 11) * .9);
+        if (vao.current) { if (fria) vao.current.color.setRGB(.012 * a, .016 * a, .024 * a); else vao.current.color.setRGB(.75 * a, .32 * a, .1 * a); }
     });
     return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
         {/* o fundo do vestíbulo: o brilho da lareira na parede (ou nada, na casa fria) */}
         <mesh position={[0, .05, -1.13]}><planeGeometry args={[1.4, 1.7]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
         {/* quem mora: gente de verdade (o mesmo elenco da vila, com a roupa da casa), de frente para a porta, falando */}
-        {MORADOR[indice] && <Viking ficha={MORADOR[indice]!} x={.12} y={-.8} z={-.45} estado={estadoMorador} semRecorte escalaExtra={.92} />}
+        {/* o que se vê lá dentro: um banco, uma mesa com a vela, e a lareira no fundo (apagada na casa fria) */}
+        <mesh position={[-.45, -.55, -.75]}><boxGeometry args={[.5, .45, .3]} /><meshStandardMaterial color="#4a3222" roughness={.9} /></mesh>
+        <mesh position={[.42, -.42, -.85]}><boxGeometry args={[.4, .06, .4]} /><meshStandardMaterial color="#5a3d26" roughness={.8} /></mesh>
+        {!fria && <mesh position={[.42, -.33, -.85]}><cylinderGeometry args={[.02, .02, .12, 8]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(2)} toneMapped={false} /></mesh>}
+        <mesh position={[0, -.45, -1.1]}><boxGeometry args={[.7, .5, .06]} /><meshStandardMaterial color={fria ? '#2a2a2e' : '#6a5a50'} roughness={.95} /></mesh>
+        {MORADOR[indice] && <Viking ficha={MORADOR[indice]!} x={.12} y={-.8} z={-.12} estado={estadoMorador} semRecorte escalaExtra={.7} />}
         <pointLight ref={luz} position={[0, .1, -.9]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
     </group>;
 };
