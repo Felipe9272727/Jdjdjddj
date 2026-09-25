@@ -269,7 +269,7 @@ export const FolhasDaPorta: React.FC<{ estilo: EstiloDePorta }> = ({ estilo }) =
             <mesh position={[0, AV / 2 - .12, .07]} material={panoPreto} geometry={_pano ??= geoPano()} />
             {/* as duas abas do pano descem pelas folhas até perto do chão: de longe a
                 porta lê como coberta de preto, com só uma fresta de latão no meio */}
-            <mesh position={[0, AV / 2 - .8, .075]} material={panoPreto}><planeGeometry args={[LV + .02, 1.48]} /></mesh>
+            <mesh position={[0, AV / 2 - .72, .075]} material={panoPreto}><planeGeometry args={[LV + .04, 1.5]} /></mesh>
             {/* guirlanda seca no meio do pano */}
             <mesh position={[0, AV / 2 - .38, .12]}><torusGeometry args={[.1, .03, 8, 20]} /><meshStandardMaterial color="#4a4a2e" roughness={1} /></mesh>
         </>}

@@ -1219,7 +1219,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             </Canvas>
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
-            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(0deg, rgba(8,16,22,.7), rgba(8,16,22,0))', pointerEvents: 'none' }}>
+            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '10px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'rgba(8,16,22,.55)', pointerEvents: 'none' }}>
                 {legenda}
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
             </div>}
