@@ -80,7 +80,9 @@ export function novoCeu(): Sky {
     const ceu = new Sky();
     ceu.scale.setScalar(450);
     const u = ceu.material.uniforms;
-    u.turbidity.value = 4; u.rayleigh.value = 1.5; u.mieCoefficient.value = .0025; u.mieDirectionalG.value = .78;
+    // ar limpo de altitude: pouca turbidez e o halo do sol apertado — o
+    // espalhamento largo lavava o alto do céu de branco
+    u.turbidity.value = 2.4; u.rayleigh.value = 2.1; u.mieCoefficient.value = .0012; u.mieDirectionalG.value = .86;
     u.sunPosition.value.copy(DIRECAO_DO_SOL);
     // o Preetham sai em radiância física, clara demais para esta cena: um
     // terço, para o céu ficar azul e o horizonte âmbar em vez de branco

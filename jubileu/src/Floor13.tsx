@@ -1278,7 +1278,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     borderRadius: 12, padding: '10px 14px', cursor: 'pointer',
                     animation: glitch ? 'f13treme .18s steps(2) infinite' : undefined,
                 }}>
-                <div style={glitch ? { ...t13, fontSize: 13, color: '#3dff8a', marginBottom: 4 } : { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 15, color: '#7a2f1f', letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase' }}>ᚱ {falas[linha].quem}</div>
+                <div style={glitch ? { ...t13, fontSize: 13, color: '#3dff8a', marginBottom: 4 } : { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 15, color: '#7a2f1f', letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase' }}>{falas[linha].quem}</div>
                 <div style={{ fontFamily: glitch ? 'monospace' : 'Georgia, serif', fontSize: 17, lineHeight: 1.4, color: glitch ? '#b8ffd2' : '#2a1d14' }}>
                     {falas[linha].texto.slice(0, digitado)}{glitch && linha === falas.length - 1 && digitado >= falas[linha].texto.length ? '█' : ''}
                 </div>
