@@ -538,6 +538,8 @@ const CasaCompridaModelo: React.FC<{
                 <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.05)} toneMapped={false} /></mesh>
             </>}
         </group>
+        {/* a verga: tábua de cabeceira entre o topo da folha e o lintel entalhado (sobrava uma fresta preta) */}
+        <mesh position={[0, 1.66, 2.8]}><boxGeometry args={[1.2, .14, .08]} /><meshStandardMaterial color="#4a3222" {...pbr('carvalho', .4, .15)} /></mesh>
         <EnfeitesDaPorta estilo={estilo} botao={botao} />
         {tex && <mesh position={[0, 2.35, 2.88]}><planeGeometry args={[.5, .5]} /><meshStandardMaterial map={tex} /></mesh>}
         {/* escudos pendurados na lateral */}
