@@ -201,7 +201,10 @@ function materialDaFolha(e: EstiloDePorta): THREE.Material {
     if (ehLatao(e)) return new THREE.MeshPhysicalMaterial({
         map: j.map, bumpMap: j.bumpMap, bumpScale: 2.2, roughnessMap: j.roughnessMap,
         // a rugosidade vem do mapa (escovado, frisos mais lisos)
-        metalness: 1, roughness: 1, clearcoat: e === 'elevador' ? .3 : .1, clearcoatRoughness: .35, envMapIntensity: 1.2,
+        // as três de latão brilham parecido: a do elevador (polida, Art Déco)
+        // saltava do caminho como a única dourada e resolvia o enigma de longe
+        metalness: 1, roughness: 1, clearcoat: .15, clearcoatRoughness: .4, envMapIntensity: e === 'elevador' ? .85 : 1.35,
+        color: e === 'elevador' ? '#c9c0b0' : '#ffffff',
     });
     return new THREE.MeshStandardMaterial({ map: j.map, bumpMap: j.bumpMap, bumpScale: 3, roughnessMap: j.roughnessMap, roughness: 1, metalness: 0 });
 }
