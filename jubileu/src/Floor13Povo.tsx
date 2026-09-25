@@ -45,6 +45,7 @@ const PELE: Record<string, string> = {
     sigrun: '#f3d9c9', astrid: '#d7b39a', eira: '#f0cdb8', arni: '#eed8cc', hospede: '#e4c3b0',
 };
 /** A cor do cabelo de quem não usa o do modelo. */
+const PELO = /^(cabelo|barba|bigode|sobrancelhas|cilios|short|long|bob|braid|ponytail|afro|moustache|beard|goatee|eyebrow|eyelash)/i;
 const CABELO: Record<string, string> = { arni: '#e9e6df', ulfgar: '#d9d4c7', brokk: '#8a3a22', sigrun: '#c9a063', astrid: '#3a2a20' };
 const _mundo = new THREE.Vector3();
 
@@ -238,17 +239,24 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             else if (n === 'pelo') mat.color.set('#b59a7c');
             else if (n === 'metal') mat.color.set('#9aa0a8');
             else if (n === 'capuz') mat.color.set('#7a8fb0');
-            if (/^(cabelo|bigode|sobrancelhas)/.test(me.name) && CABELO[ficha.id as string]) mat.color.set(CABELO[ficha.id as string]);
+            const tintePelo = CABELO[ficha.id as string];
+            if (PELO.test(me.name) && !/^(barba|cilios|eyelash)/.test(me.name) && tintePelo) {
+                mat.color.set(tintePelo);
+                // a textura do cabelo é escura: multiplicar por branco não
+                // clareia. Um pouco de emissivo levanta os fios claros.
+                const c = new THREE.Color(tintePelo);
+                if (c.getHSL({ h: 0, s: 0, l: 0 }).l > .7) mat.emissive = c.clone().multiplyScalar(.42);
+            }
             if (me.name.startsWith('olhos') || n.includes('eye')) olhos = mat;
             // cabelo, barba, sobrancelhas e cílios do MakeHuman são cartões
             // com alfa: recorte e duas faces. O resto (pele inclusive) é
             // opaco e de uma face só — senão o avesso da cabeça aparece
-            if (/^(cabelo|barba|bigode|sobrancelhas|cilios)/.test(me.name)) {
+            if (PELO.test(me.name)) {
                 mat.alphaTest = .4; mat.transparent = false; mat.side = THREE.DoubleSide; mat.depthWrite = true;
                 // a textura da barba tem pixels cor de pele pintados entre os
                 // fios: liam como lascas cor de carne no pescoço. Tingida de
                 // castanho, a franja vira sombra de pelo; sem o brilho da pele.
-                if (/^(barba|bigode)/.test(me.name)) { mat.color.set('#8a7462'); mat.roughness = .85; }
+                if (/^(barba|bigode|moustache|beard)/i.test(me.name) && !tintePelo) { mat.color.set('#8a7462'); mat.roughness = .85; }
             } else {
                 // opaco sempre; duas faces porque a malha do MakeHuman tem
                 // faces com o enrolamento trocado (com uma face só, o rosto
@@ -299,7 +307,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // o nasal do elmo foi feito para o rosto-base: com os rostos esculpidos
         // ele boiava na testa como uma barra preta
         m.getObjectByName('elmo_nasal')?.removeFromParent();
-        vestirOficio(m, ficha.id as string);
+        if (!semRecorte) vestirOficio(m, ficha.id as string);
+        // o cinto do MakeHuman fica flutuando sobre o suéter do Árni
+        if ((ficha.id as string) === 'arni') m.traverse((o) => { const mm = (o as THREE.Mesh).material as THREE.Material | undefined; if (mm && mm.name === 'couro') o.visible = false; });
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes, sombreiam };
     }, [scene, ficha.tunica]);
 
@@ -409,6 +419,15 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             g.rotation.set(0, 0, 0); g.position.set(x, y, z);
             j('pelvis', 0); j('spine_01', -.1); j('spine_02', .05); j('spine_03', .05, 0, respira * .01);
             j('thigh_l', -1.45, 0, .08); j('thigh_r', -1.45, 0, -.08); j('calf_l', 1.35); j('calf_r', 1.35);
+            if ((ficha.id as string) === 'arni') {
+                // no banco: meio curvado, mãos largadas nos joelhos, a cabeça
+                // quase parada, só acompanhando devagar o que passa
+                j('spine_01', .12); j('spine_02', .1); j('spine_03', .06, 0, respira * .012);
+                j('upperarm_l', -.35, 0, baixaE + .12); j('upperarm_r', -.35, 0, baixaD - .12);
+                j('lowerarm_l', -.75); j('lowerarm_r', -.75); maoSolta();
+                j('head', .12 + respira * .015, Math.sin(t * .31) * .18);
+                return;
+            }
             j('upperarm_l', -.7, 0, baixaE + .35); j('upperarm_r', -.7, 0, baixaD - .35);
             j('lowerarm_l', -.9); j('lowerarm_r', -.9);
             j('head', Math.sin(t * 7) * .04, Math.sin(t * 2.3) * .15);

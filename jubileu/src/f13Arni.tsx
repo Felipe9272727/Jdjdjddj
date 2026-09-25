@@ -79,7 +79,7 @@ export const FALAS_DO_ARNI = {
 /** O banco: na ilha do Árni (o mirante), de frente para a vila e o gramado das crianças lá embaixo. */
 export const BANCO = Object.freeze({ x: -15.2, z: 20.2, olhar: Math.atan2(-3.2 - -15.2, 5 - 20.2) });
 /** Onde o hóspede senta (à direita do Árni) e para onde olha. */
-export const ASSENTO = Object.freeze({ x: BANCO.x + Math.cos(BANCO.olhar) * .55, z: BANCO.z - Math.sin(BANCO.olhar) * .55 });
+export const ASSENTO = Object.freeze({ x: BANCO.x + Math.cos(BANCO.olhar) * .9, z: BANCO.z - Math.sin(BANCO.olhar) * .9 });
 
 /** Qual camada o Árni deve contar agora, dado o que já foi contado e o que o hóspede sabe. */
 export function camadaDoArni(contada: number, pistas: number, entidade: 'nao' | 'falando' | 'caido'): number | null {
@@ -107,7 +107,7 @@ export const ArniNoBanco: React.FC<{ falando: boolean }> = ({ falando }) => {
         <mesh position={[.2, .7, -.19]} material={madeira} castShadow><boxGeometry args={[1.7, .22, .05]} /></mesh>
         {[-.55, .95].map((x) => <mesh key={x} position={[x, .2, 0]} material={madeira}><cylinderGeometry args={[.07, .08, .4, 8]} /></mesh>)}
         {/* o Árni, sentado na ponta esquerda */}
-        <group position={[-.35, .02, .05]}><Viking ficha={FICHA_ARNI} x={0} y={0} z={0} estado={estado} sentado escalaExtra={.97} /></group>
+        <group position={[-.5, .02, .05]}><Viking ficha={FICHA_ARNI} x={0} y={0} z={0} estado={estado} sentado escalaExtra={.97} /></group>
         {/* a filha, em pé atrás do banco */}
         <Viking ficha={FICHA_FILHA} x={-.9} y={0} z={-.55} estado={estadoFilha} semRecorte />
     </group>;

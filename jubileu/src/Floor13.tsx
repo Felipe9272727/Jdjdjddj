@@ -898,8 +898,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [aceitacao, setAceitacao] = useState(0);
     const timersBanco = useRef<number[]>([]);
     const sentarNoBanco = useCallback(() => {
-        // senta olhando o gramado das crianças; levantar (andar) desfaz a cena
-        const j = jog.current, tx = ASSENTO.x + Math.sin(BANCO.olhar) * 6, tz = ASSENTO.z + Math.cos(BANCO.olhar) * 6;
+        // senta olhando a vila, de viés para o velho: o Árni fica na borda do
+        // quadro e a vila atrás dele; levantar (andar) desfaz a cena
+        const o = BANCO.olhar, j = jog.current;
+        const tx = ASSENTO.x + Math.sin(o) * 3 - Math.cos(o) * 6, tz = ASSENTO.z + Math.cos(o) * 3 + Math.sin(o) * 6;
         j.x = ASSENTO.x; j.z = ASSENTO.z; j.y = chaoEm(j.x, j.z) ?? 0;
         yaw.current = Math.atan2(-(tx - j.x), -(tz - j.z)); j.ang = yaw.current + Math.PI;
         arni.sentado = true; setAlvo(null); bump();
@@ -907,8 +909,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         const roteiro: [number, { quem: string; texto: string } | null, boolean][] = [];
         let t = 2500;
         falas.forEach((f, i) => {
-            roteiro.push([t, f, false]); t += 6500;
-            if (sussurros[i]) { roteiro.push([t, sussurros[i], true]); t += 3500; }
+            roteiro.push([t, f, false]); t += 5200;
+            if (sussurros[i]) { roteiro.push([t, sussurros[i], true]); t += 2600; }
         });
         roteiro.push([t, null, false]);
         const ids = roteiro.map(([ms, f, glitchy]) => window.setTimeout(() => {
