@@ -6,7 +6,7 @@
  * em volta de tudo, barcos navegando o céu. Só desenho: onde se pisa e quem
  * está onde vêm de `f13Mundo.ts`.
  */
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
@@ -25,9 +25,16 @@ import type { EstadoVisualNpc } from './Floor13Gente';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** Funde o que está parado debaixo deste grupo depois de montado (ver f13Fundir). */
-function useFundir(ref: React.RefObject<THREE.Object3D | null>, celula?: number) {
-    useLayoutEffect(() => (ref.current ? fundirEstaticos(ref.current, celula) : undefined), [ref, celula]);
+function useFundir(ref: React.RefObject<THREE.Object3D | null>, celula?: number, versao = 0) {
+    useLayoutEffect(() => (ref.current ? fundirEstaticos(ref.current, celula) : undefined), [ref, celula, versao]);
 }
+/**
+ * As casas chegam depois (o GLB carrega em Suspense): cada uma avisa quando
+ * montou, e o mundo refunde com elas dentro — as peças de mesmo material das
+ * nove casas viram uma malha por quadra, não uma por casa.
+ */
+const CasaPronta = React.createContext<() => void>(() => {});
+const TOTAL_DE_CASAS = 9;
 
 // ── PALETA ───────────────────────────────────────────────────────────────────
 export const P13 = Object.freeze({
@@ -483,11 +490,14 @@ const CasaCompridaModelo: React.FC<{
     const { scene } = useGLTF(casaGlb);
     const casca = useMemo(() => {
         const c = scene.clone();
-        c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+        // sem nome: ninguém procura as peças da casca, e a fusão só junta malhas anônimas
+        c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; m.name = ''; } });
         return c;
     }, [scene]);
     const raiz = useRef<THREE.Group>(null);
     useFundir(raiz);
+    const pronta = useContext(CasaPronta);
+    useEffect(() => { pronta(); }, [pronta]);
     return <group ref={raiz} scale={escala}>
         <primitive object={casca} />
         {/* o forro por dentro: as tábuas do modelo têm fresta entre si, e o
@@ -1192,8 +1202,10 @@ export const Floor13Mundo: React.FC<{
         };
     }), []);
     const raiz = useRef<THREE.Group>(null);
-    useFundir(raiz, 18);
-    return <group ref={raiz}>
+    const [prontas, setProntas] = useState(0);
+    const avisa = useCallback(() => setProntas((n) => n + 1), []);
+    useFundir(raiz, 18, prontas >= TOTAL_DE_CASAS ? 1 : 0);
+    return <CasaPronta.Provider value={avisa}><group ref={raiz}>
         <Ceu />
         <Nuvens />
         <Frota />
@@ -1220,5 +1232,5 @@ export const Floor13Mundo: React.FC<{
         <Forja />
         <Templo sinoRef={sinoRef} />
         <Carroca />
-    </group>;
+    </group></CasaPronta.Provider>;
 };

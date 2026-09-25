@@ -213,7 +213,15 @@ const matFolha = (e: EstiloDePorta) => { let m = matsDaFolha.get(e); if (!m) mat
 
 const ferro = new THREE.MeshStandardMaterial({ color: '#2c2a28', metalness: .7, roughness: .55 });
 const lataoMacico = new THREE.MeshStandardMaterial({ color: '#c89a4c', metalness: 1, roughness: .3, envMapIntensity: 1.2 });
-const panoPreto = new THREE.MeshStandardMaterial({ color: '#141212', roughness: .95, side: THREE.DoubleSide });
+/** Pano de luto: lã preta com dobras verticais (cor e relevo), para ler como tecido e não como buraco. */
+const panoPreto = (() => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 32;
+    const g = c.getContext('2d')!;
+    for (let x = 0; x < 128; x++) { const d = .5 + .5 * Math.sin(x / 128 * Math.PI * 2 * 7) * Math.sin(x / 128 * Math.PI * 2 * 2.3 + 1); const v = Math.round(22 + d * 38); g.fillStyle = `rgb(${v},${v - 3},${v - 4})`; g.fillRect(x, 0, 1, 32); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const b = new THREE.CanvasTexture(c);
+    return new THREE.MeshStandardMaterial({ map: t, bumpMap: b, bumpScale: 4, roughness: .9, side: THREE.DoubleSide });
+})();
 const madeiraClara = new THREE.MeshStandardMaterial({ color: '#8a6a44', roughness: .85 });
 const madeiraVelha = new THREE.MeshStandardMaterial({ color: '#6e5a44', roughness: .95 });
 

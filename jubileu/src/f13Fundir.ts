@@ -36,12 +36,24 @@ function chaveDoMaterial(m: THREE.Material): string | null {
 function chaveDaGeometria(g: THREE.BufferGeometry, tinta = false): string | null {
     // tingida: sem mapa, a uv não conta, e a cor entra no vértice
     const nomes = Object.keys(g.attributes).filter((n) => !tinta || (n !== 'uv' && n !== 'color')).sort();
-    for (const n of nomes) {
-        const a = g.getAttribute(n) as THREE.BufferAttribute;
-        if (!(a.array instanceof Float32Array) || a.normalized || (a as unknown as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute) return null;
-    }
+    // quantizados (GLB com meshopt: int16 normalizado, intercalado) também
+    // entram: viram float na hora de fundir (ver paraFloat)
     if (Object.keys(g.morphAttributes).length) return null;
     return nomes.join(',') + (tinta ? ',color#n' : g.index ? '#i' : '#n');
+}
+
+/** Cópia com todos os atributos em Float32 comuns (desfaz a quantização do GLB). */
+function paraFloat(g: THREE.BufferGeometry): THREE.BufferGeometry {
+    const c = new THREE.BufferGeometry();
+    for (const n of Object.keys(g.attributes)) {
+        const a = g.getAttribute(n), k = a.itemSize, arr = new Float32Array(a.count * k);
+        // getX…getW já desfazem a normalização (int16 → -1…1)
+        const le = [a.getX, a.getY, a.getZ, a.getW];
+        for (let i = 0; i < a.count; i++) for (let j = 0; j < k; j++) arr[i * k + j] = le[j].call(a, i);
+        c.setAttribute(n, new THREE.BufferAttribute(arr, k));
+    }
+    if (g.index) c.setIndex(g.index.clone());
+    return c;
 }
 
 /**
@@ -80,7 +92,7 @@ export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => 
         const tinta = tingivel(mat);
         const geos = malhas.map((m) => {
             rel.multiplyMatrices(inv, m.matrixWorld);
-            let g = m.geometry.clone().applyMatrix4(rel);
+            let g = paraFloat(m.geometry).applyMatrix4(rel);
             // espelhado (escala negativa): o enrolamento das faces inverte
             if (rel.determinant() < 0 && g.index) { const ix = g.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i]; ix[i] = ix[i + 2]; ix[i + 2] = t; } }
             for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(n)) g.deleteAttribute(n);
