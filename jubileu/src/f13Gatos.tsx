@@ -30,7 +30,7 @@ const ALCANCE_PEGAR = 2.2;          // alcance do jogador para pegar um peixe do
 const MAX_PEIXES = 10;              // anti-lixo de peixes esquecidos
 
 /** O caixote de peixes da vila: dá peixes de graça para quem chegar perto. */
-export const CESTO = new THREE.Vector3(-6, 0, 6);
+export const CESTO = new THREE.Vector3(-3, 0, -1);
 
 export type Personalidade = 'fominha' | 'desconfiado' | 'pachorrento';
 

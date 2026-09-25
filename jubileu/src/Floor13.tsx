@@ -423,7 +423,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         ajusteCabine.current?.();
         // na queda a câmera está longe da cidade: a névoa do chão (feita para
         // quem anda) virava um lençol cinza na janela. Fina no voo, cheia ao pousar.
-        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .0042, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
+        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .003, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
     });
 
     return <group>
@@ -1279,9 +1279,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
-                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
+                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .003); }}>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
-                <hemisphereLight args={['#bcd4f0', '#6a5a42', naCabine ? .22 : .9]} />
+                <hemisphereLight args={['#bcd4f0', '#5a4a36', naCabine ? .22 : .55]} />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
                 <LuzDaCamera intensidade={naCabine ? .2 : .9} />
                 {import.meta.env.DEV && <Sonda />}
@@ -1327,12 +1327,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     {Q.ao && <N8AO aoRadius={1.4} intensity={1.5} distanceFalloff={.6} halfRes quality="performance" />}
                     <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
-                    <HueSaturation saturation={glitch ? -.65 : .14} />
+                    <HueSaturation saturation={glitch ? -.65 : .2} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .06 : 0} />
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-                    <BrightnessContrast brightness={0} contrast={.06} />
+                    <BrightnessContrast brightness={-.02} contrast={.16} />
                     {/* a simulação desligando o andar (só na saída) */}
                     {/* sempre no compositor (em 0 não desenha nada): entrar com ele no meio da cena recompilava o pós */}
                     <primitive object={efeitoChuva} dispose={null} />

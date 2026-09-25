@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { Viking } from './Floor13Povo';
 import type { FichaNpc } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
-import { chaoEm } from './f13Mundo';
+import { chaoEm, foraDasCasas } from './f13Mundo';
 import {
     gatos, RAIO_COME, VEL, TEMPO_COMIDA, consumirPeixe, marcarComeu,
     ondeEstaOJogador, peixeDisponivelPara, peixeQueValeAPena,
@@ -213,8 +213,18 @@ function andarPara(e: Ctx, vel: number, dt: number, x: number, z: number, parar:
     dif = Math.atan2(Math.sin(dif), Math.cos(dif));
     e.yaw += dif * Math.min(1, 7 * dt);
     const passo = Math.min(vel * dt, d - parar);
-    e.pos.x += ix * passo; e.pos.z += iz * passo;
+    // colisão: não atravessa parede de casa nem pisa no vazio da borda
+    const f = foraDasCasas(e.pos.x + ix * passo, e.pos.z + iz * passo, .25);
+    if (chaoEm(f.x, f.z) === null || chaoEm(f.x + ix * .3, f.z + iz * .3) === null) return 0;
+    e.pos.x = f.x; e.pos.z = f.z;
     return passo / Math.max(dt, 1e-4);
+}
+
+/** Pés no chão. Descer do poleiro é um pulo rápido (caída), não um planar lento. */
+function pousar(e: Ctx, dt: number) {
+    const chao = chaoEm(e.pos.x, e.pos.z) ?? e.pos.y;
+    if (e.pos.y > chao + .02) e.pos.y = Math.max(chao, e.pos.y - 5 * dt);
+    else e.pos.y = chao;
 }
 
 const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
@@ -294,8 +304,7 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                 const v = andarPara(e, VEL[f.tipo] * 1.35, dt, p.pos.x, p.pos.z, RAIO_COME * .7);
                 e.vel += (v - e.vel) * Math.min(1, 10 * dt);
                 // quem desce do poleiro desce com jeito
-                const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
-                e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+                pousar(e, dt);
                 break;
             }
 
@@ -311,8 +320,7 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                 let dif = Math.atan2(p.pos.x - e.pos.x, p.pos.z - e.pos.z) - e.yaw;
                 dif = Math.atan2(Math.sin(dif), Math.cos(dif));
                 e.yaw += dif * Math.min(1, 4 * dt);
-                const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
-                e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+                pousar(e, dt);
                 // o desconfiado larga o peixe e foge se o jogador chega perto
                 if (f.tipo === 'desconfiado' && Math.hypot(e.pos.x - pjx, e.pos.z - pjz) < 2.4) {
                     p.dono = null; e.peixe = null; e.estado = 'voltando';
@@ -361,8 +369,7 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                         dif = Math.atan2(Math.sin(dif), Math.cos(dif));
                         e.yaw += dif * Math.min(1, 3 * dt);
                     }
-                    const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
-                    e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+                    pousar(e, dt);
 
                 } else {
                     // quem mora no poleiro volta para o poleiro (y fixo de novo)
@@ -377,8 +384,9 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                     const vv = andarPara(e, vPasso, dt, f.x, f.z, .12);
                     e.vel += (vv - e.vel) * Math.min(1, 10 * dt);
                     // sobe para o poleiro só no finzinho (não flutua pela praça)
-                    const alvoY = d < 1 ? (f.y ?? 0) : (chaoEm(e.pos.x, e.pos.z) ?? 0);
-                    e.pos.y += (alvoY - e.pos.y) * Math.min(1, 4.5 * dt);
+                    // no último meio metro, um pulo curto de volta ao poleiro
+                    if (d < .5) e.pos.y = THREE.MathUtils.lerp(f.y ?? 0, chaoEm(e.pos.x, e.pos.z) ?? 0, d / .5) + Math.sin((1 - d / .5) * Math.PI) * .25;
+                    else pousar(e, dt);
                 }
                 break;
             }
