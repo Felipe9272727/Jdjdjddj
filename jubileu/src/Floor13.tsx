@@ -21,6 +21,7 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
+import { CaoDaBusca, busca } from './f13Busca';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
@@ -43,7 +44,7 @@ import {
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
 type Alvo =
     | { tipo: 'npc'; id: IdNpc }
-    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number };
+    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino' } | { tipo: 'casa'; i: number } | { tipo: 'graveto' };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 12.6;
@@ -656,6 +657,7 @@ const Radar: React.FC<{
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
         tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
+        if (busca.estado === 'solto') tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
         // bater: só com a PORTA à frente do olho (±43°) e o hóspede diante
         // dela — de lado, de costas ou olhando o céu não aparece o botão
         CASAS.forEach((_, i) => {
@@ -903,6 +905,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             agir: () => acao.current(),
             porta: (i: number) => portaNoMundo(i),
             alvo: () => chaveDoAlvo(alvoAtual.current),
+            busca: () => ({ estado: busca.estado, entregas: busca.entregas, g: busca.graveto.toArray().map((v) => +v.toFixed(2)) }),
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz); const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0; },
         };
     }, []);
@@ -1080,6 +1083,14 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         } else if (a.tipo === 'ovelha') {
             acharOvelha(e, a.i); achadas[a.i].current = true; tocarBalido();
             setAviso(`Ovelha achada (${e.ovelhas.filter(Boolean).length}/3). Ela volta sozinha para a Sigrun.`); setAlvo(null);
+        } else if (a.tipo === 'graveto') {
+            // arremessa para onde se olha, subindo um pouco; o shiba vai buscar
+            const dir = new THREE.Vector3(-Math.sin(yaw.current), .7, -Math.cos(yaw.current));
+            const j = jog.current, n = busca.entregas;
+            busca.arremessar?.(new THREE.Vector3(j.x, j.y + 1.3, j.z), dir, 4.2 + (n % 3) * .4);
+            tocarPegar(); setAlvo(null);
+            if (n === 2) window.setTimeout(() => setAviso('O cão larga o graveto e fareja a ponte, rabo em pé, olhando a ilha das casas.'), 6000);
+            else setAviso(n === 0 ? 'Você joga o graveto. O cão dispara.' : 'De novo! Ele não cansa.');
         } else if (a.tipo === 'sino') {
             marcarSino(e); tocarSino(); balancoDoSino.current = 1; setAviso('O sino ecoa por Vindhjem.');
         } else if (a.tipo === 'casa') {
@@ -1186,7 +1197,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
+        : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? 'TOCAR O SINO'
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
@@ -1207,6 +1218,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {/* contraluz fria: separa as silhuetas do chão verde */}
                 <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
                 <Floor13Vida />
+                <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {

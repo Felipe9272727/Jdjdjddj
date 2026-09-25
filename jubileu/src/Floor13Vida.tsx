@@ -104,7 +104,7 @@ export const Floor13Vida: React.FC = () => {
         <Viking ficha={crianca('#6f9a4a')} x={5.5} y={0} z={6.5} ronda={1.8} rondaVel={1.1} rondaFase={.7} estado={estados[2]} />
         <Bicho url={husky} x={-3.2} z={5} raio={1.6} vel={3.4} fase={3.6} />
         <Bicho url={shiba} x={-21} z={9} parado="Idle_2_HeadLow" fase={2.4} />
-        <Bicho url={shiba} x={-4} z={27} raio={1} vel={.7} />
+        {/* o shiba da ilha do pouso brinca de buscar o graveto: ver f13Busca */}
         <Bicho url={husky} x={2.6} z={-20.2} parado="Eating" fase={-.8} />
         {/* gatos: a raposa da Quaternius remodelada (tools/blender/f13_bichos.py) */}
         <Bicho url={gato} x={-3.5} z={6.5} raio={1} vel={.45} fase={1} pelagem="cinza" />
