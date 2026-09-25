@@ -1,15 +1,23 @@
 /**
- * f13Gatos.tsx — os gatos de rua da vila (andar 13).
+ * f13Gatos.tsx — o estado dos gatos de rua da vila (andar 13).
  *
- * Três gatos feitos só com primitivas three (sem GLB): corpo, cabeça, orelhas
- * e rabo articulado animados por código. Cada um tem personalidade própria e
- * reage sozinho aos peixes que caem no chão.
+ * Aqui NÃO se desenha gato nenhum: os gatos de verdade são os GLB animados de
+ * Floor13Vida.tsx (componente Gato13), que leem e escrevem neste módulo.
+ * O que vive aqui é a cozinha da brincadeira:
  *
- * O estado compartilhado vive em `gatos` (objeto de módulo), no mesmo estilo
- * de `busca` em f13Busca.tsx: o Floor13 lê os contadores para o HUD e chama
- * gatos.pegar() / gatos.oferecer() quando o jogador aperta o botão.
- *   - gatos.pegar()    → pega um peixe do chão perto de você, ou do caixote.
- *   - gatos.oferecer() → larga o peixe ~1 m à sua frente; o gato que quiser vem.
+ *   - os peixes largados no chão (lista mutável, sem passar pelo React a cada quadro);
+ *   - o caixote de peixes da vila, que dá peixe de graça a quem chegar perto;
+ *   - as regras de personalidade (quem corre atrás de um peixe, e quando);
+ *   - os contadores do HUD (alimentados, saciados, ultimoNome);
+ *   - a API que o Floor13 aperta no botão: gatos.pegar() / gatos.oferecer().
+ *
+ * O Gato13 importa daqui peixeQueValeAPena(), RAIO_COME, VEL, TEMPO_COMIDA,
+ * consumirPeixe(), marcarComeu(), peixeDisponivelPara() e ondeEstaOJogador().
+ * A posição do jogador chega pelo `jog` de GatosDaVila (o mesmo ref que o resto
+ * do andar usa) e fica em `posJogador`, para as regras acima.
+ *
+ * O que se desenha aqui é o caixote (madeira) e os peixes no chão — mais o
+ * peixe que balança na mão do jogador.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -17,52 +25,71 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { chaoEm } from './f13Mundo';
 
 const TAU = Math.PI * 2;
-const RAIO_COME = 0.55;      // distância em que o gato alcança o peixe
-const ALCANCE_PEGAR = 2.2;   // alcance do jogador para pegar um peixe do chão
-const MAX_PEIXES = 10;       // anti-lixo de peixes esquecidos
+export const RAIO_COME = 0.55;      // distância em que o gato alcança o peixe
+const ALCANCE_PEGAR = 2.2;          // alcance do jogador para pegar um peixe do chão
+const MAX_PEIXES = 10;              // anti-lixo de peixes esquecidos
 
 /** O caixote de peixes da vila: dá peixes de graça para quem chegar perto. */
 export const CESTO = new THREE.Vector3(-6, 0, 6);
 
-type Personalidade = 'fominha' | 'desconfiado' | 'pachorrento';
-type EstadoGato = 'vagando' | 'indo' | 'comendo' | 'saciado';
+export type Personalidade = 'fominha' | 'desconfiado' | 'pachorrento';
 
-/** Velocidade de caminhada (m/s) e tempo de mastigação (s) de cada um. */
-const VEL: Record<Personalidade, number> = { fominha: 3.2, desconfiado: 2.2, pachorrento: 1.2 };
-const TEMPO_COMIDA: Record<Personalidade, number> = { fominha: 3.2, desconfiado: 4.5, pachorrento: 8 };
+/** Velocidade de caminhada (m/s) e tempo de mastigação (s) de cada personalidade. */
+export const VEL: Record<Personalidade, number> = { fominha: 3.2, desconfiado: 2.2, pachorrento: 1.2 };
+export const TEMPO_COMIDA: Record<Personalidade, number> = { fominha: 3.2, desconfiado: 4.5, pachorrento: 8 };
 
-type GatoCtx = {
-    id: number;
-    nome: string;
-    tipo: Personalidade;
-    cor: string;      // pelagem
-    cor2: string;     // peito, focinho
-    pos: THREE.Vector3;
-    casa: THREE.Vector3;   // onde vagueia e onde senta depois de comer
-    alvo: THREE.Vector3;   // destino atual (reusado, nunca realocado)
-    estado: EstadoGato;
-    peixeId: number | null;
-    timer: number;
-    yaw: number;
-    t: number;        // relógio do gato (animações)
-    passo: number;    // fase do andar
-    vel: number;      // velocidade real (m/s) para a animação
-    sentado: boolean;
-};
+/* ============================== peixes ================================ */
 
-const FICHAS: { nome: string; tipo: Personalidade; cor: string; cor2: string; x: number; z: number }[] = [
-    { nome: 'Tico', tipo: 'fominha', cor: '#d98a3a', cor2: '#f3d9b0', x: -4, z: 4 },
-    { nome: 'Cinza', tipo: 'desconfiado', cor: '#8d95a3', cor2: '#e2e5ea', x: 3, z: 1 },
-    { nome: 'Soneca', tipo: 'pachorrento', cor: '#33363d', cor2: '#d8dbe0', x: 1, z: 3 },
-];
+export type Peixe = { id: number; pos: THREE.Vector3; yaw: number; dono: number | null };
 
-/* ============================ peixes no chão ========================== */
-
-type Peixe = { id: number; pos: THREE.Vector3; yaw: number; dono: number | null };
-
-const peixesNoChao: Peixe[] = [];
+export const peixesNoChao: Peixe[] = [];
 let versaoPeixes = 0;          // muda quando a lista muda (o React observa)
 let proximoIdPeixe = 1;
+
+/** Muda a cada peixe posto/tira do chão: é o gatilho de redesenho do React. */
+export function versaoDosPeixes(): number { return versaoPeixes; }
+
+/* ===================== posição do jogador (para a API) ================ */
+
+const posJogador = new THREE.Vector3();
+const jogFrente = new THREE.Vector3(0, 0, 1);
+
+/** Onde o jogador está agora. Quem chama não deve mexer no vetor. */
+export function ondeEstaOJogador(): THREE.Vector3 { return posJogador; }
+
+/* ============================ estado global ============================ */
+
+const jaComeu = new Set<number>();
+
+export const gatos = {
+    /** true quando o jogador está com um peixe na mão */
+    peixeNaMao: false,
+    /** peixes que os gatos já comeram */
+    alimentados: 0,
+    /** quantos gatos distintos já comeram (0..3) */
+    saciados: 0,
+    /** quantos gatos vivem na vila agora (quem sabe é o Floor13Vida) */
+    gatosNaVila: 0,
+    /** nome do último gato que recebeu um peixe (para o HUD) */
+    ultimoNome: '',
+    /** Floor13: botão "PEGAR PEIXE" */
+    pegar: pegarPeixe,
+    /** Floor13: botão "OFERECER PEIXE" */
+    oferecer: oferecerPeixe,
+    /** onde fica o caixote de peixes, para marcar no mapa */
+    cesto: CESTO,
+};
+
+/** Zera peixes e contadores quando o andar carrega. */
+export function reiniciarGatosDaVila() {
+    peixesNoChao.length = 0;
+    versaoPeixes++;
+    jaComeu.clear();
+    gatos.peixeNaMao = false;
+    gatos.alimentados = 0;
+    gatos.saciados = 0;
+    gatos.ultimoNome = '';
+}
 
 /** Larga um peixe no chão em (x, z). O dono é definido pelo 1º gato que chega. */
 export function largarPeixe(x: number, z: number): THREE.Vector3 {
@@ -75,26 +102,58 @@ export function largarPeixe(x: number, z: number): THREE.Vector3 {
     return p.pos;
 }
 
-/* ===================== posição do jogador (para a API) ================ */
-
-const posJogador = new THREE.Vector3();
-const jogFrente = new THREE.Vector3(0, 0, 1);
-
-/* ============================ estado global ============================ */
-
-const comeu = [false, false, false];
-function contarSaciados() {
-    let n = 0;
-    for (let i = 0; i < comeu.length; i++) if (comeu[i]) n++;
-    return n;
+/** O peixe ainda está no chão e ninguém (ou só o gato `id`) reivindicou ele? */
+export function peixeDisponivelPara(p: Peixe, id: number): boolean {
+    return peixesNoChao.indexOf(p) >= 0 && (p.dono === null || p.dono === id);
 }
+
+/** Tira o peixe do chão: conta para o HUD e libera a lista. */
+export function consumirPeixe(p: Peixe): boolean {
+    const i = peixesNoChao.indexOf(p);
+    if (i < 0) return false;
+    peixesNoChao.splice(i, 1);
+    versaoPeixes++;
+    gatos.alimentados++;
+    return true;
+}
+
+/** Marca que o gato `id` já comeu (o HUD mostra "n de 3 gatos satisfeitos"). */
+export function marcarComeu(id: number) {
+    jaComeu.add(id);
+    gatos.saciados = jaComeu.size;
+}
+
+/* ========================== comportamentos ============================ */
+
+/** Regra de cada personalidade para decidir se vale a pena ir atrás do peixe. */
+export function querPeixe(tipo: Personalidade, gx: number, gz: number, p: Peixe): boolean {
+    switch (tipo) {
+        case 'fominha': return true;                                                        // vem de qualquer lugar
+        case 'desconfiado': return Math.hypot(posJogador.x - p.pos.x, posJogador.z - p.pos.z) > 4.5; // só sem plateia
+        case 'pachorrento': return Math.hypot(gx - p.pos.x, gz - p.pos.z) < 3.5;            // só se cair no colo
+        default: return false;
+    }
+}
+
+/** Primeiro peixe sem dono que esse gato se digna a buscar. */
+export function peixeQueValeAPena(tipo: Personalidade, gx: number, gz: number): Peixe | null {
+    for (let i = 0; i < peixesNoChao.length; i++) {
+        const p = peixesNoChao[i];
+        if (p.dono !== null) continue;
+        if (!querPeixe(tipo, gx, gz, p)) continue;
+        return p;
+    }
+    return null;
+}
+
+/* ============================ API do jogador ========================== */
 
 function pegarPeixe(): boolean {
     if (gatos.peixeNaMao) return false;
     // 1) peixe solto no chão, ao alcance
     for (let i = peixesNoChao.length - 1; i >= 0; i--) {
         const p = peixesNoChao[i];
-        if (p.dono !== null) continue;
+        if (p.dono !== null) continue;   // já tem dono: o gato está comendo
         if (Math.hypot(p.pos.x - posJogador.x, p.pos.z - posJogador.z) > ALCANCE_PEGAR) continue;
         peixesNoChao.splice(i, 1);
         versaoPeixes++;
@@ -113,90 +172,6 @@ function oferecerPeixe(): boolean {
     if (!gatos.peixeNaMao) return false;
     largarPeixe(posJogador.x + jogFrente.x * 0.95, posJogador.z + jogFrente.z * 0.95);
     return true;
-}
-
-export const gatos = {
-    /** true quando o jogador está com um peixe na mão */
-    peixeNaMao: false,
-    /** peixes que os gatos já comeram */
-    alimentados: 0,
-    /** quantos gatos distintos já comeram (0..3) */
-    saciados: 0,
-    /** quantos gatos vivem na vila agora */
-    gatosNaVila: 0,
-    /** nome do último gato que recebeu um peixe (para o HUD) */
-    ultimoNome: '',
-    /** Floor13: botão "PEGAR PEIXE" */
-    pegar: pegarPeixe,
-    /** Floor13: botão "OFERECER PEIXE" */
-    oferecer: oferecerPeixe,
-    /** onde fica o caixote de peixes, para marcar no mapa */
-    cesto: CESTO,
-};
-
-/* ============================ utilidades ============================== */
-
-function plano2D(a: THREE.Vector3, x: number, z: number) {
-    return Math.hypot(a.x - x, a.z - z);
-}
-
-function acharPeixe(id: number | null): Peixe | null {
-    if (id === null) return null;
-    for (let i = 0; i < peixesNoChao.length; i++) if (peixesNoChao[i].id === id) return peixesNoChao[i];
-    return null;
-}
-
-/** Regra de cada personalidade para decidir se vale a pena ir atrás do peixe. */
-function querPeixe(e: GatoCtx, p: Peixe, pjx: number, pjz: number): boolean {
-    switch (e.tipo) {
-        case 'fominha': return true;                                     // vem de qualquer lugar
-        case 'desconfiado': return Math.hypot(pjx - p.pos.x, pjz - p.pos.z) > 4.5; // só sem plateia
-        case 'pachorrento': return plano2D(e.pos, p.pos.x, p.pos.z) < 3.5;        // só se cair no colo
-        default: return false;
-    }
-}
-
-/** Move `e` em direção a `destino` (Vector3 reusado). Devolve a velocidade real (m/s). */
-function moverPara(e: GatoCtx, vel: number, dt: number, destino: THREE.Vector3, parar: number): number {
-    const dx = destino.x - e.pos.x;
-    const dz = destino.z - e.pos.z;
-    const d = Math.hypot(dx, dz);
-    if (d <= parar || d < 1e-4) return 0;
-    const ix = dx / d, iz = dz / d;
-    // giro suave pelo caminho mais curto
-    let dif = Math.atan2(ix, iz) - e.yaw;
-    dif = Math.atan2(Math.sin(dif), Math.cos(dif));
-    e.yaw += dif * Math.min(1, 7 * dt);
-    const passo = Math.min(vel * dt, d - parar);
-    e.pos.x += ix * passo;
-    e.pos.z += iz * passo;
-    const cy = chaoEm(e.pos.x, e.pos.z);
-    if (cy !== null) e.pos.y = cy;
-    return passo / Math.max(dt, 1e-4);
-}
-
-function criarGatos(): GatoCtx[] {
-    return FICHAS.map((f, i) => {
-        const pos = new THREE.Vector3(f.x, chaoEm(f.x, f.z) ?? 0, f.z);
-        return {
-            id: i,
-            nome: f.nome,
-            tipo: f.tipo,
-            cor: f.cor,
-            cor2: f.cor2,
-            pos,
-            casa: pos.clone(),
-            alvo: pos.clone(),
-            estado: 'vagando' as EstadoGato,
-            peixeId: null,
-            timer: 1 + Math.random() * 3,
-            yaw: Math.random() * TAU,
-            t: Math.random() * 10,
-            passo: Math.random() * TAU,
-            vel: 0,
-            sentado: false,
-        };
-    });
 }
 
 /* =============================== peixe =============================== */
@@ -231,26 +206,50 @@ const Peixe: React.FC<{ yaw?: number }> = React.memo(({ yaw = 0 }) => (
 ));
 Peixe.displayName = 'Peixe';
 
-/** O caixote da vila: madeira + 3 peixes em cima, prontos para o jogador pegar. */
-const CestoDePeixes: React.FC = () => {
+/**
+ * O caixote da vila: tábuas escuras, cantoneiras e aro claro — madeira de
+ * tanoaria, a mesma família de cor do resto da vila. Três peixes em cima,
+ * prontos para o jogador pegar.
+ */
+const CaixoteDePeixes: React.FC = () => {
     const y = useMemo(() => chaoEm(CESTO.x, CESTO.z) ?? 0, []);
+    const m = useMemo(() => ({
+        tabua: new THREE.MeshStandardMaterial({ color: '#7a5433', roughness: .93 }),
+        tabuaClara: new THREE.MeshStandardMaterial({ color: '#8d643c', roughness: .9 }),
+        canto: new THREE.MeshStandardMaterial({ color: '#54402c', roughness: .95 }),
+    }), []);
+    useEffect(() => () => { m.tabua.dispose(); m.tabuaClara.dispose(); m.canto.dispose(); }, [m]);
+
+    const cantos: [number, number][] = [[-.39, .28], [.39, .28], [-.39, -.28], [.39, -.28]];
+
     return (
         <group position={[CESTO.x, y, CESTO.z]}>
-            <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
-                <boxGeometry args={[0.74, 0.32, 0.54]} />
-                <meshStandardMaterial color="#6b4a2e" roughness={0.92} />
+            {/* corpo do caixote */}
+            <mesh position={[0, .17, 0]} castShadow receiveShadow material={m.tabua}>
+                <boxGeometry args={[.78, .34, .56]} />
             </mesh>
-            <mesh position={[0, 0.25, 0]} castShadow>
-                <boxGeometry args={[0.8, 0.06, 0.6]} />
-                <meshStandardMaterial color="#7d5836" roughness={0.9} />
+            {/* fundo, mais escuro: lê como a tábua de baixo */}
+            <mesh position={[0, .055, 0]} material={m.canto}>
+                <boxGeometry args={[.8, .06, .58]} />
             </mesh>
-            <group position={[-0.18, 0.34, 0.02]}>
+            {/* cantoneiras verticais */}
+            {cantos.map(([cx, cz], i) => (
+                <mesh key={i} position={[cx, .185, cz]} castShadow material={m.canto}>
+                    <boxGeometry args={[.07, .40, .07]} />
+                </mesh>
+            ))}
+            {/* aro do topo */}
+            <mesh position={[0, .365, 0]} castShadow material={m.tabuaClara}>
+                <boxGeometry args={[.86, .05, .64]} />
+            </mesh>
+            {/* peixes do dia */}
+            <group position={[-0.18, 0.42, 0.02]}>
                 <Peixe yaw={0.35} />
             </group>
-            <group position={[0.06, 0.34, -0.08]}>
+            <group position={[0.06, 0.42, -0.08]}>
                 <Peixe yaw={-0.5} />
             </group>
-            <group position={[0.24, 0.34, 0.12]}>
+            <group position={[0.24, 0.42, 0.12]}>
                 <Peixe yaw={1.1} />
             </group>
         </group>
@@ -279,322 +278,25 @@ const PeixeNaMao: React.FC<{ camera: THREE.Camera }> = ({ camera }) => {
     );
 };
 
-/* ============================== um gato =============================== */
+/* ============================ componente raiz ========================== */
 
 type Jog = React.MutableRefObject<{ x: number; y: number; z: number }>;
 
-// patas dianteiras e traseiras: [x, z]
-const PATAS: [number, number][] = [[-0.13, 0.2], [0.13, 0.2], [-0.13, -0.2], [0.13, -0.2]];
-
-const Gato: React.FC<{ e: GatoCtx; jog: Jog }> = ({ e, jog }) => {
-    const raiz = useRef<THREE.Group>(null!);
-    const corpo = useRef<THREE.Group>(null!);
-    const cabeca = useRef<THREE.Group>(null!);
-    const orelhaE = useRef<THREE.Group>(null!);
-    const orelhaD = useRef<THREE.Group>(null!);
-    const rabo0 = useRef<THREE.Group>(null!);
-    const rabo1 = useRef<THREE.Group>(null!);
-    const rabo2 = useRef<THREE.Group>(null!);
-    const pata0 = useRef<THREE.Group>(null!);
-    const pata1 = useRef<THREE.Group>(null!);
-    const pata2 = useRef<THREE.Group>(null!);
-    const pata3 = useRef<THREE.Group>(null!);
-
-    const mats = useMemo(() => ({
-        pelo: new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.9 }),
-        barriga: new THREE.MeshStandardMaterial({ color: e.cor2, roughness: 0.95 }),
-        olho: new THREE.MeshStandardMaterial({ color: '#f2c14e', roughness: 0.25, emissive: '#3a2c07' }),
-        pupila: new THREE.MeshStandardMaterial({ color: '#0e1013', roughness: 0.3 }),
-        nariz: new THREE.MeshStandardMaterial({ color: '#e08a8a', roughness: 0.5 }),
-    }), [e.cor, e.cor2]);
-
-    useEffect(() => () => {
-        mats.pelo.dispose();
-        mats.barriga.dispose();
-        mats.olho.dispose();
-        mats.pupila.dispose();
-        mats.nariz.dispose();
-    }, [mats]);
-
-    useFrame((_, delta) => {
-        const dt = Math.min(delta, 0.05);
-        e.t += dt;
-        const pjx = jog.current.x;
-        const pjz = jog.current.z;
-
-        switch (e.estado) {
-            /* ------------------------------------------------ vagando */
-            case 'vagando': {
-                // o desconfiado recua se o jogador colar nele
-                if (e.tipo === 'desconfiado') {
-                    const d = Math.hypot(e.pos.x - pjx, e.pos.z - pjz);
-                    if (d < 2.6) {
-                        const ix = (e.pos.x - pjx) / (d || 1);
-                        const iz = (e.pos.z - pjz) / (d || 1);
-                        e.alvo.set(e.pos.x + ix * 2.5, e.pos.y, e.pos.z + iz * 2.5);
-                        e.timer = 1.6;
-                    }
-                }
-                e.timer -= dt;
-                if (e.timer <= 0 || plano2D(e.pos, e.alvo.x, e.alvo.z) < 0.6) {
-                    const a = Math.random() * TAU;
-                    const r = 1.2 + Math.random() * 4;
-                    e.alvo.set(e.casa.x + Math.cos(a) * r, e.pos.y, e.casa.z + Math.sin(a) * r);
-                    e.timer = e.tipo === 'pachorrento' ? 9 + Math.random() * 8 : 4 + Math.random() * 5;
-                }
-                const v = moverPara(e, VEL[e.tipo] * (e.tipo === 'pachorrento' ? 0.5 : 0.6), dt, e.alvo, 0.4);
-                e.vel += (v - e.vel) * Math.min(1, 10 * dt);
-
-                // fareja peixes sem dono
-                for (let i = 0; i < peixesNoChao.length; i++) {
-                    const p = peixesNoChao[i];
-                    if (p.dono !== null) continue;
-                    if (!querPeixe(e, p, pjx, pjz)) continue;
-                    e.estado = 'indo';
-                    e.peixeId = p.id;
-                    break;
-                }
-                break;
-            }
-
-            /* ------------------------------------------------ indo ao peixe */
-            case 'indo': {
-                const p = acharPeixe(e.peixeId);
-                if (!p || p.dono !== null) {          // outro gato chegou primeiro
-                    e.estado = 'vagando';
-                    e.peixeId = null;
-                    break;
-                }
-                const d = plano2D(e.pos, p.pos.x, p.pos.z);
-                if (d < RAIO_COME) {
-                    p.dono = e.id;                    // reivindica o peixe
-                    e.estado = 'comendo';
-                    e.timer = TEMPO_COMIDA[e.tipo];
-                    e.vel = 0;
-                    gatos.ultimoNome = e.nome;
-                    break;
-                }
-                // desconfiado desiste se o jogador chegar perto do peixe
-                if (e.tipo === 'desconfiado' && Math.hypot(pjx - p.pos.x, pjz - p.pos.z) < 3.2) {
-                    e.estado = 'vagando';
-                    e.peixeId = null;
-                    break;
-                }
-                const v = moverPara(e, VEL[e.tipo], dt, p.pos, RAIO_COME * 0.7);
-                e.vel += (v - e.vel) * Math.min(1, 10 * dt);
-                break;
-            }
-
-            /* ------------------------------------------------ comendo */
-            case 'comendo': {
-                e.vel += (0 - e.vel) * Math.min(1, 12 * dt);
-                const p = acharPeixe(e.peixeId);
-                if (!p) {
-                    e.estado = 'vagando';
-                    e.peixeId = null;
-                    break;
-                }
-                // encara o peixe
-                let dif = Math.atan2(p.pos.x - e.pos.x, p.pos.z - e.pos.z) - e.yaw;
-                dif = Math.atan2(Math.sin(dif), Math.cos(dif));
-                e.yaw += dif * Math.min(1, 4 * dt);
-
-                // o desconfiado larga o peixe e foge se o jogador chega perto
-                if (e.tipo === 'desconfiado' && Math.hypot(e.pos.x - pjx, e.pos.z - pjz) < 2.4) {
-                    p.dono = null;
-                    e.peixeId = null;
-                    e.estado = 'vagando';
-                    e.timer = 0;
-                    break;
-                }
-
-                e.timer -= dt;
-                if (e.timer <= 0) {
-                    const i = peixesNoChao.indexOf(p);
-                    if (i >= 0) { peixesNoChao.splice(i, 1); versaoPeixes++; }
-                    e.peixeId = null;
-                    e.estado = 'saciado';
-                    e.timer = 0;
-                    comeu[e.id] = true;
-                    gatos.alimentados++;
-                    gatos.saciados = contarSaciados();
-                    break;
-                }
-                break;
-            }
-
-            /* ------------------------------------------------ saciado */
-            case 'saciado': {
-                if (e.sentado) {
-                    e.timer -= dt;
-                    e.vel += (0 - e.vel) * Math.min(1, 10 * dt);
-                    if (e.timer <= 0) { e.sentado = false; e.estado = 'vagando'; e.timer = 0; }
-                    break;
-                }
-                if (plano2D(e.pos, e.casa.x, e.casa.z) < 0.7) {
-                    e.sentado = true;
-                    e.vel = 0;
-                    e.timer = e.tipo === 'fominha' ? 9 : e.tipo === 'pachorrento' ? 35 : 18;
-                    break;
-                }
-                const v = moverPara(e, VEL[e.tipo] * 0.7, dt, e.casa, 0.5);
-                e.vel += (v - e.vel) * Math.min(1, 10 * dt);
-                break;
-            }
-        }
-
-        /* ---------- pose: tudo procedural, zero alocação por quadro ---------- */
-        const gc = Math.min(1, e.vel / VEL[e.tipo]);
-        e.passo += e.vel * dt * 5.5;
-        const dormindo = e.sentado;
-
-        const r = raiz.current;
-        r.position.copy(e.pos);
-        r.rotation.y = e.yaw;
-
-        const c = corpo.current;
-        c.position.y = Math.abs(Math.sin(e.passo)) * 0.03 * gc - (dormindo ? 0.08 : 0);
-        c.rotation.z = Math.sin(e.passo) * 0.05 * gc;
-        c.rotation.x = dormindo ? 0.06 : -0.035 * gc;
-
-        const amp = 0.6 * gc;
-        pata0.current.rotation.x = dormindo ? 0.85 : Math.sin(e.passo) * amp;
-        pata1.current.rotation.x = dormindo ? 0.85 : Math.sin(e.passo + Math.PI) * amp;
-        pata2.current.rotation.x = dormindo ? 1.25 : Math.sin(e.passo + Math.PI) * amp * 0.85;
-        pata3.current.rotation.x = dormindo ? 1.25 : Math.sin(e.passo) * amp * 0.85;
-
-        const sw = Math.sin(e.t * 2.4 + e.id * 2.1);
-        const humor = e.estado === 'comendo' ? 1.35 : e.estado === 'saciado' ? 0.5 : 1;
-        rabo0.current.rotation.x = dormindo ? 0.08 : 0.22 + 0.4 * humor + Math.sin(e.t * 1.6) * 0.05;
-        rabo0.current.rotation.y = sw * (0.2 + 0.4 * (1 - gc));
-        rabo1.current.rotation.y = sw * 0.45 * (1 - gc * 0.5);
-        rabo1.current.rotation.x = Math.sin(e.t * 2.4 + 0.4) * 0.12;
-        rabo2.current.rotation.y = sw * 0.5 * (1 - gc * 0.5);
-        rabo2.current.rotation.x = Math.sin(e.t * 2.4 + 0.9) * 0.14;
-
-        const cb = cabeca.current;
-        cb.rotation.x = dormindo ? 0.55 : e.estado === 'comendo' ? 0.45 : -0.06 * gc;
-        cb.rotation.z = Math.sin(e.t * 0.9) * 0.05;
-
-        const medroso = e.tipo === 'desconfiado' && Math.hypot(e.pos.x - pjx, e.pos.z - pjz) < 3;
-        const orel = 0.3 + (medroso ? 0.5 : 0) + Math.sin(e.t * 3.1) * 0.03;
-        orelhaE.current.rotation.z = orel;
-        orelhaD.current.rotation.z = -orel - Math.sin(e.t * 3.1 + 0.5) * 0.03;
-    });
-
-    return (
-        <group ref={raiz} position={e.pos}>
-            <group ref={corpo}>
-                {/* tronco */}
-                <mesh position={[0, 0.3, 0]} scale={[1, 0.85, 1.5]} castShadow material={mats.pelo}>
-                    <sphereGeometry args={[0.24, 14, 10]} />
-                </mesh>
-                {/* peito claro */}
-                <mesh position={[0, 0.23, 0.14]} scale={[0.8, 0.62, 0.95]} castShadow material={mats.barriga}>
-                    <sphereGeometry args={[0.18, 12, 8]} />
-                </mesh>
-
-                {/* cabeça */}
-                <group ref={cabeca} position={[0, 0.44, 0.33]}>
-                    <mesh castShadow material={mats.pelo}>
-                        <sphereGeometry args={[0.15, 12, 10]} />
-                    </mesh>
-                    <mesh position={[0, -0.035, 0.1]} scale={[1, 0.72, 0.85]} material={mats.barriga}>
-                        <sphereGeometry args={[0.085, 10, 8]} />
-                    </mesh>
-                    <mesh position={[0, -0.005, 0.175]} material={mats.nariz}>
-                        <sphereGeometry args={[0.024, 8, 6]} />
-                    </mesh>
-                    <mesh position={[-0.062, 0.03, 0.118]} material={mats.olho}>
-                        <sphereGeometry args={[0.03, 8, 6]} />
-                    </mesh>
-                    <mesh position={[-0.066, 0.03, 0.14]} material={mats.pupila}>
-                        <sphereGeometry args={[0.013, 6, 6]} />
-                    </mesh>
-                    <mesh position={[0.062, 0.03, 0.118]} material={mats.olho}>
-                        <sphereGeometry args={[0.03, 8, 6]} />
-                    </mesh>
-                    <mesh position={[0.066, 0.03, 0.14]} material={mats.pupila}>
-                        <sphereGeometry args={[0.013, 6, 6]} />
-                    </mesh>
-                    <group ref={orelhaE} position={[-0.085, 0.115, -0.005]}>
-                        <mesh position={[0, 0.05, 0]} castShadow material={mats.pelo}>
-                            <coneGeometry args={[0.055, 0.11, 4]} />
-                        </mesh>
-                    </group>
-                    <group ref={orelhaD} position={[0.085, 0.115, -0.005]}>
-                        <mesh position={[0, 0.05, 0]} castShadow material={mats.pelo}>
-                            <coneGeometry args={[0.055, 0.11, 4]} />
-                        </mesh>
-                    </group>
-                </group>
-
-                {/* rabo articulado (3 juntas) */}
-                <group ref={rabo0} position={[0, 0.4, -0.3]}>
-                    <mesh position={[0, 0, -0.085]} rotation={[-Math.PI / 2, 0, 0]} castShadow material={mats.pelo}>
-                        <cylinderGeometry args={[0.037, 0.03, 0.17, 6]} />
-                    </mesh>
-                    <group ref={rabo1} position={[0, 0, -0.17]}>
-                        <mesh position={[0, 0, -0.075]} rotation={[-Math.PI / 2, 0, 0]} castShadow material={mats.pelo}>
-                            <cylinderGeometry args={[0.03, 0.024, 0.15, 6]} />
-                        </mesh>
-                        <group ref={rabo2} position={[0, 0, -0.15]}>
-                            <mesh position={[0, 0, -0.065]} rotation={[-Math.PI / 2, 0, 0]} castShadow material={mats.pelo}>
-                                <cylinderGeometry args={[0.024, 0.012, 0.13, 6]} />
-                            </mesh>
-                        </group>
-                    </group>
-                </group>
-
-                {/* patas (pivô no ombro/quadril) */}
-                <group ref={pata0} position={[PATAS[0][0], 0.2, PATAS[0][1]]}>
-                    <mesh position={[0, -0.1, 0]} castShadow material={mats.pelo}>
-                        <capsuleGeometry args={[0.045, 0.11, 3, 8]} />
-                    </mesh>
-                </group>
-                <group ref={pata1} position={[PATAS[1][0], 0.2, PATAS[1][1]]}>
-                    <mesh position={[0, -0.1, 0]} castShadow material={mats.pelo}>
-                        <capsuleGeometry args={[0.045, 0.11, 3, 8]} />
-                    </mesh>
-                </group>
-                <group ref={pata2} position={[PATAS[2][0], 0.2, PATAS[2][1]]}>
-                    <mesh position={[0, -0.1, 0]} castShadow material={mats.pelo}>
-                        <capsuleGeometry args={[0.045, 0.11, 3, 8]} />
-                    </mesh>
-                </group>
-                <group ref={pata3} position={[PATAS[3][0], 0.2, PATAS[3][1]]}>
-                    <mesh position={[0, -0.1, 0]} castShadow material={mats.pelo}>
-                        <capsuleGeometry args={[0.045, 0.11, 3, 8]} />
-                    </mesh>
-                </group>
-            </group>
-        </group>
-    );
-};
-
-/* ============================ componente raiz ========================== */
-
+/**
+ * Não tem mais gato aqui: só o caixote, os peixes caídos e o peixe na mão.
+ * O useFrame existe para manter `posJogador` e `jogFrente` atualizados — é
+ * disso que gatos.pegar()/oferecer() e as regras dos gatos dependem.
+ */
 export const GatosDaVila: React.FC<{ jog: Jog }> = ({ jog }) => {
     const camera = useThree((s) => s.camera);
-    const registros = useMemo(() => criarGatos(), []);
     const [listaPeixes, setListaPeixes] = useState<Peixe[]>([]);
     const visto = useRef(-1);
     const dir = useMemo(() => new THREE.Vector3(), []);
 
     useEffect(() => {
-        peixesNoChao.length = 0;
-        versaoPeixes++;
-        gatos.peixeNaMao = false;
-        gatos.alimentados = 0;
-        gatos.saciados = 0;
-        gatos.ultimoNome = '';
-        gatos.gatosNaVila = registros.length;
-        for (let i = 0; i < comeu.length; i++) comeu[i] = false;
-        return () => {
-            gatos.peixeNaMao = false;
-            gatos.gatosNaVila = 0;
-        };
-    }, [registros]);
+        reiniciarGatosDaVila();
+        return () => { gatos.peixeNaMao = false; };
+    }, []);
 
     useFrame(() => {
         // a API de módulo (gatos.pegar/oferecer) precisa saber onde o jogador está
@@ -605,18 +307,16 @@ export const GatosDaVila: React.FC<{ jog: Jog }> = ({ jog }) => {
         else jogFrente.normalize();
 
         // sincroniza os peixes desenhados só quando a lista muda (fora do loop quente)
-        if (visto.current !== versaoPeixes) {
-            visto.current = versaoPeixes;
+        const v = versaoDosPeixes();
+        if (visto.current !== v) {
+            visto.current = v;
             setListaPeixes(peixesNoChao.slice());
         }
     });
 
     return (
         <group>
-            {registros.map((e) => (
-                <Gato key={e.id} e={e} jog={jog} />
-            ))}
-            <CestoDePeixes />
+            <CaixoteDePeixes />
             {listaPeixes.map((p) => (
                 <group key={p.id} position={p.pos}>
                     <Peixe yaw={p.yaw} />

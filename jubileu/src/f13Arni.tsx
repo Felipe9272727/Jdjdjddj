@@ -107,7 +107,7 @@ export const ArniNoBanco: React.FC<{ falando: boolean }> = ({ falando }) => {
         <mesh position={[.2, .7, -.19]} material={madeira} castShadow><boxGeometry args={[1.7, .22, .05]} /></mesh>
         {[-.55, .95].map((x) => <mesh key={x} position={[x, .2, 0]} material={madeira}><cylinderGeometry args={[.07, .08, .4, 8]} /></mesh>)}
         {/* o Árni, sentado na ponta esquerda */}
-        <group position={[-.5, .02, .05]}><Viking ficha={FICHA_ARNI} x={0} y={0} z={0} estado={estado} sentado escalaExtra={.97} /></group>
+        <group position={[-.5, -.1, -.04]}><Viking ficha={FICHA_ARNI} x={0} y={0} z={0} estado={estado} sentado escalaExtra={.97} /></group>
         {/* a filha, em pé atrás do banco */}
         <Viking ficha={FICHA_FILHA} x={-.9} y={0} z={-.55} estado={estadoFilha} semRecorte />
     </group>;

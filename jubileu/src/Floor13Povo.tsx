@@ -77,7 +77,7 @@ function vestirOficio(m: THREE.Object3D, id: string) {
     const peca = (g: THREE.BufferGeometry, cor: string, r?: number, metal?: number) => { const me = new THREE.Mesh(g, mat(cor, r, metal)); me.castShadow = true; return me; };
     if (id === 'brokk') {
         // avental de couro do peito aos joelhos, com a alça no pescoço
-        const av = peca(new THREE.BoxGeometry(.4, .62, .015), '#5a3a22', .7); prender(m, 'spine_01', av, [0, 1.0, .15]);
+        const av = peca(new THREE.BoxGeometry(.4, .62, .015), '#5a3a22', .7); prender(m, 'spine_01', av, [0, 1.0, .115]);
         const alca = peca(new THREE.TorusGeometry(.1, .012, 6, 16, Math.PI), '#3a2616'); prender(m, 'spine_03', alca, [0, 1.42, .09]);
     } else if (id === 'sigrun') {
         // cajado de pastora com o gancho em cima, fincado ao lado

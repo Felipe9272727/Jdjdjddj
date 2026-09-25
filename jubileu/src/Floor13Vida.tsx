@@ -1,13 +1,20 @@
 /**
  * Floor13Vida.tsx — o que faz Vindhjem parecer habitada: crianças correndo
- * umas atrás das outras pela praça e cachorros soltos (um trota com elas,
- * outro cochila perto da forja, um terceiro fuça o pouso).
+ * umas atrás das outras pela praça, cachorros soltos (um trota com elas,
+ * outro cochila perto da forja, um terceiro fuça o pouso) e os três gatos
+ * de rua da vila.
  *
- * Os gatos são a Raposa do mesmo pacote, remodelada (tools/blender/f13_bichos.py).
- * Os cachorros são o Husky e o Shiba do pacote "Ultimate Animated Animals"
- * da Quaternius (CC0), suavizados no Blender (tools/blender/f13_bichos.py →
- * subdivisão, sombreamento liso) e com os clipes originais de andar,
- * galopar, parar e comer.
+ * Os gatos andam EXATAMENTE como o <Bicho> original: no estado 'vagando' o
+ * gato cinza percorre o mesmo círculo (x, z, raio, vel, fase), com o mesmo
+ * clipe Walk em setEffectiveTimeScale(vel/.9) e a mesma orientação
+ * rotation.y = -a; os dois gatos de poleiro continuam parados, com y fixo e
+ * os clipes Idle / Idle_2_HeadLow (com o a.time = fase*1.7 de antes).
+ *
+ * A única coisa acrescentada é farejar: quando aparece um peixe no chão que
+ * valha a pena, o gato sai do círculo, come e volta andando (Walk) para o
+ * ponto do círculo de AGORA — o ângulo continua a ser calculado pela mesma
+ * fórmula, então ele retoma o passeio de onde estava, sem emenda. Peixes,
+ * personalidades e contadores moram em f13Gatos.tsx.
  */
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -18,6 +25,11 @@ import { Viking } from './Floor13Povo';
 import type { FichaNpc } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
 import { chaoEm } from './f13Mundo';
+import {
+    gatos, RAIO_COME, VEL, TEMPO_COMIDA, consumirPeixe, marcarComeu,
+    ondeEstaOJogador, peixeDisponivelPara, peixeQueValeAPena,
+    type Peixe, type Personalidade,
+} from './f13Gatos';
 import husky from './assets/f13/povo/cao_husky.glb';
 import shiba from './assets/f13/povo/cao_shiba.glb';
 import gato from './assets/f13/povo/gato.glb';
@@ -53,8 +65,8 @@ export const PELAGENS: Record<string, [string, string] | undefined> = {
     laranja: undefined, cinza: ['#5f5b57', '#d9d3c8'], preto: ['#1d1b1b', '#e9e5dc'],
 };
 
-/** Um bicho: anda em círculo (trote ou galope), ou fica parado (comendo, cochilando). */
-const Bicho: React.FC<{ url: string; x: number; z: number; raio?: number; vel?: number; fase?: number; parado?: Parado; pelagem?: string; y?: number }> = ({ url, x, z, raio = 0, vel = .5, fase = 0, parado, pelagem, y }) => {
+/** Clona o GLB, pinta a pelagem e devolve os clipes. Cão e gato passam aqui. */
+function useBicho(url: string, pelagem?: string) {
     const { scene, animations } = useGLTF(url);
     const modelo = useMemo(() => {
         const m = clonarComEsqueleto(scene);
@@ -70,30 +82,368 @@ const Bicho: React.FC<{ url: string; x: number; z: number; raio?: number; vel?: 
         });
         return m;
     }, [scene, pelagem]);
-    const g = useRef<THREE.Group>(null);
-    const { actions } = useAnimations(animations, g);
-    useEffect(() => {
-        // os clipes do GLB chamam-se Walk, Gallop, Idle… (o código antigo
-        // pedia "Walk_AnimalArmature", que não existe: ninguém se mexia)
-        const nome = parado ?? (vel > 1.6 ? 'Gallop' : 'Walk');
-        const a = actions[nome]; if (!a) return;
-        a.reset().setEffectiveTimeScale(parado ? 1 : vel > 1.6 ? vel / 3.4 : vel / .9).play();
-        a.time = fase * 1.7 % Math.max(.01, a.getClip().duration);
-        return () => { a.stop(); };
-    }, [actions, parado, vel, fase]);
-    useFrame(({ clock }) => {
-        const o = g.current; if (!o) return;
-        const a = fase + clock.elapsedTime * vel / Math.max(raio, .1);
-        const px = raio ? x + Math.cos(a) * raio : x, pz = raio ? z + Math.sin(a) * raio : z;
-        o.position.set(px, y ?? chaoEm(px, pz) ?? 0, pz);
-        // de frente para onde anda (tangente do círculo)
-        o.rotation.y = raio ? -a : fase;
-    });
-    return <group ref={g}><primitive object={modelo} /></group>;
+    return { modelo, animations };
+}
+
+/* ============================ animação ================================ */
+
+type Acoes = Record<string, THREE.AnimationAction | undefined>;
+
+/**
+ * Acha um clipe pelo nome, tolerando exportador que renomeia: primeiro nome
+ * exato, depois começo do nome, depois pedaço do nome. A ordem de `nomes` é a
+ * ordem de preferência (ex.: ['Eating', 'Idle_2_HeadLow', 'Idle']).
+ */
+function acharClipe(actions: Acoes, nomes: string[]): THREE.AnimationAction | null {
+    for (const n of nomes) { const a = actions[n]; if (a) return a; }
+    const chaves = Object.keys(actions);
+    for (const n of nomes) {
+        const alvo = n.toLowerCase();
+        const k = chaves.find((c) => c.toLowerCase() === alvo)
+            ?? chaves.find((c) => c.toLowerCase().startsWith(alvo))
+            ?? chaves.find((c) => c.toLowerCase().includes(alvo));
+        const a = k ? actions[k] : undefined;
+        if (a) return a;
+    }
+    return null;
+}
+
+/**
+ * Troca de clipe com crossFade curto (.25s). Se o clipe pedido já está
+ * tocando, não faz nada — é o caso do Walk do 'vagando', que atravessa a ida
+ * ao peixe sem emenda (só muda o ritmo).
+ */
+function tocarClipe(actions: Acoes, nomes: string[], atual: React.MutableRefObject<THREE.AnimationAction | null>): boolean {
+    const a = acharClipe(actions, nomes);
+    if (!a || a === atual.current) return false;
+    const antigo = atual.current;
+    a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play();
+    if (antigo && antigo !== a) antigo.crossFadeTo(a, .25, false);
+    atual.current = a;
+    return true;
+}
+
+// listas fixas (nada de alocar array por quadro)
+const CLIPES_PARADO = ['Idle'];
+const CLIPES_DEITADO = ['Idle_2_HeadLow', 'Idle'];
+const CLIPES_ANDANDO = ['Walk', 'Gallop'];
+const CLIPES_CORRENDO = ['Gallop', 'Walk'];
+const CLIPES_COMENDO = ['Eating', 'Idle_2_HeadLow', 'Idle'];
+
+/* ======================== cachorros (só passeiam) ===================== */
+
+/** Um bicho simples: anda em círculo (trote ou galope), ou fica parado. */
+const Bicho: React.FC<{ url: string; x: number; z: number; raio?: number; vel?: number; fase?: number; parado?: Parado; pelagem?: string; y?: number }> =
+    ({ url, x, z, raio = 0, vel = .5, fase = 0, parado, pelagem, y }) => {
+        const { modelo, animations } = useBicho(url, pelagem);
+        const g = useRef<THREE.Group>(null);
+        const { actions } = useAnimations(animations, g);
+        const acao = useRef<THREE.AnimationAction | null>(null);
+        useEffect(() => () => { acao.current?.stop(); acao.current = null; }, []);
+        useEffect(() => {
+            // os clipes do GLB chamam-se Walk, Gallop, Idle… (o código antigo
+            // pedia "Walk_AnimalArmature", que não existe: ninguém se mexia)
+            const nome = parado ?? (vel > 1.6 ? 'Gallop' : 'Walk');
+            tocarClipe(actions as unknown as Acoes, [nome], acao);
+            const a = acao.current;
+            if (a) {
+                a.setEffectiveTimeScale(parado ? 1 : vel > 1.6 ? vel / 3.4 : vel / .9);
+                a.time = fase * 1.7 % Math.max(.01, a.getClip().duration);
+            }
+        }, [actions, parado, vel, fase]);
+        useFrame(({ clock }) => {
+            const o = g.current; if (!o) return;
+            const a = fase + clock.elapsedTime * vel / Math.max(raio, .1);
+            const px = raio ? x + Math.cos(a) * raio : x, pz = raio ? z + Math.sin(a) * raio : z;
+            o.position.set(px, y ?? chaoEm(px, pz) ?? 0, pz);
+            // de frente para onde anda (tangente do círculo)
+            o.rotation.y = raio ? -a : fase;
+        });
+        return <group ref={g}><primitive object={modelo} /></group>;
+    };
+
+/* ============================ os gatos ================================ */
+
+type EstadoGato = 'vagando' | 'indo' | 'comendo' | 'voltando';
+
+/**
+ * Cada gato guarda exatamente o que o <Bicho> original recebia: x, z, raio,
+ * vel, fase e (quando fica em cima de algo) o y e o clipe parado. É essa
+ * ficha que mantém o passeio idêntico ao de antes.
+ */
+type FichaGato = {
+    id: number;
+    nome: string;
+    tipo: Personalidade;
+    pelagem?: string;                  // undefined = pelagem original do GLB (laranja)
+    x: number; z: number;
+    raio: number;                      // 0 = não passeia, fica no poleiro
+    vel: number; fase: number;
+    y?: number;                        // poleiro: altura fixa
+    parado?: 'Idle' | 'Idle_2_HeadLow';
 };
+
+const GATOS: FichaGato[] = [
+    // <Bicho url={gato} x={-3.5} z={6.5} raio={1} vel={.45} fase={1} pelagem="cinza" />
+    { id: 0, nome: 'Cinza', tipo: 'desconfiado', pelagem: 'cinza', x: -3.5, z: 6.5, raio: 1, vel: .45, fase: 1 },
+    // <Bicho ... x={-3.33} z={13.71} y={.9} parado="Idle" fase={1.67} pelagem="preto" /> (balcão da barraca)
+    { id: 1, nome: 'Soneca', tipo: 'pachorrento', pelagem: 'preto', x: -3.33, z: 13.71, raio: 0, vel: .5, fase: 1.67, y: .9, parado: 'Idle' },
+    // <Bicho ... x={1.1} z={8} y={.63} parado="Idle_2_HeadLow" fase={0} /> (borda do poço)
+    { id: 2, nome: 'Tico', tipo: 'fominha', x: 1.1, z: 8, raio: 0, vel: .5, fase: 0, y: .63, parado: 'Idle_2_HeadLow' },
+];
+
+type Ctx = {
+    pos: THREE.Vector3;    // posição real (x, y, z)
+    estado: EstadoGato;
+    peixe: Peixe | null;
+    timer: number;
+    yaw: number;
+    vel: number;           // velocidade real medida → ritmo do clipe
+};
+
+/** Move o gato (x,z) em direção a um ponto. Devolve a velocidade real (m/s). */
+function andarPara(e: Ctx, vel: number, dt: number, x: number, z: number, parar: number): number {
+    const dx = x - e.pos.x, dz = z - e.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d <= parar || d < 1e-4) return 0;
+    const ix = dx / d, iz = dz / d;
+    // giro suave pelo caminho mais curto — atan2(ix, iz) é o mesmo yaw do
+    // <Bicho> original (lá, rotation.y = -a dá a tangente do círculo)
+    let dif = Math.atan2(ix, iz) - e.yaw;
+    dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+    e.yaw += dif * Math.min(1, 7 * dt);
+    const passo = Math.min(vel * dt, d - parar);
+    e.pos.x += ix * passo; e.pos.z += iz * passo;
+    return passo / Math.max(dt, 1e-4);
+}
+
+const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
+    const { modelo, animations } = useBicho(gato, f.pelagem);
+    const raiz = useRef<THREE.Group>(null!);
+    const { actions } = useAnimations(animations, raiz);
+    const acao = useRef<THREE.AnimationAction | null>(null);
+    useEffect(() => () => { acao.current?.stop(); acao.current = null; }, []);
+
+    const e = useMemo<Ctx>(() => {
+        // começa onde o círculo o põe em t=0 (o useFrame corrige no 1º quadro)
+        const a0 = f.fase;
+        const px = f.raio > 0 ? f.x + Math.cos(a0) * f.raio : f.x;
+        const pz = f.raio > 0 ? f.z + Math.sin(a0) * f.raio : f.z;
+        return {
+            pos: new THREE.Vector3(px, f.parado ? (f.y ?? 0) : 0, pz),
+            estado: 'vagando',
+            peixe: null,
+            timer: 0,
+            yaw: f.raio > 0 ? -a0 : f.fase,
+            vel: f.raio > 0 ? f.vel : 0,
+        };
+    }, [f]);
+
+    useFrame(({ clock }, delta) => {
+        const o = raiz.current; if (!o) return;
+        const dt = Math.min(delta, .05);
+        const t = clock.elapsedTime;
+        const pj = ondeEstaOJogador();
+        const pjx = pj.x, pjz = pj.z;
+
+        switch (e.estado) {
+
+            /* ------------------------------------------------------- vagando
+               EXATAMENTE o <Bicho> original: mesmo círculo, mesmo Walk em
+               vel/.9, mesma orientação rotation.y = -a. Gato de poleiro fica
+               com y fixo, rotation.y = fase e clipe Idle/Idle_2_HeadLow. */
+            case 'vagando': {
+                if (f.raio > 0) {
+                    const a = f.fase + t * f.vel / Math.max(f.raio, .1);
+                    const px = f.x + Math.cos(a) * f.raio;
+                    const pz = f.z + Math.sin(a) * f.raio;
+                    e.pos.set(px, chaoEm(px, pz) ?? 0, pz);
+                    e.yaw = -a;
+                    e.vel = f.vel;
+                } else {
+                    e.pos.set(f.x, f.y ?? 0, f.z);
+                    e.yaw = f.fase;
+                    e.vel = 0;
+                }
+                // só isto é novo: fareja um peixe largado no chão
+                const p = peixeQueValeAPena(f.tipo, e.pos.x, e.pos.z);
+                if (p) { e.peixe = p; e.estado = 'indo'; }
+                break;
+            }
+
+            /* --------------------------------------------------- indo ao peixe */
+            case 'indo': {
+                const p = e.peixe;
+                if (!p || !peixeDisponivelPara(p, f.id)) {   // sumiu, ou outro chegou primeiro
+                    e.peixe = null; e.estado = 'voltando';
+                    break;
+                }
+                // o desconfiado não come com plateia
+                if (f.tipo === 'desconfiado' && Math.hypot(pjx - p.pos.x, pjz - p.pos.z) < 3.2) {
+                    e.peixe = null; e.estado = 'voltando';
+                    break;
+                }
+                if (Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < RAIO_COME) {
+                    p.dono = f.id;                       // reivindica o peixe
+                    e.estado = 'comendo';
+                    e.timer = TEMPO_COMIDA[f.tipo];
+                    e.vel = 0;
+                    gatos.ultimoNome = f.nome;           // o HUD mostra quem ganhou
+                    break;
+                }
+                const v = andarPara(e, VEL[f.tipo] * 1.35, dt, p.pos.x, p.pos.z, RAIO_COME * .7);
+                e.vel += (v - e.vel) * Math.min(1, 10 * dt);
+                // quem desce do poleiro desce com jeito
+                const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
+                e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+                break;
+            }
+
+            /* ------------------------------------------------------- comendo */
+            case 'comendo': {
+                e.vel += (0 - e.vel) * Math.min(1, 12 * dt);
+                const p = e.peixe;
+                if (!p || !peixeDisponivelPara(p, f.id)) {
+                    e.peixe = null; e.estado = 'voltando';
+                    break;
+                }
+                // cabeça baixa encarando o peixe
+                let dif = Math.atan2(p.pos.x - e.pos.x, p.pos.z - e.pos.z) - e.yaw;
+                dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+                e.yaw += dif * Math.min(1, 4 * dt);
+                const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
+                e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+                // o desconfiado larga o peixe e foge se o jogador chega perto
+                if (f.tipo === 'desconfiado' && Math.hypot(e.pos.x - pjx, e.pos.z - pjz) < 2.4) {
+                    p.dono = null; e.peixe = null; e.estado = 'voltando';
+                    break;
+                }
+                e.timer -= dt;
+                if (e.timer <= 0) {
+                    consumirPeixe(p);        // sai do chão, conta alimentados
+                    marcarComeu(f.id);       // conta os gatos distintos satisfeitos
+                    e.peixe = null;
+                    e.estado = 'voltando';
+                }
+                break;
+            }
+
+            /* ------------------------------------------------------ voltando
+               anda (Walk) até o ponto do círculo de AGORA e retoma o original.
+               O ângulo continua sendo fase + t*vel/raio, então o passeio
+               recomeça exatamente de onde tinha de estar. */
+            case 'voltando': {
+                const vPasso = Math.min(VEL[f.tipo] * .9, 1.15);   // passo de caminhada
+
+                if (f.raio > 0) {
+                    // mira onde o círculo vai estar quando eu chegar; sem isso o
+                    // ponto "foge" na tangente e o gato nunca encosta nele
+                    const v = Math.max(vPasso, .3);
+                    let tc = Math.hypot(f.x - e.pos.x, f.z - e.pos.z) / v;
+                    for (let i = 0; i < 2; i++) {
+                        const an = f.fase + (t + tc) * f.vel / Math.max(f.raio, .1);
+                        tc = Math.hypot(f.x + Math.cos(an) * f.raio - e.pos.x, f.z + Math.sin(an) * f.raio - e.pos.z) / v;
+                    }
+                    const an = f.fase + (t + tc) * f.vel / Math.max(f.raio, .1);
+                    const ax = f.x + Math.cos(an) * f.raio;
+                    const az = f.z + Math.sin(an) * f.raio;
+                    const d = Math.hypot(e.pos.x - ax, e.pos.z - az);
+
+                    if (d < .3) {                      // encostou: volta ao <Bicho>
+                        e.estado = 'vagando'; e.vel = f.vel; e.yaw = -an;
+                        break;
+                    }
+                    const vv = andarPara(e, v, dt, ax, az, .15);
+                    e.vel += (vv - e.vel) * Math.min(1, 10 * dt);
+                    // já vai alinhando o corpo com a tangente do círculo
+                    if (d < 1.2) {
+                        let dif = (-an) - e.yaw;
+                        dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+                        e.yaw += dif * Math.min(1, 3 * dt);
+                    }
+                    const chao = chaoEm(e.pos.x, e.pos.z) ?? 0;
+                    e.pos.y += (chao - e.pos.y) * Math.min(1, 5 * dt);
+
+                } else {
+                    // quem mora no poleiro volta para o poleiro (y fixo de novo)
+                    const d = Math.hypot(e.pos.x - f.x, e.pos.z - f.z);
+                    if (d < .2) {
+                        e.pos.set(f.x, f.y ?? 0, f.z);
+                        e.yaw = f.fase;
+                        e.vel = 0;
+                        e.estado = 'vagando';
+                        break;
+                    }
+                    const vv = andarPara(e, vPasso, dt, f.x, f.z, .12);
+                    e.vel += (vv - e.vel) * Math.min(1, 10 * dt);
+                    // sobe para o poleiro só no finzinho (não flutua pela praça)
+                    const alvoY = d < 1 ? (f.y ?? 0) : (chaoEm(e.pos.x, e.pos.z) ?? 0);
+                    e.pos.y += (alvoY - e.pos.y) * Math.min(1, 4.5 * dt);
+                }
+                break;
+            }
+        }
+
+        /* ---------------- clipe e ritmo: as mesmas contas de antes --------- */
+        let clipes: string[]; let ritmo = 1;
+        switch (e.estado) {
+            case 'comendo':
+                clipes = CLIPES_COMENDO;
+                break;
+            case 'vagando':
+                if (f.parado) {
+                    clipes = f.parado === 'Idle_2_HeadLow' ? CLIPES_DEITADO : CLIPES_PARADO;
+                } else {
+                    const correndo = f.vel > 1.6;
+                    clipes = correndo ? CLIPES_CORRENDO : CLIPES_ANDANDO;
+                    ritmo = correndo ? f.vel / 3.4 : f.vel / .9;   // ← o de sempre
+                }
+                break;
+            case 'indo': {
+                const correndo = e.vel > 1.6;
+                clipes = correndo ? CLIPES_CORRENDO : CLIPES_ANDANDO;
+                ritmo = correndo ? e.vel / 3.4 : e.vel / .9;
+                break;
+            }
+            default:   // voltando: sempre andando (Walk)
+                clipes = CLIPES_ANDANDO;
+                ritmo = Math.max(e.vel, .3) / .9;
+                break;
+        }
+
+        const antes = acao.current;
+        const trocou = tocarClipe(actions as unknown as Acoes, clipes, acao);
+        const a = acao.current;
+        if (a) {
+            a.setEffectiveTimeScale(THREE.MathUtils.clamp(ritmo, .25, 2.4));
+            // como no <Bicho>, o clipe parado do poleiro entra neste ponto do ciclo
+            if (trocou && antes !== a && f.parado && e.estado === 'vagando') {
+                a.time = f.fase * 1.7 % Math.max(.01, a.getClip().duration);
+            }
+        }
+
+        o.position.copy(e.pos);
+        o.rotation.y = e.yaw;
+    });
+
+    return (
+        <group ref={raiz} position={[f.x, f.y ?? 0, f.z]}>
+            <primitive object={modelo} />
+        </group>
+    );
+};
+
+/* ============================ componente raiz ========================== */
 
 export const Floor13Vida: React.FC = () => {
     const estados = useMemo(() => [livre(), livre(), livre()], []);
+
+    // os gatos passaram a morar aqui: o HUD do Floor13 lê este número
+    useEffect(() => {
+        gatos.gatosNaVila = GATOS.length;
+        return () => { gatos.gatosNaVila = 0; };
+    }, []);
+
     return <Suspense fallback={null}>
         {/* pega-pega: duas crianças no mesmo círculo, meia volta atrás uma da outra —
             longe da Sigrun, do Halvard e da pedra rúnica (antes a roda passava por dentro da Sigrun),
@@ -106,12 +456,9 @@ export const Floor13Vida: React.FC = () => {
         <Bicho url={shiba} x={-21} z={9} parado="Idle_2_HeadLow" fase={2.4} />
         {/* o shiba da ilha do pouso brinca de buscar o graveto: ver f13Busca */}
         <Bicho url={husky} x={2.6} z={-20.2} parado="Eating" fase={-.8} />
-        {/* gatos: a raposa da Quaternius remodelada (tools/blender/f13_bichos.py) */}
-        <Bicho url={gato} x={-3.5} z={6.5} raio={1} vel={.45} fase={1} pelagem="cinza" />
-        {/* em cima do balcão da barraca do meio, atrás das frutas */}
-        <Bicho url={gato} x={-3.33} z={13.71} y={.9} parado="Idle" fase={1.67} pelagem="preto" />
-        {/* enrolado na borda do poço */}
-        <Bicho url={gato} x={1.1} z={8} y={.63} parado="Idle_2_HeadLow" fase={0} />
+        {/* gatos: a raposa da Quaternius remodelada (tools/blender/f13_bichos.py),
+            com o MESMO caminho de antes — agora movidos a peixe */}
+        {GATOS.map((f) => <Gato13 key={f.id} f={f} />)}
     </Suspense>;
 };
 useGLTF.preload(husky); useGLTF.preload(shiba); useGLTF.preload(gato);

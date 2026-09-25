@@ -893,6 +893,13 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const erradas = useRef(0);
+    const gatosVistos = useRef(0);
+    // um gato comeu: conta no aviso (o estado dos gatos mora fora do React)
+    useEffect(() => { gatos.alimentados = 0; const id = window.setInterval(() => {
+        if (gatos.alimentados === gatosVistos.current) return;
+        gatosVistos.current = gatos.alimentados;
+        if (gatos.alimentados > 0) setAviso(gatos.saciados >= 3 ? 'Os três gatos comeram. O Soneca até ronrona.' : `${gatos.ultimoNome} come o peixe inteiro e lambe o bigode.`);
+    }, 400); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     const [compilado, setCompilado] = useState(false);
     const arniFalando = useRef(false);
     // o Árni começa do zero a cada entrada no andar (o estado mora fora do componente)
