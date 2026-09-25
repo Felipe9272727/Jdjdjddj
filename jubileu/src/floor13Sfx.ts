@@ -209,6 +209,25 @@ export function tocarGlitch(): void {
 export function tocarDesconexao(): void { tom('sine', 1000, 1000, .9, .08); sopro(.4, .3, 6000, .9, 'highpass'); }
 
 /**
+ * A simulação desligando Vindhjem: um varrido digital que desce, chiado alto e
+ * uma chuva de bips curtos (as runas caindo); e o contrário, subindo, quando a
+ * cabine do elevador se materializa.
+ */
+export function tocarDesmaterializar(): void {
+    tom('sawtooth', 880, 55, 2.8, .04, 0, .4);
+    tom('square', 1760, 110, 2.3, .018, .35);
+    for (let i = 0; i < 16; i++) tom('square', 500 + Math.random() * 2600, 200 + Math.random() * 900, .06, .025, .15 + i * .17);
+    sopro(3, .1, 5200, 0, 'highpass');
+}
+export function tocarMaterializar(): void {
+    tom('sine', 110, 880, 1.4, .05, 0, .5);
+    tom('triangle', 220, 1320, 1.25, .022, .1, .4);
+    for (let i = 0; i < 9; i++) tom('square', 300 + Math.random() * 1800, 700 + Math.random() * 1600, .05, .02, i * .13);
+}
+/** O ding do elevador do hotel (dois tons longos, como no saguão). */
+export function tocarDingDoHotel(): void { tom('sine', 1318.5, 1318.5, 1.3, .08, 0, .5); tom('sine', 1046.5, 1046.5, 1.7, .07, .24, .5); }
+
+/**
  * O leito musical de Vindhjem: um bordão grave em quinta (como um tagelharpa
  * soprado pelo vento) com filtro respirando, e de tempos em tempos uma trompa
  * distante e o ranger das cordas das pontes.

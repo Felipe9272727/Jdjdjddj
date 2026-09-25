@@ -32,7 +32,9 @@ export const Floor13Dev: React.FC = () => {
         setRodando(true);
     };
 
-    if (rodando) return <Floor13 onExit={() => setRodando(false)} inicio={new URLSearchParams(window.location.search).get('inicio') ?? undefined} />;
+    // a saída termina dentro da cabine do elevador: na bancada o andar fica
+    // parado ali (no jogo o App assume e o elevador segue viagem)
+    if (rodando) return <Floor13 onExit={() => { /* fim do andar */ }} inicio={new URLSearchParams(window.location.search).get('inicio') ?? undefined} />;
 
     return (
         <div style={{

@@ -26,6 +26,8 @@ import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
 import { pbr } from './f13Texturas';
+import { EfeitoChuva } from './f13Chuva';
+import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -522,33 +524,15 @@ const CameraDeExplorar: React.FC<{
     jog: React.MutableRefObject<Jog>; yaw: React.MutableRefObject<number>; pitch: React.MutableRefObject<number>; ativo: boolean;
     foco: React.MutableRefObject<THREE.Vector3 | null>;
     portaAlvo: React.MutableRefObject<THREE.Vector3 | null>;
-    portaFrente: React.MutableRefObject<THREE.Vector3 | null>;
-}> = ({ jog, yaw, pitch, ativo, foco, portaAlvo, portaFrente }) => {
+}> = ({ jog, yaw, pitch, ativo, foco, portaAlvo }) => {
     const passo = useRef(0);
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
-    const empurraPorta = useRef(0);
-    const olharPorta = useRef(new THREE.Vector3());
     useFrame((_, dt) => {
-        if (!ativo) return;
+        // na saída (a porta certa aberta) quem conduz a câmera é a SaidaDoAndar
+        if (!ativo || portaAlvo.current) return;
         const j = jog.current;
-        if (portaAlvo.current) {
-            if (empurraPorta.current === 0) olharPorta.current.copy(alvo.current);
-            // a porta abre: a câmera entra devagar, olhando para a luz de dentro
-            const [porta, frente] = [portaAlvo.current, portaFrente.current!];
-            // travada: 3 m à frente da porta, na altura do olho, e só então
-            // um empurrão lento para dentro (nada de vir de onde estava e
-            // atravessar telhado)
-            empurraPorta.current = Math.min(1, empurraPorta.current + dt * .25);
-            // desliza até a moldura da porta (0,8 s) em vez de saltar para ela
-            // 4 m, na altura do olho, levemente de baixo: o beiral sai do quadro
-            const quer = porta.clone().addScaledVector(frente, 4 - empurraPorta.current * 2).add(new THREE.Vector3(0, .7, 0));
-            camera.position.lerp(quer, 1 - Math.exp(-dt * 5));
-            olharPorta.current.lerp(porta, 1 - Math.exp(-dt * 6));
-            camera.lookAt(olharPorta.current);
-            return;
-        }
         const retrato = size.width < size.height;
         // ── PRIMEIRA PESSOA ─────────────────────────────────────────────
         // os olhos do hóspede: 1,72 m acima do pé, com o balanço do passo
@@ -666,7 +650,8 @@ const Vivo: React.FC<{
             // pela posição de agora: a menina da ronda só para quando o hóspede
             // chega perto DELA, não do centro da volta
             const o = onde[n.id].current, parar = LUGAR_DOS_NPCS[n.id].ronda ? 3.2 : 5;
-            npcVis[n.id].current.olharPara = Math.hypot(j.x - o.x, j.z - o.z) < parar ? p : null;
+            // na saída a cidade inteira vira a cabeça para o hóspede, calada
+            npcVis[n.id].current.olharPara = abrindo || Math.hypot(j.x - o.x, j.z - o.z) < parar ? p : null;
         }
         if (sinoRef.current) {
             balanco.current = Math.max(0, balanco.current - dt * .35);
@@ -716,7 +701,7 @@ const Sonda: React.FC = () => {
     return null;
 };
 
-const LuzDaCamera: React.FC = () => {
+const LuzDaCamera: React.FC<{ intensidade?: number }> = ({ intensidade = .9 }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     useFrame(({ camera }) => {
         const l = luz.current; if (!l) return;
@@ -724,7 +709,7 @@ const LuzDaCamera: React.FC = () => {
         camera.getWorldDirection(l.target.position); l.target.position.multiplyScalar(10).add(camera.position);
         l.target.updateMatrixWorld();
     });
-    return <directionalLight ref={luz} intensity={.9} color="#d8e2ff" />;
+    return <directionalLight ref={luz} intensity={intensidade} color="#d8e2ff" />;
 };
 
 const escalaTmp = new THREE.Vector3();
@@ -829,7 +814,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const foco = useRef<THREE.Vector3 | null>(null);
     const portaAlvo = useRef<THREE.Vector3 | null>(null);
     const portaFrente = useRef<THREE.Vector3 | null>(null);
+    // ── A SAÍDA: a porta certa aberta, a cidade vira chuva, a cabine aparece
+    const saidaT0 = useRef<number | null>(null);
+    const [naCabine, setNaCabine] = useState(false);
+    const efeitoChuva = useMemo(() => new EfeitoChuva(), []);
     const [alvo, setAlvo] = useState<Alvo | null>(null);
+    const alvoAtual = useRef<Alvo | null>(null); alvoAtual.current = alvo;
     const [falas, setFalas] = useState<Fala[] | null>(null);
     const [linha, setLinha] = useState(0);
     const [digitado, setDigitado] = useState(0);
@@ -859,6 +849,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
+            // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
+            agir: () => acao.current(),
+            alvo: () => chaveDoAlvo(alvoAtual.current),
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
         };
     }, []);
@@ -1054,7 +1047,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                         portaAlvo.current = new THREE.Vector3(l.x, l.y + .8, l.z).addScaledVector(portaFrente.current, 2.85);
                     }
                 }
-                window.setTimeout(() => onExit?.(), 6500);
+                // daqui em diante a SaidaDoAndar conduz: olhar para trás, a
+                // chuva de runas, a cabine do elevador — e só então onExit
+                saidaT0.current = performance.now();
             } else abrirDialogo(r.falas, null);
         }
         bump();
@@ -1128,15 +1123,17 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
-                <hemisphereLight args={['#bcd4f0', '#6a5a42', .9]} />
-                {/* contraluz fria: separa as silhuetas do chão verde */}
-                <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
+                <hemisphereLight args={['#bcd4f0', '#6a5a42', naCabine ? .22 : .9]} />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
-                <Floor13Vida />
-                <Sol jog={jog} mapa={Q.sombra} />
-                <LuzDaCamera />
+                <LuzDaCamera intensidade={naCabine ? .2 : .9} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
+                {/* o mundo inteiro: some quando a simulação o desliga (a saída) */}
+                <group visible={!naCabine}>
+                {/* contraluz fria: separa as silhuetas do chão verde */}
+                <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
+                <Floor13Vida />
+                <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
@@ -1152,7 +1149,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                         <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
                         {/* primeira pessoa: o corpo do hóspede não é desenhado */}
                     </>}
-                <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} portaFrente={portaFrente} />
+                </group>
+                {/* a saída: olhar para trás, a chuva de runas, a cabine do elevador */}
+                {fase === 'elevador' && <SaidaDoAndar t0={saidaT0} porta={portaAlvo} frente={portaFrente} efeito={efeitoChuva}
+                    aoEntrarNaCabine={() => setNaCabine(true)} aoFim={() => onExit?.()} />}
+                {naCabine && <CabineDoElevador />}
+                <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} onde={npcOnde} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
                 <EffectComposer multisampling={Q.msaa}>
@@ -1166,6 +1168,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                     <BrightnessContrast brightness={0} contrast={.06} />
+                    {/* a simulação desligando o andar (só na saída) */}
+                    {fase === 'elevador' ? <primitive object={efeitoChuva} dispose={null} /> : <></>}
                 </EffectComposer>
             </Canvas>
 
@@ -1246,11 +1250,6 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <div style={{ fontFamily: 'monospace', color: '#3dff8a', fontSize: 18, letterSpacing: 3 }}>{CONEXAO_ENCERRADA}</div>
             </div>}
 
-            {/* ── A CASA CERTA: as portas abrem como as de um elevador ── */}
-            {fase === 'elevador' && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'f13branco 6.5s ease-in forwards', background: '#fff7e6' }}>
-                <style>{'@keyframes f13branco{0%{opacity:0}85%{opacity:0}100%{opacity:1}}'}</style>
-                <div style={{ ...t13, position: 'absolute', top: '44%', width: '100%', textAlign: 'center', fontSize: 20, color: '#7a5520', textShadow: 'none' }}>DING.</div>
-            </div>}
         </div>
     );
 };

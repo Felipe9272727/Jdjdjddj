@@ -305,43 +305,55 @@ function texturaEscovada(): THREE.CanvasTexture {
 }
 
 /**
- * O que se vê pela porta certa: uma cabine de elevador em perspectiva —
- * paredes de latão almofadadas convergindo para uma luz no fundo, painel de
- * botões à direita e piso de tábuas escuras.
+ * O que se vê pela porta certa: a cabine do elevador do hotel em perspectiva
+ * — a mesma em que o hóspede aparece na saída (Floor13Saida): paredes de
+ * madeira almofadadas com corrimão de latão, piso creme com o losango
+ * dourado, teto escuro com a luminária e, no fundo, as portas de aço com o
+ * mostrador.
  */
 let texCabine: THREE.CanvasTexture | null = null;
 function texturaDeCabine(): THREE.CanvasTexture {
     if (texCabine) return texCabine;
-    const c = document.createElement('canvas'); c.width = 128; c.height = 200;
+    const W = 128, H = 200, c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d')!;
-    const fundo = { x: 40, y: 50, w: 48, h: 90 };
-    const lat = (a: number) => `rgba(${200 + a},${150 + a * .6},${70},1)`;
-    g.fillStyle = lat(0); g.beginPath(); g.moveTo(0, 0); g.lineTo(fundo.x, fundo.y); g.lineTo(fundo.x, fundo.y + fundo.h); g.lineTo(0, 200); g.fill();
-    g.fillStyle = lat(-30); g.beginPath(); g.moveTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(128, 200); g.fill();
-    // teto de latão escurecido com uma luminária no meio (era creme puro e,
-    // sem tone mapping, estourava em branco)
-    g.fillStyle = '#7a5a2c'; g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 0); g.lineTo(fundo.x + fundo.w, fundo.y); g.lineTo(fundo.x, fundo.y); g.fill();
-    g.fillStyle = '#e8cf92'; g.beginPath(); g.moveTo(44, 14); g.lineTo(84, 14); g.lineTo(78, 32); g.lineTo(50, 32); g.fill();
-    g.strokeStyle = 'rgba(40,24,8,.6)'; g.lineWidth = 1.5; g.stroke();
-    // piso: tábuas escuras em perspectiva
-    g.fillStyle = '#3a2618'; g.beginPath(); g.moveTo(0, 200); g.lineTo(128, 200); g.lineTo(fundo.x + fundo.w, fundo.y + fundo.h); g.lineTo(fundo.x, fundo.y + fundo.h); g.fill();
-    g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1;
-    for (let j = 1; j < 6; j++) { g.beginPath(); g.moveTo(128 * j / 6, 200); g.lineTo(fundo.x + fundo.w * j / 6, fundo.y + fundo.h); g.stroke(); }
-    // almofadas nas paredes: frisos verticais escuros e filete claro
-    const friso = (x0: number, lado: 1 | -1) => {
+    const f = { x: 38, y: 46, w: 52, h: 96 };                     // a parede do fundo
+    const quad = (pts: number[][], cor: string | CanvasGradient) => { g.fillStyle = cor; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+    // paredes laterais de madeira (mais escuras no fundo)
+    const madE = g.createLinearGradient(0, 0, f.x, 0); madE.addColorStop(0, '#8a5634'); madE.addColorStop(1, '#5a3620');
+    const madD = g.createLinearGradient(W, 0, f.x + f.w, 0); madD.addColorStop(0, '#7a4a2c'); madD.addColorStop(1, '#4e2e1a');
+    quad([[0, 0], [f.x, f.y], [f.x, f.y + f.h], [0, H]], madE);
+    quad([[W, 0], [f.x + f.w, f.y], [f.x + f.w, f.y + f.h], [W, H]], madD);
+    // almofadas (frisos em perspectiva), rodapé e corrimão de latão
+    for (const lado of [0, 1]) {
+        const x0 = lado ? W : 0, x1 = lado ? f.x + f.w : f.x;
         for (let k = 1; k < 4; k++) {
-            const t = k / 4, xa = x0 + (lado > 0 ? fundo.x : -(128 - fundo.x - fundo.w)) * t;
-            const ya = fundo.y * t, yb = 200 - (200 - fundo.y - fundo.h) * t;
-            g.strokeStyle = 'rgba(70,40,10,.6)'; g.beginPath(); g.moveTo(xa, ya); g.lineTo(xa, yb); g.stroke();
-            g.strokeStyle = 'rgba(255,235,170,.5)'; g.beginPath(); g.moveTo(xa + lado, ya); g.lineTo(xa + lado, yb); g.stroke();
+            const t = k / 4, x = x0 + (x1 - x0) * t, y0 = f.y * t, y1 = H - (H - f.y - f.h) * t;
+            g.strokeStyle = 'rgba(30,16,8,.55)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y0 + 4); g.lineTo(x, y1 - 4); g.stroke();
         }
-    };
-    friso(0, 1); friso(128, -1);
-    // painel de botões na parede direita
-    g.fillStyle = '#5a3a14'; g.fillRect(100, 88, 10, 34);
-    for (let k = 0; k < 4; k++) { g.fillStyle = k === 1 ? '#fff2b0' : '#e0b860'; g.beginPath(); g.arc(105, 93 + k * 8, 2.2, 0, 7); g.fill(); }
-    const gr = g.createRadialGradient(64, 95, 4, 64, 95, 40); gr.addColorStop(0, '#fbe9c0'); gr.addColorStop(1, '#d9a85a');
-    g.fillStyle = gr; g.fillRect(fundo.x, fundo.y, fundo.w, fundo.h);
+        const yr = (t: number) => 118 + (f.y + f.h * .58 - 118) * t;
+        g.strokeStyle = '#d9ad55'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(x0, yr(0)); g.lineTo(x1, yr(1)); g.stroke();
+        g.strokeStyle = '#2c1c12'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, H - 6); g.lineTo(x1, f.y + f.h - 2); g.stroke();
+    }
+    // teto escuro com a luminária
+    quad([[0, 0], [W, 0], [f.x + f.w, f.y], [f.x, f.y]], '#2c1c12');
+    const luz = g.createRadialGradient(64, 20, 1, 64, 20, 18); luz.addColorStop(0, '#fff6dc'); luz.addColorStop(.5, '#ffe2a0'); luz.addColorStop(1, 'rgba(255,220,150,0)');
+    g.fillStyle = luz; g.beginPath(); g.ellipse(64, 20, 20, 8, 0, 0, Math.PI * 2); g.fill();
+    // piso creme com o losango dourado
+    quad([[0, H], [W, H], [f.x + f.w, f.y + f.h], [f.x, f.y + f.h]], '#d6c8ae');
+    const cy = 172, cx = 64;
+    quad([[cx, cy - 20], [cx + 34, cy], [cx, cy + 20], [cx - 34, cy]], '#c9973a');
+    quad([[cx, cy - 16], [cx + 27, cy], [cx, cy + 16], [cx - 27, cy]], '#d6c8ae');
+    quad([[cx, cy - 6], [cx + 10, cy], [cx, cy + 6], [cx - 10, cy]], '#c9973a');
+    // o fundo: portas de aço fechadas, a fresta, o batente de latão e o mostrador
+    const aco = g.createLinearGradient(f.x, 0, f.x + f.w, 0); aco.addColorStop(0, '#7d848b'); aco.addColorStop(.5, '#a9b0b6'); aco.addColorStop(1, '#6f767d');
+    g.fillStyle = aco; g.fillRect(f.x, f.y, f.w, f.h);
+    g.fillStyle = '#c9973a'; g.fillRect(f.x + 4, f.y + 16, f.w - 8, 2); g.fillRect(f.x + 4, f.y + 16, 2, f.h - 16); g.fillRect(f.x + f.w - 6, f.y + 16, 2, f.h - 16);
+    g.fillStyle = '#1c1c1c'; g.fillRect(f.x + f.w / 2 - .5, f.y + 18, 1, f.h - 18);
+    g.fillStyle = '#120d0a'; g.fillRect(f.x + 16, f.y + 4, 20, 9);
+    g.fillStyle = '#ffc45a'; g.font = 'bold 8px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('▲13', f.x + 26, f.y + 9);
+    // a botoeira na parede da direita
+    g.fillStyle = '#3a3632'; g.fillRect(100, 84, 9, 30);
+    for (let k = 0; k < 5; k++) { g.fillStyle = k === 1 ? '#ffe9a8' : '#c9a256'; g.beginPath(); g.arc(104.5, 89 + k * 5.5, 1.7, 0, 7); g.fill(); }
     texCabine = new THREE.CanvasTexture(c); texCabine.colorSpace = THREE.SRGBColorSpace;
     return texCabine;
 }
