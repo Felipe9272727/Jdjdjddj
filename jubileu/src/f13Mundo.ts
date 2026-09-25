@@ -55,9 +55,16 @@ export interface LugarDaCasa { x: number; z: number; y: number; angulo: number }
  * praça. (Em duas fileiras alternadas, as de trás ficavam espremidas entre as
  * da frente: a porta delas só se via de dentro do beiral da vizinha.)
  */
+/**
+ * Em que vaga do arco cada casa fica. A do meio é a que se vê de frente ao
+ * chegar pela ponte: ali mora a casa de luto (latão sob o pano preto, a pista
+ * falsa) — a casa certa fica de lado, e não no fim do caminho resolvendo o
+ * enigma de longe.
+ */
+const VAGA_DA_CASA = [0, 1, 2, 5, 4, 3, 6];
 export const LUGAR_DAS_CASAS: ReadonlyArray<LugarDaCasa> = Object.freeze(CASAS.map((_, i) => {
     const c = ilha('casas');
-    const th = Math.PI * .75 + Math.PI * 1.5 * i / (CASAS.length - 1);
+    const th = Math.PI * .75 + Math.PI * 1.5 * VAGA_DA_CASA[i] / (CASAS.length - 1);
     const rr = 9.2;
     const x = c.x + Math.cos(th) * rr, z = c.z + Math.sin(th) * rr;
     // a porta aponta para o centro da ilha
