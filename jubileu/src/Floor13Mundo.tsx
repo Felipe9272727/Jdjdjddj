@@ -399,13 +399,15 @@ const geoFumaca = new THREE.SphereGeometry(1, 10, 8);
 const matFumaca = (() => {
     const m = new THREE.MeshBasicMaterial({ color: '#d9d4cc', transparent: true, depthWrite: false });
     m.onBeforeCompile = (sh) => {
-        sh.vertexShader = 'attribute float aAlfa;\nvarying float vAlfa;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlfa = aAlfa;');
-        sh.fragmentShader = 'varying float vAlfa;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vAlfa;');
+        // borda esfumaçada: some onde a bola fica de lado para a câmera (antes,
+        // alfa chapado e borda dura — lia como uma pilha de pratos)
+        sh.vertexShader = 'attribute float aAlfa;\nvarying float vAlfa;\nvarying vec3 vNv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlfa = aAlfa;\nvNv = normalize(normalMatrix * normal);');
+        sh.fragmentShader = 'varying float vAlfa;\nvarying vec3 vNv;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vAlfa * pow(clamp(abs(normalize(vNv).z), 0., 1.), 1.8);');
     };
     return m;
 })();
 const Fumaca: React.FC<{ y: number }> = ({ y }) => {
-    const N = 9;
+    const N = 14;
     const malha = useMemo(() => {
         const g = geoFumaca.clone();
         g.setAttribute('aAlfa', new THREE.InstancedBufferAttribute(new Float32Array(N), 1));
@@ -419,8 +421,8 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
         for (let i = 0; i < N; i++) {
             const t = (clock.elapsedTime * .35 + i / N) % 1;
             o.position.set(Math.sin(t * 5 + i) * .3 + t * 1.2, y + t * 5, 0);
-            o.scale.setScalar(.35 + t * 1.3); o.updateMatrix();
-            malha.setMatrixAt(i, o.matrix); alfa.setX(i, .55 * (1 - t));
+            o.scale.setScalar(.4 + t * 1.5); o.updateMatrix();
+            malha.setMatrixAt(i, o.matrix); alfa.setX(i, .6 * Math.min(1, t * 6) * (1 - t));
         }
         malha.instanceMatrix.needsUpdate = true; alfa.needsUpdate = true;
     });
@@ -695,6 +697,12 @@ const Frota: React.FC = () => {
 /** Perfil de sino de bronze: ombro, cintura e a boca que abre em aba. */
 const PERFIL_DO_SINO = [[0, 0], [.2, 0], [.26, -.06], [.28, -.2], [.31, -.4], [.4, -.58], [.52, -.7], [.55, -.76], [.5, -.78], [.42, -.72]].map(([r, y]) => new THREE.Vector2(r, y));
 /** O templo do sino, na ilha do leste. */
+/** O bronze dos três sinos, um material só: afinados, eles acendem juntos
+ *  (só a cor emissiva muda — nada recompila). */
+const bronzeDoSino = new THREE.MeshStandardMaterial({ color: P13.latao, metalness: .85, roughness: .3, side: THREE.DoubleSide, emissive: '#000000' });
+const _brasaSino = new THREE.Color('#ffb04a');
+export function brilhoDosSinos(v: number) { bronzeDoSino.emissive.copy(_brasaSino).multiplyScalar(v * .9); }
+
 export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef }) => {
     const ilha = ILHAS.find((i) => i.id === 'templo')!;
     const madeira = <meshStandardMaterial color="#5a3d26" {...pbr('carvalho', .3, 1.2)} />;
@@ -714,7 +722,7 @@ export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef
         <group ref={sinoRef} position={[0, 3.6, 0]} userData={{ vivo: true }}>
             {/* a coroa (a alça por onde ele pende) e o corpo em perfil de sino */}
             <mesh position={[0, .03, 0]}><torusGeometry args={[.07, .025, 6, 12]} /><meshStandardMaterial color="#8a6a2e" metalness={.85} roughness={.35} /></mesh>
-            <mesh castShadow><latheGeometry args={[PERFIL_DO_SINO, 24]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
+            <mesh castShadow material={bronzeDoSino}><latheGeometry args={[PERFIL_DO_SINO, 24]} /></mesh>
             {/* o badalo */}
             <mesh position={[0, -.4, 0]}><cylinderGeometry args={[.015, .015, .55, 5]} /><meshStandardMaterial color="#2e2a26" metalness={.6} /></mesh>
             <mesh position={[0, -.68, 0]}><sphereGeometry args={[.06, 10, 8]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
@@ -723,7 +731,7 @@ export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef
         {([[-.9, .5], [.9, .38]] as const).map(([z, k]) => (
             <group key={z} position={[0, 3.8, z]} scale={k}>
                 <mesh position={[0, .03, 0]}><torusGeometry args={[.07, .025, 6, 12]} /><meshStandardMaterial color="#8a6a2e" metalness={.85} roughness={.35} /></mesh>
-                <mesh castShadow><latheGeometry args={[PERFIL_DO_SINO, 24]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
+                <mesh castShadow material={bronzeDoSino}><latheGeometry args={[PERFIL_DO_SINO, 24]} /></mesh>
                 <mesh position={[0, -.68, 0]}><sphereGeometry args={[.06, 10, 8]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
             </group>
         ))}

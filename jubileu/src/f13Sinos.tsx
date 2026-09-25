@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { brilhoDoLatao } from './Floor13Portas';
+import { brilhoDosSinos } from './Floor13Mundo';
 import { LUGAR_DAS_CASAS, SINO, chaoEm, portaNoMundo } from './f13Mundo';
 
 // ── AS TRÊS NOTAS ────────────────────────────────────────────────────────────
@@ -235,7 +236,7 @@ export function tocarSinoDaTorre(i: number): void {
     sinos.passo = 0;
     sinos.resolvido = true;
     sinos.brilho = BRILHO;
-    avisar('Os três sinos se acertam numa nota só. Lá embaixo, uma porta acende por três instantes — e volta a dormir. Ela não abriu: quem abre é o latão, e o latão ainda quer as três pistas.', 6);
+    avisar('Os três sinos se acertam numa nota só e o bronze acende. Lá embaixo, todo latão das portas responde junto — como se só o latão soubesse ouvir.', 6);
 }
 
 // ── ACHAR O SINO DA TORRE ────────────────────────────────────────────────────
@@ -347,7 +348,8 @@ export function SinosDaTorre({ porta }: { porta?: number }): null {
             sinos.avisoTempo = a > 0 ? a : 0;
         }
         const b = sinos.brilho;
-        brilhoDoLatao(b > 0 ? Math.min(1, b / .5) * (.75 + .25 * Math.sin(b * 9)) : 0);
+        const v = b > 0 ? Math.min(1, b / .5) * (.75 + .25 * Math.sin(b * 9)) : 0;
+        brilhoDoLatao(v); brilhoDosSinos(v);
     });
     return null;
 }

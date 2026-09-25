@@ -1182,8 +1182,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (n === 2) window.setTimeout(() => setAviso('O cão larga o graveto e fareja a ponte, rabo em pé, olhando a ilha das casas.'), 6000);
             else setAviso(n === 0 ? 'Você joga o graveto. O cão dispara.' : 'De novo! Ele não cansa.');
         } else if (a.tipo === 'sino') {
+            const jaResolvido = sinos.resolvido;
             marcarSino(e); tocarSinoDaTorre(a.i); if (a.i === 0) balancoDoSino.current = 1;
-            window.setTimeout(() => { if (sinos.avisoTempo > 0) setAviso(sinos.aviso); else setAviso('O sino ecoa por Vindhjem.'); }, 30);
+            // a melodia certa vale uma pista: o latão (quem ainda não a tinha)
+            const ganhou = !jaResolvido && sinos.resolvido && !e.pistas.has('latao');
+            if (ganhou) { e.pistas.add('latao'); bump(); }
+            window.setTimeout(() => setAviso(ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.'), 30);
         } else if (a.tipo === 'casa') {
             const primeiraVez = !e.casasBatidas.has(a.i);
             const r = baterNaCasa(e, a.i);
