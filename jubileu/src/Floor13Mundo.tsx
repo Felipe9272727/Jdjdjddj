@@ -681,7 +681,7 @@ const Praca: React.FC = () => {
             <mesh position={[.05, 1.05, 0]}><cylinderGeometry args={[.012, .012, .9, 5]} /><meshStandardMaterial color={P13.corda} /></mesh>
             <mesh position={[.05, .5, 0]} castShadow><cylinderGeometry args={[.16, .12, .26, 12]} /><meshStandardMaterial color="#7a5a3a" {...pbr('carvalho', .3, .3)} /></mesh>
             <mesh position={[.05, .62, 0]} rotation={[0, 0, 0]}><torusGeometry args={[.16, .012, 5, 14, Math.PI]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
-            {[-1, 1].map((l) => <mesh key={`t${l}`} position={[0, 2.18, l * .38]} rotation={[l * .72, 0, 0]} castShadow><boxGeometry args={[2.7, .06, .95]} /><meshStandardMaterial color="#6b4a2e" {...pbr('carvalho', 1, .4)} /></mesh>)}
+            {[-1, 1].map((l) => <mesh key={`t${l}`} position={[0, 2.18, l * .38]} rotation={[l * .72, 0, 0]} castShadow><boxGeometry args={[2.7, .06, .95]} /><meshStandardMaterial color="#b08a62" {...pbr('carvalho', 1, .4)} emissive="#2a1c10" /></mesh>)}
             <mesh position={[0, 2.12, 0]}><boxGeometry args={[2.5, .1, .1]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             {[-1, 1].map((l) => <mesh key={`c${l}`} position={[l * 1.12, 2.0, 0]}><boxGeometry args={[.1, .3, .1]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
         </group>
@@ -793,18 +793,44 @@ const Decoracao: React.FC = () => {
     ))}</>;
 };
 
-/** Pássaros em bando, dando voltas altas sobre a cidade. */
+/** Asa de gaivota: trapézio afinando na ponta, cotovelo dobrado, ponta escura. */
+const ASA = (() => {
+    const g = new THREE.BufferGeometry();
+    // base no corpo (x=0), cotovelo, ponta; z para trás
+    const v = [0, 0, -.12, 0, 0, .14, .32, .03, -.06, .32, .03, .12, .62, -.02, .02];
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    g.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4]);
+    const c = [.9, .9, .88, .9, .9, .88, .75, .76, .78, .75, .76, .78, .12, .12, .14];
+    g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+    g.computeVertexNormals();
+    return g;
+})();
+const MAT_ASA = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+const MAT_CORPO = new THREE.MeshLambertMaterial({ color: '#e8e6e0' });
+/** Gaivotas em bando, dando voltas altas sobre a cidade, cada uma no seu bater de asas. */
 const Passaros: React.FC = () => {
     const g = useRef<THREE.Group>(null);
+    const asas = useRef<(THREE.Object3D | null)[]>([]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime, o = g.current; if (!o) return;
         o.position.set(Math.cos(t * .12) * 30, 18 + Math.sin(t * .3) * 2, Math.sin(t * .12) * 30);
-        o.rotation.y = -t * .12;
-        o.children.forEach((c, i) => { c.rotation.z = Math.sin(t * 9 + i) * .6; });
+        o.rotation.y = -t * .12 + Math.PI / 2;
+        asas.current.forEach((a, i) => {
+            if (!a) return;
+            const ave = i >> 1, lado = i & 1 ? -1 : 1;
+            // bate em rajadas e plana: o seno passa por um limiar
+            const ciclo = Math.sin(t * .7 + ave * 1.9), bate = ciclo > 0 ? Math.sin(t * 11 + ave) * .7 : .12;
+            a.rotation.z = lado * bate;
+        });
     });
     return <group ref={g} userData={{ vivo: true }}>
-        {[[0, 0], [-1.2, 1], [1.2, 1], [-2.4, 2], [2.4, 2]].map(([x, z], i) => (
-            <mesh key={i} position={[x, 0, z]}><boxGeometry args={[.9, .04, .2]} /><meshBasicMaterial color="#2a2622" /></mesh>
+        {[[0, 0], [-1.3, 1.1], [1.3, 1.2], [-2.5, 2.3], [2.6, 2.1]].map(([x, z], i) => (
+            <group key={i} position={[x, (i % 3) * .3, z]} rotation={[0, Math.PI, (i % 2 ? .08 : -.08)]} scale={1.4}>
+                <mesh material={MAT_CORPO} scale={[.07, .06, .26]}><sphereGeometry args={[1, 8, 6]} /></mesh>
+                {[1, -1].map((l) => <group key={l} ref={(m) => { asas.current[i * 2 + (l > 0 ? 0 : 1)] = m; }} scale={[l, 1, 1]}>
+                    <mesh geometry={ASA} material={MAT_ASA} />
+                </group>)}
+            </group>
         ))}
     </group>;
 };
