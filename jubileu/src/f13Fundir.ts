@@ -63,6 +63,7 @@ function paraFloat(g: THREE.BufferGeometry): THREE.BufferGeometry {
  * pequeno (um barco, uma casa) fica infinita: tudo numa malha por material.
  */
 export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => void {
+    const t0 = performance.now();
     raiz.updateMatrixWorld(true);
     const inv = raiz.matrixWorld.clone().invert();
     const grupos = new Map<string, { mat: THREE.Material; malhas: THREE.Mesh[] }>();
@@ -119,6 +120,7 @@ export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => 
         raiz.add(nova); criadas.push(nova);
         for (const m of malhas) { m.visible = false; escondidas.push(m); }
     }
+    if (import.meta.env.DEV) console.info(`[fundir] ${criadas.length} malhas de ${escondidas.length} em ${(performance.now() - t0).toFixed(0)} ms`);
     return () => {
         for (const n of criadas) { raiz.remove(n); n.geometry.dispose(); if ((n.material as THREE.Material).userData.tinta) (n.material as THREE.Material).dispose(); }
         for (const m of escondidas) m.visible = true;

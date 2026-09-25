@@ -599,6 +599,26 @@ const CameraDeExplorar: React.FC<{
     return null;
 };
 
+/**
+ * Compila todos os shaders do andar ANTES do primeiro quadro, em paralelo
+ * (KHR_parallel_shader_compile): eram ~100 programas compilados de uma vez
+ * no primeiro render, travando a entrada por segundos. Enquanto isso o
+ * Canvas não desenha (frameloop 'never') e a tela fica no escuro da chegada.
+ */
+const PreCompila: React.FC<{ aoTerminar: () => void }> = ({ aoTerminar }) => {
+    const gl = useThree((s) => s.gl), scene = useThree((s) => s.scene), camera = useThree((s) => s.camera);
+    useEffect(() => {
+        let vivo = true;
+        // espera um tique para o mundo montar (Suspense dos GLB) e compila tudo
+        const id = window.setTimeout(() => {
+            const fim = () => { if (vivo) aoTerminar(); };
+            (gl.compileAsync ? gl.compileAsync(scene, camera) : Promise.resolve(gl.compile(scene, camera))).then(fim, fim);
+        }, 50);
+        return () => { vivo = false; window.clearTimeout(id); };
+    }, [gl, scene, camera, aoTerminar]);
+    return null;
+};
+
 /** Acha o que está ao alcance e avisa quando muda. */
 const Radar: React.FC<{
     jog: React.MutableRefObject<Jog>; est: React.MutableRefObject<ReturnType<typeof novoEstado13>>;
@@ -723,7 +743,7 @@ const Sonda: React.FC = () => {
         // o compositor chama render várias vezes: soma o quadro inteiro
         (window as unknown as { __f13cena?: unknown }).__f13cena = scene;
         gl.info.autoReset = false;
-        (window as unknown as { __f13gl?: unknown }).__f13gl = { ...gl.info.render, luzes, pele, px: gl.getDrawingBufferSize(new THREE.Vector2()).toArray() };
+        (window as unknown as { __f13gl?: unknown }).__f13gl = { ...gl.info.render, luzes, pele, programas: gl.info.programs?.length ?? 0, px: gl.getDrawingBufferSize(new THREE.Vector2()).toArray() };
         gl.info.reset();
     });
     return null;
@@ -863,6 +883,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const erradas = useRef(0);
+    const [compilado, setCompilado] = useState(false);
     const npcVis = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { olharPara: null, falando: false, possessao: 0, caido: false } as EstadoVisualNpc }])) as Record<IdNpc, React.MutableRefObject<EstadoVisualNpc>>, []);
     const sinoRef = useRef<THREE.Group>(null), portaCerta = useRef<THREE.Group>(null);
     const balancoDoSino = useRef(0);
@@ -942,7 +963,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     }, [inicio]);
 
     // ── A QUEDA: relógio, legendas, sons e o pulo ────────────────────────
+    // (só começa quando os shaders do andar já compilaram — ver PreCompila)
     useEffect(() => {
+        if (!compilado) return;
         tocarVento();
         let raf = 0, antes = performance.now();
         const marcos = { tosse: false, morre: false, baque: false };
@@ -966,7 +989,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         const pular = () => { if (tQueda.current > .5 && tQueda.current < 10.3) tQueda.current = 10.3; };
         window.addEventListener('pointerdown', pular); window.addEventListener('keydown', pular);
         return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); pararVento(); pararAmbiente(); };
-    }, []);
+    }, [compilado]);
 
     // ── DIÁLOGO ──────────────────────────────────────────────────────────
     const abrirDialogo = useCallback((f: Fala[], quem: IdNpc | null, fim?: () => void) => {
@@ -1169,10 +1192,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage"
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .0042); }}>
+                {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
                 <hemisphereLight args={['#bcd4f0', '#6a5a42', naCabine ? .22 : .9]} />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
                 <LuzDaCamera intensidade={naCabine ? .2 : .9} />
