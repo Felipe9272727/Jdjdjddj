@@ -360,8 +360,12 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             j('pelvis', 0, 0, tr); j('spine_01', .05); j('spine_02', -.1); j('spine_03', -.08, 0, -tr);
             j('neck_01', -.04, 0, .16 * e.possessao); j('head', -.1 + ((q * 11) % 3 - 1) * .06, 0, .28 * e.possessao);
             j('clavicle_l', 0, 0, -.2);
-            j('upperarm_l', -2.3 + ((q * 13) % 3) * .12, 0, baixaE + .5); j('lowerarm_l', -.4); j('hand_l', .6);
-            j('upperarm_r', -.3 - ((q * 7) % 3) * .08, 0, baixaD - .15); j('lowerarm_r', -.5); j('hand_r', .9);
+            // o fio puxa aos trancos: o braço sobe e cai, o punho gira, os dedos arranham
+            const puxa = Math.sin(t * 1.3) * .35 + (((q * 13) % 5) - 2) * .06;
+            j('upperarm_l', -2.1 + puxa, 0, baixaE + .5); j('lowerarm_l', -.4 - Math.max(0, -puxa) * .8); j('hand_l', .6 + Math.sin(t * 5) * .3);
+            // e o corpo inclina para o hóspede em solavancos
+            g.position.y += Math.max(0, Math.sin(t * .9)) * .08;
+            j('upperarm_r', -.3 - ((q * 7) % 3) * .08 + Math.sin(t * 2.1) * .2, 0, baixaD - .15); j('lowerarm_r', -.5 - Math.abs(Math.sin(t * 3.3)) * .5); j('hand_r', .9);
             j('thigh_l', .05); j('thigh_r', -.1); j('calf_l', .15); j('calf_r', .45); j('foot_l', .6); j('foot_r', .7);
             return;
         }
