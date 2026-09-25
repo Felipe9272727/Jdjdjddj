@@ -35,6 +35,67 @@ const JEITO: Readonly<Record<string, 'cruzados' | 'cintura' | 'costas' | 'solto'
     sigrun: 'costas', torvald: 'costas',
 };
 const _mundo = new THREE.Vector3();
+
+// ── O OFÍCIO NO CORPO ───────────────────────────────────────────────────────
+// Todos saíram do mesmo corpo do MakeHuman: o que separa as silhuetas de longe
+// é o porte (largura, altura) e o que cada um carrega. As peças vão presas a
+// um osso, posicionadas no espaço do modelo em repouso (y para cima, z para a
+// frente) e com a rotação e a escala do osso desfeitas.
+const PORTE: Record<string, [number, number]> = {
+    brokk: [1.14, .97], ulfgar: [.93, .98], torvald: [1.07, 1.03], astrid: [1.02, 1.04],
+    sigrun: [.95, 1], ragnhild: [1.04, .97], halvard: [.97, 1.02],
+};
+const _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _m4 = new THREE.Matrix4();
+function prender(modelo: THREE.Object3D, nomeOsso: string, pecaCrua: THREE.Object3D, onde: [number, number, number]) {
+    const osso = modelo.getObjectByName(nomeOsso); if (!osso) return;
+    // embrulhada: a rotação própria da peça sobrevive à do osso desfeita
+    const peca = new THREE.Group(); peca.add(pecaCrua);
+    modelo.updateMatrixWorld(true);
+    _m4.copy(modelo.matrixWorld).invert().multiply(osso.matrixWorld).decompose(_p, _q, _s);
+    const inv = new THREE.Matrix4().compose(_p, _q, _s).invert();
+    peca.position.set(...onde).applyMatrix4(inv);
+    peca.quaternion.copy(_q).invert();
+    peca.scale.set(1 / _s.x, 1 / _s.y, 1 / _s.z);
+    osso.add(peca);
+}
+const mat = (cor: string, r = .85, metal = 0) => new THREE.MeshStandardMaterial({ color: cor, roughness: r, metalness: metal });
+function vestirOficio(m: THREE.Object3D, id: string) {
+    const p = PORTE[id]; if (p) m.scale.set(p[0], p[1], p[0]);
+    const peca = (g: THREE.BufferGeometry, cor: string, r?: number, metal?: number) => { const me = new THREE.Mesh(g, mat(cor, r, metal)); me.castShadow = true; return me; };
+    if (id === 'brokk') {
+        // avental de couro do peito aos joelhos, com a alça no pescoço
+        const av = peca(new THREE.BoxGeometry(.4, .62, .015), '#5a3a22', .7); prender(m, 'spine_01', av, [0, 1.0, .15]);
+        const alca = peca(new THREE.TorusGeometry(.1, .012, 6, 16, Math.PI), '#3a2616'); prender(m, 'spine_03', alca, [0, 1.42, .09]);
+    } else if (id === 'sigrun') {
+        // cajado de pastora com o gancho em cima, fincado ao lado
+        const g = new THREE.Group();
+        g.add(peca(new THREE.CylinderGeometry(.016, .02, 1.7, 8), '#7a5a3a'));
+        const gancho = peca(new THREE.TorusGeometry(.07, .016, 6, 14, Math.PI * 1.3), '#7a5a3a'); gancho.position.set(.07, .85, 0); g.add(gancho);
+        prender(m, 'pelvis', g, [.32, .9, .05]);
+    } else if (id === 'astrid') {
+        // escudo redondo pintado nas costas, com umbo de ferro
+        const g = new THREE.Group();
+        const d = peca(new THREE.CylinderGeometry(.3, .3, .03, 24), '#8a2e2e', .6); d.rotation.x = Math.PI / 2; g.add(d);
+        const u = peca(new THREE.SphereGeometry(.06, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#8a8a8a', .4, .8); u.rotation.x = -Math.PI / 2; u.position.z = -.02; g.add(u);
+        prender(m, 'spine_02', g, [0, 1.25, -.19]);
+    } else if (id === 'ragnhild') {
+        // cesto de vime na cintura
+        const c = peca(new THREE.CylinderGeometry(.14, .11, .18, 14, 1, true), '#a8804a', .9); (c.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+        prender(m, 'pelvis', c, [.26, .92, .06]);
+    } else if (id === 'torvald') {
+        // manto de pele sobre os ombros
+        const mt = peca(new THREE.TorusGeometry(.17, .075, 8, 20), '#8a7a64', 1); mt.rotation.x = Math.PI / 2; mt.scale.set(1.15, 1, .85);
+        prender(m, 'spine_03', mt, [0, 1.6, -.02]);
+    } else if (id === 'halvard') {
+        // a vara de pescar nuvem, atravessada nas costas
+        const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.rotation.z = .9;
+        prender(m, 'spine_02', v, [0, 1.3, -.16]);
+    } else if (id === 'ulfgar') {
+        // o escaldo leva a lira de madeira pendurada
+        const l = peca(new THREE.TorusGeometry(.1, .018, 6, 14, Math.PI * 1.4), '#8a6040'); l.rotation.z = -Math.PI * .2;
+        prender(m, 'pelvis', l, [-.24, .95, .04]);
+    }
+}
 const SOMBRA = (() => {
     const c = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (!c) return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
@@ -220,6 +281,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // quadrado preto boiando no vestido)
         if (ficha.id === 'eira') for (const nome of ['cinto', 'fivela']) { const me = m.getObjectByName(nome); if (me) { me.visible = false; const i = detalhes.indexOf(me as THREE.Mesh); if (i >= 0) detalhes.splice(i, 1); } }
         if (vestido) m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && (me.material as THREE.Material).name === 'calca') me.visible = false; });
+        vestirOficio(m, ficha.id as string);
         return { modelo: m, olhos: olhos as THREE.MeshStandardMaterial | null, vestido, detalhes, sombreiam };
     }, [scene, ficha.tunica]);
 
