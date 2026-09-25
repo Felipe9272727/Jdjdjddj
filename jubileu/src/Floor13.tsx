@@ -554,6 +554,10 @@ const CameraDeExplorar: React.FC<{
             // a entidade: o olho recua 1,3 m (suave) para caber mão e rosto
             const dx0 = foco.current.x - j.x, dz0 = foco.current.z - j.z, d0 = Math.hypot(dx0, dz0) || 1, k = 1;
             olho.x -= dx0 / d0 * .9 * k; olho.z -= dz0 / d0 * .9 * k; olho.y += .1 * k;
+            // olho na altura do rosto dele (ele levita e às vezes está num
+            // degrau acima): de baixo, a câmera via o queixo e o céu
+            const chaoE = chaoEm(foco.current.x, foco.current.z) ?? j.y;
+            olho.y = Math.max(olho.y, chaoE + 1.95);
         }
         camera.position.lerp(olho, 1 - Math.exp(-dt * 18));
         if (foco.current) {
