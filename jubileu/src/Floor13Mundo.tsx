@@ -596,7 +596,7 @@ const Forja: React.FC = () => {
         <mesh position={[0, .5, 0]} castShadow><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
         <mesh position={[0, 1.05, 0]}><boxGeometry args={[1.1, .12, .8]} /><meshBasicMaterial color={new THREE.Color('#ff7a2a').multiplyScalar(2)} toneMapped={false} /></mesh>
         <mesh position={[0, 1.6, -.2]} castShadow><cylinderGeometry args={[.28, .75, 1, 4, 1]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .8, .6)} flatShading /></mesh>
-        <mesh position={[0, 2.6, -.2]} castShadow><boxGeometry args={[.38, 1.3, .38]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .5, .8)} /></mesh>
+        <mesh position={[0, 3.2, -.2]} castShadow><boxGeometry args={[.38, 2.5, .38]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .5, .8)} /></mesh>
         <pointLight ref={fogo} position={[0, 1.5, .5]} color="#ff8a3a" distance={9} intensity={6} />
         {/* a bigorna: corpo, cintura, mesa e o chifre, num cepo de tronco */}
         <group position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
@@ -613,11 +613,15 @@ const Forja: React.FC = () => {
             </group>
         ))}
         {[-1, 1.6].map((z) => <mesh key={z} position={[0, 2.72, z]}><boxGeometry args={[3.1, .14, .16]} /><meshStandardMaterial color={P13.madeiraEsc} {...pbr('carvalho', .5, .3)} /></mesh>)}
-        <mesh position={[0, 3.35, .3]}><boxGeometry args={[.14, .14, 3.4]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+        <mesh position={[0, 3.92, .3]}><boxGeometry args={[.16, .16, 3.8]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
         {[-1, 1].map((l) => (
-            <mesh key={l} position={[l * .85, 3.02, .3]} rotation={[0, 0, -l * .62]} castShadow>
-                <boxGeometry args={[2.05, .16, 3.5]} /><meshStandardMaterial color={P13.turfa} {...pbr('grama', 2, .35)} />
-            </mesh>
+            <group key={l}>
+                <mesh position={[l * .88, 3.12, .3]} rotation={[0, 0, -l * .78]} castShadow>
+                    <boxGeometry args={[2.35, .14, 3.7]} /><meshStandardMaterial color={P13.turfa} {...pbr('grama', 2, .35)} />
+                </mesh>
+                {/* caibros por baixo: de dentro da forja se vê a estrutura, não uma tampa */}
+                {[-1.2, -.3, .6, 1.5].map((z) => <mesh key={z} position={[l * .82, 3.02, z]} rotation={[0, 0, -l * .78]}><boxGeometry args={[2.25, .09, .09]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
+            </group>
         ))}
     </group>;
 };
@@ -662,10 +666,25 @@ const Praca: React.FC = () => {
         {/* pedra rúnica: rocha de verdade com a faixa de runas pintada de ocre */}
         <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#9a9082" {...pbr('rocha', .6, 1.4)} /></mesh>
         <mesh position={[4.2 + Math.sin(.3) * .205, 1.3, 1.5 + Math.cos(.3) * .205]} rotation={[0, .3, 0]}><planeGeometry args={[.6, 1.9]} /><meshStandardMaterial map={texturaDePedraRunica()} transparent depthWrite={false} roughness={.9} polygonOffset polygonOffsetFactor={-2} /></mesh>
-        <mesh position={[0, .25, 8]}><cylinderGeometry args={[1.2, 1.3, .5, 24]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 3, .5)} /></mesh>
-        {/* a borda de pedra do poço (onde o gato cochila) e a água um palmo abaixo */}
-        <mesh position={[0, .52, 8]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1.1, .13, 8, 28]} /><meshStandardMaterial color={P13.pedra} {...pbr('rocha', 2, .3)} /></mesh>
-        <mesh position={[0, .44, 8]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1, 20]} /><meshStandardMaterial color="#23404f" metalness={0} roughness={.12} envMapIntensity={.55} /></mesh>
+        {/* o poço: parede de pedra aberta (por fora e por dentro), a borda
+            onde o gato cochila, a água escura lá embaixo; em cima o sarilho
+            com corda e balde e um telhadinho de tábua */}
+        <group position={[0, 0, 8]}>
+            <mesh position={[0, .25, 0]} castShadow><cylinderGeometry args={[1.2, 1.3, .5, 24, 1, true]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 3, .5)} /></mesh>
+            <mesh position={[0, .1, 0]}><cylinderGeometry args={[1, 1, .8, 24, 1, true]} /><meshStandardMaterial color="#5e564c" {...pbr('rocha', 2, .5)} side={THREE.BackSide} /></mesh>
+            <mesh position={[0, .52, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1.1, .13, 8, 28]} /><meshStandardMaterial color={P13.pedra} {...pbr('rocha', 2, .3)} /></mesh>
+            <mesh position={[0, -.2, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1, 24]} /><meshStandardMaterial color="#16303c" metalness={0} roughness={.08} envMapIntensity={.8} /></mesh>
+            {[-1, 1].map((l) => <mesh key={l} position={[l * 1.12, 1.25, 0]} castShadow><cylinderGeometry args={[.07, .09, 1.6, 8]} /><meshStandardMaterial color="#5a3d26" {...pbr('carvalho', .3, 1)} /></mesh>)}
+            <mesh position={[0, 1.55, 0]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[.07, .07, 2.3, 10]} /><meshStandardMaterial color="#6b4a2e" {...pbr('carvalho', .3, .5)} /></mesh>
+            <mesh position={[0, 1.55, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[.1, .1, .5, 12]} /><meshStandardMaterial color={P13.corda} roughness={.9} /></mesh>
+            <mesh position={[1.3, 1.45, 0]} rotation={[0, 0, .3]}><boxGeometry args={[.05, .3, .05]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            <mesh position={[.05, 1.05, 0]}><cylinderGeometry args={[.012, .012, .9, 5]} /><meshStandardMaterial color={P13.corda} /></mesh>
+            <mesh position={[.05, .5, 0]} castShadow><cylinderGeometry args={[.16, .12, .26, 12]} /><meshStandardMaterial color="#7a5a3a" {...pbr('carvalho', .3, .3)} /></mesh>
+            <mesh position={[.05, .62, 0]} rotation={[0, 0, 0]}><torusGeometry args={[.16, .012, 5, 14, Math.PI]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
+            {[-1, 1].map((l) => <mesh key={`t${l}`} position={[0, 2.18, l * .38]} rotation={[l * .72, 0, 0]} castShadow><boxGeometry args={[2.7, .06, .95]} /><meshStandardMaterial color="#6b4a2e" {...pbr('carvalho', 1, .4)} /></mesh>)}
+            <mesh position={[0, 2.12, 0]}><boxGeometry args={[2.5, .1, .1]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            {[-1, 1].map((l) => <mesh key={`c${l}`} position={[l * 1.12, 2.0, 0]}><boxGeometry args={[.1, .3, .1]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
+        </group>
     </group>;
 };
 
@@ -938,7 +957,7 @@ const Trilhas: React.FC = () => {
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .3; gp.setXYZ(i, gp.getX(i) * f, gp.getY(i), gp.getZ(i) * f); }
         g.scale(.16, .018, .13); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ color: '#c9c2b6', ...pbr('rocha', .3, .15), roughness: .95 });
+        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#7f7a72', roughness: .9 });
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
