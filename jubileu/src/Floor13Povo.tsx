@@ -421,10 +421,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         } else if (ficha.id === 'halvard') {
             // o pescador de nuvem puxa a linha, devagar
             const p = Math.sin(t * .8) * .15;
-            j('upperarm_l', -1 + p, 0, baixaE + .35); j('lowerarm_l', -.7);
-            j('upperarm_r', -1 + p, 0, baixaD - .35); j('lowerarm_r', -.7);
+            // braços à frente do peito e cotovelos dobrados (o ombro aberto
+            // de lado lia como pose em T de longe)
+            j('upperarm_l', -.75 + p, 0, baixaE + .06); j('lowerarm_l', -1.05 - p * .5);
+            j('upperarm_r', -.7 + p, 0, baixaD - .06); j('lowerarm_r', -1.1 - p * .5);
         } else if (ficha.id === 'ulfgar') {
-            j('upperarm_r', -.6 + Math.sin(t * 1.3) * .35, 0, baixaD - .2); j('lowerarm_r', -.9);
+            // gesticula contando histórias: o antebraço sobe e desce, o ombro fica baixo
+            j('upperarm_r', -.35 + Math.sin(t * 1.3) * .15, 0, baixaD - .04); j('lowerarm_r', -1.1 + Math.sin(t * 1.3 + .6) * .3);
             j('upperarm_l', .05, 0, baixaE); j('lowerarm_l', -.2);
         } else {
             // cada um com o seu jeito de esperar
