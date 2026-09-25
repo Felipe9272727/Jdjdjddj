@@ -449,11 +449,12 @@ const MAT_VULTO = new THREE.MeshStandardMaterial({ color: '#2a1d16', roughness: 
 /** O vão aceso e o morador parado nele, só enquanto a porta está aberta. */
 const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) => {
     const estadoMorador = useRef<EstadoVisualNpc>({ olharPara: null, falando: true, possessao: 0, caido: false });
-    const g = useRef<THREE.Group>(null), luz = useRef<THREE.PointLight>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
+    const g = useRef<THREE.Group>(null), luz = useRef<THREE.PointLight>(null), luzFrente = useRef<THREE.PointLight>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
     useFrame(({ clock }) => {
         const a = aberturaDaPorta(indice);
         if (g.current) g.current.visible = a > .01;
         if (luz.current) luz.current.intensity = a * (fria ? 1.2 : 6 + Math.sin(clock.elapsedTime * 11) * .9);
+        if (luzFrente.current) luzFrente.current.intensity = a * 1.8;
         if (vao.current) { if (fria) vao.current.color.setRGB(.012 * a, .016 * a, .024 * a); else vao.current.color.setRGB(.75 * a, .32 * a, .1 * a); }
     });
     return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
@@ -466,9 +467,13 @@ const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) =
         {!fria && <mesh position={[.42, -.33, -.85]}><cylinderGeometry args={[.02, .02, .12, 8]} /><meshBasicMaterial color={new THREE.Color('#ffd28a').multiplyScalar(2)} toneMapped={false} /></mesh>}
         <mesh position={[0, -.45, -1.1]}><boxGeometry args={[.7, .5, .06]} /><meshStandardMaterial color={fria ? '#2a2a2e' : '#6a5a50'} roughness={.95} /></mesh>
         {MORADOR[indice] && <Viking ficha={MORADOR[indice]!} x={.12} y={-.8} z={-.12} estado={estadoMorador} semRecorte escalaExtra={.7} />}
+        {/* luz de preenchimento na soleira, do lado de fora: o rosto de quem atende não fica em contraluz */}
+        <pointLight ref={luzFrente} position={[0, .75, .9]} color="#ffe2c0" intensity={0} distance={3} />
         <pointLight ref={luz} position={[0, .1, -.9]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
     </group>;
 };
+/** Altura da cumeeira no modelo (tools/blender/f13_casa.py: parede 1,9 + 1,65 de telhado). */
+const CUMEEIRA_Y = 3.55;
 /** Forro escuro por dentro das casas (fecha as frestas entre as tábuas). */
 const FORRO = new THREE.MeshStandardMaterial({ color: '#1c140e', roughness: 1, side: THREE.DoubleSide });
 /** A parede da frente por dentro, com o vão da porta (1,05 × 1,6 m a 0 do chão da casa). */
@@ -543,6 +548,8 @@ const CasaCompridaModelo: React.FC<{
                 <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.05)} toneMapped={false} /></mesh>
             </>}
         </group>
+        {/* a cumeeira: um rolo de turfa sobre a junta das duas águas (via-se o céu pela fresta) */}
+        <mesh position={[0, CUMEEIRA_Y, 0]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.17, .17, 6.1, 10]} /><meshStandardMaterial color={P13.turfa} {...pbr('grama', .6, 3)} /></mesh>
         {/* a verga: tábua de cabeceira entre o topo da folha e o lintel entalhado (sobrava uma fresta preta) */}
         <mesh position={[0, 1.66, 2.8]}><boxGeometry args={[1.2, .14, .08]} /><meshStandardMaterial color="#4a3222" {...pbr('carvalho', .4, .15)} /></mesh>
         <EnfeitesDaPorta estilo={estilo} botao={botao} />
