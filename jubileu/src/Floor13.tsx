@@ -424,7 +424,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         ajusteCabine.current?.();
         // na queda a câmera está longe da cidade: a névoa do chão (feita para
         // quem anda) virava um lençol cinza na janela. Fina no voo, cheia ao pousar.
-        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .003, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
+        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .0019, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
     });
 
     return <group>
@@ -816,7 +816,7 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog>; mapa: number }> = ({ jog
             feito.current = 10;
         }
     });
-    return <directionalLight ref={luz} intensity={4.2} color="#ffd6a0" castShadow shadow-radius={4}
+    return <directionalLight ref={luz} intensity={5.2} color="#ffd6a0" castShadow shadow-radius={4}
         shadow-bias={-.0004}
         shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18}
         shadow-camera-near={1} shadow-camera-far={140} shadow-normalBias={.03} />;
@@ -1292,16 +1292,16 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#5f97d1', touchAction: 'none' }}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
-                camera={{ fov: 52, near: .1, far: 900, position: [90, 38, 135] }}
-                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#d9c4a8', .003); }}>
+                camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
+                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#b7cfe4', .0019); }}>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
-                <hemisphereLight args={['#bcd4f0', '#5a4a36', naCabine ? .22 : .55]} />
+                <hemisphereLight args={['#a6c8f5', '#3a2f22', naCabine ? .16 : .3]} />
                 <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
-                <LuzDaCamera intensidade={naCabine ? .2 : .9} />
+                <LuzDaCamera intensidade={naCabine ? .14 : .35} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
                 {/* o mundo inteiro fica sempre montado e visível: esconder o grupo tirava
@@ -1310,7 +1310,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     fechada: de dentro dela o mundo não aparece. */}
                 <group>
                 {/* contraluz fria: separa as silhuetas do chão verde */}
-                <directionalLight position={[40, 18, 70]} intensity={.35} color="#a9c8ff" />
+                <directionalLight position={[40, 18, 70]} intensity={.18} color="#93b8f7" />
                 <Floor13Vida />
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
                 <GatosDaVila jog={jog} />
@@ -1343,15 +1343,16 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
                 <EffectComposer multisampling={Q.msaa}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
-                    {Q.ao && <N8AO aoRadius={1.4} intensity={1.5} distanceFalloff={.6} halfRes quality="performance" />}
-                    <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
-                    {/* a entidade drena a cor do mundo e suja a imagem */}
-                    <HueSaturation saturation={glitch ? -.65 : .2} />
+                    {Q.ao && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
+                    <Bloom mipmapBlur intensity={.45} luminanceThreshold={.9} luminanceSmoothing={.3} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
-                    <Noise opacity={glitch ? .06 : 0} />
-                    <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
+                    <Noise opacity={glitch ? .06 : .012} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-                    <BrightnessContrast brightness={-.02} contrast={.16} />
+                    {/* a cor se ajusta DEPOIS da curva (antes, o ACES comia a saturação);
+                        a entidade drena a cor do mundo e suja a imagem */}
+                    <BrightnessContrast brightness={0} contrast={.1} />
+                    <HueSaturation saturation={glitch ? -.65 : .14} />
+                    <Vignette eskil={false} offset={.32} darkness={glitch ? .75 : .32} />
                     {/* a simulação desligando o andar (só na saída) */}
                     {/* sempre no compositor (em 0 não desenha nada): entrar com ele no meio da cena recompilava o pós */}
                     <primitive object={efeitoChuva} dispose={null} />

@@ -93,15 +93,15 @@ export function novoCeu(): Sky {
     const u = ceu.material.uniforms;
     // ar limpo de altitude: pouca turbidez e o halo do sol apertado — o
     // espalhamento largo lavava o alto do céu de branco
-    u.turbidity.value = 2.4; u.rayleigh.value = 2.1; u.mieCoefficient.value = .0012; u.mieDirectionalG.value = .86;
+    u.turbidity.value = 1.7; u.rayleigh.value = 2.7; u.mieCoefficient.value = .0009; u.mieDirectionalG.value = .93;
     u.sunPosition.value.copy(DIRECAO_DO_SOL);
     // o Preetham sai em radiância física, clara demais para esta cena: um
     // terço, para o céu ficar azul e o horizonte âmbar em vez de branco
     ceu.material.fragmentShader = ceu.material.fragmentShader
-        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .42, 1.0 );')
+        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .36, 1.0 );')
         // o disco do sol vem 19000× mais forte que o céu: cegava a tela
         // inteira pelo bloom. Fica um disco quente, visível sem ofuscar
-        .replace('vSunE * 19000.0 * Fex', 'vSunE * 700.0 * Fex');
+        .replace('vSunE * 19000.0 * Fex', 'vSunE * 900.0 * Fex');
     return ceu;
 }
 const Ceu: React.FC = () => {
