@@ -416,6 +416,10 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
 };
 
 /** Casa comprida viking. A porta olha para +z local. */
+/** Forro escuro por dentro das casas (fecha as frestas entre as tábuas). */
+const FORRO = new THREE.MeshStandardMaterial({ color: '#1c140e', roughness: 1, side: THREE.DoubleSide });
+/** A empena por dentro: triângulo sob a cumeeira, na frente e no fundo. */
+const EMPENA = (() => { const f = new THREE.Shape(); f.moveTo(-1.55, 0); f.lineTo(1.55, 0); f.lineTo(0, 1.25); f.closePath(); return new THREE.ShapeGeometry(f); })();
 const CasaCompridaModelo: React.FC<{
     runa?: string; latao?: boolean; fumaca?: boolean; botao?: boolean; escala?: number;
     portaRef?: React.Ref<THREE.Group>;
@@ -435,6 +439,14 @@ const CasaCompridaModelo: React.FC<{
     useFundir(raiz);
     return <group ref={raiz} scale={escala}>
         <primitive object={casca} />
+        {/* o forro por dentro: as tábuas do modelo têm fresta entre si, e o
+            céu atrás da casa aparecia em riscos brancos pelas paredes e pela
+            empena. Na casa do elevador a porta abre para a cabine: sem forro. */}
+        {estilo !== 'elevador' && <group>
+            <mesh position={[0, 1.15, 0]} material={FORRO}><boxGeometry args={[3.15, 1.9, 5.3]} /></mesh>
+            <mesh position={[0, 2.1, 2.65]} rotation={[0, Math.PI, 0]} material={FORRO} geometry={EMPENA} />
+            <mesh position={[0, 2.1, -2.65]} material={FORRO} geometry={EMPENA} />
+        </group>}
         {/* chaminé */}
         <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color="#b0a698" {...pbr('rocha', .5, .8)} /></mesh>
         {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
