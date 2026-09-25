@@ -345,11 +345,13 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
         pernas.current.forEach((p, i) => { if (p) p.rotation.x = Math.sin(t * 7 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI : 0)) * .35 * anda; });
     });
     return <group ref={g}>
-        <mesh geometry={geometriaDeLa()} material={la} position={[0, .62, 0]} castShadow />
+        <mesh geometry={geometriaDeLa()} material={la} position={[0, .66, 0]} castShadow />
         {/* rabinho de lã */}
         <mesh material={la} position={[0, .66, -.54]}><sphereGeometry args={[.08, 10, 8]} /></mesh>
         {/* cabeça de ovelha: topete de lã, focinho alongado, orelhas caídas, olhos */}
-        <group ref={cabeca} position={[0, .76, .5]}>
+        {/* pescoço de lã: a cabeça sai do corpo, não afunda nele */}
+        <mesh material={la} position={[0, .78, .42]} rotation={[.7, 0, 0]} scale={[1, 1, 1.1]}><sphereGeometry args={[.17, 14, 10]} /></mesh>
+        <group ref={cabeca} position={[0, .86, .6]} scale={1.2}>
             <mesh material={la} position={[0, .1, -.02]} scale={[1, .7, 1]}><sphereGeometry args={[.13, 12, 10]} /></mesh>
             <group position={[0, 0, .08]} rotation={[.4, 0, 0]}>
                 <mesh material={pret} scale={[.8, .85, 1.25]}><sphereGeometry args={[.14, 16, 12]} /></mesh>
@@ -360,7 +362,7 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
         </group>
         {/* pernas: coxa escondida na lã, canela fina, joelho e casco */}
         {[[-.17, .3], [.17, .3], [-.17, -.28], [.17, -.28]].map(([a, c], i) => (
-            <group key={i} ref={(r) => { pernas.current[i] = r; }} position={[a, .42, c]}>
+            <group key={i} ref={(r) => { pernas.current[i] = r; }} position={[a, .44, c]} scale={[1.15, 1.05, 1.15]}>
                 <mesh material={pret} position={[0, -.1, 0]}><cylinderGeometry args={[.045, .035, .22, 8]} /></mesh>
                 <mesh material={pret} position={[0, -.21, 0]}><sphereGeometry args={[.04, 8, 6]} /></mesh>
                 <mesh material={pret} position={[0, -.31, 0]}><cylinderGeometry args={[.03, .03, .2, 8]} /></mesh>
