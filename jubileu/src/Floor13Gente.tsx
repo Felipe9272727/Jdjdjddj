@@ -363,6 +363,8 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
         {/* pernas: coxa escondida na lã, canela fina, joelho e casco */}
         {[[-.17, .3], [.17, .3], [-.17, -.28], [.17, -.28]].map(([a, c], i) => (
             <group key={i} ref={(r) => { pernas.current[i] = r; }} position={[a, .44, c]} scale={[1.15, 1.05, 1.15]}>
+                {/* a lã desce pela coxa: a perna nasce do velo, não de um palito */}
+                <mesh material={la} position={[0, -.05, 0]} scale={[1, 1.35, 1]}><sphereGeometry args={[.085, 10, 8]} /></mesh>
                 <mesh material={pret} position={[0, -.1, 0]}><cylinderGeometry args={[.045, .035, .22, 8]} /></mesh>
                 <mesh material={pret} position={[0, -.21, 0]}><sphereGeometry args={[.04, 8, 6]} /></mesh>
                 <mesh material={pret} position={[0, -.31, 0]}><cylinderGeometry args={[.03, .03, .2, 8]} /></mesh>
