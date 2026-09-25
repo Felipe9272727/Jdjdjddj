@@ -687,7 +687,7 @@ const Forja: React.FC = () => {
         <mesh position={[0, .5, 0]} castShadow><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
         <mesh position={[0, 1.05, 0]}><boxGeometry args={[1.1, .12, .8]} /><meshBasicMaterial color={new THREE.Color('#ff7a2a').multiplyScalar(2)} toneMapped={false} /></mesh>
         <mesh position={[0, 1.6, -.2]} castShadow><cylinderGeometry args={[.28, .75, 1, 4, 1]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .8, .6)} flatShading /></mesh>
-        <mesh position={[0, 3.2, -.2]} castShadow><boxGeometry args={[.38, 2.5, .38]} /><meshStandardMaterial color="#8f8478" {...pbr('rocha', .5, .8)} /></mesh>
+        <mesh position={[0, 3.2, -.2]} castShadow><boxGeometry args={[.38, 2.5, .38]} /><meshStandardMaterial color="#b3a898" {...pbr('rocha', .5, .8)} /></mesh>
         <pointLight ref={fogo} position={[0, 1.5, .5]} color="#ff8a3a" distance={9} intensity={6} />
         {/* a bigorna: corpo, cintura, mesa e o chifre, num cepo de tronco */}
         <group position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
@@ -709,6 +709,10 @@ const Forja: React.FC = () => {
             <group key={l}>
                 <mesh position={[l * .88, 3.12, .3]} rotation={[0, 0, -l * .78]} castShadow>
                     <boxGeometry args={[2.35, .14, 3.7]} /><meshStandardMaterial color={P13.turfa} {...pbr('grama', 2, .35)} />
+                </mesh>
+                {/* o forro de tábuas por baixo da turfa: de dentro da forja se vê madeira, não grama chapada */}
+                <mesh position={[l * .88 - l * Math.sin(.78) * .08, 3.12 - Math.cos(.78) * .08, .3]} rotation={[0, 0, -l * .78]}>
+                    <boxGeometry args={[2.3, .02, 3.65]} /><meshStandardMaterial color="#b08a62" {...pbr('tabua', 1.5, 2)} />
                 </mesh>
                 {/* caibros por baixo: de dentro da forja se vê a estrutura, não uma tampa */}
                 {[-1.2, -.3, .6, 1.5].map((z) => <mesh key={z} position={[l * .82, 3.02, z]} rotation={[0, 0, -l * .78]}><boxGeometry args={[2.25, .09, .09]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>)}
