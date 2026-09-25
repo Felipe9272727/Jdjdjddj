@@ -571,16 +571,32 @@ const Frota: React.FC = () => {
     return <>{rotas.map((r, i) => <group key={i} ref={(g) => { refs.current[i] = g; }} userData={{ vivo: true }}><Barco vela={r.vela} escala={r.e} /></group>)}</>;
 };
 
+/** Perfil de sino de bronze: ombro, cintura e a boca que abre em aba. */
+const PERFIL_DO_SINO = [[0, 0], [.2, 0], [.26, -.06], [.28, -.2], [.31, -.4], [.4, -.58], [.52, -.7], [.55, -.76], [.5, -.78], [.42, -.72]].map(([r, y]) => new THREE.Vector2(r, y));
 /** O templo do sino, na ilha do leste. */
 export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef }) => {
     const ilha = ILHAS.find((i) => i.id === 'templo')!;
+    const madeira = <meshStandardMaterial color="#5a3d26" {...pbr('carvalho', .3, 1.2)} />;
     return <group position={[SINO.x, ilha.y, SINO.z]}>
+        {/* postes de tronco com mão-francesa até a travessa */}
         {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => (
-            <mesh key={`${x}${z}`} position={[x * .9, 2, z * .9]}><boxGeometry args={[.25, 4, .25]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            <group key={`${x}${z}`} position={[x * .9, 0, z * .9]}>
+                <mesh position={[0, 2, 0]} castShadow><cylinderGeometry args={[.12, .15, 4, 8]} />{madeira}</mesh>
+                <mesh position={[-x * .2, 3.55, 0]} rotation={[0, 0, x * .75]}><boxGeometry args={[.08, .55, .08]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
+            </group>
         ))}
+        {[-1, 1].map((z) => <mesh key={z} position={[0, 3.9, z * .9]}><boxGeometry args={[2.1, .18, .18]} />{madeira}</mesh>)}
+        {/* a travessa de onde o sino pende, e o cepo que o prende */}
+        <mesh position={[0, 3.9, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[.1, .1, 2.1, 10]} />{madeira}</mesh>
+        <mesh position={[0, 3.72, 0]} castShadow><boxGeometry args={[.36, .22, .3]} /><meshStandardMaterial color={P13.madeiraEsc} {...pbr('carvalho', .2, .2)} /></mesh>
         <mesh position={[0, 4.35, 0]} rotation={[0, Math.PI / 4, 0]}><coneGeometry args={[1.7, 1.4, 4]} /><meshStandardMaterial color={P13.telhado} flatShading /></mesh>
         <group ref={sinoRef} position={[0, 3.6, 0]} userData={{ vivo: true }}>
-            <mesh position={[0, -.45, 0]}><cylinderGeometry args={[.25, .55, .8, 20, 1, true]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
+            {/* a coroa (a alça por onde ele pende) e o corpo em perfil de sino */}
+            <mesh position={[0, .03, 0]}><torusGeometry args={[.07, .025, 6, 12]} /><meshStandardMaterial color="#8a6a2e" metalness={.85} roughness={.35} /></mesh>
+            <mesh castShadow><latheGeometry args={[PERFIL_DO_SINO, 24]} /><meshStandardMaterial color={P13.latao} metalness={.85} roughness={.3} side={THREE.DoubleSide} /></mesh>
+            {/* o badalo */}
+            <mesh position={[0, -.4, 0]}><cylinderGeometry args={[.015, .015, .55, 5]} /><meshStandardMaterial color="#2e2a26" metalness={.6} /></mesh>
+            <mesh position={[0, -.68, 0]}><sphereGeometry args={[.06, 10, 8]} /><meshStandardMaterial color="#2e2a26" metalness={.6} roughness={.5} /></mesh>
         </group>
     </group>;
 };
