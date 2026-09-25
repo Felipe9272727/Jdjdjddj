@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CASAS, CASA_CERTA, NPCS, ENTIDADE } from '../f13Lore';
 import {
-    chaoEm, ILHAS, PONTES, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, OVELHAS, MARTELO, SINO, INICIO,
+    chaoEm, ILHAS, PONTES, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, portaNoMundo, foraDasCasas, OVELHAS, MARTELO, SINO, INICIO,
     novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino, entidadeAcorda, baterNaCasa,
 } from '../f13Mundo';
 
@@ -49,6 +49,25 @@ describe('f13 — dá para andar por tudo que importa', () => {
     });
     it('as casas ficam dentro da ilha de cima', () => {
         for (const l of LUGAR_DAS_CASAS) expect(chaoEm(l.x, l.z)).toBe(3);
+    });    it('a casa é um retângulo sólido: o centro é empurrado para fora e o lugar de bater é livre', () => {
+        LUGAR_DAS_CASAS.forEach((_, i) => {
+            // quem tenta entrar pela porta fechada fica do lado de fora dela
+            const p = portaNoMundo(i), dentro = { x: p.x - p.fx * .3, z: p.z - p.fz * .3 };
+            const f = foraDasCasas(dentro.x, dentro.z, .38);
+            expect((f.x - p.x) * p.fx + (f.z - p.z) * p.fz, `casa ${i}`).toBeGreaterThan(.3);
+            const b = portaDaCasa(i), fb = foraDasCasas(b.x, b.z, .38);
+            expect(fb.x, `bater ${i}`).toBeCloseTo(b.x, 6); expect(fb.z, `bater ${i}`).toBeCloseTo(b.z, 6);
+        });
+    });
+    it('a porta de verdade fica na frente da casa, virada para o centro da ilha', () => {
+        const ilha = ILHAS.find((i) => i.id === 'casas')!;
+        LUGAR_DAS_CASAS.forEach((l, i) => {
+            const p = portaNoMundo(i);
+            expect(chaoEm(p.x, p.z), `porta ${i}`).toBe(3);
+            // a direção da porta aponta (quase) para o centro da ilha
+            const cx = ilha.x - l.x, cz = ilha.z - l.z, n = Math.hypot(cx, cz);
+            expect((p.fx * cx + p.fz * cz) / n, `porta ${i}`).toBeGreaterThan(.98);
+        });
     });
 });
 

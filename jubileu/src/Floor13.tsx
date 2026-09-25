@@ -32,7 +32,7 @@ import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
-    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, MARTELO, OVELHAS, SINO,
+    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, MARTELO, OVELHAS, SINO,
     novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
 } from './f13Mundo';
 import {
@@ -442,8 +442,10 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
 
 // ═══ O JOGADOR ═══════════════════════════════════════════════════════════════
 /** Obstáculos redondos: casas, forja, templo, poço, barracas. */
-const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number }> = Object.freeze([
-    ...LUGAR_DAS_CASAS.map((l) => ({ x: l.x, z: l.z, r: 2.6 })),
+const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number; soProcura?: boolean }> = Object.freeze([
+    // as casas colidem como retângulos (foraDasCasas); o círculo aqui só
+    // serve a quem procura um lugar livre (a chegada pelo Modo Criador)
+    ...LUGAR_DAS_CASAS.map((l) => ({ x: l.x, z: l.z, r: 2.6, soProcura: true })),
     { x: -7.5, z: 4, r: 2.4 }, { x: 7.8, z: 12.5, r: 2.4 },
     { x: 0, z: 8, r: 1.4 }, { x: 4.2, z: 1.5, r: .7 },
     // barracas: 1,9 × 1,3 m com o toldo — raio que cobre as pontas do balcão
@@ -481,10 +483,13 @@ const Jogador: React.FC<{
             const k = Math.min(1, n);
             let nx = j.x + mx / n * vel * k * dt, nz = j.z + mz / n * vel * k * dt;
             for (const ob of OBSTACULOS) {
+                if (ob.soProcura) continue;
                 const dx = nx - ob.x, dz = nz - ob.z, d = Math.hypot(dx, dz), r = ob.r + .35;
                 if (d < r && d > 1e-4) { nx = ob.x + dx / d * r; nz = ob.z + dz / d * r; }
             }
-            j.x = nx; j.z = nz;
+            // as casas são retângulos compridos (com a escala de cada uma)
+            const fora = foraDasCasas(nx, nz, .38);
+            j.x = fora.x; j.z = fora.z;
             let da = Math.atan2(mx, mz) - j.ang;
             while (da > Math.PI) da -= Math.PI * 2;
             while (da < -Math.PI) da += Math.PI * 2;
@@ -593,7 +598,7 @@ const Radar: React.FC<{
         const perto = (x: number, z: number, r: number) => Math.hypot(j.x - x, j.z - z) < r;
         const hl = LUGAR_DOS_NPCS.halvard;
         let achou: Alvo | null = null, melhor = Infinity;
-        const tenta = (a: Alvo, x: number, z: number, r: number) => {
+        const tenta = (a: Alvo, x: number, z: number, r: number, angMax = 1.05, colado = 1) => {
             // só o que está à frente do olhar (primeira pessoa), e o mais
             // centrado vence: o de trás ou fora da tela não ganha o botão
             const d = Math.hypot(j.x - x, j.z - z);
@@ -601,7 +606,7 @@ const Radar: React.FC<{
             let ang = Math.atan2(-(x - j.x), -(z - j.z)) - yaw.current;
             while (ang > Math.PI) ang -= Math.PI * 2;
             while (ang < -Math.PI) ang += Math.PI * 2;
-            if (d > 1 && Math.abs(ang) > 1.05) return;
+            if (d > colado && Math.abs(ang) > angMax) return;
             const nota = d * (1 + Math.abs(ang) * 1.5);
             if (nota < melhor) { melhor = nota; achou = a; }
         };
@@ -614,7 +619,13 @@ const Radar: React.FC<{
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
         tenta({ tipo: 'sino' }, SINO.x, SINO.z, 2.4);
-        CASAS.forEach((_, i) => { const p = portaDaCasa(i); tenta({ tipo: 'casa', i }, p.x, p.z, 3.6); });
+        // bater: só com a PORTA à frente do olho (±43°) e o hóspede diante
+        // dela — de lado, de costas ou olhando o céu não aparece o botão
+        CASAS.forEach((_, i) => {
+            const p = portaNoMundo(i);
+            if ((j.x - p.x) * p.fx + (j.z - p.z) * p.fz < .5) return;
+            tenta({ tipo: 'casa', i }, p.x, p.z, 3.8, .75, 0);
+        });
         const k = chaveDoAlvo(achou);
         if (k !== ultimo.current) { ultimo.current = k; aoMudar(achou); }
     });
@@ -851,8 +862,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
             // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
             agir: () => acao.current(),
+            porta: (i: number) => portaNoMundo(i),
             alvo: () => chaveDoAlvo(alvoAtual.current),
-            casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 }; const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0; },
+            casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz); const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0; },
         };
     }, []);
 
@@ -870,9 +882,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (inicio === 'casaCerta') {
                 // de frente para a porta, fora do beiral (na soleira a câmera
                 // em primeira pessoa ficava dentro do telhado)
-                const l = LUGAR_DAS_CASAS[CASA_CERTA], p = { x: l.x + Math.sin(l.angulo) * 6, z: l.z + Math.cos(l.angulo) * 6 };
+                const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz);
                 (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump();
-                j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = l.angulo + Math.PI; yaw.current = l.angulo; j.levantando = 0;
+                j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0;
             } else if (inicio === 'entidade') {
                 (['latao', 'fumaca'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump();
                 por(LUGAR_DOS_NPCS.halvard.x, LUGAR_DOS_NPCS.halvard.z);

@@ -15,8 +15,9 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
-import { ILHAS, PONTES, LUGAR_DAS_CASAS, SINO } from './f13Mundo';
+import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
 import { pbr } from './f13Texturas';
+import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -290,20 +291,6 @@ function texturaDeTelha(): THREE.CanvasTexture {
     return texTelha;
 }
 
-/** Latão escovado: riscos horizontais finos e uma fileira de rebites. */
-let texEscovada: THREE.CanvasTexture | null = null;
-function texturaEscovada(): THREE.CanvasTexture {
-    if (texEscovada) return texEscovada;
-    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
-    const g = c.getContext('2d')!;
-    g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 64, 128);
-    for (let y = 0; y < 128; y++) { g.fillStyle = `rgba(${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},.08)`; g.fillRect(0, y, 64, 1); }
-    g.fillStyle = '#2a2a2a';
-    for (const y of [8, 120]) for (let x = 6; x < 64; x += 13) { g.beginPath(); g.arc(x, y, 2.5, 0, Math.PI * 2); g.fill(); }
-    texEscovada = new THREE.CanvasTexture(c);
-    return texEscovada;
-}
-
 /**
  * O que se vê pela porta certa: a cabine do elevador do hotel em perspectiva
  * — a mesma em que o hóspede aparece na saída (Floor13Saida): paredes de
@@ -432,7 +419,9 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
 const CasaCompridaModelo: React.FC<{
     runa?: string; latao?: boolean; fumaca?: boolean; botao?: boolean; escala?: number;
     portaRef?: React.Ref<THREE.Group>;
-}> = ({ runa, latao = false, fumaca = true, botao = false, escala = 1, portaRef }) => {
+    /** A porta de cada casa (Floor13Portas); as de cenário são tábuas simples. */
+    estilo?: EstiloDePorta;
+}> = ({ runa, fumaca = true, botao = false, escala = 1, portaRef, estilo = 'simples' }) => {
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
     // a casca (paredes de tábuas, vigas, telhado de turfa, empenas com
     // dragões, batente entalhado) é o modelo do Blender: tools/blender/f13_casa.py
@@ -454,27 +443,17 @@ const CasaCompridaModelo: React.FC<{
             <mesh><boxGeometry args={[.5, .08, .5]} /><meshStandardMaterial color="#b8d4e8" roughness={.3} /></mesh>
             {[-.18, 0, .18].map((x, i) => <mesh key={i} position={[x, -.14 - (i % 2) * .05, .25]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.035, .22 + (i % 2) * .1, 6]} /><meshStandardMaterial color="#dff0ff" roughness={.1} transparent opacity={.85} /></mesh>)}
         </group>}
-        {/* a porta */}
+        {/* a porta: cada casa com a sua (Floor13Portas) */}
         <group ref={portaRef} position={[0, .8, 2.82]} userData={{ vivo: !!portaRef }}>
-            {latao
-                // latão em duas folhas, como porta de elevador (a casa certa as abre)
-                ? [-1, 1].map((l) => <mesh key={l} name="folha" userData={{ lado: l }} position={[l * .2625, 0, 0]}>
-                    <boxGeometry args={[.52, 1.6, .1]} />
-                    <meshPhysicalMaterial color={P13.latao} metalness={1} roughness={.35} roughnessMap={texturaEscovada()} clearcoat={.8} clearcoatRoughness={.15} envMapIntensity={1.6} />
-                </mesh>)
-                : <mesh><boxGeometry args={[1.05, 1.6, .1]} /><meshStandardMaterial {...pbr('carvalho', .6, 1)} color="#6a4a30" roughness={.85} /></mesh>}
-            {latao && !fumaca && botao && <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />}
-            {/* fundo escuro atrás da cabine: acima dela se via o avesso das tábuas */}
-            {latao && <mesh position={[0, .3, -.04]}><planeGeometry args={[1.4, 2.6]} /><meshBasicMaterial color="#1c130b" /></mesh>}
-            {latao && <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.05)} toneMapped={false} /></mesh>}
-            {!latao && [-.3, 0, .3].map((x) => (
-                <mesh key={x} position={[x, 0, .06]}><boxGeometry args={[.04, 1.5, .02]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
-            ))}
-            {!latao && <mesh position={[.34, 0, .08]}><torusGeometry args={[.08, .02, 6, 14]} /><meshStandardMaterial color="#2a2a2a" metalness={.6} /></mesh>}
+            <FolhasDaPorta estilo={estilo} />
+            {estilo === 'elevador' && <>
+                <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />
+                {/* fundo escuro atrás da cabine: acima dela se via o avesso das tábuas */}
+                <mesh position={[0, .3, -.04]}><planeGeometry args={[1.4, 2.6]} /><meshBasicMaterial color="#1c130b" /></mesh>
+                <mesh position={[0, 0, -.01]}><planeGeometry args={[1, 1.55]} /><meshBasicMaterial map={texturaDeCabine()} color={new THREE.Color('#ffffff').multiplyScalar(1.05)} toneMapped={false} /></mesh>
+            </>}
         </group>
-        {botao && <mesh position={[.85, 1.05, 2.84]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[.07, .07, .05, 14]} /><meshStandardMaterial color="#ffd79a" emissive="#ffb347" emissiveIntensity={1.4} />
-        </mesh>}
+        <EnfeitesDaPorta estilo={estilo} botao={botao} />
         {tex && <mesh position={[0, 2.35, 2.88]}><planeGeometry args={[.5, .5]} /><meshStandardMaterial map={tex} /></mesh>}
         {/* escudos pendurados na lateral */}
         {[-1.6, 0, 1.6].map((z, i) => (
@@ -695,6 +674,7 @@ const Decoracao: React.FC = () => {
             const n = Math.round(il.r * 5);
             for (let i = 0; i < n; i++) {
                 const a = rnd() * Math.PI * 2, d = il.r * (.72 + rnd() * .24);
+                if (dentroDeCasa(il.x + Math.cos(a) * d, il.z + Math.sin(a) * d, .6)) continue;
                 l.push({ tipo: i % 7 === 0 ? 2 : i % 3 === 0 ? 0 : i % 5 === 0 ? 3 : 1, x: il.x + Math.cos(a) * d, y: il.y, z: il.z + Math.sin(a) * d, s: .6 + rnd() * .8, r: rnd() * 6 });
             }
         }
@@ -835,8 +815,7 @@ const Grama: React.FC = () => {
                     if (distTrilha(x, z) < .75) continue;
                     // nem dentro da casa nem na soleira: a lâmina atravessava o
                     // vão da porta de latão aberta (entrava no elevador)
-                    if (LUGAR_DAS_CASAS.some((l) => Math.hypot(x - l.x, z - l.z) < 2.4
-                        || Math.hypot(x - l.x - Math.sin(l.angulo) * 3.1, z - l.z - Math.cos(l.angulo) * 3.1) < 1.5)) continue;
+                    if (dentroDeCasa(x, z, .1) || LUGAR_DAS_CASAS.some((_, i) => { const p = portaNoMundo(i); return Math.hypot(x - p.x - p.fx * .5, z - p.z - p.fz * .5) < 1.2; })) continue;
                     o.position.set(x, il.y, z);
                     o.rotation.set((rnd() - .5) * .35, rnd() * Math.PI * 2, (rnd() - .5) * .35);
                     const e = alta * (.6 + rnd() * .6);
@@ -946,6 +925,7 @@ const Borda: React.FC = () => {
                 const a = i / n * Math.PI * 2 + r() * .3, d = il.r * (.9 + r() * .08);
                 const x = il.x + Math.cos(a) * d, z = il.z + Math.sin(a) * d;
                 if (distTrilha(x, z) < 1.8) continue;   // cabeceira de ponte livre
+                if (dentroDeCasa(x, z, .5)) continue;   // nada atravessando a parede do fundo
                 if (r() < .55) {
                     const e = .22 + r() * .4;
                     o.position.set(x, il.y - e * .25, z); o.rotation.set(r() * 3, r() * 3, r() * 3); o.scale.set(e * (1 + r() * .5), e * .7, e);
@@ -1034,10 +1014,10 @@ export const Floor13Mundo: React.FC<{
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
         {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
         {CASAS.map((c, i) => {
-            const l = LUGAR_DAS_CASAS[i];
+            const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
             // cada casa com seu jeito: comprimento, torção e escala próprios
-            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, l.angulo + ((i * 37) % 7 - 3) * .03, 0]} scale={[1 + (i % 3 - 1) * .08, 1 + ((i * 5) % 3 - 1) * .1, 1 + ((i * 3) % 4) * .09]}>
-                <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao}
+            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
+                <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao} estilo={ESTILO_DA_CASA[i]}
                     portaRef={i === CASA_CERTA ? portaCertaRef : undefined} />
             </group>;
         })}

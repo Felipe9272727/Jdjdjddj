@@ -49,21 +49,72 @@ export function chaoEm(x: number, z: number): number | null {
 
 // ── AS CASAS ─────────────────────────────────────────────────────────────────
 export interface LugarDaCasa { x: number; z: number; y: number; angulo: number }
-/** As sete casas em leque no fundo da Ilha das Casas, portas para o centro. */
+/**
+ * As sete casas num arco de 270° em volta do terreiro da Ilha das Casas,
+ * portas para o centro; o quarto de volta aberto é o da ponte que vem da
+ * praça. (Em duas fileiras alternadas, as de trás ficavam espremidas entre as
+ * da frente: a porta delas só se via de dentro do beiral da vizinha.)
+ */
 export const LUGAR_DAS_CASAS: ReadonlyArray<LugarDaCasa> = Object.freeze(CASAS.map((_, i) => {
     const c = ilha('casas');
-    const th = Math.PI + Math.PI * (i + .5) / CASAS.length;
-    // alternando perto/longe: de longe as sete casas não viram um paredão só
-    const rr = i % 2 ? 7.4 : 9.5;
+    const th = Math.PI * .75 + Math.PI * 1.5 * i / (CASAS.length - 1);
+    const rr = 9.2;
     const x = c.x + Math.cos(th) * rr, z = c.z + Math.sin(th) * rr;
     // a porta aponta para o centro da ilha
     return { x, z, y: c.y, angulo: Math.atan2(c.x - x, c.z - z) };
 }));
+/**
+ * A forma de cada casa: o giro (a porta para o centro, com uma torção própria)
+ * e a escala (largura, altura, fundo) — cada uma com seu jeito. O desenho
+ * (Floor13Mundo), a colisão e o botão de bater leem daqui.
+ */
+export const FORMA_DAS_CASAS: ReadonlyArray<{ giro: number; escala: readonly [number, number, number] }> = Object.freeze(LUGAR_DAS_CASAS.map((l, i) => ({
+    giro: l.angulo + ((i * 37) % 7 - 3) * .03,
+    escala: [.9 + (i % 3 - 1) * .05, 1 + ((i * 5) % 3 - 1) * .08, .88 + ((i * 3) % 4) * .045] as const,
+})));
+/** Meia largura e meio fundo da casa no modelo (tools/blender/f13_casa.py: 3,4 × 5,6 m). */
+export const CASA_MEIA = Object.freeze({ x: 1.7, z: 2.8 });
+/** A porta de verdade: o centro do vão no chão e a direção para fora dela. */
+export function portaNoMundo(i: number): { x: number; z: number; fx: number; fz: number } {
+    const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
+    const fx = Math.sin(f.giro), fz = Math.cos(f.giro), d = (CASA_MEIA.z + .02) * f.escala[2];
+    return { x: l.x + fx * d, z: l.z + fz * d, fx, fz };
+}
 /** Onde se fica para "bater" numa porta: um passo à frente dela. */
 export const portaDaCasa = (i: number) => {
-    const l = LUGAR_DAS_CASAS[i];
-    return { x: l.x + Math.sin(l.angulo) * 2.6, z: l.z + Math.cos(l.angulo) * 2.6 };
+    const p = portaNoMundo(i);
+    return { x: p.x + p.fx * .8, z: p.z + p.fz * .8 };
 };
+/** (x, z) cai dentro de alguma casa (com `folga` em volta)? */
+export function dentroDeCasa(x: number, z: number, folga = 0): boolean {
+    for (let i = 0; i < LUGAR_DAS_CASAS.length; i++) {
+        const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
+        const c = Math.cos(f.giro), s = Math.sin(f.giro), dx = x - l.x, dz = z - l.z;
+        if (Math.abs(dx * c - dz * s) < CASA_MEIA.x * f.escala[0] + folga && Math.abs(dx * s + dz * c) < CASA_MEIA.z * f.escala[2] + folga) return true;
+    }
+    return false;
+}
+/**
+ * Empurra (x, z) para fora do retângulo de cada casa, com `folga` (m). A casa
+ * é comprida: um círculo que cobre a frente deixava entrar pelos lados, e um
+ * que cobre o fundo afastava da porta.
+ */
+export function foraDasCasas(x: number, z: number, folga: number): { x: number; z: number } {
+    for (let i = 0; i < LUGAR_DAS_CASAS.length; i++) {
+        const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
+        const c = Math.cos(f.giro), s = Math.sin(f.giro);
+        // no espaço da casa: u para a direita (x do modelo), v para a porta (z)
+        const dx = x - l.x, dz = z - l.z, u = dx * c - dz * s, v = dx * s + dz * c;
+        const hu = CASA_MEIA.x * f.escala[0] + folga, hv = CASA_MEIA.z * f.escala[2] + folga;
+        if (Math.abs(u) >= hu || Math.abs(v) >= hv) continue;
+        // sai pelo lado mais perto
+        const pu = hu - Math.abs(u), pv = hv - Math.abs(v);
+        let nu = u, nv = v;
+        if (pu < pv) nu = Math.sign(u || 1) * hu; else nv = Math.sign(v || 1) * hv;
+        x = l.x + nu * c + nv * s; z = l.z - nu * s + nv * c;
+    }
+    return { x, z };
+}
 
 // ── QUEM ESTÁ ONDE ───────────────────────────────────────────────────────────
 export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; ronda?: number }>> = Object.freeze({
