@@ -418,6 +418,37 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
 };
 
 /** Casa comprida viking. A porta olha para +z local. */
+/** Quando cada casa foi batida (performance.now); o Floor13 marca, a casa atende. */
+export const batidasNasCasas: Record<number, number> = {};
+/** 0 fechada … 1 aberta: abre em 0,6 s, fica aberta ~5 s, fecha em 0,8 s. */
+function aberturaDaPorta(i: number): number {
+    const t0 = batidasNasCasas[i]; if (t0 === undefined) return 0;
+    const t = (performance.now() - t0) / 1000;
+    if (t < .5) return 0;
+    if (t < 1.1) return THREE.MathUtils.smoothstep(t, .5, 1.1);
+    if (t < 6.2) return 1;
+    return 1 - THREE.MathUtils.smoothstep(t, 6.2, 7);
+}
+const MAT_VULTO = new THREE.MeshStandardMaterial({ color: '#2a1d16', roughness: .9 });
+/** O vão aceso e o morador parado nele, só enquanto a porta está aberta. */
+const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) => {
+    const g = useRef<THREE.Group>(null), luz = useRef<THREE.PointLight>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame(({ clock }) => {
+        const a = aberturaDaPorta(indice);
+        if (g.current) g.current.visible = a > .01;
+        if (luz.current) luz.current.intensity = a * (fria ? .6 : 1.6 + Math.sin(clock.elapsedTime * 11) * .25);
+        if (vao.current) { if (fria) vao.current.color.setRGB(.16 * a, .2 * a, .26 * a); else vao.current.color.setRGB(.95 * a, .5 * a, .22 * a); }
+    });
+    return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
+        <mesh position={[0, 0, -.02]}><planeGeometry args={[1.02, 1.58]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
+        {/* o vulto: ombros, cabeça, contra a luz de dentro */}
+        <group position={[.14, -.1, -.08]} scale={.8}>
+            <mesh position={[0, -.2, 0]} material={MAT_VULTO}><capsuleGeometry args={[.2, .75, 4, 10]} /></mesh>
+            <mesh position={[0, .45, 0]} material={MAT_VULTO}><sphereGeometry args={[.14, 12, 10]} /></mesh>
+        </group>
+        <pointLight ref={luz} position={[0, .3, .4]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
+    </group>;
+};
 /** Forro escuro por dentro das casas (fecha as frestas entre as tábuas). */
 const FORRO = new THREE.MeshStandardMaterial({ color: '#1c140e', roughness: 1, side: THREE.DoubleSide });
 /** A empena por dentro: triângulo sob a cumeeira, na frente e no fundo. */
@@ -427,7 +458,11 @@ const CasaCompridaModelo: React.FC<{
     portaRef?: React.Ref<THREE.Group>;
     /** A porta de cada casa (Floor13Portas); as de cenário são tábuas simples. */
     estilo?: EstiloDePorta;
-}> = ({ runa, fumaca = true, botao = false, escala = 1, portaRef, estilo = 'simples' }) => {
+    /** índice em CASAS: a casa pode atender quando batem */
+    indice?: number;
+}> = ({ runa, fumaca = true, botao = false, escala = 1, portaRef, estilo = 'simples', indice }) => {
+    const dobradica = useRef<THREE.Group>(null);
+    useFrame(() => { if (dobradica.current && indice !== undefined) dobradica.current.rotation.y = -1.15 * aberturaDaPorta(indice); });
     const tex = useMemo(() => (runa ? texturaRuna(runa) : null), [runa]);
     // a casca (paredes de tábuas, vigas, telhado de turfa, empenas com
     // dragões, batente entalhado) é o modelo do Blender: tools/blender/f13_casa.py
@@ -458,8 +493,13 @@ const CasaCompridaModelo: React.FC<{
             {[-.18, 0, .18].map((x, i) => <mesh key={i} position={[x, -.14 - (i % 2) * .05, .25]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.035, .22 + (i % 2) * .1, 6]} /><meshStandardMaterial color="#dff0ff" roughness={.1} transparent opacity={.85} /></mesh>)}
         </group>}
         {/* a porta: cada casa com a sua (Floor13Portas) */}
-        <group ref={portaRef} position={[0, .8, 2.82]} userData={{ vivo: !!portaRef }}>
-            <FolhasDaPorta estilo={estilo} />
+        {/* quem mora atende: a folha abre na dobradiça, a luz da lareira
+            sai pela fresta e um vulto fica no vão enquanto fala */}
+        {indice !== undefined && estilo !== 'elevador' && <Atende indice={indice} fria={!fumaca} />}
+        <group ref={portaRef} position={[0, .8, 2.82]} userData={{ vivo: !!portaRef || indice !== undefined }}>
+            {indice !== undefined && estilo !== 'elevador'
+                ? <group ref={dobradica} position={[-.525, 0, 0]}><group position={[.525, 0, 0]}><FolhasDaPorta estilo={estilo} /></group></group>
+                : <FolhasDaPorta estilo={estilo} />}
             {estilo === 'elevador' && <>
                 <pointLight position={[0, .2, .6]} color="#ffcf8a" intensity={0} distance={5} name="luzDeDentro" />
                 {/* fundo escuro atrás da cabine: acima dela se via o avesso das tábuas */}
@@ -1145,7 +1185,7 @@ export const Floor13Mundo: React.FC<{
             // cada casa com seu jeito: comprimento, torção e escala próprios
             return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
                 <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao} estilo={ESTILO_DA_CASA[i]}
-                    portaRef={i === CASA_CERTA ? portaCertaRef : undefined} />
+                    portaRef={i === CASA_CERTA ? portaCertaRef : undefined} indice={i} />
             </group>;
         })}
         {/* duas casas de moradores na praça, só de cenário */}

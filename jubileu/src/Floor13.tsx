@@ -21,7 +21,7 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
-import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS } from './Floor13Mundo';
+import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
@@ -1077,6 +1077,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 // chuva de runas, a cabine do elevador — e só então onExit
                 saidaT0.current = performance.now();
             } else {
+                // quem mora atende: a porta entreabre (a trancada da casa certa não)
+                if (a.i !== CASA_CERTA) batidasNasCasas[a.i] = performance.now();
                 abrirDialogo(r.falas, null);
                 // porta errada: a vila repara. Na terceira, todo mundo para o
                 // que está fazendo e encara o forasteiro, em silêncio
