@@ -19,6 +19,9 @@ import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, po
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
+import { Viking } from './Floor13Povo';
+import { NPCS } from './f13Lore';
+import type { EstadoVisualNpc } from './Floor13Gente';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** Funde o que está parado debaixo deste grupo depois de montado (ver f13Fundir). */
@@ -430,9 +433,15 @@ function aberturaDaPorta(i: number): number {
     if (fim === undefined || fim < t0) return abre;
     return abre * (1 - THREE.MathUtils.smoothstep((agora - fim) / 1000, .4, 1.2));
 }
+/** Quem atende em cada casa: um corpo do elenco com a roupa da casa (a casa vazia, ᚷ, não tem ninguém). */
+const MORADOR: ReadonlyArray<(typeof NPCS)[number] | null> = (() => {
+    const de = (id: string, tunica: string) => { const n = NPCS.find((k) => k.id === id)!; return { ...n, tunica, id: n.id }; };
+    return [de('torvald', '#6b5a3a'), de('ulfgar', '#4a5a6e'), de('ragnhild', '#5a4a5e'), null, de('brokk', '#7a4a2e'), de('sigrun', '#2a2622'), null];
+})();
 const MAT_VULTO = new THREE.MeshStandardMaterial({ color: '#2a1d16', roughness: .9 });
 /** O vão aceso e o morador parado nele, só enquanto a porta está aberta. */
 const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) => {
+    const estadoMorador = useRef<EstadoVisualNpc>({ olharPara: null, falando: true, possessao: 0, caido: false });
     const g = useRef<THREE.Group>(null), luz = useRef<THREE.PointLight>(null), vao = useRef<THREE.MeshBasicMaterial>(null);
     useFrame(({ clock }) => {
         const a = aberturaDaPorta(indice);
@@ -443,11 +452,8 @@ const Atende: React.FC<{ indice: number; fria: boolean }> = ({ indice, fria }) =
     return <group ref={g} position={[0, .8, 2.7]} visible={false} userData={{ vivo: true }}>
         {/* o fundo do vestíbulo: o brilho da lareira na parede (ou nada, na casa fria) */}
         <mesh position={[0, .05, -1.13]}><planeGeometry args={[1.4, 1.7]} /><meshBasicMaterial ref={vao} color="#000000" toneMapped={false} /></mesh>
-        {/* o vulto: ombros, cabeça, contra a luz de dentro */}
-        <group position={[.14, -.12, -.45]} scale={.82}>
-            <mesh position={[0, -.2, 0]} material={MAT_VULTO}><capsuleGeometry args={[.2, .75, 4, 10]} /></mesh>
-            <mesh position={[0, .45, 0]} material={MAT_VULTO}><sphereGeometry args={[.14, 12, 10]} /></mesh>
-        </group>
+        {/* quem mora: gente de verdade (o mesmo elenco da vila, com a roupa da casa), de frente para a porta, falando */}
+        {MORADOR[indice] && <Viking ficha={MORADOR[indice]!} x={.12} y={-.8} z={-.45} estado={estadoMorador} semRecorte escalaExtra={.92} />}
         <pointLight ref={luz} position={[0, .1, -.9]} color={fria ? '#9ab4d8' : '#ffb060'} intensity={0} distance={4} />
     </group>;
 };

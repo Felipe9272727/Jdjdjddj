@@ -34,6 +34,7 @@ const ESCALA = 1.1;
 const JEITO: Readonly<Record<string, 'cruzados' | 'cintura' | 'costas' | 'solto'>> = {
     sigrun: 'costas', torvald: 'costas',
 };
+const _mundo = new THREE.Vector3();
 const SOMBRA = (() => {
     const c = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (!c) return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
@@ -105,11 +106,13 @@ interface Props {
     /** Velocidade angular da ronda (rad/s) e fase inicial. */
     rondaVel?: number; rondaFase?: number;
     escalaExtra?: number;
+    /** Dentro de outro objeto (o morador no vão da porta): sem recorte por distância/tela, que conta em espaço do mundo. */
+    semRecorte?: boolean;
     /** Onde o morador está agora (a ronda anda): quem o procura lê daqui. */
     onde?: React.MutableRefObject<{ x: number; z: number }>;
 }
 
-const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1, rondaVel = .45, rondaFase = 0, onde }) => {
+const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, controle, marca, sentado, escalaExtra = 1, rondaVel = .45, rondaFase = 0, onde, semRecorte }) => {
     const url = MODELOS[ficha.id] ?? MODELOS.torvald;
     const { scene } = useGLTF(url);
     // cada morador tem o próprio esqueleto e os próprios materiais (tingidos)
@@ -290,13 +293,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         g.scale.setScalar(escala);
         // longe da câmera ninguém nota o esqueleto: além de 28 m só se move
         // a cada 4 quadros, além de 70 m nem é desenhado
-        const dist = g.position.distanceTo(camera.position);
+        const dist = semRecorte ? g.getWorldPosition(_mundo).distanceTo(camera.position) : g.position.distanceTo(camera.position);
         // fora do quadro não se desenha nem se anima (a sombra de quem está
         // colado atrás da câmera ainda conta: perto, fica visível)
         _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
         _frustum.setFromProjectionMatrix(_pv);
         _esfera.center.set(g.position.x, g.position.y + escala * .9, g.position.z); _esfera.radius = escala * 1.3;
-        g.visible = !!sentado || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
+        g.visible = !!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
         if (!g.visible) return;
         const perto = dist < DIST_DETALHE;
         for (const m of detalhes) m.visible = perto;
