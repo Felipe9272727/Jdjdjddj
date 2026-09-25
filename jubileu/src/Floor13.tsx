@@ -1213,7 +1213,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     <Bloom mipmapBlur intensity={.35} luminanceThreshold={1} luminanceSmoothing={.25} />
                     {/* a entidade drena a cor do mundo e suja a imagem */}
                     <HueSaturation saturation={glitch ? -.65 : .14} />
-                    <ChromaticAberration offset={glitch ? new THREE.Vector2(.004, .002) : new THREE.Vector2(0, 0)} />
+                    <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .06 : 0} />
                     <Vignette eskil={false} offset={.3} darkness={glitch ? .75 : .45} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
