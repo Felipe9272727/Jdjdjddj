@@ -255,6 +255,7 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
         const t = clock.elapsedTime;
         const pj = ondeEstaOJogador();
         const pjx = pj.x, pjz = pj.z;
+        if (import.meta.env.DEV) ((window as unknown as { __gatos?: Ctx[] }).__gatos ??= [])[f.id] = e;
 
         switch (e.estado) {
 

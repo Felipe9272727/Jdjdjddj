@@ -959,6 +959,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             porta: (i: number) => portaNoMundo(i),
             alvo: () => chaveDoAlvo(alvoAtual.current),
             busca: () => ({ estado: busca.estado, entregas: busca.entregas, g: busca.graveto.toArray().map((v) => +v.toFixed(2)) }),
+            peixe: (x: number, z: number) => { largarPeixe(x, z); return { alimentados: gatos.alimentados, ultimo: gatos.ultimoNome }; },
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz); const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0; },
         };
     }, []);
