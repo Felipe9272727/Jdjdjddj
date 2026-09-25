@@ -216,8 +216,8 @@ const Cabine: React.FC<{ tRef: React.MutableRefObject<number>; ajuste: React.Mut
                 {/* o forro de couro abaixo do painel, até a borda da tela */}
                 {/* desce até bem abaixo da borda da tela em pé (sobrava uma faixa preta
                     vazia): couro acolchoado com costura e o manche saindo dele */}
-                <mesh position={[0, -.55, -.01]}><boxGeometry args={[.84, .94, .04]} /><meshStandardMaterial color="#3a261a" {...pbr('musgo', .5, .6)} roughness={.85} /></mesh>
-                {[-.26, -.46, -.66].map((y) => <mesh key={y} position={[0, y, .012]}><boxGeometry args={[.8, .006, .004]} /><meshStandardMaterial color="#c9a270" roughness={.8} /></mesh>)}
+                <mesh position={[0, -.55, -.01]}><boxGeometry args={[.84, .94, .04]} /><meshStandardMaterial color="#4a2e1c" roughness={.55} metalness={0} /></mesh>
+                {[-.26, -.46, -.66].map((y) => <mesh key={y} position={[0, y, .022]}><boxGeometry args={[.8, .012, .006]} /><meshStandardMaterial color="#c9a270" roughness={.8} /></mesh>)}
                 <mesh position={[0, -.42, .06]} rotation={[.5, 0, 0]}><cylinderGeometry args={[.012, .016, .26, 10]} /><meshStandardMaterial color="#2a2622" metalness={.6} roughness={.4} /></mesh>
                 <mesh position={[0, -.31, .12]}><sphereGeometry args={[.028, 12, 10]} /><meshStandardMaterial color="#4a3222" roughness={.6} /></mesh>
                 <Relogio x={-.12} r={.045} rotulo="ALT" marcas={10} agulha={alt} />
