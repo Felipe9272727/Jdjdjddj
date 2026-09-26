@@ -615,11 +615,39 @@ const PreCompila: React.FC<{ aoTerminar: () => void }> = ({ aoTerminar }) => {
     const gl = useThree((s) => s.gl), scene = useThree((s) => s.scene), camera = useThree((s) => s.camera);
     useEffect(() => {
         let vivo = true;
-        // espera um tique para o mundo montar (Suspense dos GLB) e compila tudo
-        const id = window.setTimeout(() => {
-            const fim = () => { if (vivo) aoTerminar(); };
+        // espera a cena ASSENTAR (modelos carregados: mesmo número de luzes e de
+        // malhas por meio segundo) e só então compila tudo. Compilar antes de a
+        // última luz nascer (a do Halvard vem com o modelo dele) fazia o jogo
+        // recompilar todos os shaders logo depois de começar.
+        let id = 0, anterior = '', iguais = 0, voltas = 0;
+        const contar = () => { let l = 0, m = 0; scene.traverse((o) => { if ((o as THREE.Light).isLight) l++; else if ((o as THREE.Mesh).isMesh) m++; }); return `${l}:${m}`; };
+        const esperar = () => {
+            const agora = contar();
+            iguais = agora === anterior ? iguais + 1 : 0; anterior = agora; voltas++;
+            if (iguais < 5 && voltas < 80) { id = window.setTimeout(esperar, 100); return; }
+            compilar();
+        };
+        const compilar = () => {
+            const fim = () => { if (!vivo) return; aquecerSombras(); aoTerminar(); };
             (gl.compileAsync ? gl.compileAsync(scene, camera) : Promise.resolve(gl.compile(scene, camera))).then(fim, fim);
-        }, 50);
+        };
+        id = window.setTimeout(esperar, 50);
+        // o compile só vê o passe da tela: os shaders de SOMBRA (depth) de cada
+        // cabelo, barba e morador eram compilados na hora em que ele chegava a
+        // 16 m e passava a projetar sombra — uma travada por variante, no meio
+        // do jogo. Aqui, ainda na tela preta, um quadro fora da tela com tudo
+        // visível, sem recorte e projetando sombra compila todos de uma vez.
+        const aquecerSombras = () => {
+            const guardado: [THREE.Object3D, boolean, boolean, boolean][] = [];
+            scene.traverse((o) => { guardado.push([o, o.visible, o.castShadow, o.frustumCulled]); o.visible = true; o.frustumCulled = false; if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
+            const alvo = new THREE.WebGLRenderTarget(64, 64);
+            const antes = gl.getRenderTarget();
+            gl.shadowMap.needsUpdate = true;
+            scene.traverse((o) => { const l = o as THREE.DirectionalLight; if (l.isDirectionalLight && l.castShadow) l.shadow.needsUpdate = true; });
+            gl.setRenderTarget(alvo); gl.render(scene, camera); gl.setRenderTarget(antes);
+            alvo.dispose();
+            for (const [o, v, c, f] of guardado) { o.visible = v; o.castShadow = c; o.frustumCulled = f; }
+        };
         return () => { vivo = false; window.clearTimeout(id); };
     }, [gl, scene, camera, aoTerminar]);
     return null;
@@ -779,7 +807,7 @@ const Sonda: React.FC = () => {
         let luzes = 0, pele = 0;
         scene.traverseVisible((o) => { if ((o as THREE.PointLight).isPointLight) luzes++; if ((o as THREE.SkinnedMesh).isSkinnedMesh) pele++; });
         // o compositor chama render várias vezes: soma o quadro inteiro
-        (window as unknown as { __f13cena?: unknown }).__f13cena = scene;
+        (window as unknown as { __f13cena?: unknown; __f13r?: unknown }).__f13cena = scene; (window as unknown as { __f13r?: unknown }).__f13r = gl;
         gl.info.autoReset = false;
         (window as unknown as { __f13gl?: unknown }).__f13gl = { ...gl.info.render, luzes, pele, programas: gl.info.programs?.length ?? 0, px: gl.getDrawingBufferSize(new THREE.Vector2()).toArray() };
         gl.info.reset();

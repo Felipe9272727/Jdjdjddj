@@ -356,7 +356,12 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             marcaRef.current.scale.setScalar(Math.min(1, .5 + d / 30));
             marcaRef.current.position.y = 2.45 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5;
         }
-        if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 1.6 + Math.sin(t * 9) * .7 : 0;
+        if (luzVerde.current && raiz.current) {
+            const lz = luzVerde.current, r = raiz.current;
+            // segue o peito dele: 1,75 m de altura, 0,9 m à frente
+            lz.position.set(r.position.x + Math.sin(r.rotation.y) * .9 * r.scale.x, r.position.y + 1.75 * r.scale.y, r.position.z + Math.cos(r.rotation.y) * .9 * r.scale.x);
+            lz.intensity = e.possessao > 0 ? 1.6 + Math.sin(t * 9) * .7 : 0;
+        }
         if (olhos) {
             olhos.emissive.setRGB(e.possessao > 0 ? .3 : 0, e.possessao > 0 ? 2.6 : 0, e.possessao > 0 ? 1 : 0);
         }
@@ -569,16 +574,19 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         }
     });
 
-    return <group ref={raiz}>
+    return <><group ref={raiz}>
         <primitive object={modelo} />
         {marca && !controle && <group ref={marcaRef} position={[0, 2.45, 0]}>
             <mesh><octahedronGeometry args={[.09, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
         </group>}
         {!controle && <mesh position={[0, .02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.45, 20]} /></mesh>}
+    </group>
         {/* a luz verde da possessão: só quem é possuído a carrega (luz apagada
-            ainda pesa em todo shader da cena) */}
-        {ficha.id === 'halvard' && !controle && <pointLight ref={luzVerde} position={[0, 1.75, .9]} color="#3dff8a" intensity={0} distance={3.5} />}
-    </group>;
+            ainda pesa em todo shader da cena). Fica FORA do grupo do morador:
+            ele some pela distância, e luz que some muda a contagem de luzes e
+            recompila todos os shaders do jogo (uma travada a cada vez) */}
+        {ficha.id === 'halvard' && !controle && <pointLight ref={luzVerde} color="#3dff8a" intensity={0} distance={3.5} />}
+    </>;
 };
 
 /** O morador com o seu modelo; enquanto o GLB carrega, nada aparece. */
