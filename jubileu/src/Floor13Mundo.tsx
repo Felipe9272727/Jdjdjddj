@@ -1023,23 +1023,23 @@ const Trilhas: React.FC = () => {
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .45; const y = gp.getY(i); gp.setXYZ(i, gp.getX(i) * f, y > 0 ? y * (.9 + ruido(gp.getX(i) * 3, 1, gp.getZ(i) * 3) * .15) : y, gp.getZ(i) * f); }
         g.scale(.17, .045, .14); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#b3aa9c', roughness: .95 });
+        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#a39a8c', roughness: 1, envMapIntensity: .35 });
         const cores: THREE.Color[] = [];
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
         for (const t of TRILHAS) {
-            const L = t.a.distanceTo(t.b), n = Math.floor(L / .44);
+            const L = t.a.distanceTo(t.b), n = Math.floor(L / .62);
             const d = _pt.copy(t.b).sub(t.a).normalize().clone(), lado = new THREE.Vector2(-d.y, d.x);
             for (let i = 0; i <= n; i++) for (const l of [-1, 1]) {
-                const s = i * .44 + (l > 0 ? .22 : 0);
+                const s = i * .62 + (l > 0 ? .31 : 0);
                 if (s > L) continue;
                 const x = t.a.x + d.x * s + lado.x * l * (.2 + r() * .1), z = t.a.y + d.y * s + lado.y * l * (.2 + r() * .1);
                 // assentadas: a borda aparece um pouco acima da grama baixa
-                o.position.set(x, t.y + .004, z); o.rotation.set((r() - .5) * .06, r() * 3, (r() - .5) * .06);
+                o.position.set(x, t.y - .012, z); o.rotation.set((r() - .5) * .06, r() * 3, (r() - .5) * .06);
                 const e = .7 + r() * .5; o.scale.set(e, .8 + r() * .3, e * (.7 + r() * .4)); o.updateMatrix(); ms.push(o.matrix.clone());
                 // cada laje com o seu tom: musgo, ferrugem, cinza de rio
-                cores.push(new THREE.Color().setHSL(.07 + r() * .08, .08 + r() * .08, .55 + r() * .12));
+                cores.push(new THREE.Color().setHSL(.07 + r() * .08, .07 + r() * .07, .4 + r() * .1));
             }
         }
         const im = new THREE.InstancedMesh(g, m, ms.length);
