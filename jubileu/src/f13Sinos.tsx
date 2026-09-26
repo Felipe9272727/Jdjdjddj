@@ -43,7 +43,7 @@ const DIR_DA_VIGA = new THREE.Vector3(0, 0, 1);
 /** Alcance (no plano do chão) para o jogador poder tocar um sino. */
 export const ALCANCE_DO_SINO = 2.2;
 /** Segundos de brilho na porta certa quando a melodia fecha. */
-const BRILHO = 3;
+const BRILHO = 7;
 /** Chute de altura do sino grande, só até achar a malha real na cena. */
 const ALTURA_PALPITE = 3.4;
 

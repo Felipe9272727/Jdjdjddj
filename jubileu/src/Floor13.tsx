@@ -974,6 +974,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             porta: (i: number) => portaNoMundo(i),
             alvo: () => chaveDoAlvo(alvoAtual.current),
             busca: () => ({ estado: busca.estado, entregas: busca.entregas, g: busca.graveto.toArray().map((v) => +v.toFixed(2)) }),
+            melodia: () => { revelarMelodia(); return { melodia: [...sinos.melodia], lugares: LUGARES_DOS_SINOS.map((l) => [l.x, l.y, l.z]) }; },
             peixe: (x: number, z: number) => { largarPeixe(x, z); return { alimentados: gatos.alimentados, ultimo: gatos.ultimoNome }; },
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz); const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0; },
         };
@@ -1189,6 +1190,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             // a melodia certa vale uma pista: o latão (quem ainda não a tinha)
             const ganhou = !jaResolvido && sinos.resolvido && !e.pistas.has('latao');
             if (ganhou) { e.pistas.add('latao'); bump(); }
+            if (!jaResolvido && sinos.resolvido) {
+                // o olhar sobe sozinho para os sinos acesos: a recompensa acontece na tela
+                const jj = jog.current, L = LUGARES_DOS_SINOS[0], dx = L.x - jj.x, dz = L.z - jj.z;
+                yaw.current = Math.atan2(-dx, -dz); pitch.current = Math.min(.9, Math.atan2(L.y - .3 - (jj.y + 1.72), Math.max(.5, Math.hypot(dx, dz))));
+            }
             window.setTimeout(() => setAviso(ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.'), 30);
         } else if (a.tipo === 'casa') {
             const primeiraVez = !e.casasBatidas.has(a.i);

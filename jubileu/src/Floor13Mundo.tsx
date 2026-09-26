@@ -701,7 +701,7 @@ const PERFIL_DO_SINO = [[0, 0], [.2, 0], [.26, -.06], [.28, -.2], [.31, -.4], [.
  *  (só a cor emissiva muda — nada recompila). */
 const bronzeDoSino = new THREE.MeshStandardMaterial({ color: P13.latao, metalness: .85, roughness: .3, side: THREE.DoubleSide, emissive: '#000000' });
 const _brasaSino = new THREE.Color('#ffb04a');
-export function brilhoDosSinos(v: number) { bronzeDoSino.emissive.copy(_brasaSino).multiplyScalar(v * .9); }
+export function brilhoDosSinos(v: number) { bronzeDoSino.emissive.copy(_brasaSino).multiplyScalar(v * 1.2); }
 
 export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef }) => {
     const ilha = ILHAS.find((i) => i.id === 'templo')!;
