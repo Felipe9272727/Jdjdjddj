@@ -230,7 +230,7 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         {/* raízes e pedras soltas penduradas: o que diz "isto voa" */}
         {[0, 1, 2].map((k) => (
             <mesh key={k} position={[Math.cos(k * 2.1 + i) * r * .5, -r * 1.9 - k * .8, Math.sin(k * 2.1 + i) * r * .5]}>
-                <dodecahedronGeometry args={[.5 + k * .2, 0]} /><meshStandardMaterial color={P13.pedraEsc} flatShading />
+                <dodecahedronGeometry args={[.5 + k * .2, 1]} /><meshStandardMaterial color={P13.pedraEsc} {...pbr('rocha', .8, .8)} />
             </mesh>
         ))}
     </group>;
@@ -1214,13 +1214,15 @@ const Borda: React.FC = () => {
         const ip = new THREE.InstancedMesh(gp, new THREE.MeshStandardMaterial({ color: '#9a8f80', ...pbr('rocha', .6, .6) }), mp.length);
         mp.forEach((m, i) => ip.setMatrixAt(i, m));
         // moita: bolas de folhagem fundidas numa geometria só
-        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 1).translate(x, y, z));
+        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 3).translate(x, y, z));
         const gm = mergeGeometries(partes)!;
         const pm = gm.getAttribute('position');
-        for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }
+        for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22 + ruido(pm.getX(i) * 11, pm.getY(i) * 11, pm.getZ(i) * 11) * .07; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }
         gm.computeVertexNormals();
-        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#4d6e2e', roughness: .95, flatShading: true }), mm.length);
-        mm.forEach((m, i) => im.setMatrixAt(i, m));
+        // suave (facetada destoava da grama e da madeira texturizadas) e cada moita no seu verde
+        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#5a7a36', roughness: .9, ...pbr('grama', 2, .5), map: null }), mm.length);
+        const cor = new THREE.Color();
+        mm.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, cor.setHSL(.22 + r() * .07, .35 + r() * .2, .32 + r() * .14)); });
         for (const x of [ip, im]) { x.castShadow = true; x.receiveShadow = true; x.computeBoundingSphere(); }
         return [ip, im];
     }, []);
