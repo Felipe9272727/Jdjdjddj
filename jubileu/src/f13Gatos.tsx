@@ -373,8 +373,9 @@ function peixeCompartilhado() {
             geo: montarPeixe(),
             mat: new THREE.MeshStandardMaterial({
                 vertexColors: true,
-                roughness: 0.15,      // brilho de peixe molhado
-                metalness: 0.35,
+                roughness: 0.4,       // molhado, não espelhado (metal deixava cara de brinquedo de lata)
+                metalness: 0.05,
+                envMapIntensity: 0.7,
                 side: THREE.DoubleSide,   // as barbatanas são chapas de uma face só
             }),
         };
