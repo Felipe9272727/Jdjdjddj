@@ -15,6 +15,7 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
+import { FagulhasDaForja } from './f13Fagulhas';
 import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
@@ -759,6 +760,8 @@ const Forja: React.FC = () => {
             <mesh position={[0, .68, 0]} castShadow><boxGeometry args={[.22, .16, .18]} />{ferro}</mesh>
             <mesh position={[0, .81, 0]} castShadow><boxGeometry args={[.46, .1, .18]} />{ferro}</mesh>
             <mesh position={[.32, .82, 0]} rotation={[0, 0, -Math.PI / 2]} castShadow><coneGeometry args={[.07, .2, 10]} />{ferro}</mesh>
+            {/* cada martelada solta uma rajada de fagulhas da mesa (f13Fagulhas) */}
+            <FagulhasDaForja posicao={[0, .87, 0]} />
         </group>
         {/* postes de tronco com mão-francesa e o telhado de duas águas em turfa */}
         {[[-1.4, -1], [1.4, -1], [-1.4, 1.6], [1.4, 1.6]].map(([x, z]) => (
