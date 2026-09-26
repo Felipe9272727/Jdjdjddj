@@ -1,3 +1,5 @@
+import { DiveHUD } from './Floor2/DiveHUD';
+import { createFloor2Run, collectFloor2Shard, catchFloor2Player, FLOOR2_ENRAGE_AT } from './Floor2/run';
 import Floor10Desfecho from './Floor10Desfecho';
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -251,6 +253,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
             onCollectShard={onCollectShard}
             onPlayerCaught={onPlayerCaught}
             reflective={profile.atmosphere}
+            paused={isPaused || doorsClosed || timer !== null}
             monsterPositionRef={monsterPositionRef}
             monsterProximityRef={monsterProximityRef}
             berserk={berserk}
@@ -560,6 +563,7 @@ export default function App() {
   const monsterProximityRef = useRef(0);
   const monsterAmbienceRef  = useRef<ReturnType<typeof createMonsterAmbience> | null>(null);
   const [monsterDarkness, setMonsterDarkness] = useState(0);
+  const floor2RunRef = useRef(createFloor2Run());
   const [berserk, setBerserk] = useState(false);
   const [devoured, setDevoured] = useState(false); // brief death-ritual overlay
   const [teleportCutscene, setTeleportCutscene] = useState(false); // all-shards win → Floor 3
@@ -734,13 +738,18 @@ export default function App() {
   // Desktop: hold Shift to swim faster (mirrors the on-screen button).
   useEffect(() => {
     if (currentLevel !== 2) return;
-    const down = (e: KeyboardEvent) => { if (e.key === 'Shift') sprintHeldRef.current = true; };
+    const down = (e: KeyboardEvent) => { if (e.key === 'Shift' && !floor2RunRef.current.paused) sprintHeldRef.current = true; };
+    const release = () => { sprintHeldRef.current = false; };
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', release);
     const up   = (e: KeyboardEvent) => { if (e.key === 'Shift') sprintHeldRef.current = false; };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', release);
+      document.removeEventListener('visibilitychange', release);
       sprintHeldRef.current = false;
     };
   }, [currentLevel]);
@@ -874,12 +883,11 @@ export default function App() {
   // saved triggers a reset path elsewhere). 5 total shards.
   const [collectedShards, setCollectedShards] = useState<Set<number>>(new Set());
   const handleCollectShard = useCallback((i: number) => {
-    setCollectedShards((s) => {
-      if (s.has(i)) return s;          // already collected — avoid set churn
-      const next = new Set(s);
-      next.add(i);
-      return next;
-    });
+    const run = floor2RunRef.current;
+    if (!collectFloor2Shard(run, i)) return;
+    setCollectedShards(run.collected);
+    setBerserk(run.collected.size >= FLOOR2_ENRAGE_AT && run.phase === 'playing');
+    if (run.phase === 'winning') { sprintHeldRef.current = false; monsterProximityRef.current = 0; }
   }, []);
 
   // Win condition: all 5 shards → ride the elevator up to Floor 3.
@@ -889,6 +897,8 @@ export default function App() {
   const winTriggeredRef = useRef(false);
   useEffect(() => {
     if (currentLevel !== 2 || collectedShards.size < 5 || winTriggeredRef.current) return;
+    const winningRun = floor2RunRef.current;
+    if (winningRun.phase !== 'winning') return;
     winTriggeredRef.current = true;
     // 1. Triumphant chime + flash while we yank the diver up into the cabin.
     setTeleportCutscene(true);
@@ -898,6 +908,7 @@ export default function App() {
     //    same machinery as saved→2: close doors, timer=20, dest=3. At timer
     //    18 the world swaps to Floor 3; at timer 0 the doors open.
     scheduleTimeout(() => {
+      if (floor2RunRef.current !== winningRun || winningRun.phase !== 'winning') return;
       playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
       setTeleportCutscene(false);
       setDoorsClosed(true);
@@ -914,6 +925,11 @@ export default function App() {
   // starts fresh (and a full inventory doesn't instantly re-trigger the win).
   useEffect(() => {
     if (currentLevel !== 2) {
+      floor2RunRef.current = createFloor2Run();
+      staminaRef.current = 1;
+      sprintHeldRef.current = false;
+      setDevoured(false); setFishJumpscareKey(0); setTeleportCutscene(false);
+      monsterProximityRef.current = 0;
       setBerserk(false);
       winTriggeredRef.current = false;
       setCollectedShards(new Set());
@@ -2024,6 +2040,60 @@ export default function App() {
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
 
+  const handleFloor2Caught = () => {
+                const dyingRun = floor2RunRef.current;
+                if (!catchFloor2Player(dyingRun)) return;
+                sprintHeldRef.current = false;
+                setFishJumpscareKey(k => k + 1);
+                setDevoured(true);
+                playJumpscareStab(audioCtx);
+                playSharkRoar(audioCtx);
+                playJumpscareMusic(audioCtx);
+                if (monsterAmbienceRef.current) {
+                  monsterAmbienceRef.current.stop();
+                  monsterAmbienceRef.current = null;
+                }
+                setMonsterDarkness(0);
+                scheduleTimeout(() => {
+                  if (floor2RunRef.current !== dyingRun || dyingRun.phase !== 'dying') return;
+                  setDevoured(false);
+                  setFishJumpscareKey(0);
+                  setGameState('caught');
+                  setCollectedShards(new Set());
+                  playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+                  setCurrentLevel(0);
+                  setFloorReveal(true);
+                  setPendingPostDeathDialogue(true);
+                }, 2800);
+  };
+
+  const floor2Paused = currentLevel === 2 && (settingsOpen || dialogueOpen || barneyDialogueOpen || shopOpen
+    || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive
+    || teleportCutscene || devoured || doorsClosed || elevatorTimer !== null
+    || floor2RunRef.current.phase !== 'playing');
+  floor2RunRef.current.paused = currentLevel !== 2 || floor2Paused;
+  if (floor2Paused) sprintHeldRef.current = false;
+  // Development-only probe invokes the same callbacks as the scene.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as any;
+    w.__f2Test = {
+      snapshot: () => ({ level:currentLevel, phase:floor2RunRef.current.phase,
+        paused:floor2RunRef.current.paused, shards:[...floor2RunRef.current.collected],
+        berserk, stamina:staminaRef.current, destination:nextElevatorDestination,
+        timer:elevatorTimer, player:sharedPlayerPositionRef.current.toArray(),
+        monster:monsterPositionRef.current.toArray() }),
+      teleport: (x:number,y:number,z:number) => { playerPositionCmdRef.current={x,y,z}; },
+      pause: (value:boolean) => setSettingsOpen(value),
+      collect: handleCollectShard,
+      catch: handleFloor2Caught,
+      prepare: () => { setDiverPhase('done');setDiverDialogueOpen(false);setDoorsClosed(false);setElevatorTimer(null); },
+    };
+    return () => { delete w.__f2Test; };
+  });
+
+
+
   return (
     <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={() => { /* scroll-zoom disabled — first-person only (third person removed permanently) */ }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
@@ -2072,28 +2142,7 @@ export default function App() {
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} floor3CenaSemCabine={cartoonCutscene && cutsceneLine >= 1} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={() => {
-                setFishJumpscareKey(k => k + 1);
-                setDevoured(true);
-                playJumpscareStab(audioCtx);
-                playSharkRoar(audioCtx);
-                playJumpscareMusic(audioCtx);
-                if (monsterAmbienceRef.current) {
-                  monsterAmbienceRef.current.stop();
-                  monsterAmbienceRef.current = null;
-                }
-                setMonsterDarkness(0);
-                scheduleTimeout(() => {
-                  setDevoured(false);
-                  setFishJumpscareKey(0);
-                  setGameState('caught');
-                  setCollectedShards(new Set());
-                  playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
-                  setCurrentLevel(0);
-                  setFloorReveal(true);
-                  setPendingPostDeathDialogue(true);
-                }, 2800);
-              }} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={floor2Paused || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} floor3CenaSemCabine={cartoonCutscene && cutsceneLine >= 1} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={handleFloor2Caught} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
             {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
@@ -2110,7 +2159,7 @@ export default function App() {
             ))}
             {hasStarted && <Floor10Desfecho level={currentLevel} />}
             <AgenteCompanheiro level={currentLevel} doorsClosed={doorsClosed} houseDoorOpen={houseDoorOpen} paused={settingsOpen || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen} playerPositionRef={sharedPlayerPositionRef} />
-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} travado={f3EmCena} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} paused={currentLevel === 2 && (settingsOpen || teleportCutscene || devoured)} travado={f3EmCena || floor2Paused} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {/* Andar 8: direção de câmera do interrogatório/despertar/arremesso —
                 montada DEPOIS do <Player> pra sobrescrever a câmera por frame. */}
             {hasStarted && currentLevel === 8 && (
@@ -2551,19 +2600,6 @@ export default function App() {
         </div>
       )}
 
-      {/* All 5 shards collected — berserk warning banner */}
-      {hasStarted && currentLevel === 2 && berserk && (
-        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+80px)] left-1/2 -translate-x-1/2 z-[40] pointer-events-none px-3 max-w-[calc(100%-1.5rem)]">
-          <style>{`
-            @keyframes berserkPulse { 0%,100%{opacity:0.85;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
-            .berserk-banner { animation: berserkPulse 0.6s ease-in-out infinite; }
-          `}</style>
-          <div className="berserk-banner bg-red-950/95 ring-2 ring-red-500 text-red-200 px-4 py-2 rounded-lg font-black tracking-widest text-xs sm:text-sm shadow-[0_0_30px_rgba(239,68,68,0.6)] text-center">
-            ⚠ ELE SENTIU — CORRA PARA O ELEVADOR ⚠
-          </div>
-        </div>
-      )}
-
       {/* Dive-into-well — cinematic descent (2200ms total). Player is
           teleported underwater at 800ms while the screen is fully black.
           Layers: rushing speed streaks → iris tunnel closes → black hold
@@ -2633,26 +2669,8 @@ export default function App() {
         />
       )}
 
-      {/* Floor 2 shard counter — top-center HUD chip. Cyan to match the
-          shards. Pops in/out only on level 2. Includes a small "All shards
-          collected" celebratory state once you grab the 5th. */}
-      {hasStarted && currentLevel === 2 && !diverDialogueOpen && (
-        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+88px)] left-1/2 -translate-x-1/2 z-[55]
-                        bg-black/60 backdrop-blur-md border border-cyan-400/40 rounded-md
-                        px-3 py-1.5 font-mono text-cyan-200 text-sm
-                        shadow-[0_0_20px_rgba(90,216,255,0.25)] pointer-events-none select-none
-                        flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" className="text-cyan-300">
-            <polygon points="12,3 22,12 12,21 2,12" fill="currentColor" opacity="0.9" />
-          </svg>
-          <span className="tabular-nums">
-            {collectedShards.size === 5 ? (
-              <span className="text-cyan-100 font-bold">5 / 5 — TODOS COLETADOS</span>
-            ) : (
-              <>shards <span className="text-cyan-100 font-bold">{collectedShards.size} / 5</span></>
-            )}
-          </span>
-        </div>
+      {hasStarted && currentLevel === 2 && !floor2Paused && (
+        <DiveHUD collected={collectedShards} player={sharedPlayerPositionRef} heading={cameraThetaRef} berserk={berserk} />
       )}
       {botEnabled && <BotHud info={botInfo} />}
       {botEnabled && <ViewportDebug />}

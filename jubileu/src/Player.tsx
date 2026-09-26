@@ -1,3 +1,4 @@
+import { moveSwimmer } from './Floor2/swim';
 import { criarCorpo, passoDoCorpo } from './agente/agenteCorpo';
 import { F11_PLATAFORMAS } from './f11Mundo';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
@@ -370,6 +371,7 @@ interface PlayerProps {
    * bastava, porque o estrago já tinha acontecido no pool. Trava-se na origem.
    */
   travado?: boolean;
+  paused?: boolean;
   sharedPositionRef: React.MutableRefObject<Vector3>;
   sharedRotationYRef: React.MutableRefObject<number>;
   cameraThetaRef: React.MutableRefObject<number>;
@@ -390,7 +392,7 @@ interface PlayerProps {
   jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, travado = false, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, travado = false, paused = false, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -485,6 +487,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camPosRef.current.copy(camera.position);
     }
     
+    if (paused) { lookInput.current.x = 0; lookInput.current.y = 0; return; }
+
     if (onElevatorZoneChange) {
         const inside = hasWalkInElevator(currentLevel)
           && pos.current.z <= ELEVATOR_ZONE_Z
@@ -604,6 +608,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 : Math.min(1, stam + STAMINA_REGEN * safeDt);
         }
         const sprintMult = sprinting ? SWIM_SPRINT_MULT : 1;
+        const swimDelta = _v.current[6].set(0,0,0);
         if (willMove) {
             moving = true;
             const cosPhi = Math.cos(camAng.current.phi);
@@ -620,81 +625,10 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const inputMag = Math.min(1, Math.sqrt(fwd * fwd + strafe * strafe));
             const k = SPEED * 0.6 * sprintMult * safeDt * inputMag;
             // Same -fwd / -strafe sign convention as existing land code.
-            pos.current.x += (-fX * fwd - rX * strafe) * k;
-            pos.current.y += (-fY * fwd) * k;
-            pos.current.z += (-fZ * fwd - rZ * strafe) * k;
+            swimDelta.set(-fX*fwd-rX*strafe,-fY*fwd,-fZ*fwd-rZ*strafe).normalize().multiplyScalar(k);
         }
-        // Mild buoyancy — slow drift up when not pressing forward.
-        pos.current.y += 0.04 * safeDt;
-
-        // ─── Underwater rock collision (sphere vs sphere) ───────────
-        for (const rock of UW_ROCK_COLLIDERS) {
-            const dx = pos.current.x - rock.x;
-            const dy = pos.current.y - rock.y;
-            const dz = pos.current.z - rock.z;
-            const distSq = dx * dx + dy * dy + dz * dz;
-            const minDist = rock.r + 0.5; // player radius ~0.5
-            if (distSq < minDist * minDist && distSq > 0.0001) {
-                const dist = Math.sqrt(distSq);
-                const push = (minDist - dist) / dist;
-                pos.current.x += dx * push;
-                pos.current.y += dy * push;
-                pos.current.z += dz * push;
-            }
-        }
-
-        // ─── Underwater wall collision (XZ only)
-        for (const wall of CAVE_WALL_COLLIDERS) {
-            const dx = pos.current.x - wall.x;
-            const dz = pos.current.z - wall.z;
-            const distSq = dx * dx + dz * dz;
-            const minDist = wall.r + 0.5;
-            if (distSq < minDist * minDist && distSq > 0.0001) {
-                const dist = Math.sqrt(distSq);
-                const push = (minDist - dist) / dist;
-                pos.current.x += dx * push;
-                pos.current.z += dz * push;
-            }
-        }
-
-        // ─── Coral pillar collision (XZ only — pillars are tall cylinders)
-        for (const pillar of UW_PILLAR_COLLIDERS) {
-            const dx = pos.current.x - pillar.x;
-            const dz = pos.current.z - pillar.z;
-            const distSq = dx * dx + dz * dz;
-            const minDist = pillar.r + 0.5;
-            if (distSq < minDist * minDist && distSq > 0.0001) {
-                const dist = Math.sqrt(distSq);
-                const push = (minDist - dist) / dist;
-                pos.current.x += dx * push;
-                pos.current.z += dz * push;
-            }
-        }
-
-        // ─── Organic deformation collision (walls + seafloor ridges) ──
-        // The underwater walls bulge inward and the seafloor heaves up into
-        // ridges. A flat ±26 box let the player swim straight through those
-        // beautiful lumps; now we stop them at the real displaced surface,
-        // sampled from the rendered geometry. Outer ±28.5 box is a safety net
-        // for the far corners the wall profile doesn't cover.
-        if (pos.current.x < -28.5) pos.current.x = -28.5;
-        if (pos.current.x >  28.5) pos.current.x =  28.5;
-        if (pos.current.z < -28.5) pos.current.z = -28.5;
-        if (pos.current.z >  28.5) pos.current.z =  28.5;
-        resolveUWWalls(pos.current, 0.6);
-        // Ride above the seafloor ridges (but never above the hard floor plane).
-        const floorY = Math.max(-29, uwFloorHeight(pos.current.x, pos.current.z) + 0.8);
-        if (pos.current.y < floorY) pos.current.y = floorY;
-        if (pos.current.y > SWIM_THRESHOLD_Y) {
-            // Surfaced — if inside the hole, allow popping out into the cave.
-            const dxHole = pos.current.x - HOLE_CENTER_X;
-            const dzHole = pos.current.z - HOLE_CENTER_Z;
-            if (dxHole * dxHole + dzHole * dzHole < HOLE_RADIUS * HOLE_RADIUS) {
-                pos.current.y = 0.05; // step onto cave floor
-            } else {
-                pos.current.y = SWIM_THRESHOLD_Y - 0.05; // cap below cave floor
-            }
-        }
+        swimDelta.y += .04*safeDt;
+        moveSwimmer(pos.current,swimDelta,{floorHeight:uwFloorHeight,resolveWalls:resolveUWWalls});
 
         // FP-style camera (zoom is locked to 0 on level 2 by App.tsx).
         // Underwater adds a slow buoyancy sway + breathing bob to the

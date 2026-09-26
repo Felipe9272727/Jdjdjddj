@@ -4,84 +4,52 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { MeshReflectorMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
 } from './constants';
-import { WaterCeilingMaterial, UnderwaterOverlayMaterial, WaterMaterial, WellWaterMaterial } from './shaders';
+import { WaterCeilingMaterial, UnderwaterOverlayMaterial, WaterMaterial } from './shaders';
 
-// ─── WaterSurface — Gerstner wave plane ───────────────────────────────
-interface WaterSurfaceProps {
+// Circular radial grid: waves resolve across the full pool, with a pinned shoreline.
+export const WaterSurface: React.FC<{
     reflective?: boolean;
-}
-export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
+    playerPositionRef?: React.MutableRefObject<THREE.Vector3>;
+}> = ({ reflective = false, playerPositionRef }) => {
+    const geometry = useMemo(() => {
+        const g = new THREE.RingGeometry(0, HOLE_RADIUS, reflective ? 96 : 64, reflective ? 24 : 16);
+        g.rotateX(-Math.PI / 2);
+        return g;
+    }, [reflective]);
     const mat = useMemo(() => {
         const m = new (WaterMaterial as any)();
-        m.transparent = true;
-        m.depthWrite = false;
-        m.side = THREE.DoubleSide;
-        // Skip ACES tone mapping so the vivid blue palette stays bright
-        // instead of being crushed dark like the surrounding rock.
-        m.toneMapped = false;
+        m.radius = HOLE_RADIUS; m.side = THREE.DoubleSide;
         return m;
     }, []);
+    useEffect(() => () => geometry.dispose(), [geometry]);
+    useEffect(() => () => mat.dispose(), [mat]);
+    const previousY = useRef<number | null>(null);
     useFrame((state) => {
-        (mat as any).time = state.clock.elapsedTime;
+        mat.time = state.clock.elapsedTime;
+        const p = playerPositionRef?.current;
+        if (!p) return;
+        if (previousY.current !== null && (p.y-WATER_LEVEL_Y)*(previousY.current-WATER_LEVEL_Y) < 0
+            && Math.hypot(p.x-HOLE_CENTER_X,p.z-HOLE_CENTER_Z) < HOLE_RADIUS) {
+            mat.impactX=p.x-HOLE_CENTER_X; mat.impactZ=p.z-HOLE_CENTER_Z; mat.impactAt=mat.time;
+        }
+        previousY.current=p.y;
     });
-    return (
-        <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
-            {reflective && (
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]}>
-                    <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05]} />
-                    <MeshReflectorMaterial
-                        blur={[200, 60]}
-                        resolution={768}
-                        mixBlur={0.7}
-                        mixStrength={2.2}
-                        roughness={0.35}
-                        depthScale={0.6}
-                        minDepthThreshold={0.3}
-                        maxDepthThreshold={1.4}
-                        color="#0e3a63"
-                        metalness={0.55}
-                        mirror={0.95}
-                    />
-                </mesh>
-            )}
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 64, 64]} />
-                <primitive object={mat} attach="material" />
-            </mesh>
-        </group>
-    );
+    return <mesh name="floor2-water" position={[HOLE_CENTER_X,WATER_LEVEL_Y,HOLE_CENTER_Z]} geometry={geometry}>
+        <primitive object={mat} attach="material" />
+    </mesh>;
 };
 
-// ─── WellShaftWater — animated water on the well shaft walls ──────────
-// Replaces the rock-textured shaft cylinder so the inside of the well reads
-// as moving water from any angle. BackSide cylinder, opaque, sized just
-// inside the rock shaft.
-export const WellShaftWater: React.FC = () => {
-    const mat = useMemo(() => {
-        const m = new (WellWaterMaterial as any)();
-        m.side = THREE.BackSide;
-        m.depthWrite = true;
-        m.transparent = false;
-        m.toneMapped = false;
-        return m;
-    }, []);
-    useFrame((state) => {
-        (mat as any).time = state.clock.elapsedTime;
-    });
-    return (
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
-            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 1, true]} />
-            <primitive object={mat} attach="material" />
-        </mesh>
-    );
-};
+// Wet masonry above the surface; the water no longer climbs the shaft walls.
+export const WellShaftWater: React.FC = () => <mesh position={[HOLE_CENTER_X,WATER_LEVEL_Y/2,HOLE_CENTER_Z]}>
+    <cylinderGeometry args={[HOLE_RADIUS-.01,HOLE_RADIUS-.01,Math.abs(WATER_LEVEL_Y),64,1,true]} />
+    <meshStandardMaterial color="#253b3b" roughness={.31} metalness={.12} side={THREE.BackSide} />
+</mesh>;
 
 // ─── WaterCeilingDisc — opaque BackSide disc with ripple shader ───────
 export const WaterCeilingDisc: React.FC = () => {
@@ -114,18 +82,20 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
 
     useEffect(() => {
         const prev = scene.background;
+        const previousFog = scene.fog;
+        if (!(scene.fog instanceof THREE.Fog)) scene.fog = new THREE.Fog('#0e0a08', 8, 70);
         scene.background = new THREE.Color('#0e0a08');
-        return () => { scene.background = prev; };
+        return () => { scene.background = prev; scene.fog = previousFog; };
     }, [scene]);
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
-    const _surfaceFog = new THREE.Color('#0a2a50');
-    const _midFog = new THREE.Color('#061a3a');
-    const _deepFog = new THREE.Color('#03102a');
+    const _surfaceFog = new THREE.Color('#123d43');
+    const _midFog = new THREE.Color('#0a2933');
+    const _deepFog = new THREE.Color('#071b28');
     const _caveFog = new THREE.Color('#0e0a08');
-    const _surfaceBg = new THREE.Color('#0a2a50');
-    const _midBg = new THREE.Color('#061a3a');
-    const _deepBg = new THREE.Color('#03102a');
+    const _surfaceBg = new THREE.Color('#123d43');
+    const _midBg = new THREE.Color('#0a2933');
+    const _deepBg = new THREE.Color('#071b28');
     const _caveBg = new THREE.Color('#0e0a08');
 
     useFrame((_, dt) => {
@@ -156,7 +126,7 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
 
             const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
             const baseNear = 1.5 - t * 0.6;
-            const baseFar = 20 - t * 8;
+            const baseFar = 29 - t * 7;
             const tgtNear = Math.max(0.5, baseNear + breathe * 0.1);
             const tgtFar = Math.max(8, baseFar + breathe * 0.5);
 
@@ -183,7 +153,7 @@ export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefOb
         m.transparent = true;
         m.depthWrite = false;
         m.depthTest = false;
-        m.renderOrder = 999;
+        
         m.side = THREE.DoubleSide;
         return m;
     }, []);
@@ -200,6 +170,9 @@ export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefOb
                 m.position.copy(state.camera.position);
                 m.quaternion.copy(state.camera.quaternion);
                 m.translateZ(-0.3);
+                const camera = state.camera as THREE.PerspectiveCamera;
+                const height = 2 * .3 * Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+                m.scale.set(height*camera.aspect*1.02,height*1.02,1);
             }
         }
         (mat as any).time = state.clock.elapsedTime;
@@ -207,8 +180,8 @@ export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefOb
         (mat as any).intensity = intensityRef.current;
     });
     return (
-        <mesh ref={meshRef}>
-            <planeGeometry args={[1.6, 1.6]} />
+        <mesh ref={meshRef} renderOrder={100} frustumCulled={false}>
+            <planeGeometry args={[1, 1]} />
             <primitive object={mat} attach="material" />
         </mesh>
     );

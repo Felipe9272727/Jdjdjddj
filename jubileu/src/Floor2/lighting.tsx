@@ -14,6 +14,7 @@ import {
     swimmerY,
 } from './constants';
 import { LightShaftMaterial, CausticsMaterial } from './shaders';
+import { GLOW_TEXTURE } from './geometry';
 
 // ─── BioluminescentPatches — scattered emissive sprite glow points ─────
 const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
@@ -82,10 +83,10 @@ export const BioluminescentPatches: React.FC = () => {
                 return (
                     <React.Fragment key={i}>
                         <sprite position={[x, y, z]} scale={[0.5 * scl, 0.5 * scl, 1]}>
-                            <spriteMaterial ref={(r: any) => { groupedMats.current[group] = r; }} color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                            <spriteMaterial ref={(r: any) => { groupedMats.current[group] = r; }} map={GLOW_TEXTURE} color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
                         </sprite>
                         <sprite position={[x, y, z]} scale={[2 * scl, 2 * scl, 1]}>
-                            <spriteMaterial ref={(r: any) => { groupedHalos.current[group] = r; }} color={color} transparent opacity={0.08} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                            <spriteMaterial ref={(r: any) => { groupedHalos.current[group] = r; }} map={GLOW_TEXTURE} color={color} transparent opacity={0.08} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
                         </sprite>
                     </React.Fragment>
                 );
@@ -114,11 +115,11 @@ export const UpwardLightShaft: React.FC = () => {
         const t = state.clock.elapsedTime;
         const breath = 0.85 + Math.sin(t * 0.6) * 0.12 + Math.sin(t * 1.7) * 0.05;
         (matInner as any).time = t;
-        (matInner as any).intensity = breath * 1.20;
+        (matInner as any).intensity = breath * .12;
         (matOuter as any).time = t * 0.7 + 5.0;
-        (matOuter as any).intensity = breath * 0.55;
-        if (haloRef.current) haloRef.current.opacity = 0.22 + breath * 0.08;
-        if (topGlowRef.current) topGlowRef.current.opacity = 0.10 + breath * 0.06;
+        (matOuter as any).intensity = breath * .045;
+        if (haloRef.current) haloRef.current.opacity = 0.035 + breath * 0.018;
+        if (topGlowRef.current) topGlowRef.current.opacity = 0.012 + breath * 0.007;
     });
     return (
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
@@ -131,10 +132,10 @@ export const UpwardLightShaft: React.FC = () => {
                 <primitive object={matOuter} attach="material" />
             </mesh>
             <sprite position={[0, 0.08, 0]} scale={[6, 6, 1]}>
-                <spriteMaterial ref={haloRef} color="#a8e8ff" transparent opacity={0.28} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                <spriteMaterial map={GLOW_TEXTURE} ref={haloRef} color="#a8e8ff" transparent opacity={0.28} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
             <sprite position={[0, 7.6, 0]} scale={[4, 1.8, 1]}>
-                <spriteMaterial ref={topGlowRef} color="#9ad8ee" transparent opacity={0.14} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                <spriteMaterial map={GLOW_TEXTURE} ref={topGlowRef} color="#9ad8ee" transparent opacity={0.14} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
         </group>
     );
@@ -178,32 +179,32 @@ export const UnderwaterLighting: React.FC<{
     const lastUpdateRef = useRef(0);
 
     useFrame((state, dt) => {
-        const safeDt = Math.min(dt, 0.033);
         const y = playerPositionRef.current?.y ?? 0;
         swimmerY.current = y;
 
         // Throttle color lerps to ~10Hz (update every 0.1s)
         lastUpdateRef.current += dt;
         if (lastUpdateRef.current < 0.1) return;
+        const elapsed = Math.min(lastUpdateRef.current, .25);
         lastUpdateRef.current = 0;
 
         const tWater = Math.max(0, Math.min(1, (SWIM_THRESHOLD_Y - y) / 5));
         const depth = Math.max(0, Math.min(1, -y / 29));
 
-        const k = Math.min(1, 8 * safeDt);
+        const k = 1 - Math.exp(-8 * elapsed);
 
         if (ambientRef.current) {
             _ambTmp.copy(_ambCave).lerp(_ambWater, tWater);
             ambientRef.current.color.lerp(_ambTmp, k);
             // Cave is very dark — NV goggles are the primary light source.
             // Underwater slightly brighter (bioluminescence + caustics).
-            const tgtInt = 0.08 + tWater * 0.52;  // brighter underwater so environment is visible
+            const tgtInt = 0.32 + tWater * 0.43;  // brighter underwater so environment is visible
             ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
         }
         if (hemiRef.current) {
             _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
             hemiRef.current.color.lerp(_hemiTmp, k);
-            const tgtInt = 0.06 + tWater * 0.18;  // stronger hemisphere fill underwater
+            const tgtInt = 0.20 + tWater * 0.18;  // stronger hemisphere fill underwater
             hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
         }
         if (dirRef.current) {
@@ -253,9 +254,19 @@ export const CaveIBL: React.FC = () => {
         pmrem.compileEquirectangularShader();
         const room = RoomEnvironment();
         const envRT = pmrem.fromScene(room, 0.04);
+        const previousEnvironment = scene.environment;
+        const previousIntensity = scene.environmentIntensity;
         scene.environment = envRT.texture;
+        scene.environmentIntensity = .24;
         return () => {
-            scene.environment = null;
+            scene.environment = previousEnvironment;
+            scene.environmentIntensity = previousIntensity;
+            room.traverse(object => {
+                if (!(object instanceof THREE.Mesh)) return;
+                object.geometry.dispose();
+                const materials = Array.isArray(object.material) ? object.material : [object.material];
+                materials.forEach(material => material.dispose());
+            });
             envRT.dispose();
             pmrem.dispose();
         };
