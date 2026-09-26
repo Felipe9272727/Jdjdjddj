@@ -1221,7 +1221,19 @@ export const TOCHAS = [
     [3.5, 0, 17], [-3.5, 0, 17], [3, 0, -.5], [-3, 0, -.5], [3.6, 3, -12.3], [-3.6, 3, -12.3],
     [-15, 1, 6.5], [17.4, 2, 1.2], [-5, 3, -30],
 ] as const;
-/** Tochas nas bordas dos caminhos: chama em sprite, luz que tremula. */
+/** Halo das chamas: um degradê radial feito uma vez, somado à cena. */
+const texHaloTocha = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d')!, gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,190,110,.9)'); gr.addColorStop(.35, 'rgba(255,140,60,.35)'); gr.addColorStop(1, 'rgba(255,120,40,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const matMiolo = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffc255').multiplyScalar(1.5), toneMapped: false });
+const matEnvelope = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8a2a').multiplyScalar(1.3), toneMapped: false, transparent: true, opacity: .75, depthWrite: false });
+const matHalo = new THREE.SpriteMaterial({ map: texHaloTocha, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: .8 });
+
+/** Tochas nas bordas dos caminhos: chama em duas camadas com halo, luz que tremula. */
 const Tochas: React.FC = () => {
     const lugares = TOCHAS;
     const luzes = useRef<(THREE.PointLight | null)[]>([]);
@@ -1231,14 +1243,21 @@ const Tochas: React.FC = () => {
         lugares.forEach((_, i) => {
             const f = .75 + Math.sin(t * 11 + i * 3) * .15 + Math.sin(t * 23 + i) * .1;
             if (luzes.current[i]) luzes.current[i]!.intensity = 2.2 * f;
-            if (chamas.current[i]) chamas.current[i]!.scale.set(1, f * 1.2, 1);
+            const ch = chamas.current[i];
+            if (ch) { ch.scale.set(1 + Math.sin(t * 17 + i) * .08, f * 1.2, 1 + Math.cos(t * 13 + i) * .08); ch.rotation.z = Math.sin(t * 7 + i * 2) * .12; }
         });
     });
     return <>{lugares.map(([x, y, z], i) => (
         <group key={i} position={[x, y, z]}>
             <mesh position={[0, .8, 0]}><cylinderGeometry args={[.05, .07, 1.6, 6]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             <mesh position={[0, 1.62, 0]}><cylinderGeometry args={[.1, .07, .14, 8]} /><meshStandardMaterial color="#3a3a3e" metalness={.6} roughness={.5} /></mesh>
-            <mesh ref={(m) => { chamas.current[i] = m; }} position={[0, 1.82, 0]} userData={{ vivo: true }}><coneGeometry args={[.09, .3, 8]} /><meshBasicMaterial color={new THREE.Color('#ffae45').multiplyScalar(2.2)} toneMapped={false} /></mesh>
+            <group ref={(m) => { chamas.current[i] = m as unknown as THREE.Mesh; }} position={[0, 1.7, 0]} userData={{ vivo: true }}>
+                {/* miolo claro e um envelope laranja maior, somado: lê como fogo, não como ponta de lápis */}
+                <mesh position={[0, .1, 0]} material={matMiolo}><sphereGeometry args={[.055, 8, 6]} /></mesh>
+                <mesh position={[0, .14, 0]} material={matMiolo}><coneGeometry args={[.045, .14, 8]} /></mesh>
+                <mesh position={[0, .13, 0]} material={matEnvelope}><coneGeometry args={[.085, .24, 10]} /></mesh>
+            </group>
+            <sprite position={[0, 1.84, 0]} scale={[.6, .6, 1]} material={matHalo} />
             {/* duas tochas acesas de verdade bastam: cada luz a mais pesa em todo shader */}
             {(i === 0 || i === 3) && <pointLight ref={(l) => { luzes.current[i] = l; }} position={[0, 1.9, 0]} color="#ff9a45" distance={6} intensity={2} />}
         </group>
