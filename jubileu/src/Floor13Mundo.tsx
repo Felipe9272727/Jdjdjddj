@@ -1140,9 +1140,10 @@ const Trilhas: React.FC = () => {
     const malha = useMemo(() => {
         const g = new THREE.DodecahedronGeometry(1, 1);
         const gp = g.getAttribute('position');
-        for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .3; gp.setXYZ(i, gp.getX(i) * f, gp.getY(i), gp.getZ(i) * f); }
-        g.scale(.16, .018, .13); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#7f7a72', roughness: .9 });
+        for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .45; const y = gp.getY(i); gp.setXYZ(i, gp.getX(i) * f, y > 0 ? y * (.75 + ruido(gp.getX(i) * 5, 1, gp.getZ(i) * 5) * .5) : y, gp.getZ(i) * f); }
+        g.scale(.17, .06, .14); g.computeVertexNormals();
+        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), color: '#c9c3b8', roughness: .85 });
+        const cores: THREE.Color[] = [];
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
         let k = 3; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
@@ -1153,14 +1154,16 @@ const Trilhas: React.FC = () => {
                 const s = i * .44 + (l > 0 ? .22 : 0);
                 if (s > L) continue;
                 const x = t.a.x + d.x * s + lado.x * l * (.2 + r() * .1), z = t.a.y + d.y * s + lado.y * l * (.2 + r() * .1);
-                // meio enterradas: só o tampo aparece, a grama come a borda
-                o.position.set(x, t.y - .012, z); o.rotation.set((r() - .5) * .08, r() * 3, (r() - .5) * .08);
-                const e = .7 + r() * .5; o.scale.set(e, 1, e * (.7 + r() * .5)); o.updateMatrix(); ms.push(o.matrix.clone());
+                // assentadas: a borda aparece um pouco acima da grama baixa
+                o.position.set(x, t.y + .004, z); o.rotation.set((r() - .5) * .16, r() * 3, (r() - .5) * .16);
+                const e = .6 + r() * .7; o.scale.set(e, .7 + r() * .6, e * (.6 + r() * .6)); o.updateMatrix(); ms.push(o.matrix.clone());
+                // cada laje com o seu tom: musgo, ferrugem, cinza de rio
+                cores.push(new THREE.Color().setHSL(.08 + r() * .12, .05 + r() * .08, .78 + r() * .18));
             }
         }
         const im = new THREE.InstancedMesh(g, m, ms.length);
-        ms.forEach((mm, i) => im.setMatrixAt(i, mm));
-        im.receiveShadow = true; im.computeBoundingSphere();
+        ms.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cores[i]); });
+        im.receiveShadow = true; im.castShadow = true; im.computeBoundingSphere();
         return im;
     }, []);
     return <primitive object={malha} />;
