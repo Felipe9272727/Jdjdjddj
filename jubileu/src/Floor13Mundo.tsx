@@ -406,7 +406,9 @@ const matFumaca = (() => {
     };
     return m;
 })();
-const Fumaca: React.FC<{ y: number }> = ({ y }) => {
+const Fumaca: React.FC<{ y: number; fase?: number }> = ({ y, fase = 0 }) => {
+    // o mesmo vento para todas, mas cada chaminé no seu ritmo (antes subiam em uníssono)
+    const ritmo = .28 + ((fase * 7.31) % 1) * .14, desvio = ((fase * 3.17) % 1) * 6;
     const N = 14;
     const malha = useMemo(() => {
         const g = geoFumaca.clone();
@@ -419,8 +421,8 @@ const Fumaca: React.FC<{ y: number }> = ({ y }) => {
     useFrame(({ clock }) => {
         const alfa = malha.geometry.getAttribute('aAlfa') as THREE.InstancedBufferAttribute;
         for (let i = 0; i < N; i++) {
-            const t = (clock.elapsedTime * .35 + i / N) % 1;
-            o.position.set(Math.sin(t * 5 + i) * .3 + t * 1.2, y + t * 5, 0);
+            const t = (clock.elapsedTime * ritmo + i / N + desvio) % 1;
+            o.position.set(Math.sin(t * 5 + i + desvio) * .3 + t * 1.2, y + t * 5, Math.cos(t * 3 + desvio) * .2);
             o.scale.setScalar(.4 + t * 1.5); o.updateMatrix();
             malha.setMatrixAt(i, o.matrix); alfa.setX(i, .6 * Math.min(1, t * 6) * (1 - t));
         }
@@ -551,7 +553,7 @@ const CasaCompridaModelo: React.FC<{
         </group>}
         {/* chaminé */}
         <mesh position={[.9, 3.2, -1.2]}><boxGeometry args={[.45, .8, .45]} /><meshStandardMaterial color="#b0a698" {...pbr('rocha', .5, .8)} /></mesh>
-        {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} /></group>}
+        {fumaca && <group position={[.9, 0, -1.2]}><Fumaca y={3.7} fase={indice ?? 0} /></group>}
         {/* chaminé fria: fuligem azulada e pingentes de gelo — lê de longe pelo contraste */}
         {!fumaca && <group position={[.9, 3.6, -1.2]}>
             <mesh><boxGeometry args={[.5, .08, .5]} /><meshStandardMaterial color="#b8d4e8" roughness={.3} /></mesh>
