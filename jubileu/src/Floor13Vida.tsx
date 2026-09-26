@@ -15,6 +15,14 @@
  * ponto do círculo de AGORA — o ângulo continua a ser calculado pela mesma
  * fórmula, então ele retoma o passeio de onde estava, sem emenda. Peixes,
  * personalidades e contadores moram em f13Gatos.tsx.
+ *
+ * Comer precisa LER no celular (antes o gato virava um borrão parado em cima
+ * do peixe): no estado 'comendo' o corpo agacha uns 4 cm e inclina a frente
+ * para o peixe, a cabeça mastiga (clipe Eating quando o GLB tem, senão o osso
+ * da cabeça/pescoço girado a cada quadro) e o rabo abana devagar; ao terminar,
+ * o gato SENTA 1,5 s e lambe o bigode (clipe Lick / Idle_2_HeadLow) antes de
+ * voltar a andar. Nada disso encosta no 'vagando' — que segue idêntico ao
+ * passeio original — e a escala do bicho não muda em momento nenhum.
  */
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -129,6 +137,36 @@ const CLIPES_DEITADO = ['Idle_2_HeadLow', 'Idle'];
 const CLIPES_ANDANDO = ['Walk', 'Gallop'];
 const CLIPES_CORRENDO = ['Gallop', 'Walk'];
 const CLIPES_COMENDO = ['Eating', 'Idle_2_HeadLow', 'Idle'];
+const CLIPES_LAMBENDO = ['Lick', 'Licking', 'Idle_2_HeadLow', 'Idle'];
+/** nomes que denunciam um clipe de mastigar (muitos GLB não têm nenhum). */
+const CLIPES_MASTIGAR = ['Eating', 'Eat', 'Chew', 'Mastig'];
+
+/** Quanto tempo o gato senta lambendo o bigode depois de comer (segundos). */
+const TEMPO_LAMBER = 1.5;
+
+/* ------------------------- ossos (animação na mão) -------------------- */
+
+// temporários de módulo: nada de alocar Quaternion/Vector no laço quente
+const _eixoX = new THREE.Vector3(1, 0, 0);
+const _qAux = new THREE.Quaternion();
+
+/**
+ * Primeiro osso cujo nome casa com uma das pistas. O exportador ora escreve
+ * "Head"/"Neck"/"Tail", ora "Bone.014": a busca é por nome, com a ordem das
+ * pistas valendo como preferência, e devolve null se não achar nenhum.
+ */
+function acharOsso(raiz: THREE.Object3D, pistas: RegExp[]): THREE.Bone | null {
+    let achado: THREE.Bone | null = null;
+    raiz.traverse((o) => {
+        if (achado) return;
+        const b = o as THREE.Bone;
+        if (!b.isBone) return;
+        for (let i = 0; i < pistas.length; i++) {
+            if (pistas[i].test(b.name)) { achado = b; return; }
+        }
+    });
+    return achado;
+}
 
 /* ======================== cachorros (só passeiam) ===================== */
 
@@ -164,7 +202,7 @@ const Bicho: React.FC<{ url: string; x: number; z: number; raio?: number; vel?: 
 
 /* ============================ os gatos ================================ */
 
-type EstadoGato = 'vagando' | 'indo' | 'comendo' | 'voltando';
+type EstadoGato = 'vagando' | 'indo' | 'comendo' | 'lambendo' | 'voltando';
 
 /**
  * Cada gato guarda exatamente o que o <Bicho> original recebia: x, z, raio,
@@ -199,6 +237,7 @@ type Ctx = {
     timer: number;
     yaw: number;
     vel: number;           // velocidade real medida → ritmo do clipe
+    agachar: number;       // 0 = em pé (passeio), 1 = agachado em cima do peixe
 };
 
 /** Move o gato (x,z) em direção a um ponto. Devolve a velocidade real (m/s). */
@@ -230,9 +269,36 @@ function pousar(e: Ctx, dt: number) {
 const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
     const { modelo, animations } = useBicho(gato, f.pelagem);
     const raiz = useRef<THREE.Group>(null!);
+    // grupo interno: é nele que o agachar/inclinar para o peixe acontece,
+    // sem mexer no position/rotation.y que o passeio original usa
+    const corpo = useRef<THREE.Group>(null!);
     const { actions } = useAnimations(animations, raiz);
     const acao = useRef<THREE.AnimationAction | null>(null);
     useEffect(() => () => { acao.current?.stop(); acao.current = null; }, []);
+
+    /* Ossos que o clipe não dá conta: cabeça/pescoço (mastigar) e rabo (abanar).
+       Procura pelo nome; guarda a pose de repouso para devolver o osso depois. */
+    const ossos = useMemo(() => {
+        const cabeca = acharOsso(modelo, [/head/i, /cabec/i, /pesco/i, /neck/i, /coluna/i, /spine/i]);
+        const rabo = acharOsso(modelo, [/tail/i, /rabo/i, /cauda/i]);
+        return {
+            cabeca,
+            rabo,
+            qCabeca: cabeca ? cabeca.quaternion.clone() : null,
+            qRabo: rabo ? rabo.quaternion.clone() : null,
+        };
+    }, [modelo]);
+
+    // o GLB traz um clipe de mastigar? (Eating / Eat / Chew…) Se não trouxer,
+    // é o osso da cabeça que mastiga, girado a cada quadro.
+    const temClipeMastigar = useMemo(
+        () => !!acharClipe(actions as unknown as Acoes, CLIPES_MASTIGAR),
+        [actions],
+    );
+
+    // marcas de "eu mexi neste osso no quadro anterior" (para devolvê-lo ao repouso)
+    const tocouCabeca = useRef(false);
+    const tocouRabo = useRef(false);
 
     const e = useMemo<Ctx>(() => {
         // começa onde o círculo o põe em t=0 (o useFrame corrige no 1º quadro)
@@ -246,6 +312,7 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
             timer: 0,
             yaw: f.raio > 0 ? -a0 : f.fase,
             vel: f.raio > 0 ? f.vel : 0,
+            agachar: 0,
         };
     }, [f]);
 
@@ -309,7 +376,10 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                 break;
             }
 
-            /* ------------------------------------------------------- comendo */
+            /* ------------------------------------------------------- comendo
+               Aqui o gato tem de LER: agacha (o grupo desce), inclina a frente
+               para o peixe, mastiga e abana o rabo devagar. O agachar é suave
+               (e.agachar) para não dar tranco. */
             case 'comendo': {
                 e.vel += (0 - e.vel) * Math.min(1, 12 * dt);
                 const p = e.peixe;
@@ -332,8 +402,22 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                     consumirPeixe(p);        // sai do chão, conta alimentados
                     marcarComeu(f.id);       // conta os gatos distintos satisfeitos
                     e.peixe = null;
-                    e.estado = 'voltando';
+                    // saciado: senta 1,5 s e lambe o bigode antes de voltar a andar
+                    e.estado = 'lambendo';
+                    e.timer = TEMPO_LAMBER;
                 }
+                break;
+            }
+
+            /* ------------------------------------------------------ lambendo
+               Os 1,5 s de gato satisfeito: parado no lugar, clipe de língua
+               (Lick / Idle_2_HeadLow) e o rabo ainda abanando. Só depois é que
+               ele volta a andar (Walk) até o círculo. */
+            case 'lambendo': {
+                e.vel += (0 - e.vel) * Math.min(1, 12 * dt);
+                pousar(e, dt);
+                e.timer -= dt;
+                if (e.timer <= 0) e.estado = 'voltando';
                 break;
             }
 
@@ -399,6 +483,9 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
             case 'comendo':
                 clipes = CLIPES_COMENDO;
                 break;
+            case 'lambendo':
+                clipes = CLIPES_LAMBENDO;      // lambe o bigode no ritmo do clipe
+                break;
             case 'vagando':
                 if (f.parado) {
                     clipes = f.parado === 'Idle_2_HeadLow' ? CLIPES_DEITADO : CLIPES_PARADO;
@@ -431,13 +518,55 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
             }
         }
 
+        /* ---------------- mastigar, abanar o rabo e agachar ----------------
+           Só com o gato no peixe. Fora daí nada é tocado, então o 'vagando'
+           continua idêntico ao passeio original. Roda depois do mixer (o
+           useAnimations assina o useFrame antes deste), então o que se escreve
+           no osso vale para o quadro. Sem alocação: só os temporários de cima. */
+        const noPeixe = e.estado === 'comendo' || e.estado === 'lambendo';
+        const mastigando = e.estado === 'comendo' && !temClipeMastigar;
+
+        if (ossos.cabeca && ossos.qCabeca) {
+            if (mastigando) {
+                // bob curto e rápido do queixo (o clipe Idle_2_HeadLow/Idle não mastiga)
+                _qAux.setFromAxisAngle(_eixoX, Math.sin(t * 26) * .10 + .05);
+                ossos.cabeca.quaternion.copy(ossos.qCabeca).multiply(_qAux);
+                tocouCabeca.current = true;
+            } else if (tocouCabeca.current) {
+                ossos.cabeca.quaternion.copy(ossos.qCabeca);   // devolve o osso aos clipes
+                tocouCabeca.current = false;
+            }
+        }
+        if (ossos.rabo && ossos.qRabo) {
+            if (noPeixe) {
+                // rabo balança devagar, de gato contente
+                _qAux.setFromAxisAngle(_eixoX, Math.sin(t * 2.1) * .22);
+                ossos.rabo.quaternion.copy(ossos.qRabo).multiply(_qAux);
+                tocouRabo.current = true;
+            } else if (tocouRabo.current) {
+                ossos.rabo.quaternion.copy(ossos.qRabo);
+                tocouRabo.current = false;
+            }
+        }
+
+        // agacha ~4 cm e inclina a frente para o peixe (some sozinho no passeio)
+        const alvoAgachar = e.estado === 'comendo' ? 1 : e.estado === 'lambendo' ? .6 : 0;
+        e.agachar += (alvoAgachar - e.agachar) * Math.min(1, 7 * dt);
+        const c = corpo.current;
+        if (c) {
+            c.position.y = -.04 * e.agachar;   // o corpo desce
+            c.rotation.x = .24 * e.agachar;    // o focinho desce para o peixe
+        }
+
         o.position.copy(e.pos);
         o.rotation.y = e.yaw;
     });
 
     return (
         <group ref={raiz} position={[f.x, f.y ?? 0, f.z]}>
-            <primitive object={modelo} />
+            <group ref={corpo}>
+                <primitive object={modelo} />
+            </group>
         </group>
     );
 };
