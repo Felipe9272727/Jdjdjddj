@@ -24,6 +24,7 @@ import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
 import { GatosDaVila, gatos, largarPeixe } from './f13Gatos';
 import { forja } from './f13Fagulhas';
+import { GanchoDaChegada } from './f13Chegada';
 import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
@@ -929,6 +930,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const erradas = useRef(0);
     const gatosVistos = useRef(0);
+    // a chegada (f13Chegada): o shiba puxa o hóspede para a vila, uma vez, ao fim da queda
+    const [chegou, setChegou] = useState(false);
+    useEffect(() => { if (fase === 'explorar') setChegou(true); }, [fase]);
     // um gato comeu: conta no aviso (o estado dos gatos mora fora do React)
     useEffect(() => { gatos.alimentados = 0; const id = window.setInterval(() => {
         if (gatos.alimentados === gatosVistos.current) return;
@@ -1350,6 +1354,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <GatosDaVila jog={jog} />
                 <SinosDaTorre />
                 <OuvidoDaForja />
+                <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
