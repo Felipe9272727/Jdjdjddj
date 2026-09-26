@@ -1268,7 +1268,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         bump();
     }, [alvo, fase, abrirDialogo, achadas, onExit, comecarEntidade]);
 
-    useEffect(() => { if (!aviso) return; const id = window.setTimeout(() => setAviso(null), 3200); return () => window.clearTimeout(id); }, [aviso]);
+    // o aviso fica o tempo de ler: 2,4 s mais ~45 ms por letra (até 6,5 s)
+    useEffect(() => { if (!aviso) return; const id = window.setTimeout(() => setAviso(null), Math.min(6500, 2400 + aviso.length * 45)); return () => window.clearTimeout(id); }, [aviso]);
 
     // ── ENTRADA: teclado, joystick à esquerda, câmera à direita ──────────
     useEffect(() => {

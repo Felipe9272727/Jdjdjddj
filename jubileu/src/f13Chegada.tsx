@@ -91,7 +91,7 @@ interface Passo {
 
 const PASSOS: ReadonlyArray<Passo> = Object.freeze([
     { teto: 0, aviso: 'Um cão vem correndo pelo feno, rabo em pé, com um graveto na boca.', arremesso: -1, perto: -1 },
-    { teto: 3.5, aviso: 'Ele larga o graveto aos seus pés… e pega de volta, e dispara rumo à vila.', arremesso: 0, perto: -1 },
+    { teto: 2, aviso: 'Ele larga o graveto aos seus pés… e pega de volta, e dispara rumo à vila.', arremesso: 0, perto: -1 },
     { teto: TETO_1, aviso: 'O shiba late lá adiante, no caminho. Quer que você vá junto.', arremesso: 1, perto: 0 },
     { teto: TETO_2, aviso: 'Da praça vêm gritos de criança: “Caiu um! Caiu um no feno!”', arremesso: 2, perto: 1 },
     { teto: TETO_3, aviso: 'A vila está logo ali. Alguém ali deve saber o que é este lugar.', arremesso: -1, perto: 2 },
