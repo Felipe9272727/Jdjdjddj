@@ -118,6 +118,8 @@ export const GanchoDaChegada: React.FC<{
     useFrame(() => {
         if (!ativo) return;
         const p = jog.current;
+        // quem já saiu do pouso não precisa ser puxado: o gancho se aposenta
+        if (passo.current < 0 && Math.hypot(p.x - INICIO.x, p.z - INICIO.z) > 12) { passo.current = PASSOS.length; return; }
         const agoraS = performance.now() / 1000;
         if (import.meta.env.DEV) (window as unknown as { __chegada?: unknown }).__chegada = { passo: passo.current, t: t.current, arremessar: !!busca.arremessar };
 

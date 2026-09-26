@@ -424,9 +424,9 @@ const Fumaca: React.FC<{ y: number; fase?: number }> = ({ y, fase = 0 }) => {
         const alfa = malha.geometry.getAttribute('aAlfa') as THREE.InstancedBufferAttribute;
         for (let i = 0; i < N; i++) {
             const t = (clock.elapsedTime * ritmo + i / N + desvio) % 1;
-            o.position.set(Math.sin(t * 5 + i + desvio) * .3 + t * 1.2, y + t * 5, Math.cos(t * 3 + desvio) * .2);
-            o.scale.setScalar(.4 + t * 1.5); o.updateMatrix();
-            malha.setMatrixAt(i, o.matrix); alfa.setX(i, .6 * Math.min(1, t * 6) * (1 - t));
+            o.position.set(Math.sin(t * 5 + i + desvio) * (.2 + t * .5) + t * t * 2.2, y + t * 4.6, Math.cos(t * 3 + i + desvio) * (.15 + t * .4));
+            o.scale.setScalar(.35 + t * 2.1); o.updateMatrix();
+            malha.setMatrixAt(i, o.matrix); alfa.setX(i, .42 * Math.min(1, t * 6) * (1 - t) * (1 - t));
         }
         malha.instanceMatrix.needsUpdate = true; alfa.needsUpdate = true;
     });
