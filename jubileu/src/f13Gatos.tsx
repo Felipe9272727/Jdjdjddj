@@ -622,8 +622,8 @@ export const GatosDaVila: React.FC<{ jog: Jog }> = ({ jog }) => {
             {listaPeixes.map((p) => (
                 // p.pos guarda o ponto de apoio no chão: o desenho sobe o peixe
                 // até o ventre encostar, para ele não ficar meio enterrado
-                <group key={p.id} position={[p.pos.x, p.pos.y + 0.066, p.pos.z]}>
-                    <Peixe yaw={p.yaw} />
+                <group key={p.id} position={[p.pos.x, p.pos.y + 0.025, p.pos.z]}>
+                    <Peixe yaw={p.yaw} rolagem={Math.PI / 2} />
                 </group>
             ))}
             <PeixeNaMao camera={camera} />
