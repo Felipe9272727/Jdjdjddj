@@ -1147,6 +1147,16 @@ function distTrilha(x: number, z: number): number {
     }
     return m;
 }
+/** Degradê radial (branco no meio, preto na borda): borda macia para a terra sob as lajes. */
+let _bordaMacia: THREE.Texture | null = null;
+function texBordaMacia() {
+    if (_bordaMacia) return _bordaMacia;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d')!, gr = g.createRadialGradient(32, 32, 8, 32, 32, 32);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(.55, '#bbb'); gr.addColorStop(1, '#000');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return (_bordaMacia = new THREE.CanvasTexture(c));
+}
 /** As lajes das trilhas: pedras chatas instanciadas, duas por passo, desencontradas. */
 const Trilhas: React.FC = () => {
     const malha = useMemo(() => {
@@ -1154,7 +1164,7 @@ const Trilhas: React.FC = () => {
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .45; const y = gp.getY(i); gp.setXYZ(i, gp.getX(i) * f, y > 0 ? y * (.9 + ruido(gp.getX(i) * 3, 1, gp.getZ(i) * 3) * .15) : y, gp.getZ(i) * f); }
         g.scale(.17, .045, .14); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#9d978c', roughness: .85 });
+        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#b3aa9c', roughness: .95 });
         const cores: THREE.Color[] = [];
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
@@ -1170,15 +1180,15 @@ const Trilhas: React.FC = () => {
                 o.position.set(x, t.y + .004, z); o.rotation.set((r() - .5) * .06, r() * 3, (r() - .5) * .06);
                 const e = .7 + r() * .5; o.scale.set(e, .8 + r() * .3, e * (.7 + r() * .4)); o.updateMatrix(); ms.push(o.matrix.clone());
                 // cada laje com o seu tom: musgo, ferrugem, cinza de rio
-                cores.push(new THREE.Color().setHSL(.08 + r() * .1, .04 + r() * .06, .9 + r() * .1));
+                cores.push(new THREE.Color().setHSL(.07 + r() * .08, .08 + r() * .08, .55 + r() * .12));
             }
         }
         const im = new THREE.InstancedMesh(g, m, ms.length);
         ms.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cores[i]); });
         im.receiveShadow = true; im.castShadow = true; im.computeBoundingSphere();
         // o anel de terra batida sob cada laje: o que a assenta no chão (sem ele lia como mancha solta)
-        const gt = new THREE.CircleGeometry(1, 14).rotateX(-Math.PI / 2).scale(.2, 1, .17);
-        const terra = new THREE.InstancedMesh(gt, new THREE.MeshStandardMaterial({ color: '#4a3a28', roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), ms.length);
+        const gt = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2).scale(.2, 1, .17);
+        const terra = new THREE.InstancedMesh(gt, new THREE.MeshStandardMaterial({ color: '#4a3a28', roughness: 1, alphaMap: texBordaMacia(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), ms.length);
         const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Vector3(), _m = new THREE.Matrix4();
         ms.forEach((mm, i) => { mm.decompose(_p, _q, _e); _p.y += .001; _e.set(_e.x * 1.25, 1, _e.z * 1.25); terra.setMatrixAt(i, _m.compose(_p, _q, _e)); });
         terra.receiveShadow = true; terra.computeBoundingSphere();
