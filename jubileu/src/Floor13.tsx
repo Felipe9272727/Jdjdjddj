@@ -925,7 +925,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         // quadro e a vila atrás dele; levantar (andar) desfaz a cena
         const o = BANCO.olhar, j = jog.current;
         // tela em pé mal abre 25°: vira quase de frente para o velho; deitada cabe ele e a vila
-        const giro = window.innerWidth < window.innerHeight ? 1.3 : .8, fr = Math.cos(giro) * 6, la = Math.sin(giro) * 6;
+        const giro = window.innerWidth < window.innerHeight ? 1.2 : .8, fr = Math.cos(giro) * 6, la = Math.sin(giro) * 6;
         const tx = ASSENTO.x + Math.sin(o) * fr - Math.cos(o) * la, tz = ASSENTO.z + Math.cos(o) * fr + Math.sin(o) * la;
         j.x = ASSENTO.x; j.z = ASSENTO.z; j.y = chaoEm(j.x, j.z) ?? 0;
         yaw.current = Math.atan2(-(tx - j.x), -(tz - j.z)); j.ang = yaw.current + Math.PI;
@@ -1193,7 +1193,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (!jaResolvido && sinos.resolvido) {
                 // o olhar sobe sozinho para os sinos acesos: a recompensa acontece na tela
                 const jj = jog.current, L = LUGARES_DOS_SINOS[0], dx = L.x - jj.x, dz = L.z - jj.z;
-                yaw.current = Math.atan2(-dx, -dz); pitch.current = Math.min(.9, Math.atan2(L.y - .3 - (jj.y + 1.72), Math.max(.5, Math.hypot(dx, dz))));
+                yaw.current = Math.atan2(-dx, -dz); pitch.current = Math.min(.55, Math.atan2(L.y - .3 - (jj.y + 1.72), Math.max(.5, Math.hypot(dx, dz))));
             }
             window.setTimeout(() => setAviso(ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.'), 30);
         } else if (a.tipo === 'casa') {
@@ -1392,7 +1392,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             </div>}
 
             {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && fase !== 'elevador' && !glitch && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
+            {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
                 <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} A CASA CERTA</div>
                 {e.pistas.size === 0 ? <div style={{ opacity: .7 }}>0/3 pistas — pergunte aos moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
                     <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
@@ -1408,7 +1408,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             {/* ── O BANCO: as falas do Árni embaixo, devagar; os sussurros da entidade em verde, tortos ── */}
             {legendaBanco && <div style={{ position: 'absolute', left: 16, right: 16, top: '22%', textAlign: 'center', pointerEvents: 'none',
                 fontFamily: legendaBanco.quem === 'Árni' ? 'Georgia, serif' : 'monospace', fontSize: legendaBanco.quem === 'Árni' ? 18 : 15, lineHeight: 1.45,
-                color: legendaBanco.quem === 'Árni' ? '#fff6e6' : '#3dff8a', letterSpacing: legendaBanco.quem === 'Árni' ? .3 : 2,
+                color: legendaBanco.quem === 'Árni' ? '#fff6e6' : '#3dff8a', letterSpacing: legendaBanco.quem === 'Árni' ? .3 : retrato ? .5 : 2, wordBreak: 'keep-all', background: 'rgba(12,9,6,.42)', borderRadius: 10, padding: '8px 12px',
                 textShadow: '0 2px 8px rgba(0,0,0,.85)', transform: legendaBanco.quem === 'Árni' ? 'none' : 'skewX(-6deg)' }}>{legendaBanco.texto}</div>}
             {/* ── O FINAL DA ACEITAÇÃO ── */}
             {aceitacao === 1 && <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
@@ -1418,7 +1418,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <div style={{ fontFamily: 'Georgia, serif', fontSize: 14, color: '#6b4a2e', letterSpacing: 4, textTransform: 'uppercase' }}>final da aceitação</div>
                 <button onClick={() => { setAceitacao(2); arni.sentado = false; bump(); }} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
             </div>}
-            {aviso && <div style={{ ...t13, position: 'absolute', top: '38%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .5, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '8px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', maxWidth: '86vw', pointerEvents: 'none' }}>{aviso}</div>}
+            {aviso && <div style={{ ...t13, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 96px)', left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .5, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '8px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', maxWidth: '86vw', pointerEvents: 'none' }}>{aviso}</div>}
 
             {/* ── O BOTÃO DE AÇÃO ── */}
             {fase === 'explorar' && alvo && <button onPointerDown={(ev) => { ev.stopPropagation(); agir(); }}

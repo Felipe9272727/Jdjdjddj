@@ -194,7 +194,7 @@ export function falaDoBrokk(): string {
 // ── O QUE O FLOOR13 USA ─────────────────────────────────────────────────────
 /** O rótulo do botão: antes da pista, o jogador nem sabe qual sino é. */
 export function rotuloDoSino(i: number): string {
-    return sinos.pista ? 'TOCAR O SINO ' + NOMES_DAS_NOTAS[i].toUpperCase() : 'TOCAR O SINO';
+    return sinos.pista && !sinos.resolvido ? 'TOCAR O SINO ' + NOMES_DAS_NOTAS[i].toUpperCase() : 'TOCAR O SINO';
 }
 
 /**

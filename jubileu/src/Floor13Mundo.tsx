@@ -704,7 +704,7 @@ const PERFIL_DO_SINO = [[0, 0], [.2, 0], [.26, -.06], [.28, -.2], [.31, -.4], [.
  *  (só a cor emissiva muda — nada recompila). */
 const bronzeDoSino = new THREE.MeshStandardMaterial({ color: P13.latao, metalness: .85, roughness: .3, side: THREE.DoubleSide, emissive: '#000000' });
 const _brasaSino = new THREE.Color('#ffb04a');
-export function brilhoDosSinos(v: number) { bronzeDoSino.emissive.copy(_brasaSino).multiplyScalar(v * 1.2); }
+export function brilhoDosSinos(v: number) { bronzeDoSino.emissive.copy(_brasaSino).multiplyScalar(v * .7); }
 
 export const Templo: React.FC<{ sinoRef?: React.Ref<THREE.Group> }> = ({ sinoRef }) => {
     const ilha = ILHAS.find((i) => i.id === 'templo')!;
@@ -850,11 +850,17 @@ const Praca: React.FC = () => {
     </group>;
 };
 
+/** O monte de feno: esfera amassada (lisa, estourava no sol como um domo amarelo). */
+const geoFeno = (() => {
+    const g = new THREE.SphereGeometry(1, 22, 14), p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) { const f = 1 + ruido(p.getX(i) * 4, p.getY(i) * 4, p.getZ(i) * 4) * .16; p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f); }
+    g.computeVertexNormals(); return g;
+})();
 /** Carroça de feno na ilha do pouso — onde o avião cai. */
 export const Carroca: React.FC = () => (
     <group position={[-2, 0, 33]} rotation={[0, .4, 0]}>
         <mesh position={[0, .55, 0]}><boxGeometry args={[2.2, .5, 1.4]} /><meshStandardMaterial color={P13.tabua} /></mesh>
-        <mesh position={[0, 1.15, 0]} scale={[1.2, .6, .8]}><sphereGeometry args={[1, 14, 10]} /><meshStandardMaterial color="#d9b85a" roughness={1} flatShading /></mesh>
+        <mesh position={[0, 1.15, 0]} scale={[1.2, .6, .8]} geometry={geoFeno}><meshStandardMaterial color="#a8883e" roughness={1} flatShading /></mesh>
         {[-.8, .8].map((x) => [-.75, .75].map((z) => (
             <mesh key={`${x}${z}`} position={[x, .3, z]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.3, .06, 6, 14]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
         )))}
