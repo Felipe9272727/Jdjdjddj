@@ -1214,7 +1214,7 @@ const Borda: React.FC = () => {
         const ip = new THREE.InstancedMesh(gp, new THREE.MeshStandardMaterial({ color: '#9a8f80', ...pbr('rocha', .6, .6) }), mp.length);
         mp.forEach((m, i) => ip.setMatrixAt(i, m));
         // moita: bolas de folhagem fundidas numa geometria só
-        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 3).translate(x, y, z));
+        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 2).translate(x, y, z));
         const gm = mergeGeometries(partes)!;
         const pm = gm.getAttribute('position');
         for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22 + ruido(pm.getX(i) * 11, pm.getY(i) * 11, pm.getZ(i) * 11) * .07; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }

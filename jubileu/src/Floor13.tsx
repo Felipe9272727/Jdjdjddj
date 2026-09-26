@@ -787,7 +787,7 @@ const escalaTmp = new THREE.Vector3();
 const Sol: React.FC<{ jog: React.MutableRefObject<Jog>; mapa: number }> = ({ jog, mapa }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     const scene = useThree((s) => s.scene);
-    const feito = useRef(0);
+    const feito = useRef(0), quadro = useRef(0);
     // troca de nível: o mapa de sombra muda de tamanho (refeito no próximo quadro)
     useEffect(() => {
         const l = luz.current; if (!l) return;
@@ -797,8 +797,16 @@ const Sol: React.FC<{ jog: React.MutableRefObject<Jog>; mapa: number }> = ({ jog
     useFrame((_, dt) => {
         const l = luz.current; if (!l) return;
         const j = jog.current;
-        l.position.set(j.x + DIRECAO_DO_SOL.x * 60, j.y + DIRECAO_DO_SOL.y * 60, j.z + DIRECAO_DO_SOL.z * 60);
-        l.target.position.set(j.x, j.y, j.z); l.target.updateMatrixWorld();
+        // o mapa de sombra é refeito em quadros alternados (metade do custo da
+        // passada de sombra); a luz só anda junto nesses quadros, para a sombra
+        // não escorregar entre um mapa e outro
+        l.shadow.autoUpdate = false;
+        quadro.current = (quadro.current + 1) % 2;
+        if (quadro.current === 0) {
+            l.position.set(j.x + DIRECAO_DO_SOL.x * 60, j.y + DIRECAO_DO_SOL.y * 60, j.z + DIRECAO_DO_SOL.z * 60);
+            l.target.position.set(j.x, j.y, j.z); l.target.updateMatrixWorld();
+            l.shadow.needsUpdate = true;
+        }
         // uma vez, depois que tudo montou: todo mundo projeta e recebe sombra
         feito.current += dt;
         if (feito.current > .5 && feito.current < 10) {

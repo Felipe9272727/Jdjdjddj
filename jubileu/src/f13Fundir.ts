@@ -86,7 +86,7 @@ export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => 
     };
     visita(raiz);
 
-    const criadas: THREE.Mesh[] = [], escondidas: THREE.Mesh[] = [];
+    const criadas: THREE.Mesh[] = [], escondidas: { m: THREE.Mesh; pai: THREE.Object3D }[] = [];
     const rel = new THREE.Matrix4();
     for (const { mat, malhas } of grupos.values()) {
         if (malhas.length < 2) continue;
@@ -117,12 +117,16 @@ export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => 
         nova.castShadow = malhas.some((m) => m.castShadow);
         nova.receiveShadow = true;
         nova.userData.fundida = true;
+        // parada de vez: a matriz não é recalculada a cada quadro
+        nova.matrixAutoUpdate = false; nova.updateMatrix();
         raiz.add(nova); criadas.push(nova);
-        for (const m of malhas) { m.visible = false; escondidas.push(m); }
+        // as originais saem da cena (guardadas para o desfazer): escondidas, ainda
+        // custavam a varredura de matrizes de todo quadro
+        for (const m of malhas) if (m.parent) { escondidas.push({ m, pai: m.parent }); m.removeFromParent(); }
     }
     if (import.meta.env.DEV) console.info(`[fundir] ${criadas.length} malhas de ${escondidas.length} em ${(performance.now() - t0).toFixed(0)} ms`);
     return () => {
         for (const n of criadas) { raiz.remove(n); n.geometry.dispose(); if ((n.material as THREE.Material).userData.tinta) (n.material as THREE.Material).dispose(); }
-        for (const m of escondidas) m.visible = true;
+        for (const { m, pai } of escondidas) pai.add(m);
     };
 }
