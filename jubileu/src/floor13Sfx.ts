@@ -171,6 +171,12 @@ export function tocarPegar(): void {
     }
     tom('sine', 180, 120, .12, .12, 0, .3);
 }
+/** A martelada do Brokk na bigorna: ferro batendo, agudo e curto, com sala. `vol` 0..1 pela distância. */
+export function tocarBigorna(vol: number): void {
+    if (vol <= .01) return;
+    for (const [f, v, d] of [[1244, .07, .5], [2010, .045, .35], [2890, .025, .25], [3950, .012, .18]] as const) tom('sine', f, f * .997, d, v * vol, 0, .35);
+    tom('triangle', 220, 150, .06, .05 * vol, 0, .2);
+}
 export function tocarBalido(): void { tom('sawtooth', 520, 470, .45, .05); tom('sawtooth', 540, 480, .45, .03, .03); }
 
 /** "Voz" de viking: um blip curto por fala, no tom de cada um. */

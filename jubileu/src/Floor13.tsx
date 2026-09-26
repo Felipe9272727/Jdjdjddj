@@ -23,6 +23,7 @@ import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
 import { GatosDaVila, gatos, largarPeixe } from './f13Gatos';
+import { forja } from './f13Fagulhas';
 import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
@@ -41,7 +42,7 @@ import {
 } from './f13Mundo';
 import {
     tocarVento, pararVento, tocarMotorTossindo, tocarMotorMorrendo, tocarQueda, tocarSino, tocarDingDaCasa,
-    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao, tocarAmbiente, pararAmbiente, tocarPasso, tocarCorpoCaindo,
+    tocarPegar, tocarBalido, tocarFala, tocarGlitch, tocarDesconexao, tocarAmbiente, pararAmbiente, tocarPasso, tocarCorpoCaindo, tocarBigorna,
 } from './floor13Sfx';
 
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
@@ -752,6 +753,19 @@ const Vivo: React.FC<{
  * O sol que faz sombra. Um mapa de 2048 cobrindo só 36 unidades em volta do
  * jogador, que anda junto com ele: sombra nítida onde se olha, custo fixo.
  */
+/** O som da forja: a cada martelada (f13Fagulhas) toca a bigorna, mais alto quanto mais perto. */
+const OuvidoDaForja: React.FC = () => {
+    const visto = useRef(forja.batida);
+    useFrame(({ camera }) => {
+        if (forja.batida === visto.current) return;
+        visto.current = forja.batida;
+        const d = Math.hypot(camera.position.x - BIGORNA.x, camera.position.z - BIGORNA.z);
+        tocarBigorna(Math.max(0, 1 - d / 22) ** 1.5);
+    });
+    return null;
+};
+const BIGORNA = { x: -21.3, z: 5.4 };
+
 /**
  * Luz de preenchimento que sai da câmera: com o sol baixo atrás das ilhas,
  * quem fala virava silhueta preta. Fraca e fria, sem sombra — só devolve
@@ -1335,6 +1349,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
                 <GatosDaVila jog={jog} />
                 <SinosDaTorre />
+                <OuvidoDaForja />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
