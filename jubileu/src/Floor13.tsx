@@ -924,7 +924,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         // senta olhando a vila, de viés para o velho: o Árni fica na borda do
         // quadro e a vila atrás dele; levantar (andar) desfaz a cena
         const o = BANCO.olhar, j = jog.current;
-        const tx = ASSENTO.x + Math.sin(o) * 3 - Math.cos(o) * 6, tz = ASSENTO.z + Math.cos(o) * 3 + Math.sin(o) * 6;
+        // tela em pé mal abre 25°: vira quase de frente para o velho; deitada cabe ele e a vila
+        const giro = window.innerWidth < window.innerHeight ? 1.3 : .8, fr = Math.cos(giro) * 6, la = Math.sin(giro) * 6;
+        const tx = ASSENTO.x + Math.sin(o) * fr - Math.cos(o) * la, tz = ASSENTO.z + Math.cos(o) * fr + Math.sin(o) * la;
         j.x = ASSENTO.x; j.z = ASSENTO.z; j.y = chaoEm(j.x, j.z) ?? 0;
         yaw.current = Math.atan2(-(tx - j.x), -(tz - j.z)); j.ang = yaw.current + Math.PI;
         arni.sentado = true; setAlvo(null); bump();
@@ -1398,7 +1400,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             </div>}
 
             {/* ── O BANCO: as falas do Árni embaixo, devagar; os sussurros da entidade em verde, tortos ── */}
-            {legendaBanco && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 34px)', textAlign: 'center', pointerEvents: 'none',
+            {legendaBanco && <div style={{ position: 'absolute', left: 16, right: 16, top: '22%', textAlign: 'center', pointerEvents: 'none',
                 fontFamily: legendaBanco.quem === 'Árni' ? 'Georgia, serif' : 'monospace', fontSize: legendaBanco.quem === 'Árni' ? 18 : 15, lineHeight: 1.45,
                 color: legendaBanco.quem === 'Árni' ? '#fff6e6' : '#3dff8a', letterSpacing: legendaBanco.quem === 'Árni' ? .3 : 2,
                 textShadow: '0 2px 8px rgba(0,0,0,.85)', transform: legendaBanco.quem === 'Árni' ? 'none' : 'skewX(-6deg)' }}>{legendaBanco.texto}</div>}
