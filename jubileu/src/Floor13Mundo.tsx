@@ -1249,8 +1249,35 @@ const texHaloTocha = (() => {
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
-const matMiolo = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffc255').multiplyScalar(1.5), toneMapped: false });
-const matEnvelope = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8a2a').multiplyScalar(1.3), toneMapped: false, transparent: true, opacity: .75, depthWrite: false });
+/** A chama: um plano sempre de frente para a câmera, desenhado em shader —
+ *  gota que ondula com ruído no tempo, miolo branco-amarelo, borda laranja
+ *  que some em alfa. De perto não vira cone nem bola. */
+const tempoChama = { value: 0 };
+const matChama = new THREE.ShaderMaterial({
+    uniforms: { uT: tempoChama },
+    transparent: true, depthWrite: false, toneMapped: false,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+        uniform float uT; varying vec2 vUv;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float r(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+            return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main(){
+            vec2 p = vUv - vec2(.5, .12);
+            float sobe = uT * 2.6;
+            float n = r(vec2(p.x * 5., p.y * 4. - sobe)) * .6 + r(vec2(p.x * 11., p.y * 9. - sobe * 1.7)) * .4;
+            // gota: larga embaixo, fina em cima, a borda comida pelo ruído
+            float larg = .30 * (1. - smoothstep(0., .85, p.y)) * (.75 + .5 * n) + .02;
+            float x = abs(p.x + (n - .5) * .12 * p.y);
+            float forma = smoothstep(larg, larg * .35, x) * smoothstep(-.1, .05, p.y) * (1. - smoothstep(.55, .9, p.y + n * .15));
+            if (forma < .01) discard;
+            float miolo = smoothstep(larg * .7, 0., x) * (1. - smoothstep(.1, .5, p.y));
+            vec3 cor = mix(vec3(1., .32, .06), vec3(1., .72, .25), forma);
+            cor = mix(cor, vec3(1., .96, .8), miolo);
+            gl_FragColor = vec4(cor * 1.6, forma * .95);
+        }`,
+});
+const geoChama = new THREE.PlaneGeometry(.26, .5).translate(0, .2, 0);
 const matHalo = new THREE.SpriteMaterial({ map: texHaloTocha, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: .8 });
 
 /** Tochas nas bordas dos caminhos: chama em duas camadas com halo, luz que tremula. */
@@ -1258,13 +1285,15 @@ const Tochas: React.FC = () => {
     const lugares = TOCHAS;
     const luzes = useRef<(THREE.PointLight | null)[]>([]);
     const chamas = useRef<(THREE.Mesh | null)[]>([]);
-    useFrame(({ clock }) => {
+    useFrame(({ clock, camera }) => {
         const t = clock.elapsedTime;
+        tempoChama.value = t;
         lugares.forEach((_, i) => {
             const f = .75 + Math.sin(t * 11 + i * 3) * .15 + Math.sin(t * 23 + i) * .1;
             if (luzes.current[i]) luzes.current[i]!.intensity = 2.2 * f;
             const ch = chamas.current[i];
-            if (ch) { ch.scale.set(1 + Math.sin(t * 17 + i) * .08, f * 1.2, 1 + Math.cos(t * 13 + i) * .08); ch.rotation.z = Math.sin(t * 7 + i * 2) * .12; }
+            // a chama olha sempre para a câmera (só gira em torno do eixo vertical) e respira
+            if (ch) { ch.rotation.set(0, Math.atan2(camera.position.x - (ch.parent?.position.x ?? 0), camera.position.z - (ch.parent?.position.z ?? 0)), 0); ch.scale.set(1, .9 + f * .25, 1); }
         });
     });
     return <>{lugares.map(([x, y, z], i) => (
@@ -1272,10 +1301,7 @@ const Tochas: React.FC = () => {
             <mesh position={[0, .8, 0]}><cylinderGeometry args={[.05, .07, 1.6, 6]} /><meshStandardMaterial color={P13.madeiraEsc} /></mesh>
             <mesh position={[0, 1.62, 0]}><cylinderGeometry args={[.1, .07, .14, 8]} /><meshStandardMaterial color="#3a3a3e" metalness={.6} roughness={.5} /></mesh>
             <group ref={(m) => { chamas.current[i] = m as unknown as THREE.Mesh; }} position={[0, 1.7, 0]} userData={{ vivo: true }}>
-                {/* miolo claro e um envelope laranja maior, somado: lê como fogo, não como ponta de lápis */}
-                <mesh position={[0, .1, 0]} material={matMiolo}><sphereGeometry args={[.055, 8, 6]} /></mesh>
-                <mesh position={[0, .14, 0]} material={matMiolo}><coneGeometry args={[.045, .14, 8]} /></mesh>
-                <mesh position={[0, .13, 0]} material={matEnvelope}><coneGeometry args={[.085, .24, 10]} /></mesh>
+                <mesh geometry={geoChama} material={matChama} renderOrder={2} />
             </group>
             <sprite position={[0, 1.84, 0]} scale={[.6, .6, 1]} material={matHalo} />
             {/* duas tochas acesas de verdade bastam: cada luz a mais pesa em todo shader */}
