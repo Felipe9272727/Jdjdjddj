@@ -16,7 +16,8 @@ window.__f13Audit.releaseCamera();
 profundidade mínima, dimensões e centro da interseção. Rosa indica o objeto;
 amarelo indica a região suspeita. Nada é movido automaticamente.
 
-A detecção usa AABBs por peça e agrupa peças do mesmo objeto. Mantém a
+A detecção usa AABBs para descartar pares distantes e SAT entre caixas orientadas
+para confirmar a interseção dos limites de cada peça. Agrupa peças do mesmo objeto. Mantém a
 procedência das peças removidas pela fusão estática, sem desativar a fusão ou
 reter as malhas originais. Personagens usam os vértices deformados da pose.
 É uma consulta sob demanda; não roda a cada frame. O registro de procedência
@@ -66,3 +67,29 @@ em `report.json` (sem erros de JavaScript).
 Validação: typecheck e build passaram; 22 testes passaram, incluindo contato
 versus penetração, peças do mesmo objeto, procedência após duas fusões, objetos
 invisíveis e as 19 regressões existentes do mundo/quests.
+
+
+## Continuação — 2026-09-28
+
+- Preservados os oito cantos locais de cada peça através das fusões. Converter
+  repetidamente AABB mundo/local inflava os limites de peças inclinadas.
+- SAT agora leva rotação, escala não uniforme e cisalhamento em conta.
+  `solidBoxPairs` conta pares de primitivas BoxGeometry intactas com volume
+  sobreposto; as demais malhas continuam sendo candidatos conservadores.
+- Barraca leste: 4 pares de caixas sólidas cruzavam a casa. Foi de `(6,11)` para
+  `(4.5,10)`, liberando a soleira e dando mais espaço à ronda da Eira.
+  `BARRACAS_PRACA` é a fonte compartilhada entre o desenho e o colisor.
+- Ponte/casa oeste: falso positivo removido pelo teste orientado; não foi movida.
+- As casas não foram movidas por alertas de envelopes de telhado. A conferência
+  horizontal encontrou separação; limites de malhas ocas não comprovam colisão.
+  Banco/Árni e estrutura/chaminé da forja têm contatos intencionais.
+
+`F13_SCAN_ONLY=1` coleta só os números, economizando capturas. Para uma foto
+específica, combine `F13_CANDIDATE_SHOTS=1 F13_VIEW=market` (ou `bridge`).
+As duas regressões novas verificam barras inclinadas próximas sem contato e
+preservação do resultado após fusão com rotação e escala não uniforme.
+
+Resultado final: nenhum candidato envolvendo a barraca reposicionada. A nova
+coleta e a anterior estão em `oriented-comparison.json`; as câmeras/tempos diferem,
+portanto a contagem de outros candidatos não é um benchmark de desempenho.
+Typecheck, 24 testes e build de produção passaram nesta continuação.

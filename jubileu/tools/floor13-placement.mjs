@@ -40,19 +40,21 @@ try{
    });
    results.push({mode,...stats});
    await writeFile(`${out}/report.json`,JSON.stringify({results,errors},null,2));
+   if(!process.env.F13_SCAN_ONLY){
    const png=await page.evaluate(()=>new Promise((resolve,reject)=>{
      const renderer=window.__f13r,original=renderer.render;
      const timeout=setTimeout(()=>{renderer.render=original;reject(Error('Capture timeout'));},45000);
      renderer.render=function(...args){const result=original.apply(this,args);if(this.getRenderTarget()===null){this.render=original;clearTimeout(timeout);resolve(this.domElement.toDataURL('image/png').split(',')[1]);}return result;};
    }));
    await writeFile(`${out}/${mode}.png`,Buffer.from(png,'base64'));
+   }
    console.log(mode,JSON.stringify({y:stats.y,meshes:stats.meshes,min:stats.seatColumnMin,objects:stats.report.objects.length,candidates:stats.report.candidates.length}));
  }
 
  if(process.env.F13_CANDIDATE_SHOTS){
    for(const [id,position,target] of [
-     ['market',[11,4,16],[6,1,11]],['bridge',[-13,4,10],[-10.2,1.3,5.7]]
-   ]){
+     ['market',[0,2.6,16],[4.5,1.1,11]],['bridge',[-13,4,10],[-10.2,1.3,5.7]]
+   ].filter(([id])=>!process.env.F13_VIEW || id===process.env.F13_VIEW)){
      await page.evaluate(([p,t])=>window.__f13Audit.camera(p,t),[position,target]);
      const png=await page.evaluate(()=>new Promise((resolve,reject)=>{
        const renderer=window.__f13r,original=renderer.render;

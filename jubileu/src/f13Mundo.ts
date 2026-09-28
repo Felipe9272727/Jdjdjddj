@@ -41,6 +41,12 @@ export function alturaDoTablado(a: number, b: number, t: number): number {
     return a+(b-a)*t-Math.sin(Math.PI*t)*.35-.08;
 }
 
+/** Mesma posição no cenário e na colisão; a barraca leste ficava dentro da casa. */
+export const BARRACAS_PRACA = Object.freeze([
+    { x: -6, z: 12, giro: .4 }, { x: -3.2, z: 14, giro: .1 },
+    { x: 4.5, z: 10, giro: -.4 },
+]);
+
 /** Altura do chão em (x, z), ou `null` se ali é céu. */
 export function chaoEm(x: number, z: number): number | null {
     let alto: number | null = null;

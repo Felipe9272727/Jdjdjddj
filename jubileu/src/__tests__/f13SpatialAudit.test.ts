@@ -18,3 +18,23 @@ describe('diagnóstico espacial sob demanda',()=>{
   expect(scanOverlaps(s).candidates).toHaveLength(0);expect(s.children).toHaveLength(2);expect(()=>scanOverlaps(s,NaN)).toThrow();
  });
 });
+
+describe('caixas inclinadas',()=>{
+ it('descarta AABBs sobrepostos de duas barras paralelas separadas',()=>{
+  const s=new THREE.Scene();
+  for(const [id,offset] of [['A',0],['B',.3]] as const){
+   const g=new THREE.Group();g.userData.audit=id;g.rotation.z=Math.PI/4;
+   g.position.set(-offset/Math.sqrt(2),offset/Math.sqrt(2),0);
+   g.add(new THREE.Mesh(new THREE.BoxGeometry(4,.1,.1)));s.add(g);
+  }
+  expect(scanOverlaps(s).candidates).toHaveLength(0);
+ });
+ it('mantém o resultado após fusão com rotação e escala não uniforme',()=>{
+  const s=new THREE.Scene(),a=box('A',0),b=box('B',.3);a.rotation.z=.4;a.scale.set(1.4,.8,1);s.add(a,b);s.updateMatrixWorld(true);
+  const before=scanOverlaps(s).candidates[0];
+  const merged=new THREE.Mesh();merged.rotation.y=.7;merged.scale.set(.9,1.2,1);s.add(merged);s.updateMatrixWorld(true);
+  merged.userData.auditParts=auditParts(a.children[0] as THREE.Mesh,merged.matrixWorld.clone().invert());s.remove(a);
+  const after=scanOverlaps(s).candidates[0];
+  expect(after.depth).toBeCloseTo(before.depth,8);expect(after.solidBoxPairs).toBe(1);
+ });
+});

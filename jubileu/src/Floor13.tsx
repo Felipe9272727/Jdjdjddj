@@ -1,3 +1,4 @@
+import { BARRACAS_PRACA } from './f13Mundo';
 import { auditEnabled, installSpatialAudit, applyAuditCamera } from './f13SpatialAudit';
 import { Floor13Profile, fixedQuality13, profiling13 } from './f13Perf';
 /**
@@ -470,7 +471,7 @@ const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number; soProcura?: b
     { x: -7.5, z: 4, r: 2.4 }, { x: 7.8, z: 12.5, r: 2.4 },
     { x: 0, z: 8, r: 1.4 }, { x: 4.2, z: 1.5, r: .7 },
     // barracas: 1,9 × 1,3 m com o toldo — raio que cobre as pontas do balcão
-    { x: -6, z: 12, r: 1.25 }, { x: -3.2, z: 14, r: 1.25 }, { x: 6, z: 11, r: 1.25 },
+    ...BARRACAS_PRACA.map(({x,z}) => ({x,z,r:1.25})),
     { x: -23, z: 4.5 - 1.5, r: 1.1 },
     // o templo: os quatro mourões ficam a 1,27 m do sino — o raio os cobre
     { x: SINO.x, z: SINO.z, r: 1.75 }, { x: -2, z: 33, r: 1.3 },

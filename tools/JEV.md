@@ -51,3 +51,25 @@ Official references checked 2026-09-28, with GPT-6 Sol research:
 - https://docs.typesafe.ai/patterns/fan-out
 - https://docs.typesafe.ai/concepts/state
 - https://docs.typesafe.ai/models
+
+## Gateway versus this helper (video reviewed with GPT-6 Sol, 2026-09-28)
+
+The linked video demonstrates a different integration: `vinilana/jev-gateway`
+proxies a coding-agent session and changes the provider request at tool selection.
+A separate `jev-route.py` call does not intercept the host model's reasoning and
+must not be described as equivalent. Only sessions launched/configured through
+the gateway use it; installing a local process cannot reroute an already hosted
+ChatGPT Work session. This workspace exposes no host-model endpoint setting and
+has no Codex CLI available. The gateway has not been activated here.
+
+The author's small coding benchmarks report gains for debugging and regressions
+for some feature-building tasks. Preserve prompt-cache prefixes, compare routing
+on/off on equivalent tasks, include correctness and latency, and keep a fallback
+when routing is uncertain. Do not translate output-token reductions directly into
+subscription quota gains. This session continues with targeted local scripts and
+bounded delegation; no gateway performance claim is made.
+
+Sources: https://www.youtube.com/watch?v=rtWCFKg7XEs (automatic transcript,
+04:08 cache; 05:16 interception; 09:02 debugging; 12:08 features),
+https://github.com/vinilana/jev-gateway and
+https://github.com/vinilana/jev-gateway-bench .

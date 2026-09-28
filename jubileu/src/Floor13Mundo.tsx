@@ -17,7 +17,7 @@ import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { Decoracao } from './f13Decoracao';
 import { Forja } from './f13Forja';
-import { ILHAS, PONTES, TRECHOS_DAS_PONTES, alturaDoTablado, ESPESSURA_TABUA, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
+import { ILHAS, BARRACAS_PRACA, PONTES, TRECHOS_DAS_PONTES, alturaDoTablado, ESPESSURA_TABUA, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
@@ -758,9 +758,8 @@ function texturaDeToldo(cor: string): THREE.CanvasTexture {
 
 /** Praça do mercado: barracas com toldo listrado e uma pedra rúnica. */
 const Praca: React.FC = () => {
-    const barracas = [[-6, 12, .4], [-3.2, 14, .1], [6, 11, -.4]];
     return <group>
-        {barracas.map(([x, z, r], i) => (
+        {BARRACAS_PRACA.map(({x, z, giro: r}, i) => (
             <group key={i} userData={{audit:`Praca:Barraca:${i}`}} position={[x, 0, z]} rotation={[0, r, 0]}>
                 <mesh position={[0, .45, 0]}><boxGeometry args={[1.8, .9, .9]} /><meshStandardMaterial {...pbr('tabua', 1, .5)} color="#b58a5e" /></mesh>
                 {/* quatro mourões: os de trás mais altos, o toldo desce para a frente
