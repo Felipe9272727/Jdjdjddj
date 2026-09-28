@@ -1,3 +1,4 @@
+import { auditEnabled, installSpatialAudit, applyAuditCamera } from './f13SpatialAudit';
 import { Floor13Profile, fixedQuality13, profiling13 } from './f13Perf';
 /**
  * Floor13.tsx — Vindhjem, a cidade viking que voa.
@@ -555,6 +556,7 @@ const CameraDeExplorar: React.FC<{
     const alvo = useRef(new THREE.Vector3());
     const empurra = useRef(0);
     useFrame((_, dt) => {
+        if (auditEnabled && applyAuditCamera(camera)) return;
         // na saída (a porta certa aberta) quem conduz a câmera é a SaidaDoAndar
         if (!ativo || portaAlvo.current) return;
         const j = jog.current;
@@ -806,6 +808,8 @@ const BIGORNA = { x: -21.3, z: 5.4 };
  */
 /** Bancada (só em DEV): chamadas de desenho, triângulos e luzes do quadro. */
 const Sonda: React.FC = () => {
+    const {scene, camera} = useThree();
+    useEffect(() => { if(auditEnabled) return installSpatialAudit(scene,camera); }, [scene,camera]);
     useFrame(({ gl, scene, setFrameloop }) => {
         if (!import.meta.env.DEV) return;
         (window as any).__f13FrameLoop = setFrameloop;
@@ -1400,8 +1404,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {NPCS.map((n) => {
                     const l = LUGAR_DOS_NPCS[n.id];
                     if (glitch && n.id !== 'halvard' && Math.hypot(jog.current.x - l.x, jog.current.z - l.z) < 7) return null;
-                    return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} onde={npcOnde[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
-                        marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} />;
+                    return <group key={n.id} userData={{audit:`NPC:${n.id}`}}><Viking ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} onde={npcOnde[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
+                        marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} /></group>;
                 })}
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
                 <Martelo visivel={!e.temMartelo} />

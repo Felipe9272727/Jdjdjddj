@@ -12,6 +12,7 @@
  * `userData={{ vivo: true }}` (a porta, o sino, a fumaça, os barcos…).
  */
 import * as THREE from 'three';
+import { auditEnabled, auditParts } from './f13SpatialAudit';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
@@ -117,6 +118,7 @@ export function fundirEstaticos(raiz: THREE.Object3D, celula = Infinity): () => 
         nova.castShadow = malhas.some((m) => m.castShadow);
         nova.receiveShadow = true;
         nova.userData.fundida = true;
+        if (auditEnabled) nova.userData.auditParts = malhas.flatMap(m => auditParts(m, inv));
         // parada de vez: a matriz não é recalculada a cada quadro
         nova.matrixAutoUpdate = false; nova.updateMatrix();
         raiz.add(nova); criadas.push(nova);

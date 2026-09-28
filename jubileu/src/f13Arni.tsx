@@ -160,7 +160,8 @@ export const ArniNoBanco: React.FC<{ falando: boolean }> = ({ falando }) => {
         new THREE.MeshStandardMaterial({ ...pbr('carvalho', 1.5, 3), color: '#6d5b45', roughness: .96 }),
     ], []);
 
-    return <group position={[BANCO.x, y, BANCO.z]} rotation={[0, BANCO.olhar, 0]}>
+    return <group name="arni-bench-frame" position={[BANCO.x, y, BANCO.z]} rotation={[0, BANCO.olhar, 0]}>
+        <group userData={{audit:"Banco:Arni"}}>
         {/* ── o assento: três tábuas grossas de carvalho, com vão entre elas e as pontas
             desencontradas. A de trás é a mais alta; a do meio cede um dedo; a da frente
             cede mais e cai para a frente — é sobre as duas de trás que o velho senta, e
@@ -228,15 +229,14 @@ export const ArniNoBanco: React.FC<{ falando: boolean }> = ({ falando }) => {
             </mesh>
         )))}
 
-        {/* ── o Árni: o quadril EM CIMA das tábuas. Saiu da quina esquerda (x -.30) e foi para
-            o meio do banco (x -.16), e recuou (z -.13) para ficar sobre a tábua de trás e a do
-            meio — assim as coxas saem por cima da tábua da frente e a borda da frente cai perto
-            dos joelhos, sem atravessar a perna. A altura do contato ficou a mesma (a tábua de
-            trás continuou no mesmo lugar), então ele continua encostado, não flutuando. */}
-        <group position={[-.16, -.10, -.13]}>
+        </group>
+        {/* Vértices já deformados: a coluna sob o quadril estava em .712 m
+            com y=-.10; a tábua está em ~.452 m. Descer .26 m encosta o corpo
+            no assento, mantendo x/z, escala e pose. */}
+        <group name="arni-seated" userData={{audit:"NPC:arni"}} position={[-.16, -.36, -.13]}>
             <Viking ficha={FICHA_ARNI} x={0} y={0} z={0} estado={estado} sentado escalaExtra={.97} />
         </group>
         {/* a filha, em pé atrás do banco, do lado do ombro esquerdo dele — foi junto com ele */}
-        <Viking ficha={FICHA_FILHA} x={-.54} y={0} z={-.67} estado={estadoFilha} semRecorte />
+        <group userData={{audit:"NPC:filha"}}><Viking ficha={FICHA_FILHA} x={-.54} y={0} z={-.67} estado={estadoFilha} semRecorte /></group>
     </group>;
 };

@@ -761,7 +761,7 @@ const Praca: React.FC = () => {
     const barracas = [[-6, 12, .4], [-3.2, 14, .1], [6, 11, -.4]];
     return <group>
         {barracas.map(([x, z, r], i) => (
-            <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}>
+            <group key={i} userData={{audit:`Praca:Barraca:${i}`}} position={[x, 0, z]} rotation={[0, r, 0]}>
                 <mesh position={[0, .45, 0]}><boxGeometry args={[1.8, .9, .9]} /><meshStandardMaterial {...pbr('tabua', 1, .5)} color="#b58a5e" /></mesh>
                 {/* quatro mourões: os de trás mais altos, o toldo desce para a frente
                     apoiado nos quatro (antes só dois o seguravam e a borda da
@@ -781,12 +781,14 @@ const Praca: React.FC = () => {
             </group>
         ))}
         {/* pedra rúnica: rocha de verdade com a faixa de runas pintada de ocre */}
+        <group userData={{audit:"Praca:PedraRunica"}}>
         <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#9a9082" {...pbr('rocha', .6, 1.4)} /></mesh>
         <mesh position={[4.2 + Math.sin(.3) * .205, 1.3, 1.5 + Math.cos(.3) * .205]} rotation={[0, .3, 0]}><planeGeometry args={[.6, 1.9]} /><meshStandardMaterial map={texturaDePedraRunica()} transparent depthWrite={false} roughness={.9} polygonOffset polygonOffsetFactor={-2} /></mesh>
+        </group>
         {/* o poço: parede de pedra aberta (por fora e por dentro), a borda
             onde o gato cochila, a água escura lá embaixo; em cima o sarilho
             com corda e balde e um telhadinho de tábua */}
-        <group position={[0, 0, 8]}>
+        <group userData={{audit:"Praca:Poco"}} position={[0, 0, 8]}>
             <mesh position={[0, .25, 0]} castShadow><cylinderGeometry args={[1.2, 1.3, .5, 24, 1, true]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 3, .5)} /></mesh>
             <mesh position={[0, .1, 0]}><cylinderGeometry args={[1, 1, .8, 24, 1, true]} /><meshStandardMaterial color="#5e564c" {...pbr('rocha', 2, .5)} side={THREE.BackSide} /></mesh>
             <mesh position={[0, .52, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1.1, .13, 8, 28]} /><meshStandardMaterial color={P13.pedra} {...pbr('rocha', 2, .3)} /></mesh>
@@ -1203,23 +1205,23 @@ export const Floor13Mundo: React.FC<{
         <Tochas />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
-        {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
+        {pontes.map((p, k) => <group key={k} userData={{audit:`Ponte:${k}`}}><PonteVisual {...p} /></group>)}
         {CASAS.map((c, i) => {
             const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
             // cada casa com seu jeito: comprimento, torção e escala próprios
-            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
+            return <group key={i} userData={{audit:`Casa:${i}`}} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
                 <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao} estilo={ESTILO_DA_CASA[i]}
                     portaRef={i === CASA_CERTA ? portaCertaRef : undefined} indice={i} />
             </group>;
         })}
         {/* a casa do Árni, no fundo do mirante, com a porta para o banco */}
-        <group position={[-19.6, -.4, 24.4]} rotation={[0, Math.atan2(-15.2 - -19.6, 20.2 - 24.4), 0]}><CasaComprida escala={.72} /></group>
+        <group userData={{audit:"Casa:Arni"}} position={[-19.6, -.4, 24.4]} rotation={[0, Math.atan2(-15.2 - -19.6, 20.2 - 24.4), 0]}><CasaComprida escala={.72} /></group>
         {/* duas casas de moradores na praça, só de cenário */}
-        <group position={[-7.5, 0, 4]} rotation={[0, 1.1, 0]}><CasaComprida escala={.9} /></group>
-        <group position={[7.8, 0, 12.5]} rotation={[0, -2.2, 0]}><CasaComprida escala={.9} /></group>
+        <group userData={{audit:"Casa:praca-oeste"}} position={[-7.5, 0, 4]} rotation={[0, 1.1, 0]}><CasaComprida escala={.9} /></group>
+        <group userData={{audit:"Casa:praca-leste"}} position={[7.8, 0, 12.5]} rotation={[0, -2.2, 0]}><CasaComprida escala={.9} /></group>
         <Praca />
-        <Forja />
-        <Templo sinoRef={sinoRef} />
-        <Carroca />
+        <group userData={{audit:"Forja"}}><Forja /></group>
+        <group userData={{audit:"Templo"}}><Templo sinoRef={sinoRef} /></group>
+        <group userData={{audit:"Carroca"}}><Carroca /></group>
     </group></CasaPronta.Provider>;
 };

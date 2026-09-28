@@ -203,17 +203,19 @@ export const Forja: React.FC = () => {
     const fogo = useRef<THREE.PointLight>(null);
     useFrame(({ clock }) => { if (fogo.current) fogo.current.intensity = 6 + Math.sin(clock.elapsedTime * 13) * 1.5 + Math.sin(clock.elapsedTime * 7) * 1; });
     return <group position={[ilha.x, ilha.y, ilha.z - 1.5]}>
+        <group userData={{audit:"Forja:Fornalha"}}>
         {/* a fornalha: pedra de cantaria, boca em arco e a coifa afunilando até a chaminé */}
         <mesh position={[0, .5, 0]} castShadow><boxGeometry args={[1.6, 1, 1.2]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 1.2, .8)} /></mesh>
-        <BrasasDaFornalha />
+        <group userData={{auditIgnore:true}}><BrasasDaFornalha /></group>
         {/* a coifa: pedra fuliginosa, preta no alto e queimada de vermelho na boca */}
         <mesh geometry={GEO_COIFA} material={MAT_COIFA} position={[0, 1.6, -.2]} castShadow />
         {/* marca de calor em volta da boca: material quente, não é luz nova */}
         <mesh material={MAT_BRASA} position={[0, 1.12, -.2]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[.745, .045, 5, 4]} /></mesh>
         <mesh position={[0, 3.2, -.2]} castShadow><boxGeometry args={[.38, 2.5, .38]} /><meshStandardMaterial color="#b3a898" {...pbr('rocha', .5, .8)} /></mesh>
         <pointLight ref={fogo} position={[0, 1.5, .5]} color="#ff8a3a" distance={9} intensity={6} />
+        </group>
         {/* a bigorna: cepo com casca e anéis no topo, bigorna de silhueta inteira em cima */}
-        <group position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
+        <group userData={{audit:"Forja:Bigorna"}} position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
             <mesh geometry={GEO_CEPO_CASCA} material={MAT_MADEIRA} position={[0, .3, 0]} castShadow />
             <mesh geometry={GEO_CEPO_ANEL} material={MAT_MADEIRA} position={[0, .601, 0]} />
             <group position={[0, .6, 0]}>
@@ -223,7 +225,7 @@ export const Forja: React.FC = () => {
                 <mesh geometry={GEO_BIGORNA_CHIFRE} material={MAT_FERRO_GASTO} position={[-.248, .196, 0]} castShadow />
             </group>
             {/* cada martelada solta uma rajada de fagulhas da mesa (f13Fagulhas) */}
-            <FagulhasDaForja posicao={[0, .87, 0]} />
+            <group userData={{auditIgnore:true}}><FagulhasDaForja posicao={[0, .87, 0]} /></group>
         </group>
         {/* postes de tronco com mão-francesa e o telhado de duas águas em turfa */}
         {[[-1.4, -1], [1.4, -1], [-1.4, 1.6], [1.4, 1.6]].map(([x, z]) => (
