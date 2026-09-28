@@ -1,3 +1,4 @@
+import { Floor13Profile, fixedQuality13, profiling13 } from './f13Perf';
 /**
  * Floor13.tsx — Vindhjem, a cidade viking que voa.
  *
@@ -61,6 +62,8 @@ const tFixo: number | null = typeof location !== 'undefined' && new URLSearchPar
     ? parseFloat(new URLSearchParams(location.search).get('f13t') ?? '0') : null;
 /** A entidade em cena: a câmera fecha mais nela. */
 const entidadeNaCena = { valor: false, linha: 0 };
+const SEM_ABERRACAO = new THREE.Vector2(0, 0);
+const ABERRACAO_ENTIDADE = new THREE.Vector2(.0016, .0008);
 
 /** Estado de movimento do jogador (mutável, lido a cada quadro). */
 interface Jog { x: number; y: number; z: number; ang: number; vy: number; seguro: { x: number; z: number }; levantando: number; andando: number }
@@ -164,6 +167,18 @@ function texturaDeMostrador(rotulo: string, marcas: number, vermelho = 0): THREE
  * lâmpada de pane piscando; montantes de latão do para-brisa nas bordas.
  * Fica no espaço do casco (anda, rola e treme com ele).
  */
+const Relogio: React.FC<{ x: number; r: number; rotulo: string; marcas: number; vermelho?: number; agulha: React.RefObject<THREE.Group | null> }> = ({ x, r, rotulo, marcas, vermelho, agulha }) => (
+    <group position={[x, 0, .031]}>
+        <mesh><circleGeometry args={[r, 28]} /><meshBasicMaterial map={texturaDeMostrador(rotulo, marcas, vermelho)} /></mesh>
+        <mesh position={[0, 0, .004]}><torusGeometry args={[r, r * .12, 6, 28]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.35} /></mesh>
+        <group ref={agulha} position={[0, 0, .006]}>
+            <mesh position={[0, r * .38, 0]}><boxGeometry args={[r * .07, r * .82, .002]} /><meshBasicMaterial color="#f4e8cc" /></mesh>
+        </group>
+        {/* vidro do mostrador: um reflexo leve */}
+        <mesh position={[0, 0, .009]}><circleGeometry args={[r, 28]} /><meshStandardMaterial color="#ffffff" transparent opacity={.08} roughness={.05} metalness={.2} /></mesh>
+    </group>
+);
+
 const Cabine: React.FC<{ tRef: React.MutableRefObject<number>; ajuste: React.MutableRefObject<(() => void) | null> }> = ({ tRef, ajuste }) => {
     const alt = useRef<THREE.Group>(null), rpm = useRef<THREE.Group>(null), oleo = useRef<THREE.Group>(null);
     const lampada = useRef<THREE.MeshStandardMaterial>(null);
@@ -178,17 +193,6 @@ const Cabine: React.FC<{ tRef: React.MutableRefObject<number>; ajuste: React.Mut
         if (oleo.current) oleo.current.rotation.z = -(t < 2.6 ? .55 : Math.max(.05, .55 - (t - 2.6) * .12)) * Math.PI * 2 * .8;
         if (lampada.current) lampada.current.emissiveIntensity = t > 2.6 && t < 10.45 && Math.sin(t * 12) > 0 ? 4 : .15;
     });
-    const Relogio: React.FC<{ x: number; r: number; rotulo: string; marcas: number; vermelho?: number; agulha: React.RefObject<THREE.Group | null> }> = ({ x, r, rotulo, marcas, vermelho, agulha }) => (
-        <group position={[x, 0, .031]}>
-            <mesh><circleGeometry args={[r, 28]} /><meshBasicMaterial map={texturaDeMostrador(rotulo, marcas, vermelho)} /></mesh>
-            <mesh position={[0, 0, .004]}><torusGeometry args={[r, r * .12, 6, 28]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.35} /></mesh>
-            <group ref={agulha} position={[0, 0, .006]}>
-                <mesh position={[0, r * .38, 0]}><boxGeometry args={[r * .07, r * .82, .002]} /><meshBasicMaterial color="#f4e8cc" /></mesh>
-            </group>
-            {/* vidro do mostrador: um reflexo leve */}
-            <mesh position={[0, 0, .009]}><circleGeometry args={[r, 28]} /><meshStandardMaterial color="#ffffff" transparent opacity={.08} roughness={.05} metalness={.2} /></mesh>
-        </group>
-    );
     // presa à cabeça: o grupo segue a câmera (posição e giro) e o painel se
     // encaixa na largura da tela — em pé nenhum relógio sai pela borda
     const raiz = useRef<THREE.Group>(null), painel = useRef<THREE.Group>(null), lados = useRef<(THREE.Mesh | null)[]>([]), trave = useRef<THREE.Mesh>(null);
@@ -326,7 +330,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         const pq = Math.max(0, t - 10.4);
         if (poeira.current) {
             poeira.current.visible = pq > 0 && pq < 1.6;
-            poeira.current.children.forEach((c, i) => {
+            if (poeira.current.visible) poeira.current.children.forEach((c, i) => {
                 const a = i / poeira.current!.children.length * Math.PI * 2;
                 c.position.set(-2 + Math.cos(a) * pq * 3, 1 + pq * (1 + (i % 3) * .4), 33 + Math.sin(a) * pq * 3);
                 c.scale.setScalar(.5 + pq * 1.2);
@@ -339,7 +343,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         // lascas de madeira e feno voando no baque, com gravidade
         if (lascas.current) {
             lascas.current.visible = pq > 0 && pq < 2;
-            lascas.current.children.forEach((c, i) => {
+            if (lascas.current.visible) lascas.current.children.forEach((c, i) => {
                 const a = i * 2.4, v = 3 + (i % 5);
                 c.position.set(-2.2 + Math.cos(a) * v * pq * .6, 1.4 + v * pq - 4.9 * pq * pq, 33.4 + Math.sin(a) * v * pq * .6);
                 c.rotation.set(pq * (5 + i), pq * 3, i);
@@ -802,8 +806,9 @@ const BIGORNA = { x: -21.3, z: 5.4 };
  */
 /** Bancada (só em DEV): chamadas de desenho, triângulos e luzes do quadro. */
 const Sonda: React.FC = () => {
-    useFrame(({ gl, scene }) => {
+    useFrame(({ gl, scene, setFrameloop }) => {
         if (!import.meta.env.DEV) return;
+        (window as any).__f13FrameLoop = setFrameloop;
         let luzes = 0, pele = 0;
         scene.traverseVisible((o) => { if ((o as THREE.PointLight).isPointLight) luzes++; if ((o as THREE.SkinnedMesh).isSkinnedMesh) pele++; });
         // o compositor chama render várias vezes: soma o quadro inteiro
@@ -915,14 +920,14 @@ function pertoDe(x: number, z: number): { x: number; z: number; yaw: number } {
 
 export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ onExit, inicio }) => {
     const est = useRef(novoEstado13());
-    const [, bump] = useReducer((x: number) => x + 1, 0);
+    const [revisao, bump] = useReducer((x: number) => x + 1, 0);
     const [fase, setFase] = useState<Fase>('queda');
     // qualidade adaptativa: começa bonita; se o aparelho não segura ~45 qps,
     // baixa a resolução e depois desliga a oclusão ambiente — nesta ordem,
     // porque a resolução custa menos ao olho do que perder o AO
     // no celular (toque) já começa no nível do meio: a tela tem 3× a
     // densidade de pixels e a GPU uma fração da de um computador
-    const [nivel, setNivel] = useState(() => (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 : 2));
+    const [nivel, setNivel] = useState(() => fixedQuality13 ?? (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 : 2));
     const Q = QUALIDADE[nivel];
     useEffect(() => { alcanceDaGrama.valor = Q.grama; }, [Q]);
     const tQueda = useRef(0);
@@ -1020,6 +1025,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         (window as unknown as { __f13?: unknown }).__f13 = {
             ir: (x: number, z: number, ang = 0, yawCam = ang) => { const j = jog.current; j.x = x; j.z = z; j.y = chaoEm(x, z) ?? 0; j.ang = ang; yaw.current = yawCam; j.levantando = 0; },
             estado: () => est.current,
+            dialogo: (id: IdNpc = 'brokk') => { const n = NPCS.find(n => n.id === id); if (n) abrirDialogo([...n.primeira], id); },
+            banco: () => sentarNoBanco(),
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
@@ -1172,6 +1179,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             h.possessao = 0; h.caido = true;
             window.setTimeout(() => tocarCorpoCaindo(), 820);
             est.current.entidade = 'caido';
+            bump(); // invalidate scene props even though the black overlay is DOM-only
             // o preto dura pouco: a queda dele TEM de ser vista
             window.setTimeout(() => setConexao(false), 800);
             window.setTimeout(() => { entidadeNaCena.valor = false; fecharDialogo(); setAviso('Halvard caiu duro. Ninguém em volta parece notar.'); }, 3800);
@@ -1358,16 +1366,18 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDoSino(a.i)
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
-    return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
-            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    // UI typing/fades/joystick updates do not invalidate the R3F tree. Mutable
+    // gameplay data is explicitly versioned by bump(); refs still animate each frame.
+    const arniFalandoAgora = arniFalando.current || !!legendaBanco;
+    const cena = useMemo(() => (
             <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#b7cfe4', .0019); }}>
+                <Floor13Profile>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
                 <hemisphereLight args={['#a6c8f5', '#3a2f22', naCabine ? .16 : .3]} />
-                <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
+                {!profiling13 && <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
                 <LuzDaCamera intensidade={naCabine ? .14 : .35} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
@@ -1384,7 +1394,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <SinosDaTorre />
                 <OuvidoDaForja />
                 <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} />
-                <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
+                <ArniNoBanco falando={arniFalandoAgora} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
                 {NPCS.map((n) => {
@@ -1414,7 +1424,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
                     {Q.ao && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
                     <Bloom mipmapBlur intensity={.45} luminanceThreshold={.9} luminanceSmoothing={.3} />
-                    <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
+                    <ChromaticAberration offset={glitch ? ABERRACAO_ENTIDADE : SEM_ABERRACAO} />
                     <Noise opacity={glitch ? .06 : .012} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                     {/* a cor se ajusta DEPOIS da curva (antes, o ACES comia a saturação);
@@ -1426,7 +1436,15 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     {/* sempre no compositor (em 0 não desenha nada): entrar com ele no meio da cena recompilava o pós */}
                     <primitive object={efeitoChuva} dispose={null} />
                 </EffectComposer>
+                </Floor13Profile>
             </Canvas>
+    ), [Q, compilado, naCabine, chegou, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit]);
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+            {cena}
+
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
             {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '10px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'rgba(8,16,22,.55)', pointerEvents: 'none' }}>

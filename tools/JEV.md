@@ -29,3 +29,25 @@ usage. The caller still decides whether to spawn an agent. In ambiguous cases
 the script retains work with `main_agent`; it never grants access or dispatches
 tools itself. Group related routing questions into one Jev request when they
 share the same evidence.
+
+## Economical use in coding sessions
+
+Use Jev for a bounded semantic decision that can avoid meaningful downstream
+work, not before every shell command or file read. Deterministic checks stay in
+code. Batch only useful independent questions over a short shared state; make a
+second request only when the first answer is needed to construct new evidence.
+Reuse the validated local cache while evidence and question meanings are unchanged.
+Keep delegated tasks narrow and pass the necessary context instead of full history.
+
+This is an orchestration policy, not a guarantee of a longer ChatGPT/Codex quota.
+Jev does not replace the coding-agent LLM or execute native tools. Cache savings
+reported by this helper describe avoided TypeSafe requests, not saved Codex quota.
+The legacy `billed_tokens` field sums input and output usage; do not convert it
+directly to money: current TypeSafe pricing charges input tokens only. Consult
+live pricing before estimating costs. No provider-side prompt cache is assumed.
+
+Official references checked 2026-09-28, with GPT-6 Sol research:
+- https://docs.typesafe.ai/introduction/coding-agents
+- https://docs.typesafe.ai/patterns/fan-out
+- https://docs.typesafe.ai/concepts/state
+- https://docs.typesafe.ai/models

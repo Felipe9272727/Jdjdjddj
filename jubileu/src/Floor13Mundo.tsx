@@ -17,7 +17,7 @@ import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { Decoracao } from './f13Decoracao';
 import { Forja } from './f13Forja';
-import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
+import { ILHAS, PONTES, TRECHOS_DAS_PONTES, alturaDoTablado, ESPESSURA_TABUA, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
@@ -244,7 +244,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
         return Array.from({ length: n }, (_, i) => {
             const t = (i + .5) / n;
             const p = a.clone().lerp(b, t);
-            p.y += -Math.sin(t * Math.PI) * .35 - .08;
+            p.y = alturaDoTablado(a.y, b.y, t);
             return p;
         });
     }, [a, b]);
@@ -252,7 +252,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
     return <group>
         {tabuas.map((p, i) => (
             <mesh key={i} position={p} rotation={[0, ang, (i % 3 - 1) * .02]}>
-                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial {...pbr('carvalho', .5, .25)} color={i % 4 ? '#ffffff' : '#d8c8b8'} />
+                <boxGeometry args={[largura, ESPESSURA_TABUA, .46]} /><meshStandardMaterial {...pbr('carvalho', .5, .25)} color={i % 4 ? '#ffffff' : '#d8c8b8'} />
             </mesh>
         ))}
         {[-1, 1].map((lado) => tabuas.filter((_, i) => i % 5 === 0).map((p, i) => (
@@ -1184,15 +1184,9 @@ export const Floor13Mundo: React.FC<{
     portaCertaRef?: React.Ref<THREE.Group>;
     sinoRef?: React.Ref<THREE.Group>;
 }> = ({ portaCertaRef, sinoRef }) => {
-    const pontes = useMemo(() => PONTES.map((p) => {
-        const a = ILHAS.find((i) => i.id === p.de)!, b = ILHAS.find((i) => i.id === p.para)!;
-        const dir = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize();
-        return {
-            a: new THREE.Vector3(a.x + dir.x * (a.r - .4), a.y, a.z + dir.z * (a.r - .4)),
-            b: new THREE.Vector3(b.x - dir.x * (b.r - .4), b.y, b.z - dir.z * (b.r - .4)),
-            largura: p.largura,
-        };
-    }), []);
+    const pontes = useMemo(() => TRECHOS_DAS_PONTES.map(({a,b,largura}) => ({
+        a:new THREE.Vector3(a.x,a.y,a.z), b:new THREE.Vector3(b.x,b.y,b.z), largura,
+    })), []);
     const raiz = useRef<THREE.Group>(null);
     const [prontas, setProntas] = useState(0);
     const avisa = useCallback(() => setProntas((n) => n + 1), []);

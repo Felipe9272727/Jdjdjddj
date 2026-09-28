@@ -28,23 +28,31 @@ export const PONTES: ReadonlyArray<Ponte> = Object.freeze([
     { de: 'praca', para: 'mirante', largura: 1.8 },
 ]);
 
+/** The deck and the walkable surface use the same inset, sag and thickness. */
+export const ESPESSURA_TABUA = .09;
+export const TRECHOS_DAS_PONTES = PONTES.map(p => {
+    const a = ilha(p.de), b = ilha(p.para);
+    const length = Math.hypot(b.x-a.x,b.z-a.z), dx=(b.x-a.x)/length, dz=(b.z-a.z)/length;
+    return { largura:p.largura,
+        a:{x:a.x+dx*(a.r-.4),y:a.y,z:a.z+dz*(a.r-.4)},
+        b:{x:b.x-dx*(b.r-.4),y:b.y,z:b.z-dz*(b.r-.4)} };
+});
+export function alturaDoTablado(a: number, b: number, t: number): number {
+    return a+(b-a)*t-Math.sin(Math.PI*t)*.35-.08;
+}
+
 /** Altura do chão em (x, z), ou `null` se ali é céu. */
 export function chaoEm(x: number, z: number): number | null {
     let alto: number | null = null;
     for (const i of ILHAS) {
         if (Math.hypot(x - i.x, z - i.z) <= i.r) alto = Math.max(alto ?? -Infinity, i.y);
     }
-    for (const p of PONTES) {
-        const a = ilha(p.de), b = ilha(p.para);
-        const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz;
-        const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
-        const px = a.x + dx * t, pz = a.z + dz * t;
-        if (Math.hypot(x - px, z - pz) <= p.largura / 2) {
-            // a ponte sobe de uma ilha à outra só no trecho fora das duas
-            const L = Math.sqrt(L2), s = t * L;
-            const k = Math.max(0, Math.min(1, (s - a.r) / Math.max(1e-3, L - a.r - b.r)));
-            const y = a.y + (b.y - a.y) * k;
-            alto = alto === null ? y : Math.max(alto, y);
+    for (const {a,b,largura} of TRECHOS_DAS_PONTES) {
+        const dx=b.x-a.x, dz=b.z-a.z, length2=dx*dx+dz*dz;
+        const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/length2));
+        if (Math.hypot(x-a.x-dx*t,z-a.z-dz*t) <= largura/2) {
+            const y=alturaDoTablado(a.y,b.y,t)+ESPESSURA_TABUA/2;
+            alto=alto===null?y:Math.max(alto,y);
         }
     }
     return alto;
