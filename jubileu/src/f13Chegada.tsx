@@ -14,7 +14,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { busca } from './f13Busca';
-import { chaoEm, INICIO, SINO } from './f13Mundo';
+import { chaoEm, INICIO, LUGAR_DOS_NPCS } from './f13Mundo';
 import * as THREE from 'three';
 
 // ── Tipos e nomes ────────────────────────────────────────────────────────
@@ -41,8 +41,10 @@ function rumoDe(dx: number, dz: number): string {
 }
 
 // ── Geografia do gancho (calculada uma vez, no carregamento) ─────────────
-const DX = SINO.x - INICIO.x;
-const DZ = SINO.z - INICIO.z;
+// o cão leva o jogador até a primeira moradora (Ragnhild), não ao sino
+const PISTEIRO = LUGAR_DOS_NPCS[ID_PISTEIRO];
+const DX = PISTEIRO.x - INICIO.x;
+const DZ = PISTEIRO.z - INICIO.z;
 const DIST_SINO = Math.hypot(DX, DZ) || 1;
 const RX = DX / DIST_SINO;
 const RZ = DZ / DIST_SINO;
@@ -60,7 +62,7 @@ function pontoFirmeEm(d: number): Ponto {
 /** Até onde dá para ir sem cair no vazio (vão de até 4 m conta como ponte). */
 const ALCANCE = (() => {
     let ultimo = 0, vazio = 0;
-    for (let d = 1; d <= DIST_SINO - 2; d += 0.5) {
+    for (let d = 1; d <= DIST_SINO - 3; d += 0.5) {
         if (chaoEm(INICIO.x + RX * d, INICIO.z + RZ * d) !== null) {
             ultimo = d; vazio = 0;
         } else {
@@ -77,9 +79,9 @@ const ALVO_3 = pontoFirmeEm(ALCANCE);
 const ALVOS: ReadonlyArray<Ponto> = Object.freeze([ALVO_1, ALVO_2, ALVO_3]);
 
 const CHEGOU = 4;    // metros: "o jogador andou até aqui" fecha antes do teto
-const TETO_1 = 14;   // s
-const TETO_2 = 26;   // s
-const TETO_3 = 40;   // s
+const TETO_1 = 9;    // s
+const TETO_2 = 16;   // s
+const TETO_3 = 24;   // s
 
 // ── Passos ───────────────────────────────────────────────────────────────
 interface Passo {
@@ -90,11 +92,11 @@ interface Passo {
 }
 
 const PASSOS: ReadonlyArray<Passo> = Object.freeze([
-    { teto: 0, aviso: 'Um cão vem correndo pelo feno, rabo em pé, com um graveto na boca.', arremesso: -1, perto: -1 },
-    { teto: 2, aviso: 'Ele larga o graveto aos seus pés… e pega de volta, e dispara rumo à vila.', arremesso: 0, perto: -1 },
-    { teto: TETO_1, aviso: 'O shiba late lá adiante, no caminho. Quer que você vá junto.', arremesso: 1, perto: 0 },
-    { teto: TETO_2, aviso: 'Da praça vêm gritos de criança: “Caiu um! Caiu um no feno!”', arremesso: 2, perto: 1 },
-    { teto: TETO_3, aviso: 'A vila está logo ali. Alguém ali deve saber o que é este lugar.', arremesso: -1, perto: 2 },
+    { teto: 0, aviso: 'Um shiba vem correndo com um graveto na boca. Ele quer brincar!', arremesso: -1, perto: -1 },
+    { teto: 2, aviso: 'Ele largou o graveto e saiu correndo rumo à vila. Vá atrás dele!', arremesso: 0, perto: -1 },
+    { teto: TETO_1, aviso: 'O cão parou lá na frente e está latindo. Siga em frente.', arremesso: 1, perto: 0 },
+    { teto: TETO_2, aviso: 'Tem gente na praça. Aquela ali com o “!” em cima pode ajudar.', arremesso: 2, perto: 1 },
+    { teto: TETO_3, aviso: 'Fale com a Ragnhild: ela está bem ali, com o “!” em cima.', arremesso: -1, perto: 2 },
 ]);
 
 // ── Componente ───────────────────────────────────────────────────────────
@@ -102,7 +104,9 @@ export const GanchoDaChegada: React.FC<{
     ativo: boolean;
     jog: React.MutableRefObject<{ x: number; y: number; z: number }>;
     avisar: (texto: string) => void;
-}> = ({ ativo, jog, avisar }) => {
+    /** true quando o jogador já conversou com a primeira moradora */
+    jaFalou?: () => boolean;
+}> = ({ ativo, jog, avisar, jaFalou }) => {
     const passo = useRef(-1);
     const t = useRef(0);
     const ultimaDist = useRef(-1);
@@ -155,6 +159,14 @@ export const GanchoDaChegada: React.FC<{
             return;
         }
 
+        // 2) Depois do gancho: relembra onde está a Ragnhild até o jogador falar com ela
+        if (jaFalou?.()) { passo.current = PASSOS.length + 1; return; }
+        if (passo.current === PASSOS.length + 1) return;
+        if (agoraS - ultimoRelogio.current < 14) return;
+        ultimoRelogio.current = agoraS;
+        const dx = PISTEIRO.x - p.x, dz = PISTEIRO.z - p.z;
+        const d = Math.round(Math.hypot(dx, dz));
+        if (d > 5) avisar(`${NOME_DE[ID_PISTEIRO]} espera por você: ${d} m ao ${rumoDe(dx, dz)}.`);
     });
 
     return null;
