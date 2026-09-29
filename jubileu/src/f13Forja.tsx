@@ -47,8 +47,18 @@ function sulcoCasca(a: number, y: number): number {
 
 /** Ferro fosco dos adereços: tenaz, martelo, aros do balde, pinos. */
 const MAT_FERRO = new THREE.MeshStandardMaterial({ color: '#33343a', metalness: .8, roughness: .45, flatShading: true });
-/** Ferro escuro com arestas gastas — exige cor por vértice na geometria (bigorna). */
-const MAT_FERRO_GASTO = new THREE.MeshStandardMaterial({ color: '#9ba1ab', metalness: .86, roughness: .34, flatShading: true, vertexColors: true });
+/** Paleta do ferro forjado da bigorna: o corpo é quase preto e só as arestas de cima ficam gastas. */
+const COR_FERRO = new THREE.Color('#2a2826');
+const COR_FERRO_GASTO = new THREE.Color('#6d6459');
+/** Ferro escuro com arestas gastas — a cor real vem por vértice (bigorna). Fosco e sem espelhar o céu. */
+const MAT_FERRO_GASTO = new THREE.MeshStandardMaterial({
+    color: '#ffffff',        // o ferro quase preto e o desgaste estão na cor por vértice (COR_FERRO → COR_FERRO_GASTO)
+    metalness: .55,          // metal moderado: sombra de ferro batido, não cromo de brinquedo
+    roughness: .55,          // fosco, sem brilho de plástico
+    envMapIntensity: .4,     // quase não reflete o céu azul
+    flatShading: true,
+    vertexColors: true,
+});
 /** Aço polido: face do martelo. */
 const MAT_ACO = new THREE.MeshStandardMaterial({ color: '#a9aeba', metalness: .9, roughness: .25 });
 /** Madeira com cor por vértice: casca e anéis do cepo, toras da lenha. */
@@ -136,10 +146,10 @@ const GEO_BIGORNA_CORPO = (() => {
     g.translate(0, 0, -.085);
     g.computeVertexNormals();
     return corPorVertice(g, (x, y, z, _nx, ny, _nz, c) => {
-        // ferro escuro; o topo da mesa e as arestas chanfradas ficam gastos e claros
-        const gasto = THREE.MathUtils.clamp(ny * 1.25 - .3, 0, 1);
-        const claro = .34 + gasto * .62 + ruido(x * 45, y * 45, z * 45) * .07;
-        c.setRGB(claro, claro, claro * 1.03);
+        // ferro quase preto; só o topo da mesa e os chanfros das arestas de cima ficam gastos e mais claros
+        const gasto = THREE.MathUtils.clamp(ny * 1.15 - .25, 0, 1); // 0 nas laterais, 1 na face de cima
+        c.copy(COR_FERRO).lerp(COR_FERRO_GASTO, gasto * .78);
+        c.multiplyScalar(.93 + ruido(x * 45, y * 45, z * 45) * .14); // batido à mão, não liso
     });
 })();
 
@@ -155,10 +165,11 @@ const GEO_BIGORNA_CHIFRE = (() => {
         pos.setX(i, x - t * t * .02);
     }
     g.computeVertexNormals();
-    return corPorVertice(g, (x, _y, _z, _nx, _ny, _nz, c) => {
-        const t = THREE.MathUtils.clamp((.14 - x) / .28, 0, 1);
-        const claro = .34 + t * .58; // a ponta é a parte mais gasta
-        c.setRGB(claro, claro, claro * 1.03);
+    return corPorVertice(g, (x, _y, _z, _nx, ny, _nz, c) => {
+        const t = THREE.MathUtils.clamp((.14 - x) / .28, 0, 1); // 0 = base, 1 = ponta
+        // a ponta e o dorso do chifre são as partes mais gastas do ferro
+        const gasto = THREE.MathUtils.clamp(t * .85 + Math.max(ny, 0) * .3, 0, 1);
+        c.copy(COR_FERRO).lerp(COR_FERRO_GASTO, gasto * .85);
     });
 })();
 
