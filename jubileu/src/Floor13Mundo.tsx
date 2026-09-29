@@ -200,6 +200,27 @@ const Nuvens: React.FC = () => {
     return <instancedMesh ref={ref} args={[geo, mat, lista.length]} frustumCulled={false} renderOrder={-5} />;
 };
 
+/**
+ * Detalhe de perto para o tampo das ilhas: a textura base estica uma vez pela
+ * ilha inteira (~3 m por repetição) e vira borrão. Aqui a mesma textura de
+ * grama e o mesmo normal são amostrados de novo em coordenadas locais, com
+ * ~0,6 m e ~1,5 m por repetição: duas leituras a mais, sem geometria nova.
+ */
+const detalheDoChao = (sh: { vertexShader: string; fragmentShader: string }) => {
+    sh.vertexShader = 'varying vec2 vDet;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vDet = position.xz;');
+    sh.fragmentShader = 'varying vec2 vDet;\n' + sh.fragmentShader
+        .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+            vec3 dA = texture2D(map, vDet * .62 + .21).rgb, dB = texture2D(map, vDet * 1.7 + .57).rgb;
+            float lum = dot(dA, vec3(.333)) * .5 + dot(dB, vec3(.333)) * .5;
+            float perto = 1. - smoothstep(6., 22., length(vViewPosition));
+            diffuseColor.rgb *= mix(1., clamp(lum * 2.6, .55, 1.5), .75 * perto + .25);
+        }`)
+        .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace(
+            'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
+            'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz + texture2D( normalMap, vDet * 1.3 ).xyz - 1.0;'));
+};
+
 /** Uma ilha: tampo de grama com borda de terra e a rocha pendurada. */
 const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: number }> = ({ x, y, z, r, i }) => {
     const rocha = useMemo(() => geoRocha(r, i * 3.1), [r, i]);
@@ -223,7 +244,7 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         return g;
     }, [r, i]);
     return <group position={[x, y, z]}>
-        <mesh position={[0, -.18, 0]} receiveShadow geometry={topo}><meshStandardMaterial vertexColors {...pbr('grama', Math.round(r / 1.6))} normalScale={new THREE.Vector2(.8, .8)} /></mesh>
+        <mesh position={[0, -.18, 0]} receiveShadow geometry={topo}><meshStandardMaterial vertexColors {...pbr('grama', Math.round(r / 1.6))} normalScale={new THREE.Vector2(.8, .8)} onBeforeCompile={detalheDoChao} /></mesh>
         {/* a franja de grama que escorre pela borda */}
         <mesh position={[0, -.42, 0]}><cylinderGeometry args={[r * 1.01, r * .99, .22, 40, 1, true]} /><meshStandardMaterial color={P13.gramaEsc} {...pbr('grama', 8, 1)} side={THREE.DoubleSide} /></mesh>
         <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#8a6a4a" {...pbr('rocha', 6, .5)} /></mesh>
@@ -876,7 +897,7 @@ const Grama: React.FC = () => {
     // instanciada às dezenas de milhares. A cor vai da raiz sombria à ponta
     // dourada, cada touceira puxa um verde diferente, e o vento chega em
     // rajadas que atravessam a ilha — não um balanço uniforme.
-    const { geo, geoLonge, mat, mats, tons } = useMemo(() => {
+    const { geo, geoLonge, mat, matLonge, mats, tons } = useMemo(() => {
         const A = .3, L = .05;
         // lâmina de G gomos; a de longe usa 2 (mesma silhueta, metade dos triângulos)
         const lamina = (G: number) => {
@@ -895,7 +916,11 @@ const Grama: React.FC = () => {
             return g;
         };
         const g = lamina(4), gLonge = lamina(2);
+        // troca de LOD sem faixa: entre 13 e 19 m cada lâmina sorteia (hash da
+        // posição) de que lado da troca fica; a versão errada colapsa a zero
+        const fazMat = (longe: number) => {
         const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: .7, color: '#ffffff' });
+        m.customProgramCacheKey = () => 'grama' + longe;
         m.onBeforeCompile = (sh) => {
             sh.uniforms.uT = tempoGrama;
             sh.vertexShader = 'uniform float uT;\nattribute vec3 aTom;\nvarying vec3 vTom;\nvarying float vAlt;\n' + sh.vertexShader
@@ -911,6 +936,10 @@ const Grama: React.FC = () => {
                 // meia tela, serrilhadas): some de 0,6 m e está inteira a 2,6 m
                 float perto = smoothstep(.6, 2.6, distance(cameraPosition.xz, (modelMatrix * wp).xz));
                 transformed *= mix(.12, 1., perto);
+                float dl = distance(cameraPosition, (modelMatrix * wp).xyz);
+                float sorte = fract(sin(dot(wp.xz, vec2(12.9898, 78.233))) * 43758.5453);
+                float ehLonge = step(sorte, smoothstep(13., 19., dl));
+                transformed *= ${longe.toFixed(1)} > .5 ? ehLonge : 1. - ehLonge;
                 transformed.y -= balanco * balanco * k * k * .35;
                 vTom = aTom; vAlt = k;`);
             sh.fragmentShader = 'varying vec3 vTom;\nvarying float vAlt;\n' + sh.fragmentShader
@@ -922,6 +951,9 @@ const Grama: React.FC = () => {
                 .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
                 totalEmissiveRadiance += vTom * .05 * vAlt;`);
         };
+        return m;
+        };
+        const m = fazMat(0), mLonge = fazMat(1);
         let k = 23;
         const rnd = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
         const ms: THREE.Matrix4[] = [];
@@ -956,7 +988,7 @@ const Grama: React.FC = () => {
                 }
             }
         }
-        return { geo: g, geoLonge: gLonge, mat: m, mats: ms, tons: new Float32Array(cores) };
+        return { geo: g, geoLonge: gLonge, mat: m, matLonge: mLonge, mats: ms, tons: new Float32Array(cores) };
     }, []);
     // em blocos de 9 m: cada bloco é um InstancedMesh com a própria esfera
     // envolvente, então o que está fora da tela nem vai para a GPU, e o que
@@ -981,7 +1013,7 @@ const Grama: React.FC = () => {
             // versão de longe: mesma matriz e mesmas cores (buffers compartilhados), lâmina de 2 gomos
             const gl = geoLonge.clone();
             gl.setAttribute('aTom', g.getAttribute('aTom'));
-            const lo = new THREE.InstancedMesh(gl, mat, ids.length);
+            const lo = new THREE.InstancedMesh(gl, matLonge, ids.length);
             lo.instanceMatrix = im.instanceMatrix;
             lo.boundingSphere = im.boundingSphere;
             lo.receiveShadow = true;
@@ -989,7 +1021,7 @@ const Grama: React.FC = () => {
             im.userData.longe = lo;
             return im;
         });
-    }, [geo, geoLonge, mat, mats, tons]);
+    }, [geo, geoLonge, mat, matLonge, mats, tons]);
     const centro = useMemo(() => new THREE.Vector3(), []);
     useFrame(({ clock, camera }) => {
         tempoGrama.value = clock.elapsedTime;
@@ -998,10 +1030,9 @@ const Grama: React.FC = () => {
             const d = centro.distanceTo(camera.position), r = b.boundingSphere!.radius;
             const lo = b.userData.longe as THREE.InstancedMesh;
             const dentro = d < alcanceDaGrama.valor + r;
-            // bloco inteiro além de 16 m: lâmina simplificada (a 16 m uma lâmina tem ~2 px de largura)
-            const longe = d - r > 16;
-            b.visible = dentro && !longe;
-            lo.visible = dentro && longe;
+            // faixa de mistura 13-19 m: os dois desenham e cada lâmina escolhe um
+            b.visible = dentro && d - r < 19;
+            lo.visible = dentro && d + r > 13;
         }
     });
     return <>{blocos.map((b, i) => <React.Fragment key={i}><primitive object={b} /><primitive object={b.userData.longe} /></React.Fragment>)}</>;
@@ -1042,8 +1073,10 @@ const Trilhas: React.FC = () => {
         const g = new THREE.DodecahedronGeometry(1, 1);
         const gp = g.getAttribute('position');
         for (let i = 0; i < gp.count; i++) { const f = 1 + ruido(gp.getX(i) * 2.3, 0, gp.getZ(i) * 2.3) * .45; const y = gp.getY(i); gp.setXYZ(i, gp.getX(i) * f, y > 0 ? y * (.9 + ruido(gp.getX(i) * 3, 1, gp.getZ(i) * 3) * .15) : y, gp.getZ(i) * f); }
-        g.scale(.17, .045, .14); g.computeVertexNormals();
-        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .25, .6), map: null, color: '#8f8270', roughness: 1, envMapIntensity: 0 });
+        g.scale(.3, .06, .24); g.computeVertexNormals();
+        // laje clara e fosca: mais clara que a terra escura em volta (é o contraste que a faz ler
+        // como pedra), com a textura de rocha por cima, sem brilho de env
+        const m = new THREE.MeshStandardMaterial({ ...pbr('rocha', .5, 1), color: '#ddd9d0', roughness: 1, metalness: 0, envMapIntensity: .12 });
         const cores: THREE.Color[] = [];
         const ms: THREE.Matrix4[] = [];
         const o = new THREE.Object3D();
@@ -1056,26 +1089,54 @@ const Trilhas: React.FC = () => {
                 if (s > L) continue;
                 const x = t.a.x + d.x * s + lado.x * l * (.2 + r() * .1), z = t.a.y + d.y * s + lado.y * l * (.2 + r() * .1);
                 // assentadas: a borda aparece um pouco acima da grama baixa
-                o.position.set(x, t.y - .04, z); o.rotation.set((r() - .5) * .06, r() * 3, (r() - .5) * .06);
+                o.position.set(x, t.y - .045, z); o.rotation.set((r() - .5) * .06, r() * 3, (r() - .5) * .06);
                 const e = .7 + r() * .5; o.scale.set(e, .8 + r() * .3, e * (.7 + r() * .4)); o.updateMatrix(); ms.push(o.matrix.clone());
                 // cada laje com o seu tom: musgo, ferrugem, cinza de rio
-                cores.push(new THREE.Color().setHSL(.07 + r() * .08, .07 + r() * .07, .4 + r() * .1));
+                cores.push(new THREE.Color().setHSL(.1 + r() * .06, .03 + r() * .04, .78 + r() * .14));
             }
         }
         const im = new THREE.InstancedMesh(g, m, ms.length);
         ms.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cores[i]); });
         im.receiveShadow = true; im.castShadow = true; im.computeBoundingSphere();
         // o anel de terra batida sob cada laje: o que a assenta no chão (sem ele lia como mancha solta)
-        const gt = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2).scale(.2, 1, .17);
-        const terra = new THREE.InstancedMesh(gt, new THREE.MeshStandardMaterial({ color: '#4a3a28', roughness: 1, alphaMap: texBordaMacia(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), ms.length);
+        const gt = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2).scale(.3, 1, .25);
+        const terra = new THREE.InstancedMesh(gt, new THREE.MeshStandardMaterial({ color: '#2e2216', roughness: 1, alphaMap: texBordaMacia(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), ms.length);
         const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Vector3(), _m = new THREE.Matrix4();
-        ms.forEach((mm, i) => { mm.decompose(_p, _q, _e); _p.y += .001; _e.set(_e.x * 1.25, 1, _e.z * 1.25); terra.setMatrixAt(i, _m.compose(_p, _q, _e)); });
+        ms.forEach((mm, i) => { mm.decompose(_p, _q, _e); _p.y += .001; _e.set(_e.x * 1.5, 1, _e.z * 1.5); terra.setMatrixAt(i, _m.compose(_p, _q, _e)); });
         terra.receiveShadow = true; terra.computeBoundingSphere();
         const grupo = new THREE.Group(); grupo.add(terra, im);
         return grupo;
     }, []);
     return <primitive object={malha} />;
 };
+
+/** Folhagem procedural (uma vez): folhinhas claras e escuras sobre fundo vazado; o alphaTest rasga a silhueta da moita. */
+let _folhas: THREE.Texture | null = null;
+function texFolhas() {
+    if (_folhas) return _folhas;
+    const N = 128, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d')!;
+    let k = 7; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+    g.fillStyle = '#3d5a24'; g.fillRect(0, 0, N, N);   // fundo opaco escuro (sombra entre folhas)
+    // folhas desenhadas 9 vezes (deslocadas ±N) para o ladrilho emendar
+    const folhas = 170;
+    for (let i = 0; i < folhas; i++) {
+        const x = r() * N, y = r() * N, a = r() * Math.PI, l = 5 + r() * 5, w = 2 + r() * 1.6, t = r();
+        g.fillStyle = `hsl(${78 + t * 40}, ${45 + r() * 25}%, ${26 + t * 34}%)`;
+        for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) {
+            g.beginPath(); g.ellipse(x + dx, y + dy, l, w, a, 0, Math.PI * 2); g.fill();
+        }
+    }
+    // buracos: cortes que deixam o céu aparecer e quebram a bola
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 46; i++) {
+        const x = r() * N, y = r() * N, rr = 2 + r() * 4;
+        for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) { g.beginPath(); g.ellipse(x + dx, y + dy, rr, rr * .6, r() * 3, 0, Math.PI * 2); g.fill(); }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return (_folhas = t);
+}
 
 /**
  * A borda das ilhas: pedras meio enterradas e arbustos correndo pela beira,
@@ -1111,15 +1172,15 @@ const Borda: React.FC = () => {
         const ip = new THREE.InstancedMesh(gp, new THREE.MeshStandardMaterial({ color: '#9a8f80', ...pbr('rocha', .6, .6) }), mp.length);
         mp.forEach((m, i) => ip.setMatrixAt(i, m));
         // moita: bolas de folhagem fundidas numa geometria só
-        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e]) => new THREE.IcosahedronGeometry(e, 2).translate(x, y, z));
+        const partes = [[0, 0, 0, 1], [.6, -.1, .2, .7], [-.55, -.1, -.1, .75], [.1, .25, -.3, .65]].map(([x, y, z, e], n) => new THREE.IcosahedronGeometry(e, n ? 1 : 2).translate(x, y, z));
         const gm = mergeGeometries(partes)!;
         const pm = gm.getAttribute('position');
         for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22 + ruido(pm.getX(i) * 11, pm.getY(i) * 11, pm.getZ(i) * 11) * .07; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }
         gm.computeVertexNormals();
         // suave (facetada destoava da grama e da madeira texturizadas) e cada moita no seu verde
-        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#5a7a36', roughness: .9, ...pbr('grama', 2, .5), map: null }), mm.length);
+        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .9, map: texFolhas(), alphaTest: .5, side: THREE.DoubleSide }), mm.length);
         const cor = new THREE.Color();
-        mm.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, cor.setHSL(.22 + r() * .07, .35 + r() * .2, .32 + r() * .14)); });
+        mm.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, cor.setHSL(.21 + r() * .07, .34 + r() * .2, .42 + r() * .14)); });
         for (const x of [ip, im]) { x.castShadow = true; x.receiveShadow = true; x.computeBoundingSphere(); }
         return [ip, im];
     }, []);
