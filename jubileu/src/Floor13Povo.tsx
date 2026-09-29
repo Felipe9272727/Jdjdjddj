@@ -35,6 +35,22 @@ const ESCALA = 1.1;
 const JEITO: Readonly<Record<string, 'cruzados' | 'cintura' | 'costas' | 'solto'>> = {
     sigrun: 'costas', torvald: 'costas',
 };
+/** Degrau suave 0→1 entre a e b. */
+const suave = (v: number, a: number, b: number) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+/** Janela 0→1→0 na fase u do ciclo: sobe em [a,b], segura, desce em [c,d]. */
+const jan = (u: number, a: number, b: number, c: number, d: number) => suave(u, a, b) * (1 - suave(u, c, d));
+/** O jeito de cada corpo parado: respiração, abertura das pernas, inclinação, ombros. */
+interface Persona { resp: number; amp: number; abre: number; incl: number; tomba: number; ombro: number; }
+const PERSONA_PADRAO: Persona = { resp: 1, amp: 1, abre: .03, incl: 0, tomba: 0, ombro: 0 };
+const PERSONA: Readonly<Record<string, Persona>> = {
+    brokk: { resp: .8, amp: 1.8, abre: .1, incl: .03, tomba: 0, ombro: .05 },      // peito largo, pernas firmes
+    sigrun: { resp: 1.1, amp: .9, abre: .02, incl: .02, tomba: .06, ombro: 0 },    // leve, cabeça pendida
+    ragnhild: { resp: 1.2, amp: 1, abre: .02, incl: -.02, tomba: -.05, ombro: 0 }, // quadril de lado, cesto
+    torvald: { resp: .7, amp: 1.2, abre: .07, incl: -.05, tomba: 0, ombro: .04 },  // capitão: peito para fora
+    halvard: { resp: .9, amp: .8, abre: .05, incl: .08, tomba: .04, ombro: -.02 }, // curvado sobre a vara
+    ulfgar: { resp: .9, amp: 1.4, abre: .04, incl: -.02, tomba: -.04, ombro: 0 },  // escaldo: cabeça alta
+    astrid: { resp: .85, amp: 1, abre: .11, incl: -.04, tomba: 0, ombro: .03 },    // guarda: pés afastados
+};
 /**
  * O tom de pele de cada um (multiplica o difuso do MakeHuman): antes todos
  * saíam com o mesmo '#e4c3b0' e pareciam irmãos. Quem vive no mar e na forja
@@ -72,6 +88,30 @@ function prender(modelo: THREE.Object3D, nomeOsso: string, pecaCrua: THREE.Objec
     osso.add(peca);
 }
 const mat = (cor: string, r = .85, metal = 0) => new THREE.MeshStandardMaterial({ color: cor, roughness: r, metalness: metal });
+/** Onde um osso repousa, no espaço do modelo (para prender peças na mão). */
+const _v3 = new THREE.Vector3();
+function posOsso(modelo: THREE.Object3D, nome: string): [number, number, number] {
+    const osso = modelo.getObjectByName(nome); if (!osso) return [0, 0, 0];
+    modelo.updateMatrixWorld(true);
+    _v3.setFromMatrixPosition(osso.matrixWorld); modelo.worldToLocal(_v3);
+    return [_v3.x, _v3.y, _v3.z];
+}
+/** Prende a peça na mão/antebraço: `d` é o desvio a partir do osso e `r` o giro (espaço do modelo em repouso). */
+function naMao(modelo: THREE.Object3D, osso: string, pecaCrua: THREE.Object3D, d: [number, number, number], r: [number, number, number] = [0, 0, 0]) {
+    const p = posOsso(modelo, osso);
+    pecaCrua.rotation.set(r[0], r[1], r[2]);
+    prender(modelo, osso, pecaCrua, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]);
+}
+// gestos: parâmetros da mão de cada ofício (ajustados olhando o resultado)
+const MAO = {
+    martelo: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    cajado: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    luneta: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    vara: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    lira: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    escudo: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    cesto: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+};
 function vestirOficio(m: THREE.Object3D, id: string) {
     const p = PORTE[id]; if (p) m.scale.set(p[0], p[1], p[0]);
     const peca = (g: THREE.BufferGeometry, cor: string, r?: number, metal?: number) => { const me = new THREE.Mesh(g, mat(cor, r, metal)); me.castShadow = true; return me; };
@@ -79,36 +119,49 @@ function vestirOficio(m: THREE.Object3D, id: string) {
         // avental de couro do peito aos joelhos, com a alça no pescoço
         const av = peca(new THREE.BoxGeometry(.4, .62, .015), '#5a3a22', .7); prender(m, 'spine_01', av, [0, 1.0, .115]);
         const alca = peca(new THREE.TorusGeometry(.1, .012, 6, 16, Math.PI), '#3a2616'); prender(m, 'spine_03', alca, [0, 1.42, .09]);
+        // o martelo de forja na mão direita: cabo de freixo e cabeça de ferro
+        const g = new THREE.Group();
+        const cabo = peca(new THREE.CylinderGeometry(.02, .024, .46, 8), '#6a4a2a'); cabo.position.y = .12; g.add(cabo);
+        const cab = peca(new THREE.BoxGeometry(.2, .09, .09), '#4a4a50', .45, .8); cab.position.y = .36; g.add(cab);
+        naMao(m, 'hand_r', g, MAO.martelo.d, MAO.martelo.r);
     } else if (id === 'sigrun') {
-        // cajado de pastora com o gancho em cima, fincado ao lado
+        // cajado de pastora com o gancho em cima, na mão direita
         const g = new THREE.Group();
         g.add(peca(new THREE.CylinderGeometry(.016, .02, 1.7, 8), '#7a5a3a'));
         const gancho = peca(new THREE.TorusGeometry(.07, .016, 6, 14, Math.PI * 1.3), '#7a5a3a'); gancho.position.set(.07, .85, 0); g.add(gancho);
-        prender(m, 'pelvis', g, [.32, .9, .05]);
+        naMao(m, 'hand_r', g, MAO.cajado.d, MAO.cajado.r);
     } else if (id === 'astrid') {
-        // escudo redondo pintado nas costas, com umbo de ferro
+        // escudo redondo pintado, preso ao antebraço esquerdo, com umbo de ferro
         const g = new THREE.Group();
-        const d = peca(new THREE.CylinderGeometry(.3, .3, .03, 24), '#8a2e2e', .6); d.rotation.x = Math.PI / 2; g.add(d);
-        const u = peca(new THREE.SphereGeometry(.06, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#8a8a8a', .4, .8); u.rotation.x = -Math.PI / 2; u.position.z = -.02; g.add(u);
-        prender(m, 'spine_02', g, [0, 1.25, -.19]);
+        const d = peca(new THREE.CylinderGeometry(.27, .27, .03, 24), '#8a2e2e', .6); d.rotation.x = Math.PI / 2; g.add(d);
+        const aro = peca(new THREE.TorusGeometry(.27, .014, 6, 24), '#5a5a5e', .4, .8); g.add(aro);
+        const u = peca(new THREE.SphereGeometry(.06, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#8a8a8a', .4, .8); u.rotation.x = Math.PI / 2; u.position.z = .02; g.add(u);
+        naMao(m, 'lowerarm_l', g, MAO.escudo.d, MAO.escudo.r);
     } else if (id === 'ragnhild') {
-        // cesto de vime na cintura
+        // cesto de vime no antebraço esquerdo
         const c = peca(new THREE.CylinderGeometry(.14, .11, .18, 14, 1, true), '#a8804a', .9); (c.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
-        prender(m, 'pelvis', c, [.26, .92, .06]);
+        const g = new THREE.Group(); g.add(c);
+        const asa = peca(new THREE.TorusGeometry(.13, .01, 5, 14, Math.PI), '#8a6a3a', .9); asa.position.y = .09; g.add(asa);
+        naMao(m, 'hand_l', g, MAO.cesto.d, MAO.cesto.r);
     } else if (id === 'torvald') {
-        // o capitão leva a luneta de latão no cinto
+        // o capitão leva a luneta de latão na mão direita
         const g = new THREE.Group();
-        const tubo = peca(new THREE.CylinderGeometry(.022, .03, .34, 10), '#b08a4a', .35, .85); tubo.rotation.z = .25; g.add(tubo);
-        const aro = peca(new THREE.CylinderGeometry(.034, .034, .03, 10), '#6b5230', .5, .6); aro.position.y = .15; aro.rotation.z = .25; g.add(aro);
-        prender(m, 'pelvis', g, [.24, .92, .05]);
+        const tubo = peca(new THREE.CylinderGeometry(.022, .03, .34, 10), '#b08a4a', .35, .85); g.add(tubo);
+        const aro = peca(new THREE.CylinderGeometry(.034, .034, .03, 10), '#6b5230', .5, .6); aro.position.y = .15; g.add(aro);
+        naMao(m, 'hand_r', g, MAO.luneta.d, MAO.luneta.r);
     } else if (id === 'halvard') {
-        // a vara de pescar nuvem, atravessada nas costas
-        const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.rotation.z = .9;
-        prender(m, 'spine_02', v, [0, 1.3, -.16]);
+        // a vara de pescar nuvem, nas duas mãos (presa à direita), com a linha caindo
+        const g = new THREE.Group();
+        const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.position.y = .7; g.add(v);
+        const linha = peca(new THREE.CylinderGeometry(.002, .002, 1.2, 3), '#d8d8cc', 1); linha.position.set(0, 1.0, .0); g.add(linha);
+        naMao(m, 'hand_r', g, MAO.vara.d, MAO.vara.r);
     } else if (id === 'ulfgar') {
-        // o escaldo leva a lira de madeira pendurada
-        const l = peca(new THREE.TorusGeometry(.1, .018, 6, 14, Math.PI * 1.4), '#8a6040'); l.rotation.z = -Math.PI * .2;
-        prender(m, 'pelvis', l, [-.24, .95, .04]);
+        // a lira do escaldo, apoiada no antebraço esquerdo
+        const g = new THREE.Group();
+        const aro = peca(new THREE.TorusGeometry(.11, .018, 6, 16, Math.PI * 1.5), '#8a6040'); aro.rotation.z = Math.PI * .75; g.add(aro);
+        const trav = peca(new THREE.BoxGeometry(.24, .02, .02), '#6a4a30'); trav.position.y = .09; g.add(trav);
+        for (let i = 0; i < 4; i++) { const c = peca(new THREE.CylinderGeometry(.002, .002, .2, 3), '#e8e0c0', 1); c.position.set(-.07 + i * .047, 0, 0); g.add(c); }
+        naMao(m, 'hand_l', g, MAO.lira.d, MAO.lira.r);
     }
 }
 const SOMBRA = (() => {
@@ -483,8 +536,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // ── vivo: respira, balança, anda, fala, trabalha ────────────────
         let tique_ = 0;
         if (tique && Math.floor(t * 10) % 37 === 0) tique_ = .12;
-        j('spine_02', .02 + respira * .012, 0, tique_);
-        j('spine_03', -.02 - respira * .018);
+        const P = PERSONA[ficha.id as string] ?? PERSONA_PADRAO;
+        const resp = Math.sin(t * 1.7 * P.resp + x);
+        j('spine_02', .02 + resp * .012 * P.amp, 0, tique_);
+        j('spine_03', -.02 - resp * .018 * P.amp);
         j('neck_01', 0);
         j('foot_l', 0); j('foot_r', 0); j('clavicle_l', 0); j('clavicle_r', 0);
         if (andando) {
@@ -510,8 +565,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const ritmo = 9 + (x * 7.3 % 4 + 4) % 4, fasePeso = Math.sin((t + x * 3.1) / ritmo * Math.PI * 2);
         const peso = Math.max(-1, Math.min(1, fasePeso * 2.2));
         j('pelvis', 0, peso * .04, peso * .05 + Math.sin(t * .6 + x) * .012);
-        j('spine_01', 0, 0, -peso * .03);
-        j('thigh_l', 0, 0, .03 + Math.max(0, peso) * .04); j('thigh_r', 0, 0, -.03 + Math.min(0, peso) * .04);
+        j('spine_01', P.incl, 0, -peso * .03);
+        j('thigh_l', 0, 0, P.abre + Math.max(0, peso) * .04); j('thigh_r', 0, 0, -P.abre + Math.min(0, peso) * .04);
         j('calf_l', .04 + Math.max(0, -peso) * .18); j('calf_r', .04 + Math.max(0, peso) * .18);
         j('foot_l', -Math.max(0, -peso) * .12); j('foot_r', -Math.max(0, peso) * .12);
         if (e.falando) {
@@ -528,28 +583,91 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const olharY = (sorteio - .5) * .9, olharX = (((janela * 7) % 5) - 2) * .04;
         const giroCab = cabeca.current; giroCab.y += (olharY - giroCab.y) * Math.min(1, d * 5); giroCab.x += (olharX - giroCab.x) * Math.min(1, d * 4);
         j('neck_01', giroCab.x * .4, giroCab.y * .35);
-        j('head', respira * .02 + giroCab.x * .6, giroCab.y * .65);
+        j('head', resp * .02 * P.amp + giroCab.x * .6, giroCab.y * .65, P.tomba);
         maoSolta();
-        // o gesto do ofício
-        if (ficha.id === 'brokk') {
-            const m = Math.abs(Math.sin(t * 3));
-            j('upperarm_r', -2.2 + m * 1.6, 0, baixaD - .2); j('lowerarm_r', -.5 - (1 - m) * .6);
-            j('upperarm_l', -.5, 0, baixaE + .2); j('lowerarm_l', -1.1);
-        } else if (ficha.id === 'halvard') {
-            // o pescador de nuvem puxa a linha, devagar
-            const p = Math.sin(t * .8) * .15;
-            // braços à frente do peito e cotovelos dobrados (o ombro aberto
-            // de lado lia como pose em T de longe)
-            j('upperarm_l', -.75 + p, 0, baixaE + .06); j('lowerarm_l', -1.05 - p * .5);
-            j('upperarm_r', -.7 + p, 0, baixaD - .06); j('lowerarm_r', -1.1 - p * .5);
-        } else if (ficha.id === 'ulfgar') {
-            // gesticula contando histórias: o antebraço sobe e desce, o ombro fica baixo
-            j('upperarm_r', -.35 + Math.sin(t * 1.3) * .15, 0, baixaD - .04); j('lowerarm_r', -1.1 + Math.sin(t * 1.3 + .6) * .3);
-            j('upperarm_l', .05, 0, baixaE); j('lowerarm_l', -.2);
+        // o gesto do ofício: cada um tem o seu laço, com pausas
+        const tw = (import.meta.env.DEV && (window as unknown as { __npcT?: number }).__npcT != null) ? (window as unknown as { __npcT: number }).__npcT : t;
+        const id = ficha.id as string;
+        if (id === 'brokk') {
+            // martela no ritmo: ergue devagar, desce de golpe, quica; a cada 6ª
+            // pancada para e enxuga a testa
+            const per = 1.5, k = Math.floor(tw / per), u = (tw % per) / per;
+            const pausa = k % 6 === 5;
+            const ergue = pausa ? 0 : suave(u, 0, .6) * (1 - suave(u, .6, .68));
+            const golpe = pausa ? 0 : jan(u, .6, .66, .68, .9);
+            const testa = pausa ? jan(u, .1, .3, .7, .9) : 0;
+            j('upperarm_r', -.7 - ergue * 1.6 - testa * .5, 0, baixaD - .2 - testa * .1); j('lowerarm_r', -.5 - ergue * .6 - testa * 1.3 + golpe * .12);
+            j('hand_r', golpe * .3 - ergue * .2);
+            j('upperarm_l', -.75 + golpe * .06, 0, baixaE - .08); j('lowerarm_l', -1.0 + golpe * .1);
+            j('spine_01', P.incl + .05 + golpe * .14 - ergue * .06, 0, 0);
+            j('pelvis', golpe * .03, peso * .04, peso * .05);
+            j('thigh_l', -golpe * .1, 0, P.abre); j('thigh_r', -golpe * .1, 0, -P.abre);
+            j('calf_l', .04 + golpe * .2); j('calf_r', .04 + golpe * .2);
+            j('neck_01', .05 + golpe * .05, giroCab.y * .1); j('head', .12 + golpe * .06 - testa * .1, giroCab.y * .3);
+        } else if (id === 'halvard') {
+            // o pescador de nuvem: vara na frente, olha a linha; de tempos em
+            // tempos o peixe fisga — puxão para trás e molinete
+            const u = (tw % 9) / 9;
+            const puxa = jan(u, .62, .66, .7, .78), roda = jan(u, .74, .8, .92, .97);
+            const p = Math.sin(tw * .8) * .06;
+            j('upperarm_r', -.5 - puxa * .35 + p, 0, baixaD + .05); j('lowerarm_r', -1.1 - puxa * .3 + Math.sin(tw * 8) * .22 * roda);
+            j('hand_r', Math.sin(tw * 8) * .3 * roda);
+            j('upperarm_l', -.75 - puxa * .3 + p, 0, baixaE - .05); j('lowerarm_l', -1.15 - puxa * .2);
+            j('spine_01', P.incl - puxa * .18, 0, 0);
+            j('head', .1 - puxa * .25 + roda * .08, giroCab.y * .3, P.tomba);
+        } else if (id === 'ulfgar') {
+            // escaldo: dedilha a lira por uns segundos (batendo o pé), depois
+            // conta a história gesticulando
+            const u = (tw % 12) / 12, toca = jan(u, 0, .05, .58, .64);
+            const dedilha = Math.sin(tw * 7.5) * toca;
+            j('upperarm_l', -.7, 0, baixaE - .05); j('lowerarm_l', -1.45 - toca * .1);
+            j('upperarm_r', -.4 - toca * .35 + (1 - toca) * Math.sin(tw * 1.3) * .15, 0, baixaD + .05 - toca * .05);
+            j('lowerarm_r', -1.0 - toca * .5 + dedilha * .22 + (1 - toca) * Math.sin(tw * 1.3 + .6) * .3);
+            j('hand_r', dedilha * .5);
+            j('spine_01', P.incl, 0, Math.sin(tw * 2.5) * .04 * toca);
+            j('foot_r', Math.max(0, Math.sin(tw * 3.75)) * .3 * toca);
+            j('head', Math.sin(tw * 2.5) * .05 * toca + resp * .02, giroCab.y * .65 * (1 - toca), P.tomba + Math.sin(tw * 2.5) * .06 * toca);
+        } else if (id === 'sigrun') {
+            // pastora: apoiada no cajado, de vez em quando faz sombra com a
+            // mão e vasculha o pasto atrás das ovelhas
+            const u = (tw % 13) / 13, olha = jan(u, .55, .62, .78, .86);
+            const vento = Math.sin(tw * .7) * .04;
+            j('upperarm_r', -.3 + vento, 0, baixaD - .05); j('lowerarm_r', -.75);
+            j('upperarm_l', -.1 - olha * 1.5, 0, baixaE - .02 * (1 - olha) - olha * .1); j('lowerarm_l', -.4 - olha * 1.3);
+            j('hand_l', olha * .2);
+            j('neck_01', giroCab.x * .4, giroCab.y * .35 + Math.sin(tw * .9) * .5 * olha);
+            j('head', -olha * .08, giroCab.y * .65 + Math.sin(tw * .9) * .8 * olha, P.tomba);
+        } else if (id === 'ragnhild') {
+            // feirante: cesto no braço, mexe nas frutas, ergue uma para ver
+            const u = (tw % 10) / 10, ve = jan(u, .1, .2, .3, .38), ergue = jan(u, .3, .4, .62, .72);
+            j('upperarm_l', -.15, 0, baixaE - .05); j('lowerarm_l', -1.3);
+            j('upperarm_r', -.1 - ve * .45 - ergue * .5, 0, baixaD + ve * .1 + ergue * .05);
+            j('lowerarm_r', -.4 - ve * .8 - ergue * 1.0);
+            j('hand_r', ve * .3 + ergue * .5);
+            j('head', .04 + ve * .16 + ergue * .05, giroCab.y * .65 * (1 - ve), P.tomba);
+        } else if (id === 'torvald') {
+            // capitão: mão esquerda atrás das costas; de tempos em tempos
+            // ergue a luneta, varre o horizonte devagar e a baixa
+            const u = (tw % 15) / 15, sobe = jan(u, .25, .33, .62, .7);
+            const varre = Math.sin((u - .3) * Math.PI * 2 * 1.6) * sobe;
+            j('upperarm_l', .38, 0, baixaE + .12); j('lowerarm_l', -.95);
+            j('upperarm_r', -.15 - sobe * .85, 0, baixaD + .02 + sobe * .12); j('lowerarm_r', -.45 - sobe * 1.25);
+            j('hand_r', sobe * .3);
+            j('spine_02', .02, varre * .18, 0);
+            j('neck_01', -sobe * .04, varre * .1 + giroCab.y * .35 * (1 - sobe));
+            j('head', -sobe * .1 + resp * .02, varre * .25 + giroCab.y * .65 * (1 - sobe), P.tomba);
+        } else if (id === 'astrid') {
+            // guarda: escudo no braço, mão no quadril; vigia, erguendo o
+            // escudo e virando o rosto para o lado
+            const u = (tw % 11) / 11, vigia = jan(u, .45, .53, .75, .83);
+            j('upperarm_l', -.45 - vigia * .45, 0, baixaE - .05); j('lowerarm_l', -1.45 - vigia * .25);
+            j('upperarm_r', .1, 0, baixaD - .5); j('lowerarm_r', -1.35);
+            j('spine_02', .02, -vigia * .2, 0);
+            j('head', resp * .02, giroCab.y * .65 * (1 - vigia) - vigia * .55, P.tomba);
         } else {
             // cada um com o seu jeito de esperar
             const b = Math.sin(t * 1.7 + x) * .04;
-            switch (JEITO[ficha.id as string] ?? 'solto') {
+            switch (JEITO[id] ?? 'solto') {
                 case 'cruzados':
                     j('clavicle_l', 0, 0, .08); j('clavicle_r', 0, 0, -.08);
                     j('upperarm_l', -.7 + b, .25, baixaE + .1); j('lowerarm_l', -1.7);
@@ -567,9 +685,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
                     j('spine_03', -.06 - respira * .018);
                     break;
                 default:
-                    // antebraço quase no repouso do rig: a mão pende ao lado da coxa
-                    j('upperarm_l', b, 0, baixaE); j('upperarm_r', -b, 0, baixaD);
-                    j('lowerarm_l', -.6 + Math.max(0, peso) * .08); j('lowerarm_r', -.6 + Math.max(0, -peso) * .08);
+                    // braços soltos, cotovelo levemente dobrado; acompanham o peso
+                    j('upperarm_l', -.06 + b, 0, baixaE + peso * .02); j('upperarm_r', -.06 - b, 0, baixaD + peso * .02);
+                    j('lowerarm_l', -.32 + Math.max(0, peso) * .08 - resp * .02); j('lowerarm_r', -.32 + Math.max(0, -peso) * .08 - resp * .02);
             }
         }
     });
