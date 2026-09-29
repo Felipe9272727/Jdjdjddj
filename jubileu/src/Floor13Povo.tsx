@@ -103,6 +103,10 @@ function naMao(modelo: THREE.Object3D, osso: string, pecaCrua: THREE.Object3D, d
     pecaCrua.rotation.set(r[0], r[1], r[2]);
     prender(modelo, osso, pecaCrua, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]);
 }
+/** Para onde cada trabalhador olha enquanto trabalha (rad, 0 = +z): o ferreiro para a bigorna, o pescador para o vazio ao norte da praça. */
+const TRABALHO: Readonly<Record<string, number>> = { brokk: 0, halvard: Math.PI };
+/** Braços do pescador segurando a vara com as duas mãos (ajustados medindo). */
+const HALVARD = { urx: -.5, urz: .05, lrx: -1.1, ulx: -1.25, ulz: -.6, llx: -.7 };
 /** Postura do braço do martelo no instante em que a cabeça toca a mesa (ajustada medindo). */
 const BROKK = { braco: -1.15, cotovelo: -.85, pulso: .5 };
 // gestos: parâmetros da mão de cada ofício (ajustados olhando o resultado)
@@ -169,7 +173,7 @@ function vestirOficio(m: THREE.Object3D, id: string) {
     } else if (id === 'halvard') {
         // a vara de pescar nuvem, nas duas mãos (presa à direita), com a linha caindo
         const g = new THREE.Group();
-        const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.position.y = .7; g.add(v);
+        const v = peca(new THREE.CylinderGeometry(.01, .018, 1.9, 6), '#5a4a32'); v.name = 'vara'; v.position.y = .7; g.add(v);
         const linha = peca(new THREE.CylinderGeometry(.002, .002, 1.2, 3), '#d8d8cc', 1); linha.position.set(0, 1.0, .0); g.add(linha);
         naMao(m, 'hand_r', g, MAO.vara.d, MAO.vara.r);
     } else if (id === 'ulfgar') {
@@ -406,7 +410,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
 
     const marcaRef = useRef<THREE.Group>(null);
     const luzVerde = useRef<THREE.PointLight>(null);
-    const giro = useRef(0);
+    const giro = useRef(TRABALHO[ficha.id] ?? 0);
     const quadro = useRef(0);
     const ultimo = useRef({ x: x + (ronda ?? 0), z });
     const queda = useRef(0);
@@ -439,7 +443,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             olhos.emissive.setRGB(e.possessao > 0 ? .3 : 0, e.possessao > 0 ? 2.6 : 0, e.possessao > 0 ? 1 : 0);
         }
         // ── onde está e para onde olha ──────────────────────────────────
-        let px = x, pz = z, andando = false, direcao = giro.current;
+        let px = x, pz = z, andando = false, direcao = TRABALHO[ficha.id] ?? giro.current;
         const ctl = controle?.current;
         if (ctl) { px = ctl.x; pz = ctl.z; direcao = ctl.ang; andando = ctl.andando > .15; }
         if (ronda && !e.falando && !e.olharPara) {
@@ -455,7 +459,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         g.position.set(px, ctl ? ctl.y : y, pz);
         if (onde) { onde.current.x = px; onde.current.z = pz; }
         // o ferreiro não larga a bigorna para olhar quem passa: só se vira quando fala com o hóspede
-        if (e.olharPara && !e.caido && (ficha.id !== 'brokk' || e.falando)) { tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz); direcao = Math.atan2(tmp.x, tmp.z); }
+        if (e.olharPara && !e.caido && (!(ficha.id in TRABALHO) || e.falando)) { tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz); direcao = Math.atan2(tmp.x, tmp.z); }
         let dd = direcao - giro.current;
         while (dd > Math.PI) dd -= Math.PI * 2;
         while (dd < -Math.PI) dd += Math.PI * 2;
@@ -639,9 +643,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const u = (tw % 9) / 9;
             const puxa = jan(u, .62, .66, .7, .78), roda = jan(u, .74, .8, .92, .97);
             const p = Math.sin(tw * .8) * .06;
-            j('upperarm_r', -.5 - puxa * .35 + p, 0, baixaD + .05); j('lowerarm_r', -1.1 - puxa * .3 + Math.sin(tw * 8) * .22 * roda);
+            const H = { ...HALVARD, ...((import.meta.env.DEV && (window as unknown as { __HAL?: Partial<typeof HALVARD> }).__HAL) || {}) };
+            j('upperarm_r', H.urx - puxa * .35 + p, 0, baixaD + H.urz); j('lowerarm_r', H.lrx - puxa * .3 + Math.sin(tw * 8) * .22 * roda);
             j('hand_r', Math.sin(tw * 8) * .3 * roda);
-            j('upperarm_l', -.75 - puxa * .3 + p, 0, baixaE - .05); j('lowerarm_l', -1.15 - puxa * .2);
+            j('upperarm_l', H.ulx - puxa * .3 + p, 0, baixaE + H.ulz); j('lowerarm_l', H.llx - puxa * .2);
             j('spine_01', P.incl - puxa * .18, 0, 0);
             j('head', .1 - puxa * .25 + roda * .08, giroCab.y * .3, P.tomba);
         } else if (id === 'ulfgar') {
