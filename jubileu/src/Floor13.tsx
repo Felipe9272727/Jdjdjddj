@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
-import { GatosDaVila, gatos, largarPeixe } from './f13Gatos';
+import { GatosDaVila, gatos, largarPeixe, peixesNoChao, CESTO } from './f13Gatos';
 import { forja } from './f13Fagulhas';
 import { GanchoDaChegada } from './f13Chegada';
 import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
@@ -473,6 +473,8 @@ const OBSTACULOS: ReadonlyArray<{ x: number; z: number; r: number; soProcura?: b
     // entrava neles e um poste enchia a tela
     ...[[-24.4, 3.5], [-21.6, 3.5], [-24.4, 6.1], [-21.6, 6.1]].map(([x, z]) => ({ x, z, r: .45 })),
     ...TOCHAS.map(([x, , z]) => ({ x, z, r: .4 })),
+    // o caixote de peixes (0,9 × 0,7 m): a câmera entrava nele
+    { x: CESTO.x, z: CESTO.z, r: .55 },
 ]);
 
 const Jogador: React.FC<{
@@ -706,8 +708,14 @@ const Radar: React.FC<{
         }
         if (si >= 0) tenta({ tipo: 'sino', i: si }, LUGARES_DOS_SINOS[si].x, LUGARES_DOS_SINOS[si].z, 2.4);
         if (busca.estado === 'solto') tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
-        if (!gatos.peixeNaMao) tenta({ tipo: 'peixe' }, gatos.cesto.x, gatos.cesto.z, 2.2);
-        else tenta({ tipo: 'oferecer' }, j.x - Math.sin(yaw.current), j.z - Math.cos(yaw.current), 1.5, 1.3);
+        if (!gatos.peixeNaMao) {
+            tenta({ tipo: 'peixe' }, gatos.cesto.x, gatos.cesto.z, 2.2);
+            // o peixe largado na grama também se pega de volta (sem dono: o gato não está comendo)
+            for (const px of peixesNoChao) if (px.dono === null) tenta({ tipo: 'peixe' }, px.pos.x, px.pos.z, 2.1, 1.3);
+        } else {
+            // âncora a 1,9 m: quem está mais perto e à frente (morador, porta) ganha do "largar o peixe"
+            tenta({ tipo: 'oferecer' }, j.x - Math.sin(yaw.current) * 1.9, j.z - Math.cos(yaw.current) * 1.9, 2.2, 1.3);
+        }
         if (!arni.sentado) tenta({ tipo: arni.bancoLivre ? 'banco' : 'arni' }, BANCO.x, BANCO.z, 2.8, 1.1);
         // bater: só com a PORTA à frente do olho (±43°) e o hóspede diante
         // dela — de lado, de costas ou olhando o céu não aparece o botão
