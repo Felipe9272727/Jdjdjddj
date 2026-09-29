@@ -34,7 +34,7 @@ import type { FichaNpc } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
 import { chaoEm, foraDasCasas } from './f13Mundo';
 import {
-    gatos, RAIO_COME, VEL, TEMPO_COMIDA, consumirPeixe, marcarComeu,
+    gatos, peixesNoChao, RAIO_COME, VEL, TEMPO_COMIDA, consumirPeixe, marcarComeu,
     ondeEstaOJogador, peixeDisponivelPara, peixeQueValeAPena,
     type Peixe, type Personalidade,
 } from './f13Gatos';
@@ -234,6 +234,7 @@ type Ctx = {
     pos: THREE.Vector3;    // posição real (x, y, z)
     estado: EstadoGato;
     peixe: Peixe | null;
+    ignora?: Peixe | null;   // peixe inalcançável: não tenta de novo
     timer: number;
     yaw: number;
     vel: number;           // velocidade real medida → ritmo do clipe
@@ -345,7 +346,8 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                 }
                 // só isto é novo: fareja um peixe largado no chão
                 const p = peixeQueValeAPena(f.tipo, e.pos.x, e.pos.z);
-                if (p) { e.peixe = p; e.estado = 'indo'; }
+                if (p && p !== e.ignora) { e.peixe = p; e.timer = 0; e.estado = 'indo'; }
+                if (e.ignora && !peixesNoChao.includes(e.ignora)) e.ignora = null;
                 break;
             }
 
@@ -371,6 +373,9 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                 }
                 const v = andarPara(e, VEL[f.tipo] * 1.35, dt, p.pos.x, p.pos.z, RAIO_COME * .7);
                 e.vel += (v - e.vel) * Math.min(1, 10 * dt);
+                // preso na borda/parede (peixe em outra ilha): desiste em vez de ficar empacado para sempre
+                e.timer = v > .05 ? 0 : e.timer + dt;
+                if (e.timer > 2.5) { e.peixe = null; e.timer = 0; e.estado = 'voltando'; e.ignora = p; break; }
                 // quem desce do poleiro desce com jeito
                 pousar(e, dt);
                 break;
@@ -426,6 +431,9 @@ const Gato13: React.FC<{ f: FichaGato }> = ({ f }) => {
                O ângulo continua sendo fase + t*vel/raio, então o passeio
                recomeça exatamente de onde tinha de estar. */
             case 'voltando': {
+                // um peixe novo cai enquanto ele volta: vai já, sem esperar chegar ao círculo
+                const novo = peixeQueValeAPena(f.tipo, e.pos.x, e.pos.z);
+                if (novo && novo !== e.ignora) { e.peixe = novo; e.timer = 0; e.estado = 'indo'; break; }
                 const vPasso = Math.min(VEL[f.tipo] * .9, 1.15);   // passo de caminhada
 
                 if (f.raio > 0) {
