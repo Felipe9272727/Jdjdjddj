@@ -50,7 +50,7 @@ import * as THREE from 'three';
  * Estado global da forja. Hoje carrega só o contador de marteladas; é aqui que
  * o som vai se pendurar mais tarde.
  */
-export const forja = { batida: 0 };
+export const forja = { batida: 0, pedido: 0, ferreiro: false };
 
 /* ------------------------------------------------------------------------- */
 /*  Afinação                                                                */
@@ -467,6 +467,7 @@ export const FagulhasDaForja = ({ posicao }: PropsFagulhas) => {
   // ------------------------------------------------- contador da martelada
   /** Segundos que faltam para a próxima martelada. A primeira vem logo ao montar. */
   const relogio = useRef(0.35);
+  const pedidoVisto = useRef(forja.pedido);
 
   // ------------------------------------------------------------------- quadro
   useFrame((_estado, delta) => {
@@ -489,8 +490,12 @@ export const FagulhasDaForja = ({ posicao }: PropsFagulhas) => {
     } = dados;
 
     // ---- a martelada: dispara a rajada e avisa quem estiver escutando ----
+    // o ferreiro (Floor13Povo) pede a rajada no instante em que o martelo
+    // encosta na mesa; sem ninguém pedindo, o relógio antigo cobre a bancada
+    const pedida = forja.pedido !== pedidoVisto.current;
+    pedidoVisto.current = forja.pedido;
     relogio.current -= dt;
-    if (relogio.current <= 0) {
+    if (pedida || (relogio.current <= 0 && !forja.ferreiro)) {
       const quantidade =
         MIN_POR_RAJADA + Math.floor(Math.random() * (MAX_POR_RAJADA - MIN_POR_RAJADA + 1));
       dispararRajada(dados, quantidade);

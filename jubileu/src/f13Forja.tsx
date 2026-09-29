@@ -224,7 +224,7 @@ export const Forja: React.FC = () => {
         <mesh position={[0, 3.2, -.2]} castShadow><boxGeometry args={[.38, 2.5, .38]} /><meshStandardMaterial color="#b3a898" {...pbr('rocha', .5, .8)} /></mesh>
         <pointLight ref={fogo} position={[0, 1.5, .5]} color="#ff8a3a" distance={9} intensity={6} />
         {/* a bigorna: cepo com casca e anéis no topo, bigorna de silhueta inteira em cima */}
-        <group position={[1.7, 0, .9]} rotation={[0, -.4, 0]}>
+        <group position={[.95, 0, 1.0]} rotation={[0, -.12, 0]}>
             <mesh geometry={GEO_CEPO_CASCA} material={MAT_MADEIRA} position={[0, .3, 0]} castShadow />
             <mesh geometry={GEO_CEPO_ANEL} material={MAT_MADEIRA} position={[0, .601, 0]} />
             <group position={[0, .6, 0]}>
@@ -233,6 +233,8 @@ export const Forja: React.FC = () => {
                 {/* chifre cônico curvado, encaixado na mesa */}
                 <mesh geometry={GEO_BIGORNA_CHIFRE} material={MAT_FERRO_GASTO} position={[-.248, .196, 0]} castShadow />
             </group>
+            {/* a barra de ferro em brasa que ele malha: dá o motivo do golpe */}
+            <mesh position={[.02, .9, .01]} rotation={[0, .25, 0]}><boxGeometry args={[.2, .028, .04]} /><meshStandardMaterial color="#5a1a08" emissive="#ff6a1a" emissiveIntensity={1.6} roughness={.8} /></mesh>
             {/* cada martelada solta uma rajada de fagulhas da mesa (f13Fagulhas) */}
             <FagulhasDaForja posicao={[0, .87, 0]} />
         </group>
@@ -283,7 +285,7 @@ export const Forja: React.FC = () => {
         </group>
 
         {/* balde de têmpera: aduelas com aros de ferro e a água preta dentro */}
-        <group position={[1.08, 0, 1.18]}>
+        <group position={[1.55, 0, .75]}>
             <mesh material={MAT_ADUELA} position={[0, .14, 0]} castShadow><cylinderGeometry args={[.18, .145, .28, 10, 1, true]} /></mesh>
             <mesh material={MAT_ADUELA} position={[0, .012, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[.148, 10]} /></mesh>
             <mesh material={MAT_FERRO} position={[0, .07, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[.155, .012, 4, 10]} /></mesh>
@@ -301,7 +303,7 @@ export const Forja: React.FC = () => {
         </group>
 
         {/* estoque de ferro bruto no chão, ao lado da fornalha */}
-        <group position={[1.14, 0, .34]}>
+        <group position={[1.15, 0, -.35]}>
             {[-.06, 0, .06].map((z, i) => (
                 <mesh key={`ferro1${z}`} material={MAT_FERRO} position={[0, .028, z]} rotation={[0, i * .05 - .05, 0]} castShadow>
                     <boxGeometry args={[.4, .055, .05]} />
