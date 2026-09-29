@@ -921,6 +921,9 @@ function pertoDe(x: number, z: number): { x: number; z: number; yaw: number } {
     return { x: px, z: pz, yaw: Math.atan2(-(x - px), -(z - pz)) };
 }
 
+// aviso no alto da tela: nunca cobre o botão de ação (embaixo, à direita) nem as falas (embaixo)
+const AVISO: React.CSSProperties = { ...t13, position: 'absolute', fontSize: 15, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .3, lineHeight: 1.3, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '7px 12px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', pointerEvents: 'none' };
+
 export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ onExit, inicio }) => {
     const est = useRef(novoEstado13());
     const [, bump] = useReducer((x: number) => x + 1, 0);
@@ -962,6 +965,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [conexao, setConexao] = useState(false);
     const aoFimDoDialogo = useRef<(() => void) | null>(null);
     const [aviso, setAviso] = useState<string | null>(null);
+    // cartão da busca: abre a cada pista/busca nova e recolhe depois de uns segundos
+    const [cartaoAberto, setCartaoAberto] = useState(true);
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
     const erradas = useRef(0);
@@ -1315,6 +1320,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         bump();
     }, [alvo, fase, abrirDialogo, achadas, onExit, comecarEntidade]);
 
+    const marcaCartao = est.current.pistas.size + '|' + BUSCAS.map((b) => est.current.buscas[b.id]).join(',');
+    useEffect(() => { setCartaoAberto(true); const id = window.setTimeout(() => setCartaoAberto(false), 7000); return () => window.clearTimeout(id); }, [marcaCartao]);
     // o aviso fica o tempo de ler: 2,4 s mais ~45 ms por letra (até 6,5 s)
     useEffect(() => { if (!aviso) return; const id = window.setTimeout(() => setAviso(null), Math.min(6500, 2400 + aviso.length * 45)); return () => window.clearTimeout(id); }, [aviso]);
 
@@ -1402,7 +1409,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <GatosDaVila jog={jog} />
                 <SinosDaTorre />
                 <OuvidoDaForja />
-                <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} />
+                <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.has('ragnhild')} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
@@ -1448,9 +1455,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             </Canvas>
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
-            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '10px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'rgba(8,16,22,.55)', pointerEvents: 'none' }}>
+            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '14px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(90deg, transparent, rgba(8,16,22,.6) 14%, rgba(8,16,22,.6) 86%, transparent)', WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', maskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', pointerEvents: 'none' }}>
                 {legenda}
-                {tQueda.current < 2.5 && <div style={{ fontSize: '.7em', opacity: .8, marginTop: 4 }}>toque para pular</div>}
+                {tQueda.current < 2.5 && <div style={{ fontSize: '.85em', fontWeight: 700, opacity: 1, marginTop: 8, letterSpacing: 1, color: '#fff', textShadow: '0 1px 4px #000, 0 0 10px #000' }}>toque na tela para pular</div>}
             </div>}
             {/* o andar 12 acaba e o 13 começa no mesmo avião: a imagem sai do preto */}
             {fase === 'queda' && !inicio && <div style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f13entra 1.1s ease-out forwards' }}>
@@ -1467,19 +1474,23 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <div style={{ position: 'absolute', inset: 0, opacity: .12 * apagao, backgroundImage: 'repeating-radial-gradient(circle at 37% 61%, rgba(255,255,255,.5) 0 1px, transparent 1px 3px)', mixBlendMode: 'overlay' }} />
             </div>}
 
-            {/* ── HUD: pistas e buscas ── */}
-            {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 10px)', left: 10, fontSize: 14, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '62vw' : 300 }}>
-                <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} A CASA CERTA</div>
-                {e.pistas.size === 0 ? <div style={{ opacity: .7 }}>0/3 pistas — pergunte aos moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
-                    <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
-                ))}
-                {BUSCAS.some((b) => e.buscas[b.id] !== 'nova') && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '6px 0 2px' }}>ᛒ BUSCAS</div>}
-                {BUSCAS.filter((b) => e.buscas[b.id] !== 'nova').map((b) => (
-                    <div key={b.id} style={{ opacity: e.buscas[b.id] === 'feita' ? .5 : 1, textDecoration: e.buscas[b.id] === 'feita' ? 'line-through' : 'none' }}>
-                        {e.buscas[b.id] === 'pronta' ? '★' : '·'} {b.titulo}{b.id === 'ovelhas' && e.buscas[b.id] === 'ativa' ? ` (${e.ovelhas.filter(Boolean).length}/3)` : ''}
-                    </div>
-                ))}
-            </div>}
+            {/* ── HUD: pistas e buscas (compacto; recolhe sozinho e reabre quando algo muda) ── */}
+            {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && (() => {
+                const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
+                const aberto = cartaoAberto;
+                return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
+                    <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} {aberto ? 'A CASA CERTA' : 'CASA CERTA'} · {e.pistas.size}/3</div>
+                    {aberto && (e.pistas.size === 0 ? <div style={{ opacity: .75 }}>Converse com os moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
+                        <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
+                    )))}
+                    {aberto && buscasVisiveis.length > 0 && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '4px 0 1px' }}>ᛒ BUSCAS</div>}
+                    {aberto && buscasVisiveis.map((b) => (
+                        <div key={b.id} style={{ opacity: e.buscas[b.id] === 'feita' ? .5 : 1, textDecoration: e.buscas[b.id] === 'feita' ? 'line-through' : 'none' }}>
+                            {e.buscas[b.id] === 'pronta' ? '★' : '·'} {b.titulo}{b.id === 'ovelhas' && e.buscas[b.id] === 'ativa' ? ` (${e.ovelhas.filter(Boolean).length}/3)` : ''}
+                        </div>
+                    ))}
+                </div>;
+            })()}
 
             {/* ── O BANCO: as falas do Árni embaixo, devagar; os sussurros da entidade em verde, tortos ── */}
             {legendaBanco && <div style={{ position: 'absolute', left: 16, right: 16, top: '22%', textAlign: 'center', pointerEvents: 'none',
@@ -1494,7 +1505,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <div style={{ fontFamily: 'Georgia, serif', fontSize: 14, color: '#6b4a2e', letterSpacing: 4, textTransform: 'uppercase' }}>final da aceitação</div>
                 <button onClick={() => { setAceitacao(2); arni.sentado = false; bump(); }} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
             </div>}
-            {aviso && <div style={{ ...t13, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 96px)', left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .5, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '8px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', maxWidth: '86vw', pointerEvents: 'none' }}>{aviso}</div>}
+            {aviso && <div style={retrato
+                ? { ...AVISO, top: 'calc(env(safe-area-inset-top) + 56px)', left: 12, right: 12, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }
+                : { ...AVISO, top: 'calc(env(safe-area-inset-top) + 8px)', left: 330, right: 16, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 346px)' }}>{aviso}</div>}
 
             {/* ── O BOTÃO DE AÇÃO ── */}
             {fase === 'explorar' && alvo && <button onPointerDown={(ev) => { ev.stopPropagation(); agir(); }}
