@@ -103,14 +103,22 @@ function naMao(modelo: THREE.Object3D, osso: string, pecaCrua: THREE.Object3D, d
     prender(modelo, osso, pecaCrua, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]);
 }
 // gestos: parâmetros da mão de cada ofício (ajustados olhando o resultado)
+const V3 = (x: number, y: number, z: number) => [x, y, z] as [number, number, number];
 const MAO = {
-    martelo: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    cajado: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    luneta: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    vara: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    lira: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    escudo: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
-    cesto: { d: [0, -.05, .02] as [number, number, number], r: [0, 0, 0] as [number, number, number] },
+    // cabo na mão, cabeça além do punho e virada para a frente do golpe
+    martelo: { d: V3(0, -.06, .02), r: V3(Math.PI, Math.PI / 2, 0) },
+    // cajado em pé: a mão pega o meio, a ponta toca o chão
+    cajado: { d: V3(0, -.3, .04), r: V3(.3, 0, -.55) },
+    // tubo ao longo do antebraço, a lente grande à frente do punho
+    luneta: { d: V3(0, -.1, .02), r: V3(Math.PI, 0, -1.1) },
+    // vara para a frente e para fora, o cabo na palma
+    vara: { d: V3(0, -.05, .03), r: V3(Math.PI / 2 + .1, 0, .2) },
+    // lira no colo do braço, com a face para fora
+    lira: { d: V3(-.06, -.02, .06), r: V3(0, 0, 0) },
+    // escudo deitado no lado de fora do antebraço
+    escudo: { d: V3(.1, -.12, 0), r: V3(0, Math.PI / 2, 0) },
+    // cesto pendurado pela asa no antebraço
+    cesto: { d: V3(0, -.2, .04), r: V3(0, 0, 0) },
 };
 function vestirOficio(m: THREE.Object3D, id: string) {
     const p = PORTE[id]; if (p) m.scale.set(p[0], p[1], p[0]);
