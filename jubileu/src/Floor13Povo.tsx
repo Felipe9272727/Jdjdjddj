@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import type { FichaNpc } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
 import ulfgar from './assets/f13/povo/ulfgar.glb';
+import { forja } from './f13Fagulhas';
 import brokk from './assets/f13/povo/brokk.glb';
 import torvald from './assets/f13/povo/torvald.glb';
 import halvard from './assets/f13/povo/halvard.glb';
@@ -102,6 +103,8 @@ function naMao(modelo: THREE.Object3D, osso: string, pecaCrua: THREE.Object3D, d
     pecaCrua.rotation.set(r[0], r[1], r[2]);
     prender(modelo, osso, pecaCrua, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]);
 }
+/** Postura do braço do martelo no instante em que a cabeça toca a mesa (ajustada medindo). */
+const BROKK = { braco: -1.15, cotovelo: -.85, pulso: .5 };
 // gestos: parâmetros da mão de cada ofício (ajustados olhando o resultado)
 const V3 = (x: number, y: number, z: number) => [x, y, z] as [number, number, number];
 const MAO = {
@@ -127,10 +130,16 @@ function vestirOficio(m: THREE.Object3D, id: string) {
         // avental de couro do peito aos joelhos, com a alça no pescoço
         const av = peca(new THREE.BoxGeometry(.4, .62, .015), '#5a3a22', .7); prender(m, 'spine_01', av, [0, 1.0, .115]);
         const alca = peca(new THREE.TorusGeometry(.1, .012, 6, 16, Math.PI), '#3a2616'); prender(m, 'spine_03', alca, [0, 1.42, .09]);
-        // o martelo de forja na mão direita: cabo de freixo e cabeça de ferro
+        // o martelo de forja na mão direita: cabo de freixo, cabeça de ferro com
+        // face quadrada de um lado e pena estreita do outro (não um bloco: de
+        // longe a cabeça lia como uma segunda bigorna)
         const g = new THREE.Group();
-        const cabo = peca(new THREE.CylinderGeometry(.02, .024, .46, 8), '#6a4a2a'); cabo.position.y = .12; g.add(cabo);
-        const cab = peca(new THREE.BoxGeometry(.2, .09, .09), '#4a4a50', .45, .8); cab.position.y = .36; g.add(cab);
+        const cabo = peca(new THREE.CylinderGeometry(.02, .026, .5, 8), '#6a4a2a'); cabo.position.y = .16; g.add(cabo);
+        const cab = new THREE.Group(); cab.name = 'cabeca-martelo'; cab.position.y = .4;
+        const corpo = peca(new THREE.BoxGeometry(.1, .085, .085), '#4a4a50', .45, .8); cab.add(corpo);
+        const face = peca(new THREE.CylinderGeometry(.05, .046, .06, 8), '#5c5c64', .35, .85); face.rotation.z = Math.PI / 2; face.position.x = .08; cab.add(face);
+        const pena = peca(new THREE.ConeGeometry(.038, .09, 6), '#44444a', .45, .8); pena.rotation.z = Math.PI / 2; pena.position.x = -.09; cab.add(pena);
+        g.add(cab);
         naMao(m, 'hand_r', g, MAO.martelo.d, MAO.martelo.r);
     } else if (id === 'sigrun') {
         // cajado de pastora com o gancho em cima, na mão direita
@@ -402,6 +411,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const ultimo = useRef({ x: x + (ronda ?? 0), z });
     const queda = useRef(0);
     const cabeca = useRef({ x: 0, y: 0 });
+    const ultimoGolpe = useRef(-1);
     const tmp = useMemo(() => new THREE.Vector3(), []);
     const crianca = ficha.id === 'eira';
     const escala = ESCALA * (crianca ? .95 : 1) * escalaExtra;
@@ -444,7 +454,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         }
         g.position.set(px, ctl ? ctl.y : y, pz);
         if (onde) { onde.current.x = px; onde.current.z = pz; }
-        if (e.olharPara && !e.caido) { tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz); direcao = Math.atan2(tmp.x, tmp.z); }
+        // o ferreiro não larga a bigorna para olhar quem passa: só se vira quando fala com o hóspede
+        if (e.olharPara && !e.caido && (ficha.id !== 'brokk' || e.falando)) { tmp.set(e.olharPara.x - px, 0, e.olharPara.z - pz); direcao = Math.atan2(tmp.x, tmp.z); }
         let dd = direcao - giro.current;
         while (dd > Math.PI) dd -= Math.PI * 2;
         while (dd < -Math.PI) dd += Math.PI * 2;
@@ -603,17 +614,25 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // pancada para e enxuga a testa
             const per = 1.5, k = Math.floor(tw / per), u = (tw % per) / per;
             const pausa = k % 6 === 5;
-            const ergue = pausa ? 0 : suave(u, 0, .6) * (1 - suave(u, .6, .68));
-            const golpe = pausa ? 0 : jan(u, .6, .66, .68, .9);
+            // ergue devagar (0 a .55), segura, desce de golpe (.6 a .66) e ENCOSTA na
+            // mesa em u = .66; recua um palmo (rebote) e volta a repousar
+            const ergue = pausa ? 0 : suave(u, 0, .55) * (1 - suave(u, .6, .66));
+            const rebote = pausa ? 0 : jan(u, .66, .7, .72, .84);
+            const golpe = pausa ? 0 : jan(u, .6, .66, .7, .9);
             const testa = pausa ? jan(u, .1, .3, .7, .9) : 0;
-            j('upperarm_r', -.7 - ergue * 1.6 - testa * .5, 0, baixaD - .2 - testa * .1); j('lowerarm_r', -.5 - ergue * .6 - testa * 1.3 + golpe * .12);
-            j('hand_r', golpe * .3 - ergue * .2);
-            j('upperarm_l', -.75 + golpe * .06, 0, baixaE - .08); j('lowerarm_l', -1.0 + golpe * .1);
-            j('spine_01', P.incl + .05 + golpe * .14 - ergue * .06, 0, 0);
+            forja.ferreiro = true;
+            const BK = (import.meta.env.DEV && (window as unknown as { __BROKK?: typeof BROKK }).__BROKK) || BROKK;
+            if (!pausa && u >= .66 && u < .9 && ultimoGolpe.current !== k) { ultimoGolpe.current = k; forja.pedido++; }
+            const alto = ergue + rebote * .22;
+            j('upperarm_r', BK.braco - alto * 1.5 - testa * .5, 0, baixaD - .2 - testa * .1);
+            j('lowerarm_r', BK.cotovelo - alto * .7 - testa * 1.3);
+            j('hand_r', BK.pulso + golpe * .2 - alto * .3);
+            j('upperarm_l', -.95, 0, baixaE - .05); j('lowerarm_l', -.9);
+            j('spine_01', P.incl + .1 + golpe * .1 - ergue * .1, 0, 0);
             j('pelvis', golpe * .03, peso * .04, peso * .05);
             j('thigh_l', -golpe * .1, 0, P.abre); j('thigh_r', -golpe * .1, 0, -P.abre);
             j('calf_l', .04 + golpe * .2); j('calf_r', .04 + golpe * .2);
-            j('neck_01', .05 + golpe * .05, giroCab.y * .1); j('head', .12 + golpe * .06 - testa * .1, giroCab.y * .3);
+            j('neck_01', .05 + golpe * .05, giroCab.y * .1); j('head', .18 + golpe * .06 - testa * .1, giroCab.y * .3);
         } else if (id === 'halvard') {
             // o pescador de nuvem: vara na frente, olha a linha; de tempos em
             // tempos o peixe fisga — puxão para trás e molinete

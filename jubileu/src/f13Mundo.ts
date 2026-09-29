@@ -165,7 +165,7 @@ export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; rond
     ragnhild: { x: -5, z: 11 },
     ulfgar: { x: 5.5, z: 6 },
     eira: { x: 0, z: 12.2, ronda: 2 },   // corre em volta, não dentro, do poço
-    brokk: { x: -21.15, z: 4.8 },   // ao lado da bigorna, fora do fogo
+    brokk: { x: -21.9, z: 4.65 },   // de frente para a bigorna (a 0,85 m), entre a fornalha e os mourões
     sigrun: { x: -4.6, z: 1.6 },   // fora da casa de cenário da praça
     torvald: { x: 20, z: 8 },
     astrid: { x: 1.8, z: -12.5 },
