@@ -38,7 +38,7 @@ import {
     NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
-    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, MARTELO, OVELHAS, SINO,
+    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, foraDoTelhado, MARTELO, OVELHAS, SINO,
     novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
 } from './f13Mundo';
 import {
@@ -573,6 +573,9 @@ const CameraDeExplorar: React.FC<{
             olho.y = Math.max(olho.y, chaoE + 1.95);
         }
         camera.position.lerp(olho, 1 - Math.exp(-dt * 18));
+        // o beiral do telhado fica à altura dos olhos: o olho (e o plano próximo)
+        // não entra nele nem na parede — sai pelo lado mais perto
+        { const c = camera.position, f = foraDoTelhado(c.x, c.y, c.z, .42); c.x = f.x; c.z = f.z; }
         if (foco.current) {
             // conversa: o olhar vai sozinho para o rosto de quem fala
             const f = foco.current, chaoF = chaoEm(f.x, f.z) ?? j.y;
@@ -1044,6 +1047,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         (window as unknown as { __f13?: unknown }).__f13 = {
             ir: (x: number, z: number, ang = 0, yawCam = ang) => { const j = jog.current; j.x = x; j.z = z; j.y = chaoEm(x, z) ?? 0; j.ang = ang; yaw.current = yawCam; j.levantando = 0; },
             estado: () => est.current,
+            olhar: (p: number) => { pitch.current = p; },
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
