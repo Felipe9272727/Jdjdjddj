@@ -1483,7 +1483,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
                 const aberto = cartaoAberto;
                 return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
-                    <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} {aberto ? 'A CASA CERTA' : 'CASA CERTA'} · {e.pistas.size}/3</div>
+                    <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} {e.pistas.size >= 3 ? 'Casa certa achada' : aberto ? 'Ache a casa certa' : 'Ache a casa certa'} · {e.pistas.size}/3 pistas</div>
                     {aberto && (e.pistas.size === 0 ? <div style={{ opacity: .75 }}>Converse com os moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
                         <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
                     )))}

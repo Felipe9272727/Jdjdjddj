@@ -20,6 +20,8 @@ export const busca = {
     estado: 'solto' as EstadoBusca,
     entregas: 0,
     graveto: new THREE.Vector3(-3.1, 0, 26.2),
+    /** posição do cão (para o resto do jogo não afirmar onde ele não está) */
+    cao: new THREE.Vector3(-4, 0, 27.6),
     /** o Floor13 chama ao apertar "JOGAR O GRAVETO" */
     arremessar: null as null | ((origem: THREE.Vector3, direcao: THREE.Vector3, forca: number) => void),
 };
@@ -44,6 +46,8 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
     };
     const vel = useMemo(() => new THREE.Vector3(), []), tmp = useMemo(() => new THREE.Vector3(), []);
     const espera = useRef(0);
+    /** relógio real de cada estado: quadro lento não pode prender a brincadeira */
+    const desde = useRef({ estado: 'solto' as EstadoBusca, t: 0 });
 
     useEffect(() => {
         busca.arremessar = (origem, direcao, forca) => {
@@ -73,19 +77,33 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
     useFrame((_, dt) => {
         const c = cao.current, g = graveto.current; if (!c || !g) return;
         const d = Math.min(dt, DT_MAX), j = jog.current;
+        const agora = performance.now() / 1000;
+        if (desde.current.estado !== busca.estado) desde.current = { estado: busca.estado, t: agora };
+        const preso = agora - desde.current.t;
         switch (busca.estado) {
             case 'no_ar': {
-                vel.y -= G * d; g.position.addScaledVector(vel, d);
-                g.rotation.x += d * 9;
-                const ch = chaoEm(g.position.x, g.position.z);
-                // fora da ilha só conta quando já caiu abaixo dela (pode passar por cima de uma ponte)
-                if (g.position.y < -8 || (ch === null && g.position.y < (jog.current.y - 3))) {
-                    // caiu da ilha: o hóspede acha outro galho no chão
-                    g.position.set(j.x + .8, (chaoEm(j.x + .8, j.z) ?? j.y), j.z); g.rotation.set(0, 0, Math.PI / 2);
-                    busca.estado = 'solto';
-                } else if (ch !== null && g.position.y <= ch + .03) {
-                    g.position.y = ch + .03; g.rotation.set(0, Math.atan2(vel.x, vel.z), Math.PI / 2);
-                    busca.estado = 'correndo';
+                // integra em passos fixos; se o quadro está lento (ou passou de 3 s reais no ar), termina o voo de uma vez
+                const lento = agora - desde.current.t > 3;
+                let passos = lento ? 400 : 1, dd = lento ? 1 / 30 : d, fim = false;
+                while (passos-- > 0 && !fim) {
+                    vel.y -= G * dd; g.position.addScaledVector(vel, dd);
+                    g.rotation.x += dd * 9;
+                    const ch = chaoEm(g.position.x, g.position.z);
+                    // fora da ilha só conta quando já caiu abaixo dela (pode passar por cima de uma ponte)
+                    if (g.position.y < -8 || (ch === null && g.position.y < (j.y - 3))) {
+                        // caiu da ilha: o hóspede acha outro galho no chão
+                        g.position.set(j.x + .8, (chaoEm(j.x + .8, j.z) ?? j.y), j.z); g.rotation.set(0, 0, Math.PI / 2);
+                        busca.estado = 'solto'; fim = true;
+                    } else if (ch !== null && g.position.y <= ch + .03) {
+                        g.position.y = ch + .03; g.rotation.set(0, Math.atan2(vel.x, vel.z), Math.PI / 2);
+                        busca.estado = 'correndo'; fim = true;
+                    }
+                }
+                if (!fim && lento) { // ainda não achou chão: pousa onde estiver, no chão mais próximo
+                    const ch = chaoEm(g.position.x, g.position.z);
+                    if (ch !== null) { g.position.y = ch + .03; busca.estado = 'correndo'; }
+                    else { g.position.set(j.x + .8, (chaoEm(j.x + .8, j.z) ?? j.y), j.z); busca.estado = 'solto'; }
+                    g.rotation.set(0, 0, Math.PI / 2);
                 }
                 tocar('Idle');
                 break;
@@ -93,7 +111,10 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
             case 'correndo': {
                 const dist = irPara(c, g.position.x, g.position.z, d);
                 tocar(dist > 2 ? 'Gallop' : 'Walk');
-                if (dist <= PEGA) busca.estado = 'voltando';
+                if (dist <= PEGA || preso > 8) { // 8 s reais: teleporta para o graveto
+                    if (dist > PEGA) { c.position.set(g.position.x, chaoEm(g.position.x, g.position.z) ?? g.position.y, g.position.z); c.updateMatrixWorld(); }
+                    busca.estado = 'voltando';
+                }
                 break;
             }
             case 'voltando': {
@@ -101,7 +122,12 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
                 tmp.copy(BOCA).applyMatrix4(c.matrixWorld); g.position.copy(tmp);
                 g.rotation.set(0, c.rotation.y + Math.PI / 2, Math.PI / 2);
                 tocar(dist > 3 ? 'Gallop' : 'Walk');
-                if (dist <= SOLTA) {
+                if (preso > 10 && dist > SOLTA) { // demorou demais: o cão aparece perto do hóspede
+                    const ang = Math.atan2(c.position.x - j.x, c.position.z - j.z);
+                    c.position.set(j.x + Math.sin(ang) * 1.2, chaoEm(j.x, j.z) ?? j.y, j.z + Math.cos(ang) * 1.2); c.updateMatrixWorld();
+                    tmp.copy(BOCA).applyMatrix4(c.matrixWorld); g.position.copy(tmp);
+                }
+                if (dist <= SOLTA || preso > 10) {
                     const ch = chaoEm(tmp.x, tmp.z); if (ch !== null) g.position.y = ch + .03;
                     busca.entregas++; busca.estado = 'solto'; espera.current = 1.2;
                 }
@@ -115,7 +141,7 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
                 c.rotation.y += dif * Math.min(1, 3 * d);
             }
         }
-        busca.graveto.copy(g.position);
+        busca.graveto.copy(g.position); busca.cao.copy(c.position);
     });
     return <>
         <group ref={cao}><primitive object={modelo} /></group>

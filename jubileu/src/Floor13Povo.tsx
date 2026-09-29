@@ -705,7 +705,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     return <><group ref={raiz}>
         <primitive object={modelo} />
         {marca && !controle && <group ref={marcaRef} position={[0, 2.45, 0]}>
-            <mesh><octahedronGeometry args={[.09, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
+            <mesh><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(3.5) : new THREE.Color('#cfe3ff').multiplyScalar(3)} toneMapped={false} /></mesh>
+            <mesh scale={[1.7, 1.7, 1.7]}><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? '#ff9a1f' : '#8fb8ff'} toneMapped={false} transparent opacity={.22} depthWrite={false} /></mesh>
         </group>}
         {!controle && <mesh position={[0, .02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.45, 20]} /></mesh>}
     </group>

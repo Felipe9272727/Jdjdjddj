@@ -86,7 +86,7 @@ const TETO_3 = 24;   // s
 // ── Passos ───────────────────────────────────────────────────────────────
 interface Passo {
     teto: number;       // teto em segundos desde que o passo anterior fechou
-    aviso: string;
+    aviso: string | ((cao: number) => string);
     arremesso: number;  // índice em ALVOS, ou -1
     perto: number;      // índice em ALVOS cuja proximidade antecipa o passo, ou -1
 }
@@ -94,7 +94,7 @@ interface Passo {
 const PASSOS: ReadonlyArray<Passo> = Object.freeze([
     { teto: 0, aviso: 'Um shiba vem correndo com um graveto na boca. Ele quer brincar!', arremesso: -1, perto: -1 },
     { teto: 2, aviso: 'Ele largou o graveto e saiu correndo rumo à vila. Vá atrás dele!', arremesso: 0, perto: -1 },
-    { teto: TETO_1, aviso: 'O cão parou lá na frente e está latindo. Siga em frente.', arremesso: 1, perto: 0 },
+    { teto: TETO_1, aviso: (cao) => cao > 3 && cao < 30 ? 'O cão está lá na frente, latindo. Siga em frente.' : 'O graveto caiu lá na frente, rumo à vila. Siga em frente.', arremesso: 1, perto: 0 },
     { teto: TETO_2, aviso: 'Tem gente na praça. Aquela ali com o “!” em cima pode ajudar.', arremesso: 2, perto: 1 },
     { teto: TETO_3, aviso: 'Fale com a Ragnhild: ela está bem ali, com o “!” em cima.', arremesso: -1, perto: 2 },
 ]);
@@ -146,7 +146,7 @@ export const GanchoDaChegada: React.FC<{
             passo.current = prox;
             t.current = 0;
             ultimaDist.current = -1;
-            avisar(s.aviso);
+            avisar(typeof s.aviso === 'function' ? s.aviso(Math.hypot(busca.cao.x - p.x, busca.cao.z - p.z)) : s.aviso);
 
             if (s.arremesso >= 0) {
                 const a = ALVOS[s.arremesso];
