@@ -126,6 +126,40 @@ export function foraDasCasas(x: number, z: number, folga: number): { x: number; 
     return { x, z };
 }
 
+/** As casas de cenário (fora do arco): posição, giro e escala uniforme — as mesmas de Floor13Mundo. */
+export const CASAS_DE_CENARIO: ReadonlyArray<{ x: number; y: number; z: number; giro: number; escala: number }> = Object.freeze([
+    { x: -19.6, y: -.4, z: 24.4, giro: Math.atan2(-15.2 - -19.6, 20.2 - 24.4), escala: .72 },
+    { x: -7.5, y: 0, z: 4, giro: 1.1, escala: .9 },
+    { x: 7.8, y: 0, z: 12.5, giro: -2.2, escala: .9 },
+]);
+/**
+ * O telhado avança além da parede (modelo: .55 m nas laterais, .45 m na frente e
+ * no fundo) e o beiral fica à altura dos olhos (1,54–1,80 m): a colisão do corpo
+ * (parede + .38) deixava o olho e o plano próximo da câmera entrarem nele.
+ * Empurra o ponto (x, y, z) — o olho — para fora do retângulo do telhado + `folga`.
+ */
+export function foraDoTelhado(x: number, y: number, z: number, folga: number): { x: number; z: number } {
+    const caixas: Array<{ x: number; y: number; z: number; giro: number; sx: number; sz: number }> = [];
+    for (let i = 0; i < LUGAR_DAS_CASAS.length; i++) {
+        const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
+        caixas.push({ x: l.x, y: l.y, z: l.z, giro: f.giro, sx: f.escala[0], sz: f.escala[2] });
+    }
+    for (const c of CASAS_DE_CENARIO) caixas.push({ x: c.x, y: c.y, z: c.z, giro: c.giro, sx: c.escala, sz: c.escala });
+    // duas passadas: sair de uma casa pode cair no beiral da vizinha
+    for (const c of [...caixas, ...caixas]) {
+        if (y < c.y + .3 || y > c.y + 4.2 * Math.max(c.sx, c.sz)) continue;
+        const co = Math.cos(c.giro), si = Math.sin(c.giro);
+        const dx = x - c.x, dz = z - c.z, u = dx * co - dz * si, v = dx * si + dz * co;
+        const hu = (CASA_MEIA.x + .55) * c.sx + folga, hv = (CASA_MEIA.z + .45) * c.sz + folga;
+        if (Math.abs(u) >= hu || Math.abs(v) >= hv) continue;
+        const pu = hu - Math.abs(u), pv = hv - Math.abs(v);
+        let nu = u, nv = v;
+        if (pu < pv) nu = Math.sign(u || 1) * hu; else nv = Math.sign(v || 1) * hv;
+        x = c.x + nu * co + nv * si; z = c.z - nu * si + nv * co;
+    }
+    return { x, z };
+}
+
 // ── QUEM ESTÁ ONDE ───────────────────────────────────────────────────────────
 export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; ronda?: number }>> = Object.freeze({
     ragnhild: { x: -5, z: 11 },
