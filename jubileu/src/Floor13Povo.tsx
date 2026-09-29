@@ -126,6 +126,7 @@ const SOMBRA = (() => {
  * ele. Guarda a pose de repouso e a orientação de repouso no espaço do
  * modelo; cada quadro recompõe a partir do repouso.
  */
+const _qJunta = new THREE.Quaternion(); // rascunho: girar() rodava ~450×/quadro e alocava 1 Quaternion por chamada
 class Junta {
     private repouso: THREE.Quaternion;
     private noModelo: THREE.Quaternion;
@@ -143,7 +144,7 @@ class Junta {
         this.e.set(x, y, z, 'XYZ');
         this.q.setFromEuler(this.e);
         // repouso · (R⁻¹ · giro · R): o giro acontece em eixos do personagem
-        this.osso.quaternion.copy(this.repouso).multiply(this.inv.clone().multiply(this.q).multiply(this.noModelo));
+        this.osso.quaternion.copy(this.repouso).multiply(_qJunta.copy(this.inv).multiply(this.q).multiply(this.noModelo));
     }
     /** Dobra no eixo x do PRÓPRIO osso (o dedo fecha para a palma). */
     dobrar(a: number) {
@@ -167,6 +168,7 @@ const DIST_DETALHE = 11;
 const AJUSTE_CRIANCA = .62;
 /** Além disto o morador não é desenhado (a névoa já o apagou quase todo). */
 const DIST_MAX = 48;
+let _quadroFrustum = -1;
 const _esfera = new THREE.Sphere(), _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
 
 interface Props {
@@ -393,8 +395,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const dist = semRecorte ? g.getWorldPosition(_mundo).distanceTo(camera.position) : g.position.distanceTo(camera.position);
         // fora do quadro não se desenha nem se anima (a sombra de quem está
         // colado atrás da câmera ainda conta: perto, fica visível)
-        _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-        _frustum.setFromProjectionMatrix(_pv);
+        // o frustum da câmera é o mesmo para todos os moradores no quadro: calcula uma vez
+        if (_quadroFrustum !== t) { _quadroFrustum = t; _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_pv); }
         _esfera.center.set(g.position.x, g.position.y + escala * .9, g.position.z); _esfera.radius = escala * 1.3;
         g.visible = !!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
         if (!g.visible) return;

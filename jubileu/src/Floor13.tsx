@@ -976,6 +976,17 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (gatos.alimentados > 0) setAviso(gatos.saciados >= 3 ? 'Os três gatos comeram. O Soneca até ronrona.' : `${gatos.ultimoNome} come o peixe inteiro e lambe o bigode.`);
     }, 400); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     const [compilado, setCompilado] = useState(false);
+    // o monitor de qps só começa a medir depois que o andar assentou (shaders
+    // compilados + alguns segundos), e recomeça do zero a cada troca de nível
+    // (a key): os quadros lentos da carga e da recompilação da troca não são
+    // "o aparelho não segura" — antes derrubavam a qualidade sem precisar
+    const [monitorar, setMonitorar] = useState(false);
+    useEffect(() => {
+        setMonitorar(false);
+        if (!compilado) return;
+        const id = window.setTimeout(() => setMonitorar(true), 4000);
+        return () => window.clearTimeout(id);
+    }, [compilado, nivel]);
     const arniFalando = useRef(false);
     // o Árni começa do zero a cada entrada no andar (o estado mora fora do componente)
     useEffect(() => { arni.contada = -1; arni.bancoLivre = false; arni.sentado = false; arni.falaDepois = 0; }, []);
@@ -1375,7 +1386,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#b7cfe4', .0019); }}>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
                 <hemisphereLight args={['#a6c8f5', '#3a2f22', naCabine ? .16 : .3]} />
-                <PerformanceMonitor bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />
+                {monitorar && <PerformanceMonitor key={nivel} bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
                 <LuzDaCamera intensidade={naCabine ? .14 : .35} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
