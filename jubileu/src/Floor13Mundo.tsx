@@ -876,20 +876,25 @@ const Grama: React.FC = () => {
     // instanciada às dezenas de milhares. A cor vai da raiz sombria à ponta
     // dourada, cada touceira puxa um verde diferente, e o vento chega em
     // rajadas que atravessam a ilha — não um balanço uniforme.
-    const { geo, mat, mats, tons } = useMemo(() => {
-        const G = 4, A = .3, L = .05;
-        const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
-        for (let i = 0; i <= G; i++) {
-            const t = i / G, w = L * (1 - t * t * .92), curva = t * t * .18;
-            pos.push(-w / 2, t * A, curva, w / 2, t * A, curva);
-            uvs.push(0, t, 1, t);
-            if (i < G) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
-        }
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-        g.setIndex(idx);
-        g.computeVertexNormals();
+    const { geo, geoLonge, mat, mats, tons } = useMemo(() => {
+        const A = .3, L = .05;
+        // lâmina de G gomos; a de longe usa 2 (mesma silhueta, metade dos triângulos)
+        const lamina = (G: number) => {
+            const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+            for (let i = 0; i <= G; i++) {
+                const t = i / G, w = L * (1 - t * t * .92), curva = t * t * .18;
+                pos.push(-w / 2, t * A, curva, w / 2, t * A, curva);
+                uvs.push(0, t, 1, t);
+                if (i < G) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            g.setIndex(idx);
+            g.computeVertexNormals();
+            return g;
+        };
+        const g = lamina(4), gLonge = lamina(2);
         const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: .7, color: '#ffffff' });
         m.onBeforeCompile = (sh) => {
             sh.uniforms.uT = tempoGrama;
@@ -951,7 +956,7 @@ const Grama: React.FC = () => {
                 }
             }
         }
-        return { geo: g, mat: m, mats: ms, tons: new Float32Array(cores) };
+        return { geo: g, geoLonge: gLonge, mat: m, mats: ms, tons: new Float32Array(cores) };
     }, []);
     // em blocos de 9 m: cada bloco é um InstancedMesh com a própria esfera
     // envolvente, então o que está fora da tela nem vai para a GPU, e o que
@@ -973,18 +978,33 @@ const Grama: React.FC = () => {
             im.instanceMatrix.needsUpdate = true;
             im.computeBoundingSphere();
             im.receiveShadow = true;
+            // versão de longe: mesma matriz e mesmas cores (buffers compartilhados), lâmina de 2 gomos
+            const gl = geoLonge.clone();
+            gl.setAttribute('aTom', g.getAttribute('aTom'));
+            const lo = new THREE.InstancedMesh(gl, mat, ids.length);
+            lo.instanceMatrix = im.instanceMatrix;
+            lo.boundingSphere = im.boundingSphere;
+            lo.receiveShadow = true;
+            lo.visible = false;
+            im.userData.longe = lo;
             return im;
         });
-    }, [geo, mat, mats, tons]);
+    }, [geo, geoLonge, mat, mats, tons]);
     const centro = useMemo(() => new THREE.Vector3(), []);
     useFrame(({ clock, camera }) => {
         tempoGrama.value = clock.elapsedTime;
         for (const b of blocos) {
             centro.copy(b.boundingSphere!.center);
-            b.visible = centro.distanceTo(camera.position) < alcanceDaGrama.valor + b.boundingSphere!.radius;
+            const d = centro.distanceTo(camera.position), r = b.boundingSphere!.radius;
+            const lo = b.userData.longe as THREE.InstancedMesh;
+            const dentro = d < alcanceDaGrama.valor + r;
+            // bloco inteiro além de 16 m: lâmina simplificada (a 16 m uma lâmina tem ~2 px de largura)
+            const longe = d - r > 16;
+            b.visible = dentro && !longe;
+            lo.visible = dentro && longe;
         }
     });
-    return <>{blocos.map((b, i) => <primitive key={i} object={b} />)}</>;
+    return <>{blocos.map((b, i) => <React.Fragment key={i}><primitive object={b} /><primitive object={b.userData.longe} /></React.Fragment>)}</>;
 };
 /** Trilhas de pedra: do centro de cada ilha até a cabeceira de cada ponte. */
 const TRILHAS: ReadonlyArray<{ a: THREE.Vector2; b: THREE.Vector2; y: number }> = PONTES.flatMap((p) => {
