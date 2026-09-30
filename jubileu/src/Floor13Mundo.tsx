@@ -100,7 +100,7 @@ export function novoCeu(): Sky {
     // o Preetham sai em radiância física, clara demais para esta cena: um
     // terço, para o céu ficar azul e o horizonte âmbar em vez de branco
     ceu.material.fragmentShader = ceu.material.fragmentShader
-        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .36, 1.0 );')
+        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .3, 1.0 );')
         // o disco do sol vem 19000× mais forte que o céu: cegava a tela
         // inteira pelo bloom. Fica um disco quente, visível sem ofuscar
         .replace('vSunE * 19000.0 * Fex', 'vSunE * 900.0 * Fex');
