@@ -44,7 +44,7 @@ import {
 } from './f13Lore';
 import {
     ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, foraDoTelhado, MARTELO, OVELHAS, SINO,
-    novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
+    novoEstado13, falarCom, marcaDoMorador, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
 } from './f13Mundo';
 import {
     tocarVento, pararVento, tocarMotorTossindo, tocarMotorMorrendo, tocarQueda, tocarSino, tocarDingDaCasa,
@@ -698,8 +698,9 @@ const Radar: React.FC<{
             if (id === 'halvard' && e.entidade === 'caido') continue;
             // quem faz ronda (a menina em volta do poço) é achado onde está agora
             const o = onde[id].current;
-            // à noite todos dormem: o botão diz isso, em vez de simplesmente sumir
-            tenta(moradoresDormem() ? { tipo: 'dormindo', id } : { tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.4 : 2.3);
+            // à noite todos dormem: o botão diz isso, em vez de simplesmente sumir;
+            // generoso no ângulo: quem está diante do morador sempre pode falar
+            tenta(moradoresDormem() ? { tipo: 'dormindo', id } : { tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.6 : 2.5, 1.5, 1.8);
         }
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
@@ -1453,7 +1454,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     const l = LUGAR_DOS_NPCS[n.id];
                     if (glitch && n.id !== 'halvard' && Math.hypot(jog.current.x - l.x, jog.current.z - l.z) < 7) return null;
                     return <Viking key={n.id} ficha={n} x={l.x} y={chaoEm(l.x, l.z) ?? 0} z={l.z} ronda={l.ronda} estado={npcVis[n.id]} onde={npcOnde[n.id]} tique={n.id === 'halvard' && e.entidade === 'nao' && entidadeAcorda(e)}
-                        marca={!e.conversou.has(n.id) && n.id !== 'halvard' ? (['ragnhild', 'ulfgar', 'eira'].includes(n.id) ? '!' : '?') : null} />;
+                        marca={marcaDoMorador(e, n.id)} />;
                 })}
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
                 <Martelo visivel={!e.temMartelo} />

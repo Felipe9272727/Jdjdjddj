@@ -267,6 +267,21 @@ export function falarCom(e: Estado13, id: IdNpc): Fala[] {
     return primeira ? ficha.primeira : ficha.depois;
 }
 
+/**
+ * A marca sobre a cabeça de um morador: '!' dourado = há novidade a receber
+ * (primeira conversa, pista pronta para entregar, busca pronta para cobrar);
+ * '?' prateado = ele espera um favor que você ainda não fez; null = nada a tratar.
+ */
+export function marcaDoMorador(e: Estado13, id: IdNpc): '!' | '?' | null {
+    if (id === 'halvard') return null;
+    const busca = BUSCA_DE[id];
+    if (busca && e.buscas[busca] === 'pronta') return '!';
+    if (!e.conversou.has(id)) return '!';
+    const p = PISTA_DE[id];
+    if (p && !e.pistas.has(p)) return favorFeito(e, id) ? '!' : '?';
+    return null;
+}
+
 /** Pega o martelo, uma ovelha ou toca o sino. */
 export function pegarMartelo(e: Estado13): void {
     if (e.temMartelo) return;
