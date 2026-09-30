@@ -12,6 +12,7 @@
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { congelaIdle } from './f13Atencao';
+import { noite } from './f13Noite';
 import { useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
@@ -479,7 +480,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // o frustum da câmera é o mesmo para todos os moradores no quadro: calcula uma vez
         if (_quadroFrustum !== t) { _quadroFrustum = t; _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_pv); }
         _esfera.center.set(g.position.x, g.position.y + escala * .9, g.position.z); _esfera.radius = escala * 1.3;
-        g.visible = !!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
+        g.visible = (!(noite.v > .5) || !!ctl) && (!!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera))));
         if (!g.visible) return;
         const perto = dist < DIST_DETALHE;
         for (const m of detalhes) m.visible = perto;

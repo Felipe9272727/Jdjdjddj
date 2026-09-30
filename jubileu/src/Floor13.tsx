@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
 import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
+import { NoiteDoMundo, aoTocarSino, definirNoite, moradoresDormem, rotuloDaNoite, noite } from './f13Noite';
 import { GatosDaVila, gatos, largarPeixe, peixesNoChao, CESTO } from './f13Gatos';
 import { forja } from './f13Fagulhas';
 import { contarBatida, oQueSeOuve, terceiraBatida, zerarBatidas } from './f13Batidas';
@@ -695,6 +696,7 @@ const Radar: React.FC<{
         };
         for (const [id, l] of Object.entries(LUGAR_DOS_NPCS) as [IdNpc, { x: number; z: number; ronda?: number }][]) {
             if (id === 'halvard' && e.entidade === 'caido') continue;
+            if (moradoresDormem()) continue;   // à noite todos dormem
             // quem faz ronda (a menina em volta do poço) é achado onde está agora
             const o = onde[id].current;
             tenta({ tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.4 : 2.3);
@@ -1065,6 +1067,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             busca: () => ({ estado: busca.estado, entregas: busca.entregas, g: busca.graveto.toArray().map((v) => +v.toFixed(2)) }),
             melodia: () => { revelarMelodia(); return { melodia: [...sinos.melodia], lugares: LUGARES_DOS_SINOS.map((l) => [l.x, l.y, l.z]) }; },
             peixe: (x: number, z: number) => { largarPeixe(x, z); return { alimentados: gatos.alimentados, ultimo: gatos.ultimoNome }; },
+            noite: (b: boolean) => { setAviso(definirNoite(b)); return noite.alvo; },
             casaCerta: () => { (['latao', 'fumaca', 'botao'] as Pista[]).forEach((x) => est.current.pistas.add(x)); bump(); const d = portaNoMundo(CASA_CERTA), p = { x: d.x + d.fx * 3.2, z: d.z + d.fz * 3.2 }, a = Math.atan2(d.fx, d.fz); const j = jog.current; j.x = p.x; j.z = p.z; j.y = chaoEm(p.x, p.z) ?? 3; j.ang = a + Math.PI; yaw.current = a; j.levantando = 0; },
         };
     }, []);
@@ -1275,7 +1278,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (n === 2) window.setTimeout(() => setAviso('O cão larga o graveto e fareja a ponte, rabo em pé, olhando a ilha das casas.'), 6000);
             else setAviso(n === 0 ? 'Você joga o graveto. O cão dispara.' : 'De novo! Ele não cansa.');
         } else if (a.tipo === 'sino') {
-            const jaResolvido = sinos.resolvido;
+            const jaResolvido = sinos.resolvido, passoAntes = sinos.passo;
             marcarSino(e); tocarSinoDaTorre(a.i); if (a.i === 0) balancoDoSino.current = 1;
             // a melodia certa vale uma pista: o latão (quem ainda não a tinha)
             const ganhou = !jaResolvido && sinos.resolvido && !e.pistas.has('latao');
@@ -1285,7 +1288,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 const jj = jog.current, L = LUGARES_DOS_SINOS[0], dx = L.x - jj.x, dz = L.z - jj.z;
                 yaw.current = Math.atan2(-dx, -dz); pitch.current = Math.min(.55, Math.atan2(L.y - .3 - (jj.y + 1.72), Math.max(.5, Math.hypot(dx, dz))));
             }
-            window.setTimeout(() => setAviso(ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.'), 30);
+            const avisoNoite = aoTocarSino(a.i, passoAntes, performance.now() / 1000);
+            if (avisoNoite) sinos.passo = 0;
+            window.setTimeout(() => setAviso(avisoNoite ?? (ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.')), 30);
         } else if (a.tipo === 'casa') {
             // bater de novo na mesma porta é escutar (f13Batidas)
             const seguida = contarBatida(a.i, performance.now());
@@ -1407,7 +1412,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDoSino(a.i)
+        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDaNoite(a.i, rotuloDoSino(a.i))
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (
@@ -1434,6 +1439,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <React.Suspense fallback={null}><CaoDaBusca jog={jog} /></React.Suspense>
                 <GatosDaVila jog={jog} />
                 <SinosDaTorre />
+                <NoiteDoMundo />
                 <OuvidoDaForja />
                 <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.has('ragnhild')} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
