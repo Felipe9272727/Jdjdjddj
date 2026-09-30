@@ -37,7 +37,8 @@ import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking, oficio } from './Floor13Povo';
 import { temPerguntas, assuntosDe, perguntar, citar, citaveis, ROTULO } from './f13Perguntas';
 import { Floor13Vida } from './Floor13Vida';
-import { pbr } from './f13Texturas';
+import { Cabine, tosseDaQueda } from './f13Cabine';
+import { PalhasDoBaque } from './f13Feno';
 import { AtencaoNoMundo, OlhoDaVila } from './f13AtencaoCena';
 import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from './f13Atencao';
 import { EfeitoChuva } from './f13Chuva';
@@ -157,108 +158,8 @@ function texturaDoSulco(): THREE.CanvasTexture {
     return texSulco;
 }
 
-/** Mostrador de instrumento: fundo escuro, marcas e números em marfim. */
-const mostradores = new Map<string, THREE.CanvasTexture>();
-function texturaDeMostrador(rotulo: string, marcas: number, vermelho = 0): THREE.CanvasTexture {
-    const chave = `${rotulo}:${marcas}:${vermelho}`;
-    let t = mostradores.get(chave); if (t) return t;
-    const c = document.createElement('canvas'); c.width = c.height = 128;
-    const g = c.getContext('2d')!;
-    const gr = g.createRadialGradient(64, 58, 6, 64, 64, 62); gr.addColorStop(0, '#2b2a26'); gr.addColorStop(1, '#0e0d0b');
-    g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
-    if (vermelho) { g.strokeStyle = '#c23a22'; g.lineWidth = 7; g.beginPath(); g.arc(64, 64, 50, -Math.PI / 2 + Math.PI * 2 * (1 - vermelho), -Math.PI / 2 + Math.PI * 2 * .999); g.stroke(); }
-    g.strokeStyle = '#efe3c8'; g.fillStyle = '#efe3c8'; g.font = 'bold 13px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (let i = 0; i < marcas * 5; i++) {
-        const a = -Math.PI / 2 + i / (marcas * 5) * Math.PI * 2, grande = i % 5 === 0, r0 = grande ? 44 : 50;
-        g.lineWidth = grande ? 3 : 1.2; g.beginPath(); g.moveTo(64 + Math.cos(a) * r0, 64 + Math.sin(a) * r0); g.lineTo(64 + Math.cos(a) * 57, 64 + Math.sin(a) * 57); g.stroke();
-        if (grande) g.fillText(String(i / 5), 64 + Math.cos(a) * 34, 64 + Math.sin(a) * 34);
-    }
-    g.font = 'bold 11px monospace'; g.fillStyle = '#d9b85a'; g.fillText(rotulo, 64, 86);
-    t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; mostradores.set(chave, t);
-    return t;
-}
-
-/**
- * A cabine vista de dentro: painel de madeira com três relógios (altímetro
- * que desaba no mergulho, conta-giros que morre com o motor, óleo) e a
- * lâmpada de pane piscando; montantes de latão do para-brisa nas bordas.
- * Fica no espaço do casco (anda, rola e treme com ele).
- */
-const Relogio: React.FC<{ x: number; r: number; rotulo: string; marcas: number; vermelho?: number; agulha: React.RefObject<THREE.Group | null> }> = ({ x, r, rotulo, marcas, vermelho, agulha }) => (
-    <group position={[x, 0, .031]}>
-        <mesh><circleGeometry args={[r, 28]} /><meshBasicMaterial map={texturaDeMostrador(rotulo, marcas, vermelho)} /></mesh>
-        <mesh position={[0, 0, .004]}><torusGeometry args={[r, r * .12, 6, 28]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.35} /></mesh>
-        <group ref={agulha} position={[0, 0, .006]}>
-            <mesh position={[0, r * .38, 0]}><boxGeometry args={[r * .07, r * .82, .002]} /><meshBasicMaterial color="#f4e8cc" /></mesh>
-        </group>
-        {/* vidro do mostrador: um reflexo leve */}
-        <mesh position={[0, 0, .009]}><circleGeometry args={[r, 28]} /><meshStandardMaterial color="#ffffff" transparent opacity={.08} roughness={.05} metalness={.2} /></mesh>
-    </group>
-);
-
-const Cabine: React.FC<{ tRef: React.MutableRefObject<number>; ajuste: React.MutableRefObject<(() => void) | null> }> = ({ tRef, ajuste }) => {
-    const alt = useRef<THREE.Group>(null), rpm = useRef<THREE.Group>(null), oleo = useRef<THREE.Group>(null);
-    const lampada = useRef<THREE.MeshStandardMaterial>(null);
-    useFrame(() => {
-        const t = tRef.current;
-        const tosse = t > 2.6 && t < 5 ? Math.sin(t * 23) * .35 : 0;
-        const giro = t < 2.6 ? .72 : t < 5 ? .6 + tosse * .3 : Math.max(0, .6 * (1 - (t - 5) / 1.5));
-        if (rpm.current) rpm.current.rotation.z = -giro * Math.PI * 2 * .8;
-        // altímetro: gira para trás cada vez mais rápido no mergulho
-        const altura = t < 7.4 ? 3.2 - t * .05 : Math.max(0, 2.83 - (t - 7.4) ** 2 * .3);
-        if (alt.current) alt.current.rotation.z = -altura * Math.PI * 2;
-        if (oleo.current) oleo.current.rotation.z = -(t < 2.6 ? .55 : Math.max(.05, .55 - (t - 2.6) * .12)) * Math.PI * 2 * .8;
-        if (lampada.current) lampada.current.emissiveIntensity = t > 2.6 && t < 10.45 && Math.sin(t * 12) > 0 ? 4 : .15;
-    });
-    // presa à cabeça: o grupo segue a câmera (posição e giro) e o painel se
-    // encaixa na largura da tela — em pé nenhum relógio sai pela borda
-    const raiz = useRef<THREE.Group>(null), painel = useRef<THREE.Group>(null), lados = useRef<(THREE.Mesh | null)[]>([]), trave = useRef<THREE.Mesh>(null);
-    const camera = useThree((st) => st.camera), size = useThree((st) => st.size);
-    // chamado pela CenaDaQueda depois de pôr a câmera no quadro (um useFrame
-    // próprio rodaria antes dela e o painel tremeria um quadro atrasado)
-    ajuste.current = () => {
-        const g = raiz.current; if (!g) return;
-        const t = tRef.current;
-        g.position.copy(camera.position); g.quaternion.copy(camera.quaternion);
-        const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 72, D = .55;
-        const meiaA = Math.tan(THREE.MathUtils.degToRad(fov / 2)) * D, meiaL = meiaA * size.width / size.height;
-        // no baque o painel some para baixo (a cabeça tomba para fora da cabine)
-        const sai = THREE.MathUtils.smoothstep(t, 10.45, 10.9);
-        g.visible = sai < 1;
-        if (painel.current) {
-            const k = Math.min(1, meiaL * .94 / .2);
-            painel.current.scale.setScalar(k);
-            // acima da faixa das legendas
-            painel.current.position.set(0, -meiaA * .6 - sai * .4, -D);
-        }
-        lados.current.forEach((m, i) => { if (m) m.position.set((i ? 1 : -1) * meiaL * .9, 0, -D - .05); });
-        if (trave.current) trave.current.position.set(0, meiaA * .93, -D - .08);
-    };
-    return <group ref={raiz}>
-        {/* o painel: tampo de madeira inclinado para o piloto, forro escuro */}
-        <group ref={painel}>
-            <group rotation={[-.35, 0, 0]}>
-                <mesh><boxGeometry args={[.8, .17, .06]} /><meshStandardMaterial {...pbr('carvalho', .6, .2)} color="#5a3a24" roughness={.7} /></mesh>
-                <mesh position={[0, .095, .01]}><boxGeometry args={[.82, .025, .09]} /><meshStandardMaterial color="#2a1c12" roughness={.9} /></mesh>
-                {/* o forro de couro abaixo do painel, até a borda da tela */}
-                {/* desce até bem abaixo da borda da tela em pé (sobrava uma faixa preta
-                    vazia): couro acolchoado com costura e o manche saindo dele */}
-                <mesh position={[0, -.55, -.01]}><boxGeometry args={[.84, .94, .04]} /><meshStandardMaterial color="#4a2e1c" roughness={.55} metalness={0} /></mesh>
-                {[-.26, -.46, -.66].map((y) => <mesh key={y} position={[0, y, .022]}><boxGeometry args={[.8, .012, .006]} /><meshStandardMaterial color="#c9a270" roughness={.8} /></mesh>)}
-                <mesh position={[0, -.42, .06]} rotation={[.5, 0, 0]}><cylinderGeometry args={[.012, .016, .26, 10]} /><meshStandardMaterial color="#2a2622" metalness={.6} roughness={.4} /></mesh>
-                <mesh position={[0, -.31, .12]}><sphereGeometry args={[.028, 12, 10]} /><meshStandardMaterial color="#4a3222" roughness={.6} /></mesh>
-                <Relogio x={-.12} r={.045} rotulo="ALT" marcas={10} agulha={alt} />
-                <Relogio x={0} r={.052} rotulo="RPM" marcas={8} vermelho={.2} agulha={rpm} />
-                <Relogio x={.12} r={.04} rotulo="ÓLEO" marcas={4} vermelho={.25} agulha={oleo} />
-                <mesh position={[.05, -.06, .035]}><sphereGeometry args={[.011, 12, 8]} /><meshStandardMaterial ref={lampada} color="#5a1008" emissive="#ff2a10" emissiveIntensity={.15} /></mesh>
-                {[-.07, -.04].map((x) => <mesh key={x} position={[x, -.06, .04]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.008, .008, .02, 10]} /><meshStandardMaterial color="#c9a13a" metalness={.9} roughness={.3} /></mesh>)}
-            </group>
-        </group>
-        {/* montantes do para-brisa nas bordas e a travessa de cima */}
-        {[0, 1].map((i) => <mesh key={i} ref={(m) => { lados.current[i] = m; }} rotation={[0, 0, (i ? -1 : 1) * .12]}><boxGeometry args={[.02, 1.2, .03]} /><meshStandardMaterial color="#8a6a2a" metalness={.8} roughness={.4} /></mesh>)}
-        <mesh ref={trave}><boxGeometry args={[1.4, .025, .04]} /><meshStandardMaterial color="#8a6a2a" metalness={.8} roughness={.4} /></mesh>
-    </group>;
-};
+// A cabine do biplano (capô, hélice, para-brisa, asas, painel, manche e as mãos do
+// hóspede) mora em f13Cabine.tsx: é desenhada presa à câmera e toda função de `t`.
 
 const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef }) => {
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
@@ -308,7 +209,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
             }
         }
         // o motor tossindo: tranco na rolagem; morto: a hélice para
-        const tosse = t > 2.6 ? Math.max(0, Math.sin(t * 9)) * Math.min(1, (t - 2.6)) : 0;
+        const tosse = tosseDaQueda(t);
         if (balanco.current) {
             balanco.current.rotation.z = Math.sin(t * 1.3) * .08 + tosse * .18 * Math.sin(t * 23) + (t > 7.4 ? Math.sin(t * 2.2) * .35 : 0);
             balanco.current.rotation.x = t > 7.4 ? -.25 : tosse * .05;
@@ -460,7 +361,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
                 {/* o piloto é o hóspede — e a câmera é a cabeça dele, então o corpo não é desenhado */}
             </group>
         </group>
-        <Cabine tRef={tRef} ajuste={ajusteCabine} />
+        <Cabine tRef={tRef} ajuste={ajusteCabine} helice={helice} />
         <group ref={fumaca}>
             {puffs.current.map((_, i) => <sprite key={i} visible={false} material={matFumaca(i)} />)}
         </group>
@@ -471,6 +372,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         <group ref={lascas} visible={false}>
             {Array.from({ length: 30 }, (_, i) => <mesh key={i}><boxGeometry args={[.06 + (i % 3) * .03, .03, .2 + (i % 4) * .08]} /><meshStandardMaterial color={i % 3 ? '#8a6440' : '#d9b85a'} /></mesh>)}
         </group>
+        <PalhasDoBaque tRef={tRef} />
         <group ref={poeira} visible={false}>
             {Array.from({ length: 26 }, (_, i) => <sprite key={i} material={matPoeira(i)} />)}
         </group>
