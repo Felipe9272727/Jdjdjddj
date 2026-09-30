@@ -736,7 +736,7 @@ const Radar: React.FC<{
             });
         }
         if (si >= 0) tenta({ tipo: 'sino', i: si }, LUGARES_DOS_SINOS[si].x, LUGARES_DOS_SINOS[si].z, 2.4);
-        if (busca.estado === 'solto' && Math.hypot(busca.cao.x - j.x, busca.cao.z - j.z) < 10) tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.9, 1.3);
+        if (busca.estado === 'solto' && Math.hypot(busca.cao.x - j.x, busca.cao.z - j.z) < 10) tenta({ tipo: 'graveto' }, busca.graveto.x, busca.graveto.z, 1.7, .6, .7);   // só olhando para ele: o cão larga aos pés e o botão não fica grudado na tela
         if (!gatos.peixeNaMao) {
             tenta({ tipo: 'peixe' }, gatos.cesto.x, gatos.cesto.z, 2.2);
             // o peixe largado na grama também se pega de volta (sem dono: o gato não está comendo)

@@ -283,14 +283,15 @@ export function NoiteDoMundo(): React.ReactElement {
             }
             mats[i].emissiveIntensity = k;
             halos[i].opacity = i === CASA_CERTA ? .85 * s : Math.min(.55, k * .22);
-            glows[i].opacity = i === CASA_CERTA ? .5 * s : Math.min(.3, k * .1);
+            // a certa é um fogo de lareira visto de longe; as erradas, um frio que mal passa da janela
+            glows[i].opacity = i === CASA_CERTA ? (.72 + .08 * Math.sin(t * 1.3)) * s : Math.min(.14, k * .05);
             // halos crescem com a distância para ler da praça
             const d = gr.position.distanceTo(estado.camera.position);
             const m = Math.min(5, Math.max(1, d / 14));
             const ss = spr.current[i];
             for (let q = 0; q < ss.length; q++) {
                 const sp = ss[q]; if (!sp) continue;
-                const e = q === 6 ? 9 * m : 2.3 * m;
+                const e = q === 6 ? (i === CASA_CERTA ? 14 : 6) * m : (i === CASA_CERTA ? 2.8 : 1.8) * m;
                 sp.scale.set(e, e, 1);
             }
         }
