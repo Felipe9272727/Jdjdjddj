@@ -3,6 +3,11 @@
  *
  * Tudo que é regra (onde dá para pisar, quem está onde, o que cada conversa
  * destrava) mora aqui, sem three.js e sem React, para ser testado.
+ *
+ * Ninguém aqui dá pista de graça: quem sabe de alguma coisa cobra um favor
+ * antes de contar — e o favor é sempre coisa que já existe no jogo (ver
+ * O PREÇO EM FAVOR, mais abaixo). Como nenhum favor depende de outro, o
+ * jogador paga na ordem que quiser.
  */
 import { CASAS, CASA_CERTA, BUSCAS, npcPorId, type Fala, type IdBusca, type IdNpc, type Pista } from './f13Lore';
 
@@ -200,11 +205,45 @@ export const novoEstado13 = (): Estado13 => ({
     entidade: 'nao', casasBatidas: new Set(),
 });
 
-/** Quem dá qual pista só de conversar. */
+/** Quem dá qual pista — mas só depois do favor (ver abaixo). */
 const PISTA_DE: Partial<Record<IdNpc, Pista>> = { ragnhild: 'latao', ulfgar: 'fumaca', eira: 'botao' };
 const BUSCA_DE: Partial<Record<IdNpc, IdBusca>> = { brokk: 'martelo', sigrun: 'ovelhas', torvald: 'sino' };
 
-/** Conversa com um morador. Devolve as falas e atualiza o estado. */
+// ── O PREÇO EM FAVOR ─────────────────────────────────────────────────────────
+/**
+ * Em Vindhjem ninguém abre a boca de graça: quem sabe de uma pista cobra um
+ * favor antes de contar. E o favor é sempre coisa que já existe no jogo — uma
+ * conversa a mais, o sino tocado, uma busca entregue. Como nenhum deles
+ * depende do outro, o jogador paga na ordem que quiser.
+ */
+const PEDIDO_DE: Readonly<Partial<Record<IdNpc, Fala[]>>> = Object.freeze({
+    ragnhild: [{ quem: 'Ragnhild', texto: 'Segredo não se dá, se troca. Fala com mais dois por aí e volta. Aí eu conto.' }],
+    ulfgar: [{ quem: 'Ulfgar', texto: 'Saga sem sino é conversa de feira. Toca o sino do templo, que eu canto o resto.' }],
+    eira: [{ quem: 'Eira', texto: 'Conto! Mas antes você me ajuda: traz as ovelhas da Sigrun, ou o martelo do Brokk. Um dos dois!' }],
+});
+
+/** A pista na boca de quem cobrou o favor, no dia em que ele é pago. */
+const ENTREGA_DE: Readonly<Partial<Record<IdNpc, Fala[]>>> = Object.freeze({
+    ragnhild: [{ quem: 'Ragnhild', texto: 'Está bem, você mereceu. Das portas daqui, todas são de carvalho. Todas, menos uma: aquela é de latão. Ninguém aqui forja latão.' }],
+    ulfgar: [{ quem: 'Ulfgar', texto: 'Sino tocado, história contada. Tem uma casa lá em cima que nunca soltou fumaça. Nem no inverno. Casa sem fogo não é casa: é outra coisa.' }],
+    eira: [{ quem: 'Eira', texto: 'Você voltou! Então ó: a casa tem um botão na parede, do lado da porta. Eu apertei e fez DING! Casa não faz ding.' }],
+});
+
+/** O favor que ele cobra já foi pago? (Só olha o que já existe no estado.) */
+export function favorFeito(e: Estado13, id: IdNpc): boolean {
+    switch (id) {
+        case 'ragnhild': return e.conversou.size >= 3;   // a fofoca: ela e mais dois
+        case 'ulfgar': return e.sinoTocou;               // o sino do templo
+        case 'eira': return e.buscas.ovelhas === 'feita' || e.buscas.martelo === 'feita';
+        default: return true;
+    }
+}
+
+/**
+ * Conversa com um morador. Devolve as falas e atualiza o estado.
+ * Se ele cobra um favor ainda não pago, quem fala é o pedido — e a pista só
+ * entra no estado quando o jogador volta com o favor feito.
+ */
 export function falarCom(e: Estado13, id: IdNpc): Fala[] {
     const ficha = npcPorId(id);
     const busca = BUSCA_DE[id];
@@ -216,9 +255,15 @@ export function falarCom(e: Estado13, id: IdNpc): Fala[] {
     }
     const primeira = !e.conversou.has(id);
     e.conversou.add(id);
-    const p = PISTA_DE[id];
-    if (p) e.pistas.add(p);
     if (busca && e.buscas[busca] === 'nova') e.buscas[busca] = 'ativa';
+    const p = PISTA_DE[id];
+    if (p && !e.pistas.has(p)) {
+        if (!favorFeito(e, id)) return PEDIDO_DE[id]!;
+        e.pistas.add(p);
+        // quem paga o favor na primeira conversa ouve a história inteira;
+        // quem já ouviu o pedido ouve a pista direta.
+        return primeira ? ficha.primeira : ENTREGA_DE[id]!;
+    }
     return primeira ? ficha.primeira : ficha.depois;
 }
 

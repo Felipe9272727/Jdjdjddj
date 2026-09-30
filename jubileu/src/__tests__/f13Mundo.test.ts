@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CASAS, CASA_CERTA, NPCS, ENTIDADE } from '../f13Lore';
 import {
     chaoEm, ILHAS, PONTES, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, portaNoMundo, foraDasCasas, OVELHAS, MARTELO, SINO, INICIO,
-    novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino, entidadeAcorda, baterNaCasa,
+    novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino, entidadeAcorda, baterNaCasa, favorFeito,
 } from '../f13Mundo';
 
 describe('f13 — a casa certa só existe juntando as três pistas', () => {
@@ -49,7 +49,8 @@ describe('f13 — dá para andar por tudo que importa', () => {
     });
     it('as casas ficam dentro da ilha de cima', () => {
         for (const l of LUGAR_DAS_CASAS) expect(chaoEm(l.x, l.z)).toBe(3);
-    });    it('a casa é um retângulo sólido: o centro é empurrado para fora e o lugar de bater é livre', () => {
+    });
+    it('a casa é um retângulo sólido: o centro é empurrado para fora e o lugar de bater é livre', () => {
         LUGAR_DAS_CASAS.forEach((_, i) => {
             // quem tenta entrar pela porta fechada fica do lado de fora dela
             const p = portaNoMundo(i), dentro = { x: p.x - p.fx * .3, z: p.z - p.fz * .3 };
@@ -72,15 +73,10 @@ describe('f13 — dá para andar por tudo que importa', () => {
 });
 
 describe('f13 — conversas, buscas e a entidade', () => {
-    it('os três moradores-chave dão as três pistas', () => {
-        const e = novoEstado13();
-        falarCom(e, 'ragnhild'); falarCom(e, 'ulfgar'); falarCom(e, 'eira');
-        expect([...e.pistas].sort()).toEqual(['botao', 'fumaca', 'latao']);
-    });
     it('primeira conversa e as seguintes são diferentes', () => {
         const e = novoEstado13();
-        expect(falarCom(e, 'ulfgar')).toBe(NPCS.find((n) => n.id === 'ulfgar')!.primeira);
-        expect(falarCom(e, 'ulfgar')).toBe(NPCS.find((n) => n.id === 'ulfgar')!.depois);
+        expect(falarCom(e, 'astrid')).toBe(NPCS.find((n) => n.id === 'astrid')!.primeira);
+        expect(falarCom(e, 'astrid')).toBe(NPCS.find((n) => n.id === 'astrid')!.depois);
     });
     it('o martelo: aceitar, achar, entregar — e a entrega dá a pista do latão', () => {
         const e = novoEstado13();
@@ -98,10 +94,16 @@ describe('f13 — conversas, buscas e a entidade', () => {
         const e = novoEstado13();
         tocarSino(e); expect(falarCom(e, 'torvald').some((f) => f.texto.includes('GRADE'))).toBe(true);
     });
-    it('a entidade só acorda com duas pistas', () => {
+    it('a entidade só acorda com duas pistas — e pista só vem com favor pago', () => {
         const e = novoEstado13();
-        falarCom(e, 'eira'); expect(entidadeAcorda(e)).toBe(false);
-        falarCom(e, 'ulfgar'); expect(entidadeAcorda(e)).toBe(true);
+        expect(entidadeAcorda(e)).toBe(false);
+        falarCom(e, 'ulfgar'); expect(entidadeAcorda(e)).toBe(false);
+        tocarSino(e); falarCom(e, 'ulfgar');            // o sino pagou a pista da fumaça
+        expect(e.pistas.has('fumaca')).toBe(true);
+        expect(entidadeAcorda(e)).toBe(false);
+        falarCom(e, 'brokk'); pegarMartelo(e); falarCom(e, 'brokk');   // e o martelo, a do latão
+        expect(e.pistas.has('latao')).toBe(true);
+        expect(entidadeAcorda(e)).toBe(true);
     });
     it('a fala da entidade termina cortada, sem ponto final', () => {
         expect(ENTIDADE[ENTIDADE.length - 1].texto).not.toMatch(/[.!?…]$/);
@@ -114,5 +116,115 @@ describe('f13 — conversas, buscas e a entidade', () => {
         e.pistas.add('botao');
         expect(baterNaCasa(e, CASA_CERTA).certa).toBe(true);
         expect(baterNaCasa(e, (CASA_CERTA + 1) % CASAS.length).certa).toBe(false);
+    });
+});
+
+describe('f13 — o preço em favor: pista nenhuma sai de graça', () => {
+    it('sem o favor, o que se ouve é um pedido — e pista nenhuma entra', () => {
+        const e = novoEstado13();
+        const pedidos: Record<string, string> = {
+            ragnhild: falarCom(e, 'ragnhild').map((f) => f.texto).join(' '),
+            ulfgar: falarCom(e, 'ulfgar').map((f) => f.texto).join(' '),
+            eira: falarCom(e, 'eira').map((f) => f.texto).join(' '),
+        };
+        expect(e.pistas.size).toBe(0);
+        expect(favorFeito(e, 'ragnhild')).toBe(false);
+        expect(favorFeito(e, 'ulfgar')).toBe(false);
+        expect(favorFeito(e, 'eira')).toBe(false);
+        for (const [id, t] of Object.entries(pedidos)) {
+            expect(t.length, id).toBeLessThanOrEqual(110);           // pedido curto
+            expect(t, id).toMatch(/[áéíóúãõçâêô]/i);                 // e em português
+            expect(t, id).not.toMatch(/latão|latao|fumaça|botão|DING/i);   // sem entregar a pista
+        }
+        expect(pedidos.ragnhild, 'a fofoca').toMatch(/dois/i);
+        expect(pedidos.ulfgar, 'o sino').toMatch(/sino/i);
+        expect(pedidos.eira, 'as ovelhas ou o martelo').toMatch(/ovelhas|martelo/i);
+    });
+
+    it('Ragnhild só conta do latão depois da fofoca (conversar com dois outros)', () => {
+        const e = novoEstado13();
+        falarCom(e, 'ragnhild');                          // o pedido
+        expect(e.pistas.has('latao')).toBe(false);
+        falarCom(e, 'astrid');                            // um
+        expect(favorFeito(e, 'ragnhild')).toBe(false);
+        falarCom(e, 'halvard');                           // dois
+        expect(favorFeito(e, 'ragnhild')).toBe(true);
+        expect(e.pistas.has('latao')).toBe(false);        // ela conta na volta
+        expect(falarCom(e, 'ragnhild').length).toBeGreaterThan(0);
+        expect(e.pistas.has('latao')).toBe(true);
+    });
+
+    it('Ulfgar só conta da fumaça depois que o sino tocou', () => {
+        const e = novoEstado13();
+        falarCom(e, 'ulfgar');
+        expect(e.pistas.has('fumaca')).toBe(false);
+        expect(favorFeito(e, 'ulfgar')).toBe(false);
+        tocarSino(e);
+        const falas = falarCom(e, 'ulfgar').map((f) => f.texto).join(' ');
+        expect(e.pistas.has('fumaca')).toBe(true);
+        expect(falas).toMatch(/fumaça/i);                 // a pista vem na conversa, não só no estado
+    });
+
+    it('Eira só conta do botão com as ovelhas de volta — ou com o martelo devolvido', () => {
+        const comOvelhas = novoEstado13();
+        falarCom(comOvelhas, 'eira');                     // o pedido
+        falarCom(comOvelhas, 'sigrun');
+        acharOvelha(comOvelhas, 0); acharOvelha(comOvelhas, 1); acharOvelha(comOvelhas, 2);
+        expect(favorFeito(comOvelhas, 'eira')).toBe(false);   // achadas ≠ devolvidas
+        falarCom(comOvelhas, 'sigrun');                       // busca 'feita'
+        expect(comOvelhas.pistas.has('botao')).toBe(false);
+        falarCom(comOvelhas, 'eira');
+        expect(comOvelhas.pistas.has('botao')).toBe(true);
+
+        const comMartelo = novoEstado13();
+        falarCom(comMartelo, 'eira');
+        falarCom(comMartelo, 'brokk'); pegarMartelo(comMartelo); falarCom(comMartelo, 'brokk');
+        expect(favorFeito(comMartelo, 'eira')).toBe(true);
+        falarCom(comMartelo, 'eira');
+        expect(comMartelo.pistas.has('botao')).toBe(true);
+    });
+
+    it('os favores podem ser pagos em qualquer ordem — sino, ovelhas, fofoca', () => {
+        const e = novoEstado13();
+        // 1) o sino
+        tocarSino(e);
+        falarCom(e, 'ulfgar');
+        expect(e.pistas.has('fumaca')).toBe(true);
+        // 2) as ovelhas (que também pagam o favor da Eira)
+        falarCom(e, 'sigrun');
+        acharOvelha(e, 0); acharOvelha(e, 1); acharOvelha(e, 2);
+        falarCom(e, 'sigrun');
+        falarCom(e, 'eira');
+        expect(e.pistas.has('botao')).toBe(true);
+        // 3) e a fofoca, por último
+        expect(e.pistas.has('latao')).toBe(false);
+        falarCom(e, 'ragnhild');
+        expect(e.pistas.has('latao')).toBe(true);
+        expect([...e.pistas].sort()).toEqual(['botao', 'fumaca', 'latao']);
+    });
+
+    it('e na ordem trocada — fofoca, martelo, sino', () => {
+        const e = novoEstado13();
+        falarCom(e, 'ragnhild');                          // pedido
+        falarCom(e, 'astrid'); falarCom(e, 'halvard');    // a fofoca
+        falarCom(e, 'ragnhild');
+        expect(e.pistas.has('latao')).toBe(true);
+        falarCom(e, 'brokk'); pegarMartelo(e); falarCom(e, 'brokk');   // o martelo paga a Eira
+        falarCom(e, 'eira');
+        expect(e.pistas.has('botao')).toBe(true);
+        expect(e.pistas.has('fumaca')).toBe(false);
+        tocarSino(e);
+        falarCom(e, 'ulfgar');
+        expect(e.pistas.has('fumaca')).toBe(true);
+        expect([...e.pistas].sort()).toEqual(['botao', 'fumaca', 'latao']);
+    });
+
+    it('quem já sabe a pista por outro caminho não ouve o pedido', () => {
+        const e = novoEstado13();
+        falarCom(e, 'brokk'); pegarMartelo(e); falarCom(e, 'brokk');   // o latão vem do martelo
+        expect(e.pistas.has('latao')).toBe(true);
+        falarCom(e, 'ragnhild');
+        expect(e.conversou.has('ragnhild')).toBe(true);
+        expect(e.pistas.has('latao')).toBe(true);
     });
 });
