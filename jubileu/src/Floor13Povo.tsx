@@ -11,6 +11,7 @@
  */
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { congelaIdle } from './f13Atencao';
 import { useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
@@ -485,6 +486,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         const sombraPerto = dist < 16;
         for (const m of sombreiam) m.castShadow = sombraPerto;
         if (dist > 28 && !ctl && (++quadro.current & 3)) return;
+        // Olhos da Vila (>= 35): o parado de alguém congela por um instante
+        if (!ctl && !e.falando && !e.caido && e.possessao <= 0 && !sentado && congelaIdle(ficha.id, t)) return;
 
         // braços caídos ao lado do corpo (o rig vem em pose de A), dedos
         // meio fechados: mão relaxada, não espalmada

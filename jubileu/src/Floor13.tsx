@@ -32,6 +32,8 @@ import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
 import { pbr } from './f13Texturas';
+import { AtencaoNoMundo, OlhoDaVila } from './f13AtencaoCena';
+import { aoBaterErrado, aoConversar, fixarAtencao, atencao } from './f13Atencao';
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import {
@@ -1051,6 +1053,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
+            atencao: (v?: number) => { if (v !== undefined) fixarAtencao(v); return { valor: atencao.valor, nivel: atencao.nivel }; },
             // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
             agir: () => acao.current(),
             porta: (i: number) => portaNoMundo(i),
@@ -1229,6 +1232,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (a.tipo === 'npc') {
             // Halvard, com duas pistas já ditas, não é mais Halvard.
             if (a.id === 'halvard' && entidadeAcorda(e)) { comecarEntidade(); return; }
+            aoConversar(a.id);
             const falas = [...falarCom(e, a.id)];
             // o ferreiro sabe a melodia dos sinos da torre
             if (a.id === 'brokk') { revelarMelodia(); falas.push({ quem: 'Brokk', texto: falaDoBrokk() } as typeof falas[number]); }
@@ -1281,6 +1285,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         } else if (a.tipo === 'casa') {
             const primeiraVez = !e.casasBatidas.has(a.i);
             const r = baterNaCasa(e, a.i);
+            if (!r.certa) aoBaterErrado(primeiraVez, a.i === CASA_CERTA);
             if (r.certa) {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
                 {
@@ -1439,6 +1444,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <CabineDoElevador />
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} onde={npcOnde} />
+                <AtencaoNoMundo jog={jog} est={est} npcOnde={npcOnde} ativo={fase === 'explorar'} correndo={fase !== 'queda' && fase !== 'elevador'} sentado={() => arni.sentado} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
                 <EffectComposer multisampling={Q.msaa}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
@@ -1546,6 +1552,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 </div>
                 {!(glitch && linha === falas.length - 1) && <div style={{ position: 'absolute', right: 12, bottom: 8, fontSize: 14, color: glitch ? '#3dff8a' : '#6b4a2e' }}>▶</div>}
             </div>}
+            <OlhoDaVila visivel={fase !== 'queda' && fase !== 'elevador' && !glitch} avisar={setAviso} />
             {glitch && <>
                 <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '9vh', background: '#000', pointerEvents: 'none', animation: 'f13barra .8s ease-out' }} />
                 <style>{'@keyframes f13barra{from{height:0}}'}</style>

@@ -295,3 +295,15 @@ export function tocarCorpoCaindo(): void {
     toca('corpo', 1, { taxa: .8, reverb: .3 });
     tom('sine', 110, 40, .5, .35, 0, .5); sopro(.3, .2, 900);
 }
+
+/**
+ * Olhos da Vila: desafina o leito de ambiente (música e vento, ou o bordão
+ * sintetizado) em `cents` centésimos de tom, com transição suave. Sem leito
+ * tocando não faz nada; quem chama repete de tempos em tempos.
+ */
+export function desafinarAmbiente(cents: number): void {
+    const c = ctx; if (!c || !leito) return;
+    const t = c.currentTime;
+    leito.laços?.forEach((l) => l.detune.setTargetAtTime(cents, t, .8));
+    leito.oscs.forEach((o) => o.detune.setTargetAtTime(cents, t, .8));
+}
