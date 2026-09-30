@@ -14,6 +14,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
+import { MARCA_ALTURA, fadeDaMarca, materialDaMarca } from './f13Marca';
 import type { FichaNpc } from './f13Lore';
 import type { EstadoVisualNpc } from './Floor13Gente';
 import ulfgar from './assets/f13/povo/ulfgar.glb';
@@ -409,6 +410,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     }, [modelo]);
 
     const marcaRef = useRef<THREE.Group>(null);
+    const matMarca = useMemo(() => materialDaMarca(marca ?? '!'), [marca]);
     const luzVerde = useRef<THREE.PointLight>(null);
     const giro = useRef(TRABALHO[ficha.id] ?? 0);
     const quadro = useRef(0);
@@ -430,10 +432,10 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // a marca fica sempre bem acima da cabeça (também de perto) e some
             // de longe: cheia até 25 m, encolhe até 0 aos 33 m
             const d = g.position.distanceTo(camera.position);
-            const fade = Math.max(0, Math.min(1, (33 - d) / 8));
+            const fade = fadeDaMarca(d);
             marcaRef.current.visible = fade > .02;
             marcaRef.current.scale.setScalar(Math.min(1, .6 + d / 20) * fade / (g.scale.x || 1));
-            marcaRef.current.position.y = 2.5 + Math.sin(t * 2.5) * .06; marcaRef.current.rotation.y = t * 1.5;
+            marcaRef.current.position.y = MARCA_ALTURA + Math.sin(t * 2.5) * .04;
         }
         if (luzVerde.current && raiz.current) {
             const lz = luzVerde.current, r = raiz.current;
@@ -730,9 +732,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
 
     return <><group ref={raiz}>
         <primitive object={modelo} />
-        {marca && !controle && <group ref={marcaRef} position={[0, 2.5, 0]} frustumCulled={false}>
-            <mesh><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(3.5) : new THREE.Color('#cfe3ff').multiplyScalar(3)} toneMapped={false} /></mesh>
-            <mesh scale={[1.7, 1.7, 1.7]}><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? '#ff9a1f' : '#8fb8ff'} toneMapped={false} transparent opacity={.22} depthWrite={false} /></mesh>
+        {marca && !controle && <group ref={marcaRef} position={[0, MARCA_ALTURA, 0]} frustumCulled={false}>
+            <sprite scale={[.55, .55, 1]} material={matMarca} renderOrder={20} />
         </group>}
         {!controle && <mesh position={[0, .02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.45, 20]} /></mesh>}
     </group>

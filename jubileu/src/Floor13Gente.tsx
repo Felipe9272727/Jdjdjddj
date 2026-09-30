@@ -10,6 +10,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { MARCA_ALTURA, fadeDaMarca, materialDaMarca } from './f13Marca';
 import type { FichaNpc } from './f13Lore';
 
 export interface EstadoVisualNpc {
@@ -80,6 +81,7 @@ export const Viking: React.FC<{
     const boca = useRef<THREE.Mesh>(null), sobrE = useRef<THREE.Mesh>(null), sobrD = useRef<THREE.Mesh>(null);
     const olhos = useRef<(THREE.Group | null)[]>([]);
     const marcaRef = useRef<THREE.Group>(null);
+    const matMarca = useMemo(() => materialDaMarca(marca ?? '!'), [marca]);
     const joelhos = useRef<(THREE.Group | null)[]>([]);
     const capa = useRef<THREE.Group>(null), luzVerde = useRef<THREE.PointLight>(null);
     const crianca = ficha.id === 'eira';
@@ -102,7 +104,12 @@ export const Viking: React.FC<{
         // piscar: a cada ~4 s, um décimo de segundo
         const pisca = ((t + x * 1.7) % 4.2) < .12 ? .1 : 1;
         olhos.current.forEach((o) => { if (o) o.scale.y = pisca; });
-        if (marcaRef.current) { marcaRef.current.position.y = 2.75 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5; }
+        if (marcaRef.current) {
+            const dm = g.position.distanceTo(camera.position), fade = fadeDaMarca(dm);
+            marcaRef.current.visible = fade > .02;
+            marcaRef.current.scale.setScalar(Math.min(1, .6 + dm / 20) * fade);
+            marcaRef.current.position.y = (MARCA_ALTURA + Math.sin(t * 2.5) * .04) / escala;
+        }
         if (luzVerde.current) luzVerde.current.intensity = e.possessao > 0 ? 1.8 + Math.sin(t * 9) * .8 : 0;
         const d = Math.min(dt, .05);
         // ── ONDE ELE ESTÁ ────────────────────────────────────────────────
@@ -201,8 +208,8 @@ export const Viking: React.FC<{
     });
 
     return <group ref={raiz} scale={escala}>
-        {marca && !controle && <group ref={marcaRef} position={[0, 2.75, 0]}>
-            <mesh><octahedronGeometry args={[.16, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(2) : new THREE.Color('#cfe3ff').multiplyScalar(1.6)} toneMapped={false} /></mesh>
+        {marca && !controle && <group ref={marcaRef} position={[0, MARCA_ALTURA / escala, 0]} frustumCulled={false}>
+            <sprite scale={[.55 / escala, .55 / escala, 1]} material={matMarca} renderOrder={20} />
         </group>}
         {/* sombra de contato: um disco escuro e macio sob os pés */}
         {!controle && <mesh position={[0, .03, 0]} rotation={[-Math.PI / 2, 0, 0]} material={SOMBRA}><circleGeometry args={[.5, 20]} /></mesh>}
