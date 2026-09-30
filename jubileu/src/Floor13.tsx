@@ -1030,6 +1030,15 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (gatos.alimentados > 0) setAviso(gatos.saciados >= 3 ? 'Os três gatos comeram. O Soneca até ronrona.' : `${gatos.ultimoNome} come o peixe inteiro e lambe o bigode.`);
     }, 400); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     const [compilado, setCompilado] = useState(false);
+    // aquecimento: logo que os shaders compilam, o mundo desenha ~1,2 s escondido
+    // atrás do vídeo (texturas, buffers e o mapa de sombra sobem aí), para o fim
+    // da queda não travar no primeiro quadro de verdade
+    const [aquecido, setAquecido] = useState(false);
+    useEffect(() => {
+        if (!compilado || aquecido) return;
+        const id = window.setTimeout(() => setAquecido(true), 1200);
+        return () => window.clearTimeout(id);
+    }, [compilado, aquecido]);
     // o monitor de qps só começa a medir depois que o andar assentou (shaders
     // compilados + alguns segundos), e recomeça do zero a cada troca de nível
     // (a key): os quadros lentos da carga e da recompilação da troca não são
@@ -1171,7 +1180,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // ── A QUEDA: relógio, legendas, sons e o pulo ────────────────────────
     // (só começa quando os shaders do andar já compilaram — ver PreCompila)
     useEffect(() => {
-        if (!compilado && !quedaEmVideo) return;
+        // a queda só começa com tudo pronto: shaders compilados e (no vídeo) o mundo
+        // já aquecido — antes, vídeo e compilação disputavam a GPU e o começo travava
+        if (!compilado || (quedaEmVideo && !aquecido)) return;
         tocarVento();
         let raf = 0, antes = performance.now();
         const marcos = { tosse: false, morre: false, baque: false };
@@ -1204,7 +1215,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         };
         window.addEventListener('pointerdown', pular); window.addEventListener('keydown', pular);
         return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); pararVento(); pararAmbiente(); };
-    }, [compilado, quedaEmVideo]);
+    }, [compilado, quedaEmVideo, aquecido]);
 
     // ── DIÁLOGO ──────────────────────────────────────────────────────────
     const abrirDialogo = useCallback((f: Fala[], quem: IdNpc | null, fim?: () => void) => {
@@ -1475,9 +1486,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
     // UI typing/fades/joystick updates do not invalidate the R3F tree. Mutable
     // gameplay data is explicitly versioned by bump(); refs still animate each frame.
+    const quedaPronta = compilado && (aquecido || !quedaEmVideo);
     const arniFalandoAgora = arniFalando.current || !!legendaBanco;
     const cena = useMemo(() => (
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={GRAVANDO ? 2 : Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado && !(fase === 'queda' && quedaEmVideo) ? 'always' : 'never'}
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={GRAVANDO ? 2 : Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado && !(fase === 'queda' && quedaEmVideo && aquecido) ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#a9c6e2', .0014); }}>
@@ -1550,13 +1562,13 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 </EffectComposer>}
                 </Floor13Profile>
             </Canvas>
-    ), [Q, compilado, naCabine, chegou, jaAndou, monitorar, nivel, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit, quedaEmVideo]);
+    ), [Q, compilado, naCabine, chegou, jaAndou, monitorar, nivel, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit, quedaEmVideo, aquecido]);
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             {cena}
-            {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline autoPlay preload="auto"
+            {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline preload="auto"
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }}>
                 {/* VP9 para Chrome/Firefox/Android; H.264 para o Safari. Nenhum dos dois: a cena ao vivo */}
                 <source src={import.meta.env.BASE_URL + (retrato ? 'queda-v.webm' : 'queda-h.webm')} type="video/webm" />
@@ -1565,17 +1577,17 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
-            {fase === 'queda' && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '14px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(90deg, transparent, rgba(8,16,22,.6) 14%, rgba(8,16,22,.6) 86%, transparent)', WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', maskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', pointerEvents: 'none' }}>
+            {fase === 'queda' && quedaPronta && <div style={{ ...t13, ...(legenda.startsWith('TROCO') ? {} : { fontFamily: 'Georgia, serif', letterSpacing: 3 }), position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 30vh)', padding: '14px 12px', textAlign: 'center', fontSize: 'clamp(14px, 2.6vh, 19px)', background: 'linear-gradient(90deg, transparent, rgba(8,16,22,.6) 14%, rgba(8,16,22,.6) 86%, transparent)', WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', maskImage: 'linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent)', pointerEvents: 'none' }}>
                 {legenda}
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.85em', fontWeight: 700, opacity: 1, marginTop: 8, letterSpacing: 1, color: '#fff', textShadow: '0 1px 4px #000, 0 0 10px #000' }}>toque na tela para pular</div>}
             </div>}
             {/* o título em runas (Manim, WebM com alfa): só onde o navegador faz alfa em VP9 —
                 no Safari o fundo sairia preto por cima da queda */}
-            {fase === 'queda' && !inicio && TITULO_COM_ALFA && <video src={import.meta.env.BASE_URL + (retrato ? 'titulo-v.webm' : 'titulo-h.webm')}
+            {fase === 'queda' && quedaPronta && !inicio && TITULO_COM_ALFA && <video src={import.meta.env.BASE_URL + (retrato ? 'titulo-v.webm' : 'titulo-h.webm')}
                 muted playsInline autoPlay style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
                 onEnded={(ev) => { ev.currentTarget.style.display = 'none'; }} />}
             {/* o andar 12 acaba e o 13 começa no mesmo avião: a imagem sai do preto */}
-            {fase === 'queda' && !inicio && <div style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f13entra 1.1s ease-out forwards' }}>
+            {fase === 'queda' && quedaPronta && !inicio && <div style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f13entra 1.1s ease-out forwards' }}>
                 <style>{'@keyframes f13entra{from{opacity:1}to{opacity:0}}'}</style>
             </div>}
             {flash > 0 && <div style={{ position: 'absolute', inset: 0, background: '#fffaf0', opacity: flash, pointerEvents: 'none' }} />}
