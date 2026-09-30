@@ -12,6 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { chaoEm } from './f13Mundo';
+import { noite, yawParaCasaCerta } from './f13Noite';
 import shiba from './assets/f13/povo/cao_shiba.glb';
 
 export type EstadoBusca = 'solto' | 'no_ar' | 'correndo' | 'voltando';
@@ -136,7 +137,11 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
             default: {
                 // solto: parado olhando o hóspede, abanando com o corpo todo
                 espera.current -= d; tocar('Idle');
-                const dx = j.x - c.position.x, dz = j.z - c.position.z;
+                // à noite o cão uiva para a casa certa, focinho no ar
+                const uiva = noite.v > .5;
+                modelo.rotation.x += ((uiva ? -.5 : 0) - modelo.rotation.x) * Math.min(1, 2 * d);
+                const dx = uiva ? Math.sin(yawParaCasaCerta(c.position.x, c.position.z)) : j.x - c.position.x;
+                const dz = uiva ? Math.cos(yawParaCasaCerta(c.position.x, c.position.z)) : j.z - c.position.z;
                 let dif = Math.atan2(dx, dz) - c.rotation.y; dif = Math.atan2(Math.sin(dif), Math.cos(dif));
                 c.rotation.y += dif * Math.min(1, 3 * d);
             }

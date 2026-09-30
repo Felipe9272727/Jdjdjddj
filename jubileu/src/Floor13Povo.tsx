@@ -11,6 +11,7 @@
  */
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { noite } from './f13Noite';
 import { useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
@@ -458,6 +459,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // centro da ronda — a Eira aparecia dentro do poço)
             px = ultimo.current.x; pz = ultimo.current.z;
         }
+        g.visible = !(noite.v > .5) || !!ctl;   // à noite os moradores dormem em casa
         g.position.set(px, ctl ? ctl.y : y, pz);
         if (onde) { onde.current.x = px; onde.current.z = pz; }
         // o ferreiro não larga a bigorna para olhar quem passa: só se vira quando fala com o hóspede
