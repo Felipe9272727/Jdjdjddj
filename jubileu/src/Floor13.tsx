@@ -1459,7 +1459,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <SinosDaTorre />
                 <NoiteDoMundo />
                 <OuvidoDaForja />
-                <GanchoDaChegada ativo={chegou && jaAndou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.has('ragnhild')} />
+                <GanchoDaChegada ativo={chegou && jaAndou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.size > 0 || fase === 'dialogo'} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
