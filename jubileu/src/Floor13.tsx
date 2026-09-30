@@ -16,7 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast, N8AO, ToneMapping } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, HueSaturation, ChromaticAberration, Noise, Vignette, BrightnessContrast, N8AO, ToneMapping, SMAA } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Avatar64, useAvatarRefs } from './Floor5Player64';
@@ -916,6 +916,9 @@ const Ambiente: React.FC = () => {
 
 // ═══ O ANDAR ═════════════════════════════════════════════════════════════════
 /** Os três níveis de qualidade: o monitor desce um degrau se não segura ~40 qps. */
+/** Bancada (só DEV): ?f13bench=noao,nobloom,nomsaa,nopost,nosombra,nograma — mede o custo de cada parte. */
+const BANCADA = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('f13bench') ?? '') : '';
+const sem = (k: string) => BANCADA.split(',').includes(k);
 const QUALIDADE = [
     { dpr: 1 as number | [number, number], msaa: 0, ao: false, sombra: 1024, grama: 20 },
     { dpr: [1, 1.25] as [number, number], msaa: 2, ao: true, sombra: 1024, grama: 30 },
@@ -948,7 +951,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // densidade de pixels e a GPU uma fração da de um computador
     const [nivel, setNivel] = useState(() => (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 : 2));
     const Q = QUALIDADE[nivel];
-    useEffect(() => { alcanceDaGrama.valor = Q.grama; }, [Q]);
+    useEffect(() => { alcanceDaGrama.valor = sem('nograma') ? 0 : Q.grama; }, [Q]);
     const tQueda = useRef(0);
     const [legenda, setLegenda] = useState(LEGENDAS_DA_QUEDA[0].texto);
     const [flash, setFlash] = useState(0);
@@ -1427,13 +1430,13 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#a9c6e2', .0014); }}>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
                 <hemisphereLight args={['#a6c8f5', '#5c4b38', naCabine ? .16 : .55]} />
-                {monitorar && <PerformanceMonitor key={nivel} bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
+                {monitorar && !BANCADA && <PerformanceMonitor key={nivel} bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
                 <LuzDaCamera intensidade={naCabine ? .14 : .5} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
@@ -1478,10 +1481,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <Radar jog={jog} est={est} ativo={fase === 'explorar'} aoMudar={setAlvo} aoEntidade={comecarEntidade} yaw={yaw} onde={npcOnde} />
                 <AtencaoNoMundo jog={jog} est={est} npcOnde={npcOnde} ativo={fase === 'explorar'} correndo={fase !== 'queda' && fase !== 'elevador'} sentado={() => arni.sentado} />
                 <Vivo jog={jog} npcVis={npcVis} sinoRef={sinoRef} balanco={balancoDoSino} portaCerta={portaCerta} abrindo={fase === 'elevador'} onde={npcOnde} />
-                <EffectComposer multisampling={Q.msaa}>
+                {/* bordas suaves por SMAA, não por MSAA: o MSAA multiplicava todas as
+                    texturas do pós e custava metade do quadro no celular (medido) */}
+                {!sem('nopost') && <EffectComposer multisampling={sem('msaa') ? Q.msaa : 0}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
-                    {Q.ao && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
-                    <Bloom mipmapBlur intensity={.28} luminanceThreshold={1} luminanceSmoothing={.4} />
+                    {Q.ao && !sem('noao') && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
+                    {!sem('nobloom') && <Bloom mipmapBlur intensity={.28} luminanceThreshold={1} luminanceSmoothing={.4} />}
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .06 : .012} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
@@ -1490,10 +1495,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     <BrightnessContrast brightness={0} contrast={.1} />
                     <HueSaturation saturation={glitch ? -.65 : .14} />
                     <Vignette eskil={false} offset={.32} darkness={glitch ? .75 : .32} />
+                    {!sem('msaa') && !sem('nosmaa') && <SMAA />}
                     {/* a simulação desligando o andar (só na saída) */}
                     {/* sempre no compositor (em 0 não desenha nada): entrar com ele no meio da cena recompilava o pós */}
                     <primitive object={efeitoChuva} dispose={null} />
-                </EffectComposer>
+                </EffectComposer>}
             </Canvas>
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
