@@ -830,11 +830,12 @@ export const Shard: React.FC<ShardProps> = ({ index, position, collected, onColl
 
 // ─── ShardField — single useFrame manages all collectible shards ───────
 interface ShardFieldProps {
+    paused?: boolean;
     collectedShards: Set<number>;
     onCollectShard: (i: number) => void;
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
 }
-export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onCollectShard, playerPositionRef }) => {
+export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onCollectShard, playerPositionRef, paused = false }) => {
     const groupRefs = useRef<(THREE.Group | null)[]>(new Array(SHARD_POSITIONS.length).fill(null));
     const collectStartRefs = useRef<(number | null)[]>(new Array(SHARD_POSITIONS.length).fill(null));
     const { camera } = useThree();
@@ -875,7 +876,7 @@ export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onColle
             const dx = position[0] - pp.x;
             const dy = position[1] - pp.y;
             const dz = position[2] - pp.z;
-            if (dx*dx + dy*dy + dz*dz < COLLECT_DIST_SQ) onCollectShard(index);
+            if (!paused && dx*dx + dy*dy + dz*dz < COLLECT_DIST_SQ) onCollectShard(index);
         }
     });
 
@@ -884,7 +885,7 @@ export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onColle
             {SHARD_POSITIONS.map((position, index) => (
                 <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]} scale={0.85}>
                     <mesh geometry={SHARD_GEO}>
-                        <meshStandardMaterial color="#44ddff" emissive="#00ccff" emissiveIntensity={2.2} metalness={0.5} roughness={0.08} toneMapped={false} />
+                        <meshStandardMaterial color="#44ddff" emissive="#00ccff" emissiveIntensity={2.2} fog={false} metalness={0.5} roughness={0.08} toneMapped={false} />
                     </mesh>
                     {/* inner tight glow */}
                     <sprite scale={[1.1, 1.1, 1]}>

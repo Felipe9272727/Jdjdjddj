@@ -124,7 +124,7 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
         tint += vec3(0.05, 0.16, 0.20) * godRay * (1.0 - depth * 0.4);
 
         // Push contrast with depth: darken edges, lighten caustics
-        float alpha = (0.28 + depth * 0.55) * vignette * intensity;
+        float alpha = (0.045 + depth * 0.055 + (1.0-vignette)*0.12) * intensity;
         tint.r += radial * 0.005 * depth;
         tint.b += radial * 0.012 * (1.0 - depth);
         // Subtle blue shift at deep
@@ -135,175 +135,92 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
     `
 );
 
-// ─── Water shader — Gerstner waves + SSS + Fresnel + foam ───────────
+// ─── Circular pool: XZ height field, analytic normals, broken shoreline foam ──
 export const WaterMaterial = shaderMaterial(
-    { time: 0, opacity: 0.85 },
+    { time: 0, radius: 3, impactX: 0, impactZ: 0, impactAt: -100 },
     /* glsl */ `
       uniform float time;
-      varying vec2 vUv;
-      varying float vWave;
-      varying vec3 vViewWS;
-      varying vec3 vNormalWS;
+      uniform float radius;
+      uniform float impactX, impactZ, impactAt;
       varying vec3 vWorldPos;
-
-      vec4 gerstner(vec2 pos, vec2 dir, float steepness, float wavelength, float t) {
-        float k = 6.28318 / max(wavelength, 0.01);
-        float c = sqrt(9.8 / max(k, 0.001));
-        float a = steepness / max(k, 0.001);
-        float f = k * (dot(dir, pos) - c * t);
-        float sinF = sin(f);
-        float cosF = cos(f);
-        return vec4(
-          -dir.x * a * cosF,
-          a * sinF,
-          -dir.y * a * cosF,
-          0.0
-        );
+      varying vec3 vNormalWS;
+      varying vec2 vPool;
+      varying float vHeight;
+      vec3 wave(vec2 p, vec2 d, float amplitude, float k, float speed) {
+        float phase = dot(p, d) * k - time * speed;
+        return vec3(amplitude * sin(phase), amplitude * k * cos(phase) * d);
       }
-
       void main() {
-        vUv = uv;
+        // Geometry is already in XZ. The old rotated XY plane sampled p.xz,
+        // so one wave axis was constant and displacement went sideways.
         vec3 p = position;
-
-        vec2 d1 = normalize(vec2(1.0, 0.3));
-        vec2 d2 = normalize(vec2(0.3, 1.0));
-        vec2 d3 = normalize(vec2(-0.5, 0.7));
-        vec2 d4 = normalize(vec2(0.8, -0.5));
-
-        vec4 w1 = gerstner(p.xz, d1, 0.22, 4.0, time * 0.8);
-        vec4 w2 = gerstner(p.xz, d2, 0.18, 2.8, time * 0.95 + 1.7);
-        vec4 w3 = gerstner(p.xz, d3, 0.12, 1.8, time * 1.15 + 3.2);
-        vec4 w4 = gerstner(p.xz, d4, 0.07, 1.2, time * 1.4 + 5.0);
-
-        vec3 disp = w1.xyz + w2.xyz + w3.xyz + w4.xyz;
-        p += disp;
-        vWave = disp.y;
-
-        float k1 = 6.28318 / 4.0;  float c1 = sqrt(9.8 / k1);  float a1 = 0.22 / k1;
-        float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
-        float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
-        float k4 = 6.28318 / 1.2;  float c4 = sqrt(9.8 / k4);  float a4 = 0.07 / k4;
-
-        float f1 = k1 * (dot(d1, position.xz) - c1 * time * 0.8);
-        float f2 = k2 * (dot(d2, position.xz) - c2 * time * 0.95 - 1.7 * c2);
-        float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
-        float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
-
-        vec3 dPdx = vec3(
-          1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
-               + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
-          d1.x * a1 * k1 * cos(f1) + d2.x * a2 * k2 * cos(f2) + d3.x * a3 * k3 * cos(f3) + d4.x * a4 * k4 * cos(f4),
-          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
-          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
-        );
-        vec3 dPdz = vec3(
-          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
-          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
-          d1.y * a1 * k1 * cos(f1) + d2.y * a2 * k2 * cos(f2) + d3.y * a3 * k3 * cos(f3) + d4.y * a4 * k4 * cos(f4),
-          1.0 - (d1.y * d1.y * a1 * k1 * sin(f1) + d2.y * d2.y * a2 * k2 * sin(f2)
-               + d3.y * d3.y * a3 * k3 * sin(f3) + d4.y * d4.y * a4 * k4 * sin(f4))
-        );
-        vec3 localNormal = normalize(cross(dPdz, dPdx));
-        vNormalWS = normalize(mat3(modelMatrix) * localNormal);
-
-        vec4 wp = modelMatrix * vec4(p, 1.0);
-        vWorldPos = wp.xyz;
-        vViewWS = normalize(cameraPosition - wp.xyz);
-        gl_Position = projectionMatrix * viewMatrix * wp;
+        vPool = p.xz;
+        vec3 w = wave(p.xz, vec2(.96,.28), .044, 2.4, 1.25)
+               + wave(p.xz, vec2(-.38,.925), .027, 4.6, 1.9)
+               + wave(p.xz, vec2(.7,-.714), .012, 8.0, 2.5);
+        float r = length(p.xz);
+        float edge = 1.0 - smoothstep(radius - .4, radius, r);
+        float u = clamp((r - radius + .4) / .4, 0.0, 1.0);
+        vec2 edgeGrad = -6.0 * u * (1.0-u) / .4 * p.xz / max(r,.001);
+        vec2 offset = p.xz - vec2(impactX,impactZ);
+        float dist = length(offset);
+        float age = max(0.0, time-impactAt);
+        float envelope = exp(-age*1.6) * exp(-pow(dist-age*1.8,2.0)*5.0);
+        float phase = dist*13.0-age*18.0;
+        float ripple = .05*sin(phase)*envelope;
+        float derivative = .05*envelope*(13.0*cos(phase)-10.0*(dist-age*1.8)*sin(phase));
+        vec2 grad = w.yz + derivative * offset/max(dist,.001);
+        float height = w.x + ripple;
+        vHeight = height*edge;
+        p.y += vHeight;
+        grad = grad*edge + height*edgeGrad;
+        vNormalWS = normalize(mat3(modelMatrix)*vec3(-grad.x,1.0,-grad.y));
+        vec4 world = modelMatrix*vec4(p,1.0);
+        vWorldPos=world.xyz;
+        gl_Position = projectionMatrix*viewMatrix*world;
       }
     `,
     /* glsl */ `
       uniform float time;
-      uniform float opacity;
-      varying vec2 vUv;
-      varying float vWave;
-      varying vec3 vViewWS;
-      varying vec3 vNormalWS;
+      uniform float radius;
       varying vec3 vWorldPos;
-
+      varying vec3 vNormalWS;
+      varying vec2 vPool;
+      varying float vHeight;
       void main() {
-        float ndv = max(0.001, dot(vNormalWS, vViewWS));
-        float R0 = 0.02;
-        float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
-        fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
-
-        float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
-
-        // Vivid BLUE palette — pushed bluer + brighter so the well reads as
-        // unmistakable water in the dark cave (was a dark teal that vanished
-        // against the rock). Blue channel now leads green at every depth.
-        vec3 deep    = vec3(0.03, 0.22, 0.48);      // deep ocean blue
-        vec3 mid     = vec3(0.09, 0.42, 0.76);      // clear blue
-        vec3 shallow = vec3(0.24, 0.62, 0.92);      // bright shallow blue
-        vec3 sky     = vec3(0.58, 0.80, 1.00);      // sky-blue reflection
-
-        // Distance from the hole center to drive a "shallow rim" gradient
-        float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
-        // 0 at center, 1 at rim
-        float rimT = clamp(distFromCenter / 3.0, 0.0, 1.0);
-        // boost shallow color near the rim
-        float shallowBoost = smoothstep(0.55, 1.0, rimT);
-
-        // ─── Caustic pattern (richer, bigger highlights)
-        float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
-        float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
-        float c3 = sin((vUv.x + vUv.y) * 18.0 + time * 0.7) * 0.5 + 0.5;
-        float c4 = sin((vUv.x - vUv.y) * 24.0 - time * 0.85) * 0.5 + 0.5;
-        float causticBase = c1 * c2;
-        float causticCross = c3 * c4;
-        float caustic = pow(causticBase, 2.5) * 0.6 + pow(causticCross, 3.5) * 0.55;
-        // Big bright peaks
-        float causticPeak = pow(causticBase * causticCross, 1.5);
-
-        // ─── Horizontal shimmer — tiny high-frequency ripple on top of waves
-        float shimmer = sin(vWorldPos.x * 14.0 + time * 3.5) * sin(vWorldPos.z * 12.0 - time * 4.1);
-        shimmer = pow(max(0.0, shimmer), 3.0) * 0.18;
-
-        // ─── Base color: deep → mid by wave height, then mix to shallow near rim
-        float h = clamp(vWave * 5.0, -1.0, 1.0);
-        vec3 col = mix(deep, mid, 0.5 + h * 0.5);
-        col = mix(col, shallow, shallowBoost * 0.65);
-
-        // SSS — bright peaks on wave crests
-        float sss = pow(max(0.0, h), 1.5) * 0.4;
-        vec3 sssColor = vec3(0.10, 0.32, 0.48);
-        col += sssColor * sss;
-
-        // Fresnel mixes in sky reflection
-        col = mix(col, sky, fresnel * 0.6 + caustic * 0.12);
-
-        // Add caustic highlights (blue)
-        col += vec3(0.10, 0.30, 0.52) * caustic * (0.4 + shallowBoost * 0.8);
-        col += vec3(0.30, 0.45, 0.68) * causticPeak * 0.15;
-
-        // Add shimmer (blue-white high-frequency twinkle)
-        col += vec3(0.35, 0.52, 0.72) * shimmer * (0.5 + shallowBoost * 0.5);
-
-        // Specular sun glints
-        vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
-        vec3 halfVec = normalize(vViewWS + lightDir);
-        float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
-        col += vec3(0.7, 0.65, 0.55) * spec * 0.9 * (1.0 - fresnel * 0.5);
-
-        // Wave-crest foam
-        float foam = smoothstep(0.04, 0.09, vWave);
-        // Pronounced edge foam ring (extended threshold for visibility)
-        float edgeFoamInner = smoothstep(2.75, 2.05, distFromCenter);
-        float edgeFoamOuter = smoothstep(3.05, 2.85, distFromCenter);
-        // Animated edge foam wobble for "lapping" effect
-        float edgeWobble = sin(atan(vWorldPos.z - 5.0, vWorldPos.x) * 8.0 + time * 1.6) * 0.5 + 0.5;
-        float edgeFoam = max(edgeFoamInner * 0.5, edgeFoamOuter * (0.55 + edgeWobble * 0.4));
-        float totalFoam = max(foam * 0.55, edgeFoam);
-        vec3 foamColor = vec3(0.70, 0.85, 0.85);
-        col = mix(col, foamColor, totalFoam);
-
-        float alpha = mix(0.92, 0.99, fresnel);
-        if (viewFromBelow > 0.5) {
-            alpha = 1.0;
-            // From below: deep blue so the underside has presence
-            col = vec3(0.02, 0.10, 0.24);
+        vec3 view = normalize(cameraPosition-vWorldPos);
+        vec3 normal = normalize(vNormalWS);
+        float micro = sin(vPool.x*23.0+time*1.8)*cos(vPool.y*19.0-time*1.4);
+        normal = normalize(normal+vec3(micro*.035,0.0,sin(vPool.x*15.0-vPool.y*21.0+time)*.025));
+        float facing = abs(dot(normal,view));
+        float fresnel = .025+.975*pow(1.0-facing,5.0);
+        float r = length(vPool);
+        float shoal = smoothstep(radius*.38,radius,r);
+        vec3 water = mix(vec3(.009,.067,.13),vec3(.024,.23,.27),shoal*.68+.12);
+        water += vec3(.016,.065,.073)*(vHeight*5.0+.35);
+        // Warm fractured cave reflections instead of an outdoor sky.
+        vec3 reflection = reflect(-view,normal);
+        float vault = .5+.5*sin(reflection.x*12.0+reflection.z*7.0);
+        vec3 cave = mix(vec3(.026,.043,.048),vec3(.13,.20,.20),vault);
+        float lamp = pow(max(0.0,dot(reflection,normalize(vec3(-.5,.8,-.4)))),70.0);
+        cave += vec3(.70,.37,.11)*lamp;
+        vec3 col = mix(water,cave,fresnel*.72);
+        vec3 light = normalize(vec3(-.4,1.0,.65));
+        float spec = pow(max(0.0,dot(normal,normalize(view+light))),150.0);
+        col += vec3(.38,.70,.75)*spec*.6;
+        // Ordered smoothstep edges: a thin, intermittent shoreline, never a white disc.
+        float angle = atan(vPool.y,vPool.x);
+        float lace = .5+.5*sin(angle*13.0+sin(angle*7.0-time)*1.4+time*.5);
+        float shore = smoothstep(radius-.14,radius-.025,r)*(1.0-smoothstep(radius-.02,radius,r));
+        float foam = shore*smoothstep(.28,.75,lace)*.48;
+        col = mix(col,vec3(.36,.58,.53),foam);
+        if (!gl_FrontFacing) {
+          float caustic = pow(.5+.5*sin(vPool.x*4.0+time)*sin(vPool.y*5.0-time*.7),4.0);
+          col = vec3(.016,.15,.22)+vec3(.045,.13,.12)*caustic;
         }
-        gl_FragColor = vec4(col, alpha);
+        gl_FragColor=vec4(col,1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
 );

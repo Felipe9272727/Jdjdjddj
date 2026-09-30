@@ -154,6 +154,7 @@ export interface MonsterFishProps {
     monsterPositionRef?:  React.MutableRefObject<THREE.Vector3>;
     monsterProximityRef?: React.MutableRefObject<number>;
     berserk?:             boolean;
+    paused?:              boolean;
     cameraShakeRef?:      React.MutableRefObject<boolean>;
 }
 
@@ -164,6 +165,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     monsterPositionRef,
     monsterProximityRef,
     berserk = false,
+    paused = false,
     cameraShakeRef,
 }) => {
     const { scene, animations } = useGLTF(SHARK_URL) as any;
@@ -304,12 +306,16 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const navTimer = useRef(0);
     const navGoal  = useRef(new THREE.Vector3());
 
+    const simTime = useRef(0);
+
     // ─── Main loop ──────────────────────────────────────────────────────────
-    useFrame(({ clock }, dt) => {
+    useFrame((_, dt) => {
         const g = rootRef.current;
         if (!g) return;
-        const t = clock.elapsedTime;
+        if (paused) { lastPlayerPosRef.current = null; return; }
         const safeDt = Math.min(dt, 0.05);
+        simTime.current += safeDt;
+        const t = simTime.current;
 
         // Activate once first shard is collected
         if (!active.current && collectedShards.size >= 1) {

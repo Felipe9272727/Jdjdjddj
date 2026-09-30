@@ -29,3 +29,47 @@ usage. The caller still decides whether to spawn an agent. In ambiguous cases
 the script retains work with `main_agent`; it never grants access or dispatches
 tools itself. Group related routing questions into one Jev request when they
 share the same evidence.
+
+## Economical use in coding sessions
+
+Use Jev for a bounded semantic decision that can avoid meaningful downstream
+work, not before every shell command or file read. Deterministic checks stay in
+code. Batch only useful independent questions over a short shared state; make a
+second request only when the first answer is needed to construct new evidence.
+Reuse the validated local cache while evidence and question meanings are unchanged.
+Keep delegated tasks narrow and pass the necessary context instead of full history.
+
+This is an orchestration policy, not a guarantee of a longer ChatGPT/Codex quota.
+Jev does not replace the coding-agent LLM or execute native tools. Cache savings
+reported by this helper describe avoided TypeSafe requests, not saved Codex quota.
+The legacy `billed_tokens` field sums input and output usage; do not convert it
+directly to money: current TypeSafe pricing charges input tokens only. Consult
+live pricing before estimating costs. No provider-side prompt cache is assumed.
+
+Official references checked 2026-09-28, with GPT-6 Sol research:
+- https://docs.typesafe.ai/introduction/coding-agents
+- https://docs.typesafe.ai/patterns/fan-out
+- https://docs.typesafe.ai/concepts/state
+- https://docs.typesafe.ai/models
+
+## Gateway versus this helper (video reviewed with GPT-6 Sol, 2026-09-28)
+
+The linked video demonstrates a different integration: `vinilana/jev-gateway`
+proxies a coding-agent session and changes the provider request at tool selection.
+A separate `jev-route.py` call does not intercept the host model's reasoning and
+must not be described as equivalent. Only sessions launched/configured through
+the gateway use it; installing a local process cannot reroute an already hosted
+ChatGPT Work session. This workspace exposes no host-model endpoint setting and
+has no Codex CLI available. The gateway has not been activated here.
+
+The author's small coding benchmarks report gains for debugging and regressions
+for some feature-building tasks. Preserve prompt-cache prefixes, compare routing
+on/off on equivalent tasks, include correctness and latency, and keep a fallback
+when routing is uncertain. Do not translate output-token reductions directly into
+subscription quota gains. This session continues with targeted local scripts and
+bounded delegation; no gateway performance claim is made.
+
+Sources: https://www.youtube.com/watch?v=rtWCFKg7XEs (automatic transcript,
+04:08 cache; 05:16 interception; 09:02 debugging; 12:08 features),
+https://github.com/vinilana/jev-gateway and
+https://github.com/vinilana/jev-gateway-bench .

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CASAS, CASA_CERTA, NPCS, ENTIDADE } from '../f13Lore';
 import {
-    chaoEm, ILHAS, PONTES, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, portaNoMundo, foraDasCasas, OVELHAS, MARTELO, SINO, INICIO,
+    chaoEm, ILHAS, PONTES, TRECHOS_DAS_PONTES, alturaDoTablado, ESPESSURA_TABUA, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaDaCasa, portaNoMundo, foraDasCasas, OVELHAS, MARTELO, SINO, INICIO,
     novoEstado13, falarCom, pegarMartelo, acharOvelha, tocarSino, entidadeAcorda, baterNaCasa, favorFeito,
 } from '../f13Mundo';
 
@@ -42,6 +42,19 @@ describe('f13 — dá para andar por tudo que importa', () => {
                 expect(chaoEm(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t), `${p.de}->${p.para} t=${t.toFixed(2)}`).not.toBeNull();
             }
         }
+    });
+    it('feet follow the visible deck instead of floating above its sag', () => {
+        for (const {a,b} of TRECHOS_DAS_PONTES) {
+            const n=Math.floor(Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z)/.55);
+            for(let i=0;i<n;i++) {
+                const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;
+                if(ILHAS.some(il=>Math.hypot(x-il.x,z-il.z)<=il.r))continue;
+                const deck=alturaDoTablado(a.y,b.y,t)+ESPESSURA_TABUA/2;
+                expect(chaoEm(x,z)).toBeCloseTo(deck,8);
+            }
+        }
+        const bridge=TRECHOS_DAS_PONTES[1];
+        expect(chaoEm((bridge.a.x+bridge.b.x)/2,(bridge.a.z+bridge.b.z)/2)).toBeCloseTo(1.115,3);
     });
     it('fora das ilhas é céu', () => {
         expect(chaoEm(40, 40)).toBeNull();

@@ -1,0 +1,98 @@
+[
+  {
+    "version": "before",
+    "scenario": "settled",
+    "raf_samples": 24,
+    "world_commits": 3,
+    "react_total_ms": 85.27999999991152,
+    "gl": {
+      "frame": 899,
+      "calls": 524,
+      "triangles": 880645,
+      "points": 0,
+      "lines": 0,
+      "luzes": 8,
+      "pele": 126,
+      "programas": 125,
+      "px": [
+        720,
+        480
+      ]
+    },
+    "geometries": 722,
+    "textures": 529,
+    "page_errors": []
+  },
+  {
+    "version": "before",
+    "scenario": "dialogue",
+    "raf_samples": 24,
+    "world_commits": 78,
+    "react_total_ms": 970.6800000007497,
+    "gl": {
+      "frame": 1699,
+      "calls": 657,
+      "triangles": 1115623,
+      "points": 0,
+      "lines": 0,
+      "luzes": 8,
+      "pele": 126,
+      "programas": 125,
+      "px": [
+        720,
+        480
+      ]
+    },
+    "geometries": 722,
+    "textures": 529,
+    "page_errors": []
+  },
+  {
+    "version": "after",
+    "scenario": "settled",
+    "raf_samples": 24,
+    "world_commits": 1,
+    "react_total_ms": 38.55000000190921,
+    "gl": {
+      "frame": 899,
+      "calls": 524,
+      "triangles": 880645,
+      "points": 0,
+      "lines": 0,
+      "luzes": 8,
+      "pele": 126,
+      "programas": 125,
+      "px": [
+        720,
+        480
+      ]
+    },
+    "geometries": 722,
+    "textures": 529,
+    "page_errors": []
+  },
+  {
+    "version": "after",
+    "scenario": "dialogue",
+    "raf_samples": 24,
+    "world_commits": 2,
+    "react_total_ms": 96.10000000172295,
+    "gl": {
+      "frame": 1731,
+      "calls": 568,
+      "triangles": 917555,
+      "points": 0,
+      "lines": 0,
+      "luzes": 8,
+      "pele": 132,
+      "programas": 125,
+      "px": [
+        720,
+        480
+      ]
+    },
+    "geometries": 722,
+    "textures": 529,
+    "page_errors": []
+  }
+]

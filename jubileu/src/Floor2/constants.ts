@@ -295,11 +295,11 @@ export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: n
 // ─── Coral pillar + arch collision — XZ circles (tall cylinders, Y ignored).
 // Includes the two legs of every underwater arch, which previously had no
 // collision at all (the player and shark swam straight through them).
-export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number }[] = [
-    ...UW_CORAL_PILLARS.map(([x, z, , , rBot]) => ({ x, z, r: rBot + 0.3 })),
-    ...UW_ARCHES.flatMap(([x, z, , span, thick]) => [
-        { x: x - span / 2, z, r: thick * 1.3 + 0.3 },
-        { x: x + span / 2, z, r: thick * 1.3 + 0.3 },
+export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number; top: number }[] = [
+    ...UW_CORAL_PILLARS.map(([x, z, height, , rBot]) => ({ x, z, r: rBot + 0.3, top: -30 + height })),
+    ...UW_ARCHES.flatMap(([x, z, height, span, thick]) => [
+        { x: x - span / 2, z, r: thick * 1.3 + 0.3, top: -30 + height },
+        { x: x + span / 2, z, r: thick * 1.3 + 0.3, top: -30 + height },
     ]),
 ];
 

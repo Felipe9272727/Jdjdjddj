@@ -18,7 +18,7 @@ import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { Decoracao } from './f13Decoracao';
 import { Forja } from './f13Forja';
-import { ILHAS, PONTES, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
+import { ILHAS, BARRACAS_PRACA, PONTES, TRECHOS_DAS_PONTES, alturaDoTablado, ESPESSURA_TABUA, LUGAR_DAS_CASAS, FORMA_DAS_CASAS, SINO, dentroDeCasa, portaNoMundo } from './f13Mundo';
 import { pbr } from './f13Texturas';
 import { FolhasDaPorta, EnfeitesDaPorta, ESTILO_DA_CASA, type EstiloDePorta } from './Floor13Portas';
 import { fundirEstaticos } from './f13Fundir';
@@ -285,7 +285,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
         return Array.from({ length: n }, (_, i) => {
             const t = (i + .5) / n;
             const p = a.clone().lerp(b, t);
-            p.y += -Math.sin(t * Math.PI) * .35 - .08;
+            p.y = alturaDoTablado(a.y, b.y, t);
             return p;
         });
     }, [a, b]);
@@ -293,7 +293,7 @@ const PonteVisual: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; largura: numbe
     return <group>
         {tabuas.map((p, i) => (
             <mesh key={i} position={p} rotation={[0, ang, (i % 3 - 1) * .02]}>
-                <boxGeometry args={[largura, .09, .46]} /><meshStandardMaterial {...pbr('carvalho', .5, .25)} color={i % 4 ? '#ffffff' : '#d8c8b8'} />
+                <boxGeometry args={[largura, ESPESSURA_TABUA, .46]} /><meshStandardMaterial {...pbr('carvalho', .5, .25)} color={i % 4 ? '#ffffff' : '#d8c8b8'} />
             </mesh>
         ))}
         {[-1, 1].map((lado) => tabuas.filter((_, i) => i % 5 === 0).map((p, i) => (
@@ -800,10 +800,9 @@ function texturaDeToldo(cor: string): THREE.CanvasTexture {
 
 /** Praça do mercado: barracas com toldo listrado e uma pedra rúnica. */
 const Praca: React.FC = () => {
-    const barracas = [[-6, 12, .4], [-3.2, 14, .1], [6, 11, -.4]];
     return <group>
-        {barracas.map(([x, z, r], i) => (
-            <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}>
+        {BARRACAS_PRACA.map(({x, z, giro: r}, i) => (
+            <group key={i} userData={{audit:`Praca:Barraca:${i}`}} position={[x, 0, z]} rotation={[0, r, 0]}>
                 <mesh position={[0, .45, 0]}><boxGeometry args={[1.8, .9, .9]} /><meshStandardMaterial {...pbr('tabua', 1, .5)} color="#b58a5e" /></mesh>
                 {/* quatro mourões: os de trás mais altos, o toldo desce para a frente
                     apoiado nos quatro (antes só dois o seguravam e a borda da
@@ -823,12 +822,14 @@ const Praca: React.FC = () => {
             </group>
         ))}
         {/* pedra rúnica: rocha de verdade com a faixa de runas pintada de ocre */}
+        <group userData={{audit:"Praca:PedraRunica"}}>
         <mesh position={[4.2, 1.2, 1.5]} rotation={[0, .3, 0]}><boxGeometry args={[.9, 2.4, .4]} /><meshStandardMaterial color="#9a9082" {...pbr('rocha', .6, 1.4)} /></mesh>
         <mesh position={[4.2 + Math.sin(.3) * .205, 1.3, 1.5 + Math.cos(.3) * .205]} rotation={[0, .3, 0]}><planeGeometry args={[.6, 1.9]} /><meshStandardMaterial map={texturaDePedraRunica()} transparent depthWrite={false} roughness={.9} polygonOffset polygonOffsetFactor={-2} /></mesh>
+        </group>
         {/* o poço: parede de pedra aberta (por fora e por dentro), a borda
             onde o gato cochila, a água escura lá embaixo; em cima o sarilho
             com corda e balde e um telhadinho de tábua */}
-        <group position={[0, 0, 8]}>
+        <group userData={{audit:"Praca:Poco"}} position={[0, 0, 8]}>
             <mesh position={[0, .25, 0]} castShadow><cylinderGeometry args={[1.2, 1.3, .5, 24, 1, true]} /><meshStandardMaterial color="#a89c8c" {...pbr('rocha', 3, .5)} /></mesh>
             <mesh position={[0, .1, 0]}><cylinderGeometry args={[1, 1, .8, 24, 1, true]} /><meshStandardMaterial color="#5e564c" {...pbr('rocha', 2, .5)} side={THREE.BackSide} /></mesh>
             <mesh position={[0, .52, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1.1, .13, 8, 28]} /><meshStandardMaterial color={P13.pedra} {...pbr('rocha', 2, .3)} /></mesh>
@@ -1290,15 +1291,9 @@ export const Floor13Mundo: React.FC<{
     portaCertaRef?: React.Ref<THREE.Group>;
     sinoRef?: React.Ref<THREE.Group>;
 }> = ({ portaCertaRef, sinoRef }) => {
-    const pontes = useMemo(() => PONTES.map((p) => {
-        const a = ILHAS.find((i) => i.id === p.de)!, b = ILHAS.find((i) => i.id === p.para)!;
-        const dir = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize();
-        return {
-            a: new THREE.Vector3(a.x + dir.x * (a.r - .4), a.y, a.z + dir.z * (a.r - .4)),
-            b: new THREE.Vector3(b.x - dir.x * (b.r - .4), b.y, b.z - dir.z * (b.r - .4)),
-            largura: p.largura,
-        };
-    }), []);
+    const pontes = useMemo(() => TRECHOS_DAS_PONTES.map(({a,b,largura}) => ({
+        a:new THREE.Vector3(a.x,a.y,a.z), b:new THREE.Vector3(b.x,b.y,b.z), largura,
+    })), []);
     const raiz = useRef<THREE.Group>(null);
     const [prontas, setProntas] = useState(0);
     const avisa = useCallback(() => setProntas((n) => n + 1), []);
@@ -1315,23 +1310,23 @@ export const Floor13Mundo: React.FC<{
         <Tochas />
         <Passaros />
         {ILHAS.map((i, k) => <IlhaVisual key={i.id} {...i} i={k} />)}
-        {pontes.map((p, k) => <PonteVisual key={k} {...p} />)}
+        {pontes.map((p, k) => <group key={k} userData={{audit:`Ponte:${k}`}}><PonteVisual {...p} /></group>)}
         {CASAS.map((c, i) => {
             const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
             // cada casa com seu jeito: comprimento, torção e escala próprios
-            return <group key={i} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
+            return <group key={i} userData={{audit:`Casa:${i}`}} position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
                 <CasaComprida runa={c.runa} latao={c.portaDeLatao} fumaca={c.fumaca} botao={c.botao} estilo={ESTILO_DA_CASA[i]}
                     portaRef={i === CASA_CERTA ? portaCertaRef : undefined} indice={i} />
             </group>;
         })}
         {/* a casa do Árni, no fundo do mirante, com a porta para o banco */}
-        <group position={[-19.6, -.4, 24.4]} rotation={[0, Math.atan2(-15.2 - -19.6, 20.2 - 24.4), 0]}><CasaComprida escala={.72} /></group>
+        <group userData={{audit:"Casa:Arni"}} position={[-19.6, -.4, 24.4]} rotation={[0, Math.atan2(-15.2 - -19.6, 20.2 - 24.4), 0]}><CasaComprida escala={.72} /></group>
         {/* duas casas de moradores na praça, só de cenário */}
-        <group position={[-7.5, 0, 4]} rotation={[0, 1.1, 0]}><CasaComprida escala={.9} /></group>
-        <group position={[7.8, 0, 12.5]} rotation={[0, -2.2, 0]}><CasaComprida escala={.9} /></group>
+        <group userData={{audit:"Casa:praca-oeste"}} position={[-7.5, 0, 4]} rotation={[0, 1.1, 0]}><CasaComprida escala={.9} /></group>
+        <group userData={{audit:"Casa:praca-leste"}} position={[7.8, 0, 12.5]} rotation={[0, -2.2, 0]}><CasaComprida escala={.9} /></group>
         <Praca />
-        <Forja />
-        <Templo sinoRef={sinoRef} />
-        <Carroca />
+        <group userData={{audit:"Forja"}}><Forja /></group>
+        <group userData={{audit:"Templo"}}><Templo sinoRef={sinoRef} /></group>
+        <group userData={{audit:"Carroca"}}><Carroca /></group>
     </group></CasaPronta.Provider>;
 };
