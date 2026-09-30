@@ -31,6 +31,7 @@ import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13A
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
 import { Viking } from './Floor13Povo';
+import { temPerguntas, assuntosDe, perguntar, citar, citaveis, ROTULO } from './f13Perguntas';
 import { Floor13Vida } from './Floor13Vida';
 import { pbr } from './f13Texturas';
 import { AtencaoNoMundo, OlhoDaVila } from './f13AtencaoCena';
@@ -38,7 +39,7 @@ import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from 
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import {
-    NPCS, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
+    NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
     ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, foraDoTelhado, MARTELO, OVELHAS, SINO,
@@ -961,6 +962,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const alvoAtual = useRef<Alvo | null>(null); alvoAtual.current = alvo;
     const [falas, setFalas] = useState<Fala[] | null>(null);
     const [linha, setLinha] = useState(0);
+    // Perguntas Afiadas: o menu de assuntos que abre depois da conversa
+    const [menu, setMenu] = useState<{ id: IdNpc; citando: boolean } | null>(null);
     const [digitado, setDigitado] = useState(0);
     const [glitch, setGlitch] = useState(false);
     // a entidade escala a cada fala: sobe mais, contorce mais, a câmera inclina mais
@@ -1224,7 +1227,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // ── AÇÃO ─────────────────────────────────────────────────────────────
     const agir = useCallback(() => {
         const a = alvo, e = est.current;
-        if (!a || fase !== 'explorar') return;
+        if (!a || fase !== 'explorar' || menu) return;
         const antes = new Set(e.pistas);
         const avisarPista = () => {
             const nova = [...e.pistas].find((p) => !antes.has(p));
@@ -1237,7 +1240,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             const falas = [...falarCom(e, a.id)];
             // o ferreiro sabe a melodia dos sinos da torre
             if (a.id === 'brokk') { revelarMelodia(); falas.push({ quem: 'Brokk', texto: falaDoBrokk() } as typeof falas[number]); }
-            abrirDialogo(falas, a.id, avisarPista);
+            abrirDialogo(falas, a.id, () => { avisarPista(); if (temPerguntas(a.id)) setMenu({ id: a.id, citando: false }); });
         } else if (a.tipo === 'martelo') {
             pegarMartelo(e); tocarPegar(); setAviso('Você pegou o martelo de Brokk.'); setAlvo(null);
         } else if (a.tipo === 'ovelha') {
@@ -1341,7 +1344,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             }
         }
         bump();
-    }, [alvo, fase, abrirDialogo, achadas, onExit, comecarEntidade]);
+    }, [alvo, fase, menu, abrirDialogo, achadas, onExit, comecarEntidade]);
 
     const marcaCartao = est.current.pistas.size + '|' + BUSCAS.map((b) => est.current.buscas[b.id]).join(',');
     useEffect(() => { setCartaoAberto(true); const id = window.setTimeout(() => setCartaoAberto(false), 7000); return () => window.clearTimeout(id); }, [marcaCartao]);
@@ -1567,6 +1570,25 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {!(glitch && linha === falas.length - 1) && <div style={{ position: 'absolute', right: 12, bottom: 8, fontSize: 14, color: glitch ? '#3dff8a' : '#6b4a2e' }}>▶</div>}
             </div>}
             <OlhoDaVila visivel={fase !== 'queda' && fase !== 'elevador' && !glitch} avisar={setAviso} />
+            {/* ── PERGUNTAS AFIADAS: assuntos depois da conversa ── */}
+            {menu && fase === 'explorar' && (() => {
+                const e = est.current, ficha = npcPorId(menu.id);
+                const responder = (falas: Fala[]) => { const id = menu.id; setMenu(null); abrirDialogo(falas, id, () => setMenu({ id, citando: false })); };
+                const btn: React.CSSProperties = { fontFamily: 'Georgia, serif', fontSize: 16, color: '#2a1d14', background: 'linear-gradient(180deg,#f3e5c4,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', minHeight: 44, flex: '1 1 150px' };
+                return <div data-perguntas onPointerDown={(ev) => ev.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 5 }}>
+                    <div style={{ width: 'calc(100% - 20px)', maxWidth: 560, marginBottom: 'calc(env(safe-area-inset-bottom) + 12px)', background: 'rgba(30,20,12,.88)', border: '3px solid #6b4a2e', borderRadius: 12, padding: '10px 12px' }}>
+                        <div style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 13, letterSpacing: 1, color: '#e8c98a', textTransform: 'uppercase', marginBottom: 8 }}>
+                            {menu.citando ? 'Citar o que ouvi' : `Perguntar a ${ficha.nome}`}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {!menu.citando && assuntosDe(menu.id).map((a) => <button key={a} style={btn} onClick={() => { const r = perguntar(e, menu.id, a); if (r) responder(r.falas); }}>{ROTULO[a]}</button>)}
+                            {!menu.citando && citaveis(e).length > 0 && <button style={{ ...btn, background: 'linear-gradient(180deg,#e9cf8f,#c9a13a)' }} onClick={() => setMenu({ ...menu, citando: true })}>citar o que ouvi…</button>}
+                            {menu.citando && citaveis(e).map((p) => <button key={p} style={btn} onClick={() => responder(citar(e, menu.id, p))}>{PISTAS[p].nome}</button>)}
+                            <button style={{ ...btn, flex: '0 1 auto', background: 'transparent', color: '#e8c98a', borderColor: '#8a6a45' }} onClick={() => menu.citando ? setMenu({ ...menu, citando: false }) : setMenu(null)}>{menu.citando ? 'voltar' : 'chega'}</button>
+                        </div>
+                    </div>
+                </div>;
+            })()}
             {glitch && <>
                 <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '9vh', background: '#000', pointerEvents: 'none', animation: 'f13barra .8s ease-out' }} />
                 <style>{'@keyframes f13barra{from{height:0}}'}</style>
