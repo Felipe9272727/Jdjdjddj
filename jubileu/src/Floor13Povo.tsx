@@ -146,7 +146,7 @@ function vestirOficio(m: THREE.Object3D, id: string) {
         const corpo = peca(new THREE.BoxGeometry(.1, .085, .085), '#4a4a50', .45, .8); cab.add(corpo);
         const face = peca(new THREE.CylinderGeometry(.05, .046, .06, 8), '#5c5c64', .35, .85); face.rotation.z = Math.PI / 2; face.position.x = .08; cab.add(face);
         const pena = peca(new THREE.ConeGeometry(.038, .09, 6), '#44444a', .45, .8); pena.rotation.z = Math.PI / 2; pena.position.x = -.09; cab.add(pena);
-        g.add(cab);
+        g.add(cab); g.name = 'martelo-do-brokk';
         naMao(m, 'hand_r', g, MAO.martelo.d, MAO.martelo.r);
     } else if (id === 'sigrun') {
         // cajado de pastora com o gancho em cima, na mão direita
@@ -414,6 +414,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
     const marcaRef = useRef<THREE.Group>(null);
     const matMarca = useMemo(() => materialDaMarca(marca ?? '!'), [marca]);
     const luzVerde = useRef<THREE.PointLight>(null);
+    const martelo = useRef<THREE.Object3D | null>(null);
     const giro = useRef(TRABALHO[ficha.id] ?? 0);
     const quadro = useRef(0);
     const ultimo = useRef({ x: x + (ronda ?? 0), z });
@@ -621,7 +622,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // o gesto do ofício: cada um tem o seu laço, com pausas
         const tw = (import.meta.env.DEV && (window as unknown as { __npcT?: number }).__npcT != null) ? (window as unknown as { __npcT: number }).__npcT : t;
         const id = ficha.id as string;
-        if (id === 'brokk') {
+        // sem o martelo (a busca dele), o Brokk não martela o ar: fica de braços
+        // cruzados, emburrado; o martelo na mão só aparece quando volta
+        if (id === 'brokk') { const mt = martelo.current ??= modelo.getObjectByName('martelo-do-brokk') ?? null; if (mt) mt.visible = oficio.brokkComMartelo; }
+        if (id === 'brokk' && !oficio.brokkComMartelo) {
+            j('upperarm_l', -.35, 0, baixaE + .55); j('upperarm_r', -.35, 0, baixaD - .55);
+            j('lowerarm_l', -1.9, .4); j('lowerarm_r', -1.9, -.4);
+        } else if (id === 'brokk') {
             // martela no ritmo: ergue devagar, desce de golpe, quica; a cada 6ª
             // pancada para e enxuga a testa
             const per = 1.5, k = Math.floor(tw / per), u = (tw % per) / per;
@@ -750,6 +757,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
 };
 
 /** O morador com o seu modelo; enquanto o GLB carrega, nada aparece. */
+/** Estado do ofício visível (o Floor13 liga quando a busca é entregue). */
+export const oficio = { brokkComMartelo: false };
+
 export const Viking: React.FC<Props> = (p) => <Suspense fallback={null}><Morador {...p} /></Suspense>;
 
 Object.values(MODELOS).forEach((u) => useGLTF.preload(u));

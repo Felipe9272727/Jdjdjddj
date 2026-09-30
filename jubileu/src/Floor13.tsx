@@ -31,7 +31,7 @@ import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, rev
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
 import { Floor13Mundo, novoCeu, DIRECAO_DO_SOL, alcanceDaGrama, TOCHAS, batidasNasCasas, conversaAcabou } from './Floor13Mundo';
 import { Ovelha, type EstadoVisualNpc } from './Floor13Gente';
-import { Viking } from './Floor13Povo';
+import { Viking, oficio } from './Floor13Povo';
 import { temPerguntas, assuntosDe, perguntar, citar, citaveis, ROTULO } from './f13Perguntas';
 import { Floor13Vida } from './Floor13Vida';
 import { pbr } from './f13Texturas';
@@ -1255,7 +1255,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             aoConversar(a.id);
             const falas = [...falarCom(e, a.id)];
             // o ferreiro sabe a melodia dos sinos da torre
-            if (a.id === 'brokk') { revelarMelodia(); falas.push({ quem: 'Brokk', texto: falaDoBrokk() } as typeof falas[number]); }
+            // a melodia dos sinos é o agradecimento pelo martelo, não vem junto com o pedido
+            if (a.id === 'brokk' && e.buscas.martelo === 'feita') { revelarMelodia(); falas.push({ quem: 'Brokk', texto: falaDoBrokk() } as typeof falas[number]); }
             abrirDialogo(falas, a.id, () => { avisarPista(); if (temPerguntas(a.id)) setMenu({ id: a.id, citando: false }); });
         } else if (a.tipo === 'martelo') {
             pegarMartelo(e); tocarPegar(); setAviso('Você pegou o martelo de Brokk.'); setAlvo(null);
@@ -1530,6 +1531,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
             {/* ── HUD: pistas e buscas (compacto; recolhe sozinho e reabre quando algo muda) ── */}
             {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && (jaAndou || fase !== 'explorar') && (() => {
+                oficio.brokkComMartelo = e.buscas.martelo === 'feita';   // o martelo volta à mão dele
                 const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
                 const aberto = cartaoAberto;
                 return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
@@ -1537,8 +1539,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     {aberto && (e.pistas.size === 0 ? <div style={{ opacity: .75 }}>Converse com os moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
                         <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
                     )))}
-                    {aberto && buscasVisiveis.length > 0 && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '4px 0 1px' }}>ᛒ BUSCAS</div>}
-                    {aberto && buscasVisiveis.map((b) => (
+                    {buscasVisiveis.some((b) => e.buscas[b.id] !== 'feita' || aberto) && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '4px 0 1px' }}>ᛒ BUSCAS</div>}
+                    {buscasVisiveis.filter((b) => aberto || e.buscas[b.id] !== 'feita').map((b) => (
                         <div key={b.id} style={{ opacity: e.buscas[b.id] === 'feita' ? .5 : 1, textDecoration: e.buscas[b.id] === 'feita' ? 'line-through' : 'none' }}>
                             {e.buscas[b.id] === 'pronta' ? '★' : '·'} {b.titulo}{b.id === 'ovelhas' && e.buscas[b.id] === 'ativa' ? ` (${e.ovelhas.filter(Boolean).length}/3)` : ''}
                         </div>
