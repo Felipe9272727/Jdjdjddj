@@ -1210,7 +1210,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (quem) {
             const o = npcOnde[quem].current;
             foco.current = new THREE.Vector3(o.x, (chaoEm(o.x, o.z) ?? 0) + 1.6, o.z);
-            posicionarConversaCam(jog.current.x, jog.current.z, o.x, o.z);
+            posicionarConversaCam(jog.current.x, jog.current.z, o.x, o.z, OBSTACULOS);
             npcVis[quem].current.falando = true;
         }
         aoFimDoDialogo.current = fim ?? null;

@@ -189,7 +189,8 @@ const POSTES_DA_FORJA: ReadonlyArray<readonly [number, number]> = FORJA
     : [];
 const OFFSETS_DE_CONVERSA = [0, .35, -.35, .7, -.7, 1.05, -1.05, 1.4, -1.4, 1.8, -1.8, 2.3, -2.3, Math.PI];
 
-function olhoLivre(x: number, z: number, fx: number, fz: number, y: number): boolean {
+type Redondo = { x: number; z: number; r: number; soProcura?: boolean };
+function olhoLivre(x: number, z: number, fx: number, fz: number, y: number, obst: ReadonlyArray<Redondo> = []): boolean {
     if (chaoEm(x, z) === null) return false;
     const f = foraDoTelhado(x, y, z, .5);
     if (Math.abs(f.x - x) > 1e-6 || Math.abs(f.z - z) > 1e-6) return false;
@@ -203,6 +204,14 @@ function olhoLivre(x: number, z: number, fx: number, fz: number, y: number): boo
         const t = Math.max(0, Math.min(1, ((px - x) * vx + (pz - z) * vz) / v2));
         if (Math.hypot(x + vx * t - px, z + vz * t - pz) < .4) return false;
     }
+    // postes, tochas, barracas e o poço: nem o olho dentro deles, nem no meio do caminho até o rosto
+    // (o trecho para 0,6 m antes do rosto: quem vende fica colado na própria barraca)
+    const ate = Math.max(0, 1 - .6 / Math.sqrt(v2));
+    for (const o of obst) {
+        if (o.soProcura) continue;
+        const t = Math.max(0, Math.min(ate, ((o.x - x) * vx + (o.z - z) * vz) / v2));
+        if (Math.hypot(x + vx * t - o.x, z + vz * t - o.z) < o.r + .15) return false;
+    }
     return true;
 }
 
@@ -211,13 +220,13 @@ function olhoLivre(x: number, z: number, fx: number, fz: number, y: number): boo
  * para o lado aberto quando esse ponto cairia sob um telhado, num poste ou fora do chão.
  * Roda só ao abrir o diálogo (nada por quadro).
  */
-export function posicionarConversaCam(px: number, pz: number, fx: number, fz: number): void {
+export function posicionarConversaCam(px: number, pz: number, fx: number, fz: number, obst: ReadonlyArray<Redondo> = []): void {
     const base = Math.atan2(px - fx, pz - fz), yEsp = (chaoEm(fx, fz) ?? 0) + 1.7;
     // perto: o rosto enche o quadro acima da caixa de fala (a 2,2 m era corpo inteiro)
     for (const r of [1.45, 1.2, 2.2]) {
         for (const o of OFFSETS_DE_CONVERSA) {
             const x = fx + Math.sin(base + o) * r, z = fz + Math.cos(base + o) * r;
-            if (olhoLivre(x, z, fx, fz, yEsp)) { conversaCam.x = x; conversaCam.z = z; conversaCam.ativo = true; return; }
+            if (olhoLivre(x, z, fx, fz, yEsp, obst)) { conversaCam.x = x; conversaCam.z = z; conversaCam.ativo = true; return; }
         }
     }
     conversaCam.ativo = false;
