@@ -1,6 +1,6 @@
 import { BARRACAS_PRACA } from './f13Mundo';
 import { auditEnabled, installSpatialAudit, applyAuditCamera } from './f13SpatialAudit';
-import { Floor13Profile, fixedQuality13, profiling13 } from './f13Perf';
+import { painelFps13, MedidorFps13, PainelFps13, Floor13Profile, fixedQuality13, profiling13 } from './f13Perf';
 /**
  * Floor13.tsx — Vindhjem, a cidade viking que voa.
  *
@@ -1499,6 +1499,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {monitorar && !BANCADA && !profiling13 && <PerformanceMonitor key={nivel} bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
                 <LuzDaCamera intensidade={naCabine ? .14 : .5} />
                 {import.meta.env.DEV && <Sonda />}
+                {painelFps13 && <MedidorFps13 />}
                 <Ambiente />
                 {/* o mundo inteiro fica sempre montado e visível: esconder o grupo tirava
                     da cena as tochas, a forja e o sol, e trocar o número de luzes
@@ -1568,6 +1569,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             {cena}
+            {painelFps13 && <PainelFps13 nivel={nivel} />}
             {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline preload="auto"
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }}>
                 {/* VP9 para Chrome/Firefox/Android; H.264 para o Safari. Nenhum dos dois: a cena ao vivo */}
