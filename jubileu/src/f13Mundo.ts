@@ -165,6 +165,49 @@ export function foraDoTelhado(x: number, y: number, z: number, folga: number): {
     return { x, z };
 }
 
+// ── CÂMERA DE CONVERSA ───────────────────────────────────────────────────────
+/** Para onde a câmera vai durante uma conversa (calculado UMA vez ao abrir o diálogo). */
+export const conversaCam = { ativo: false, x: 0, z: 0 };
+const FORJA = ILHAS.find((i) => i.id === 'forja');
+/** Os quatro postes do telheiro da forja (f13Forja.tsx) e o retângulo do telhado. */
+const POSTES_DA_FORJA: ReadonlyArray<readonly [number, number]> = FORJA
+    ? [[-1.4, -1], [1.4, -1], [-1.4, 1.6], [1.4, 1.6]].map(([dx, dz]) => [FORJA.x + dx, FORJA.z - 1.5 + dz] as const)
+    : [];
+const OFFSETS_DE_CONVERSA = [0, .35, -.35, .7, -.7, 1.05, -1.05, 1.4, -1.4, 1.8, -1.8, 2.3, -2.3, Math.PI];
+
+function olhoLivre(x: number, z: number, fx: number, fz: number, y: number): boolean {
+    if (chaoEm(x, z) === null) return false;
+    const f = foraDoTelhado(x, y, z, .5);
+    if (Math.abs(f.x - x) > 1e-6 || Math.abs(f.z - z) > 1e-6) return false;
+    if (FORJA) {
+        // sob o telhado da forja o beiral fica na altura do olho
+        if (Math.abs(x - FORJA.x) < 2.3 && Math.abs(z - (FORJA.z - 1.2)) < 2.15) return false;
+    }
+    const vx = fx - x, vz = fz - z, v2 = vx * vx + vz * vz || 1;
+    for (const [px, pz] of POSTES_DA_FORJA) {
+        if (Math.hypot(px - x, pz - z) < .8) return false;
+        const t = Math.max(0, Math.min(1, ((px - x) * vx + (pz - z) * vz) / v2));
+        if (Math.hypot(x + vx * t - px, z + vz * t - pz) < .4) return false;
+    }
+    return true;
+}
+
+/**
+ * O olho da conversa: ~2,2 m de quem fala, do lado de onde o jogador veio, girando
+ * para o lado aberto quando esse ponto cairia sob um telhado, num poste ou fora do chão.
+ * Roda só ao abrir o diálogo (nada por quadro).
+ */
+export function posicionarConversaCam(px: number, pz: number, fx: number, fz: number): void {
+    const base = Math.atan2(px - fx, pz - fz), yEsp = (chaoEm(fx, fz) ?? 0) + 1.7;
+    for (const r of [2.2, 1.7]) {
+        for (const o of OFFSETS_DE_CONVERSA) {
+            const x = fx + Math.sin(base + o) * r, z = fz + Math.cos(base + o) * r;
+            if (olhoLivre(x, z, fx, fz, yEsp)) { conversaCam.x = x; conversaCam.z = z; conversaCam.ativo = true; return; }
+        }
+    }
+    conversaCam.ativo = false;
+}
+
 // ── QUEM ESTÁ ONDE ───────────────────────────────────────────────────────────
 export const LUGAR_DOS_NPCS: Readonly<Record<IdNpc, { x: number; z: number; ronda?: number }>> = Object.freeze({
     ragnhild: { x: -5, z: 11 },

@@ -43,7 +43,7 @@ import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
 import {
-    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, foraDoTelhado, MARTELO, OVELHAS, SINO,
+    ILHAS as ILHAS_R, chaoEm, INICIO, LUGAR_DOS_NPCS, LUGAR_DAS_CASAS, portaNoMundo, foraDasCasas, foraDoTelhado, conversaCam, posicionarConversaCam, MARTELO, OVELHAS, SINO,
     novoEstado13, falarCom, marcaDoMorador, pegarMartelo, acharOvelha, tocarSino as marcarSino, entidadeAcorda, baterNaCasa,
 } from './f13Mundo';
 import {
@@ -578,6 +578,10 @@ const CameraDeExplorar: React.FC<{
             // degrau acima): de baixo, a câmera via o queixo e o céu
             const chaoE = chaoEm(foco.current.x, foco.current.z) ?? j.y;
             olho.y = Math.max(olho.y, chaoE + 1.95);
+        } else if (foco.current && conversaCam.ativo) {
+            // conversa com um morador: o olho vai para o lado aberto, a ~2 m, na altura do rosto
+            olho.x = conversaCam.x; olho.z = conversaCam.z;
+            olho.y = (chaoEm(conversaCam.x, conversaCam.z) ?? j.y) + 1.62;
         }
         camera.position.lerp(olho, 1 - Math.exp(-dt * 18));
         // o beiral do telhado fica à altura dos olhos: o olho (e o plano próximo)
@@ -596,7 +600,7 @@ const CameraDeExplorar: React.FC<{
                 const k = Math.min(1, empurra.current * 4);
                 ax += dz0 / d0 * .05 * k; az += -dx0 / d0 * .05 * k;
             }
-            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : 1.78), az), 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo && retrato ? 1.38 : 1.78), az), 1 - Math.exp(-dt * 4));
             const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
@@ -1172,6 +1176,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         if (quem) {
             const o = npcOnde[quem].current;
             foco.current = new THREE.Vector3(o.x, (chaoEm(o.x, o.z) ?? 0) + 1.6, o.z);
+            posicionarConversaCam(jog.current.x, jog.current.z, o.x, o.z);
             npcVis[quem].current.falando = true;
         }
         aoFimDoDialogo.current = fim ?? null;
@@ -1180,7 +1185,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
     const fecharDialogo = useCallback(() => {
         if (falando.current) npcVis[falando.current].current.falando = false;
-        falando.current = null; foco.current = null;
+        falando.current = null; foco.current = null; conversaCam.ativo = false;
         setFalas(null); setGlitch(false);
         setFase((f) => (f === 'dialogo' ? 'explorar' : f));
         const fim = aoFimDoDialogo.current; aoFimDoDialogo.current = null;
