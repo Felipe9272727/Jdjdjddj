@@ -459,7 +459,6 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // centro da ronda — a Eira aparecia dentro do poço)
             px = ultimo.current.x; pz = ultimo.current.z;
         }
-        g.visible = !(noite.v > .5) || !!ctl;   // à noite os moradores dormem em casa
         g.position.set(px, ctl ? ctl.y : y, pz);
         if (onde) { onde.current.x = px; onde.current.z = pz; }
         // o ferreiro não larga a bigorna para olhar quem passa: só se vira quando fala com o hóspede
@@ -478,7 +477,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // o frustum da câmera é o mesmo para todos os moradores no quadro: calcula uma vez
         if (_quadroFrustum !== t) { _quadroFrustum = t; _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_pv); }
         _esfera.center.set(g.position.x, g.position.y + escala * .9, g.position.z); _esfera.radius = escala * 1.3;
-        g.visible = !!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera)));
+        g.visible = (!(noite.v > .5) || !!ctl) && (!!sentado || !!semRecorte || (dist < DIST_MAX && (dist < 4 || _frustum.intersectsSphere(_esfera))));
         if (!g.visible) return;
         const perto = dist < DIST_DETALHE;
         for (const m of detalhes) m.visible = perto;

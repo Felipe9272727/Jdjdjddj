@@ -20,7 +20,7 @@ import { LUGAR_DAS_CASAS, FORMA_DAS_CASAS, portaNoMundo } from './f13Mundo';
 const DURACAO = 3;
 /** Badaladas graves seguidas que chamam a noite, e a janela entre elas (s). */
 const BADALADAS = 3;
-const JANELA_DE_TEMPO = 9;
+const JANELA_DE_TEMPO = 12;
 
 export const noite = {
     /** 0 = dia, 1 = noite (o alvo) */
@@ -105,10 +105,10 @@ export const rotuloDaNoite = (i: number, base: string): string =>
     i === 0 && noite.alvo === 1 ? 'TOCAR O SINO GRAVE · CHAMAR O DIA' : base;
 
 // ── LUZ E CÉU ───────────────────────────────────────────────────────────────
-const COR_HEMI_CEU = new THREE.Color('#2a3f86'), COR_HEMI_CHAO = new THREE.Color('#141a30');
-const COR_SOL = new THREE.Color('#7f9be6'), COR_OUTRA = new THREE.Color('#5d78c4');
+const COR_HEMI_CEU = new THREE.Color('#6f8fe0'), COR_HEMI_CHAO = new THREE.Color('#2c3760');
+const COR_SOL = new THREE.Color('#a9bfff'), COR_OUTRA = new THREE.Color('#7f9be8');
 const COR_NEVOA_DIA = new THREE.Color('#a9c6e2');
-const COR_NEVOA = new THREE.Color('#111c3c');
+const COR_NEVOA = new THREE.Color('#1d2c5c');
 const NEVOA_DIA = .0014, NEVOA_NOITE = .0019;
 const MAX = 8;
 
@@ -118,9 +118,9 @@ interface Guardada { luz: THREE.Light; cor: THREE.Color; chao: THREE.Color; inte
 /** Onde ficam as janelas no modelo da casa (3,4 × 5,6 m, porta em +z). */
 const JANELAS: ReadonlyArray<readonly [number, number, number, number]> = [
     // x, y, z, giro
-    [-1.05, 1.55, 2.83, 0], [1.05, 1.55, 2.83, 0],
-    [1.73, 1.55, .6, Math.PI / 2], [-1.73, 1.55, .6, -Math.PI / 2],
-    [1.73, 1.55, -1.6, Math.PI / 2], [-1.73, 1.55, -1.6, -Math.PI / 2],
+    [-1.05, 1.55, 3.0, 0], [1.05, 1.55, 3.0, 0],
+    [1.9, 1.55, .6, Math.PI / 2], [-1.9, 1.55, .6, -Math.PI / 2],
+    [1.9, 1.55, -1.6, Math.PI / 2], [-1.9, 1.55, -1.6, -Math.PI / 2],
 ];
 const AMBAR = new THREE.Color('#ffb04a'), AZUL = new THREE.Color('#5f8dff');
 
@@ -129,7 +129,9 @@ const AMBAR = new THREE.Color('#ffb04a'), AZUL = new THREE.Color('#5f8dff');
  * névoa, céu). Montar dentro do Canvas.
  */
 export function NoiteDoMundo(): React.ReactElement {
-    const geo = useMemo(() => new THREE.PlaneGeometry(.55, .7), []);
+    const geo = useMemo(() => new THREE.PlaneGeometry(.42, .55), []);
+    const geoQuadro = useMemo(() => new THREE.PlaneGeometry(.62, .75), []);
+    const matQuadro = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a1a10', roughness: .9 }), []);
     const mats = useMemo(() => CASAS.map((_, i) => new THREE.MeshStandardMaterial({
         color: '#000000', emissive: i === CASA_CERTA ? AMBAR : AZUL, emissiveIntensity: 0,
     })), []);
@@ -178,11 +180,11 @@ export function NoiteDoMundo(): React.ReactElement {
             if (g.tipo === 0) {
                 const h = l as THREE.HemisphereLight;
                 h.color.lerpColors(g.cor, COR_HEMI_CEU, s); h.groundColor.lerpColors(g.chao, COR_HEMI_CHAO, s);
-                h.intensity = g.inten * (1 - .35 * s);
+                h.intensity = g.inten * (1 + .5 * s);
             } else if (g.tipo === 1) {
-                l.color.lerpColors(g.cor, COR_SOL, s); l.intensity = g.inten * (1 - .82 * s);
+                l.color.lerpColors(g.cor, COR_SOL, s); l.intensity = g.inten * (1 - .86 * s);
             } else {
-                l.color.lerpColors(g.cor, COR_OUTRA, s); l.intensity = g.inten * (1 - .3 * s);
+                l.color.lerpColors(g.cor, COR_OUTRA, s); l.intensity = g.inten * (1 - .1 * s);
             }
         }
         // névoa, reflexo de ambiente e céu
@@ -191,14 +193,14 @@ export function NoiteDoMundo(): React.ReactElement {
             if (v > 0 || fase.current) { nv.color.copy(COR_NEVOA_DIA).lerp(COR_NEVOA, s); nv.density = THREE.MathUtils.lerp(NEVOA_DIA, NEVOA_NOITE, s); }
         }
         if (envBase.current < 0) envBase.current = cena.environmentIntensity;
-        if (v > 0 || fase.current) cena.environmentIntensity = envBase.current * (1 - .78 * s);
+        if (v > 0 || fase.current) cena.environmentIntensity = envBase.current * (1 - .6 * s);
         const c = ceu.current as THREE.Mesh | null;
         if (c) {
             const u = (c.material as THREE.ShaderMaterial).uniforms;
             if (!ceuBase.current.achado) { ceuBase.current.y = u.sunPosition.value.y; ceuBase.current.ray = u.rayleigh.value; ceuBase.current.achado = true; }
             if (v > 0 || fase.current) {
                 u.sunPosition.value.y = THREE.MathUtils.lerp(ceuBase.current.y, -.12, s);
-                u.rayleigh.value = THREE.MathUtils.lerp(ceuBase.current.ray, 1.2, s);
+                u.rayleigh.value = THREE.MathUtils.lerp(ceuBase.current.ray, 2.2, s);
             }
         }
         fase.current = v > 0 ? 1 : 0;
@@ -211,7 +213,7 @@ export function NoiteDoMundo(): React.ReactElement {
             if (gr.visible !== on) gr.visible = on;
             if (!on) continue;
             let k: number;
-            if (i === CASA_CERTA) k = 3.2 * s;   // âmbar firme
+            if (i === CASA_CERTA) k = 1.5 * s;   // âmbar firme
             else {
                 // azul frio tremendo: dois senos incomensuráveis por casa + falha rara
                 const f = .55 + .3 * Math.sin(t * 7.3 + i * 2.1) + .25 * Math.sin(t * 17.9 + i * 5.3);
@@ -226,8 +228,10 @@ export function NoiteDoMundo(): React.ReactElement {
             const l = LUGAR_DAS_CASAS[i], f = FORMA_DAS_CASAS[i];
             return <group key={i} ref={(r) => { grupos.current[i] = r; }} visible={false}
                 position={[l.x, l.y, l.z]} rotation={[0, f.giro, 0]} scale={f.escala as [number, number, number]}>
-                {JANELAS.map((w, k) => <mesh key={k} geometry={geo} material={mats[i]}
-                    position={[w[0], w[1], w[2]]} rotation={[0, w[3], 0]} />)}
+                {JANELAS.map((w, k) => <group key={k} position={[w[0], w[1], w[2]]} rotation={[0, w[3], 0]}>
+                    <mesh geometry={geoQuadro} material={matQuadro} />
+                    <mesh geometry={geo} material={mats[i]} position={[0, 0, .012]} />
+                </group>)}
             </group>;
         })}
     </group>;
