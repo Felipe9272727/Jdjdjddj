@@ -289,7 +289,12 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             me.userData.semSombra = !me.castShadow;
             if (me.castShadow) sombreiam.push(me);
             if (DETALHE.test(me.name)) detalhes.push(me);
-            me.frustumCulled = false;
+            // recorte por visão (antes desligado: os ~150 pedaços dos 8 moradores
+            // eram desenhados, e sombreados, até de costas ou do outro lado da ilha).
+            // A esfera sai da pose de ligação com folga para braço erguido e passo.
+            const sk = me as THREE.SkinnedMesh;
+            if (sk.isSkinnedMesh) { sk.computeBoundingSphere(); if (sk.boundingSphere) sk.boundingSphere.radius *= 1.6; }
+            me.frustumCulled = true;
             let mat = (me.material as THREE.MeshStandardMaterial).clone();
             if (me.name.startsWith('corpo')) {
                 // pele: o difuso do MakeHuman sob o sol lia como gesso (mão e
