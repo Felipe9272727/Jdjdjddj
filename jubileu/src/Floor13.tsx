@@ -999,6 +999,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [linha, setLinha] = useState(0);
     // Perguntas Afiadas: o menu de assuntos que abre depois da conversa
     const [menu, setMenu] = useState<{ id: IdNpc; citando: boolean } | null>(null);
+    // o toque que fecha a conversa não pode cair num assunto que acabou de aparecer
+    const menuDesde = useRef(0);
+    useEffect(() => { menuDesde.current = performance.now(); }, [menu?.id, menu?.citando]);
+    const menuPronto = () => performance.now() - menuDesde.current > 400;
     const [digitado, setDigitado] = useState(0);
     const [glitch, setGlitch] = useState(false);
     // a entidade escala a cada fala: sobe mais, contorce mais, a câmera inclina mais
@@ -1666,10 +1670,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                             {menu.citando ? 'Citar o que ouvi' : `Perguntar a ${ficha.nome}`}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {!menu.citando && assuntosDe(menu.id).map((a) => <button key={a} style={btn} onClick={() => { const r = perguntar(e, menu.id, a); if (r) responder(r.falas); }}>{ROTULO[a]}</button>)}
-                            {!menu.citando && citaveis(e).length > 0 && <button style={{ ...btn, background: 'linear-gradient(180deg,#e9cf8f,#c9a13a)' }} onClick={() => setMenu({ ...menu, citando: true })}>citar o que ouvi…</button>}
-                            {menu.citando && citaveis(e).map((p) => <button key={p} style={btn} onClick={() => responder(citar(e, menu.id, p))}>{PISTAS[p].nome}</button>)}
-                            <button style={{ ...btn, flex: '0 1 auto', background: 'transparent', color: '#e8c98a', borderColor: '#8a6a45' }} onClick={() => menu.citando ? setMenu({ ...menu, citando: false }) : setMenu(null)}>{menu.citando ? 'voltar' : 'chega'}</button>
+                            {!menu.citando && assuntosDe(menu.id).map((a) => <button key={a} style={btn} onClick={() => { if (!menuPronto()) return; const r = perguntar(e, menu.id, a); if (r) responder(r.falas); }}>{ROTULO[a]}</button>)}
+                            {!menu.citando && citaveis(e).length > 0 && <button style={{ ...btn, background: 'linear-gradient(180deg,#e9cf8f,#c9a13a)' }} onClick={() => menuPronto() && (setMenu({ ...menu, citando: true }))}>citar o que ouvi…</button>}
+                            {menu.citando && citaveis(e).map((p) => <button key={p} style={btn} onClick={() => menuPronto() && (responder(citar(e, menu.id, p)))}>{PISTAS[p].nome}</button>)}
+                            <button style={{ ...btn, flex: '0 1 auto', background: 'transparent', color: '#e8c98a', borderColor: '#8a6a45' }} onClick={() => menuPronto() && (menu.citando ? setMenu({ ...menu, citando: false }) : setMenu(null))}>{menu.citando ? 'voltar' : 'chega'}</button>
                         </div>
                     </div>
                 </div>;
