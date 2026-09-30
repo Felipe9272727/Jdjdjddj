@@ -207,7 +207,7 @@ export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) =>
     useEffect(() => { if (!verde) return; const id = window.setTimeout(() => setVerde(false), 7500); return () => window.clearTimeout(id); }, [verde]);
     const retrato = typeof window !== 'undefined' && window.innerWidth < window.innerHeight;
     return <>
-        {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: 'calc(env(safe-area-inset-top) + 44px)', pointerEvents: 'none' }}>
+        {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: `calc(env(safe-area-inset-top) + ${retrato ? 104 : 48}px)`, pointerEvents: 'none' }}>
             {/* remonta a cada subida de nível para reiniciar o pulso */}
             <div key={pulso} style={{
                 padding: 2, filter: estado.nivel >= 2 ? `drop-shadow(0 0 ${5 + estado.ab * 7}px ${corDoNivel(estado.nivel)})` : undefined,

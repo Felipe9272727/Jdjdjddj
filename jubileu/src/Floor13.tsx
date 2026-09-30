@@ -600,7 +600,7 @@ const CameraDeExplorar: React.FC<{
                 const k = Math.min(1, empurra.current * 4);
                 ax += dz0 / d0 * .05 * k; az += -dx0 / d0 * .05 * k;
             }
-            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo && retrato ? 1.38 : 1.78), az), 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo ? (retrato ? 1.38 : 1.5) : 1.78), az), 1 - Math.exp(-dt * 4));
             const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
