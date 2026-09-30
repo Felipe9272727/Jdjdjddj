@@ -436,7 +436,8 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             // de longe: cheia até 25 m, encolhe até 0 aos 33 m
             const d = g.position.distanceTo(camera.position);
             const fade = fadeDaMarca(d);
-            marcaRef.current.visible = fade > .02;
+            // falando com ele, a marca sai de cima do rosto
+            marcaRef.current.visible = fade > .02 && !e.falando;
             marcaRef.current.scale.setScalar(Math.min(1, .6 + d / 20) * fade / (g.scale.x || 1));
             marcaRef.current.position.y = MARCA_ALTURA + Math.sin(t * 2.5) * .04;
         }

@@ -67,6 +67,11 @@ const HOSPEDE = { id: 'hospede', nome: 'Você', oficio: 'hóspede', tunica: '#3b
 /** Bancada: `?f13t=5` congela a queda nesse instante (só em DEV). */
 const tFixo: number | null = typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13t')
     ? parseFloat(new URLSearchParams(location.search).get('f13t') ?? '0') : null;
+/** A queda pré-renderizada: um vídeo da própria cena (capturado quadro a
+ *  quadro), que toca enquanto os shaders do andar compilam por trás. A bancada
+ *  (`?f13t`, `?f13aovivo`) usa a cena ao vivo — é dela que o vídeo é gravado. */
+const QUEDA_EM_VIDEO = !(import.meta.env.DEV && typeof location !== 'undefined'
+    && (tFixo !== null || new URLSearchParams(location.search).has('f13aovivo')));
 /** A entidade em cena: a câmera fecha mais nela. */
 const entidadeNaCena = { valor: false, linha: 0 };
 const SEM_ABERRACAO = new THREE.Vector2(0, 0);
@@ -607,7 +612,7 @@ const CameraDeExplorar: React.FC<{
                 const k = Math.min(1, empurra.current * 4);
                 ax += dz0 / d0 * .05 * k; az += -dx0 / d0 * .05 * k;
             }
-            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo ? (retrato ? 1.38 : 1.5) : 1.78), az), 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo ? (retrato ? 1.32 : 1.5) : 1.78), az), 1 - Math.exp(-dt * 4));
             const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
@@ -967,6 +972,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const Q = QUALIDADE[nivel];
     useEffect(() => { alcanceDaGrama.valor = sem('nograma') ? 0 : Q.grama; }, [Q]);
     const tQueda = useRef(0);
+    const [quedaEmVideo, setQuedaEmVideo] = useState(QUEDA_EM_VIDEO);
+    const video = useRef<HTMLVideoElement>(null);
     const [legenda, setLegenda] = useState(LEGENDAS_DA_QUEDA[0].texto);
     const [flash, setFlash] = useState(0);
     const [apagao, setApagao] = useState(0);
@@ -1083,6 +1090,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
+            tQueda: () => tQueda.current,
             atencao: (v?: number) => { if (v !== undefined) fixarAtencao(v); return { valor: atencao.valor, nivel: atencao.nivel, x: jog.current.x, z: jog.current.z }; },
             // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
             agir: () => acao.current(),
@@ -1154,7 +1162,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // ── A QUEDA: relógio, legendas, sons e o pulo ────────────────────────
     // (só começa quando os shaders do andar já compilaram — ver PreCompila)
     useEffect(() => {
-        if (!compilado) return;
+        if (!compilado && !quedaEmVideo) return;
         tocarVento();
         let raf = 0, antes = performance.now();
         const marcos = { tosse: false, morre: false, baque: false };
@@ -1162,6 +1170,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             const agora = performance.now();
             tQueda.current += Math.min(.1, (agora - antes) / 1000); antes = agora;
             if (import.meta.env.DEV && tFixo !== null) tQueda.current = tFixo;
+            const v = video.current;
+            if (quedaEmVideo) {
+                // o relógio é o do vídeo; se o navegador não deixou tocar, volta à cena ao vivo
+                if (v?.paused && !v.ended && v.readyState >= 2) v.play().catch(() => setQuedaEmVideo(false));
+                tQueda.current = !v ? 0 : v.ended ? DURACAO_DA_QUEDA : v.currentTime;
+            }
             const t = tQueda.current;
             setLegenda(LEGENDAS_DA_QUEDA.find((l) => t < l.ate)!.texto);
             if (t > 2.6 && !marcos.tosse) { marcos.tosse = true; tocarMotorTossindo(); }
@@ -1171,14 +1185,17 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             // olhos se reabrem devagar, de cima e de baixo, como pálpebras
             setFlash(t > 10.4 ? Math.max(0, .55 - (t - 10.4) / .12) : 0);
             setApagao(t < 10.5 ? 0 : t < 10.62 ? (t - 10.5) / .12 : t < 11.1 ? 1 : Math.max(0, 1 - (t - 11.1) / .9));
-            if (t >= DURACAO_DA_QUEDA) { setFase('explorar'); setFlash(0); setApagao(0); tocarAmbiente(); return; }
+            // o vídeo pode acabar antes de os shaders compilarem: segura o último quadro
+            if (t >= DURACAO_DA_QUEDA && compilado) { setFase('explorar'); setFlash(0); setApagao(0); tocarAmbiente(); return; }
             raf = requestAnimationFrame(passo);
         };
         raf = requestAnimationFrame(passo);
-        const pular = () => { if (tQueda.current > .5 && tQueda.current < 10.3) tQueda.current = 10.3; };
+        const pular = () => {
+            if (tQueda.current > .5 && tQueda.current < 10.3) { tQueda.current = 10.3; if (video.current) video.current.currentTime = 10.3; }
+        };
         window.addEventListener('pointerdown', pular); window.addEventListener('keydown', pular);
         return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', pular); window.removeEventListener('keydown', pular); pararVento(); pararAmbiente(); };
-    }, [compilado]);
+    }, [compilado, quedaEmVideo]);
 
     // ── DIÁLOGO ──────────────────────────────────────────────────────────
     const abrirDialogo = useCallback((f: Fala[], quem: IdNpc | null, fim?: () => void) => {
@@ -1451,7 +1468,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // gameplay data is explicitly versioned by bump(); refs still animate each frame.
     const arniFalandoAgora = arniFalando.current || !!legendaBanco;
     const cena = useMemo(() => (
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado ? 'always' : 'never'}
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado && !(fase === 'queda' && quedaEmVideo) ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#a9c6e2', .0014); }}>
@@ -1488,7 +1505,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {OVELHAS.map((o, i) => <Ovelha key={i} x={o.x} y={chaoEm(o.x, o.z) ?? 0} z={o.z} achadaRef={achadas[i]} />)}
                 <Martelo visivel={!e.temMartelo} />
                 {fase === 'queda'
-                    ? <CenaDaQueda tRef={tQueda} />
+                    ? !quedaEmVideo && <CenaDaQueda tRef={tQueda} />
                     : <>
                         <Jogador jog={jog} entrada={entrada} yaw={yaw} ativo={fase === 'explorar'} />
                         {/* primeira pessoa: o corpo do hóspede não é desenhado */}
@@ -1524,12 +1541,15 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 </EffectComposer>}
                 </Floor13Profile>
             </Canvas>
-    ), [Q, compilado, naCabine, chegou, jaAndou, monitorar, nivel, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit]);
+    ), [Q, compilado, naCabine, chegou, jaAndou, monitorar, nivel, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit, quedaEmVideo]);
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             {cena}
+            {fase === 'queda' && quedaEmVideo && <video ref={video} src={import.meta.env.BASE_URL + (retrato ? 'queda-v.mp4' : 'queda-h.mp4')} muted playsInline autoPlay preload="auto"
+                onError={() => setQuedaEmVideo(false)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }} />}
 
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}

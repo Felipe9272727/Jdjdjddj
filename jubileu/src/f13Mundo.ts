@@ -213,7 +213,8 @@ function olhoLivre(x: number, z: number, fx: number, fz: number, y: number): boo
  */
 export function posicionarConversaCam(px: number, pz: number, fx: number, fz: number): void {
     const base = Math.atan2(px - fx, pz - fz), yEsp = (chaoEm(fx, fz) ?? 0) + 1.7;
-    for (const r of [2.2, 1.7]) {
+    // perto: o rosto enche o quadro acima da caixa de fala (a 2,2 m era corpo inteiro)
+    for (const r of [1.45, 1.2, 2.2]) {
         for (const o of OFFSETS_DE_CONVERSA) {
             const x = fx + Math.sin(base + o) * r, z = fz + Math.cos(base + o) * r;
             if (olhoLivre(x, z, fx, fz, yEsp)) { conversaCam.x = x; conversaCam.z = z; conversaCam.ativo = true; return; }
