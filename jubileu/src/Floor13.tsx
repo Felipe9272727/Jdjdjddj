@@ -426,7 +426,7 @@ const CenaDaQueda: React.FC<{ tRef: React.MutableRefObject<number> }> = ({ tRef 
         ajusteCabine.current?.();
         // na queda a câmera está longe da cidade: a névoa do chão (feita para
         // quem anda) virava um lençol cinza na janela. Fina no voo, cheia ao pousar.
-        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0011, .0019, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
+        if (scene.fog instanceof THREE.FogExp2) scene.fog.density = THREE.MathUtils.lerp(.0009, .0014, THREE.MathUtils.smoothstep(t, 10.4, 12.4));
     });
 
     return <group>
@@ -946,7 +946,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const jog = useRef<Jog>({ x: INICIO.x, y: 0, z: INICIO.z, ang: Math.PI, vy: 0, seguro: { ...INICIO }, levantando: 1, andando: 0 });
     const entrada = useRef({ x: 0, z: 0 });
     const yaw = useRef(0);
-    const pitch = useRef(-.08);
+    const pitch = useRef(typeof window !== 'undefined' && window.innerHeight > window.innerWidth ? .12 : -.08);
     const foco = useRef<THREE.Vector3 | null>(null);
     const portaAlvo = useRef<THREE.Vector3 | null>(null);
     const portaFrente = useRef<THREE.Vector3 | null>(null);
@@ -1394,11 +1394,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows="percentage" frameloop={compilado ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
-                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#b7cfe4', .0019); }}>
+                onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#a9c6e2', .0014); }}>
                 {!compilado && <PreCompila aoTerminar={() => setCompilado(true)} />}
-                <hemisphereLight args={['#a6c8f5', '#3a2f22', naCabine ? .16 : .3]} />
+                <hemisphereLight args={['#a6c8f5', '#5c4b38', naCabine ? .16 : .55]} />
                 {monitorar && <PerformanceMonitor key={nivel} bounds={() => [40, 58]} flipflops={3} onDecline={() => setNivel((n) => Math.max(0, n - 1))} />}
-                <LuzDaCamera intensidade={naCabine ? .14 : .35} />
+                <LuzDaCamera intensidade={naCabine ? .14 : .5} />
                 {import.meta.env.DEV && <Sonda />}
                 <Ambiente />
                 {/* o mundo inteiro fica sempre montado e visível: esconder o grupo tirava
@@ -1443,7 +1443,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <EffectComposer multisampling={Q.msaa}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
                     {Q.ao && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
-                    <Bloom mipmapBlur intensity={.45} luminanceThreshold={.9} luminanceSmoothing={.3} />
+                    <Bloom mipmapBlur intensity={.28} luminanceThreshold={1} luminanceSmoothing={.4} />
                     <ChromaticAberration offset={glitch ? new THREE.Vector2(.0016, .0008) : new THREE.Vector2(0, 0)} />
                     <Noise opacity={glitch ? .06 : .012} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
