@@ -250,11 +250,15 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         <mesh position={[0, -.55, 0]}><cylinderGeometry args={[r * .97, r * .95, .4, 40]} /><meshStandardMaterial color="#8a6a4a" {...pbr('rocha', 6, .5)} /></mesh>
         <mesh geometry={rocha}><meshStandardMaterial vertexColors {...pbr('rocha', 3, 2)} /></mesh>
         {/* raízes e pedras soltas penduradas: o que diz "isto voa" */}
-        {[0, 1, 2].map((k) => (
-            <mesh key={k} position={[Math.cos(k * 2.1 + i) * r * .5, -r * 1.9 - k * .8, Math.sin(k * 2.1 + i) * r * .5]}>
-                <dodecahedronGeometry args={[.5 + k * .2, 1]} /><meshStandardMaterial color={P13.pedraEsc} {...pbr('rocha', .8, .8)} />
-            </mesh>
-        ))}
+        {/* coladas na casca do cone (antes pairavam abaixo da ponta, soltas no céu, e liam como discos pretos) */}
+        {[0, 1, 2].map((k) => {
+            const prof = .5 + k * .13;                                     // fração da altura do cone
+            const raio = r * .98 * (1 - prof) + .15 + (.35 + k * .1) * .5; // casca + metade da pedra
+            const a = k * 2.1 + i;
+            return <mesh key={k} position={[Math.cos(a) * raio, -r * 1.7 * prof - .3, Math.sin(a) * raio]} scale={[1, .8, 1]}>
+                <dodecahedronGeometry args={[.35 + k * .1, 1]} /><meshStandardMaterial color="#7b6f62" {...pbr('rocha', .8, .8)} />
+            </mesh>;
+        })}
     </group>;
 };
 

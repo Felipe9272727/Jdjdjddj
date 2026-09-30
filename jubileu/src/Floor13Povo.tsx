@@ -630,9 +630,9 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
             const BK = (import.meta.env.DEV && (window as unknown as { __BROKK?: typeof BROKK }).__BROKK) || BROKK;
             if (!pausa && u >= .66 && u < .9 && ultimoGolpe.current !== k) { ultimoGolpe.current = k; forja.pedido++; }
             const alto = ergue + rebote * .22;
-            j('upperarm_r', BK.braco - alto * 1.5 - testa * .5, 0, baixaD - .2 - testa * .1);
+            j('upperarm_r', BK.braco - alto * 1.5 - testa * .5, 0, baixaD - .2 - Math.sqrt(Math.max(0, alto)) * .8 - testa * .1);
             j('lowerarm_r', BK.cotovelo - alto * .7 - testa * 1.3);
-            j('hand_r', BK.pulso + golpe * .2 - alto * .3);
+            j('hand_r', BK.pulso + golpe * .2 - alto * .3 - Math.sqrt(Math.max(0, alto)) * .9);
             j('upperarm_l', -.95, 0, baixaE - .05); j('lowerarm_l', -.9);
             j('spine_01', P.incl + .1 + golpe * .1 - ergue * .1, 0, 0);
             j('pelvis', golpe * .03, peso * .04, peso * .05);
