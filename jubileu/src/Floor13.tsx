@@ -72,6 +72,8 @@ const tFixo: number | null = typeof location !== 'undefined' && new URLSearchPar
  *  (`?f13t`, `?f13aovivo`) usa a cena ao vivo — é dela que o vídeo é gravado. */
 const QUEDA_EM_VIDEO = !(import.meta.env.DEV && typeof location !== 'undefined'
     && (tFixo !== null || new URLSearchParams(location.search).has('f13aovivo')));
+/** Gravação do vídeo da queda (só DEV): densidade 2 fixa, sem o teto de 1,5. */
+const GRAVANDO = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('f13gravar');
 /** VP9 com alfa: Chrome, Edge, Firefox e Android; no iOS/Safari o fundo sai preto. */
 const TITULO_COM_ALFA = typeof navigator !== 'undefined'
     && /Chrome|Firefox|Android/.test(navigator.userAgent) && !/iPhone|iPad|iPod|CriOS|FxiOS/.test(navigator.userAgent);
@@ -1471,7 +1473,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // gameplay data is explicitly versioned by bump(); refs still animate each frame.
     const arniFalandoAgora = arniFalando.current || !!legendaBanco;
     const cena = useMemo(() => (
-            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado && !(fase === 'queda' && quedaEmVideo) ? 'always' : 'never'}
+            <Canvas style={{ position: 'absolute', inset: 0 }} dpr={GRAVANDO ? 2 : Q.dpr} shadows={sem('nosombra') ? false : "percentage"} frameloop={compilado && !(fase === 'queda' && quedaEmVideo) ? 'always' : 'never'}
                 gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .62 }}
                 camera={{ fov: 52, near: .25, far: 900, position: [90, 38, 135] }}
                 onCreated={({ scene }) => { scene.fog = new THREE.FogExp2('#a9c6e2', .0014); }}>
