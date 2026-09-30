@@ -1392,7 +1392,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number; cy: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0, cy: 0 });
     const [jaAndou, setJaAndou] = useState(false);
-    useEffect(() => { if (fase !== 'explorar') return; const id = window.setTimeout(() => setJaAndou(true), 6000); return () => window.clearTimeout(id); }, [fase]);
+    useEffect(() => { if (fase !== 'explorar') return; const id = window.setTimeout(() => setJaAndou(true), 4000); return () => window.clearTimeout(id); }, [fase]);
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
         if (fase !== 'explorar') return;
@@ -1454,7 +1454,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <SinosDaTorre />
                 <NoiteDoMundo />
                 <OuvidoDaForja />
-                <GanchoDaChegada ativo={chegou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.has('ragnhild')} />
+                <GanchoDaChegada ativo={chegou && jaAndou} jog={jog} avisar={setAviso} jaFalou={() => e.conversou.has('ragnhild')} />
                 <ArniNoBanco falando={arniFalando.current || !!legendaBanco} />
                 <Sol jog={jog} mapa={Q.sombra} />
                 <Floor13Mundo portaCertaRef={portaCerta} sinoRef={sinoRef} />
@@ -1524,7 +1524,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             </div>}
 
             {/* ── HUD: pistas e buscas (compacto; recolhe sozinho e reabre quando algo muda) ── */}
-            {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && (() => {
+            {fase !== 'queda' && fase !== 'elevador' && !glitch && !legendaBanco && aceitacao === 0 && (jaAndou || fase !== 'explorar') && (() => {
                 const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
                 const aberto = cartaoAberto;
                 return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
