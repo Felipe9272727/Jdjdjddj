@@ -159,8 +159,8 @@ const AVISOS = [
 const AVISO_VERDE = { titulo: 'A VILA INTEIRA ESTÁ DE OLHO EM VOCÊ', corpo: 'O que os moradores contam agora pode estar errado.' };
 
 const VERMELHO = '#ff4a3a';
-/** Cor do olho por nível: âmbar (0-1), verde (2), vermelho (3+). */
-const corDoNivel = (n: number) => (n >= 3 ? VERMELHO : n === 2 ? VERDE : '#FFD27A');
+/** Cor do olho por nível: âmbar (0), laranja (1), verde (2), vermelho (3+). */
+const corDoNivel = (n: number) => (n >= 3 ? VERMELHO : n === 2 ? VERDE : n === 1 ? '#ff9a3c' : '#FFD27A');
 
 /** Olho amendoado: esclera clara, íris, pupila e brilho; a pálpebra abre com a atenção (sempre legível). */
 const Olho: React.FC<{ abertura: number; nivel: number }> = ({ abertura, nivel }) => {
@@ -212,12 +212,18 @@ export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) =>
             <div key={pulso} style={{
                 padding: 2, filter: estado.nivel >= 2 ? `drop-shadow(0 0 ${5 + estado.ab * 7}px ${corDoNivel(estado.nivel)})` : undefined,
                 opacity: .78 + estado.ab * .22, transition: 'opacity .6s, filter .6s',
-                animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : pulso > 0 ? `f13olhoPulso 1.4s ease-out 1${estado.nivel >= 2 ? ', f13olhoBate 1.6s ease-in-out 1.4s infinite' : ''}` : estado.nivel >= 2 ? 'f13olhoBate 1.6s ease-in-out infinite' : undefined,
+                animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : pulso > 0 ? `f13olhoPulso 1.4s ease-out 1${estado.nivel >= 2 ? ', f13olhoBate 1.6s ease-in-out 1.4s infinite' : ''}` : estado.nivel >= 2 ? 'f13olhoBate 1.6s ease-in-out infinite' : estado.nivel === 1 ? 'f13olhoBate 2.6s ease-in-out infinite' : undefined,
             }}>
                 <Olho abertura={estado.ab} nivel={estado.nivel} />
             </div>
             <style>{'@keyframes f13olhoTreme{0%{transform:translate(0,0)}50%{transform:translate(-2px,1px)}100%{transform:translate(1px,-1px)}}@keyframes f13olhoPulso{0%{transform:scale(1)}18%{transform:scale(1.5)}40%{transform:scale(1.1)}60%{transform:scale(1.35)}100%{transform:scale(1)}}@keyframes f13olhoBate{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}'}</style>
         </div>}
+        {/* a vila olhando: as bordas da tela tingem na cor do olho e respiram */}
+        {visivel && estado.nivel >= 2 && <div aria-hidden style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            boxShadow: `inset 0 0 ${estado.nivel >= 3 ? 90 : 60}px ${corDoNivel(estado.nivel)}${estado.nivel >= 3 ? '55' : '30'}`,
+            animation: `f13olhoBorda ${estado.nivel >= 3 ? 1 : 1.6}s ease-in-out infinite`,
+        }}><style>{'@keyframes f13olhoBorda{0%,100%{opacity:.55}50%{opacity:1}}'}</style></div>}
         {visivel && verde && <div role="status" style={{
             position: 'absolute', top: 'calc(env(safe-area-inset-top) + 56px)', pointerEvents: 'none', textAlign: 'center',
             ...(retrato ? { left: 12, right: 12, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 24px)' } : { left: 330, right: 16, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 346px)', top: 'calc(env(safe-area-inset-top) + 8px)' }),
