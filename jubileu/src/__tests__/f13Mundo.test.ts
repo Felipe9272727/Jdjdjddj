@@ -128,7 +128,8 @@ describe('f13 — o preço em favor: pista nenhuma sai de graça', () => {
             eira: falarCom(e, 'eira').map((f) => f.texto).join(' '),
         };
         expect(e.pistas.size).toBe(0);
-        expect(favorFeito(e, 'ragnhild')).toBe(false);
+        // três conversas já pagam a fofoca da Ragnhild; a pista só entra quando ela for procurada de novo
+        expect(favorFeito(e, 'ragnhild')).toBe(true);
         expect(favorFeito(e, 'ulfgar')).toBe(false);
         expect(favorFeito(e, 'eira')).toBe(false);
         for (const [id, t] of Object.entries(pedidos)) {
