@@ -158,18 +158,28 @@ const AVISOS = [
 ];
 const AVISO_VERDE = { titulo: 'A VILA INTEIRA ESTÁ DE OLHO EM VOCÊ', corpo: 'O que os moradores contam agora pode estar errado.' };
 
+const VERMELHO = '#ff4a3a';
+/** Cor do olho por nível: âmbar (0-1), verde (2), vermelho (3+). */
+const corDoNivel = (n: number) => (n >= 3 ? VERMELHO : n === 2 ? VERDE : '#FFD27A');
+
+/** Olho amendoado: esclera clara, íris, pupila e brilho; a pálpebra abre com a atenção (sempre legível). */
 const Olho: React.FC<{ abertura: number; nivel: number }> = ({ abertura, nivel }) => {
-    // pálpebras: duas curvas que se afastam do eixo; a íris cresce junto
-    const o = .1 + abertura * .9, alto = 11 * o, cor = nivel >= 2 ? VERDE : '#FFE3A0';
-    const forma = `M3 14 Q24 ${14 - alto * 1.9} 45 14 Q24 ${14 + alto * 1.9} 3 14 Z`;
+    const cor = corDoNivel(nivel), h = 5 + abertura * 9; // meia-altura da amêndoa: 5 (quase fechado) a 14
+    const amendoa = `M2 16 Q24 ${16 - h * 2} 46 16 Q24 ${16 + h * 2} 2 16 Z`;
+    const ri = 3 + abertura * 4.5, rp = 1.4 + abertura * 2;
     return (
-        <svg width="48" height="30" viewBox="0 0 48 28" style={{ display: 'block', overflow: 'visible' }}>
-            <defs><clipPath id="f13olhoClip"><path d={forma} /></clipPath></defs>
-            <path d={forma} fill="rgba(6,10,8,.7)" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" />
+        <svg width="46" height="32" viewBox="0 0 48 32" style={{ display: 'block', overflow: 'visible', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.8))' }}>
+            <defs><clipPath id="f13olhoClip"><path d={amendoa} /></clipPath></defs>
+            <path d={amendoa} fill="#f4ecd6" />
             <g clipPath="url(#f13olhoClip)">
-                <circle cx="24" cy="14" r={Math.max(.1, 3.5 + abertura * 5.5)} fill={cor} />
-                <circle cx="24" cy="14" r={Math.max(.1, 1.6 + abertura * 2.2)} fill="#050805" />
+                <circle cx="24" cy="16" r={ri} fill={cor} />
+                <circle cx="24" cy="16" r={ri} fill="none" stroke="#1a1208" strokeWidth="1" />
+                <ellipse cx="24" cy="16" rx={Math.max(.6, rp * (nivel >= 2 ? .55 : 1))} ry={rp} fill="#050505" />
+                <circle cx={24 - ri * .35} cy={16 - ri * .4} r={Math.max(.5, ri * .2)} fill="#fff" opacity=".9" />
+                <path d={`M2 16 Q24 ${16 - h * 2} 46 16 L46 0 L2 0 Z`} fill="rgba(0,0,0,.18)" />
             </g>
+            <path d={amendoa} fill="none" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" />
+            <path d="M8 8 L5 3 M24 4 L24 -1 M40 8 L43 3" stroke={cor} strokeWidth="1.8" strokeLinecap="round" opacity={.55 + abertura * .45} />
         </svg>
     );
 };
@@ -197,13 +207,11 @@ export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) =>
     useEffect(() => { if (!verde) return; const id = window.setTimeout(() => setVerde(false), 7500); return () => window.clearTimeout(id); }, [verde]);
     const retrato = typeof window !== 'undefined' && window.innerWidth < window.innerHeight;
     return <>
-        {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: '38%', pointerEvents: 'none' }}>
+        {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: `calc(env(safe-area-inset-top) + ${retrato ? 104 : 48}px)`, pointerEvents: 'none' }}>
             {/* remonta a cada subida de nível para reiniciar o pulso */}
             <div key={pulso} style={{
-                padding: '6px 7px 5px', borderRadius: 10, background: 'rgba(6,10,8,.72)',
-                border: `2px solid ${estado.nivel >= 2 ? VERDE : estado.nivel === 1 ? '#FFE3A0' : 'rgba(255,227,160,.55)'}`,
-                boxShadow: estado.nivel >= 2 ? `0 0 ${8 + estado.ab * 10}px ${VERDE}` : '0 0 6px rgba(0,0,0,.6)',
-                opacity: .7 + estado.ab * .3, transition: 'opacity .6s, box-shadow .6s, border-color .6s',
+                padding: 2, filter: estado.nivel >= 2 ? `drop-shadow(0 0 ${5 + estado.ab * 7}px ${corDoNivel(estado.nivel)})` : undefined,
+                opacity: .78 + estado.ab * .22, transition: 'opacity .6s, filter .6s',
                 animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : pulso > 0 ? `f13olhoPulso 1.4s ease-out 1${estado.nivel >= 2 ? ', f13olhoBate 1.6s ease-in-out 1.4s infinite' : ''}` : estado.nivel >= 2 ? 'f13olhoBate 1.6s ease-in-out infinite' : undefined,
             }}>
                 <Olho abertura={estado.ab} nivel={estado.nivel} />
