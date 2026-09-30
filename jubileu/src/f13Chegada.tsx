@@ -100,6 +100,7 @@ const PASSOS: ReadonlyArray<Passo> = Object.freeze([
 ]);
 
 // ── Componente ───────────────────────────────────────────────────────────
+const agoraS0 = () => performance.now() / 1000;
 export const GanchoDaChegada: React.FC<{
     ativo: boolean;
     jog: React.MutableRefObject<{ x: number; y: number; z: number }>;
@@ -123,8 +124,12 @@ export const GanchoDaChegada: React.FC<{
         if (!ativo) return;
         const p = jog.current;
         // quem já saiu do pouso não precisa ser puxado: o gancho se aposenta
-        if (passo.current < 0 && Math.hypot(p.x - INICIO.x, p.z - INICIO.z) > 12) { passo.current = PASSOS.length; return; }
+        if (passo.current < 0 && Math.hypot(p.x - INICIO.x, p.z - INICIO.z) > 12) { passo.current = PASSOS.length; ultimoRelogio.current = agoraS0() - 10; return; }
         const agoraS = performance.now() / 1000;
+        // quem se afastou do cão largou a brincadeira: a chegada não segura ninguém
+        if (passo.current >= 0 && passo.current < PASSOS.length && Math.hypot(busca.cao.x - p.x, busca.cao.z - p.z) > 30) {
+            passo.current = PASSOS.length; ultimoRelogio.current = agoraS - 10;
+        }
         if (import.meta.env.DEV) (window as unknown as { __chegada?: unknown }).__chegada = { passo: passo.current, t: t.current, arremessar: !!busca.arremessar };
 
         // 1) Máquina de passos ──────────────────────────────────────────

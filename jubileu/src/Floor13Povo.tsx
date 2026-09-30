@@ -427,11 +427,13 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
         // números de antebraço abaixo contam a partir do braço reto
         const j = (n: string, ax: number, ay = 0, az = 0) => J[n]?.girar(n.startsWith('lowerarm') ? ax + .65 : ax, ay, az);
         if (marcaRef.current) {
-            // a marca é para achar quem tem conversa de longe; de perto some
+            // a marca fica sempre bem acima da cabeça (também de perto) e some
+            // de longe: cheia até 25 m, encolhe até 0 aos 33 m
             const d = g.position.distanceTo(camera.position);
-            marcaRef.current.visible = d > 5;
-            marcaRef.current.scale.setScalar(Math.min(1, .5 + d / 30));
-            marcaRef.current.position.y = 2.45 + Math.sin(t * 2.5) * .08; marcaRef.current.rotation.y = t * 1.5;
+            const fade = Math.max(0, Math.min(1, (33 - d) / 8));
+            marcaRef.current.visible = fade > .02;
+            marcaRef.current.scale.setScalar(Math.min(1, .6 + d / 20) * fade / (g.scale.x || 1));
+            marcaRef.current.position.y = 2.5 + Math.sin(t * 2.5) * .06; marcaRef.current.rotation.y = t * 1.5;
         }
         if (luzVerde.current && raiz.current) {
             const lz = luzVerde.current, r = raiz.current;
@@ -728,7 +730,7 @@ const Morador: React.FC<Props> = ({ ficha, x, y, z, ronda, estado, tique, contro
 
     return <><group ref={raiz}>
         <primitive object={modelo} />
-        {marca && !controle && <group ref={marcaRef} position={[0, 2.45, 0]}>
+        {marca && !controle && <group ref={marcaRef} position={[0, 2.5, 0]} frustumCulled={false}>
             <mesh><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? new THREE.Color('#ffc34a').multiplyScalar(3.5) : new THREE.Color('#cfe3ff').multiplyScalar(3)} toneMapped={false} /></mesh>
             <mesh scale={[1.7, 1.7, 1.7]}><octahedronGeometry args={[.3, 0]} /><meshBasicMaterial color={marca === '!' ? '#ff9a1f' : '#8fb8ff'} toneMapped={false} transparent opacity={.22} depthWrite={false} /></mesh>
         </group>}
