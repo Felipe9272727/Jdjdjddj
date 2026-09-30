@@ -52,7 +52,7 @@ const Silhueta: React.FC<{ grupo: React.RefObject<THREE.Group | null>; corpo: TH
     }), []);
     useEffect(() => () => Object.values(g).forEach((x) => x.dispose()), [g]);
     return (
-        <group ref={grupo} visible={false}>
+        <group ref={grupo} visible={false} name="olhosDaVilaSilhueta">
             <mesh geometry={g.tronco} material={corpo} position={[0, 1.25, 0]} />
             <mesh geometry={g.cabeca} material={corpo} position={[0, 1.86, 0]} rotation={[0, 0, .28]} />
             <mesh geometry={g.perna} material={corpo} position={[-.12, .45, 0]} />

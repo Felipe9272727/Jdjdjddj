@@ -1053,7 +1053,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             onde: () => Object.fromEntries(Object.entries(npcOnde).map(([k, v]) => [k, { ...v.current }])),
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
-            atencao: (v?: number) => { if (v !== undefined) fixarAtencao(v); return { valor: atencao.valor, nivel: atencao.nivel }; },
+            atencao: (v?: number) => { if (v !== undefined) fixarAtencao(v); return { valor: atencao.valor, nivel: atencao.nivel, x: jog.current.x, z: jog.current.z }; },
             // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
             agir: () => acao.current(),
             porta: (i: number) => portaNoMundo(i),
