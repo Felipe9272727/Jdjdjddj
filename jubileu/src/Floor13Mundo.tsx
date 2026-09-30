@@ -100,8 +100,20 @@ export function novoCeu(): Sky {
     u.sunPosition.value.copy(DIRECAO_DO_SOL);
     // o Preetham sai em radiância física, clara demais para esta cena: um
     // terço, para o céu ficar azul e o horizonte âmbar em vez de branco
-    ceu.material.fragmentShader = ceu.material.fragmentShader
-        .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( texColor * .3, 1.0 );')
+    // noite: degradê azul profundo + estrelas (uniform `noite`, 0 = dia)
+    ceu.material.uniforms.noite = { value: 0 };
+    ceu.material.fragmentShader = 'uniform float noite;\n' + ceu.material.fragmentShader
+        .replace('gl_FragColor = vec4( texColor, 1.0 );', `
+            vec3 dirN = normalize( vWorldPosition - cameraPosition );
+            vec3 diaC = texColor * .3;
+            float hN = clamp( dirN.y, -.2, 1. );
+            vec3 noiteC = mix( vec3(.045,.085,.2), vec3(.008,.02,.075), smoothstep( -.05, .75, hN ) );
+            noiteC += vec3(.02,.03,.06) * smoothstep( .25, -.05, abs(hN) );
+            vec3 pE = dirN * 70.; vec3 cE = floor( pE ); vec3 fE = fract( pE ) - .5;
+            float hE = fract( sin( dot( cE, vec3(12.9898,78.233,37.719) ) ) * 43758.5453 );
+            float estr = step( .965, hE ) * smoothstep( .2, .02, length( fE ) ) * smoothstep( -.02, .2, dirN.y ) * (.5 + 2.5 * (hE - .965) / .035);
+            noiteC += vec3(.8,.88,1.) * estr * .9;
+            gl_FragColor = vec4( mix( diaC, noiteC, noite ), 1.0 );`)
         // o disco do sol vem 19000× mais forte que o céu: cegava a tela
         // inteira pelo bloom. Fica um disco quente, visível sem ofuscar
         .replace('vSunE * 19000.0 * Fex', 'vSunE * 900.0 * Fex');
@@ -165,7 +177,7 @@ const Nuvens: React.FC = () => {
                     if (c.a < .01) discard;
                     float l = dot(c.rgb, vec3(.33));
                     vec3 cor = mix(sombra, sol, smoothstep(.35, .95, l + vY * .25)) * (.75 + l * .55);
-                    cor = mix(cor, cor * vec3(.16, .2, .34), noite);
+                    cor = mix(cor, vec3(.07, .1, .19) + cor * vec3(.07, .09, .15), noite);
                     gl_FragColor = vec4(cor, c.a);
                     #include <tonemapping_fragment>
                     #include <colorspace_fragment>

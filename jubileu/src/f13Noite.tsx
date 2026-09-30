@@ -128,8 +128,8 @@ export const rotuloDaNoite = (i: number, base: string): string =>
     i === 0 && noite.alvo === 1 ? 'TOCAR O SINO GRAVE · CHAMAR O DIA' : base;
 
 // ── LUZ E CÉU ───────────────────────────────────────────────────────────────
-const COR_HEMI_CEU = new THREE.Color('#6f8fe0'), COR_HEMI_CHAO = new THREE.Color('#2c3760');
-const COR_SOL = new THREE.Color('#a9bfff'), COR_OUTRA = new THREE.Color('#7f9be8');
+const COR_HEMI_CEU = new THREE.Color('#8fb0f0'), COR_HEMI_CHAO = new THREE.Color('#3d4d85');
+const COR_SOL = new THREE.Color('#b8ccff'), COR_OUTRA = new THREE.Color('#7f9be8');
 const COR_NEVOA_DIA = new THREE.Color('#a9c6e2');
 const COR_NEVOA = new THREE.Color('#1d2c5c');
 const NEVOA_DIA = .0014, NEVOA_NOITE = .0019;
@@ -174,6 +174,14 @@ export function NoiteDoMundo(): React.ReactElement {
             blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false,
         }));
     }, []);
+    const glows = useMemo(() => {
+        const tex = halos[0].map!;
+        return CASAS.map((_, i) => new THREE.SpriteMaterial({
+            map: tex, color: i === CASA_CERTA ? AMBAR : AZUL, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false,
+        }));
+    }, [halos]);
+    const spr = useRef<THREE.Sprite[][]>(CASAS.map(() => []));
     const bases = useRef<BaseMat[]>([]);
     const grupos = useRef<Array<THREE.Group | null>>([]);
     const luzes = useRef<Guardada[]>([]);
@@ -220,11 +228,11 @@ export function NoiteDoMundo(): React.ReactElement {
             if (g.tipo === 0) {
                 const h = l as THREE.HemisphereLight;
                 h.color.lerpColors(g.cor, COR_HEMI_CEU, s); h.groundColor.lerpColors(g.chao, COR_HEMI_CHAO, s);
-                h.intensity = g.inten * (1 + .5 * s);
+                h.intensity = g.inten * (1 + 1.5 * s);
             } else if (g.tipo === 1) {
-                l.color.lerpColors(g.cor, COR_SOL, s); l.intensity = g.inten * (1 - .86 * s);
+                l.color.lerpColors(g.cor, COR_SOL, s); l.intensity = g.inten * (1 - .68 * s);
             } else {
-                l.color.lerpColors(g.cor, COR_OUTRA, s); l.intensity = g.inten * (1 - .1 * s);
+                l.color.lerpColors(g.cor, COR_OUTRA, s); l.intensity = g.inten * (1 + .6 * s);
             }
         }
         // névoa, reflexo de ambiente e céu
@@ -233,13 +241,14 @@ export function NoiteDoMundo(): React.ReactElement {
             if (v > 0 || fase.current) { nv.color.copy(COR_NEVOA_DIA).lerp(COR_NEVOA, s); nv.density = THREE.MathUtils.lerp(NEVOA_DIA, NEVOA_NOITE, s); }
         }
         if (envBase.current < 0) envBase.current = cena.environmentIntensity;
-        if (v > 0 || fase.current) cena.environmentIntensity = envBase.current * (1 - .6 * s);
+        if (v > 0 || fase.current) cena.environmentIntensity = envBase.current * (1 - .25 * s);
         const c = ceu.current as THREE.Mesh | null;
         if (c) {
             const u = (c.material as THREE.ShaderMaterial).uniforms;
             if (!ceuBase.current.achado) { ceuBase.current.y = u.sunPosition.value.y; ceuBase.current.ray = u.rayleigh.value; ceuBase.current.achado = true; }
             if (v > 0 || fase.current) {
                 u.sunPosition.value.y = THREE.MathUtils.lerp(ceuBase.current.y, -.12, s);
+                if (u.noite) u.noite.value = s;
                 u.rayleigh.value = THREE.MathUtils.lerp(ceuBase.current.ray, 2.2, s);
             }
         }
@@ -274,6 +283,16 @@ export function NoiteDoMundo(): React.ReactElement {
             }
             mats[i].emissiveIntensity = k;
             halos[i].opacity = i === CASA_CERTA ? .85 * s : Math.min(.55, k * .22);
+            glows[i].opacity = i === CASA_CERTA ? .5 * s : Math.min(.3, k * .1);
+            // halos crescem com a distância para ler da praça
+            const d = gr.position.distanceTo(estado.camera.position);
+            const m = Math.min(5, Math.max(1, d / 14));
+            const ss = spr.current[i];
+            for (let q = 0; q < ss.length; q++) {
+                const sp = ss[q]; if (!sp) continue;
+                const e = q === 6 ? 9 * m : 2.3 * m;
+                sp.scale.set(e, e, 1);
+            }
         }
     });
 
@@ -285,8 +304,9 @@ export function NoiteDoMundo(): React.ReactElement {
                 {JANELAS.map((w, k) => <group key={k} position={[w[0], w[1], w[2]]} rotation={[0, w[3], 0]}>
                     <mesh geometry={geoQuadro} material={matQuadro} />
                     <mesh geometry={geo} material={mats[i]} position={[0, 0, .012]} />
-                    <sprite material={halos[i]} position={[0, 0, .25]} scale={[2.3, 2.3, 1]} />
+                    <sprite ref={(r) => { if (r) spr.current[i][k] = r; }} material={halos[i]} position={[0, 0, .25]} scale={[2.3, 2.3, 1]} />
                 </group>)}
+                <sprite ref={(r) => { if (r) spr.current[i][6] = r; }} material={glows[i]} position={[0, 2, 3.4]} scale={[9, 9, 1]} />
             </group>;
         })}
     </group>;
