@@ -30,7 +30,30 @@ export const noite = {
     /** badaladas graves seguidas e quando foi a última */
     seguidas: 0,
     ultima: -100,
+    /** o Floor13 registra aqui como mostrar um aviso na tela (uivo do cão) */
+    aviso: null as ((t: string) => void) | null,
 };
+
+/** Materiais do mundo diurno que a noite escurece (registrados por Floor13Mundo). */
+export const escurecer = {
+    /** fumaça das chaminés (MeshBasicMaterial) */
+    fumaca: null as THREE.MeshBasicMaterial | null,
+    /** nuvens: uniform `noite` (0..1) */
+    nuvens: null as THREE.ShaderMaterial | null,
+    /** barcos: os grupos que os contêm (userData.frota) */
+    frota: [] as THREE.Object3D[],
+};
+const COR_FUMACA_NOITE = new THREE.Color('#2a3350');
+const corFumaca = new THREE.Color('#d9d4cc');
+interface BaseMat { m: THREE.MeshStandardMaterial; cor: THREE.Color; env: number }
+
+/** Nome de bússola (−z = norte) da direção de (x, z) até a casa certa. */
+const PONTOS = ['norte', 'nordeste', 'leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste'];
+export function bussolaParaCasaCerta(x: number, z: number): string {
+    const p = portaNoMundo(CASA_CERTA);
+    const a = Math.atan2(p.x - x, -(p.z - z));   // 0 = norte, cresce para leste
+    return PONTOS[((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8];
+}
 
 /** De noite os moradores estão dormindo: o Floor13 não os deixa falar. */
 export const moradoresDormem = (): boolean => noite.v > .5;
@@ -95,7 +118,7 @@ export function definirNoite(ligada: boolean): string {
     noite.seguidas = 0;
     if (ligada) {
         window.setTimeout(uivar, 900);
-        return 'A terceira badalada rola pelo vale e a luz do dia escorre do céu. É noite em Vindhjem: os moradores foram dormir, e lá longe um cão uiva.';
+        return 'A terceira badalada rola pelo vale e a luz do dia escorre do céu. É noite em Vindhjem: o povo foi dormir e lá longe um cão uiva. Quando quiser o dia de volta, é só tocar o sino grave mais uma vez.';
     }
     return 'O sino grave chama o sol de volta. Vindhjem acorda.';
 }
@@ -124,17 +147,34 @@ const JANELAS: ReadonlyArray<readonly [number, number, number, number]> = [
 ];
 const AMBAR = new THREE.Color('#ff8f1f'), AZUL = new THREE.Color('#5f8dff');
 
+/** Degradê radial para o halo aditivo das janelas. */
+function texHalo(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d')!, gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+}
+
 /**
  * <NoiteDoMundo/> — devolve as janelas e conduz o relógio da noite (luzes,
  * névoa, céu). Montar dentro do Canvas.
  */
 export function NoiteDoMundo(): React.ReactElement {
-    const geo = useMemo(() => new THREE.PlaneGeometry(.42, .55), []);
-    const geoQuadro = useMemo(() => new THREE.PlaneGeometry(.62, .75), []);
+    const geo = useMemo(() => new THREE.PlaneGeometry(.62, .8), []);
+    const geoQuadro = useMemo(() => new THREE.PlaneGeometry(.82, 1.0), []);
     const matQuadro = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a1a10', roughness: .9 }), []);
     const mats = useMemo(() => CASAS.map((_, i) => new THREE.MeshStandardMaterial({
         color: '#000000', emissive: i === CASA_CERTA ? AMBAR : AZUL, emissiveIntensity: 0,
     })), []);
+    const halos = useMemo(() => {
+        const tex = texHalo();
+        return CASAS.map((_, i) => new THREE.SpriteMaterial({
+            map: tex, color: i === CASA_CERTA ? AMBAR : AZUL, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false,
+        }));
+    }, []);
+    const bases = useRef<BaseMat[]>([]);
     const grupos = useRef<Array<THREE.Group | null>>([]);
     const luzes = useRef<Guardada[]>([]);
     const ceu = useRef<THREE.Object3D | null>(null);
@@ -203,6 +243,19 @@ export function NoiteDoMundo(): React.ReactElement {
                 u.rayleigh.value = THREE.MathUtils.lerp(ceuBase.current.ray, 2.2, s);
             }
         }
+        // fumaça, nuvens e barcos: escurecem com a noite (só cor/uniform)
+        if (v > 0 || fase.current) {
+            if (escurecer.fumaca) escurecer.fumaca.color.lerpColors(corFumaca, COR_FUMACA_NOITE, s);
+            if (escurecer.nuvens) escurecer.nuvens.uniforms.noite.value = s;
+            if (bases.current.length === 0 && escurecer.frota.length) {
+                const vistos = new Set<THREE.Material>();
+                for (const r of escurecer.frota) r.traverse((o) => {
+                    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+                    if (m && m.isMeshStandardMaterial && !vistos.has(m)) { vistos.add(m); bases.current.push({ m, cor: m.color.clone(), env: m.envMapIntensity }); }
+                });
+            }
+            for (const b of bases.current) { b.m.color.copy(b.cor).multiplyScalar(1 - .72 * s); b.m.envMapIntensity = b.env * (1 - .85 * s); }
+        }
         fase.current = v > 0 ? 1 : 0;
         // janelas: apagadas (escala 0) de dia; à noite acendem
         const t = estado.clock.elapsedTime;
@@ -213,13 +266,14 @@ export function NoiteDoMundo(): React.ReactElement {
             if (gr.visible !== on) gr.visible = on;
             if (!on) continue;
             let k: number;
-            if (i === CASA_CERTA) k = .8 * s;   // âmbar firme
+            if (i === CASA_CERTA) k = 3.4 * s;   // âmbar firme e forte
             else {
                 // azul frio tremendo: dois senos incomensuráveis por casa + falha rara
-                const f = .55 + .3 * Math.sin(t * 7.3 + i * 2.1) + .25 * Math.sin(t * 17.9 + i * 5.3);
-                k = Math.max(.08, f) * 2.2 * s;
+                const f = .5 + .35 * Math.sin(t * 7.3 + i * 2.1) + .3 * Math.sin(t * 17.9 + i * 5.3);
+                k = Math.max(.05, f) * 2.6 * s;
             }
             mats[i].emissiveIntensity = k;
+            halos[i].opacity = i === CASA_CERTA ? .85 * s : Math.min(.55, k * .22);
         }
     });
 
@@ -231,6 +285,7 @@ export function NoiteDoMundo(): React.ReactElement {
                 {JANELAS.map((w, k) => <group key={k} position={[w[0], w[1], w[2]]} rotation={[0, w[3], 0]}>
                     <mesh geometry={geoQuadro} material={matQuadro} />
                     <mesh geometry={geo} material={mats[i]} position={[0, 0, .012]} />
+                    <sprite material={halos[i]} position={[0, 0, .25]} scale={[2.3, 2.3, 1]} />
                 </group>)}
             </group>;
         })}

@@ -13,6 +13,7 @@ import { useGLTF } from '@react-three/drei';
 import casaGlb from './assets/f13/casa.glb';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { escurecer } from './f13Noite';
 import nuvensAtlas from './assets/f13/nuvens.webp';
 import { CASAS, CASA_CERTA } from './f13Lore';
 import { Decoracao } from './f13Decoracao';
@@ -156,7 +157,7 @@ const Nuvens: React.FC = () => {
                     #include <fog_vertex>
                 }`,
             fragmentShader: `
-                uniform sampler2D mapa; uniform vec3 sol; uniform vec3 sombra;
+                uniform sampler2D mapa; uniform vec3 sol; uniform vec3 sombra; uniform float noite;
                 varying vec2 vUv; varying float vY;
                 #include <fog_pars_fragment>
                 void main() {
@@ -164,6 +165,7 @@ const Nuvens: React.FC = () => {
                     if (c.a < .01) discard;
                     float l = dot(c.rgb, vec3(.33));
                     vec3 cor = mix(sombra, sol, smoothstep(.35, .95, l + vY * .25)) * (.75 + l * .55);
+                    cor = mix(cor, cor * vec3(.16, .2, .34), noite);
                     gl_FragColor = vec4(cor, c.a);
                     #include <tonemapping_fragment>
                     #include <colorspace_fragment>
@@ -182,9 +184,11 @@ const Nuvens: React.FC = () => {
             const a = rnd() * Math.PI * 2, d = 45 + rnd() * 70;
             l.push({ x: Math.cos(a) * d, y: 2 + rnd() * 16, z: Math.sin(a) * d, s: 12 + rnd() * 12, c: Math.floor(rnd() * 4) });
         }
+        m.uniforms.noite = { value: 0 };
         return { geo: g, mat: m, lista: l };
     }, []);
     const ref = useRef<THREE.InstancedMesh>(null);
+    useEffect(() => { escurecer.nuvens = mat; return () => { if (escurecer.nuvens === mat) escurecer.nuvens = null; }; }, [mat]);
     useEffect(() => {
         const m = ref.current; if (!m) return;
         const o = new THREE.Object3D();
@@ -431,6 +435,7 @@ const matFumaca = (() => {
         sh.vertexShader = 'attribute float aAlfa;\nvarying float vAlfa;\nvarying vec3 vNv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlfa = aAlfa;\nvNv = normalize(normalMatrix * normal);');
         sh.fragmentShader = 'varying float vAlfa;\nvarying vec3 vNv;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vAlfa * pow(clamp(abs(normalize(vNv).z), 0., 1.), 1.8);');
     };
+    escurecer.fumaca = m;
     return m;
 })();
 const Fumaca: React.FC<{ y: number; fase?: number }> = ({ y, fase = 0 }) => {
@@ -720,7 +725,7 @@ const Frota: React.FC = () => {
             g.rotation.set(Math.sin(t * .5 + i) * .04, -a + (r.v > 0 ? Math.PI : 0), Math.sin(t * .8 + i) * .05);
         });
     });
-    return <>{rotas.map((r, i) => <group key={i} ref={(g) => { refs.current[i] = g; }} userData={{ vivo: true }}><Barco vela={r.vela} escala={r.e} /></group>)}</>;
+    return <>{rotas.map((r, i) => <group key={i} ref={(g) => { refs.current[i] = g; if (g && !escurecer.frota.includes(g)) escurecer.frota.push(g); }} userData={{ vivo: true }}><Barco vela={r.vela} escala={r.e} /></group>)}</>;
 };
 
 /** Perfil de sino de bronze: ombro, cintura e a boca que abre em aba. */
