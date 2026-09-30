@@ -10,7 +10,7 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { fbm3, semente, texCapo, texCouro, texHelice, texLa, texLona, texMadeira, texMalha, texPlaca } from './f13CabineTex';
+import { fbm3, semente, texCapo, texReflexoParabrisa, texCouro, texHelice, texLa, texLona, texMadeira, texMalha, texPlaca } from './f13CabineTex';
 
 const liso = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const grau = (g: number) => g * Math.PI / 180;
@@ -23,7 +23,7 @@ export interface Materiais {
     borracha: THREE.MeshStandardMaterial; costura: THREE.MeshStandardMaterial;
     capo: THREE.MeshPhysicalMaterial; lona: THREE.MeshStandardMaterial; lonaTopo: THREE.MeshStandardMaterial;
     la: THREE.MeshPhysicalMaterial; malha: THREE.MeshPhysicalMaterial;
-    vidro: THREE.MeshPhysicalMaterial; helice: THREE.MeshPhysicalMaterial; heliceTinta: THREE.MeshBasicMaterial; heliceAnel: THREE.MeshBasicMaterial;
+    vidro: THREE.MeshPhysicalMaterial; helice: THREE.MeshPhysicalMaterial; heliceLatao: THREE.MeshStandardMaterial; heliceTinta: THREE.MeshBasicMaterial; heliceAnel: THREE.MeshBasicMaterial;
     heliceDisco: THREE.MeshBasicMaterial;
 }
 let cacheMat: Materiais | null = null;
@@ -46,8 +46,8 @@ export function materiais(): Materiais {
         const m = new THREE.MeshPhysicalMaterial({ roughness: rug, metalness: 0, clearcoat: 1, clearcoatRoughness: .08, bumpScale: 1.2, envMapIntensity: 1.2 });
         return comMapas(m, j, rx, ry, giro);
     };
-    const couro = (j: ReturnType<typeof texCouro>, rx: number, ry: number, rug = .5) => {
-        const m = new THREE.MeshPhysicalMaterial({ roughness: rug, metalness: 0, clearcoat: .22, clearcoatRoughness: .4, sheen: .5, sheenRoughness: .5, sheenColor: new THREE.Color('#c08c5a'), normalScale: new THREE.Vector2(.9, .9) });
+    const couro = (j: ReturnType<typeof texCouro>, rx: number, ry: number, rug = .5, rel = .9) => {
+        const m = new THREE.MeshPhysicalMaterial({ roughness: rug, metalness: 0, clearcoat: .22, clearcoatRoughness: .4, sheen: .5, sheenRoughness: .5, sheenColor: new THREE.Color('#c08c5a'), normalScale: new THREE.Vector2(rel, rel) });
         return comMapas(m, j, rx, ry);
     };
     const vidro = new THREE.MeshPhysicalMaterial({
@@ -68,8 +68,8 @@ export function materiais(): Materiais {
     const helices = texHelice();
     cacheMat = {
         mogno: enche(verniz(texMadeira('mogno'), .4), .42), abeto: enche(verniz(texMadeira('abeto'), .45), .3), abetoV: enche(verniz(texMadeira('abeto'), .45, Math.PI / 2, 1, 1), .3), nogueira: enche(verniz(texMadeira('nogueira'), .35), .3),
-        couroRim: enche(couro(texCouro('#7a4a2a', true), 1, 1, .48), .3),
-        couroLuva: enche(couro(texCouro('#8a5530'), 1.2, 1.2, .52), .28),
+        couroRim: enche(couro(texCouro('#8f5d36', true), 1, 1, .48), .34),
+        couroLuva: enche(couro(texCouro('#8a5530'), 1.2, 1.2, .52, .35), .28),
         couroEscuro: enche(couro(texCouro('#3a2414'), 1, 1, .5), .25),
         couroCinta: enche(couro(texCouro('#5a3520', true), 2, 1, .5), .28),
         latao: new THREE.MeshStandardMaterial({ color: '#d2a84a', metalness: 1, roughness: .26, envMapIntensity: 1.4 }),
@@ -78,15 +78,16 @@ export function materiais(): Materiais {
         acoEscuro: new THREE.MeshStandardMaterial({ color: '#34363b', metalness: .75, roughness: .42, envMapIntensity: 1 }),
         borracha: new THREE.MeshStandardMaterial({ color: '#17140f', metalness: 0, roughness: .78 }),
         costura: new THREE.MeshStandardMaterial({ color: '#241509', metalness: 0, roughness: .8 }),
-        capo: enche(comMapas(new THREE.MeshPhysicalMaterial({ roughness: .36, metalness: .02, clearcoat: .6, clearcoatRoughness: .22, normalScale: new THREE.Vector2(1.5, 1.5), envMapIntensity: 1.1 }), texCapo('#e8dcbc', '#2e5a94')), .2),
+        capo: enche(comMapas(new THREE.MeshPhysicalMaterial({ roughness: .5, metalness: 0, clearcoat: .3, clearcoatRoughness: .4, normalScale: new THREE.Vector2(1.5, 1.5), envMapIntensity: .75 }), texCapo('#ecdcb4', '#2e5a94')), .26),
         lona: enche(comMapas(new THREE.MeshStandardMaterial({ roughness: .82, metalness: 0, normalScale: new THREE.Vector2(.7, .7), side: THREE.DoubleSide }), texLona('#f0e6cc')), .3),
         lonaTopo: enche(comMapas(new THREE.MeshStandardMaterial({ roughness: .8, metalness: 0, normalScale: new THREE.Vector2(.7, .7), side: THREE.DoubleSide }), texLona('#ece1c6')), .42),
         la: enche(comMapas(new THREE.MeshPhysicalMaterial({ roughness: .92, metalness: 0, sheen: .8, sheenRoughness: .7, sheenColor: new THREE.Color('#9dbbe8'), normalScale: new THREE.Vector2(1.1, 1.1) }), texLa('#3b6fb0'), 2.2, 2.6), .3),
         malha: enche(comMapas(new THREE.MeshPhysicalMaterial({ roughness: .95, metalness: 0, normalScale: new THREE.Vector2(1.3, 1.3) }), texMalha('#2c5489'), 1, 1), .3),
         vidro,
         helice: comMapas(new THREE.MeshPhysicalMaterial({ roughness: .36, metalness: 0, clearcoat: 1, clearcoatRoughness: .12, transparent: true }), helices),
+        heliceLatao: new THREE.MeshStandardMaterial({ color: '#d2a84a', metalness: 1, roughness: .26, envMapIntensity: 1.4, transparent: true }),
         heliceTinta: new THREE.MeshBasicMaterial({ color: '#3b2614', transparent: true, opacity: .05, depthWrite: false, side: THREE.DoubleSide, fog: false }),
-        heliceAnel: new THREE.MeshBasicMaterial({ color: '#e9cf7a', transparent: true, opacity: .12, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }),
+        heliceAnel: new THREE.MeshBasicMaterial({ color: '#b98a3a', transparent: true, opacity: .05, depthWrite: false, side: THREE.DoubleSide, fog: false }),
         heliceDisco: new THREE.MeshBasicMaterial({ color: '#6a5034', transparent: true, opacity: .05, depthWrite: false, side: THREE.DoubleSide, fog: false }),
     };
     return cacheMat;
@@ -211,7 +212,7 @@ function laminaDaPa(ponta: boolean): THREE.BufferGeometry {
 
 export interface Helice {
     grupo: THREE.Group;
-    /** `angulo` (rad, sentido horário visto do piloto), `borrao` 0–1, `abertura` = rastro em rad. */
+    /** `angulo` (rad, sentido horário visto do piloto), `abertura` = arco do rastro em rad, `solida` = opacidade das pás de verdade. */
     pose(angulo: number, abertura: number, solida: number, visivel: boolean): void;
 }
 export function construirHelice(m: Materiais): Helice {
@@ -223,37 +224,40 @@ export function construirHelice(m: Materiais): Helice {
     const pa = (i: number) => {
         const k = new THREE.Group(); k.rotation.z = i * Math.PI;
         const w = new THREE.Mesh(madeira, m.helice); k.add(w);
-        const c = new THREE.Mesh(capa, m.latao); c.scale.setScalar(1.045); k.add(c);
+        const c = new THREE.Mesh(capa, m.heliceLatao); c.scale.setScalar(1.045); k.add(c);
         return k;
     };
     pas.add(pa(0), pa(1));
     // o cubo de latão (atrás do capô na maior parte do tempo)
     const cubo = new THREE.Mesh(new THREE.CylinderGeometry(.085, .1, .1, 24), m.latao); cubo.rotation.x = Math.PI / 2; grupo.add(cubo);
-    // o rastro: cópias translúcidas da pá, espalhadas por um arco
+    // o rastro: cópias translúcidas da pá, espalhadas por um arco. A densidade é fixa
+    // (uma cópia a cada ~2°): o arco encolhe com a rotação e o rastro vira pás de novo.
     const N = HELICE.ghosts * 2;
     const rastro = new THREE.InstancedMesh(madeira, m.heliceTinta, N); rastro.frustumCulled = false; rastro.renderOrder = 3;
     const rastroL = new THREE.InstancedMesh(capa, m.heliceAnel, N); rastroL.frustumCulled = false; rastroL.renderOrder = 3;
     grupo.add(rastro, rastroL);
-    // o disco: uma névoa fina entre o cubo e a ponta
-    const disco = new THREE.Mesh(new THREE.RingGeometry(.1, R * .97, 72, 3), m.heliceDisco); disco.renderOrder = 2; grupo.add(disco);
+    // o disco: uma névoa fina entre o cubo e a ponta, mais densa no miolo
+    const disco = new THREE.Mesh(new THREE.RingGeometry(.1, R * .985, 96, 4), m.heliceDisco); disco.renderOrder = 2; grupo.add(disco);
     const mtx = new THREE.Matrix4(), rot = new THREE.Quaternion(), zaxis = new THREE.Vector3(0, 0, 1), um = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3();
     return {
         grupo,
         pose(angulo, abertura, solida, visivel) {
             grupo.visible = visivel;
             pas.rotation.z = -angulo;
-            m.helice.opacity = solida;
+            m.helice.opacity = solida; m.heliceLatao.opacity = solida;
             pas.visible = solida > .01;
             const borrao = 1 - solida;
-            rastro.visible = rastroL.visible = borrao > .01 && abertura > .01;
+            const passos = Math.min(HELICE.ghosts, Math.max(0, Math.ceil(HELICE.ghosts * abertura / Math.PI)));
+            rastro.visible = rastroL.visible = borrao > .01 && passos > 1;
+            rastro.count = rastroL.count = passos * 2;
             disco.visible = borrao > .02;
-            m.heliceDisco.opacity = .06 * borrao * Math.min(1, abertura / 2.4);
-            // cada cópia rende 1/N do rastro; o conjunto some junto com `borrao`
-            const passos = HELICE.ghosts;
-            m.heliceTinta.opacity = .075 * borrao;
-            m.heliceAnel.opacity = .085 * borrao;
+            m.heliceDisco.opacity = .035 * borrao * Math.min(1, abertura / 2.4);
+            // a energia do rastro se conserva: arco curto = cada cópia mais opaca (a pá demora mais em cada ponto)
+            const reforco = Math.min(6, Math.PI / Math.max(.25, abertura));
+            m.heliceTinta.opacity = Math.min(.4, .036 * reforco) * borrao;
+            m.heliceAnel.opacity = Math.min(.14, .012 * reforco) * borrao;
             for (let k = 0; k < passos; k++) for (let b = 0; b < 2; b++) {
-                const a = -angulo + (k / passos) * abertura + b * Math.PI;
+                const a = -angulo + (k / HELICE.ghosts) * Math.PI + b * Math.PI;
                 rot.setFromAxisAngle(zaxis, a); mtx.compose(zero, rot, um);
                 rastro.setMatrixAt(k * 2 + b, mtx); rastroL.setMatrixAt(k * 2 + b, mtx);
             }
@@ -271,6 +275,10 @@ export function construirParabrisa(m: Materiais): THREE.Group {
     // o vidro: um setor de cilindro, levemente curvo
     const vidro = superficie(40, 8, (u, v, p) => ponto((u - .5) * da, v, p), { inverter: true });
     const vid = new THREE.Mesh(vidro, m.vidro); vid.renderOrder = 4; g.add(vid);
+    // os reflexos: uma camada de brilho fino por cima do vidro (o céu e o clarão do sol)
+    const brilho = new THREE.Mesh(superficie(40, 8, (u, v, p) => ponto((u - .5) * da, v, p, .0006), { inverter: true, uv: (u, v) => [u, v] }),
+        new THREE.MeshBasicMaterial({ map: texReflexoParabrisa(), transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false }));
+    brilho.renderOrder = 5; g.add(brilho);
     // moldura de latão: trilho de baixo, de cima e os dois montantes curvos
     const trilho = (h: number, r: number) => {
         const pts: THREE.Vector3[] = []; for (let i = 0; i <= 24; i++) pts.push(ponto((i / 24 - .5) * da, h, new THREE.Vector3()));
@@ -302,7 +310,15 @@ export function construirBorda(m: Materiais): THREE.Group {
         [M, yF - .012, zF + .09], [M + .02, -.26, -.58], [M + .05, -.33, -.34], [M + .07, -.38, -.1],
     ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
     const curva = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-    g.add(new THREE.Mesh(tubo(curva, 200, 24, (t) => .024 * (1 + .05 * Math.sin(t * Math.PI * 9)), false, 16), m.couroRim));
+    g.add(new THREE.Mesh(tubo(curva, 200, 24, (t) => .021 * (1 + .05 * Math.sin(t * Math.PI * 9)), false, 16), m.couroRim));
+    return g;
+}
+
+/** O casco da cabine: paredes e piso vistos por dentro (cobrem a asa que passa por baixo). */
+export function construirCasco(m: Materiais): THREE.Group {
+    const g = new THREE.Group();
+    const dentro = new THREE.MeshStandardMaterial({ color: '#5b4a34', roughness: .9, metalness: 0, side: THREE.BackSide, emissive: '#3a2c1c', emissiveIntensity: .5 });
+    const caixa = new THREE.Mesh(new THREE.BoxGeometry(.62, .55, 1.15), dentro); caixa.position.set(0, -.58, -.175); g.add(caixa);
     return g;
 }
 
@@ -353,7 +369,7 @@ export function construirCabo(m: Materiais): THREE.Mesh { return new THREE.Mesh(
 
 // ═══ O MANCHE E AS MÃOS ══════════════════════════════════════════════════════
 /** O manche: coluna de aço que sobe do piso e termina numa barra em T com empunhaduras de couro. */
-export const MANCHE = { pivo: new THREE.Vector3(0, -.74, -.36), comp: .468, barra: .3, rBarra: .0135 } as const;
+export const MANCHE = { pivo: new THREE.Vector3(0, -.74, -.36), comp: .5, barra: .3, rBarra: .0135 } as const;
 export function construirManche(m: Materiais): THREE.Group {
     const g = new THREE.Group();
     // a origem do grupo é o pivô no piso; o topo fica em +y
@@ -380,25 +396,42 @@ export function construirManche(m: Materiais): THREE.Group {
  * aparece em cima, os dedos dão a volta pela frente e a ponta se recolhe
  * por baixo. Devolve o punho (onde a luva encontra a manga) em `userData.punho`.
  */
+// seções do dorso da mão, do nó dos dedos ao punho: z, centro y, meia-largura, meia-altura
+const DORSO: ReadonlyArray<readonly [number, number, number, number]> = [
+    [-.004, .0185, .0445, .0150], [.020, .0170, .0440, .0150], [.050, .0090, .0415, .0180], [.080, -.0030, .0385, .0235], [.108, -.0110, .0360, .0285],
+];
+function secaoDoDorso(z: number): [number, number, number] {
+    let i = 0; while (i < DORSO.length - 2 && z > DORSO[i + 1][0]) i++;
+    const a = DORSO[i], b = DORSO[i + 1], t = liso(0, 1, (z - a[0]) / (b[0] - a[0]));
+    return [mix(a[1], b[1], t), mix(a[2], b[2], t), mix(a[3], b[3], t)];
+}
 export function construirMao(m: Materiais, lado: 1 | -1): THREE.Group {
     const g = new THREE.Group();
     const rb = MANCHE.rBarra + .003, xh = .083;           // a mão fica sobre a empunhadura
     const C = new THREE.Vector3(0, 0, 0);
     const dir = (phi: number) => new THREE.Vector3(0, Math.sin(phi), -Math.cos(phi));
-    // um dedo: arco de círculo em volta da barra, raio variável, ponta arredondada
-    const dedo = (x: number, raio: number, compr: number[], gros: number, phi0: number, cima = 1) => {
-        const rho = rb + raio, total = compr.reduce((a, b) => a + b, 0), dphi = total / rho;
+    const mao = new THREE.Group(); mao.position.x = lado * xh; g.add(mao);
+    // para a mão esquerda o desenho inteiro é espelhado em x (indicador para dentro)
+    const espelho = new THREE.Group(); espelho.scale.x = lado; mao.add(espelho);
+
+    // um dedo: arco de círculo em volta da barra, raio variável, ponta arredondada, nó em cada junta
+    const dedo = (x: number, gros: number, compr: number[], phi0: number) => {
+        const rho = rb + gros, total = compr.reduce((a, b) => a + b, 0), dphi = total / rho;
         const juntas = [compr[0] / total, (compr[0] + compr[1]) / total];
-        const geo = superficie(14, 40, (u, v, p) => {
-            const phi = phi0 - v * dphi, a = u * Math.PI * 2;
-            let r = gros * (1 + .05 * juntas.reduce((s, j) => s + Math.exp(-(((v - j) / .05) ** 2)), 0) - .035 * Math.sin(v * Math.PI * 3.2) ** 2 * .0);
-            r *= v > .86 ? Math.sqrt(Math.max(0, 1 - ((v - .86) / .14) ** 2) * .92 + .08) : 1;
-            r *= 1 - .18 * v;                                               // afina para a ponta
-            const d = dir(phi);
-            p.copy(C).addScaledVector(d, rho + r * Math.cos(a) * cima);
-            p.x += x + r * Math.sin(a) * .92;
-        }, { uv: (u, v) => [u * 2, v * 2], inverter: true, fechaU: true });
-        return new THREE.Mesh(geo, m.couroLuva);
+        const raioEm = (v: number) => {
+            let r = gros * (1 + .055 * juntas.reduce((s, j) => s + Math.exp(-(((v - j) / .045) ** 2)), 0) + .05 * Math.exp(-((v / .1) ** 2)));
+            if (v > .84) r *= Math.sqrt(Math.max(0, 1 - ((v - .84) / .16) ** 2) * .94 + .06);
+            return r * (1 - .14 * v);
+        };
+        const geo = superficie(18, 44, (u, v, p) => {
+            const phi = phi0 - v * dphi, a = u * Math.PI * 2, r = raioEm(v);
+            p.copy(C).addScaledVector(dir(phi), rho + r * Math.cos(a) * 1);
+            p.x += x + r * Math.sin(a) * .94;
+        }, { uv: (u, v) => [u * 2, v * 2.2], inverter: true, fechaU: true });
+        // a costura de cima, em linha escura fina
+        const linha: THREE.Vector3[] = [];
+        for (let i = 0; i <= 20; i++) { const v = i / 20 * .82; linha.push(C.clone().addScaledVector(dir(phi0 - v * dphi), rho + raioEm(v) * 1.0).add(new THREE.Vector3(x, 0, 0))); }
+        return { malha: new THREE.Mesh(geo, m.couroLuva), linha };
     };
     // dedos: indicador (perto do centro) → mindinho (fora). Comprimentos por falange.
     const xs = [-.0285, -.0095, .0095, .027];
@@ -408,65 +441,78 @@ export function construirMao(m: Materiais, lado: 1 | -1): THREE.Group {
         [xs[2], [.043, .027, .022], .009],
         [xs[3], [.033, .02, .018], .0078],
     ];
-    const mao = new THREE.Group(); mao.position.x = lado * xh; g.add(mao);
-    // para a mão esquerda o desenho inteiro é espelhado em x (indicador para dentro)
-    const espelho = new THREE.Group(); espelho.scale.x = lado; mao.add(espelho);
-    // a mão direita tem o indicador do lado do polegar (dentro = -x): xs já está assim
-    fingers.forEach(([x, compr, gros]) => espelho.add(dedo(x, gros, compr, gros, grau(118))));
-    // o polegar dá a volta por cima, do lado de dentro, e desce pela frente
-    const polegar = (() => {
-        const rho = rb + .0105, dphi = .072 / rho, x0 = -.052;
-        const geo = superficie(14, 36, (u, v, p) => {
-            const phi = grau(160) - v * dphi, a = u * Math.PI * 2;
-            let r = .0108 * (1 + .04 * Math.exp(-(((v - .5) / .07) ** 2)));
-            r *= v > .85 ? Math.sqrt(Math.max(0, 1 - ((v - .85) / .15) ** 2) * .9 + .1) : 1; r *= 1 - .14 * v;
-            p.copy(C).addScaledVector(dir(phi), rho + r * Math.cos(a)); p.x += x0 + r * Math.sin(a) * .95 + .006 * v;
-        }, { uv: (u, v) => [u * 2, v * 2], inverter: true, fechaU: true });
-        return new THREE.Mesh(geo, m.couroLuva);
-    })();
-    espelho.add(polegar);
-    // o dorso da mão: um bloco arredondado que vai dos nós dos dedos ao punho, inclinado
-    const dorso = new THREE.Mesh(new RoundedBoxGeometry(.088, .036, .104, 5, .014), m.couroLuva);
-    dorso.position.set(0, .021, .0655); dorso.rotation.x = .2; espelho.add(dorso);
-    // a base do polegar
-    const tenar = new THREE.Mesh(new THREE.SphereGeometry(.0235, 20, 14), m.couroLuva); tenar.scale.set(1, .85, 1.25); tenar.position.set(-.036, .01, .056); espelho.add(tenar);
-    // os três tendões do dorso e as costuras de couro (linhas escuras)
-    for (const x of [-.02, 0, .02]) {
-        const pts = [new THREE.Vector3(x, .036, .108), new THREE.Vector3(x, .0405, .07), new THREE.Vector3(x + (x * .1), .0385, .028), new THREE.Vector3(x, .031, .008)];
-        const t = new THREE.Mesh(tubo(new THREE.CatmullRomCurve3(pts), 14, 8, () => .0028), m.costura); espelho.add(t);
+    fingers.forEach(([x, compr, gros]) => {
+        const d = dedo(x, gros, compr, grau(106));
+        espelho.add(d.malha);
+        espelho.add(new THREE.Mesh(tubo(new THREE.CatmullRomCurve3(d.linha), 22, 5, () => .0006), m.costura));
+    });
+    // o polegar: sai da base (no lado de dentro), passa por cima e cai pela frente da barra
+    {
+        const pts = [[-.03, .0, .07], [-.039, .012, .044], [-.0465, .0245, .012], [-.0475, .0275, -.014], [-.0455, .0225, -.032], [-.043, .0105, -.0385]]
+            .map(([x, y, z]) => new THREE.Vector3(x, y, z));
+        const curva = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+        const geo = tubo(curva, 36, 16, (t) => {
+            const r = .0098 * (1 + .05 * Math.exp(-(((t - .6) / .06) ** 2))) * (1 - .1 * t);
+            return t > .85 ? r * Math.sqrt(Math.max(0, 1 - ((t - .85) / .15) ** 2) * .94 + .06) : r;
+        }, false, 3);
+        espelho.add(new THREE.Mesh(geo, m.couroLuva));
     }
-    // o nó dos dedos: quatro rolos onde o couro dobra
-    xs.forEach((x, i) => { const r = new THREE.Mesh(new THREE.SphereGeometry(i === 3 ? .0085 : .0098, 14, 10), m.couroLuva); r.position.set(x, .0342, .0055); r.scale.set(1, .85, 1.1); espelho.add(r); });
-    // o punho da luva: um cano curto que alarga, com correia e fivela
-    const punho = new THREE.Group(); punho.position.set(0, .0205, .118); punho.rotation.x = 0; g.userData.punho = punho; espelho.add(punho);
-    const cano = new THREE.Mesh(superficie(40, 6, (u, v, p) => { const a = u * Math.PI * 2, r = mix(.0365, .047, v * v); p.set(Math.sin(a) * r, Math.cos(a) * r * .94, v * .052); }, { inverter: false, fechaU: true, uv: (u, v) => [u * 3, v] }), m.couroLuva);
-    punho.add(cano);
-    const correia = new THREE.Mesh(superficie(40, 1, (u, v, p) => { const a = u * Math.PI * 2, r = .0405 + .0028; p.set(Math.sin(a) * r, Math.cos(a) * r * .94, .004 + v * .014); }, { fechaU: true, uv: (u, v) => [u * 4, v] }), m.couroCinta);
-    punho.add(correia);
-    const fiv = new THREE.Mesh(new RoundedBoxGeometry(.016, .014, .017, 2, .003), m.latao); fiv.position.set(0, .0405 * .94 + .0035, .011); punho.add(fiv);
+    // o dorso da mão: casca afilada do nó dos dedos ao punho, em leve declive
+    const dorso = new THREE.Mesh(superficie(56, 28, (u, v, p) => {
+        const z = mix(-.004, .108, v), [yc, a, b] = secaoDoDorso(z), th = u * Math.PI * 2, e = 2 / 2.6;
+        const sx = Math.sign(Math.sin(th)) * Math.abs(Math.sin(th)) ** e, sy = Math.sign(Math.cos(th)) * Math.abs(Math.cos(th)) ** e;
+        p.set(a * sx, yc + b * sy, z);
+    }, { inverter: true, fechaU: true, uv: (u, v) => [u * 2, v * 1.4] }), m.couroLuva);
+    espelho.add(dorso);
+    // o fecho da frente do dorso (o dedo nasce dali) e a base do polegar
+    const frente = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), m.couroLuva); frente.scale.set(.0445, .0150, .0125); frente.position.set(0, .0185, -.004); espelho.add(frente);
+    const tenar = new THREE.Mesh(new THREE.SphereGeometry(.0175, 20, 14), m.couroLuva); tenar.scale.set(1, .75, 1.5); tenar.position.set(-.033, .0035, .056); espelho.add(tenar);
+    // os três tendões do dorso: nervuras costuradas de couro
+    for (const x of [-.018, 0, .018]) {
+        const pts = [new THREE.Vector3(x * 1.5, -.004, .105), new THREE.Vector3(x * 1.2, .015, .062), new THREE.Vector3(x * 1.05, .0285, .03), new THREE.Vector3(x, .0345, .002)];
+        espelho.add(new THREE.Mesh(tubo(new THREE.CatmullRomCurve3(pts), 16, 8, (t) => .0026 * (1 - .4 * t)), m.costura));
+    }
+    // os nós dos dedos: quatro rolos onde o couro dobra
+    xs.forEach((x, i) => { const r = new THREE.Mesh(new THREE.SphereGeometry(i === 3 ? .0088 : .0098, 16, 12), m.couroLuva); r.position.set(x, .0295, .0035); r.scale.set(1, .9, 1.15); espelho.add(r); });
+    // o ponto onde a manga encontra a luva: o fim do dorso
+    const punho = new THREE.Group(); punho.position.set(0, -.0110, .108); g.userData.punho = punho; espelho.add(punho);
     g.userData.espelho = espelho;
     return g;
 }
 
-/** O antebraço: manga de lã azul, punho de malha canelada e um pedaço de antebraço. Eixo em +z para o cotovelo. */
+/**
+ * O antebraço: cano da luva (couro, com correia e fivela), punho de malha
+ * canelada e a manga de lã azul da jaqueta do hóspede. A origem é o punho
+ * (onde a luva encontra o dorso); o eixo +z corre para o cotovelo.
+ */
 export function construirManga(m: Materiais): THREE.Group {
     const g = new THREE.Group();
-    const rnd = semente(909);
-    const L = .34;
-    // punho de malha (azul mais escuro) — sai de dentro do cano da luva
+    // o cano da luva: alarga para a boca, com a borda enrolada
+    const cano = new THREE.Mesh(superficie(56, 10, (u, v, p) => {
+        const a = u * Math.PI * 2, z = -.02 + v * .056, r = mix(.0372, .0472, Math.pow(v, 1.5)) + .0012 * Math.sin(v * 9 + 1);
+        p.set(Math.sin(a) * r, Math.cos(a) * r * .95, z);
+    }, { inverter: true, fechaU: true, uv: (u, v) => [u * 3, v * 1.2] }), m.couroLuva);
+    g.add(cano);
+    const borda = new THREE.Mesh(new THREE.TorusGeometry(.0474, .0036, 10, 56), m.couroLuva); borda.scale.y = .95; borda.position.z = .036; g.add(borda);
+    // correia de couro escuro apertada no pulso, com a fivela de latão em cima
+    const correia = new THREE.Mesh(superficie(56, 1, (u, v, p) => { const a = u * Math.PI * 2, z = .0045 + v * .0125, r = mix(.0372, .0472, Math.pow((z + .02) / .056, 1.5)) + .0034; p.set(Math.sin(a) * r, Math.cos(a) * r * .95, z); }, { inverter: true, fechaU: true, uv: (u, v) => [u * 4, v] }), m.couroCinta);
+    g.add(correia);
+    const fiv = new THREE.Mesh(new RoundedBoxGeometry(.019, .006, .0185, 2, .0022), m.latao); fiv.position.set(0, .0395, .011); g.add(fiv);
+    const ponta = new THREE.Mesh(new THREE.BoxGeometry(.008, .0022, .02), m.couroCinta); ponta.position.set(.012, .0408, .0155); ponta.rotation.z = -.12; g.add(ponta);
+    // punho de malha canelada (azul mais escuro), saindo de dentro do cano
     const punho = new THREE.Mesh(superficie(48, 4, (u, v, p) => {
-        const a = u * Math.PI * 2, r = .0345 + .0015 * Math.sin(v * Math.PI); p.set(Math.sin(a) * r, Math.cos(a) * r * .95, v * .05);
-    }, { inverter: false, fechaU: true, uv: (u, v) => [u * 3, v] }), m.malha);
+        const a = u * Math.PI * 2, r = .0338 + .0012 * Math.sin(v * Math.PI); p.set(Math.sin(a) * r, Math.cos(a) * r * .95, .02 + v * .05);
+    }, { inverter: true, fechaU: true, uv: (u, v) => [u * 3, v] }), m.malha);
     g.add(punho);
-    // a manga: sobe do punho alargando, com dobras (rugas) e um leve tombo de tecido
-    const manga = new THREE.Mesh(superficie(64, 70, (u, v, p) => {
-        const a = u * Math.PI * 2, s = v * L, base = mix(.0365, .046, liso(0, .22, s) * .7 + liso(.22, L, s) * .3);
-        const ruga = .0034 * Math.sin(s * 95 + Math.sin(a * 2) * 1.4) * (1 - liso(.05, .2, s) * .5) + fbm3(Math.cos(a) * 3, Math.sin(a) * 3, s * 18, 3) * .003;
-        const r = base + ruga + .004 * Math.exp(-(((s - .03) / .02) ** 2));
-        p.set(Math.sin(a) * r, Math.cos(a) * r * .95, .045 + s);
-    }, { inverter: false, fechaU: true, uv: (u, v) => [u, v * 1.2] }), m.la);
+    // a manga: sai do punho alargando, com a prega de quem puxa a manga para baixo
+    const L = .34;
+    const manga = new THREE.Mesh(superficie(72, 80, (u, v, p) => {
+        const a = u * Math.PI * 2, s = v * L, base = mix(.0345, .0435, liso(0, .07, s)) + .0035 * liso(.07, L, s);
+        const prega = .0034 * Math.sin(s * 70 + Math.sin(a * 2) * 1.6) * (1 - liso(.0, .16, s) * .55) + fbm3(Math.cos(a) * 2.4, Math.sin(a) * 2.4, s * 14, 3) * .0028;
+        const r = base + prega + .0038 * Math.exp(-(((s - .015) / .012) ** 2));
+        p.set(Math.sin(a) * r, Math.cos(a) * r * .95, .06 + s);
+    }, { inverter: true, fechaU: true, uv: (u, v) => [u, v * 1.3] }), m.la);
     g.add(manga);
-    void rnd;
     return g;
 }
 

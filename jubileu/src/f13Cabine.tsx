@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { texMostrador, texReflexoDoVidro } from './f13CabineTex';
 import {
-    CAPO, HELICE, MANCHE, PAINEL, PARABRISA, construirAsa, construirBorda, construirCabo, construirCapo, construirHelice, construirManche, construirMao,
+    CAPO, HELICE, MANCHE, PAINEL, PARABRISA, construirAsa, construirBorda, construirCabo, construirCapo, construirCasco, construirHelice, construirManche, construirMao,
     construirManga, construirMontante, construirParabrisa, construirPlaca, ligar, materiais,
 } from './f13CabinePecas';
 
@@ -79,7 +79,7 @@ export const Cabine: React.FC<{
         const corpo = new THREE.Group();           // o que fica no eixo: capô, para-brisa, borda, hélice, montantes
         const capo = construirCapo(M), parabrisa = construirParabrisa(M), borda = construirBorda(M);
         const hel = construirHelice(M);
-        corpo.add(capo, parabrisa, borda, hel.grupo);
+        corpo.add(capo, parabrisa, borda, hel.grupo, construirCasco(M));
         // asas: a estrutura inteira é espremida em x quando a tela é estreita
         const estrutura = new THREE.Group();
         const baixa = construirAsa(4.2, 1.6, -1.15, -.66, M, 'baixa');
@@ -94,12 +94,12 @@ export const Cabine: React.FC<{
         };
         for (const s of [-1, 1]) {
             // montante da asa (fora, espremido): do topo da asa baixa ao fundo da alta
-            nova('montante', [s * 1.25, -.56, -1.0], [s * 1.25, .58, -1.17], .014, .034, [true, true]);
+            nova('montante', [s * 1.05, -.56, -1.0], [s * 1.05, .58, -1.17], .011, .028, [true, true]);
             // montante da cabine (no eixo): do convés à asa alta, abrindo para cima
-            nova('montante', [s * .2, -.14, -.97], [s * .36, .56, -1.26], .014, .034, [false, false]);
+            nova('montante', [s * .2, -.2, -.97], [s * .36, .56, -1.26], .011, .028, [false, false]);
             // cabos de aço cruzados: do pé do montante de fora ao alto do da cabine, e do alto do de fora à base do da cabine
-            nova('cabo', [s * 1.25, -.55, -1.0], [s * .36, .55, -1.26], .0032, .0032, [true, false]);
-            nova('cabo', [s * 1.25, .55, -1.17], [s * .2, -.13, -.97], .0032, .0032, [true, false]);
+            nova('cabo', [s * 1.05, -.55, -1.0], [s * .36, .55, -1.26], .0032, .0032, [true, false]);
+            nova('cabo', [s * 1.05, .55, -1.17], [s * .2, -.19, -.97], .0032, .0032, [true, false]);
         }
         // manche e mãos
         const manche = construirManche(M);
@@ -161,7 +161,7 @@ export const Cabine: React.FC<{
         const tx = A * Math.sin(t * 53) + A * .6 * Math.sin(t * 31 + 1.3) + .007 * toss * Math.sin(t * 23) * .8 + .004 * toss * Math.sin(t * 41 + .7);
         const tz = A * .9 * Math.sin(t * 47 + .5) + A * .5 * Math.sin(t * 29 + 2.1) + .009 * toss * Math.sin(t * 23 + 1.2) - .028 * choque * Math.sin((t - 5.05) * 50) + .02 * batida;
         const ty = A * .7 * Math.sin(t * 61 + 2) + .004 * toss * Math.sin(t * 19);
-        const inclina = mix(-.35, -.17, puxa) + .05 * toss * Math.sin(t * 23) + .05 * batida;
+        const inclina = mix(-.30, -.12, puxa) + .05 * toss * Math.sin(t * 23) + .05 * batida;
         const rola = .2 * esforco * Math.sin(t * 2.2 + .3) + .012 * toss * Math.sin(t * 17) + .025 * A * 160 * Math.sin(t * 33);
         const m = pecas.manche;
         m.position.set(MANCHE.pivo.x + tx, MANCHE.pivo.y + ty, MANCHE.pivo.z + tz - .04 * puxa);
@@ -176,10 +176,10 @@ export const Cabine: React.FC<{
             const punho = (mao.userData.punho as THREE.Object3D);
             punho.getWorldPosition(tmp.w); g.worldToLocal(tmp.w);
             // o cotovelo fica atrás e para fora; o antebraço aponta para ele
-            tmp.e.set(lado * (.3 + .02 * esforco), -.4, .05);
+            tmp.e.set(lado * (.29 + .02 * esforco), -.34, .06);
             tmp.a.subVectors(tmp.e, tmp.w).normalize();
             const manga = pecas.mangas[i];
-            manga.position.copy(tmp.w).addScaledVector(tmp.a, -.014);
+            manga.position.copy(tmp.w);
             manga.quaternion.setFromUnitVectors(tmp.z, tmp.a);
         });
 
@@ -201,9 +201,9 @@ export const Cabine: React.FC<{
             {/* filete de latão em volta do painel */}
             <mesh position={[0, -.15, .0185]}><primitive object={useMemo(() => { const s = new THREE.Shape(), w = PAINEL.meia - .012, h = .15 - .012; s.moveTo(-w, -h); s.lineTo(w, -h); s.lineTo(w, h); s.lineTo(-w, h); s.closePath(); const f = new THREE.Path(); const w2 = w - .004, h2 = h - .004; f.moveTo(-w2, -h2); f.lineTo(-w2, h2); f.lineTo(w2, h2); f.lineTo(w2, -h2); f.closePath(); s.holes.push(f); return new THREE.ShapeGeometry(s); }, [])} attach="geometry" /><primitive object={M.latao} attach="material" /></mesh>
             <group position={[0, 0, .018]}>
-                <Relogio x={-.135} y={-.085} r={.05} rotulo="ALT" marcas={10} unidade="×1000" agulha={alt} />
-                <Relogio x={0} y={-.08} r={.06} rotulo="RPM" marcas={8} vermelho={.2} unidade="×100" agulha={rpm} />
-                <Relogio x={.135} y={-.085} r={.047} rotulo="ÓLEO" marcas={4} vermelho={.25} agulha={oleo} />
+                <Relogio x={-.135} y={-.08} r={.047} rotulo="ALT" marcas={10} unidade="×1000" agulha={alt} />
+                <Relogio x={0} y={-.075} r={.056} rotulo="RPM" marcas={8} vermelho={.2} unidade="×100" agulha={rpm} />
+                <Relogio x={.135} y={-.08} r={.044} rotulo="ÓLEO" marcas={4} vermelho={.25} agulha={oleo} />
                 {/* a linha de baixo: lâmpada de pane e duas chaves de latão */}
                 <mesh position={[.09, -.205, .004]}><sphereGeometry args={[.0115, 20, 14]} /><meshStandardMaterial ref={lampada} color="#5a1008" emissive="#ff2a10" emissiveIntensity={.15} roughness={.3} /></mesh>
                 <mesh position={[.09, -.205, .001]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.0165, .0165, .006, 24]} /><primitive object={M.latao} attach="material" /></mesh>

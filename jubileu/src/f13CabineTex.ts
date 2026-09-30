@@ -443,3 +443,34 @@ export function texPlaca(texto: string, sub = ''): THREE.CanvasTexture {
     const t = new THREE.CanvasTexture(c.c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
     return t;
 }
+
+/** Reflexos do para-brisa: duas faixas claras em diagonal, o céu no alto e a borda mais escura embaixo. */
+let texParabrisa: THREE.CanvasTexture | null = null;
+export function texReflexoParabrisa(): THREE.CanvasTexture {
+    if (texParabrisa) return texParabrisa;
+    const W = 1024, H = 384, c = tela(W, H), g = c.g;
+    g.clearRect(0, 0, W, H);
+    // o céu que o vidro devolve: um degradê frio, mais forte no alto
+    const ceu = g.createLinearGradient(0, 0, 0, H);
+    ceu.addColorStop(0, 'rgba(210,232,255,.30)'); ceu.addColorStop(.55, 'rgba(210,232,255,.07)'); ceu.addColorStop(1, 'rgba(210,232,255,0)');
+    g.fillStyle = ceu; g.fillRect(0, 0, W, H);
+    // faixas de clarão (o vidro curvo espalha o sol)
+    const faixa = (x: number, larg: number, alfa: number) => {
+        g.save(); g.translate(x, H / 2); g.transform(1, 0, -.55, 1, 0, 0);
+        const f = g.createLinearGradient(-larg, 0, larg, 0);
+        f.addColorStop(0, 'rgba(255,255,255,0)'); f.addColorStop(.5, `rgba(255,255,255,${alfa})`); f.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = f; g.fillRect(-larg, -H, larg * 2, H * 2); g.restore();
+    };
+    faixa(W * .27, 70, .34); faixa(W * .36, 18, .22); faixa(W * .7, 46, .2); faixa(W * .78, 12, .16);
+    // a borda fosca de baixo e o verde do vidro grosso nas pontas
+    const borda = g.createLinearGradient(0, H * .82, 0, H);
+    borda.addColorStop(0, 'rgba(30,50,40,0)'); borda.addColorStop(1, 'rgba(30,50,40,.22)');
+    g.fillStyle = borda; g.fillRect(0, H * .82, W, H * .18);
+    for (const [x0, x1] of [[0, .05], [1, .95]] as const) {
+        const e = g.createLinearGradient(W * x0, 0, W * x1, 0);
+        e.addColorStop(0, 'rgba(60,110,90,.26)'); e.addColorStop(1, 'rgba(60,110,90,0)');
+        g.fillStyle = e; g.fillRect(Math.min(W * x0, W * x1), 0, Math.abs(W * (x1 - x0)), H);
+    }
+    texParabrisa = new THREE.CanvasTexture(c.c); texParabrisa.colorSpace = THREE.SRGBColorSpace; texParabrisa.anisotropy = 8;
+    return texParabrisa;
+}
