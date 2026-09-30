@@ -14,6 +14,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { busca } from './f13Busca';
+import { noite } from './f13Noite';
 import { chaoEm, INICIO, LUGAR_DOS_NPCS } from './f13Mundo';
 import * as THREE from 'three';
 
@@ -171,7 +172,7 @@ export const GanchoDaChegada: React.FC<{
         ultimoRelogio.current = agoraS;
         const dx = PISTEIRO.x - p.x, dz = PISTEIRO.z - p.z;
         const d = Math.round(Math.hypot(dx, dz));
-        if (d > 5) avisar(`${NOME_DE[ID_PISTEIRO]} espera por você: ${d} m ao ${rumoDe(dx, dz)}.`);
+        if (d > 5 && noite.alvo === 0) avisar(`${NOME_DE[ID_PISTEIRO]} espera por você: ${d} m ao ${rumoDe(dx, dz)}.`);
     });
 
     return null;
