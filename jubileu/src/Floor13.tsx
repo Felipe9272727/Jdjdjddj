@@ -72,6 +72,9 @@ const tFixo: number | null = typeof location !== 'undefined' && new URLSearchPar
  *  (`?f13t`, `?f13aovivo`) usa a cena ao vivo — é dela que o vídeo é gravado. */
 const QUEDA_EM_VIDEO = !(import.meta.env.DEV && typeof location !== 'undefined'
     && (tFixo !== null || new URLSearchParams(location.search).has('f13aovivo')));
+/** VP9 com alfa: Chrome, Edge, Firefox e Android; no iOS/Safari o fundo sai preto. */
+const TITULO_COM_ALFA = typeof navigator !== 'undefined'
+    && /Chrome|Firefox|Android/.test(navigator.userAgent) && !/iPhone|iPad|iPod|CriOS|FxiOS/.test(navigator.userAgent);
 /** A entidade em cena: a câmera fecha mais nela. */
 const entidadeNaCena = { valor: false, linha: 0 };
 const SEM_ABERRACAO = new THREE.Vector2(0, 0);
@@ -1547,9 +1550,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             {cena}
-            {fase === 'queda' && quedaEmVideo && <video ref={video} src={import.meta.env.BASE_URL + (retrato ? 'queda-v.mp4' : 'queda-h.mp4')} muted playsInline autoPlay preload="auto"
-                onError={() => setQuedaEmVideo(false)}
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }} />}
+            {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline autoPlay preload="auto"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }}>
+                {/* VP9 para Chrome/Firefox/Android; H.264 para o Safari. Nenhum dos dois: a cena ao vivo */}
+                <source src={import.meta.env.BASE_URL + (retrato ? 'queda-v.webm' : 'queda-h.webm')} type="video/webm" />
+                <source src={import.meta.env.BASE_URL + (retrato ? 'queda-v.mp4' : 'queda-h.mp4')} type="video/mp4" onError={() => setQuedaEmVideo(false)} />
+            </video>}
 
 
             {/* ── A QUEDA: legenda e o clarão do baque ── */}
@@ -1557,6 +1563,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 {legenda}
                 {tQueda.current < 2.5 && <div style={{ fontSize: '.85em', fontWeight: 700, opacity: 1, marginTop: 8, letterSpacing: 1, color: '#fff', textShadow: '0 1px 4px #000, 0 0 10px #000' }}>toque na tela para pular</div>}
             </div>}
+            {/* o título em runas (Manim, WebM com alfa): só onde o navegador faz alfa em VP9 —
+                no Safari o fundo sairia preto por cima da queda */}
+            {fase === 'queda' && !inicio && TITULO_COM_ALFA && <video src={import.meta.env.BASE_URL + (retrato ? 'titulo-v.webm' : 'titulo-h.webm')}
+                muted playsInline autoPlay style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
+                onEnded={(ev) => { ev.currentTarget.style.display = 'none'; }} />}
             {/* o andar 12 acaba e o 13 começa no mesmo avião: a imagem sai do preto */}
             {fase === 'queda' && !inicio && <div style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f13entra 1.1s ease-out forwards' }}>
                 <style>{'@keyframes f13entra{from{opacity:1}to{opacity:0}}'}</style>
