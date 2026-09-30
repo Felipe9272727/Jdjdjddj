@@ -212,6 +212,20 @@ export function tocarGlitch(): void {
     for (let i = 0; i < 6; i++) sopro(.05, .25, 3000 + Math.random() * 4000, i * .07, 'highpass');
     tom('square', 80, 1600, .4, .06); tom('square', 1600, 60, .5, .05, .35);
 }
+/** Batimento grave (WebAudio): o limiar da atenção foi cruzado. Mais batidas em nível maior. */
+export function tocarBatimento(nivel: number): void {
+    const n = Math.max(1, Math.min(3, nivel));
+    for (let i = 0; i < n; i++) {
+        const a = i * .62;
+        tom('sine', 62, 38, .28, .16, a, .2); tom('sine', 55, 34, .3, .12, a + .17, .2);
+    }
+    if (nivel >= 3) sopro(.9, .08, 900, .1);
+}
+/** Sussurro curto (ruído filtrado com vai-e-vem de formante): "olhe para trás". */
+export function tocarSussurro(): void {
+    for (let i = 0; i < 5; i++) sopro(.16, .05 + (i % 2) * .02, 1800 + ((i * 731) % 1500), i * .13, 'bandpass');
+    tom('sine', 190, 140, .8, .015, 0, .5);
+}
 export function tocarDesconexao(): void { tom('sine', 1000, 1000, .9, .08); sopro(.4, .3, 6000, .9, 'highpass'); }
 
 /**

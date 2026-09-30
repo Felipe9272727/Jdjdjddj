@@ -20,7 +20,10 @@ import { busca } from './f13Busca';
 import { sinos } from './f13Sinos';
 import { chaoEm, dentroDeCasa, type Estado13, entidadeAcorda } from './f13Mundo';
 import type { IdNpc } from './f13Lore';
-import { desafinarAmbiente, tocarGlitch } from './floor13Sfx';
+import { desafinarAmbiente, tocarGlitch, tocarBatimento, tocarSussurro } from './floor13Sfx';
+
+/** A silhueta acabou de surgir atrás do jogador: o HUD avisa (lido a cada 250 ms). */
+export const dicaDeOlhar = { pendente: false, ultima: -99 };
 
 export interface JogAtencao { x: number; y: number; z: number; andando: number }
 
@@ -123,6 +126,9 @@ export const AtencaoNoMundo: React.FC<{
             if (st.espera > 0) { g.visible = false; return; }
             if (!lugarAtras(j.x, j.z, cx / ch, cz / ch, tmp.ponto)) { st.espera = .5; return; }
             st.vivo = true; st.x = tmp.ponto.x; st.z = tmp.ponto.z; st.t = 0; st.olhou = 0;
+            // ninguém a vê nascer atrás da câmera: um sussurro e um aviso mandam o jogador virar
+            tocarSussurro();
+            if (t - dicaDeOlhar.ultima > 25) { dicaDeOlhar.ultima = t; dicaDeOlhar.pendente = true; }
         }
         st.t += dt;
         const dx = st.x - camera.position.x, dz = st.z - camera.position.z, dist = Math.hypot(dx, dz) || 1;
@@ -153,16 +159,16 @@ const AVISOS = [
 const AVISO_VERDE = { titulo: 'A VILA INTEIRA ESTÁ DE OLHO EM VOCÊ', corpo: 'O que os moradores contam agora pode estar errado.' };
 
 const Olho: React.FC<{ abertura: number; nivel: number }> = ({ abertura, nivel }) => {
-    // pálpebras: duas curvas que se afastam do eixo; o íris cresce junto
-    const o = .06 + abertura * .94, alto = 11 * o, cor = nivel >= 2 ? VERDE : '#FFE3A0';
+    // pálpebras: duas curvas que se afastam do eixo; a íris cresce junto
+    const o = .1 + abertura * .9, alto = 11 * o, cor = nivel >= 2 ? VERDE : '#FFE3A0';
     const forma = `M3 14 Q24 ${14 - alto * 1.9} 45 14 Q24 ${14 + alto * 1.9} 3 14 Z`;
     return (
-        <svg width="42" height="26" viewBox="0 0 48 28" style={{ display: 'block', overflow: 'visible', filter: `drop-shadow(0 0 2px #000) ${nivel >= 3 ? `drop-shadow(0 0 5px ${VERDE})` : ''}` }}>
+        <svg width="48" height="30" viewBox="0 0 48 28" style={{ display: 'block', overflow: 'visible' }}>
             <defs><clipPath id="f13olhoClip"><path d={forma} /></clipPath></defs>
-            <path d={forma} fill="rgba(6,10,8,.55)" stroke={cor} strokeWidth="2.2" strokeLinejoin="round" />
+            <path d={forma} fill="rgba(6,10,8,.7)" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" />
             <g clipPath="url(#f13olhoClip)">
-                <circle cx="24" cy="14" r={Math.max(.1, 3 + abertura * 5)} fill={cor} />
-                <circle cx="24" cy="14" r={Math.max(.1, 1.4 + abertura * 2)} fill="#050805" />
+                <circle cx="24" cy="14" r={Math.max(.1, 3.5 + abertura * 5.5)} fill={cor} />
+                <circle cx="24" cy="14" r={Math.max(.1, 1.6 + abertura * 2.2)} fill="#050805" />
             </g>
         </svg>
     );
@@ -171,12 +177,18 @@ const Olho: React.FC<{ abertura: number; nivel: number }> = ({ abertura, nivel }
 export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) => void }> = ({ visivel, avisar }) => {
     const [estado, setEstado] = useState({ ab: 0, nivel: 0 });
     const [verde, setVerde] = useState(false);
+    const [pulso, setPulso] = useState(0);
+    const nivelAnt = useRef(0);
     const avisarRef = useRef(avisar); avisarRef.current = avisar;
     useEffect(() => {
         const id = window.setInterval(() => {
             // 12 degraus: o olho abre em passos, sem redesenhar a cada décimo
             const ab = Math.round(aberturaDoOlho() * 12) / 12;
             setEstado((p) => (p.ab === ab && p.nivel === atencao.nivel ? p : { ab, nivel: atencao.nivel }));
+            // o nível subiu: batimento grave e o selo pulsa
+            if (atencao.nivel > nivelAnt.current) { tocarBatimento(atencao.nivel); setPulso((p) => p + 1); }
+            nivelAnt.current = atencao.nivel;
+            if (dicaDeOlhar.pendente) { dicaDeOlhar.pendente = false; avisarRef.current('Você sente alguém atrás de você…'); }
             const n = atencao.pendente;
             if (n) { atencao.pendente = 0; if (n >= 3) setVerde(true); else avisarRef.current(AVISOS[n]); }
         }, 250);
@@ -185,9 +197,18 @@ export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) =>
     useEffect(() => { if (!verde) return; const id = window.setTimeout(() => setVerde(false), 7500); return () => window.clearTimeout(id); }, [verde]);
     const retrato = typeof window !== 'undefined' && window.innerWidth < window.innerHeight;
     return <>
-        {visivel && <div aria-hidden style={{ position: 'absolute', right: 6, top: '38%', pointerEvents: 'none', opacity: .4 + estado.ab * .5, transition: 'opacity .6s', animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : undefined }}>
-            <Olho abertura={estado.ab} nivel={estado.nivel} />
-            <style>{'@keyframes f13olhoTreme{0%{transform:translate(0,0)}50%{transform:translate(-2px,1px)}100%{transform:translate(1px,-1px)}}'}</style>
+        {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: '38%', pointerEvents: 'none' }}>
+            {/* remonta a cada subida de nível para reiniciar o pulso */}
+            <div key={pulso} style={{
+                padding: '6px 7px 5px', borderRadius: 10, background: 'rgba(6,10,8,.72)',
+                border: `2px solid ${estado.nivel >= 2 ? VERDE : estado.nivel === 1 ? '#FFE3A0' : 'rgba(255,227,160,.55)'}`,
+                boxShadow: estado.nivel >= 2 ? `0 0 ${8 + estado.ab * 10}px ${VERDE}` : '0 0 6px rgba(0,0,0,.6)',
+                opacity: .7 + estado.ab * .3, transition: 'opacity .6s, box-shadow .6s, border-color .6s',
+                animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : pulso > 0 ? `f13olhoPulso 1.4s ease-out 1${estado.nivel >= 2 ? ', f13olhoBate 1.6s ease-in-out 1.4s infinite' : ''}` : estado.nivel >= 2 ? 'f13olhoBate 1.6s ease-in-out infinite' : undefined,
+            }}>
+                <Olho abertura={estado.ab} nivel={estado.nivel} />
+            </div>
+            <style>{'@keyframes f13olhoTreme{0%{transform:translate(0,0)}50%{transform:translate(-2px,1px)}100%{transform:translate(1px,-1px)}}@keyframes f13olhoPulso{0%{transform:scale(1)}18%{transform:scale(1.5)}40%{transform:scale(1.1)}60%{transform:scale(1.35)}100%{transform:scale(1)}}@keyframes f13olhoBate{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}'}</style>
         </div>}
         {visivel && verde && <div role="status" style={{
             position: 'absolute', top: 'calc(env(safe-area-inset-top) + 56px)', pointerEvents: 'none', textAlign: 'center',
