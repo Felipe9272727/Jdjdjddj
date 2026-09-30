@@ -556,7 +556,9 @@ const CameraDeExplorar: React.FC<{
     const passo = useRef(0);
     const camera = useThree((s) => s.camera), size = useThree((s) => s.size);
     const alvo = useRef(new THREE.Vector3());
-    const empurra = useRef(0);
+    // vetores reaproveitados: nada nasce dentro do useFrame da câmera
+    const olhoTmp = useRef(new THREE.Vector3()), mira = useRef(new THREE.Vector3());
+    const empurra = useRef(0), ultimoAspecto = useRef(0);
     useFrame((_, dt) => {
         // na saída (a porta certa aberta) quem conduz a câmera é a SaidaDoAndar
         if (!ativo || portaAlvo.current) return;
@@ -567,7 +569,7 @@ const CameraDeExplorar: React.FC<{
         passo.current += dt * (j.andando > .1 ? 9 : 0);
         const bob = Math.sin(passo.current) * .045 * j.andando, lado = Math.cos(passo.current * .5) * .03 * j.andando;
         const ent = entidadeNaCena.valor;
-        const olho = new THREE.Vector3(j.x + Math.cos(yaw.current) * lado, j.y + 1.72 + bob - j.levantando * 1.2, j.z - Math.sin(yaw.current) * lado);
+        const olho = olhoTmp.current.set(j.x + Math.cos(yaw.current) * lado, j.y + 1.72 + bob - j.levantando * 1.2, j.z - Math.sin(yaw.current) * lado);
         if (ent && foco.current) {
             // a entidade: o olho recua 1,3 m (suave) para caber mão e rosto
             const dx0 = foco.current.x - j.x, dz0 = foco.current.z - j.z, d0 = Math.hypot(dx0, dz0) || 1, k = 1;
@@ -594,7 +596,7 @@ const CameraDeExplorar: React.FC<{
                 const k = Math.min(1, empurra.current * 4);
                 ax += dz0 / d0 * .05 * k; az += -dx0 / d0 * .05 * k;
             }
-            alvo.current.lerp(new THREE.Vector3(ax, chaoF + (ent ? 1.95 : 1.78), az), 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : 1.78), az), 1 - Math.exp(-dt * 4));
             const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
@@ -608,8 +610,9 @@ const CameraDeExplorar: React.FC<{
             camera.rotateZ(-lado * .15);
         }
         if (camera instanceof THREE.PerspectiveCamera) {
-            camera.fov += ((retrato ? 78 : 68) - (ent ? 3 + entidadeNaCena.linha * 3 : 0) - camera.fov) * Math.min(1, dt * 3);
-            camera.updateProjectionMatrix();
+            const dFov = ((retrato ? 78 : 68) - (ent ? 3 + entidadeNaCena.linha * 3 : 0) - camera.fov) * Math.min(1, dt * 3);
+            // a matriz de projeção só é refeita enquanto o fov ainda anda
+            if (Math.abs(dFov) > 1e-4 || camera.aspect !== ultimoAspecto.current) { camera.fov += dFov; ultimoAspecto.current = camera.aspect; camera.updateProjectionMatrix(); }
         }
     });
     return null;
