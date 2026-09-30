@@ -122,7 +122,7 @@ const JANELAS: ReadonlyArray<readonly [number, number, number, number]> = [
     [1.9, 1.55, .6, Math.PI / 2], [-1.9, 1.55, .6, -Math.PI / 2],
     [1.9, 1.55, -1.6, Math.PI / 2], [-1.9, 1.55, -1.6, -Math.PI / 2],
 ];
-const AMBAR = new THREE.Color('#ffb04a'), AZUL = new THREE.Color('#5f8dff');
+const AMBAR = new THREE.Color('#ff8f1f'), AZUL = new THREE.Color('#5f8dff');
 
 /**
  * <NoiteDoMundo/> — devolve as janelas e conduz o relógio da noite (luzes,
@@ -213,7 +213,7 @@ export function NoiteDoMundo(): React.ReactElement {
             if (gr.visible !== on) gr.visible = on;
             if (!on) continue;
             let k: number;
-            if (i === CASA_CERTA) k = 1.5 * s;   // âmbar firme
+            if (i === CASA_CERTA) k = .8 * s;   // âmbar firme
             else {
                 // azul frio tremendo: dois senos incomensuráveis por casa + falha rara
                 const f = .55 + .3 * Math.sin(t * 7.3 + i * 2.1) + .25 * Math.sin(t * 17.9 + i * 5.3);
