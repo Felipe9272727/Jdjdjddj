@@ -688,20 +688,20 @@ const Cena = memo(function Cena() {
 // ═════════════════════════════════════════════════════════════════════════════
 type Pos = [number, number, number, number?];
 const LAY: Record<string, { a?: number; L?: Pos; P?: Pos; ali?: string }> = {
-    pl1: { L: [258, 468, 50, 428] }, pl2: { L: [536, 468, 54, 428] }, pl3: { L: [1010, 468, 54, 428] }, pl4: { L: [1292, 468, 50, 428] },
-    arco: { a: .9048, L: [600, 468, 400], P: [170, 700, 440] },
-    chav: { a: 1.2, L: [322, 468, 200], P: [14, 700, 176] },
-    est: { a: 1.4286, L: [1068, 468, 214], P: [566, 700, 206] },
-    qm: { a: 1.4167, L: [96, 352, 112], P: [40, 280, 110] },
-    qc: { a: 1.1333, L: [1398, 352, 124], P: [640, 280, 120] },
-    la1: { a: 1.857, L: [543, 346, 40], P: [122, 440, 44] }, la2: { a: 1.857, L: [1017, 346, 40], P: [614, 440, 44] },
-    la3: { a: 1.857, L: [263, 346, 40] }, la4: { a: 1.857, L: [1297, 346, 40] },
-    tap: { L: [190, 748, 1220, 246], P: [24, 1452, 732, 420] },
-    pe: { a: 1.4, L: [22, 560, 120] }, pd: { a: 1.4, L: [1458, 560, 120] },
-    m: { a: 1.3, L: [118, 704, 236], P: [56, 946, 210], ali: 'm2' },
-    t: { a: .9167, L: [1170, 716, 320], P: [440, 962, 290] },
-    g: { a: 1.3, L: [836, 726, 300], P: [420, 1400, 300], ali: 'g2' },
-    a: { a: 1.3, L: [476, 726, 300], P: [60, 1400, 300], ali: 'a2' },
+    pl1: { L: [258, 430, 50, 392] }, pl2: { L: [536, 430, 54, 392] }, pl3: { L: [1010, 430, 54, 392] }, pl4: { L: [1292, 430, 50, 392] },
+    arco: { a: .9048, L: [600, 430, 400], P: [170, 700, 440] },
+    chav: { a: 1.2, L: [322, 430, 200], P: [14, 700, 176] },
+    est: { a: 1.4286, L: [1068, 430, 214], P: [566, 700, 206] },
+    qm: { a: 1.4167, L: [96, 330, 112], P: [40, 280, 110] },
+    qc: { a: 1.1333, L: [1398, 330, 124], P: [640, 280, 120] },
+    la1: { a: 1.857, L: [543, 322, 40], P: [122, 440, 44] }, la2: { a: 1.857, L: [1017, 322, 40], P: [614, 440, 44] },
+    la3: { a: 1.857, L: [263, 322, 40] }, la4: { a: 1.857, L: [1297, 322, 40] },
+    tap: { L: [190, 694, 1220, 200], P: [24, 1452, 732, 420] },
+    pe: { a: 1.4, L: [22, 520, 120] }, pd: { a: 1.4, L: [1458, 520, 120] },
+    m: { a: 1.3, L: [118, 656, 236], P: [56, 946, 210], ali: 'm2' },
+    t: { a: .9167, L: [1170, 664, 320], P: [440, 962, 290] },
+    g: { a: 1.3, L: [836, 672, 300], P: [420, 1400, 300], ali: 'g2' },
+    a: { a: 1.3, L: [476, 672, 300], P: [60, 1400, 300], ali: 'a2' },
 };
 const dim = ([l, b, w, h]: Pos, a = 1) => { const H = h ?? w * a; return `--l:${l};--t:${+(b - H).toFixed(1)};--w:${w};--h:${+H.toFixed(1)}`; };
 
@@ -717,7 +717,9 @@ const pas = (t0: number, t1: number, n: number, a = 22): [number, number, E?][] 
 const onda = (t0: number, t1: number, c: number, a: number): [number, number, E?][] =>
     osc(t0, t1, Math.round((t1 - t0) / .25), (i) => i % 2 ? c - a : c + a);
 /** Um tremor de câmera (em % do palco) a partir de t. */
-const trem = (t: number, a: number): Mv[] => [[t, a * .7, -a * .6, 0, 1, 1, 'l'], [t + .05, -a * .5, a * .4, 0, 1, 1, 'l'], [t + .1, a * .3, -a * .2, 0, 1, 1, 'l'], [t + .17, 0, 0, 0, 1, 1, 'l']];
+const trem = (t: number, a: number): Mv[] => [[t - .01, 0, 0, 0, 1, 1, 'l'], [t, a * .7, -a * .6, 0, 1, 1, 'l'], [t + .05, -a * .5, a * .4, 0, 1, 1, 'l'], [t + .1, a * .3, -a * .2, 0, 1, 1, 'l'], [t + .17, 0, 0, 0, 1, 1, 'l']];
+/** Pulsos de opacidade: sobe a `v` em cada t de `ts` e desce em `d` segundos (sempre segurando em 0 antes). */
+const ev = (ts: number[], v: number, d: number, up = 0): Q<number>[] => [[0, 0, 'l'], ...ts.flatMap((t): Q<number>[] => [[Math.max(0, t - .001), 0, 'l'], [t + up, v, 'l'], [t + up + d, 0, 'l']])];
 /** Balão de golpe: estoura (pop) em cada instante de `ts` e some. */
 function pop(cls: string, o: string, ts: number[], hold = .5, sc = 1) {
     const m: Q<string>[] = [], p: Q<number>[] = [[0, 0, 'l']];
@@ -770,7 +772,7 @@ function coreografia() {
         [2.17, -12, 0, 6, 1.25, .7, 'a'], [2.3, -2, -4, 12, .95, 1.08, 'o'], [2.6, 8, 0, 6, 1.05, .96], [2.8, 12, 0, 0, 1.02, .98],
         [3, 12, 0, 6, 1, 1], [3.2, 12, 0, -6], [3.4, 11, 0, 0], [3.55, 14, 0, 10, 1.05, .95],
         [3.7, -10, -2, -14, .94, 1.05, 'a'], [3.85, -28, -2, -16, .96, 1.04, 'l'], [3.92, -30, -6, -10, 1, 1, 'o'],
-        [4, -32, -16, 30, 1, 1, 'o'], [4.12, -28, -32, 120, 1, 1, 'a'], [4.35, -22, 22, 90, 1.1, .9, 'o'], [4.45, -22, 14, 84, 1, 1, 'a'], [4.55, -22, 22, 90, 1.08, .92], [5, -22, 22, 90, 1, 1],
+        [4, -32, -24, 30, 1, 1, 'o'], [4.13, -27, -50, 150, 1, 1, 'a'], [4.35, -22, 18, 90, 1.1, .9, 'o'], [4.45, -22, 11, 84, 1, 1, 'a'], [4.55, -22, 18, 90, 1.08, .92], [5, -22, 18, 90, 1, 1],
         [5.25, -22, 10, 40], [5.45, -21, 0, -8], [5.6, -20, 0, 0],
         [5.65, -17, 0, 8, 1.2, .78, 'a'], [5.8, -12, 0, 2, 1, 1, 'o'], [5.95, -8, 0, -8, 1.2, .78, 'a'], [6.1, -3, 0, 0, 1, 1, 'o'],
         [6.25, 2, 0, 8, 1.2, .78, 'a'], [6.4, 6, 0, 0, 1, 1, 'o'], [6.5, 10, 0, -8, 1.25, .75, 'a'], [6.7, 14, 0, 6, 1, 1], [6.9, 14, 0, -6], [7.1, 14, 0, 0], [7.22, 14, 0, 0, 1.05, .96],
@@ -834,9 +836,9 @@ function coreografia() {
     const sq = (t: number): Mv[] => [[t, 0, 0, 0, 1.12, .88, 'o'], [t + .08, 0, -4, 0, .95, 1.08, 'a'], [t + .22, 0, 0, 0, 1.05, .95, 'o'], [t + .4, 0, 0, 0, 1, 1]];
     anim('as', { o: '80% 68%', m: mov([...sq(0), [7.5, 0, 0, 0, 1, 1], ...sq(7.55), ...sq(7.82), [8.4, 0, 0, 0, 1, 1]].sort((p, q) => p[0] - q[0])) });
     const ring = (cls: string, dl: number) => {
-        const ts = [0, 7.55, 7.82].map((t) => t + dl), m: Q<string>[] = [], pp: Q<number>[] = [];
-        ts.forEach((t) => { m.push([t, tr(0, 0, 0, .35), 'o'], [t + .55, tr(0, 0, 0, 2.3)], [t + .56, tr(0, 0, 0, .35)]); pp.push([t, .95, 'o'], [t + .55, 0, 'l']); });
-        anim(cls, { o: '80% 54%', m, p: [[0, 0, 'l'], ...pp] });
+        const ts = [0, 7.55, 7.82].map((t) => t + dl), m: Q<string>[] = [];
+        ts.forEach((t) => m.push([t, tr(0, 0, 0, .35), 'o'], [t + .55, tr(0, 0, 0, 2.3)], [t + .56, tr(0, 0, 0, .35)]));
+        anim(cls, { o: '80% 54%', m, p: ev(ts, .95, .55) });
     };
     ring('an1', 0); ring('an2', .09);
     pop('wd', '83% 29%', [0, 7.55], .55);
@@ -856,13 +858,13 @@ function coreografia() {
     // ── BALÕES, POEIRA E RISCOS ──────────────────────────────────────────────────
     pop('w1', oVR(56, 56), [2.17], .55); pop('w2', oVR(66, 200), [4.35], .5); pop('w3', oVR(62, 70), [5.65], .32); pop('w4', oVR(88, 44), [5.95], .32);
     pop('w5', oVR(106, 84), [6.25], .32); pop('w6', oVR(116, 58), [6.5], .36); pop('w7', oVR(70, 96), [7.3], .7); pop('w8', oVR(100, 196), [9.25], .5);
-    const pf = (cls: string, t: number) => anim(cls, { o: '50% 91%', m: [[0, tr(0, 0, 0, .3), 'l'], [t, tr(0, 0, 0, .3), 'o'], [t + .5, tr(0, 0, 0, 1.5)]], p: [[0, 0, 'l'], [t, .95, 'l'], [t + .5, 0]] });
+    const pf = (cls: string, t: number) => anim(cls, { o: '50% 91%', m: [[0, tr(0, 0, 0, .3), 'l'], [t, tr(0, 0, 0, .3), 'o'], [t + .5, tr(0, 0, 0, 1.5)]], p: ev([t], .95, .5) });
     pf('pf1', 4.35); pf('pf2', 9.25);
-    const sw = (cls: string, t: number) => anim(cls, { p: [[0, 0, 'l'], [t, 1, 'l'], [t + .14, 0]] });
+    const sw = (cls: string, t: number) => anim(cls, { p: ev([t], 1, .14) });
     sw('sw1', 1.52); sw('sw2', 2.12);
     // ── A CÂMERA, O CLARÃO E O CENÁRIO VIVO ─────────────────────────────────────
     anim('sh', { m: mov([[0, 0, 0], ...trem(2.17, .6), ...trem(4.35, .4), ...trem(5.65, .25), ...trem(5.95, .25), ...trem(6.25, .25), ...trem(6.5, .3), ...trem(7.3, 1.1), ...trem(9.25, .7)]) });
-    anim('fl', { p: [[0, 0, 'l'], [2.17, 0, 'l'], [2.19, .28, 'l'], [2.45, 0], [7.3, 0, 'l'], [7.32, .7, 'l'], [7.95, 0], [9.25, 0, 'l'], [9.27, .22, 'l'], [9.55, 0]] });
+    anim('fl', { p: [[0, 0, 'l'], [2.17, 0, 'l'], [2.19, .22, 'l'], [2.36, 0], [7.3, 0, 'l'], [7.32, .5, 'l'], [7.65, 0], [9.25, 0, 'l'], [9.27, .16, 'l'], [9.45, 0]] });
     anim('lg0', { d: 1.7, p: [[0, .85], [.3, 1], [.55, .76], [.9, .96], [1.3, .82]] });
     anim('lg1', { d: 2.3, p: [[0, 1], [.4, .8], [.8, .95], [1.4, .74], [1.9, .92]] });
     anim('rm', { o: '50% 24%', m: ang([[0, 0, 'l'], [T, 720, 'l']]) });
@@ -885,7 +887,7 @@ function montarCss(): string {
     });
     const U = (n: number) => `calc(${n}*var(--u))`;
     return `
-.cna{--W:1600;--H:760;--hz:468;--kq:0;--off:0s;--u:min(calc(100vw/var(--W)),calc(100vh/var(--H)));position:fixed;inset:0;overflow:hidden;background:#3a0c16;container-type:size;opacity:1;
+.cna{--W:1600;--H:760;--hz:430;--kq:0;--off:0s;--u:min(calc(100vw/var(--W)),calc(100vh/var(--H)));position:fixed;inset:0;overflow:hidden;background:#3a0c16;container-type:size;opacity:1;
 transition:opacity .4s ease;-webkit-user-select:none;user-select:none;touch-action:none;font-family:${FONTE};-webkit-tap-highlight-color:transparent}
 @supports(width:1cqw){.cna{--u:min(calc(100cqw/var(--W)),calc(100cqh/var(--H)))}}
 @media(orientation:portrait){.cna{--W:780;--H:1600;--hz:700;--kq:1}}
@@ -899,8 +901,7 @@ transition:opacity .4s ease;-webkit-user-select:none;user-select:none;touch-acti
 .cna .e{position:absolute;display:none;left:calc(var(--l)*var(--u));top:calc(var(--t)*var(--u));width:calc(var(--w)*var(--u));height:calc(var(--h)*var(--u))}
 .cna .p{position:absolute;inset:0}.cna .p svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .cna .pil{background:linear-gradient(90deg,#26130a,#6b3a1d 38%,#3a1e10 72%,#1f0f08);box-shadow:inset 0 0 0 ${U(3)} #140804}
-.cna .pil::before,.cna .pil::after{content:"";position:absolute;left:-14%;right:-14%;height:${U(18)};background:linear-gradient(#ffe59a,#b9791a);border:${U(3)} solid #1a1220;border-radius:3px}
-.cna .pil::before{top:0}.cna .pil::after{bottom:0}
+.cna .pil::before{content:"";position:absolute;left:-14%;right:-14%;top:0;height:${U(18)};background:linear-gradient(#ffe59a,#b9791a);border:${U(3)} solid #1a1220;border-radius:3px}
 .cna .mo{position:absolute;width:${U(9)};height:${U(9)};border-radius:50%;background:radial-gradient(#ffe2a0,rgba(255,226,160,0) 70%);opacity:0}
 .cna .mo1{left:14%;top:60%}.cna .mo2{left:30%;top:72%}.cna .mo3{left:52%;top:64%}.cna .mo4{left:70%;top:76%}.cna .mo5{left:86%;top:66%}
 .cna .fl{position:absolute;inset:0;background:#fff6dc;opacity:0;pointer-events:none}
@@ -909,11 +910,11 @@ transition:opacity .4s ease;-webkit-user-select:none;user-select:none;touch-acti
 .cna .bulbo,.cna .zap{animation:cn-bl .6s steps(1,end) infinite}.cna .sirg,.cna .glowb{animation:cn-si .7s ease-in-out infinite alternate}
 @keyframes cn-led{0%{opacity:1}33%{opacity:.16}}@keyframes cn-bl{0%{opacity:1}50%{opacity:.35}}@keyframes cn-si{from{opacity:.12}to{opacity:.95}}
 .cna .hud{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.6cqmin,12px);pointer-events:none;
-padding:clamp(28px,7cqmin,60px) max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:linear-gradient(transparent,rgba(14,3,8,.8) 60%)}
-.cna .rot{font-size:clamp(19px,5.2cqmin,34px);line-height:1.1;text-align:center;color:#ffd36b;letter-spacing:.05em;-webkit-text-stroke:.16em #1a1220;paint-order:stroke fill;text-shadow:0 .08em 0 #8a4a08,0 0 .5em rgba(0,0,0,.6)}
+padding:clamp(20px,6cqmin,60px) max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:linear-gradient(transparent,rgba(14,3,8,.8) 60%)}
+.cna .rot{font-size:clamp(16px,4.7cqmin,34px);line-height:1.1;text-align:center;color:#ffd36b;letter-spacing:.05em;-webkit-text-stroke:.16em #1a1220;paint-order:stroke fill;text-shadow:0 .08em 0 #8a4a08,0 0 .5em rgba(0,0,0,.6)}
 .cna .pt i{display:inline-block;font-style:normal;animation:cn-pt 1.2s ease-in-out infinite both}.cna .pt i:nth-child(2){animation-delay:.18s}.cna .pt i:nth-child(3){animation-delay:.36s}
 @keyframes cn-pt{0%,65%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-.22em)}}
-.cna .bar{position:relative;width:min(78cqw,30rem);height:clamp(12px,2.6cqmin,18px);border-radius:99px;background:#1a0a10;border:3px solid #f2b53c;overflow:hidden;box-shadow:0 3px 0 #7a3b00,0 0 18px rgba(242,181,60,.28)}
+.cna .bar{position:relative;width:min(78cqw,30rem);height:clamp(10px,2.4cqmin,18px);border-radius:99px;background:#1a0a10;border:3px solid #f2b53c;overflow:hidden;box-shadow:0 3px 0 #7a3b00,0 0 18px rgba(242,181,60,.28)}
 .cna .fi{position:absolute;inset:0;border-radius:99px;transform-origin:left center;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.32) 0 8px,transparent 8px 16px),linear-gradient(#ffe08a,#f2a11c);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
 .cna .ind{right:auto;width:40%;animation:cn-ind 1.5s cubic-bezier(.45,0,.55,1) infinite}@keyframes cn-ind{from{transform:translateX(-105%)}to{transform:translateX(255%)}}
 @media(prefers-reduced-motion:reduce){.cna .sh *,.cna .sh{animation:none!important}}
