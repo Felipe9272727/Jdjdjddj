@@ -253,7 +253,7 @@ const IlhaVisual: React.FC<{ x: number; y: number; z: number; r: number; i: numb
         {/* coladas na casca do cone (antes pairavam abaixo da ponta, soltas no céu, e liam como discos pretos) */}
         {[0, 1, 2].map((k) => {
             const prof = .5 + k * .13;                                     // fração da altura do cone
-            const raio = r * .98 * (1 - prof) + .15 + (.35 + k * .1) * .5; // casca + metade da pedra
+            const raio = r * .98 * (1 - prof) - .05;                        // meio enterradas na casca: saliências da rocha, não bolas soltas
             const a = k * 2.1 + i;
             return <mesh key={k} position={[Math.cos(a) * raio, -r * 1.7 * prof - .3, Math.sin(a) * raio]} scale={[1, .8, 1]}>
                 <dodecahedronGeometry args={[.35 + k * .1, 1]} /><meshStandardMaterial color="#7b6f62" {...pbr('rocha', .8, .8)} />
@@ -1121,24 +1121,28 @@ function texFolhas() {
     const N = 128, c = document.createElement('canvas'); c.width = c.height = N;
     const g = c.getContext('2d')!;
     let k = 7; const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
-    g.fillStyle = '#3d5a24'; g.fillRect(0, 0, N, N);   // fundo opaco escuro (sombra entre folhas)
-    // folhas desenhadas 9 vezes (deslocadas ±N) para o ladrilho emendar
-    const folhas = 170;
-    for (let i = 0; i < folhas; i++) {
-        const x = r() * N, y = r() * N, a = r() * Math.PI, l = 5 + r() * 5, w = 2 + r() * 1.6, t = r();
-        g.fillStyle = `hsl(${78 + t * 40}, ${45 + r() * 25}%, ${26 + t * 34}%)`;
-        for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) {
-            g.beginPath(); g.ellipse(x + dx, y + dy, l, w, a, 0, Math.PI * 2); g.fill();
-        }
-    }
-    // buracos: cortes que deixam o céu aparecer e quebram a bola
+    // fundo verde-sombra e folhas em tons PRÓXIMOS (antes o contraste alto
+    // lia como ruído verde, não como folhagem)
+    g.fillStyle = '#4a6a2e'; g.fillRect(0, 0, N, N);
+    const pinta = (n: number, desenha: (x: number, y: number) => void) => {
+        for (let i = 0; i < n; i++) { const x = r() * N, y = r() * N; for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) desenha(x + dx, y + dy); }
+    };
+    pinta(110, (x, y) => {
+        const a = r() * Math.PI, l = 7 + r() * 5, w = 3 + r() * 2, t = r();
+        g.fillStyle = `hsl(${88 + t * 18}, ${34 + r() * 12}%, ${30 + t * 16}%)`;
+        g.beginPath(); g.ellipse(x, y, l, w, a, 0, Math.PI * 2); g.fill();
+    });
+    // florzinhas miúdas e raras (a moita florida da vila), branco-creme e amarelo
+    pinta(9, (x, y) => {
+        const cor = r() < .5 ? '#f3ecd6' : '#e8c85a';
+        for (let p = 0; p < 5; p++) { const a = p / 5 * Math.PI * 2; g.fillStyle = cor; g.beginPath(); g.arc(x + Math.cos(a) * 2.2, y + Math.sin(a) * 2.2, 1.5, 0, Math.PI * 2); g.fill(); }
+        g.fillStyle = '#c98a2a'; g.beginPath(); g.arc(x, y, 1.2, 0, Math.PI * 2); g.fill();
+    });
+    // poucos recortes, só na borda da silhueta (muitos buracos mostravam o avesso da bola)
     g.globalCompositeOperation = 'destination-out';
-    for (let i = 0; i < 46; i++) {
-        const x = r() * N, y = r() * N, rr = 2 + r() * 4;
-        for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) { g.beginPath(); g.ellipse(x + dx, y + dy, rr, rr * .6, r() * 3, 0, Math.PI * 2); g.fill(); }
-    }
+    pinta(14, (x, y) => { const rr = 2 + r() * 2.5; g.beginPath(); g.ellipse(x, y, rr, rr * .6, r() * 3, 0, Math.PI * 2); g.fill(); });
     const t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1.5); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     return (_folhas = t);
 }
 
@@ -1182,9 +1186,9 @@ const Borda: React.FC = () => {
         for (let i = 0; i < pm.count; i++) { const f = 1 + ruido(pm.getX(i) * 3, pm.getY(i) * 3, pm.getZ(i) * 3) * .22 + ruido(pm.getX(i) * 11, pm.getY(i) * 11, pm.getZ(i) * 11) * .07; pm.setXYZ(i, pm.getX(i) * f, pm.getY(i) * f, pm.getZ(i) * f); }
         gm.computeVertexNormals();
         // suave (facetada destoava da grama e da madeira texturizadas) e cada moita no seu verde
-        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .9, map: texFolhas(), alphaTest: .5, side: THREE.DoubleSide }), mm.length);
+        const im = new THREE.InstancedMesh(gm, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .95, map: texFolhas(), alphaTest: .5 }), mm.length);
         const cor = new THREE.Color();
-        mm.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, cor.setHSL(.21 + r() * .07, .34 + r() * .2, .42 + r() * .14)); });
+        mm.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, cor.setHSL(.22 + r() * .05, .12 + r() * .1, .42 + r() * .1)); });
         for (const x of [ip, im]) { x.castShadow = true; x.receiveShadow = true; x.computeBoundingSphere(); }
         return [ip, im];
     }, []);
