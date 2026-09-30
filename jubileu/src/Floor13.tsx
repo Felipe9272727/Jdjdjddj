@@ -25,7 +25,7 @@ import { CaoDaBusca, busca } from './f13Busca';
 import { NoiteDoMundo, aoTocarSino, definirNoite, moradoresDormem, rotuloDaNoite, noite } from './f13Noite';
 import { GatosDaVila, gatos, largarPeixe, peixesNoChao, CESTO } from './f13Gatos';
 import { forja } from './f13Fagulhas';
-import { contarBatida, oQueSeOuve, terceiraBatida, zerarBatidas } from './f13Batidas';
+import { contarBatida, oQueSeOuve, batidaNaPorta, zerarBatidas } from './f13Batidas';
 import { GanchoDaChegada } from './f13Chegada';
 import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
@@ -1310,9 +1310,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 tocarPegar();
                 if (seguida === 2) setAviso(oQueSeOuve(a.i));
                 else {
-                    const t = terceiraBatida(a.i);
+                    const t = batidaNaPorta(a.i, seguida);
                     setAviso(t.texto);
-                    if (t.errada) { tocarGlitch(); mudarAtencao(10); }
+                    // só a 3ª assusta e chama a atenção; da 4ª em diante é silêncio
+                    if (t.errada && seguida === 3) { tocarGlitch(); mudarAtencao(10); }
                 }
                 return;
             }

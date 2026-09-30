@@ -62,9 +62,9 @@ export function pistaQueElimina(i: number): PistaQueElimina | null {
 
 /** O que a voz lá dentro deixa escapar, sem perceber que se entregou. */
 const ESCAPOU: Record<PistaQueElimina, string> = {
-    fumaca: "'Aqui a lareira nunca apaga', resmunga ela lá dentro. 'Nem no verão.'",
+    fumaca: "'Aqui a lareira nunca apaga', resmunga alguém lá dentro. 'Nem no verão.'",
     latao: "'Essa porta é de carvalho, forasteiro', diz a voz, entediada. 'Carvalho e nada mais.'",
-    botao: "'Botão?', bufa ela. 'Aqui não tem botão nenhum. Procura direito.'",
+    botao: "'Botão?', bufa a voz. 'Aqui não tem botão nenhum. Procura direito.'",
 };
 
 export interface RespostaBatida { texto: string; errada: boolean }
