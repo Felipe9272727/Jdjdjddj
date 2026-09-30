@@ -24,6 +24,7 @@ import { CascoDoElevador } from './Floor12Avioes';
 import { CaoDaBusca, busca } from './f13Busca';
 import { GatosDaVila, gatos, largarPeixe, peixesNoChao, CESTO } from './f13Gatos';
 import { forja } from './f13Fagulhas';
+import { contarBatida, oQueSeOuve, terceiraBatida, zerarBatidas } from './f13Batidas';
 import { GanchoDaChegada } from './f13Chegada';
 import { sinos, SinosDaTorre, sinoAoAlcance, rotuloDoSino, tocarSinoDaTorre, revelarMelodia, falaDoBrokk, LUGARES as LUGARES_DOS_SINOS } from './f13Sinos';
 import { ArniNoBanco, FALAS_DO_ARNI, BANCO, ASSENTO, camadaDoArni } from './f13Arni';
@@ -33,7 +34,7 @@ import { Viking } from './Floor13Povo';
 import { Floor13Vida } from './Floor13Vida';
 import { pbr } from './f13Texturas';
 import { AtencaoNoMundo, OlhoDaVila } from './f13AtencaoCena';
-import { aoBaterErrado, aoConversar, fixarAtencao, atencao } from './f13Atencao';
+import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from './f13Atencao';
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import {
@@ -999,7 +1000,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     }, [compilado, nivel]);
     const arniFalando = useRef(false);
     // o Árni começa do zero a cada entrada no andar (o estado mora fora do componente)
-    useEffect(() => { arni.contada = -1; arni.bancoLivre = false; arni.sentado = false; arni.falaDepois = 0; }, []);
+    useEffect(() => { zerarBatidas(); arni.contada = -1; arni.bancoLivre = false; arni.sentado = false; arni.falaDepois = 0; }, []);
     const [legendaBanco, setLegendaBanco] = useState<{ quem: string; texto: string } | null>(null);
     const [aceitacao, setAceitacao] = useState(0);
     const timersBanco = useRef<number[]>([]);
@@ -1283,7 +1284,20 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             }
             window.setTimeout(() => setAviso(ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.'), 30);
         } else if (a.tipo === 'casa') {
+            // bater de novo na mesma porta é escutar (f13Batidas)
+            const seguida = contarBatida(a.i, performance.now());
+            if (seguida >= 2) {
+                tocarPegar();
+                if (seguida === 2) setAviso(oQueSeOuve(a.i));
+                else {
+                    const t = terceiraBatida(a.i);
+                    setAviso(t.texto);
+                    if (t.errada) { tocarGlitch(); mudarAtencao(10); }
+                }
+                return;
+            }
             const primeiraVez = !e.casasBatidas.has(a.i);
+            if (e.casasBatidas.size === 0) window.setTimeout(() => setAviso('Dica: bata de novo na mesma porta para escutar o que tem lá dentro.'), 5200);
             const r = baterNaCasa(e, a.i);
             if (!r.certa) aoBaterErrado(primeiraVez, a.i === CASA_CERTA);
             if (r.certa) {
