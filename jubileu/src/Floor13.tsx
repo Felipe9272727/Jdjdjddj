@@ -54,7 +54,7 @@ import {
 type Fase = 'queda' | 'explorar' | 'dialogo' | 'elevador';
 type Alvo =
     | { tipo: 'npc'; id: IdNpc }
-    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino'; i: number } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' } | { tipo: 'peixe' } | { tipo: 'oferecer' };
+    | { tipo: 'martelo' } | { tipo: 'ovelha'; i: number } | { tipo: 'sino'; i: number } | { tipo: 'casa'; i: number } | { tipo: 'graveto' } | { tipo: 'arni' } | { tipo: 'banco' } | { tipo: 'dormindo'; id: IdNpc } | { tipo: 'peixe' } | { tipo: 'oferecer' };
 const chaveDoAlvo = (a: Alvo | null) => (a ? `${a.tipo}:${'id' in a ? a.id : 'i' in a ? a.i : ''}` : '');
 
 export const DURACAO_DA_QUEDA = 12.6;
@@ -696,10 +696,10 @@ const Radar: React.FC<{
         };
         for (const [id, l] of Object.entries(LUGAR_DOS_NPCS) as [IdNpc, { x: number; z: number; ronda?: number }][]) {
             if (id === 'halvard' && e.entidade === 'caido') continue;
-            if (moradoresDormem()) continue;   // à noite todos dormem
             // quem faz ronda (a menina em volta do poço) é achado onde está agora
             const o = onde[id].current;
-            tenta({ tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.4 : 2.3);
+            // à noite todos dormem: o botão diz isso, em vez de simplesmente sumir
+            tenta(moradoresDormem() ? { tipo: 'dormindo', id } : { tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.4 : 2.3);
         }
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
@@ -1260,6 +1260,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 abrirDialogo([...falas], null, () => { arniFalando.current = false; if (c === 3) { arni.bancoLivre = true; bump(); } });
             }
             setAlvo(null);
+        } else if (a.tipo === 'dormindo') {
+            const nome = NPCS.find((n) => n.id === a.id)!.nome;
+            setAviso(`${nome} está dormindo, e ronca. Para falar com alguém, toque o sino grave de novo e chame o dia.`);
+            setAlvo(null);
         } else if (a.tipo === 'banco') {
             sentarNoBanco();
         } else if (a.tipo === 'peixe') {
@@ -1412,7 +1416,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const e = est.current;
     const retrato = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const rotuloDoAlvo = (a: Alvo) => a.tipo === 'npc' ? `FALAR · ${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()}`
-        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDaNoite(a.i, rotuloDoSino(a.i))
+        : a.tipo === 'arni' ? 'FALAR · ÁRNI' : a.tipo === 'banco' ? 'SENTAR NO BANCO' : a.tipo === 'dormindo' ? `${NPCS.find((n) => n.id === a.id)!.nome.toUpperCase()} · DORMINDO` : a.tipo === 'peixe' ? 'PEGAR PEIXE' : a.tipo === 'oferecer' ? 'LARGAR O PEIXE' : a.tipo === 'graveto' ? 'JOGAR O GRAVETO' : a.tipo === 'martelo' ? 'PEGAR MARTELO' : a.tipo === 'ovelha' ? 'CHAMAR OVELHA' : a.tipo === 'sino' ? rotuloDaNoite(a.i, rotuloDoSino(a.i))
         : `BATER · CASA ${CASAS[a.i].runa}`;
 
     return (

@@ -23,7 +23,7 @@ export const HISTERESE = 3;
 
 export const GANHO = {
     portaErrada: 12, portaRepetida: 5, portaTrancada: 8,
-    conversaRepetida: 6,        // a partir da 3ª conversa com o mesmo morador
+    conversaRepetida: 6,        // a partir da 6ª conversa com o mesmo morador
     encararPorSegundo: 5,       // depois de ENCARAR_ATE segundos olhando
     correrPorSegundo: 1.6,      // depois de CORRER_ATE segundos sem parar
 } as const;
@@ -34,7 +34,7 @@ export const PERDA = {
 } as const;
 export const ENCARAR_ATE = 3;
 export const CORRER_ATE = 15;
-export const CONVERSAS_ATE = 2;
+export const CONVERSAS_ATE = 5;   // voltar para cruzar pistas (citar o que ouvi) é o jogo: só insistir demais é suspeito
 
 export const atencao = {
     valor: 0,

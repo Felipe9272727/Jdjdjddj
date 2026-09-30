@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     atencao, zerarAtencao, mudarAtencao, fixarAtencao, nivelDe, aoBaterErrado, aoConversar, passoDaAtencao,
-    pistaDistorcida, congelaIdle, desafinoEmCents, aberturaDoOlho, GANHO, PERDA, ENCARAR_ATE, CORRER_ATE,
+    pistaDistorcida, congelaIdle, desafinoEmCents, aberturaDoOlho, GANHO, CONVERSAS_ATE, PERDA, ENCARAR_ATE, CORRER_ATE,
 } from './f13Atencao';
 
 const calmo = { encarando: false, andando: false, sentado: false };
@@ -43,8 +43,9 @@ describe('o que sobe', () => {
         aoBaterErrado(true); expect(atencao.valor).toBe(GANHO.portaErrada);
         aoBaterErrado(false); expect(atencao.valor).toBe(GANHO.portaErrada + GANHO.portaRepetida);
     });
-    it('conversa repetida só conta a partir da terceira', () => {
-        aoConversar('brokk'); aoConversar('brokk'); expect(atencao.valor).toBe(0);
+    it('conversa repetida só conta depois de CONVERSAS_ATE (voltar para cruzar pistas é permitido)', () => {
+        for (let i = 0; i < CONVERSAS_ATE; i++) aoConversar('brokk');
+        expect(atencao.valor).toBe(0);
         aoConversar('brokk'); expect(atencao.valor).toBe(GANHO.conversaRepetida);
         aoConversar('sigrun'); expect(atencao.valor).toBe(GANHO.conversaRepetida);
     });
