@@ -976,6 +976,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [conexao, setConexao] = useState(false);
     const aoFimDoDialogo = useRef<(() => void) | null>(null);
     const [aviso, setAviso] = useState<string | null>(null);
+    useEffect(() => { noite.aviso = setAviso; return () => { noite.aviso = null; }; }, []);
     // cartão da busca: abre a cada pista/busca nova e recolhe depois de uns segundos
     const [cartaoAberto, setCartaoAberto] = useState(true);
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);

@@ -12,7 +12,8 @@ import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as clonarComEsqueleto } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { chaoEm } from './f13Mundo';
-import { noite, yawParaCasaCerta } from './f13Noite';
+import { noite, yawParaCasaCerta, bussolaParaCasaCerta } from './f13Noite';
+import { CASAS, CASA_CERTA } from './f13Lore';
 import shiba from './assets/f13/povo/cao_shiba.glb';
 
 export type EstadoBusca = 'solto' | 'no_ar' | 'correndo' | 'voltando';
@@ -47,6 +48,7 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
     };
     const vel = useMemo(() => new THREE.Vector3(), []), tmp = useMemo(() => new THREE.Vector3(), []);
     const espera = useRef(0);
+    const uivando = useRef(false);
     /** relógio real de cada estado: quadro lento não pode prender a brincadeira */
     const desde = useRef({ estado: 'solto' as EstadoBusca, t: 0 });
 
@@ -139,7 +141,11 @@ export const CaoDaBusca: React.FC<{ jog: React.MutableRefObject<{ x: number; y: 
                 espera.current -= d; tocar('Idle');
                 // à noite o cão uiva para a casa certa, focinho no ar
                 const uiva = noite.v > .5;
-                modelo.rotation.x += ((uiva ? -.5 : 0) - modelo.rotation.x) * Math.min(1, 2 * d);
+                if (uiva !== uivando.current) {
+                    uivando.current = uiva;
+                    if (uiva) noite.aviso?.(`O cão uiva de focinho erguido para o ${bussolaParaCasaCerta(c.position.x, c.position.z)}, na direção da casa da runa ${CASAS[CASA_CERTA].runa}.`);
+                }
+                modelo.rotation.x += ((uiva ? -.75 : 0) - modelo.rotation.x) * Math.min(1, 2 * d);
                 const dx = uiva ? Math.sin(yawParaCasaCerta(c.position.x, c.position.z)) : j.x - c.position.x;
                 const dz = uiva ? Math.cos(yawParaCasaCerta(c.position.x, c.position.z)) : j.z - c.position.z;
                 let dif = Math.atan2(dx, dz) - c.rotation.y; dif = Math.atan2(Math.sin(dif), Math.cos(dif));
