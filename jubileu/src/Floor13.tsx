@@ -906,6 +906,15 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [menu, setMenu] = useState<{ id: IdNpc; citando: boolean } | null>(null);
     // o toque que fecha a conversa não pode cair num assunto que acabou de aparecer
     const menuDesde = useRef(0);
+    // escutar à porta: 2ª batida = o ouvido encosta (a tela escurece nas bordas e abafa);
+    // 3ª numa porta errada = a batida volta de dentro e a tela dá um tranco
+    const [escuta, setEscuta] = useState<{ n: number; k: number }>({ n: 0, k: 0 });
+    // o efeito some de vez ao terminar (nada fica montado, e o próximo tranco sempre recomeça)
+    useEffect(() => {
+        if (!escuta.n) return;
+        const id = window.setTimeout(() => setEscuta({ n: 0, k: 0 }), escuta.n === 2 ? 3300 : 600);
+        return () => window.clearTimeout(id);
+    }, [escuta]);
     useEffect(() => { menuDesde.current = performance.now(); }, [menu?.id, menu?.citando]);
     const menuPronto = () => performance.now() - menuDesde.current > 400;
     const [digitado, setDigitado] = useState(0);
@@ -1280,12 +1289,12 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             const seguida = contarBatida(a.i, performance.now());
             if (seguida >= 2) {
                 tocarPegar();
-                if (seguida === 2) setAviso(oQueSeOuve(a.i));
+                if (seguida === 2) { setAviso(oQueSeOuve(a.i)); setEscuta({ n: 2, k: performance.now() }); }
                 else {
                     const t = batidaNaPorta(a.i, seguida);
                     setAviso(t.texto);
                     // só a 3ª assusta e chama a atenção; da 4ª em diante é silêncio
-                    if (t.errada && seguida === 3) { tocarGlitch(); mudarAtencao(10); }
+                    if (t.errada && seguida === 3) { tocarGlitch(); mudarAtencao(10); setEscuta({ n: 3, k: performance.now() }); }
                 }
                 return;
             }
@@ -1485,9 +1494,16 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     ), [Q, compilado, naCabine, chegou, jaAndou, monitorar, nivel, arniFalandoAgora, fase, glitch, revisao, comecarEntidade, onExit, quedaEmVideo, aquecido]);
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none' }}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#8fb6da', touchAction: 'none',
+            // o tranco da 3ª batida (o estado zera depois de 600 ms, então recomeça a cada vez)
+            animation: escuta.n === 3 ? 'f13tranco .45s cubic-bezier(.3,1.6,.5,1)' : undefined }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             {cena}
+            {escuta.n === 2 && <div key={escuta.k} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
+                background: 'radial-gradient(ellipse 70% 60% at 50% 50%, transparent 40%, rgba(10,6,3,.78) 100%)', animation: 'f13escuta 3.2s ease-in-out forwards' }} />}
+            {escuta.n === 3 && <div key={escuta.k} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2, background: '#120806', animation: 'f13bate .5s ease-out forwards' }} />}
+            <style>{'@keyframes f13escuta{0%{opacity:0}18%,70%{opacity:1}100%{opacity:0}}@keyframes f13bate{0%{opacity:.55}100%{opacity:0}}'
+                + '@keyframes f13tranco{0%,100%{transform:none}20%{transform:translate(-7px,3px) rotate(-.6deg)}45%{transform:translate(6px,-2px)}70%{transform:translate(-3px,1px)}}'}</style>
             {painelFps13 && <PainelFps13 nivel={nivel} />}
             {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline preload="auto"
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }}>
