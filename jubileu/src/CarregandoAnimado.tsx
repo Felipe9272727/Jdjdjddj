@@ -12,7 +12,7 @@
  *   <CarregandoAnimado visivel={!pronto} />                 some com fade e desmonta o DOM
  * Cobre a tela (fixed), respeita a safe-area, serve em retrato e paisagem e bloqueia toques.
  */
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 
 export interface CarregandoAnimadoProps {
   progresso?: number; // 0..1; sem ele a barra é indeterminada
@@ -24,6 +24,7 @@ export interface CarregandoAnimadoProps {
 // TEMPO E ANIMAÇÃO
 const T = 10; // segundos por rodada
 const FONTE = "'Luckiest Guy','Arial Black',Impact,system-ui,sans-serif";
+if (typeof document !== 'undefined') document.fonts?.load("20px 'Luckiest Guy'").catch(() => {}); // a fonte do index.html só é decodificada no 1º uso: pede já
 const K = '#1a1220', OURO = '#f2b53c', OURO_E = '#b9791a', PELE = '#f4cd73', JAQ = '#b3111a';
 
 type E = 'i' | 'o' | 'a' | 'p' | 'h' | 'l'; // suave · arranca · acelera · pop · degrau · linear
@@ -105,8 +106,8 @@ const estrela = (cx: number, cy: number, r: number, n = 5, f = .46) => {
 };
 
 /** Uma camada animável: <div> (camada do compositor) + <svg> opcional (sem `vb`, os filhos são camadas). */
-const Pt: React.FC<{ c?: string; vb?: string; par?: string; kids?: React.ReactNode; children?: React.ReactNode }> = ({ c = '', vb, par, kids, children }) => (
-  <div className={`p ${c}`}>{vb ? <svg viewBox={vb} preserveAspectRatio={par} aria-hidden="true">{children}</svg> : children}{kids}</div>
+const Pt: React.FC<{ c?: string; vb?: string; par?: string; children?: React.ReactNode }> = ({ c = '', vb, par, children }) => (
+  <div className={`p ${c}`}>{vb ? <svg viewBox={vb} preserveAspectRatio={par} aria-hidden="true">{children}</svg> : children}</div>
 );
 
 /** Gradientes (um <svg> invisível; url(#cna-…) vale no documento). Paradas: "offset cor [opacidade]". */
@@ -115,7 +116,7 @@ const GRADS: [string, 'v' | 'h' | 'r', string][] = [
   ['ma', 'h', '0 #4a2714,.5 #6f3d20,1 #3f2010'], ['cu', 'h', '0 #6a0d1b,.3 #b3182c,.55 #7d1022,.8 #b3182c,1 #5a0a17'],
   ['lz', 'r', '0 #ffd98a .95,.45 #ffb347 .45,1 #ffb347 0'], ['ci', 'r', '0 #7df9ff .95,.45 #16e0e8 .45,1 #16e0e8 0'], ['vm', 'r', '0 #ff8a7a .95,.45 #ff3b30 .45,1 #ff3b30 0'],
 ];
-const Defs: React.FC = () => (
+const Defs = () => (
   <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true"><defs>{GRADS.map(([id, d, st]) => {
     const s = st.split(',').map((x, i) => { const [o, c, a] = x.split(' '); return <stop key={i} offset={o} stopColor={c} stopOpacity={a} />; });
     return d === 'r' ? <radialGradient key={id} id={`cna-${id}`}>{s}</radialGradient> : <linearGradient key={id} id={`cna-${id}`} x2={d === 'h' ? 1 : 0} y2={d === 'v' ? 1 : 0}>{s}</linearGradient>;
@@ -123,6 +124,7 @@ const Defs: React.FC = () => (
 );
 
 // OS ROBÔS: caixa de cromo, tela escura, antena, três LEDs
+// corpo, escuro, metal, junta, painel, tela, acento, olhos, bulbo da antena, LEDs
 interface Pal { c: string; e: string; m: string; j: string; pn: string; tl: string; ac: string; ol: string; bu: string; lu: string[] }
 const pal = (s: string): Pal => { const [c, e, m, j, pn, tl, ac, ol, bu, ...lu] = s.split(' '); return { c, e, m, j, pn, tl, ac, ol, bu, lu }; };
 const P64 = pal('#b4bdc7 #6f7a87 #8a95a1 #3a4047 #4a525c #0e1318 #e8503a #16e0e8 #ff5040 #ffd24d #4dff7a #4da8ff'); // cromo (Floor5Robot64)
@@ -182,7 +184,7 @@ const Cabeca: React.FC<{ p: Pal; k: 0 | 1 | 2; x: string; ex: Exp[] }> = ({ p, k
 };
 
 type Arma = 'c' | 'b' | 'f' | 'n';
-const Banana: React.FC = () => <g {...L} strokeWidth="5">{sv('p M-16,-10Q-18,14,6,20Q22,22,28,10Q12,14,2,4Q-2,-8,-6,-14Z #ffe14a|p M-6,-14l-2,-8l8,0l0,6z #7a4a1a')}</g>;
+const Banana = () => <g {...L} strokeWidth="5">{sv('p M-16,-10Q-18,14,6,20Q22,22,28,10Q12,14,2,4Q-2,-8,-6,-14Z #ffe14a|p M-6,-14l-2,-8l8,0l0,6z #7a4a1a')}</g>;
 const ARMAS: Record<string, (p: Pal) => React.ReactNode> = {
   c: () => sv(`r* -8 44 16 72 7 #f2b632|p M-9,145L-9,131L9,131L9,145A23,23,0,1,0,-9,145Z #f2b632|c~ 0 112 4 ${K}`), // chave inglesa
   b: (p) => sv(`c~ 0 138 30 @ci .glowb|r -7 44 14 86 6 #2c323d|r~ -7 56 14 8 0 ${p.ac}|r~ -7 76 14 8 0 ${p.ac}|r -10 120 20 30 9 #9af6ff|p M-13,126l8,6l-6,4l9,8 none s#fff w3 .zap`), // cassetete
@@ -197,14 +199,14 @@ const Braco: React.FC<{ p: Pal; x: number; arma?: Arma; gr?: boolean; ban?: bool
 );
 
 // O ATENDENTE DO LOBBY (como no sprite da loja)
-const AtdCorpo: React.FC = () => (
+const AtdCorpo = () => (
   <g {...L}>
     {sv(`p* M84,242L88,186Q90,152,122,148H178Q210,152,212,186L216,242Z ${JAQ}|p M128,148L150,184L172,148Z #f6f1e4 w4|p M144,152H156L160,162L151,214L140,162Z ${K} w3|p M106,158L138,242M194,158L162,242 none s${OURO} w4`)}
     {sv([0, 1, 2].map((i) => `c ${132 + i * 3} ${192 + i * 14} 4.2 ${OURO} w2.5|c ${168 - i * 3} ${192 + i * 14} 4.2 ${OURO} w2.5`).join('|'))}
     {sv(`r 172 176 24 9 2.5 ${OURO} w2.5|p M90,166Q68,180,74,230L104,234Q106,198,114,170Z ${JAQ}|r 72 214 32 11 4 ${OURO} w3|e 90 238 16 11 ${PELE}`)}
   </g>
 );
-const AtdCabeca: React.FC = () => (
+const AtdCabeca = () => (
   <g {...L}>
     {sv(`p M104,100Q96,56,130,48H170Q204,56,196,100Z #15101c|r* 108 60 84 86 22 ${PELE}|p M106,96Q100,62,128,62L137,79L150,62L163,79L172,62Q200,62,194,96L186,82L176,94L164,80L150,94L136,80L126,94Z #15101c w4`)}
     {sv(`e~ 132 106 5.6 8.6 ${K}|e~ 168 106 5.6 8.6 ${K}|c~ 119 124 7 #f0906a o.42|c~ 181 124 7 #f0906a o.42|p M134,126Q150,140,166,126 none w4.6`)}
@@ -214,25 +216,25 @@ const AtdCabeca: React.FC = () => (
     {sv(`p* M100,66V30Q100,14,118,14H182Q200,14,200,30V66Q150,76,100,66Z ${JAQ}|p M100,48Q150,58,200,48V58Q150,68,100,58Z ${OURO} w3.5|c 150 38 12 ${OURO} w4|c~ 150 38 5 ${OURO_E}`)}
   </g>
 );
-const AtdBraco: React.FC = () => <g transform="translate(212 164)" {...L}>{sv(`r -14 -8 28 58 14 ${JAQ}|r -14 38 28 10 4 ${OURO} w3|e 0 58 14 12 ${PELE}`)}</g>;
-const AtdSino: React.FC = () => <g {...L}>{sv(`p M250,224Q250,180,288,180Q326,180,326,224Z @ou|r 242 220 92 12 6 ${OURO_E}|r 283 170 10 14 3 ${OURO_E} w3|c 288 168 7 ${OURO} w3.5|p M262,214Q264,194,277,188 none s#fff w4 o.6`)}</g>;
-const AtdBalcao: React.FC = () => (
+const AtdBraco = () => <g transform="translate(212 164)" {...L}>{sv(`r -14 -8 28 58 14 ${JAQ}|r -14 38 28 10 4 ${OURO} w3|e 0 58 14 12 ${PELE}`)}</g>;
+const AtdSino = () => <g {...L}>{sv(`p M250,224Q250,180,288,180Q326,180,326,224Z @ou|r 242 220 92 12 6 ${OURO_E}|r 283 170 10 14 3 ${OURO_E} w3|c 288 168 7 ${OURO} w3.5|p M262,214Q264,194,277,188 none s#fff w4 o.6`)}</g>;
+const AtdBalcao = () => (
   <g {...L}>{sv(`r 6 226 348 22 7 #2a1710|r~ 6 226 348 7 3.5 @ou o.85|r 16 246 328 84 0 @ma|r 104 258 152 64 8 #0d0609 s${OURO} w3.5|p M156,304Q156,278,180,278Q204,278,204,304Z @ou w2.5|r 150 303 60 7 3.5 ${OURO_E} w2.5|c 180 273 4.5 ${OURO} w2`)}</g>
 );
 
 // O SAGUÃO (como o fundo da loja)
-const Arco: React.FC = () => <g {...L}>{sv(`p M12,380V176A198,164,0,0,1,408,176V380Z #4a2815|p M40,380V178A170,138,0,0,1,380,178V380Z #12040a|e~ 210 300 130 150 @lz o.2|p M40,380V178A170,138,0,0,1,380,178V380 none s${OURO} w4.5|c 210 26 18 ${OURO} w4.5|c~ 210 26 8 ${OURO_E}`)}</g>;
+const Arco = () => <g {...L}>{sv(`p M12,380V176A198,164,0,0,1,408,176V380Z #4a2815|p M40,380V178A170,138,0,0,1,380,178V380Z #12040a|e~ 210 300 130 150 @lz o.2|p M40,380V178A170,138,0,0,1,380,178V380 none s${OURO} w4.5|c 210 26 18 ${OURO} w4.5|c~ 210 26 8 ${OURO_E}`)}</g>;
 const Cortina: React.FC<{ e: boolean }> = ({ e }) => (
   <g transform={e ? undefined : 'translate(420 0) scale(-1 1)'} {...L} strokeWidth="4">
     {sv(`p M40,178A170,138,0,0,1,128,58Q126,104,100,152Q76,214,98,290Q114,340,100,380H40Z @cu|p M68,128Q58,250,74,378M92,88Q86,210,96,378 none s#3b0712 o.5 w3.5|p M58,290Q92,274,114,292Q92,314,58,304Z ${OURO} w3`)}
   </g>
 );
-const Chaveiro: React.FC = () => <g {...L}>{sv(`r 10 10 230 282 10 #4a2815|r 26 26 198 196 6 #1c0a08|p~ M26,26H224L26,150Z #fff o.06|r~ 34 70 182 5 2 ${OURO_E}|r~ 34 150 182 5 2 ${OURO_E}|r 10 226 230 66 6 @ma|r 26 236 92 22 3 #2b150c w3.5|r 132 236 92 22 3 #2b150c w3.5|c~ 72 247 3.5 ${OURO}|c~ 178 247 3.5 ${OURO}`)}</g>;
+const Chaveiro = () => <g {...L}>{sv(`r 10 10 230 282 10 #4a2815|r 26 26 198 196 6 #1c0a08|p~ M26,26H224L26,150Z #fff o.06|r~ 34 70 182 5 2 ${OURO_E}|r~ 34 150 182 5 2 ${OURO_E}|r 10 226 230 66 6 @ma|r 26 236 92 22 3 #2b150c w3.5|r 132 236 92 22 3 #2b150c w3.5|c~ 72 247 3.5 ${OURO}|c~ 178 247 3.5 ${OURO}`)}</g>;
 const Chaves: React.FC<{ y: number }> = ({ y }) => (
   <g stroke="none">{[0, 1, 2, 3, 4].map((i) => <g key={i} transform={`translate(${56 + i * 34} ${y + 6})`}>{sv(`c 0 13 8 none s${OURO} w4|r -2.5 20 5 36 0 ${OURO}|r 2 42 9 5 0 ${OURO}|r 2 50 6 5 0 ${OURO}`)}</g>)}</g>
 );
 const LIVROS: [string, number, number][] = [['#a3202b', 34, 64], ['#2b4a8a', 50, 54], ['#2f7a4d', 64, 70], ['#d79a2c', 80, 58], ['#7a2c6a', 96, 66], ['#a3202b', 112, 52], ['#3c3c48', 126, 62]];
-const Estante: React.FC = () => (
+const Estante = () => (
   <g {...L}>
     {sv(`r 6 36 268 354 8 #4a2815|r 20 50 240 246 0 #1d0b09|r 6 168 268 10 0 @ma|r 6 284 268 10 0 @ma|r 20 300 240 86 0 #2b150c w4|r 28 310 108 66 3 #3d2010 w3.5|r 144 310 108 66 3 #3d2010 w3.5|r 98 150 84 18 5 @ma|c 140 96 52 ${OURO} w5|c 140 96 43 #f3e6c2 w3.5|c 140 40 9 ${OURO} w4`)}
     <Ponteiro len={24} w={6} />
@@ -241,16 +243,16 @@ const Estante: React.FC = () => (
   </g>
 );
 const Ponteiro: React.FC<{ len: number; w: number }> = ({ len, w }) => <path d={`M140 96V${96 - len}`} stroke={K} strokeWidth={w} strokeLinecap="round" />;
-const QuadroMapa: React.FC = () => <g {...L}>{sv(`r 6 6 108 158 5 @ou|r 20 20 80 130 0 #e9dcc0 w3.5|p M32,40H88V70H32ZM32,82H60V136H32ZM70,82H88V136H70Z none s#6b5a3a w2.5`)}</g>;
-const QuadroCastelo: React.FC = () => <g {...L}>{sv(`r 6 6 138 158 5 @ou|r 20 20 110 130 0 #3a2a18 w3.5|r~ 20 20 110 60 0 #b87a2a o.55|p~ M20,150L52,92L70,118L96,76L130,150Z #241a12`)}</g>;
-const Lampiao: React.FC = () => <g {...L} strokeWidth="4">{sv(`p M35,122V86Q35,70,48,66 none s${OURO_E} w5|p M18,70H52L46,30H24Z #ffd98a|r 15 66 40 8 3 ${OURO}|r 22 24 26 8 3 ${OURO}`)}</g>;
-const Planta: React.FC = () => (
+const QuadroMapa = () => <g {...L}>{sv(`r 6 6 108 158 5 @ou|r 20 20 80 130 0 #e9dcc0 w3.5|p M32,40H88V70H32ZM32,82H60V136H32ZM70,82H88V136H70Z none s#6b5a3a w2.5`)}</g>;
+const QuadroMontes = () => <g {...L}>{sv(`r 6 6 138 158 5 @ou|r 20 20 110 130 0 #3a2a18 w3.5|r~ 20 20 110 60 0 #b87a2a o.55|p~ M20,150L52,92L70,118L96,76L130,150Z #241a12`)}</g>;
+const Lampiao = () => <g {...L} strokeWidth="4">{sv(`p M35,122V86Q35,70,48,66 none s${OURO_E} w5|p M18,70H52L46,30H24Z #ffd98a|r 15 66 40 8 3 ${OURO}|r 22 24 26 8 3 ${OURO}`)}</g>;
+const Planta = () => (
   <g {...L}>{sv([[-46, '#1f6b3a'], [-24, '#2e8b4d'], [0, '#1f6b3a'], [24, '#2e8b4d'], [46, '#1f6b3a']].map(([r, c]) => `p M75,150Q44,100,75,18Q106,100,75,150Z ${c} w4.5 trotate(${r}_75_150)`).join('|'))}
     {sv('p M46,150H104L96,204H54Z #a8391f w5|r 42 144 66 14 5 #c4492a w5')}</g>
 );
-const Tapete: React.FC = () => <g {...L} strokeWidth="5">{sv(`p M170,6H1070L1234,244H6Z #7a1322|p M204,30H1036L1170,222H70Z none s${OURO} w6|p~ M232,46H1008L1128,210H112Z #8c1a2a|p M620,70L760,128L620,190L480,128Z none s${OURO_E} w4 o.8`)}</g>;
+const Tapete = () => <g {...L} strokeWidth="5">{sv(`p M170,6H1070L1234,244H6Z #7a1322|p M204,30H1036L1170,222H70Z none s${OURO} w6|p~ M232,46H1008L1128,210H112Z #8c1a2a|p M620,70L760,128L620,190L480,128Z none s${OURO_E} w4 o.8`)}</g>;
 
-// EFEITOS: balão de golpe, estrela de tontura, poeira, risco de movimento
+// EFEITOS: balões de golpe e estrelas de tontura
 /** [classe, x, y, texto, raio, giro, cor, instante, duração] — x, y na caixa do segurança (200×260). */
 const BAL: [string, number, number, string, number, number, string, number, number][] = [
   ['w1', 56, 56, 'CLANG!', 64, -8, '#ffe14a', 2.17, .55], ['w2', 66, 200, 'BAM!', 56, 10, '#ffb347', 4.35, .5], ['w3', 62, 70, 'POW!', 54, -14, '#ffe14a', 5.65, .32],
@@ -306,7 +308,7 @@ const Cena = memo(function Cena() {
         <D id="chav" vb="0 0 250 300" ks={[['k1', <Chaves y={70} />], ['k2', <Chaves y={150} />]]}><Chaveiro /></D>
         <D id="est" vb="0 0 280 400" ks={[['rm', <Ponteiro len={36} w={4.5} />]]}><Estante /></D>
         <D id="qm" vb="0 0 120 170"><QuadroMapa /></D>
-        <D id="qc" vb="0 0 150 170"><QuadroCastelo /></D>
+        <D id="qc" vb="0 0 150 170"><QuadroMontes /></D>
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className={`e la${i}`}>
             <Pt c={`lg${i % 2}`} vb="0 0 70 130"><circle cx="35" cy="56" r="96" fill="url(#cna-lz)" opacity=".5" /></Pt>
@@ -437,7 +439,7 @@ function coreografia() {
   anim('yps', { p: jan([[2.17, 2.75], [4.3, 4.75], [7.3, 7.7], [9.25, 9.7]]) });
   anim('ypy', { p: jan([[8.45, 9.15]]) });
 
-  // caras extras, balões, poeira e riscos
+  // caras extras, balões e riscos de movimento
   for (const [id, f] of Object.entries(FACES)) for (const [t, w] of Object.entries(f)) anim(`${id}f${t}`, { p: jan(w) });
   BAL.forEach(([c, cx, cy, , , , , t, h]) => pop(c, `${cx / 2}% ${cy / 2.6}%`, [t], h));
   anim('sw1', { p: ev([1.52], 1, .14) }); anim('sw2', { p: ev([2.12], 1, .14) });
@@ -492,7 +494,7 @@ padding:clamp(20px,6cqmin,60px) max(16px,env(safe-area-inset-right)) max(14px,en
 .cna .bar{position:relative;box-sizing:border-box;width:min(78cqw,30rem);height:clamp(10px,2.4cqmin,18px);border-radius:99px;background:#1a0a10;border:3px solid ${OURO};overflow:hidden;box-shadow:0 3px 0 #7a3b00,0 0 18px rgba(242,181,60,.28)}
 .cna .fi{position:absolute;inset:0;border-radius:99px;transform-origin:left center;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.32) 0 8px,transparent 8px 16px),linear-gradient(#ffe08a,#f2a11c);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
 .cna .ind{right:auto;width:40%;animation:cn-ind 1.5s cubic-bezier(.45,0,.55,1) infinite}@keyframes cn-ind{from{transform:translateX(-105%)}to{transform:translateX(255%)}}
-@media(prefers-reduced-motion:reduce){.cna{--off:-1s!important}.cna .sh,.cna .sh *{animation-play-state:paused!important}}
+@media(prefers-reduced-motion:reduce){.cna{--off:-1s!important}.cna .sh,.cna .sh *,.cna .fl{animation-play-state:paused!important}}
 ${lay.map((l) => l[0]).join('\n')}
 @media(orientation:portrait){${lay.map((l) => l[1]).join('\n')}}
 ${regras.join('\n')}`;
@@ -502,9 +504,14 @@ const CSS = montarCss();
 // O COMPONENTE
 export const CarregandoAnimado: React.FC<CarregandoAnimadoProps> = ({ progresso, rotulo = 'Carregando…', visivel = true, congelar }) => {
   const [fase, setFase] = useState<'off' | 'on' | 'sai'>(visivel ? 'on' : 'off');
+  // a fase atual, lida no efeito sem entrar nas dependências (o efeito só reage a `visivel`)
+  const faseAtual = useRef(fase); faseAtual.current = fase;
   useEffect(() => {
     if (visivel) { setFase('on'); return; }
-    setFase((f) => (f === 'on' ? 'sai' : 'off'));
+    // já desmontada: nada a esmaecer, nenhum timer
+    if (faseAtual.current === 'off') return;
+    // visível → esmaece 450 ms e desmonta; se voltar a ficar visível antes, o cleanup cancela
+    setFase('sai');
     const id = window.setTimeout(() => setFase('off'), 450);
     return () => window.clearTimeout(id);
   }, [visivel]);
