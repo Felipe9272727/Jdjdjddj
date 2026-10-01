@@ -13,7 +13,6 @@
  * Cobre a tela (fixed), respeita a safe-area, serve em retrato e paisagem e bloqueia toques.
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { CENAS_EXTRAS } from './CarregandoCenas';
 
 export interface CarregandoAnimadoProps {
   progresso?: number; // 0..1; sem ele a barra é indeterminada
@@ -298,28 +297,36 @@ const FACES: Record<string, Partial<Record<Exp, [number, number][]>>> = {
 };
 const EXP = Object.fromEntries(Object.entries(FACES).map(([k, v]) => [k, Object.keys(v) as Exp[]])) as Record<string, Exp[]>;
 
+/** O saguão (pilares, arco com cortinas, chaveiro, estante com relógio, quadros, lampiões, tapete, plantas):
+ *  a mesma casa para todas as cenas. Já posicionado e animado pelo CSS da cena original. */
+export const FundoSaguao: React.FC<{ semArco?: boolean }> = ({ semArco }) => (
+  <>
+    {[1, 2, 3, 4].map((i) => <div key={i} className={`e pil pl${i}`} />)}
+    {!semArco && <D id="arco" vb="0 0 420 380" ks={[['cE', <Cortina e />], ['cD', <Cortina e={false} />]]}><Arco /></D>}
+    <D id="chav" vb="0 0 250 300" ks={[['k1', <Chaves y={70} />], ['k2', <Chaves y={150} />]]}><Chaveiro /></D>
+    <D id="est" vb="0 0 280 400" ks={[['rm', <Ponteiro len={36} w={4.5} />]]}><Estante /></D>
+    <D id="qm" vb="0 0 120 170"><QuadroMapa /></D>
+    <D id="qc" vb="0 0 150 170"><QuadroMontes /></D>
+    {[1, 2, 3, 4].map((i) => (
+      <div key={i} className={`e la${i}`}>
+        <Pt c={`lg${i % 2}`} vb="0 0 70 130"><circle cx="35" cy="56" r="96" fill="url(#cna-lz)" opacity=".5" /></Pt>
+        <Pt vb="0 0 70 130"><Lampiao /></Pt>
+      </div>
+    ))}
+    <D id="tap" vb="0 0 1240 250" par="none"><Tapete /></D>
+    <D id="pe" vb="0 0 150 210" c="pa1"><Planta /></D>
+    <D id="pd" vb="0 0 150 210" c="pa2"><Planta /></D>
+    {[1, 2, 3].map((i) => <div key={i} className={`mo mo${i}`} />)}
+  </>
+);
+
 const Cena = memo(function Cena() {
   return (
     <>
       <Defs />
       <div className="pa" /><div className="ch" /><div className="lb" />
       <div className="pal"><div className="sh">
-        {[1, 2, 3, 4].map((i) => <div key={i} className={`e pil pl${i}`} />)}
-        <D id="arco" vb="0 0 420 380" ks={[['cE', <Cortina e />], ['cD', <Cortina e={false} />]]}><Arco /></D>
-        <D id="chav" vb="0 0 250 300" ks={[['k1', <Chaves y={70} />], ['k2', <Chaves y={150} />]]}><Chaveiro /></D>
-        <D id="est" vb="0 0 280 400" ks={[['rm', <Ponteiro len={36} w={4.5} />]]}><Estante /></D>
-        <D id="qm" vb="0 0 120 170"><QuadroMapa /></D>
-        <D id="qc" vb="0 0 150 170"><QuadroMontes /></D>
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={`e la${i}`}>
-            <Pt c={`lg${i % 2}`} vb="0 0 70 130"><circle cx="35" cy="56" r="96" fill="url(#cna-lz)" opacity=".5" /></Pt>
-            <Pt vb="0 0 70 130"><Lampiao /></Pt>
-          </div>
-        ))}
-        <D id="tap" vb="0 0 1240 250" par="none"><Tapete /></D>
-        <D id="pe" vb="0 0 150 210" c="pa1"><Planta /></D>
-        <D id="pd" vb="0 0 150 210" c="pa2"><Planta /></D>
-        {[1, 2, 3].map((i) => <div key={i} className={`mo mo${i}`} />)}
+        <FundoSaguao />
 
         {/* TROCO-64: torce da lateral, com a bandeira do irmão; arremessa a casca de banana */}
         <Robo id="m" p={P64} k={0} al="f" ar="n" ban ex={EXP.m} />
@@ -503,9 +510,12 @@ ${regras.join('\n')}`;
 const CSS = montarCss();
 
 // O COMPONENTE
-/** Todas as cenas: a do saguão (a briga) e as extras (CarregandoCenas). Uma por carregamento, sorteada. */
-const CENAS: React.ComponentType[] = [Cena, ...CENAS_EXTRAS];
+/** Todas as cenas: a briga do saguão e as que os módulos de cenas registram (CarregandoCenas, CarregandoAndares).
+ *  Uma por carregamento, sorteada. (Registro em vez de import: as cenas usam as peças daqui ao carregar.) */
+const CENAS: React.ComponentType[] = [];
+export function registrarCenas(c: React.ComponentType[]): void { CENAS.push(...c); }
 const sortearCena = () => {
+  if (CENAS[0] !== Cena) CENAS.unshift(Cena);
   const q = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('cena') : null; // bancada: ?cena=N
   if (q !== null && CENAS[+q]) return +q;
   return Math.floor(Math.random() * CENAS.length);

@@ -44,6 +44,8 @@ import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from 
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import { CarregandoAnimado } from './CarregandoAnimado';
+import './CarregandoCenas';
+import './CarregandoAndares';
 import { SelosDasPistas } from './f13Selos';
 import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,

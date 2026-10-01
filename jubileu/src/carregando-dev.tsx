@@ -11,6 +11,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { CarregandoAnimado } from './CarregandoAnimado';
+import './CarregandoCenas';
+import './CarregandoAndares';
 
 const q = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
 
