@@ -11,7 +11,7 @@ await p.goto(`http://127.0.0.1:${PORTA}/index.html?f13&f13aovivo&f13gravar`, { w
 const real = (ms) => new Promise((r) => setTimeout(r, ms));
 await real(3000);
 // para o relógio: daqui em diante o tempo só anda quando mandamos
-await p.clock.pauseAt((await p.evaluate(() => Date.now())) + 100);
+await p.clock.pauseAt((await p.evaluate(() => Date.now())) + 3000);
 await p.click('button').catch(() => {});
 // deixa carregar e compilar: avança o relógio aos poucos até a queda começar
 for (let i = 0; i < 600; i++) {
