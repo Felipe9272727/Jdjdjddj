@@ -19,6 +19,7 @@ import {
   K, OURO, OURO_E, FONTE, L, VA, type Exp,
   registrarCenas,
 } from './CarregandoAnimado';
+import { assar, ferve, ginga, pernas, pulo, susto, tremor } from './cnMotor';
 
 // ── TEMPO E CSS ──────────────────────────────────────────────────────────────
 export const D = 10; // segundos por laço
@@ -180,32 +181,100 @@ const CSS1 = [
   pos('c1t', [1170, 664, 320, 293], [420, 1330, 330, 302]),
   pos('c1-plw', [700, 190, 200, 200], [230, 400, 220, 220]),
   pos('c1-tuw', [930, 330, 180, 180], [470, 590, 180, 180]),
-  // portas: fecham (1), abrem sanfonadas (.06) duas vezes
-  ...(['c1-pe', 'c1-pd'] as const).map((c, i) => an(c, i ? '82.5% 50%' : '17.5% 50%', [
-    [0, tr(0, 0, 0, 1, 1)], [1.6, tr(0, 0, 0, 1, 1)], [1.9, tr(0, 0, 0, .06, 1)], [3.6, tr(0, 0, 0, .06, 1)], [3.9, tr(0, 0, 0, 1, 1)],
-    [5.6, tr(0, 0, 0, 1, 1)], [5.9, tr(0, 0, 0, .06, 1)], [7.4, tr(0, 0, 0, .06, 1)], [7.7, tr(0, 0, 0, 1, 1)]])),
-  // o ponteiro chega no 13, enlouquece no tranco e volta
-  an('c1-ag', '50% 13.04%', [[0, rot(-70)], [1.5, rot(70)], [4.1, rot(70)], [4.3, rot(-40)], [4.55, rot(80)], [4.8, rot(-60)], [5.05, rot(75)], [5.5, rot(70)], [7.8, rot(70)], [9.8, rot(-70)]]),
-  // o tranco: a cabine sacode entre as duas paradas
-  ...['c1-ei', 'c1-ef'].map((c) => an(`${c}x`, '50% 100%', [[0, tr()], [4.1, tr()],
-    ...[4.2, 4.35, 4.5, 4.65, 4.8, 4.95, 5.1, 5.25].map((t, i): Q => [t, tr(i % 2 ? 1.2 : -1.2, i % 3 ? -.6 : .4, i % 2 ? .8 : -.8)]), [5.4, tr()]])),
-  pop('c1-g1', [1.62, 5.62], .5),
-  pop('c1-g2', [4.3, 4.85], .3),
-  // o TROCO-64: dentro, pula e acena na 1ª parada; tonto e torto na 2ª
-  an('c1mc', PV.c, [[0, tr()], [1.9, tr()], [2.1, tr(0, -14, 0, 1.04, .96)], [2.3, tr(0, 0, 0, .96, 1.04)], [2.5, tr(0, -14)], [2.7, tr()], [2.9, tr(0, -14)], [3.1, tr()], [3.7, tr()],
-    [5.8, tr(0, 0, 14)], [6.2, tr(0, 0, -12)], [6.6, tr(0, 0, 16)], [7.0, tr(0, 0, -10)], [7.6, tr(0, 0, 12)], [8.6, tr()]]),
-  an('c1me', PV.e, [[0, rot(10)], [1.9, rot(10)], [2.05, rot(160)], [2.4, rot(130)], [2.7, rot(165)], [3.0, rot(130)], [3.4, rot(160)], [3.8, rot(10)], [5.7, rot(10)], [6.0, rot(70)], [7.3, rot(60)], [7.8, rot(10)]]),
-  an('c1md', PV.d, [[0, rot(-10)], [1.9, rot(-10)], [2.05, rot(-160)], [2.4, rot(-130)], [2.7, rot(-165)], [3.0, rot(-130)], [3.4, rot(-160)], [3.8, rot(-10)], [5.7, rot(-10)], [6.0, rot(-70)], [7.3, rot(-60)], [7.8, rot(-10)]]),
-  an('c1mh', PV.h, [[0, rot(0)], [5.8, rot(0)], [6.1, rot(-16)], [6.5, rot(14)], [6.9, rot(-12)], [7.4, rot(10)], [7.9, rot(0)]]),
-  vis('c1mff', [[1.95, 3.7]]), vis('c1mfe', [[5.75, 7.6]]), vis('c1mfs', [[4.1, 5.5]]),
+  // ── REFEITA no cnMotor: linha do tempo do GSAP, assada a 12 qps em degrau ──
+  // 0–1,5 o ponteiro sobe até o 13 · 1,5 PLIM, a porta abre e o 64 acena lá dentro ·
+  // 2,7 ele pula para fora e faz pose · 4,3 a porta BATE atrás dele (TUM!) · esmurra a porta ·
+  // 6,1 ela abre de repente e ele cai para dentro · a cabine despenca · o atendente suspira.
+  ...(['c1-pe', 'c1-pd'] as const).map((c, i) => assar(c, i ? '82.5% 50%' : '17.5% 50%', D, (tl, a) => {
+    const abre = (t: number) => tl.to(a, { sx: 1.05, duration: 2 / 12, ease: 'power1.out' }, t).to(a, { sx: .06, duration: .28, ease: 'expo.out' }, t + 2 / 12);
+    const fecha = (t: number, d = .16) => tl.to(a, { sx: 1, duration: d, ease: 'expo.in' }, t).to(a, { sx: .97, duration: 1 / 12 }, t + d).to(a, { sx: 1, duration: 2 / 12 }, t + d + 1 / 12);
+    abre(1.5); fecha(4.25);
+    for (const t of [5.25, 5.55, 5.85]) tl.to(a, { sx: .96, duration: 1 / 12 }, t).to(a, { sx: 1, duration: 2 / 12, ease: 'back.out(3)' }, t + 1 / 12);
+    tl.to(a, { sx: .06, duration: .2, ease: 'expo.out' }, 6.1); fecha(6.55, .2);
+  })),
+  assar('c1-ag', '50% 13.04%', D, (tl, a) => {
+    tl.set(a, { r: -70 }, 0).to(a, { r: 70, duration: 1.1, ease: 'back.out(2.2)' }, .2)
+      .to(a, { r: -790, duration: .9, ease: 'power3.in' }, 6.7).to(a, { r: -70, duration: .01 }, 7.61)
+      .to(a, { r: -82, duration: .5, ease: 'elastic.out(1,.35)' }, 7.62).to(a, { r: -70, duration: .4 }, 8.2);
+  }),
+  assar('c1-efx', '50% 100%', D, (tl, a) => { tremor(tl, a, 4.33, 1.2, 5); for (const t of [5.25, 5.55, 5.85]) tremor(tl, a, t, .5, 2); tremor(tl, a, 7.3, 2.2, 10); }),
+  assar('c1-eix', '50% 100%', D, (tl, a) => { tremor(tl, a, 7.3, 2.2, 10); }),
+  pop('c1-g1', [1.5], .6),
+  pop('c1-g2', [4.33, 7.32], .4),
+  // o TROCO-64 — raiz: perspectiva (cresce ao vir para a frente); c: atuação do corpo
+  assar('c1m', '50% 100%', D, (tl, a) => {
+    tl.to(a, { sx: 1.25, sy: 1.25, duration: .6, ease: 'none' }, 2.95).to(a, { sx: 1.1, sy: 1.1, duration: .4, ease: 'none' }, 4.8).to(a, { sx: 1, sy: 1, duration: .3, ease: 'none' }, 6.15);
+  }),
+  assar('c1mc', PV.c, D, (tl, a) => {
+    tl.set(a, { o: 1 }, 1.55);
+    ginga(tl, a, 1.8, 2.7, { passo: .3, alt: 3, gir: 4 });                       // acena gingando lá dentro
+    pulo(tl, a, 2.7, { dx: 115, alt: 38, voo: .6 });                                 // pula para fora
+    tl.to(a, { y: 72, duration: .6, ease: 'none' }, 2.95);                          // ...e para a frente
+    susto(tl, a, 4.33, { alt: 10 });                                                 // a porta bateu
+    tl.to(a, { x: 55, y: 26, duration: .4, ease: 'cn.arranca' }, 4.8);                      // corre de volta
+    for (const t of [5.2, 5.5, 5.8]) tl.to(a, { sx: 1.1, sy: .9, duration: 1 / 12 }, t).to(a, { sx: 1, sy: 1, duration: 2 / 12, ease: 'back.out(2)' }, t + 1 / 12);
+    // a porta abre: ele cai para dentro esticado (smear) e some
+    tl.to(a, { sx: .7, sy: 1.35, r: -14, duration: 1 / 12 }, 6.15).to(a, { x: 0, y: 0, sx: 1, sy: 1, r: 0, duration: .3, ease: 'power3.in' }, 6.25)
+      .set(a, { o: 0 }, 6.6).set(a, { x: 0, y: 0 }, 6.62);
+  }, { inicial: { o: 0 } }),
+  assar('c1mh', PV.h, D, (tl, a) => {                                                 // a cabeça atrasa (overlap)
+    tl.to(a, { r: 10, duration: .2, ease: 'back.out(3)' }, 1.95).to(a, { r: -10, duration: .3, ease: 'sine.inOut' }, 2.2).to(a, { r: 0, duration: .3, ease: 'back.out(2)' }, 2.5);
+    tl.to(a, { r: -8, duration: 2 / 12 }, 3.55).to(a, { r: 0, duration: .4, ease: 'elastic.out(1,.4)' }, 3.72);
+    tl.to(a, { r: 18, duration: .25, ease: 'back.out(2)' }, 4.45).to(a, { r: 0, duration: .3 }, 4.8);
+  }),
+  ...(['e', 'd'] as const).map((k) => {
+    const sg = k === 'e' ? 1 : -1;
+    return assar(`c1m${k}`, k === 'e' ? PV.e : PV.d, D, (tl, a) => {
+      tl.set(a, { r: 10 * sg }, 0);
+      // aceno: sobe com antecipação, balança atrasado 2 quadros do corpo
+      tl.to(a, { r: -6 * sg, duration: 2 / 12 }, 1.8).to(a, { r: 150 * sg, duration: .25, ease: 'back.out(2)' }, 1.97);
+      for (let i = 0; i < 3; i++) tl.to(a, { r: (i % 2 ? 150 : 120) * sg, duration: .15, ease: 'sine.inOut' }, 2.25 + i * .15);
+      tl.to(a, { r: 20 * sg, duration: .15, ease: 'power2.in' }, 2.75);              // braços colam no pulo
+      tl.to(a, { r: 165 * sg, duration: .35, ease: 'back.out(2.5)' }, 3.6);          // TCHARAM
+      tl.to(a, { r: 60 * sg, duration: 2 / 12 }, 4.35).to(a, { r: 30 * sg, duration: .3 }, 4.6);
+      // esmurra: um braço de cada vez, de cima para baixo
+      for (const [j, t] of [5.12, 5.42, 5.72].entries()) if ((j % 2 === 0) === (k === 'd'))
+        tl.to(a, { r: 150 * sg, duration: 2 / 12, ease: 'power2.out' }, t - .1).to(a, { r: 40 * sg, duration: 1 / 12, ease: 'power3.in' }, t + .08);
+      tl.to(a, { r: 170 * sg, duration: 1 / 12 }, 6.15).to(a, { r: 10 * sg, duration: .3 }, 6.3);
+    });
+  }),
+  ...(['l', 'r'] as const).map((k) => assar(`c1m${k}`, k === 'l' ? PV.l : PV.r, D, (tl, a) => pernas(tl, a, 4.8, 5.15, { passo: .2, ang: 30, fase: k === 'l' ? 0 : 1 }))),
+  vis('c1mff', [[1.75, 4.3]]), vis('c1mfs', [[4.33, 4.9]]), vis('c1mfb', [[4.9, 6.1]]), vis('c1mfx', [[6.1, 6.6]]),
+  ferve('c1mb', PV.c, 1, 3),
   // os botões do painel piscam em onda (o 64 apertando todos)
   ...BOTOES.map((i) => an(`c1-b${i}`, null, [[0, op(0)], [.12, op(1)], [.4, op(1)], [.55, op(0)]], i * .37)),
-  // o atendente: olha o relógio no pulso, bate o pé de impaciência, assusta com o tranco
-  an('c1tk', PA.corpo, [[0, tr()], ...[.5, 1.0, 1.5, 6.6, 7.1, 7.6, 8.1, 8.6].flatMap((t): Q[] => [[t, tr(0, 1.2)], [t + .25, tr()]])]),
-  an('c1ta', PA.braco, [[0, rot(0)], [.3, rot(-112)], [1.6, rot(-112)], [1.9, rot(0)], [6.4, rot(0)], [6.7, rot(-112)], [8.8, rot(-112)], [9.1, rot(0)]]),
-  an('c1th', PA.cab, [[0, rot(0)], [.35, rot(10)], [1.5, rot(10)], [1.9, rot(-6)], [4.2, rot(-6)], [4.4, rot(4)], [5.4, rot(0)], [6.7, rot(10)], [8.8, rot(10)], [9.1, rot(0)]]),
-  caretas('c1', { ypb: [[7.0, 8.6]], yps: [[4.2, 5.4]], ypy: [[2.0, 3.2]] }),
-  respira('c1mb', PV.c, 2.2, .025), respira('c1tr', '50% 80%', 3, .012, .7), tranco('c1-sh', [4.3, 4.85], .9),
+  // o atendente: confere o relógio de pulso, leva o susto da porta, suspira quando a cabine despenca
+  assar('c1tk', PA.corpo, D, (tl, a) => {
+    for (const t of [.3, .8, 1.3]) tl.to(a, { y: 1.4, sy: .97, duration: .12, ease: 'power2.in' }, t).to(a, { y: 0, sy: 1, duration: .25, ease: 'back.out(2)' }, t + .12);
+    susto(tl, a, 4.35, { alt: 4 });
+    tl.to(a, { y: 2.5, sx: 1.04, sy: .94, duration: .7, ease: 'sine.inOut' }, 7.9).to(a, { y: 0, sx: 1, sy: 1, duration: .6, ease: 'sine.inOut' }, 9.0);
+  }),
+  assar('c1ta', PA.braco, D, (tl, a) => {
+    tl.to(a, { r: 8, duration: 2 / 12 }, .1).to(a, { r: -112, duration: .3, ease: 'back.out(1.8)' }, .27).to(a, { r: 0, duration: .3, ease: 'power2.inOut' }, 1.5)
+      .to(a, { r: -60, duration: 2 / 12 }, 4.36).to(a, { r: 0, duration: .4, ease: 'elastic.out(1,.4)' }, 4.6);
+  }),
+  assar('c1th', PA.cab, D, (tl, a) => {
+    // olha o relógio · olha o elevador · double-take quando o 64 aterrissa ao lado
+    tl.to(a, { r: 12, duration: .3, ease: 'back.out(2)' }, .3).to(a, { r: -6, duration: .25, ease: 'back.out(2)' }, 1.5)
+      .to(a, { r: 4, duration: .2 }, 3.6).to(a, { r: -4, duration: .15 }, 3.8).to(a, { r: 10, duration: 2 / 12, ease: 'power3.out' }, 3.95)
+      .to(a, { r: 0, duration: .4, ease: 'elastic.out(1,.4)' }, 4.15).to(a, { r: 14, duration: .8, ease: 'sine.inOut' }, 7.9).to(a, { r: 0, duration: .5 }, 9.0);
+  }),
+  caretas('c1', { ypb: [[7.9, 9.2]], yps: [[3.95, 4.9]], ypy: [] }),
+  respira('c1tr', '50% 80%', 3, .012, .7),
+  // a CÂMERA: enquadra a ação (o saguão inteiro deixava todo mundo minúsculo)
+  assar('c1-cam', '0 0', D, (tl, a) => {
+    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    tl.set(a, plano(950, 320, 1.45), 0)
+      .to(a, { ...plano(800, 300, 1.85), duration: .35, ease: 'expo.out' }, 1.5)          // PLIM: entra no elevador
+      .to(a, { ...plano(930, 400, 1.5), duration: .7, ease: 'power2.inOut' }, 2.75)        // acompanha o pulo
+      .to(a, { ...plano(920, 420, 1.7), duration: .12, ease: 'power3.out' }, 4.33)         // TUM: soco de zoom
+      .to(a, { ...plano(860, 380, 1.75), duration: .5, ease: 'power2.inOut' }, 4.9)
+      .to(a, { ...plano(820, 330, 1.95), duration: .2, ease: 'expo.out' }, 6.1)            // cai para dentro
+      .to(a, { ...plano(900, 360, 1.45), duration: .4, ease: 'power2.out' }, 7.25)         // a cabine despenca
+      .to(a, { ...plano(1170, 470, 2.1), duration: 1.4, ease: 'sine.inOut' }, 7.9)         // o suspiro do atendente
+      .to(a, { ...plano(950, 320, 1.45), duration: .6, ease: 'power2.inOut' }, 9.35);
+  }),
+  assar('c1-sh', '50% 50%', D, (tl, a) => { tremor(tl, a, 4.33, .8, 4); tremor(tl, a, 7.3, 1.1, 6); }),
 ].join('');
 
 const Elevador = memo(function Elevador() {
@@ -214,16 +283,17 @@ const Elevador = memo(function Elevador() {
       <Defs />
       <style>{CSS1}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh c1-sh">
+      <div className="pal"><div className="sh c1-cam"><div className="sh c1-sh">
         <FundoSaguao semArco />
         <div className="e c1-ei"><Pt c="c1-eix" vb={EL}><Cabine /></Pt></div>
-        <Robo id="c1m" p={P64} k={0} al="n" ar="n" ex={ROSTOS} />
         <div className="e c1-ef"><div className="p c1-efx">
           <Pt c="c1-pe" vb={EL}><Porta x={70} /></Pt>
           <Pt c="c1-pd" vb={EL}><Porta x={200} /></Pt>
           <Pt vb={EL}><Moldura /></Pt>
           <Pt c="c1-ag" vb={EL}><Ponteiro /></Pt>
         </div></div>
+        {/* o 64 vai por cima da moldura: ele sai do elevador para a frente dela (dentro, cabe no vão) */}
+        <Robo id="c1m" p={P64} k={0} al="n" ar="n" ex={ROSTOS} />
         <div className="e c1-bp">
           <Pt vb="0 0 80 160"><Painel /></Pt>
           {BOTOES.map((i) => <Pt key={i} c={`c1-b${i}`} vb="0 0 80 160"><circle cx={i % 2 ? 54 : 26} cy={34 + Math.floor(i / 2) * 44} r="9" fill="#ffe14a" stroke="none" /></Pt>)}
@@ -231,7 +301,7 @@ const Elevador = memo(function Elevador() {
         <Atendente pref="c1" />
         <div className="e c1-plw"><Golpe c="c1-g1" cx={100} cy={100} t="PLIM!" r={66} cor="#fff3b0" rot={-6} vb="0 0 200 200" /></div>
         <div className="e c1-tuw"><Golpe c="c1-g2" cx={90} cy={90} t="TUM!" r={56} cor="#ffb347" rot={10} vb="0 0 180 180" /></div>
-      </div></div>
+      </div></div></div>
     </>
   );
 });
