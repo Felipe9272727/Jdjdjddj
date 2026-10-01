@@ -343,39 +343,125 @@ const CSS2 = [
   pos('c2-thw', [520, 640, 300, 230], [60, 1160, 260, 200]),
   pos('c2-tcw', [1250, 300, 280, 280], [520, 820, 240, 240]),
   pos('c2-ihw', [760, 300, 420, 168], [260, 830, 420, 168]),
-  an('c2-ca', null, [[0, `${ida(0)};${op(1)}`], [.2, `${ida(0)};${op(1)}`], [2.4, `${ida(.72)};${op(1)}`], [3.4, `${ida(.9)};${op(1)}`], [4.8, `${ida(.98)};${op(1)}`], [5.0, `${ida(1)};${op(1)}`], [8.2, `${ida(1)};${op(1)}`], [8.5, `${ida(1.03)};${op(1)}`], [9.4, `${ida(-.05)};${op(1)}`], [9.45, `${ida(-.05)};${op(0)}`], [9.9, `${ida(0)};${op(0)}`], [10, `${ida(0)};${op(1)}`]]),
-  // o carrinho chacoalha em movimento; para quieto quando o 63 segura
-  an('c2-cb', '50% 90%', [[0, tr()], ...[.4, .8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6, 4.0, 4.4, 8.6, 8.9, 9.2].map((t, i): Q => [t, tr(0, i % 2 ? -2 : 0, i % 2 ? 2 : -2)]), [5.0, tr(0, 0, -6)], [5.3, tr()], [8.3, tr()]]),
-  an('c2-mt', '50% 100%', [[0, tr()], ...[.5, 1.3, 2.1, 2.9, 3.7].flatMap((t): Q[] => [[t, tr(0, -22, -10)], [t + .3, tr()]]), [5.0, tr(0, -40, 24)], [5.4, tr()]]),
-  ...['c2-w1', 'c2-w2'].map((c, i) => an(c, `${i ? 80.6 : 19.4}% 90.6%`, [[0, rot(0)], [5.0, rot(1440)], [8.2, rot(1440)], [9.4, rot(0)]])),
-  // o atendente grita e aponta
-  an('c2ta', PA.braco, [[0, rot(0)], [.3, rot(-130)], [.6, rot(-100)], [.9, rot(-130)], [1.2, rot(-100)], [1.6, rot(-130)], [2.2, rot(0)], [8.4, rot(0)], [8.6, rot(-140)], [9.6, rot(-140)], [9.9, rot(0)]]),
-  an('c2th', PA.cab, [[0, rot(0)], [.3, rot(-8)], [2.2, rot(8)], [3.4, rot(14)], [5.2, rot(0)]]),
+  // ── REFEITA no cnMotor (lisa) ──
+  // 0,2 o carrinho dispara · 2,5 o segurança pisa na banana, voa e cai (THUD) · 4,2 o 63 pula nas malas (TCHAN)
+  // e surfa · 8,2 o carrinho dá ré e leva o 63 junto · o segurança se levanta zonzo e volta.
+  assar('c2-ca', null, D, (tl, a) => {
+    const X = 355; // --dx da paisagem: a travessia inteira, em % da caixa do carrinho
+    tl.to(a, { x: X * -.03, duration: .2, ease: 'power1.out' }, .05)                      // pega embalo (recua)
+      .to(a, { x: X * .72, duration: 2.2, ease: 'power1.in' }, .25)
+      .to(a, { x: X * 1.02, duration: 2.5, ease: 'power2.out' }, 2.45)
+      .to(a, { x: X, duration: .35, ease: 'back.out(3)' }, 4.95)                            // freia com o peso do 63
+      .to(a, { x: X * 1.05, duration: .3, ease: 'power2.out' }, 8.2)                        // antecipação da ré
+      .to(a, { x: X * -.08, duration: .9, ease: 'power3.in' }, 8.5)
+      .set(a, { o: 0 }, 9.42).set(a, { x: 0 }, 9.5).to(a, { o: 1, duration: .3 }, 9.7);
+  }),
+  assar('c2-cb', '50% 90%', D, (tl, a) => {
+    for (let t = .3, i = 0; t < 4.9; t += .22, i++) tl.to(a, { y: i % 2 ? -2.5 : 0, r: i % 2 ? 2.5 : -2, duration: .11, ease: 'sine.inOut' }, t).to(a, { y: 0, duration: .11, ease: 'sine.in' }, t + .11);
+    tl.to(a, { r: -9, sx: 1.04, sy: .96, duration: .12, ease: 'power2.out' }, 4.95).to(a, { r: 0, sx: 1, sy: 1, duration: .6, ease: 'elastic.out(1,.35)' }, 5.07);
+    tl.to(a, { r: 6, duration: .3, ease: 'power2.out' }, 8.2);
+    for (let t = 8.55, i = 0; t < 9.4; t += .15, i++) tl.to(a, { y: i % 2 ? -3 : 0, r: i % 2 ? 8 : 3, duration: .075, ease: 'none' }, t).to(a, { y: 0, duration: .075 }, t + .075);
+    tl.to(a, { r: 0, y: 0, duration: .2 }, 9.45);
+  }),
+  assar('c2-mt', '50% 100%', D, (tl, a) => {
+    for (const t of [.6, 1.5, 2.3, 3.0, 3.6]) tl.to(a, { y: -24, r: -12, sx: .92, sy: 1.1, duration: .15, ease: 'power2.out' }, t).to(a, { y: 0, r: 0, duration: .15, ease: 'power2.in' }, t + .15).to(a, { sx: 1.12, sy: .88, duration: 1 / 12 }, t + .3).to(a, { sx: 1, sy: 1, duration: .15, ease: 'back.out(2)' }, t + .38);
+    tl.to(a, { y: -60, r: 30, duration: .3, ease: 'power2.out' }, 4.95).to(a, { y: 0, r: 0, duration: .3, ease: 'power2.in' }, 5.25).to(a, { sx: 1.15, sy: .85, duration: 1 / 12 }, 5.55).to(a, { sx: 1, sy: 1, duration: .3, ease: 'elastic.out(1,.4)' }, 5.63);
+  }),
+  ...['c2-w1', 'c2-w2'].map((c, i) => assar(c, `${i ? 80.6 : 19.4}% 90.6%`, D, (tl, a) => {
+    tl.to(a, { r: -40, duration: .2 }, .05).to(a, { r: 900, duration: 2.2, ease: 'power1.in' }, .25).to(a, { r: 1440, duration: 2.5, ease: 'power2.out' }, 2.45)
+      .to(a, { r: 1500, duration: .3 }, 8.2).to(a, { r: -60, duration: .9, ease: 'power3.in' }, 8.5).set(a, { r: 0 }, 9.5);
+  })),
+  // o atendente grita e aponta (antecipação: recolhe o braço antes de esticar)
+  assar('c2ta', PA.braco, D, (tl, a) => {
+    tl.to(a, { r: 15, duration: .12 }, .2).to(a, { r: -130, duration: .25, ease: 'back.out(2.5)' }, .32);
+    for (let t = .65; t < 2; t += .3) tl.to(a, { r: -105, duration: .15, ease: 'sine.inOut' }, t).to(a, { r: -130, duration: .15, ease: 'sine.inOut' }, t + .15);
+    tl.to(a, { r: 0, duration: .4, ease: 'power2.inOut' }, 2.2).to(a, { r: 15, duration: .12 }, 8.4).to(a, { r: -145, duration: .25, ease: 'back.out(2.5)' }, 8.52).to(a, { r: 0, duration: .35 }, 9.6);
+  }),
+  assar('c2th', PA.cab, D, (tl, a) => {
+    tl.to(a, { r: -10, duration: .2, ease: 'back.out(3)' }, .25).to(a, { r: 10, duration: .5, ease: 'sine.inOut' }, 2.2).to(a, { r: 16, duration: .3, ease: 'back.out(2)' }, 3.4).to(a, { r: 0, duration: .5 }, 5.2)
+      .to(a, { r: -14, duration: .25, ease: 'back.out(3)' }, 8.5).to(a, { r: 0, duration: .4 }, 9.5);
+  }),
+  assar('c2tk', PA.corpo, D, (tl, a) => { susto(tl, a, .25, { alt: 3 }); susto(tl, a, 8.45, { alt: 3 }); }),
   pop('c2-ff', [.35, 8.55], .9),
   caretas('c2', { yps: [[.3, 2.4], [8.5, 9.6]], ypy: [[5.2, 6.6]] }),
-  // o segurança: vem bravo, pisa na banana, voa e cai (THUD!), tonto até levantar
-  an('c2gc', PV.c, [[0, tr()], [1.8, tr()], [2.5, tr(-8, 0, -4)], [2.62, tr(-8, 0, -4)], [2.9, tr(-12, -26, -70, 1.05, .95)], [3.25, tr(-14, -30, -100)], [3.45, tr(-16, 6, -90, 1.08, .9)], [3.6, tr(-16, 4, -90)],
-    [6.9, tr(-16, 4, -90)], [7.4, tr(-12, -6, -40)], [7.8, tr(-8, 0, 0, 1.04, .96)], [8.0, tr(-8, 0, 0)], [9.4, tr()]]),
-  an('c2ge', PV.e, [[0, rot(10)], [1.8, rot(10)], [2.2, rot(70)], [2.6, rot(60)], [2.9, rot(150)], [3.45, rot(120)], [6.9, rot(120)], [7.6, rot(10)]]),
-  an('c2gd', PV.d, [[0, rot(-10)], [1.8, rot(-10)], [2.2, rot(-70)], [2.6, rot(-60)], [2.9, rot(-150)], [3.45, rot(-120)], [6.9, rot(-120)], [7.6, rot(-10)]]),
-  passos('c2g', [[1.8, 2.5, 2, 18], [8.0, 9.4, 4, 16]]),
-  vis('c2gfb', [[1.6, 2.6]]), vis('c2gfx', [[3.45, 6.9]]), vis('c2gfe', [[6.9, 7.9]]),
-  an('c2-ba', '50% 50%', [[0, `${tr()};${op(1)}`], [2.6, `${tr()};${op(1)}`], [3.2, `${tr(320, -160, 540)};${op(0)}`], [9.5, `${tr(0, 0, 0)};${op(0)}`], [9.8, `${tr()};${op(1)}`]]),
+  // o segurança: marcha bravo, pisa na banana, voa (esticado) e cai chapado; zonzo; levanta com esforço e volta
+  assar('c2gc', PV.c, D, (tl, a) => {
+    ginga(tl, a, 1.6, 2.5, { passo: .3, alt: 3, gir: 3 });
+    tl.to(a, { x: -8, duration: .9, ease: 'none' }, 1.6)
+      .to(a, { r: 8, x: -6, duration: .1, ease: 'power2.out' }, 2.5)                          // o pé escorrega para a frente
+      .to(a, { y: -30, r: -100, sx: .88, sy: 1.15, duration: .4, ease: 'power2.out' }, 2.6)   // voa de costas, esticado
+      .to(a, { y: 6, r: -90, duration: .42, ease: 'cn.queda' }, 3.0)
+      .to(a, { sx: 1.18, sy: .8, duration: 1 / 12 }, 3.42).to(a, { y: 3, sx: 1, sy: 1, duration: .4, ease: 'elastic.out(1,.4)' }, 3.5);
+    for (let t = 4.0; t < 6.8; t += .6) tl.to(a, { r: -86, duration: .3, ease: 'sine.inOut' }, t).to(a, { r: -92, duration: .3, ease: 'sine.inOut' }, t + .3);
+    tl.to(a, { y: 8, sx: 1.06, sy: .9, duration: .2 }, 6.9)                                   // força para levantar
+      .to(a, { y: -4, r: -20, sx: .95, sy: 1.08, duration: .35, ease: 'power2.out' }, 7.1)
+      .to(a, { y: 0, r: 0, sx: 1, sy: 1, duration: .45, ease: 'back.out(2)' }, 7.45);
+    tl.to(a, { r: 6, duration: .15 }, 7.9).to(a, { r: -6, duration: .15 }, 8.05).to(a, { r: 0, duration: .2 }, 8.2);  // sacode a cabeça
+    ginga(tl, a, 8.4, 9.6, { passo: .3, alt: 3, gir: 3 });
+    tl.to(a, { x: 0, duration: 1.2, ease: 'none' }, 8.4);
+  }),
+  ...(['e', 'd'] as const).map((k) => { const g = k === 'e' ? 1 : -1; return assar(`c2g${k}`, k === 'e' ? PV.e : PV.d, D, (tl, a) => {
+    tl.set(a, { r: 10 * g }, 0);
+    for (let t = 1.6; t < 2.45; t += .3) tl.to(a, { r: (k === 'e' ? 30 : 10) * g, duration: .15 }, t).to(a, { r: (k === 'e' ? 10 : 30) * g, duration: .15 }, t + .15);
+    tl.to(a, { r: 160 * g, duration: .25, ease: 'back.out(2)' }, 2.55).to(a, { r: 120 * g, duration: .4, ease: 'elastic.out(1,.4)' }, 3.45)
+      .to(a, { r: 60 * g, duration: .3 }, 6.9).to(a, { r: 10 * g, duration: .4, ease: 'back.out(2)' }, 7.5);
+  }); }),
+  ...(['l', 'r'] as const).map((k) => assar(`c2g${k}`, k === 'l' ? PV.l : PV.r, D, (tl, a) => {
+    pernas(tl, a, 1.6, 2.5, { passo: .3, ang: 20, fase: k === 'l' ? 0 : 1 });
+    tl.to(a, { r: k === 'l' ? -40 : 30, duration: .15, ease: 'power2.out' }, 2.5).to(a, { r: 0, duration: .4 }, 3.4);
+    pernas(tl, a, 8.4, 9.6, { passo: .3, ang: 18, fase: k === 'l' ? 0 : 1 });
+  })),
+  assar('c2gh', PV.h, D, (tl, a) => {
+    for (let t = 3.6; t < 6.8; t += .5) tl.to(a, { r: 12, duration: .25, ease: 'sine.inOut' }, t).to(a, { r: -12, duration: .25, ease: 'sine.inOut' }, t + .25);
+    tl.to(a, { r: 0, duration: .3 }, 6.9).to(a, { r: 14, duration: .1 }, 7.9).to(a, { r: -14, duration: .1 }, 8.0).to(a, { r: 0, duration: .25, ease: 'back.out(2)' }, 8.1);
+  }),
+  vis('c2gfb', [[1.6, 2.55]]), vis('c2gfs', [[2.55, 3.45]]), vis('c2gfx', [[3.45, 6.9]]), vis('c2gfe', [[6.9, 7.9]]),
+  assar('c2-ba', '50% 50%', D, (tl, a) => {
+    tl.to(a, { sx: 1.4, sy: .6, duration: 1 / 12 }, 2.5).to(a, { x: 320, y: -160, r: 540, sx: 1, sy: 1, o: 0, duration: .6, ease: 'power2.out' }, 2.58)
+      .set(a, { x: 0, y: 0, r: 0 }, 9.5).to(a, { o: 1, duration: .3 }, 9.6);
+  }),
   pop('c2-th', [3.42], .7),
-  // o TROCO-63: agacha, pula em cima das malas (TCHAN!), comemora… e o carrinho foge de ré com ele em cima
-  an('c2ac', PV.c, [[0, `${tr()};${op(1)}`], [3.6, `${tr()};${op(1)}`], [4.0, `${tr(0, 0, 0, 1.08, .86)};${op(1)}`], [4.2, `${tr(0, 0, 0, 1.08, .86)};${op(1)}`],
-    [4.5, 'transform:translate(calc(var(--jx) * .6),calc(var(--jy) - 22%)) rotate(-12deg) scale(.96,1.08);opacity:1'],
-    [4.85, 'transform:translate(var(--jx),var(--jy)) rotate(0deg) scale(1.08,.9);opacity:1'], [5.05, 'transform:translate(var(--jx),var(--jy)) rotate(0deg) scale(1,1);opacity:1'],
-    [8.2, 'transform:translate(var(--jx),var(--jy)) rotate(0deg) scale(1,1);opacity:1'], [8.5, 'transform:translate(calc(var(--jx) + 4%),var(--jy)) rotate(10deg) scale(1,1);opacity:1'],
-    [9.4, 'transform:translate(var(--fx),var(--jy)) rotate(14deg) scale(1,1);opacity:1'], [9.45, `transform:translate(var(--fx),var(--jy)) rotate(14deg) scale(1,1);${op(0)}`],
-    [9.6, `${tr()};${op(0)}`], [10, `${tr()};${op(1)}`]]),
-  an('c2ad', PV.d, [[0, rot(-10)], [3.5, rot(-10)], [4.2, rot(-40)], [4.5, rot(-150)], [5.0, rot(-60)], [5.4, rot(-165)], [5.7, rot(-140)], [6.0, rot(-165)], [6.3, rot(-140)], [6.6, rot(-165)], [8.2, rot(-165)], [8.5, rot(-120)], [9.4, rot(-170)], [9.6, rot(-10)]]),
-  an('c2ae', PV.e, [[0, rot(10)], [3.5, rot(10)], [4.5, rot(150)], [5.0, rot(40)], [8.2, rot(40)], [8.5, rot(160)], [9.4, rot(170)], [9.6, rot(10)]]),
-  an('c2ah', PV.h, [[0, rot(0)], [3.2, rot(-10)], [3.6, rot(0)], [5.0, rot(-8)], [8.4, rot(0)], [8.6, rot(12)], [9.4, rot(-8)], [9.6, rot(0)]]),
-  vis('c2afs', [[3.3, 4.0], [8.3, 9.4]]), vis('c2aff', [[5.0, 8.2]]),
-  pop('c2-tc', [5.0], .8), pop('c2-ih', [8.6], .7),
-  respira('c2gb', PV.c, 2.6, .022), respira('c2ab', PV.c, 2.2, .025, .9), respira('c2tr', '50% 80%', 3, .012, .4),
-  tranco('c2-sh', [3.45, 4.88], 1.1), poeira('c2-pg', [3.45]), poeira('c2-pa', [4.86]),
+  // o TROCO-63: vê, agacha (antecipação longa), pula em arco nas malas, TCHAN, surfa; a ré o leva junto
+  assar('c2ac', PV.c, D, (tl, a) => {
+    susto(tl, a, 3.3, { alt: 5 });
+    tl.to(a, { sx: 1.15, sy: .82, duration: .35, ease: 'power2.out' }, 3.85)                 // agacha
+      .to(a, { sx: .85, sy: 1.2, duration: .12, ease: 'power3.out' }, 4.2)                   // estica no impulso
+      .to(a, { x: -27, y: -72, r: -14, duration: .32, ease: 'power2.out' }, 4.2)
+      .to(a, { x: -45, y: -40, r: 0, duration: .3, ease: 'cn.queda' }, 4.52)
+      .to(a, { sx: 1, sy: 1, duration: .3 }, 4.32)
+      .to(a, { sx: 1.25, sy: .78, duration: 1 / 12 }, 4.82).to(a, { sx: 1, sy: 1, duration: .45, ease: 'elastic.out(1,.4)' }, 4.9);
+    for (let t = 5.5; t < 8.1; t += .4) tl.to(a, { y: -43, r: 3, duration: .2, ease: 'sine.out' }, t).to(a, { y: -40, r: -3, duration: .2, ease: 'sine.in' }, t + .2);
+    tl.to(a, { r: 14, x: -40, duration: .3, ease: 'back.out(2)' }, 8.2)                      // o tranco da ré
+      .to(a, { x: -471, r: 18, duration: .9, ease: 'power3.in' }, 8.5)
+      .set(a, { o: 0 }, 9.42).set(a, { x: 0, y: 0, r: 0 }, 9.5).to(a, { o: 1, duration: .3 }, 9.7);
+  }),
+  ...(['e', 'd'] as const).map((k) => { const g = k === 'e' ? 1 : -1; return assar(`c2a${k}`, k === 'e' ? PV.e : PV.d, D, (tl, a) => {
+    tl.set(a, { r: 10 * g }, 0).to(a, { r: 30 * g, duration: .3 }, 3.85).to(a, { r: -20 * g, duration: .15 }, 4.2).to(a, { r: 165 * g, duration: .35, ease: 'back.out(2.5)' }, 4.9);
+    if (k === 'd') for (let t = 5.5; t < 8.1; t += .3) tl.to(a, { r: -135, duration: .15, ease: 'sine.inOut' }, t).to(a, { r: -165, duration: .15, ease: 'sine.inOut' }, t + .15);
+    for (let t = 8.25, i = 0; t < 9.4; t += .12, i++) tl.to(a, { r: (i % 2 ? 170 : 110) * g, duration: .12, ease: 'sine.inOut' }, t);  // braços se debatendo
+    tl.to(a, { r: 10 * g, duration: .2 }, 9.5);
+  }); }),
+  assar('c2ah', PV.h, D, (tl, a) => {
+    tl.to(a, { r: -12, duration: .2, ease: 'back.out(3)' }, 3.3).to(a, { r: 0, duration: .3 }, 3.6)
+      .to(a, { r: 10, duration: 2 / 12 }, 4.85).to(a, { r: 0, duration: .5, ease: 'elastic.out(1,.4)' }, 5.0)
+      .to(a, { r: -16, duration: .2 }, 8.25).to(a, { r: 0, duration: .3 }, 9.5);
+  }),
+  vis('c2afs', [[3.3, 4.0], [8.25, 9.4]]), vis('c2aff', [[4.9, 8.2]]),
+  pop('c2-tc', [4.95], .8), pop('c2-ih', [8.6], .7),
+  ferve('c2gb', PV.c, 1, 1), ferve('c2ab', PV.c, 1, 2), respira('c2tr', '50% 80%', 3, .012, .4),
+  assar('c2-cam', '0 0', D, (tl, a) => {
+    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    tl.set(a, plano(560, 470, 1.5), 0)
+      .to(a, { ...plano(720, 470, 1.4), duration: 1.6, ease: 'sine.inOut' }, .3)            // acompanha o carrinho
+      .to(a, { ...plano(720, 540, 1.75), duration: .25, ease: 'power3.out' }, 2.5)            // a banana
+      .to(a, { ...plano(980, 400, 1.35), duration: .6, ease: 'power2.inOut' }, 3.8)           // o pulo do 63
+      .to(a, { ...plano(1040, 330, 1.55), duration: .15, ease: 'power3.out' }, 4.9)           // TCHAN
+      .to(a, { ...plano(940, 360, 1.35), duration: 1.2, ease: 'sine.inOut' }, 5.6)
+      .to(a, { ...plano(760, 400, 1.15), duration: .9, ease: 'power2.inOut' }, 8.3)           // abre para a fuga de ré
+      .to(a, { ...plano(560, 470, 1.5), duration: .5, ease: 'power2.inOut' }, 9.5);
+  }),
+  assar('c2-sh', '50% 50%', D, (tl, a) => { tremor(tl, a, 3.45, 1.1, 6); tremor(tl, a, 4.88, .9, 5); }),
+poeira('c2-pg', [3.45]), poeira('c2-pa', [4.86]),
   pos('c2-pgw', [620, 700, 240, 160], [40, 1190, 220, 146]), pos('c2-paw', [960, 520, 240, 160], [300, 1040, 220, 146]),
 ].join('');
 
@@ -385,7 +471,7 @@ const MalaFujona = memo(function MalaFujona() {
       <Defs />
       <style>{CSS2}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh c2-sh">
+      <div className="pal"><div className="sh c2-cam"><div className="sh c2-sh">
         <FundoSaguao />
         <Atendente pref="c2" />
         <div className="e c2-ba"><Pt vb="-40 -40 80 80"><Banana /></Pt></div>
@@ -404,7 +490,7 @@ const MalaFujona = memo(function MalaFujona() {
         <div className="e c2-thw"><Golpe c="c2-th" cx={130} cy={100} t="THUD!" r={70} cor="#ffb347" rot={-8} vb="0 0 260 200" /></div>
         <div className="e c2-tcw"><Golpe c="c2-tc" cx={120} cy={120} t="TCHAN!" r={86} cor="#fff3b0" rot={8} vb="0 0 240 240" /></div>
         <div className="e c2-ihw"><Fala c="c2-ih" t="IIIIHAAA!" w={300} /></div>
-      </div></div>
+      </div></div></div>
     </>
   );
 });
@@ -446,40 +532,110 @@ const CSS3 = [
   pos('c3-btw', [400, 300, 380, 152], [30, 860, 380, 152]),
   pos('c3-crw', [640, 380, 300, 300], [220, 1020, 300, 300]),
   pos('c3-hmw', [980, 300, 180, 180], [540, 860, 160, 160]),
-  // a mesa: firme o jogo inteiro; vira por cima do 63 e some; volta arrumada no fim do laço
-  an('c3-me', '18% 96%', [[0, `${tr()};${op(1)}`], [6.95, `${tr()};${op(1)}`], [7.05, `${tr(4, -6, 8)};${op(1)}`], [7.4, `${tr(-10, -60, -120)};${op(1)}`], [7.8, `${tr(-30, 10, -175)};${op(1)}`],
-    [8.7, `${tr(-30, 10, -175)};${op(1)}`], [9.1, `${tr(-30, 10, -175)};${op(0)}`], [9.5, `${tr()};${op(0)}`], [9.9, `${tr()};${op(1)}`]]),
-  // as cartas: escondidas no monte; voam na virada e somem
-  ...VOO.map(([x, y, r], i) => an(`c3-k${i}`, '50% 50%', [[0, `${tr()};${op(0)}`], [7.02, `${tr()};${op(0)}`], [7.05, `${tr(0, 0, 0, .8)};${op(1)}`],
-    [7.9, `${tr(x * .7, y, r * .7)};${op(1)}`], [8.8, `${tr(x, y * .4, r)};${op(1)}`], [9.2, `${tr(x, -y * .2, r * 1.2)};${op(0)}`]])),
-  // o TROCO-63: confere as cartas, ri quando vê o sinal do irmão, bate a carta (BATI!), toma a mesa na cara
-  an('c3ac', PV.c, [[0, tr()], [.5, tr(0, -1.5)], [1, tr()], [1.5, tr(0, -1.5)], [2, tr()], [4.7, tr()], [4.9, tr(4, 2, 6, 1.04, .94)], [5.2, tr()],
-    [7.0, tr()], [7.3, tr(-8, 0, -14)], [7.7, tr(-14, 0, -24, 1.04, .96)], [8.6, tr(-14, 0, -24)], [9.4, tr()]]),
-  an('c3ad', PV.d, [[0, rot(-40)], [2.0, rot(-40)], [2.4, rot(-60)], [4.6, rot(-140)], [4.85, rot(-40)], [6.9, rot(-40)], [7.2, rot(-150)], [8.6, rot(-150)], [9.3, rot(-40)]]),
-  an('c3ae', PV.e, [[0, rot(40)], [6.9, rot(40)], [7.2, rot(150)], [8.6, rot(150)], [9.3, rot(40)]]),
-  an('c3ah', PV.h, [[0, rot(0)], [2.2, rot(8)], [2.6, rot(-6)], [3.0, rot(0)], [7.1, rot(-14)], [8.6, rot(-14)], [9.2, rot(0)]]),
-  vis('c3aff', [[2.3, 4.5], [5.0, 6.0]]), vis('c3afs', [[7.0, 7.6]]), vis('c3afx', [[7.6, 9.2]]),
-  // o segurança: cartas na mão, desconfia, vira a cabeça e pega o 64; fica vermelho e vira a mesa
-  an('c3gc', PV.c, [[0, tr()], [.6, tr(0, -1.5)], [1.2, tr()], [1.8, tr(0, -1.5)], [2.4, tr()], [6.1, tr()], [6.4, tr(0, 0, 0, 1.06, 1.08)], [6.9, tr(0, -2, 0, 1.06, 1.08)],
-    [7.05, tr(-6, 0, -10, 1.04, 1)], [7.4, tr(-4, 0, -4)], [8.8, tr(-4, 0, -4)], [9.4, tr()]]),
-  an('c3gh', PV.h, [[0, rot(0)], [5.2, rot(0)], [5.45, rot(22)], [6.1, rot(22)], [6.4, rot(-6)], [9.4, rot(0)]]),
-  an('c3ge', PV.e, [[0, rot(-40)], [6.8, rot(-40)], [7.05, rot(160)], [7.6, rot(140)], [9.3, rot(-40)]]),
-  an('c3gd', PV.d, [[0, rot(40)], [6.8, rot(40)], [7.05, rot(-160)], [7.6, rot(-140)], [9.3, rot(40)]]),
+  // ── REFEITA no cnMotor (lisa) ──
+  // jogo de cartas tenso · o 64 sopra as cartas do segurança para o 63 · BATI! (4,8) · o segurança
+  // desconfia, vira e pega o 64 (HÃ? 5,45) · infla de raiva · CRASH (7,06): vira a mesa por cima do 63.
+  assar('c3-me', '18% 96%', D, (tl, a) => {
+    tl.to(a, { y: -2, duration: 1 / 12 }, 4.84).to(a, { y: 0, duration: .25, ease: 'bounce.out' }, 4.92)            // a batida da carta
+      .to(a, { x: 3, y: 2, r: 4, duration: .1, ease: 'power2.out' }, 6.95)                                          // antecipação
+      .to(a, { x: -10, y: -70, r: -120, duration: .35, ease: 'power2.out' }, 7.05)
+      .to(a, { x: -30, y: 10, r: -175, duration: .35, ease: 'cn.queda' }, 7.4)
+      .to(a, { y: 6, duration: .1 }, 7.75).to(a, { y: 10, duration: .2, ease: 'bounce.out' }, 7.85)
+      .to(a, { o: 0, duration: .4 }, 8.7).set(a, { x: 0, y: 0, r: 0 }, 9.2).to(a, { o: 1, duration: .4 }, 9.5);
+  }),
+  ...VOO.map(([x, y, r], i) => assar(`c3-k${i}`, '50% 50%', D, (tl, a) => {
+    tl.set(a, { o: 1, sx: .8, sy: .8 }, 7.05).to(a, { x: x * .7, y, r: r * .7, sx: 1, sy: 1, duration: .85, ease: 'power2.out' }, 7.05)
+      .to(a, { x, y: y * .4, r, duration: .9, ease: 'sine.in' }, 7.9)
+      .to(a, { y: -y * .2, r: r * 1.2, o: 0, duration: .4, ease: 'power1.in' }, 8.8).set(a, { x: 0, y: 0, r: 0 }, 9.3);
+  }, { inicial: { o: 0 } })),
+  // o TROCO-63: pensa nas cartas, recebe o sinal, se segura para não rir, BATE a carta; leva a mesa na cara
+  assar('c3ac', PV.c, D, (tl, a) => {
+    for (let t = 0; t < 2.2; t += 1) tl.to(a, { y: -1.5, sy: 1.02, duration: .5, ease: 'sine.inOut' }, t).to(a, { y: 0, sy: 1, duration: .5, ease: 'sine.inOut' }, t + .5);
+    for (let t = 2.4; t < 4.2; t += .16) tl.to(a, { y: -1.2, duration: .08 }, t).to(a, { y: 0, duration: .08 }, t + .08);   // risadinha contida
+    tl.to(a, { y: -6, sx: .94, sy: 1.08, duration: .25, ease: 'power2.out' }, 4.45)                                  // ergue para bater
+      .to(a, { x: 4, y: 3, r: 6, sx: 1.08, sy: .9, duration: .1, ease: 'power3.in' }, 4.72)
+      .to(a, { x: 0, y: 0, r: 0, sx: 1, sy: 1, duration: .4, ease: 'back.out(2)' }, 4.9);
+    susto(tl, a, 6.95, { alt: 6 });
+    tl.to(a, { x: -14, r: -24, sx: 1.06, sy: .94, duration: .3, ease: 'power3.out' }, 7.35).to(a, { x: 0, r: 0, sx: 1, sy: 1, duration: .6, ease: 'back.out(1.5)' }, 9.0);
+  }),
+  assar('c3ad', PV.d, D, (tl, a) => {
+    tl.set(a, { r: -40 }, 0).to(a, { r: -60, duration: .4, ease: 'sine.inOut' }, 2.2)
+      .to(a, { r: -150, duration: .3, ease: 'back.out(1.5)' }, 4.4).to(a, { r: -30, duration: .1, ease: 'power3.in' }, 4.72).to(a, { r: -40, duration: .3, ease: 'back.out(3)' }, 4.82)
+      .to(a, { r: -155, duration: .2, ease: 'power2.out' }, 7.15).to(a, { r: -40, duration: .5, ease: 'back.out(1.5)' }, 9.0);
+  }),
+  assar('c3ae', PV.e, D, (tl, a) => { tl.set(a, { r: 40 }, 0).to(a, { r: 155, duration: .2, ease: 'power2.out' }, 7.15).to(a, { r: 40, duration: .5, ease: 'back.out(1.5)' }, 9.0); }),
+  assar('c3ah', PV.h, D, (tl, a) => {
+    tl.to(a, { r: 10, duration: .3, ease: 'back.out(2)' }, 2.2).to(a, { r: -8, duration: .3, ease: 'sine.inOut' }, 2.6).to(a, { r: 3, duration: .3 }, 3.0)
+      .to(a, { r: -10, duration: .1 }, 4.75).to(a, { r: 0, duration: .4, ease: 'elastic.out(1,.4)' }, 4.85)
+      .to(a, { r: -18, duration: .2, ease: 'power3.out' }, 7.1).to(a, { r: 0, duration: .5 }, 9.0);
+  }),
+  vis('c3aff', [[2.3, 4.5], [5.0, 6.0]]), vis('c3afs', [[6.95, 7.6]]), vis('c3afx', [[7.6, 9.2]]),
+  // o segurança: segura as cartas, desconfia (olha devagar), double-take, infla de raiva e vira a mesa
+  assar('c3gc', PV.c, D, (tl, a) => {
+    for (let t = 0; t < 2.4; t += 1.2) tl.to(a, { y: -1.5, duration: .6, ease: 'sine.inOut' }, t).to(a, { y: 0, duration: .6, ease: 'sine.inOut' }, t + .6);
+    tl.to(a, { y: -4, sx: .96, sy: 1.06, duration: 2 / 12 }, 5.45).to(a, { y: 0, sx: 1, sy: 1, duration: .3, ease: 'back.out(2)' }, 5.62)
+      .to(a, { sx: 1.1, sy: 1.12, y: -2, duration: .7, ease: 'power2.in' }, 6.15)                                     // incha de raiva
+      .to(a, { x: 3, sx: 1.04, sy: .96, duration: .1 }, 6.9)                                                         // antecipação
+      .to(a, { x: -8, r: -12, sx: 1, sy: 1.04, duration: .15, ease: 'power3.out' }, 7.0)
+      .to(a, { x: -4, r: -4, sy: 1, duration: .5, ease: 'back.out(2)' }, 7.2).to(a, { x: 0, r: 0, y: 0, duration: .6 }, 9.0);
+    for (let t = 6.2; t < 6.9; t += .1) tl.to(a, { x: (Math.round(t * 10) % 2 ? 1 : -1) * .8, duration: .05 }, t);  // tremendo de raiva
+  }),
+  assar('c3gh', PV.h, D, (tl, a) => {
+    tl.to(a, { r: 8, duration: .8, ease: 'sine.inOut' }, 4.4)                                                         // olha de canto, devagar
+      .to(a, { r: 0, duration: .15 }, 5.2).to(a, { r: 26, duration: .12, ease: 'power3.out' }, 5.42)                 // double-take
+      .to(a, { r: 20, duration: .4, ease: 'elastic.out(1,.4)' }, 5.55).to(a, { r: -6, duration: .25 }, 6.1).to(a, { r: 0, duration: .4 }, 9.2);
+  }),
+  ...(['e', 'd'] as const).map((k) => { const g = k === 'e' ? -1 : 1; return assar(`c3g${k}`, k === 'e' ? PV.e : PV.d, D, (tl, a) => {
+    tl.set(a, { r: 40 * g }, 0).to(a, { r: 20 * g, duration: .15 }, 6.85).to(a, { r: -165 * g, duration: .18, ease: 'power3.out' }, 7.0)
+      .to(a, { r: -140 * g, duration: .5, ease: 'elastic.out(1,.4)' }, 7.2).to(a, { r: 40 * g, duration: .5 }, 9.0);
+  }); }),
   vis('c3gfs', [[5.4, 6.1]]), vis('c3gfb', [[6.1, 9.0]]),
-  // o TROCO-64: espia por trás do segurança e faz sinais; pego, congela e se esconde
-  an('c3mc', PV.c, [[0, tr(10)], [.4, tr(-6)], [5.3, tr(-6)], [5.5, tr(-6, 0, 0, 1.06, .94)], [5.9, tr(16, 0, 0)], [9.4, tr(16)], [9.9, tr(10)]]),
-  an('c3md', PV.d, [[0, rot(-10)], ...[.8, 2.0, 3.2, 4.4].flatMap((t): Q[] => [[t, rot(-150)], [t + .2, rot(-110)], [t + .4, rot(-150)], [t + .6, rot(-10)]]), [5.5, rot(-10)]]),
-  an('c3me', PV.e, [[0, rot(10)], ...[1.4, 2.6, 3.8].flatMap((t): Q[] => [[t, rot(90)], [t + .3, rot(10)]])]),
-  an('c3mh', PV.h, [[0, rot(0)], ...[.8, 2.0, 3.2, 4.4].flatMap((t): Q[] => [[t, rot(-12)], [t + .3, rot(10)], [t + .6, rot(0)]])]),
+  // o TROCO-64: espia e faz sinais (cada sinal com overlap da cabeça); pego, congela e se esconde
+  assar('c3mc', PV.c, D, (tl, a) => {
+    tl.set(a, { x: 10 }, 0).to(a, { x: -6, duration: .4, ease: 'back.out(2)' }, 0)
+      .to(a, { sx: 1.1, sy: .88, duration: 2 / 12 }, 5.45)                                                            // congela encolhido
+      .to(a, { x: 18, sx: .9, sy: 1.08, duration: .25, ease: 'power3.in' }, 5.75).to(a, { sx: 1, sy: 1, duration: .2 }, 6.0)
+      .to(a, { x: 10, duration: .5, ease: 'power2.inOut' }, 9.4);
+    for (const t of [.8, 2.0, 3.2, 4.4]) tl.to(a, { y: -3, duration: .15, ease: 'power2.out' }, t).to(a, { y: 0, duration: .25, ease: 'bounce.out' }, t + .15);
+  }),
+  assar('c3md', PV.d, D, (tl, a) => {
+    tl.set(a, { r: -10 }, 0);
+    for (const t of [.8, 2.0, 3.2, 4.4]) tl.to(a, { r: -155, duration: .15, ease: 'back.out(2)' }, t).to(a, { r: -115, duration: .15, ease: 'sine.inOut' }, t + .2).to(a, { r: -155, duration: .15, ease: 'sine.inOut' }, t + .35).to(a, { r: -10, duration: .2, ease: 'power2.in' }, t + .55);
+  }),
+  assar('c3me', PV.e, D, (tl, a) => { tl.set(a, { r: 10 }, 0); for (const t of [1.4, 2.6, 3.8]) tl.to(a, { r: 95, duration: .15, ease: 'back.out(2)' }, t).to(a, { r: 10, duration: .25 }, t + .3); }),
+  assar('c3mh', PV.h, D, (tl, a) => {
+    for (const t of [.8, 2.0, 3.2, 4.4]) tl.to(a, { r: -12, duration: .15 }, t + .05).to(a, { r: 10, duration: .2, ease: 'sine.inOut' }, t + .25).to(a, { r: 0, duration: .3, ease: 'back.out(2)' }, t + .5);
+    tl.to(a, { r: -20, duration: .1 }, 5.45).to(a, { r: 0, duration: .4 }, 6.2);
+  }),
   vis('c3mff', [[.4, 5.3]]), vis('c3mfs', [[5.4, 7.2]]),
-  // o atendente: serve o chá (bule inclina), cochila, acorda no CRASH
-  an('c3ta', PA.braco, [[0, rot(0)], [.4, rot(-70)], [2.4, rot(-70)], [2.8, rot(0)], [7.05, rot(0)], [7.2, rot(-150)], [8.4, rot(-150)], [8.8, rot(0)]]),
+  // o atendente: serve o chá, cochila (cabeceia), acorda no CRASH
+  assar('c3ta', PA.braco, D, (tl, a) => {
+    tl.to(a, { r: 8, duration: .12 }, .3).to(a, { r: -70, duration: .4, ease: 'back.out(1.5)' }, .42).to(a, { r: -78, duration: .8, ease: 'sine.inOut' }, 1.2)
+      .to(a, { r: 0, duration: .4, ease: 'power2.inOut' }, 2.5).to(a, { r: -150, duration: .2, ease: 'power3.out' }, 7.08).to(a, { r: 0, duration: .5, ease: 'back.out(1.5)' }, 8.6);
+  }),
   an('c3-bl', '58.9% 49.7%', [[0, op(0)], [.5, op(0)], [.6, op(1)], [2.3, op(1)], [2.4, op(0)]]),
-  an('c3th', PA.cab, [[0, rot(0)], [3.4, rot(0)], [3.8, rot(-12)], [6.9, rot(-12)], [7.1, rot(6)], [8.6, rot(0)]]),
+  assar('c3th', PA.cab, D, (tl, a) => {
+    tl.to(a, { r: -12, duration: .6, ease: 'sine.in' }, 3.5);
+    for (const t of [4.3, 5.4, 6.3]) tl.to(a, { r: -18, duration: .2, ease: 'power2.in' }, t).to(a, { r: -6, duration: .15, ease: 'back.out(3)' }, t + .2).to(a, { r: -12, duration: .5, ease: 'sine.in' }, t + .35);  // cabeceia
+    tl.to(a, { r: 8, duration: .15, ease: 'power3.out' }, 7.06).to(a, { r: 0, duration: .5, ease: 'elastic.out(1,.4)' }, 7.25);
+  }),
+  assar('c3tk', PA.corpo, D, (tl, a) => { susto(tl, a, 7.06, { alt: 5 }); }),
   caretas('c3', { ypb: [[3.6, 6.95]], yps: [[7.05, 8.6]] }),
   pop('c3-bt', [4.82], .6), pop('c3-cr', [7.06], .8), pop('c3-hm', [5.45], .55),
-  respira('c3ab', PV.c, 2.4, .022), respira('c3gb', PV.c, 2.8, .02, 1.1), respira('c3mb', PV.c, 2, .028, .5), respira('c3tr', '50% 80%', 3, .012, .2),
-  tranco('c3-sh', [4.84, 7.06], 1), poeira('c3-pm', [7.6]), pos('c3-pmw', [560, 720, 300, 200], [180, 1340, 280, 186]),
+  ferve('c3ab', PV.c, 1, 1), ferve('c3gb', PV.c, 1, 2), ferve('c3mb', PV.c, 1, 3), respira('c3tr', '50% 80%', 3, .012, .2),
+  assar('c3-cam', '0 0', D, (tl, a) => {
+    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    tl.set(a, plano(800, 470, 1.35), 0)
+      .to(a, { ...plano(1160, 450, 1.6), duration: .5, ease: 'power2.inOut' }, .6)               // o 64 fazendo sinais
+      .to(a, { ...plano(560, 470, 1.6), duration: .6, ease: 'power2.inOut' }, 2.1)              // o 63 recebendo
+      .to(a, { ...plano(620, 500, 1.8), duration: .12, ease: 'power3.out' }, 4.78)              // BATI
+      .to(a, { ...plano(1100, 430, 1.7), duration: .2, ease: 'power3.out' }, 5.42)             // HÃ? — pegou o 64
+      .to(a, { ...plano(1060, 440, 1.9), duration: .8, ease: 'power2.in' }, 6.1)                // a raiva crescendo
+      .to(a, { ...plano(800, 420, 1.3), duration: .2, ease: 'expo.out' }, 7.02)                 // CRASH: abre
+      .to(a, { ...plano(800, 470, 1.35), duration: .6, ease: 'power2.inOut' }, 9.35);
+  }),
+  assar('c3-sh', '50% 50%', D, (tl, a) => { tremor(tl, a, 4.84, .6, 4); tremor(tl, a, 7.06, 1.4, 8); }),
+poeira('c3-pm', [7.6]), pos('c3-pmw', [560, 720, 300, 200], [180, 1340, 280, 186]),
 ].join('');
 
 const TreguaDoCha = memo(function TreguaDoCha() {
@@ -488,7 +644,7 @@ const TreguaDoCha = memo(function TreguaDoCha() {
       <Defs />
       <style>{CSS3}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh c3-sh">
+      <div className="pal"><div className="sh c3-cam"><div className="sh c3-sh">
         <FundoSaguao />
         <Atendente pref="c3" mao={<g className="c3-bl">
           {/* o bule na mão (gira junto com o braço) e o fio de chá */}
@@ -506,7 +662,7 @@ const TreguaDoCha = memo(function TreguaDoCha() {
         <div className="e c3-btw"><Fala c="c3-bt" t="BATI!" w={280} /></div>
         <div className="e c3-hmw"><Golpe c="c3-hm" cx={90} cy={90} t="HÃ?" r={60} cor="#9af6ff" rot={-10} vb="0 0 180 180" /></div>
         <div className="e c3-crw"><Golpe c="c3-cr" cx={150} cy={150} t="CRASH!" r={110} cor="#fff3b0" rot={6} vb="0 0 300 300" /></div>
-      </div></div>
+      </div></div></div>
     </>
   );
 });

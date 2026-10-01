@@ -40,15 +40,20 @@ const css = (p: Pose, comOp: boolean) =>
   `transform:translate(${+p.x.toFixed(2)}%,${+p.y.toFixed(2)}%) rotate(${+p.r.toFixed(2)}deg) scale(${+p.sx.toFixed(3)},${+p.sy.toFixed(3)})`
   + (comOp ? `;opacity:${+p.o.toFixed(3)}` : '');
 
-export interface OpcoesAssar { qps?: number; atraso?: number; inicial?: Partial<Pose> }
+/** `degrau`: segura cada quadro (12 qps, "on twos"). Sem ele (padrão) a animação é LISA: amostra a 30 qps e
+ *  o CSS interpola em linha reta entre amostras — as curvas do GSAP chegam inteiras à tela.
+ *  (O degrau leu como travado na tela do dono: fica só para o boil e para efeitos de propósito.) */
+export interface OpcoesAssar { qps?: number; atraso?: number; inicial?: Partial<Pose>; degrau?: boolean }
+export const QPS_LISO = 30;
 
 /**
- * Assa uma linha do tempo do GSAP numa animação CSS em degrau.
+ * Assa uma linha do tempo do GSAP numa animação CSS (lisa por padrão; em degrau com `degrau`).
  * `montar(tl, a)` anima o objeto `a` (uma Pose) como quiser; a duração do laço é `dur`.
  * Devolve o CSS: @keyframes + a regra de `.cna .<cls>`.
  */
 export function assar(cls: string, piv: string | null, dur: number, montar: (tl: gsap.core.Timeline, a: Pose) => void, o: OpcoesAssar = {}): string {
-  const qps = o.qps ?? QPS;
+  const degrau = o.degrau ?? false;
+  const qps = o.qps ?? (degrau ? QPS : QPS_LISO);
   const a = pose(o.inicial);
   const tl = gsap.timeline({ paused: true });
   montar(tl, a);
@@ -62,18 +67,19 @@ export function assar(cls: string, piv: string | null, dur: number, montar: (tl:
   tl.kill();
   const comOp = quadros.some((q) => Math.abs(q.o - 1) > 1e-3);
   const nome = `km-${cls.replace(/[^a-z0-9-]/gi, '_')}`;
-  // só escreve o quadro quando a pose muda: o degrau segura o anterior
-  let ultimo = '';
+  // só escreve o quadro quando a pose muda. No liso, o último quadro de um trecho parado também vai
+  // (senão a interpolação começaria a andar no início do trecho, e não no fim)
+  const cs = quadros.map((q) => css(q, comOp));
   const kf: string[] = [];
-  quadros.forEach((q, i) => {
-    const c = css(q, comOp);
-    if (c === ultimo && i !== n) return;
-    ultimo = c;
+  cs.forEach((c, i) => {
+    const mudou = i === 0 || i === n || c !== cs[i - 1];
+    const vaiMudar = !degrau && i < n && c !== cs[i + 1];
+    if (!mudou && !vaiMudar) return;
     kf.push(`${+(i / n * 100).toFixed(3)}%{${c}}`);
   });
   return `@keyframes ${nome}{${kf.join('')}}`
     + `.cna .${cls}{${piv ? `transform-origin:${piv};` : ''}will-change:transform${comOp ? ',opacity' : ''};`
-    + `animation:${nome} ${dur}s steps(1,end) infinite both;animation-delay:calc(var(--off, 0s) - ${o.atraso ?? 0}s)}`;
+    + `animation:${nome} ${dur}s ${degrau ? 'steps(1,end)' : 'linear'} infinite both;animation-delay:calc(var(--off, 0s) - ${o.atraso ?? 0}s)}`;
 }
 
 // ── ATALHOS DE ATUAÇÃO (cada um acrescenta tweens na linha do tempo, a partir de t) ──
