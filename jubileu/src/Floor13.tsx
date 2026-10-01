@@ -42,6 +42,7 @@ import { AtencaoNoMundo, OlhoDaVila } from './f13AtencaoCena';
 import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from './f13Atencao';
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
+import { CarregandoAnimado } from './CarregandoAnimado';
 import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -1704,6 +1705,8 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <div style={{ fontFamily: 'monospace', color: '#3dff8a', fontSize: 18, letterSpacing: 3 }}>{CONEXAO_ENCERRADA}</div>
             </div>}
 
+            {/* a tela de carregamento padrão do jogo: cobre tudo até os shaders compilarem e o mundo aquecer (só então a queda começa) */}
+            <CarregandoAnimado rotulo="Carregando o Andar 13…" visivel={fase === 'queda' && !quedaPronta && !inicio} />
         </div>
     );
 };
