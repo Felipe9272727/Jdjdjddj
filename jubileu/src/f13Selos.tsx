@@ -131,7 +131,7 @@ export function SelosDasPistas({
             <style>{CSS_DOS_SELOS}</style>
 
             <div className="f13selos-titulo">
-                <span className="f13selos-marca" aria-hidden="true">?</span>
+                <span className="f13selos-marca" aria-hidden="true">{completa ? "ᚨ" : "?"}</span>
                 <span className="f13selos-titulo-texto">{titulo}</span>
             </div>
 

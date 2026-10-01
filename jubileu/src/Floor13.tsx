@@ -47,6 +47,7 @@ import { CarregandoAnimado } from './CarregandoAnimado';
 import './CarregandoCenas';
 import './CarregandoAndares';
 import { SelosDasPistas } from './f13Selos';
+import { CartaoDeConclusao, type ResumoDoAndar } from './f13Concluido';
 import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -965,6 +966,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     // a chegada (f13Chegada): o shiba puxa o hóspede para a vila, uma vez, ao fim da queda
     const [chegou, setChegou] = useState(false);
     useEffect(() => { if (fase === 'explorar') setChegou(true); }, [fase]);
+    // o fim do andar: quando a cabine fecha, o cartão com o resumo; só depois o próximo andar
+    const inicioDoAndar = useRef(0);
+    useEffect(() => { if (chegou && !inicioDoAndar.current) inicioDoAndar.current = performance.now(); }, [chegou]);
+    const [concluido, setConcluido] = useState<ResumoDoAndar | null>(null);
     // um gato comeu: conta no aviso (o estado dos gatos mora fora do React)
     useEffect(() => { gatos.alimentados = 0; const id = window.setInterval(() => {
         if (gatos.alimentados === gatosVistos.current) return;
@@ -1495,7 +1500,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 </group>
                 {/* a saída: olhar para trás, a chuva de runas, a cabine do elevador */}
                 {fase === 'elevador' && <SaidaDoAndar t0={saidaT0} porta={portaAlvo} frente={portaFrente} efeito={efeitoChuva}
-                    aoEntrarNaCabine={() => setNaCabine(true)} aoFim={() => onExit?.()} />}
+                    aoEntrarNaCabine={() => setNaCabine(true)} aoFim={() => {
+                        const e = est.current;
+                        setConcluido({ pistas: new Set(e.pistas), segundos: (performance.now() - (inicioDoAndar.current || performance.now())) / 1000,
+                            portas: e.casasBatidas.size, conversas: e.conversou.size, olho: atencao.explicado, segredo: aceitacao > 0 });
+                    }} />}
                 {/* sempre montada (lá embaixo, fora da vista): os materiais dela já entram na pré-compilação */}
                 <CabineDoElevador />
                 <CameraDeExplorar jog={jog} yaw={yaw} pitch={pitch} ativo={fase !== 'queda'} foco={foco} portaAlvo={portaAlvo} />
@@ -1537,6 +1546,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             <style>{'@keyframes f13escuta{0%{opacity:0}18%,70%{opacity:1}100%{opacity:0}}@keyframes f13bate{0%{opacity:.55}100%{opacity:0}}'
                 + '@keyframes f13tranco{0%,100%{transform:none}20%{transform:translate(-7px,3px) rotate(-.6deg)}45%{transform:translate(6px,-2px)}70%{transform:translate(-3px,1px)}}'}</style>
             {painelFps13 && <PainelFps13 nivel={nivel} />}
+            {concluido && <CartaoDeConclusao resumo={concluido} retrato={retrato} aoFim={() => onExit?.()} />}
             {fase === 'queda' && quedaEmVideo && <video ref={video} muted playsInline preload="auto"
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000', pointerEvents: 'none' }}>
                 {/* VP9 para Chrome/Firefox/Android; H.264 para o Safari. Nenhum dos dois: a cena ao vivo */}
