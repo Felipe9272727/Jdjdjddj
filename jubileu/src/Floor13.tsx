@@ -923,6 +923,16 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
     const [cartaoAberto, setCartaoAberto] = useState(true);
     const achadas = useMemo(() => OVELHAS.map(() => ({ current: false })), []);
     const npcOnde = useMemo(() => Object.fromEntries(NPCS.map((n) => [n.id, { current: { x: LUGAR_DOS_NPCS[n.id].x, z: LUGAR_DOS_NPCS[n.id].z } }])) as Record<IdNpc, React.MutableRefObject<{ x: number; z: number }>>, []);
+    // longe de quem perguntava (mais de 4 m), o menu de assuntos fecha sozinho:
+    // antes ficava aberto pela vila inteira, cobrindo a tela até tocar em "chega"
+    useEffect(() => {
+        if (!menu) return;
+        const id = window.setInterval(() => {
+            const o = npcOnde[menu.id].current, j = jog.current;
+            if (Math.hypot(o.x - j.x, o.z - j.z) > 4) setMenu(null);
+        }, 300);
+        return () => window.clearInterval(id);
+    }, [menu, npcOnde]);
     const erradas = useRef(0);
     const gatosVistos = useRef(0);
     // a chegada (f13Chegada): o shiba puxa o hóspede para a vila, uma vez, ao fim da queda
