@@ -136,7 +136,7 @@ const Perna: React.FC<{ p: Pal; x: number; gr?: boolean }> = ({ p, x, gr }) => {
   const w = gr ? 10 : 8, f = gr ? 27 : 25;
   return <g {...L}>{sv(`r ${x - w} 186 ${w * 2} 36 5 ${p.j}|r* ${x - f} 214 ${f * 2} 30 12 ${p.m}|r~ ${x - f + 8} 219 22 6 3 #fff o.4`)}</g>;
 };
-const Tronco: React.FC<{ p: Pal; k: 0 | 1 | 2 }> = ({ p, k }) => (
+export const Tronco: React.FC<{ p: Pal; k: 0 | 1 | 2 }> = ({ p, k }) => (
   <g {...L}>
     {sv(`r* 46 98 108 92 18 ${p.c}`)}
     {k === 2
@@ -155,7 +155,7 @@ const EXPR: Record<string, string> = {
   p: 'p M76,66H96 none s% w5|p M104,66H124 none s% w5',
   s: 'r~ 73 47 24 34 8 %|r~ 103 47 24 34 8 %|r~ 82 59 8 10 3 &|r~ 110 59 8 10 3 &',
 };
-const Cara: React.FC<{ p: Pal; k: 0 | 1 | 2; t: Exp }> = ({ p, k, t }) => {
+export const Cara: React.FC<{ p: Pal; k: 0 | 1 | 2; t: Exp }> = ({ p, k, t }) => {
   const y = k === 1, g = k === 2 ? '@vm' : '@ci', o = p.ol;
   return (
     <g>
