@@ -77,6 +77,23 @@ function eye(side: number) {
   return curvedShape(s, 0.043, 3);
 }
 
+// ── O CORTE DE TORTA ─────────────────────────────────────────────────────────
+// O olho era um oval preto liso: de longe lia como buraco, não como olhar. O
+// desenho de 1930 que ele imita resolve com uma fatia de creme recortada da
+// pupila — o "pie-cut". As duas fatias apontam para o MESMO lado (a luz é uma
+// só), por isso o deslocamento não espelha com o lado.
+function shine(side: number) {
+  const s = new THREE.Shape();
+  // A fatia nasce na borda de fora do olho (lado da luz) e afina até perto do
+  // centro da pupila; a borda curva acompanha o contorno do olho.
+  const cx = side * 0.465;
+  s.moveTo(cx + 0.015, 0.0);
+  s.lineTo(cx + 0.15, 0.13);
+  s.bezierCurveTo(cx + 0.175, 0.06, cx + 0.18, -0.02, cx + 0.165, -0.09);
+  s.closePath();
+  return curvedShape(s, 0.05, 2);
+}
+
 function stroke(points: number[][], width: number, lift = 0.045) {
   const outline = new THREE.CatmullRomCurve3(points.map(([x, y]) => new THREE.Vector3(x, y, 0)));
   class SurfaceCurve extends THREE.Curve<THREE.Vector3> {
@@ -129,7 +146,7 @@ function mouth() {
 }
 
 function sculptAssets() {
-    const mask = faceMask(), eyes = [-1, 1].map(eye);
+    const mask = faceMask(), eyes = [-1, 1].map(eye), shines = [-1, 1].map(shine);
     // As sobrancelhas desceram (0,47..0,61 -> 0,41..0,53) e engrossaram um fio.
     // Com a piscada travada (`?sempiscar`) dá para ver o repouso, e nele elas
     // flutuavam perto da linha do cabelo, longe do olho, que acaba em 0,38 — a
@@ -158,7 +175,7 @@ function sculptAssets() {
       [[0.55, -0.41], [0.57, -0.49]],
     ].map(p => stroke(p, 0.009, 0.066));
     const corners = stroke([[0.63, -0.37], [0.66, -0.345], [0.68, -0.38]], 0.012, 0.055);
-    return { mask, eyes, brows, lids, horns, tufts, grin, teeth, divisions, corners };
+    return { mask, eyes, shines, brows, lids, horns, tufts, grin, teeth, divisions, corners };
 }
 
 export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) {
@@ -166,7 +183,9 @@ export function createDiabreteSculpt({ neck = false }: { neck?: boolean } = {}) 
   group.name = 'diabrete-sculpted-head';
   const assets = sculptAssets();
   const ink = new THREE.MeshStandardMaterial({ color: INK, roughness: 0.76, side: THREE.DoubleSide });
-  const cream = new THREE.MeshStandardMaterial({ color: CREAM, roughness: 0.88, side: THREE.DoubleSide });
+  // Um fio de emissivo: sem ele o creme saía cinza-rato no lado da sombra, e a
+  // cara dele perdia o contraste de tinta-e-papel que é a marca do desenho.
+  const cream = new THREE.MeshStandardMaterial({ color: CREAM, roughness: 0.88, emissive: CREAM, emissiveIntensity: 0.16, side: THREE.DoubleSide });
   const line = new THREE.MeshStandardMaterial({ color: INK, roughness: 0.98, side: THREE.DoubleSide });
   const noseMaterial = new THREE.MeshStandardMaterial({ color: INK, roughness: 0.4 });
   const geometries = new Set<THREE.BufferGeometry>();
@@ -205,7 +224,11 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   }
   add(inside, cream);
   for (const geometry of [assets.teeth, ...assets.divisions, assets.corners]) add(geometry, line);
-  const eyeMeshes = group.children.filter(child => child instanceof THREE.Mesh && assets.eyes.includes(child.geometry));
+  for (const geometry of assets.shines) add(geometry, cream);
+  const eyeMeshes = group.children.filter(child => child instanceof THREE.Mesh && (assets.eyes.includes(child.geometry) || assets.shines.includes(child.geometry)));
+  // Olho e brilho andam juntos: mesma transformação, cada um na sua altura.
+  const eyeParts = [...assets.eyes, ...assets.shines];
+  const eyeLift = (k: number) => k < 2 ? 0.043 : 0.05;
   const dizzyMeshes = [-1, 1].flatMap(side => [
     add(stroke([[side * 0.34, 0.13], [side * 0.58, -0.26]], 0.02, 0.052), line),
     add(stroke([[side * 0.34, -0.26], [side * 0.58, 0.13]], 0.02, 0.052), line),
@@ -218,7 +241,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
   const rugaMeshes = [-1, 1].map(side => add(
     stroke([[side * 0.05, 0.42], [side * 0.10, 0.30], [side * 0.13, 0.19]], 0.011, 0.040), line));
   for (const mesh of rugaMeshes) mesh.visible = false;
-  const eyeBases = assets.eyes.map(g => Float32Array.from(g.getAttribute('position').array));
+  const eyeBases = eyeParts.map(g => Float32Array.from(g.getAttribute('position').array));
   const neutralEyes = eyeBases.map(a => Float32Array.from(a));
   const browBases = assets.brows.map(g => Float32Array.from(g.getAttribute('position').array));
   const lidBases = assets.lids.map(g => Float32Array.from(g.getAttribute('position').array));
@@ -247,7 +270,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     for (const mesh of dizzyMeshes) mesh.visible = look === 'tonto';
     for (const mesh of rugaMeshes) mesh.visible = brow === 'bravaComRuga';
     for (let j = 0; j < eyeBases.length; j++) {
-      const side = j === 0 ? -1 : 1;
+      const side = j % 2 === 0 ? -1 : 1;
       for (let i = 0; i < eyeBases[j].length; i += 3) {
         const x = neutralEyes[j][i];
         const width = look === 'arregalado' ? 1.06 : 1;
@@ -255,6 +278,7 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
         eyeBases[j][i] = approach(eyeBases[j][i], side * 0.46 + (x - side * 0.46) * width + shiftX);
         eyeBases[j][i + 1] = approach(eyeBases[j][i + 1], -0.06 + (neutralEyes[j][i + 1] + 0.06) * yScale + shiftY);
       }
+      if (j >= 2) continue;
       for (const [geometry, baseline, isLid] of [[assets.brows[j], browBases[j], false], [assets.lids[j], lidBases[j], true]] as const) {
         const attr = geometry.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i < attr.count; i++) {
@@ -283,14 +307,14 @@ const skull = add(new THREE.SphereGeometry(1, 40, 28), ink);
     if (Math.abs(closed - lastBlink) < 0.001) return;
     lastBlink = closed;
     for (const mesh of eyeMeshes) mesh.visible = closed < .998 && !expressionKey.startsWith('tonto:');
-    for (let j = 0; j < assets.eyes.length; j++) {
-      const a = assets.eyes[j].getAttribute('position') as THREE.BufferAttribute;
+    for (let j = 0; j < eyeParts.length; j++) {
+      const a = eyeParts[j].getAttribute('position') as THREE.BufferAttribute;
       const base = eyeBases[j];
-      const normals = assets.eyes[j].getAttribute('normal') as THREE.BufferAttribute;
+      const normals = eyeParts[j].getAttribute('normal') as THREE.BufferAttribute;
       const normal = new THREE.Vector3();
       for (let i = 0; i < a.count; i++) {
         const x = base[i * 3], y = -0.06 + (base[i * 3 + 1] + 0.06) * (1 - closed);
-        a.setXYZ(i, x, y, front(x, y, 0.043));
+        a.setXYZ(i, x, y, front(x, y, eyeLift(j)));
         normal.set(x / (RX * RX), y / (RY * RY), front(x, y, 0) / (RZ * RZ)).normalize();
         normals.setXYZ(i, normal.x, normal.y, normal.z);
       }
