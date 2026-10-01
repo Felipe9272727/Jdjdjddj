@@ -26,10 +26,17 @@ Para retomar se a cota acabar ou o container reiniciar. Atualizado a cada rodada
 - Vídeo da queda NOVO (cabine nova), densidade 2: `tools/queda/gravar.sh` (captura em `tools/queda/captura.mjs`) grava em `/tmp/cap/{h,v}`;
   depois acabamento Remotion (`tools/queda/remotion`: `npm ci && ./run.sh h|v`; caminhos em /tmp), VP9 + H.264, trocar em `public/`.
   Se perdido: refazer com `?f13aovivo&f13gravar` + relógio falso (Playwright `clock`), 34 ms/quadro, 29,4118 qps.
-- Vídeo EM PÉ (720x1280, densidade 2) gravando: `ORIENT=v tools/queda/gravar.sh` → `/tmp/cap/v`; depois Remotion `run.sh v`,
-  VP9 crf 34 + H.264, `public/queda-v.*`.
+- Modo em pé DESCARTADO (pedido do usuário): não gravar vídeo vertical nem ajustar layout de retrato.
+
+## Feito por último
+- Diabrete: olhos com corte de torta + creme emissivo (`DiabreteSculptedHead.tsx`; bancada `bancada-navegador/cabeca-diabrete.mjs`).
+- Elevador art déco (`Elevator.tsx`): Blender `tools/elevador/cabine.py` -> `cabineDeco.glb`; Manim `tools/elevador/texturas.py`
+  -> `src/assets/elevador/*.png`; Remotion `tools/elevador/remotion` (`npm ci && node render.mjs <saida.png>`) -> letreiro.png.
+  Bancada: `?elevpreview` + `bancada-navegador/ver-elevador.mjs <sufixo> <pasta>` (externo via curl, cache em <pasta>/raw).
+- Andar 4: sem tela preta na passagem para o 2D.
 
 ## Próximos
+- Andar 14.
 - Medir no celular com `?f13fps` (o usuário reporta ~15 qps) e cortar onde o gargalo estiver,
   sem perda gráfica (candidatos: juntar peças com esqueleto por morador, lotes de adereços estáticos).
 - UI mais bonita: unificar caixas (fala, objetivo, aviso, olho) num só estilo (crítico 89).
