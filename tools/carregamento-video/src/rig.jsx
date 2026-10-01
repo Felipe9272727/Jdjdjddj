@@ -35,7 +35,7 @@ export function Mangueira({ de, ate, dobra = 0, larg = 13, cor }) {
   const w = larg * Math.min(1.15, Math.max(.45, Math.sqrt(62 / L)));
   const d = `M${x0},${y0}Q${cx},${cy},${x1},${y1}`;
   return <g fill="none" strokeLinecap="round">
-    <path d={d} stroke={K} strokeWidth={w + 8} />
+    <path d={d} stroke={K} strokeWidth={w + 11} />
     <path d={d} stroke={cor} strokeWidth={w} />
     <path d={d} stroke="#fff" strokeOpacity=".28" strokeWidth={w * .28} transform={`translate(${-w * .18},${-w * .18})`} />
   </g>;

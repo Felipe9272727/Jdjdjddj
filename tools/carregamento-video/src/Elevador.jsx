@@ -183,10 +183,11 @@ export function Elevador() {
             <feComposite in="sombra" in2="b" operator="atop" result="b2" />
             <feComposite in="aro" in2="b2" operator="atop" />
           </filter>)}
-          <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#3e0c18" /><stop offset=".45" stopColor="#6a1626" /><stop offset=".62" stopColor="#5a1220" /><stop offset="1" stopColor="#2a0a10" /></linearGradient>
+          <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#4a1c22" /><stop offset=".45" stopColor="#8a3a3c" /><stop offset=".62" stopColor="#7a3234" /><stop offset="1" stopColor="#3a1618" /></linearGradient>
+          <linearGradient id="feixe" x2="0" y2="1"><stop offset="0" stopColor="#ffe6a8" stopOpacity=".5" /><stop offset="1" stopColor="#ffe6a8" stopOpacity="0" /></linearGradient>
           <pattern id="papel" width="80" height="96" patternUnits="userSpaceOnUse">
-            <path d="M40,80Q40,40,40,12M40,80Q22,50,8,30M40,80Q58,50,72,30" fill="none" stroke="#8a2236" strokeWidth="3" />
-            <path d="M24,80A16,16,0,0,1,56,80" fill="none" stroke="#8a2236" strokeWidth="3" />
+            <path d="M40,80Q40,40,40,12M40,80Q22,50,8,30M40,80Q58,50,72,30" fill="none" stroke="#a4504e" strokeWidth="3" />
+            <path d="M24,80A16,16,0,0,1,56,80" fill="none" stroke="#a4504e" strokeWidth="3" />
             <circle cx="40" cy="10" r="4" fill="#a83046" />
           </pattern>
           <radialGradient id="poca"><stop offset="0" stopColor="#ffcf7a" stopOpacity=".55" /><stop offset=".4" stopColor="#ff9a4a" stopOpacity=".18" /><stop offset="1" stopColor="#ff9a4a" stopOpacity="0" /></radialGradient>
@@ -202,6 +203,12 @@ export function Elevador() {
           <rect width="1600" height="760" filter="url(#papelTex)" style={{ mixBlendMode: 'multiply' }} />
           <Reflexo fresta={fresta} />
           <Cabine luz={Math.max(0, abre)} />
+          {/* o feixe de luz que sai do elevador quando abre, com poeira brilhando dentro */}
+          {abre > .05 && <g opacity={Math.min(1, abre) * .9} style={{ mixBlendMode: 'screen' }}>
+            <path d={`M${CX - fresta},${PISO}L${CX + fresta},${PISO}L${CX + fresta * 2.4},760L${CX - fresta * 2.4},760Z`} fill="url(#feixe)" filter="url(#desfoque)" />
+            {Array.from({ length: 18 }, (_, i) => { const t = ((f * .004 + i * .137) % 1), px = CX + Math.sin(i * 7.1 + f * .03) * fresta * (.4 + t * 1.6), py = TOPO + 60 + t * 520;
+              return <circle key={i} cx={px} cy={py} r={2 + (i % 3)} fill="#fff4cc" opacity={.6 * Math.sin(t * Math.PI)} />; })}
+          </g>}
           {!fora && abre > .05 && <g clipPath="url(#vao)" filter={`url(#ferve${ferve})`}>{robo}</g>}
           <g clipPath="url(#vao)">
             <g transform={`translate(${-fresta},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
