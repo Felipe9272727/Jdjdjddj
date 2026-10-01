@@ -63,6 +63,9 @@ import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
 import Floor12 from './Floor12';
 import Floor13 from './Floor13';
+import { CarregandoAnimado } from './CarregandoAnimado';
+import './CarregandoCenas';
+import './CarregandoAndares';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import { configureFloor12Sfx, clearFloor12Sfx } from './floor12Sfx';
 import { configureFloor13Sfx, clearFloor13Sfx } from './floor13Sfx';
@@ -2141,7 +2144,7 @@ export default function App() {
           ? <Pixelate3DRamp timer={elevatorTimer} />
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
-        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+        <Suspense fallback={<Html fullscreen zIndexRange={[9999, 9999]}><CarregandoAnimado rotulo="Carregando…" /></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={floor2Paused || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} floor3CenaSemCabine={cartoonCutscene && cutsceneLine >= 1} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={handleFloor2Caught} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
