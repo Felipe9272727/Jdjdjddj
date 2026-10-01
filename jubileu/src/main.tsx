@@ -61,6 +61,9 @@ const Floor3Preview = lazy(() => import('./Floor3Preview.tsx'));
 const Floor12Dev = lazy(() => import('./floor12-dev.tsx'));
 const Floor13Dev = lazy(() => import('./floor13-dev.tsx'));
 const Floor13PovoDev = lazy(() => import('./floor13-povo-dev.tsx'));
+// DEV-ONLY: `?carregando` mostra a tela de carregamento animada (bancada: ver carregando-dev.tsx). Fora do DEV o
+// ramo morre na compilação e o chunk nem é gerado.
+const CarregandoDev = import.meta.env.DEV ? lazy(() => import('./carregando-dev.tsx')) : null;
 const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
 // `?bancada` abre a bancada do cérebro do Nilo: cota do navegador, cronômetro
 // por etapa e erros na tela, sem o jogo em volta. Precisa estar AQUI porque o
@@ -104,6 +107,7 @@ const isF12 = search.includes('f12');
 const isF13 = /[?&]f13\b/.test(search);
 // DEV-ONLY: `?f13povo` mostra o elenco de Vindhjem lado a lado.
 const isF13Povo = /[?&]f13povo\b/.test(search);
+const isCarregando = import.meta.env.DEV && /[?&]carregando\b/.test(search);
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
 const isComparacao = search.includes('comparacao');
@@ -131,7 +135,9 @@ createRoot(document.getElementById('root')!).render(
     {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
         também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
     <OrigemEstavelAviso />
-    {isVelocidade ? (
+    {isCarregando && CarregandoDev ? (
+      <Suspense fallback={null}><CarregandoDev /></Suspense>
+    ) : isVelocidade ? (
       <Suspense fallback={null}><Floor10VelocidadeSala /></Suspense>
     ) : isPipelineSala ? (
       <Suspense fallback={null}><Floor10PipelineSala /></Suspense>
