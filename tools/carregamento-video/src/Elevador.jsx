@@ -19,27 +19,64 @@ const Estouro = ({ x, y, t, cor, esc, giro = 0 }) => esc <= 0.01 ? null : (
   </g>
 );
 
+// ── O CENÁRIO PINTADO ─────────────────────────────────────────────────────────
+// Fundo mais suave e "aquarelado" que os personagens (o truque do Cuphead): traço fino e
+// marrom em vez de preto grosso, luz dos lampiões em poças, textura de papel por cima.
 function Fundo() {
+  const LT = '#2a120c'; // traço do cenário
   return <g strokeLinejoin="round">
-    <rect width="1600" height="760" fill="#5a1220" />
-    {Array.from({ length: 33 }, (_, i) => <rect key={i} x={i * 50} y="0" width="18" height="520" fill="#6c1828" />)}
-    <rect y="470" width="1600" height="60" fill="#3a1c10" stroke={K} strokeWidth="6" />
-    <rect y="470" width="1600" height="10" fill={OURO_E} />
-    <rect y={PISO} width="1600" height={760 - PISO} fill="#2a120c" />
-    <path d={`M0,${PISO}H1600`} stroke={K} strokeWidth="8" />
-    {/* tapete em perspectiva saindo da porta */}
-    <path d={`M${ESQ + 20},${PISO}H${DIR - 20}L${DIR + 260},760H${ESQ - 260}Z`} fill="#8c1a2a" stroke={K} strokeWidth="6" />
-    <path d={`M${ESQ + 40},${PISO + 8}H${DIR - 40}L${DIR + 210},752H${ESQ - 210}Z`} fill="none" stroke={OURO} strokeWidth="6" />
-    {/* lampiões */}
-    {[420, 1180].map((x) => <g key={x}>
-      <circle cx={x} cy="250" r="120" fill="url(#luz)" />
-      <path d={`M${x},300V262`} stroke={OURO_E} strokeWidth="8" />
-      <path d={`M${x - 26},262H${x + 26}L${x + 18},214H${x - 18}Z`} fill="#ffd98a" stroke={K} strokeWidth="6" />
+    <rect width="1600" height="760" fill="url(#parede)" />
+    <rect width="1600" height="470" fill="url(#papel)" opacity=".55" />
+    {/* sanca no alto */}
+    <rect y="0" width="1600" height="34" fill="#3a1a10" /><rect y="34" width="1600" height="8" fill="url(#ouro)" />
+    {[420, 1180].map((x) => <circle key={x} cx={x} cy="250" r="260" fill="url(#poca)" />)}
+    {/* lambri com almofadas em relevo */}
+    <rect y="470" width="1600" height="170" fill="#3d1d10" />
+    <rect y="470" width="1600" height="8" fill="url(#ouro)" />
+    {Array.from({ length: 10 }, (_, i) => <g key={i}>
+      <rect x={i * 170 - 40} y="494" width="130" height="122" rx="6" fill="#4a2414" stroke={LT} strokeWidth="3" />
+      <path d={`M${i * 170 - 36},${612}V${498}H${i * 170 + 86}`} fill="none" stroke="#6a3a20" strokeWidth="3" />
     </g>)}
-    {/* vasos */}
-    {[250, 1350].map((x) => <g key={x} stroke={K} strokeWidth="6">
-      {[-40, -15, 15, 40].map((a) => <path key={a} d={`M${x},${PISO - 50}Q${x + a * 1.2},${PISO - 150},${x + a * 2.2},${PISO - 190}`} fill="none" stroke="#2f6b2a" strokeWidth="14" />)}
-      <path d={`M${x - 46},${PISO - 60}H${x + 46}L${x + 34},${PISO}H${x - 34}Z`} fill="#a8571f" />
+    {/* piso de mármore xadrez em perspectiva */}
+    <rect y={PISO} width="1600" height={760 - PISO} fill="#e9dcc0" />
+    {Array.from({ length: 4 }, (_, r) => Array.from({ length: 28 }, (_, c) => {
+      const y0 = PISO + (r * r * 9 + r * 22), y1 = PISO + ((r + 1) * (r + 1) * 9 + (r + 1) * 22);
+      const w0 = 60 + r * 14, w1 = 60 + (r + 1) * 14, x0 = CX + (c - 14) * w0, x1 = CX + (c - 14) * w1;
+      return (r + c) % 2 ? <path key={`${r}-${c}`} d={`M${x0},${y0}H${x0 + w0}L${x1 + w1},${y1}H${x1}Z`} fill="#2e2220" /> : null;
+    }))}
+    <rect y={PISO} width="1600" height={760 - PISO} fill="url(#brilhoPiso)" />
+    <path d={`M0,${PISO}H1600`} stroke={LT} strokeWidth="5" />
+    <rect y={PISO} width="1600" height="16" fill="#000" opacity=".25" />
+    {/* lampiões de parede, com cúpula e braço de latão */}
+    {[420, 1180].map((x) => <g key={x} stroke={LT} strokeWidth="4">
+      <path d={`M${x},312V266`} stroke={OURO_E} strokeWidth="7" />
+      <circle cx={x} cy="314" r="9" fill={OURO_E} />
+      <path d={`M${x - 30},266H${x + 30}L${x + 20},212H${x - 20}Z`} fill="#ffe9b0" />
+      <path d={`M${x - 20},212H${x + 20}`} stroke={OURO} strokeWidth="6" />
+    </g>)}
+    {/* vasos com palmeira */}
+    {[240, 1360].map((x) => <g key={x} stroke={LT} strokeWidth="4">
+      {[-50, -22, 8, 34, 56].map((a, i) => <path key={a} d={`M${x},${PISO - 52}Q${x + a * 1.1},${PISO - 170 - i * 8},${x + a * 2.4},${PISO - 210 + (i % 2) * 30}`} fill="none" stroke={i % 2 ? '#3f7a34' : '#2e5e28'} strokeWidth="13" strokeLinecap="round" />)}
+      <path d={`M${x - 48},${PISO - 62}H${x + 48}L${x + 36},${PISO}H${x - 36}Z`} fill="#b0602a" />
+      <path d={`M${x - 52},${PISO - 62}H${x + 52}`} stroke={OURO} strokeWidth="8" />
+    </g>)}
+  </g>;
+}
+/** Reflexo das portas no mármore (mesma geometria, de cabeça para baixo, apagado). */
+function Reflexo({ fresta }) {
+  return <g opacity=".22" transform={`translate(0,${2 * PISO}) scale(1,-1)`} style={{ mixBlendMode: 'multiply' }}>
+    <rect x={ESQ - 60} y={PISO - 200} width={LARG + 120} height="200" fill="#4a2815" />
+    <rect x={ESQ - fresta} y={PISO - 200} width={LARG / 2} height="200" fill="#b9791a" />
+    <rect x={CX + fresta} y={PISO - 200} width={LARG / 2} height="200" fill="#b9791a" />
+  </g>;
+}
+/** Cortinas de veludo no primeiro plano (paralaxe: andam mais que a câmera). */
+function PrimeiroPlano({ px }) {
+  return <g transform={`translate(${px},0)`} filter="url(#desfoque)">
+    {[[-70, 1], [1670, -1]].map(([x, s]) => <g key={x} transform={`translate(${x},0) scale(${s},1)`}>
+      <path d="M-60,-20H150Q120,200,160,420Q110,560,170,790H-60Z" fill="#4a0a14" />
+      <path d="M40,-20Q20,260,70,790M100,-20Q90,240,120,790" fill="none" stroke="#2a0408" strokeWidth="14" />
+      <path d="M150,-20Q120,200,160,420" fill="none" stroke="#8a2030" strokeWidth="10" opacity=".7" />
     </g>)}
   </g>;
 }
@@ -63,6 +100,8 @@ function Moldura({ ponteiro, lampada }) {
   return <g stroke={K} strokeWidth="7" strokeLinejoin="round">
     <path d={`M${ESQ - 60},${PISO}V${TOPO - 40}H${DIR + 60}V${PISO}H${DIR}V${TOPO}H${ESQ}V${PISO}Z`} fill="#4a2815" />
     <path d={`M${ESQ - 40},${PISO}V${TOPO - 22}H${DIR + 40}V${PISO}`} fill="none" stroke={OURO} strokeWidth="6" />
+    {/* degraus déco nas laterais da moldura */}
+    {[ESQ - 60, DIR + 60].map((x, i) => <path key={x} d={`M${x},${TOPO + 40}h${i ? 22 : -22}v60h${i ? -10 : 10}v60h${i ? -12 : 12}`} fill="none" stroke={OURO_E} strokeWidth="5" />)}
     {/* o mostrador de andares */}
     <g transform={`translate(${CX},${TOPO - 46})`}>
       <path d="M-92,0A92,92,0,0,1,92,0Z" fill="#f6e7c0" />
@@ -120,7 +159,7 @@ export function Elevador() {
   // ── câmera: entra no elevador no PLIM, segue o pulo, soco de zoom no SLAM, abre no BONK ──
   const z = k(f, [[0, 1.1, 'io'], [14, 1.25, 'x'], [34, 1.25, 'io'], [50, 1.2, 'io'], [74, 1.3, 'x'], [78, 1.42, 'io'], [100, 1.25, 'x'], [112, 1.15, 'io'], [144, 1.1]]);
   const cx = k(f, [[0, 800, 'io'], [34, 800, 'io'], [52, 900, 'io'], [74, 900, 'io'], [100, 960, 'x'], [112, 820, 'io'], [144, 800]]);
-  const cy = k(f, [[0, 330, 'io'], [14, 290, 'io'], [34, 300, 'io'], [50, 420, 'io'], [100, 430, 'io'], [118, 340, 'io'], [144, 330]]);
+  const cy = k(f, [[0, 340, 'io'], [14, 290, 'io'], [34, 310, 'io'], [50, 450, 'io'], [100, 460, 'io'], [118, 350, 'io'], [144, 340]]);
   const tremor = (t0, a, d) => (f >= t0 && f < t0 + d ? Math.sin((f - t0) * 2.7) * a * (1 - (f - t0) / d) : 0);
   const tx = tremor(74, 10, 8) + tremor(116, 16, 12), ty = tremor(116, 9, 12) * .7;
   const cam = `translate(${800 + tx},${380 + ty}) scale(${z}) translate(${-cx},${-cy})`;
@@ -128,37 +167,59 @@ export function Elevador() {
 
   return (
     <AbsoluteFill style={{ background: '#140608' }}>
-      <svg viewBox="0 0 1600 760" width="100%" height="100%" style={{ filter: 'sepia(.12) contrast(1.05) saturate(1.05)' }}>
+      <svg viewBox="0 0 1600 760" width="100%" height="100%" style={{ filter: 'sepia(.16) contrast(1.06) saturate(1.1)' }}>
         <defs>
           <radialGradient id="luz"><stop offset="0" stopColor="#ffd98a" stopOpacity=".85" /><stop offset=".5" stopColor="#ffb347" stopOpacity=".3" /><stop offset="1" stopColor="#ffb347" stopOpacity="0" /></radialGradient>
           <linearGradient id="ouro" x2="0" y2="1"><stop offset="0" stopColor="#ffe59a" /><stop offset=".55" stopColor="#f2b53c" /><stop offset="1" stopColor="#b9791a" /></linearGradient>
           <radialGradient id="cna-ci"><stop offset="0" stopColor="#7df9ff" stopOpacity=".95" /><stop offset=".45" stopColor="#16e0e8" stopOpacity=".45" /><stop offset="1" stopColor="#16e0e8" stopOpacity="0" /></radialGradient>
-          {[0, 1, 2].map((s) => <filter key={s} id={`ferve${s}`}><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed={s * 7 + 3} /><feDisplacementMap in="SourceGraphic" scale="3.2" /></filter>)}
+          {/* o personagem: traço que "ferve" de leve + luz quente no contorno de cima e sombra do lado de baixo (volume) */}
+          {[0, 1, 2].map((s) => <filter key={s} id={`ferve${s}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed={s * 7 + 3} />
+            <feDisplacementMap in="SourceGraphic" scale="1.8" result="b" />
+            <feMorphology in="SourceAlpha" operator="erode" radius="4" result="dentro" /><feOffset in="dentro" dx="5" dy="6" result="o1" /><feComposite in="dentro" in2="o1" operator="out" result="borda" />
+            <feFlood floodColor="#fff1c8" floodOpacity=".55" /><feComposite in2="borda" operator="in" result="aro" />
+            <feOffset in="dentro" dx="-12" dy="-10" result="o2" /><feComposite in="dentro" in2="o2" operator="out" result="lado" />
+            <feFlood floodColor="#2a0a20" floodOpacity=".35" /><feComposite in2="lado" operator="in" result="sombra" />
+            <feComposite in="sombra" in2="b" operator="atop" result="b2" />
+            <feComposite in="aro" in2="b2" operator="atop" />
+          </filter>)}
+          <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#3e0c18" /><stop offset=".45" stopColor="#6a1626" /><stop offset=".62" stopColor="#5a1220" /><stop offset="1" stopColor="#2a0a10" /></linearGradient>
+          <pattern id="papel" width="80" height="96" patternUnits="userSpaceOnUse">
+            <path d="M40,80Q40,40,40,12M40,80Q22,50,8,30M40,80Q58,50,72,30" fill="none" stroke="#8a2236" strokeWidth="3" />
+            <path d="M24,80A16,16,0,0,1,56,80" fill="none" stroke="#8a2236" strokeWidth="3" />
+            <circle cx="40" cy="10" r="4" fill="#a83046" />
+          </pattern>
+          <radialGradient id="poca"><stop offset="0" stopColor="#ffcf7a" stopOpacity=".55" /><stop offset=".4" stopColor="#ff9a4a" stopOpacity=".18" /><stop offset="1" stopColor="#ff9a4a" stopOpacity="0" /></radialGradient>
+          <linearGradient id="brilhoPiso" x2="0" y2="1"><stop offset="0" stopColor="#000" stopOpacity=".35" /><stop offset=".3" stopColor="#ffd98a" stopOpacity=".12" /><stop offset="1" stopColor="#000" stopOpacity=".45" /></linearGradient>
+          <filter id="desfoque"><feGaussianBlur stdDeviation="5" /></filter>
+          <filter id="sombraMole"><feGaussianBlur stdDeviation="8" /></filter>
+          <filter id="papelTex"><feTurbulence type="fractalNoise" baseFrequency=".012 .05" numOctaves="3" seed="4" /><feColorMatrix values="0 0 0 0 .55  0 0 0 0 .4  0 0 0 0 .25  0 0 0 .18 0" /></filter>
           <clipPath id="vao"><rect x={ESQ} y={TOPO} width={LARG} height={PISO - TOPO} /></clipPath>
           <radialGradient id="vinheta" cx=".5" cy=".5" r=".75"><stop offset=".55" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".6" /></radialGradient>
         </defs>
         <g transform={cam}>
-          <g filter={`url(#ferve${ferve})`}>
-            <Fundo />
-            <Cabine luz={Math.max(0, abre)} />
-            {!fora && abre > .05 && <g clipPath="url(#vao)">{robo}</g>}
-            <g clipPath="url(#vao)">
-              <g transform={`translate(${-fresta},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
-              <g transform={`translate(${fresta},0)`}><Porta x0={CX} larg={LARG / 2} /></g>
-            </g>
-            <Moldura ponteiro={ponteiro} lampada={lampada} />
-            {fora && <ellipse cx={x} cy={712} rx={70 * esc * (1 - arco / 300)} ry={12} fill="#000" opacity=".35" />}
-            {fora && robo}
-            {/* gotas de esforço */}
-            {f >= 84 && f < 104 && [0, 1].map((i) => { const t = ((f - 84 + i * 6) % 12) / 12; return <path key={i} d={`M${x + 70 + i * 20 + t * 40},${yBase - 300 - t * 30 + t * t * 80}q8,14,0,20q-8,-6,0,-20Z`} fill="#9ad6ff" stroke={K} strokeWidth="4" opacity={1 - t} />; })}
+          <Fundo />
+          <rect width="1600" height="760" filter="url(#papelTex)" style={{ mixBlendMode: 'multiply' }} />
+          <Reflexo fresta={fresta} />
+          <Cabine luz={Math.max(0, abre)} />
+          {!fora && abre > .05 && <g clipPath="url(#vao)" filter={`url(#ferve${ferve})`}>{robo}</g>}
+          <g clipPath="url(#vao)">
+            <g transform={`translate(${-fresta},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
+            <g transform={`translate(${fresta},0)`}><Porta x0={CX} larg={LARG / 2} /></g>
           </g>
+          <Moldura ponteiro={ponteiro} lampada={lampada} />
+          {fora && <ellipse cx={x} cy={716} rx={80 * esc * (1 - arco / 300)} ry={16} fill="#1a0408" opacity=".55" filter="url(#sombraMole)" />}
+          {fora && <g filter={`url(#ferve${ferve})`}>{robo}</g>}
+          {/* gotas de esforço */}
+          {f >= 84 && f < 104 && [0, 1].map((i) => { const t = ((f - 84 + i * 6) % 12) / 12; return <path key={i} d={`M${x + 70 + i * 20 + t * 40},${yBase - 300 - t * 30 + t * t * 80}q8,14,0,20q-8,-6,0,-20Z`} fill="#9ad6ff" stroke={K} strokeWidth="4" opacity={1 - t} />; })}
           <Estouro x={CX} y={TOPO - 230} t="PLIM!" cor="#fff3b0" giro={-6} esc={k(f, [[0, 0, 'h'], [17, 0, 'b'], [23, 1, 'h'], [34, 1, 'i'], [39, 0]])} />
-          <Estouro x={x + 120} y={420} t="TCHARAM!" cor="#ffe14a" giro={8} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [61, .9, 'h'], [72, .9, 'i'], [75, 0]])} />
+          <Estouro x={x - 210} y={330} t="TCHARAM!" cor="#ffe14a" giro={8} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [61, .9, 'h'], [72, .9, 'i'], [75, 0]])} />
           <Estouro x={CX - 40} y={380} t="SLAM!" cor="#ffb347" giro={-10} esc={k(f, [[0, 0, 'h'], [75, 0, 'b'], [79, .8, 'h'], [86, .8, 'i'], [89, 0]])} />
           <Estouro x={CX + 60} y={330} t="BONK!" cor="#9af6ff" giro={10} esc={k(f, [[0, 0, 'h'], [116, 0, 'b'], [121, 1, 'h'], [132, 1, 'i'], [136, 0]])} />
           {/* riscos de velocidade no arremesso */}
           {f >= 104 && f < 111 && [0, 1, 2, 3].map((i) => <path key={i} d={`M${x + 120},${yBase - 230 + i * 45}h${160 + i * 30}`} stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".85" />)}
         </g>
+        <PrimeiroPlano px={(800 - cx) * .35} />
         <rect width="1600" height="760" fill="url(#vinheta)" />
         {/* grão de filme (troca a cada 2 quadros) */}
         <filter id="grao"><feTurbulence type="fractalNoise" baseFrequency=".9" seed={Math.floor(f / 2)} /><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .07 0" /></filter>
