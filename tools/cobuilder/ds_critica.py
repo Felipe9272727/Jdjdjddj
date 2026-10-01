@@ -17,7 +17,9 @@ try:
         for linha in r:
             linha = linha.decode().strip()
             if not linha.startswith('data:') or linha.endswith('[DONE]'): continue
-            d = json.loads(linha[5:])['choices'][0]['delta']
+            j = json.loads(linha[5:])
+            if 'choices' not in j: print('[resposta sem choices]', json.dumps(j)[:400], file=sys.stderr); continue
+            d = j['choices'][0]['delta']
             if d.get('content'): print(d['content'], end='', flush=True)
     print()
 except urllib.error.HTTPError as e:
