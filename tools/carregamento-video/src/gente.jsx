@@ -25,7 +25,7 @@ export function HospedeRig({ pose }) {
   const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'cauto', bE = { a: 10 }, bD = { a: 10 }, pE = { a: 0 }, pD = { a: 0 }, suor = false, dir = 1, maosNaFrente = false, perfil = false } = pose;
   const ombro = { E: [52, 114], D: [108, 114] };
   // pernas de PERFIL quando anda (os dois quadris juntos); de frente, afastados
-  const quad = perfil ? { E: [76, 198], D: [84, 198] } : { E: [66, 198], D: [94, 198] };
+  const quad = perfil ? { E: [72, 198], D: [88, 198] } : { E: [66, 198], D: [94, 198] };
   // mundo → local (para pé plantado no chão do mundo)
   const local = ([wx, wy]) => { const dx = wx - x, dy = wy - y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
     return [80 + cx / (esc * sx), 290 + cy / (esc * sy)]; };
@@ -35,7 +35,7 @@ export function HospedeRig({ pose }) {
     const q = quad[l], g = p.giro ?? 0;
     const f = p.alvo ? local([p.alvo[0], p.alvo[1] - 36 * esc * Math.sin(rad(g)) - 4]) : ponta(q, l, p.a ?? 0, p.c ?? 84);
     const dob = perfil ? -dir * Math.abs(p.d ?? 16) : (p.d ?? 4) * (l === 'E' ? -1 : 1);   // joelhos para a frente
-    return <g key={l}><Mangueira de={q} ate={f} dobra={dob} larg={20} cor={perfil && l === longe ? '#2c4a33' : l === 'E' ? '#3e6b4a' : '#335a3e'} />
+    return <g key={l}><Mangueira de={q} ate={f} dobra={dob} larg={20} cor={perfil ? (l === longe ? '#26412e' : '#4f8a5e') : l === 'E' ? '#3e6b4a' : '#335a3e'} />
       <Sapato p={[f[0], f[1] + 4]} dir={perfil ? dir : l === 'E' ? -1 : 1} giro={g} /></g>; };
   const braco = (l, b) => { const o = ombro[l], m = ponta(o, l, b.a ?? 10, b.c ?? 78);
     return <g key={l}><Mangueira de={o} ate={m} dobra={(b.d ?? 10) * (l === 'E' ? 1 : -1)} larg={19} cor={l === 'E' ? '#3f68a8' : '#4e7cc4'} /><Mao p={m} cor="#e8c49a" /></g>; };
