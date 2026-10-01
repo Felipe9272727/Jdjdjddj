@@ -1,3 +1,4 @@
+import fs from 'fs';
 // Captura a queda quadro a quadro com relógio falso (determinístico).
 import { chromium } from 'playwright';
 const [W, H, OUT, FPS, DPR, PORTA] = [+process.argv[2], +process.argv[3], process.argv[4], +(process.argv[5] || 30), +(process.argv[6] || 1), process.argv[7] || "3150"];
@@ -24,7 +25,9 @@ let n = 0;
 for (;;) {
   const t = await p.evaluate(() => window.__f13.tQueda());
   if (t >= 12.55) break;
-  await p.screenshot({ path: `${OUT}/q${String(n).padStart(4, '0')}.png`, timeout: 300000 });
+  const arq = `${OUT}/q${String(n).padStart(4, '0')}.png`;
+  // retomada: o relógio é determinístico, então o quadro que já existe não precisa de nova foto
+  if (!fs.existsSync(arq)) await p.screenshot({ path: arq, timeout: 300000 });
   n++;
   await p.clock.runFor(passo);
   console.log('quadro', n, 't', t.toFixed(3), await p.evaluate(() => performance.now()));
