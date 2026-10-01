@@ -235,7 +235,7 @@ const CSS6 = [
     susto(tl, a, 2.95, { alt: 9 });
     tl.to(a, { x: -10, duration: .2, ease: 'power2.out' }, 3.1)
       .to(a, { x: 36, duration: 1.9, ease: 'sine.inOut' }, 3.9);                                    // arrisca de novo, devagarinho
-    for (let t = 3.6; t < 3.9; t += .06) tl.to(a, { r: (Math.round(t * 100) % 2 ? 1.5 : -1.5), duration: .03 }, t);
+    for (let t = 3.6, i = 0; t < 3.9; t += .06, i++) tl.to(a, { r: i % 2 ? 1.5 : -1.5, duration: .03 }, t);
     pulo(tl, a, 6.42, { alt: 30, voo: .45 });
     tl.to(a, { x: 46, duration: .15, ease: 'power2.out' }, 7.0)                                     // antecipação da fuga
       .to(a, { x: -210, r: -8, duration: 1.4, ease: 'power3.in' }, 7.2)
@@ -619,7 +619,7 @@ const CSS12 = [
   // ── REFEITO no cnMotor (lisa) ── a Cabeça flutua; para cuspir ela RECUA e incha (antecipação),
   // abre a boca passando do ponto e dá o bote; o biplano mergulha em arco, faz um looping e escapa.
   assar('a12zc', '50% 60%', D, (tl, a) => {
-    tl.to(a, { y: -3, r: -2, duration: 2.5, ease: 'sine.inOut' }, 0);
+    tl.to(a, { y: -3, r: -2, duration: 1.6, ease: 'sine.inOut' }, 0);  // termina quando o recuo começa (senão os dois brigam por y/r)
     for (const t of [1.6, 5.8]) tl.to(a, { y: -5, sx: 1.08, sy: .94, r: 6, duration: .8, ease: 'power2.inOut' }, t)       // recua e incha
       .to(a, { y: 3, sx: .94, sy: 1.08, r: -8, duration: .12, ease: 'power3.out' }, t + 1.0)                                // bote
       .to(a, { y: 0, sx: 1, sy: 1, r: 0, duration: .6, ease: 'elastic.out(1,.4)' }, t + 1.15);

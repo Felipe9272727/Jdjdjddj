@@ -263,7 +263,7 @@ const CSS1 = [
   respira('c1tr', '50% 80%', 3, .012, .7),
   // a CÂMERA: enquadra a ação (o saguão inteiro deixava todo mundo minúsculo)
   assar('c1-cam', '0 0', D, (tl, a) => {
-    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    const plano = (cx: number, cy: number, z: number) => { const l = (z - 1) * 100, c = (v: number) => Math.max(-l, Math.min(0, v)); return { x: c((800 - cx * z) / 16), y: c((380 - cy * z) / 7.6), sx: z, sy: z }; };
     tl.set(a, plano(950, 320, 1.45), 0)
       .to(a, { ...plano(800, 300, 1.85), duration: .35, ease: 'expo.out' }, 1.5)          // PLIM: entra no elevador
       .to(a, { ...plano(930, 400, 1.5), duration: .7, ease: 'power2.inOut' }, 2.75)        // acompanha o pulo
@@ -450,7 +450,7 @@ const CSS2 = [
   pop('c2-tc', [4.95], .8), pop('c2-ih', [8.6], .7),
   ferve('c2gb', PV.c, 1, 1), ferve('c2ab', PV.c, 1, 2), respira('c2tr', '50% 80%', 3, .012, .4),
   assar('c2-cam', '0 0', D, (tl, a) => {
-    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    const plano = (cx: number, cy: number, z: number) => { const l = (z - 1) * 100, c = (v: number) => Math.max(-l, Math.min(0, v)); return { x: c((800 - cx * z) / 16), y: c((380 - cy * z) / 7.6), sx: z, sy: z }; };
     tl.set(a, plano(560, 470, 1.5), 0)
       .to(a, { ...plano(720, 470, 1.4), duration: 1.6, ease: 'sine.inOut' }, .3)            // acompanha o carrinho
       .to(a, { ...plano(720, 540, 1.75), duration: .25, ease: 'power3.out' }, 2.5)            // a banana
@@ -624,7 +624,7 @@ const CSS3 = [
   pop('c3-bt', [4.82], .6), pop('c3-cr', [7.06], .8), pop('c3-hm', [5.45], .55),
   ferve('c3ab', PV.c, 1, 1), ferve('c3gb', PV.c, 1, 2), ferve('c3mb', PV.c, 1, 3), respira('c3tr', '50% 80%', 3, .012, .2),
   assar('c3-cam', '0 0', D, (tl, a) => {
-    const plano = (cx: number, cy: number, z: number) => ({ x: (800 - cx * z) / 16, y: (380 - cy * z) / 7.6, sx: z, sy: z });
+    const plano = (cx: number, cy: number, z: number) => { const l = (z - 1) * 100, c = (v: number) => Math.max(-l, Math.min(0, v)); return { x: c((800 - cx * z) / 16), y: c((380 - cy * z) / 7.6), sx: z, sy: z }; };
     tl.set(a, plano(800, 470, 1.35), 0)
       .to(a, { ...plano(1160, 450, 1.6), duration: .5, ease: 'power2.inOut' }, .6)               // o 64 fazendo sinais
       .to(a, { ...plano(560, 470, 1.6), duration: .6, ease: 'power2.inOut' }, 2.1)              // o 63 recebendo

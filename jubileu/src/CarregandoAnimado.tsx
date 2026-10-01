@@ -13,6 +13,7 @@
  * Cobre a tela (fixed), respeita a safe-area, serve em retrato e paisagem e bloqueia toques.
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
+import { assar } from './cnMotor';
 
 export interface CarregandoAnimadoProps {
   progresso?: number; // 0..1; sem ele a barra é indeterminada
@@ -325,7 +326,7 @@ const Cena = memo(function Cena() {
     <>
       <Defs />
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh">
+      <div className="pal"><div className="sh c0-cam"><div className="sh">
         <FundoSaguao />
 
         {/* TROCO-64: torce da lateral, com a bandeira do irmão; arremessa a casca de banana */}
@@ -351,7 +352,7 @@ const Cena = memo(function Cena() {
           <Pt c="sw1" vb={VR}><path d="M30 36Q-30 100 10 190" fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".9" /></Pt>
         </div>
         <div className="e a2"><Pt c="sw2" vb={VR}><path d="M178 14Q248 70 214 168" fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".9" /></Pt></div>
-      </div><div className="fl" /></div>
+      </div></div><div className="fl" /></div>
       <div className="vg" />
     </>
   );
@@ -507,7 +508,25 @@ ${lay.map((l) => l[0]).join('\n')}
 @media(orientation:portrait){${lay.map((l) => l[1]).join('\n')}}
 ${regras.join('\n')}`;
 }
-const CSS = montarCss();
+// A CÂMERA da briga (cnMotor): o saguão inteiro deixava os lutadores minúsculos; ela segue o DING, os golpes,
+// a casca de banana, a tacada (abre e sobe atrás do segurança voando) e a queda dele do teto.
+const plano0 = (cx: number, cy: number, z: number) => { const l = (z - 1) * 100, c = (v: number) => Math.max(-l, Math.min(0, v)); return { x: c((800 - cx * z) / 16), y: c((380 - cy * z) / 7.6), sx: z, sy: z }; };
+const CAMERA0 = assar('c0-cam', '0 0', T, (tl, a) => {
+  tl.set(a, plano0(1290, 500, 1.8), 0)
+    .to(a, { ...plano0(820, 500, 1.5), duration: .7, ease: 'power2.inOut' }, .45)        // DING → a briga
+    .to(a, { ...plano0(830, 490, 1.72), duration: .1, ease: 'power3.out' }, 2.17)        // o primeiro golpe
+    .to(a, { ...plano0(800, 500, 1.5), duration: .6, ease: 'power2.out' }, 2.3)
+    .to(a, { ...plano0(330, 500, 1.6), duration: .4, ease: 'power2.inOut' }, 3.0)        // o 64 arremessa a casca
+    .to(a, { ...plano0(900, 470, 1.5), duration: .5, ease: 'power2.inOut' }, 3.6)        // ...que pega o segurança
+    .to(a, { ...plano0(840, 480, 1.7), duration: .3, ease: 'power2.out' }, 5.55);        // a sequência de socos
+  for (const t of [5.65, 5.95, 6.25, 6.5]) tl.to(a, { ...plano0(840, 480, 1.78), duration: .05 }, t).to(a, { ...plano0(840, 480, 1.7), duration: .2, ease: 'power2.out' }, t + .05);
+  tl.to(a, { ...plano0(900, 300, 1.12), duration: .45, ease: 'expo.out' }, 7.3)           // a tacada: abre e sobe
+    .to(a, { ...plano0(1290, 500, 1.55), duration: .3, ease: 'power2.inOut' }, 7.62)     // o atendente toca o sino de novo
+    .to(a, { ...plano0(820, 470, 1.3), duration: .6, ease: 'power2.inOut' }, 8.3)
+    .to(a, { ...plano0(950, 470, 1.6), duration: .12, ease: 'power3.out' }, 9.25)        // ele cai do teto
+    .to(a, { ...plano0(1290, 500, 1.8), duration: .5, ease: 'power2.inOut' }, 9.5);
+});
+const CSS = montarCss() + CAMERA0;
 
 // O COMPONENTE
 /** Todas as cenas: a briga do saguão e as que os módulos de cenas registram (CarregandoCenas, CarregandoAndares).
