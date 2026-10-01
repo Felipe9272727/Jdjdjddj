@@ -133,9 +133,12 @@ function Arma({ tipo }) {
  * Igual ao Robo64, mais: pal, k (0 = 64 · 1 = 63 · 2 = segurança), armaE/armaD, membros maiores no k=2.
  */
 export function Robo({ pose, mundoParaLocal, pal = P64, k: tipo = 0, armaE, armaD }) {
-  const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'n', bE, bD, pE = { a: 0 }, pD = { a: 0 }, o = 1 } = pose;
+  const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'n', bE, bD, pE = { a: 0 }, pD = { a: 0 }, o = 1, perfil = false, dir = 1 } = pose;
   const gr = tipo === 2;
-  const ombro = { E: [gr ? 46 : 52, 126], D: [gr ? 154 : 148, 126] }, quadril = { E: [78, 192], D: [122, 192] };
+  const ombro = { E: [gr ? 46 : 52, 126], D: [gr ? 154 : 148, 126] };
+  // andando: pernas de PERFIL sob o tronco de frente (quadris juntos, perna de lá mais escura, joelhos à frente)
+  const quadril = perfil ? { E: [92, 192], D: [108, 192] } : { E: [78, 192], D: [122, 192] };
+  const longe = dir > 0 ? 'E' : 'D';
   const mao = (lado, b) => {
     if (pose[`mao${lado}`]) return (mundoParaLocal ?? paraLocal(pose))(pose[`mao${lado}`]);
     const s = lado === 'E' ? -1 : 1, a = rad(b.a * s), c = b.c ?? 64;
@@ -160,12 +163,15 @@ export function Robo({ pose, mundoParaLocal, pal = P64, k: tipo = 0, armaE, arma
   };
   const perna = (lado, l) => {
     const f = pe(lado, l);
-    return <g key={lado}><Mangueira de={quadril[lado]} ate={f} dobra={(l.d ?? 6) * (lado === 'E' ? -1 : 1)} larg={gr ? 17 : 14} cor={pal.j} />
-      <Sapato x={f[0] + (lado === 'E' ? -8 : 8)} y={f[1] + 4} giro={(l.a ?? 0) * (lado === 'E' ? 1 : -1) * .4} /></g>;
+    const dob = perfil ? -dir * Math.abs(l.d ?? 14) : (l.d ?? 6) * (lado === 'E' ? -1 : 1);
+    const cor = perfil && lado === longe ? '#1d2126' : pal.j;
+    return <g key={lado}><Mangueira de={quadril[lado]} ate={f} dobra={dob} larg={gr ? 17 : 14} cor={cor} />
+      {perfil ? <g transform={`translate(${f[0]},${f[1] + 4}) scale(${dir},1) rotate(${l.giro ?? 0})`}><Sapato x={8} y={0} /></g>
+        : <Sapato x={f[0] + (lado === 'E' ? -8 : 8)} y={f[1] + 4} giro={(l.a ?? 0) * (lado === 'E' ? 1 : -1) * .4} />}</g>;
   };
   return (
     <g opacity={o} transform={`translate(${x},${y}) rotate(${r}) scale(${esc * sx},${esc * sy}) translate(-100,-250)`}>
-      {perna('E', pE)}{perna('D', pD)}
+      {perna(longe, longe === 'E' ? pE : pD)}{perna(longe === 'E' ? 'D' : 'E', longe === 'E' ? pD : pE)}
       <Tronco p={pal} k={tipo} />
       <g transform={`rotate(${cab} 100 100)`}>
         <Cabeca p={pal} k={tipo} x="v" ex={[]} />
