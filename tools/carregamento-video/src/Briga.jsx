@@ -28,16 +28,17 @@ export function Briga() {
     pE: { a: lutando ? 12 : k(f, [[30, 12], [42, 30, 'b'], [48, 12]]) }, pD: { a: lutando ? 12 : k(f, [[30, 12], [42, 30, 'b'], [48, 12]]) } };
 
   // ── SEGURANÇA ──
-  const voa = f >= 84 && f < 104;
-  const gx = k(f, [[0, 960], [30, 960, 'o'], [40, 900, 'b'], [56, 990, 'x'], [64, 960, 'io'], [84, 960, 'o'], [102, 1080, 'h'], [124, 1080, 'io'], [144, 960]]);
-  const gY = PE + (lutando ? ginga(6) : 0) - (voa ? Math.sin((f - 84) / 18 * Math.PI) * 230 : 0) + (f >= 102 && f < 124 ? 10 : 0);
-  const gR = k(f, [[0, 0], [30, 0, 'o'], [36, 12, 'x'], [42, -18, 'b'], [50, 0], [56, -10, 'e'], [70, 0], [84, 0, 'o'], [88, 25, 'l'], [102, -90, 'b'], [106, -90, 'h'], [118, -90, 'io'], [130, -20, 'b'], [138, 0]]);
+  const voa = f >= 90 && f < 104, escorrega = f >= 84 && f < 92, sE = Math.min(1, Math.max(0, (f - 84) / 6));
+  const gx = k(f, [[0, 960], [30, 960, 'o'], [40, 900, 'b'], [56, 990, 'x'], [64, 960, 'io'], [84, 960, 'o'], [102, 880, 'h'], [124, 880, 'io'], [144, 960]]);
+  const gY = PE + (lutando ? ginga(6) : 0) - (voa ? Math.sin((f - 90) / 12 * Math.PI) * 220 : 0);
+  const gR = k(f, [[0, 0], [30, 0, 'o'], [36, 12, 'x'], [42, -18, 'b'], [50, 0], [56, -10, 'e'], [70, 0], [84, 0, 'x'], [90, 34, 'l'], [102, 95, 'b'], [106, 90, 'h'], [118, 90, 'io'], [124, 62, 'o'], [129, -12, 'b'], [136, 0]]);
   const gSy = k(f, [[0, 1], [56, .8, 'b'], [62, 1], [101, 1, 'l'], [102, .7, 'b'], [110, 1]]);
-  const g = { x: gx, y: gY, esc: 1.22, sy: gSy, sx: 1 / Math.sqrt(gSy), r: gR, cab: k(f, [[0, 0], [56, 22, 'e'], [72, 0], [104, 0], [108, 12], [114, -12], [120, 12], [126, 0]]),
+  const g = { x: gx, y: gY - 84 * Math.abs(Math.sin(gR * Math.PI / 180)) * (f >= 84 ? 1 : 0), perfil: escorrega, dir: -1, esc: 1.22, sy: gSy, sx: 1 / Math.sqrt(gSy), r: gR, cab: k(f, [[0, 0], [56, 22, 'e'], [72, 0], [104, 0], [108, 12], [114, -12], [120, 12], [126, 0]]),
     cara: f >= 56 && f < 72 ? 'x' : f >= 84 && f < 102 ? 's' : f >= 102 && f < 132 ? 'x' : 'n',
     bE: { a: k(f, [[0, 150], [30, 150, 'o'], [36, 190, 'x'], [42, 40, 'b'], [50, 120], [84, 120, 'o'], [90, 170], [104, 120, 'io'], [144, 150]]), d: 16 },
     bD: { a: k(f, [[0, 30], [84, 30, 'o'], [90, 170], [104, 60, 'io'], [144, 30]]), d: 14 },
-    pE: { a: voa ? 40 : 10 }, pD: { a: voa ? -30 : 10 } };
+    pE: escorrega ? { alvo: [990 - 50 * sE, PE - 50 * Math.max(0, sE - .5)], d: 24 } : { a: voa ? 40 : 10 },
+    pD: escorrega ? { alvo: [935 - 150 * (1 - (1 - sE) ** 2), PE - 110 * sE ** 1.6], d: 6 } : { a: voa ? -30 : 10 } };
 
   // ── TROCO-64 torcendo (bandeira na direita, banana na esquerda até jogar) ──
   const jogou = f >= 72;
@@ -56,9 +57,9 @@ export function Briga() {
     corpoY: f >= 56 && f < 64 ? -6 : f >= 100 && f < 108 ? -8 : 0 };
 
   // ── câmera ──
-  const z = k(f, [[0, 1.35, 'io'], [10, 1.25, 'io'], [40, 1.35, 'x'], [56, 1.55, 'io'], [64, 1.3, 'io'], [70, 1.25, 'io'], [84, 1.2, 'io'], [102, 1.45, 'io'], [118, 1.25, 'io'], [144, 1.35]]);
+  const z = k(f, [[0, 1.35, 'io'], [10, 1.25, 'io'], [40, 1.35, 'x'], [56, 1.55, 'io'], [64, 1.3, 'io'], [70, 1.25, 'io'], [84, 1.2, 'io'], [102, 1.3, 'io'], [118, 1.25, 'io'], [144, 1.35]]);
   const cx = k(f, [[0, 1150, 'io'], [10, 820, 'io'], [56, 850, 'io'], [66, 640, 'io'], [78, 820, 'io'], [102, 980, 'io'], [118, 900, 'io'], [144, 1150]]);
-  const cy = k(f, [[0, 480, 'io'], [10, 470, 'io'], [84, 470, 'io'], [92, 400, 'io'], [102, 480, 'io'], [144, 480]]);
+  const cy = k(f, [[0, 480, 'io'], [10, 470, 'io'], [84, 470, 'io'], [92, 400, 'io'], [102, 470, 'io'], [144, 480]]);
   const tx = tremor(f, 56, 12, 8) + tremor(f, 102, 18, 12), ty = tremor(f, 102, 10, 12);
 
   return (
@@ -75,13 +76,13 @@ export function Briga() {
         <Atendente pose={at} />
       </Ator>
       {/* estrelinhas de tontura */}
-      {((f >= 58 && f < 72) || (f >= 106 && f < 134)) && [0, 1, 2].map((i) => { const ang = f * .35 + i * 2.1, hx = (f < 80 ? gx : gx - 80) + Math.cos(ang) * 60, hy = (f < 80 ? PE - 330 : PE - 120) + Math.sin(ang) * 14;
+      {((f >= 58 && f < 72) || (f >= 106 && f < 134)) && [0, 1, 2].map((i) => { const ang = f * .35 + i * 2.1, sr = Math.sin(gR * Math.PI / 180), hx = (f < 80 ? gx : gx + sr * 230) + Math.cos(ang) * 60, hy = (f < 80 ? PE - 330 : g.y - Math.cos(gR * Math.PI / 180) * 260) + Math.sin(ang) * 14;
         return <path key={i} transform={`translate(${hx},${hy})`} d="M0,-14L4,-4L14,-4L6,3L9,13L0,7L-9,13L-6,3L-14,-4L-4,-4Z" fill="#ffe14a" stroke="#1a1220" strokeWidth="3" />; })}
       {/* risco do golpe que errou */}
       {f >= 40 && f < 46 && <path d="M860,420Q780,520,850,620" fill="none" stroke="#fff" strokeWidth="12" strokeLinecap="round" opacity=".85" />}
       <Estouro x={1330} y={460} t="DING!" cor="#ffe14a" giro={6} tam={46} esc={k(f, [[0, 0, 'b'], [6, .9, 'h'], [16, .9, 'i'], [20, 0, 'h'], [117, 0, 'b'], [121, .9, 'h'], [132, .9, 'i'], [136, 0]])} />
       <Estouro x={980} y={300} t="CLANG!" cor="#fff3b0" giro={-8} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [59, 1, 'h'], [68, 1, 'i'], [72, 0]])} />
-      <Estouro x={1080} y={560} t="THUD!" cor="#ffb347" giro={8} esc={k(f, [[0, 0, 'h'], [101, 0, 'b'], [105, 1, 'h'], [114, 1, 'i'], [118, 0]])} />
+      <Estouro x={1010} y={450} t="THUD!" cor="#ffb347" giro={8} esc={k(f, [[0, 0, 'h'], [101, 0, 'b'], [105, 1, 'h'], [114, 1, 'i'], [118, 0]])} />
     </Palco>
   );
 }
