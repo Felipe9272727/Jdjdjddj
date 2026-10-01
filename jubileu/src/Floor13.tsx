@@ -853,6 +853,12 @@ const Ambiente: React.FC = () => {
 /** Bancada (só DEV): ?f13bench=noao,nobloom,nomsaa,nopost,nosombra,nograma — mede o custo de cada parte. */
 const BANCADA = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('f13bench') ?? '') : '';
 const sem = (k: string) => BANCADA.split(',').includes(k);
+// ── O AO DO CELULAR ESTRAGAVA A IMAGEM ─────────────────────────────────────
+// No celular do dono, o N8AO (meia resolução) pintava borrões brancos e pretos
+// pontilhados na borda da ilha, nos toldos e no chão: a GPU móvel não tem precisão
+// de profundidade para reconstruir a oclusão, e o erro vira "neve" e buracos pretos.
+// Em toque, o AO fica desligado; as sombras do sol continuam dando o contato.
+const TOQUE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 const QUALIDADE = [
     { dpr: 1 as number | [number, number], msaa: 0, ao: false, sombra: 1024, grama: 20 },
     { dpr: [1, 1.25] as [number, number], msaa: 2, ao: true, sombra: 1024, grama: 30 },
@@ -1515,7 +1521,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                     texturas do pós e custava metade do quadro no celular (medido) */}
                 {!sem('nopost') && <EffectComposer multisampling={sem('msaa') ? Q.msaa : 0}>
                     {/* oclusão ambiente: o que encosta no chão ganha sombra de contato */}
-                    {Q.ao && !sem('noao') && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
+                    {Q.ao && !TOQUE && !sem('noao') && <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={.85} halfRes quality="performance" />}
                     {!sem('nobloom') && <Bloom mipmapBlur intensity={.28} luminanceThreshold={1} luminanceSmoothing={.4} />}
                     <ChromaticAberration offset={glitch ? ABERRACAO_ENTIDADE : SEM_ABERRACAO} />
                     <Noise opacity={glitch ? .06 : .012} />
