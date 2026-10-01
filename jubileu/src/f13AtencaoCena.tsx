@@ -210,7 +210,8 @@ export const OlhoDaVila: React.FC<{ visivel: boolean; avisar: (texto: string) =>
         {visivel && <div aria-hidden style={{ position: 'absolute', right: 8, top: `calc(env(safe-area-inset-top) + ${retrato ? 104 : 48}px)`, pointerEvents: 'none' }}>
             {/* remonta a cada subida de nível para reiniciar o pulso */}
             <div key={pulso} style={{
-                padding: 2, filter: estado.nivel >= 2 ? `drop-shadow(0 0 ${5 + estado.ab * 7}px ${corDoNivel(estado.nivel)})` : undefined,
+                // fundo escuro em pílula: contra o céu claro o olho sumia
+                padding: '3px 6px', borderRadius: 18, background: 'rgba(24,14,8,.55)', boxShadow: '0 0 0 1px rgba(201,161,58,.35)', filter: estado.nivel >= 2 ? `drop-shadow(0 0 ${5 + estado.ab * 7}px ${corDoNivel(estado.nivel)})` : undefined,
                 opacity: .78 + estado.ab * .22, transition: 'opacity .6s, filter .6s',
                 animation: estado.nivel >= 3 ? 'f13olhoTreme .25s steps(2) infinite' : pulso > 0 ? `f13olhoPulso 1.4s ease-out 1${estado.nivel >= 2 ? ', f13olhoBate 1.6s ease-in-out 1.4s infinite' : ''}` : estado.nivel >= 2 ? 'f13olhoBate 1.6s ease-in-out infinite' : estado.nivel === 1 ? 'f13olhoBate 2.6s ease-in-out infinite' : undefined,
             }}>
