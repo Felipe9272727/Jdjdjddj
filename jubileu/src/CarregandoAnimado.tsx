@@ -13,6 +13,7 @@
  * Cobre a tela (fixed), respeita a safe-area, serve em retrato e paisagem e bloqueia toques.
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
+import { CENAS_EXTRAS } from './CarregandoCenas';
 
 export interface CarregandoAnimadoProps {
   progresso?: number; // 0..1; sem ele a barra é indeterminada
@@ -23,9 +24,9 @@ export interface CarregandoAnimadoProps {
 
 // TEMPO E ANIMAÇÃO
 const T = 10; // segundos por rodada
-const FONTE = "'Luckiest Guy','Arial Black',Impact,system-ui,sans-serif";
+export const FONTE = "'Luckiest Guy','Arial Black',Impact,system-ui,sans-serif";
 if (typeof document !== 'undefined') document.fonts?.load("20px 'Luckiest Guy'").catch(() => {}); // a fonte do index.html só é decodificada no 1º uso: pede já
-const K = '#1a1220', OURO = '#f2b53c', OURO_E = '#b9791a', PELE = '#f4cd73', JAQ = '#b3111a';
+export const K = '#1a1220', OURO = '#f2b53c', OURO_E = '#b9791a', PELE = '#f4cd73', JAQ = '#b3111a';
 
 type E = 'i' | 'o' | 'a' | 'p' | 'h' | 'l'; // suave · arranca · acelera · pop · degrau · linear
 const EASE: Record<E, string> = { i: 'cubic-bezier(.45,0,.55,1)', o: 'cubic-bezier(.1,.8,.25,1)', a: 'cubic-bezier(.7,0,.9,.4)', p: 'cubic-bezier(.3,1.7,.5,1)', h: 'steps(1,end)', l: 'linear' };
@@ -81,8 +82,8 @@ const jan = (w: [number, number][], f = .05): Q<number>[] => {
 const ev = (ts: number[], v: number, d: number): Q<number>[] => [[0, 0, 'l'], ...ts.flatMap((t): Q<number>[] => [[Math.max(0, t - .001), 0, 'l'], [t, v, 'l'], [t + d, 0, 'l']])];
 
 // DESENHO: traço grosso, cor chapada, brilho em cima
-const VR = '0 0 200 260', VA = '0 0 360 330'; // caixas dos robôs e do atendente
-const L = { stroke: K, strokeWidth: 6, strokeLinejoin: 'round', strokeLinecap: 'round' } as const;
+export const VR = '0 0 200 260', VA = '0 0 360 330'; // caixas dos robôs e do atendente
+export const L = { stroke: K, strokeWidth: 6, strokeLinejoin: 'round', strokeLinecap: 'round' } as const;
 const FORMAS: Record<string, [string, string[]]> = {
   r: ['rect', ['x', 'y', 'width', 'height', 'rx']], c: ['circle', ['cx', 'cy', 'r']],
   e: ['ellipse', ['cx', 'cy', 'rx', 'ry']], p: ['path', ['d']],
@@ -106,7 +107,7 @@ const estrela = (cx: number, cy: number, r: number, n = 5, f = .46) => {
 };
 
 /** Uma camada animável: <div> (camada do compositor) + <svg> opcional (sem `vb`, os filhos são camadas). */
-const Pt: React.FC<{ c?: string; vb?: string; par?: string; children?: React.ReactNode }> = ({ c = '', vb, par, children }) => (
+export const Pt: React.FC<{ c?: string; vb?: string; par?: string; children?: React.ReactNode }> = ({ c = '', vb, par, children }) => (
   <div className={`p ${c}`}>{vb ? <svg viewBox={vb} preserveAspectRatio={par} aria-hidden="true">{children}</svg> : children}</div>
 );
 
@@ -116,7 +117,7 @@ const GRADS: [string, 'v' | 'h' | 'r', string][] = [
   ['ma', 'h', '0 #4a2714,.5 #6f3d20,1 #3f2010'], ['cu', 'h', '0 #6a0d1b,.3 #b3182c,.55 #7d1022,.8 #b3182c,1 #5a0a17'],
   ['lz', 'r', '0 #ffd98a .95,.45 #ffb347 .45,1 #ffb347 0'], ['ci', 'r', '0 #7df9ff .95,.45 #16e0e8 .45,1 #16e0e8 0'], ['vm', 'r', '0 #ff8a7a .95,.45 #ff3b30 .45,1 #ff3b30 0'],
 ];
-const Defs = () => (
+export const Defs = () => (
   <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true"><defs>{GRADS.map(([id, d, st]) => {
     const s = st.split(',').map((x, i) => { const [o, c, a] = x.split(' '); return <stop key={i} offset={o} stopColor={c} stopOpacity={a} />; });
     return d === 'r' ? <radialGradient key={id} id={`cna-${id}`}>{s}</radialGradient> : <linearGradient key={id} id={`cna-${id}`} x2={d === 'h' ? 1 : 0} y2={d === 'v' ? 1 : 0}>{s}</linearGradient>;
@@ -125,11 +126,11 @@ const Defs = () => (
 
 // OS ROBÔS: caixa de cromo, tela escura, antena, três LEDs
 // corpo, escuro, metal, junta, painel, tela, acento, olhos, bulbo da antena, LEDs
-interface Pal { c: string; e: string; m: string; j: string; pn: string; tl: string; ac: string; ol: string; bu: string; lu: string[] }
+export interface Pal { c: string; e: string; m: string; j: string; pn: string; tl: string; ac: string; ol: string; bu: string; lu: string[] }
 const pal = (s: string): Pal => { const [c, e, m, j, pn, tl, ac, ol, bu, ...lu] = s.split(' '); return { c, e, m, j, pn, tl, ac, ol, bu, lu }; };
-const P64 = pal('#b4bdc7 #6f7a87 #8a95a1 #3a4047 #4a525c #0e1318 #e8503a #16e0e8 #ff5040 #ffd24d #4dff7a #4da8ff'); // cromo (Floor5Robot64)
-const P63 = pal('#8cc4b4 #3f6f68 #8e97a6 #3a4047 #3f6f68 #0c1716 #8e97a6 #75e6e0 #3fe0c8 #3fe0c8 #3fe0c8 #3fe0c8'); // "azedo" (Floor12Avioes)
-const PSG = pal('#66748c #2f3848 #46526a #20252d #2a303b #0a0c10 #ffc21a #ff4a3c #ff3b30 #ff3b30 #ffc21a #ff3b30'); // aço + faixa de perigo
+export const P64 = pal('#b4bdc7 #6f7a87 #8a95a1 #3a4047 #4a525c #0e1318 #e8503a #16e0e8 #ff5040 #ffd24d #4dff7a #4da8ff'); // cromo (Floor5Robot64)
+export const P63 = pal('#8cc4b4 #3f6f68 #8e97a6 #3a4047 #3f6f68 #0c1716 #8e97a6 #75e6e0 #3fe0c8 #3fe0c8 #3fe0c8 #3fe0c8'); // "azedo" (Floor12Avioes)
+export const PSG = pal('#66748c #2f3848 #46526a #20252d #2a303b #0a0c10 #ffc21a #ff4a3c #ff3b30 #ff3b30 #ffc21a #ff3b30'); // aço + faixa de perigo
 
 const Perna: React.FC<{ p: Pal; x: number; gr?: boolean }> = ({ p, x, gr }) => {
   const w = gr ? 10 : 8, f = gr ? 27 : 25;
@@ -145,7 +146,7 @@ const Tronco: React.FC<{ p: Pal; k: 0 | 1 | 2 }> = ({ p, k }) => (
 );
 
 /** As caras: a tela escura + os olhos. % = cor dos olhos, & = cor da tela. */
-type Exp = 'n' | 'f' | 'x' | 'e' | 's' | 'b' | 'p';
+export type Exp = 'n' | 'f' | 'x' | 'e' | 's' | 'b' | 'p';
 const EXPR: Record<string, string> = {
   f: 'p M75,70Q86,50,97,70 none s% w6.5|p M103,70Q114,50,125,70 none s% w6.5',
   x: 'p M76,54L96,74M96,54L76,74 none s% w6|p M104,54L124,74M124,54L104,74 none s% w6',
@@ -183,8 +184,8 @@ const Cabeca: React.FC<{ p: Pal; k: 0 | 1 | 2; x: string; ex: Exp[] }> = ({ p, k
   );
 };
 
-type Arma = 'c' | 'b' | 'f' | 'n';
-const Banana = () => <g {...L} strokeWidth="5">{sv('p M-16,-10Q-18,14,6,20Q22,22,28,10Q12,14,2,4Q-2,-8,-6,-14Z #ffe14a|p M-6,-14l-2,-8l8,0l0,6z #7a4a1a')}</g>;
+export type Arma = 'c' | 'b' | 'f' | 'n';
+export const Banana = () => <g {...L} strokeWidth="5">{sv('p M-16,-10Q-18,14,6,20Q22,22,28,10Q12,14,2,4Q-2,-8,-6,-14Z #ffe14a|p M-6,-14l-2,-8l8,0l0,6z #7a4a1a')}</g>;
 const ARMAS: Record<string, (p: Pal) => React.ReactNode> = {
   c: () => sv(`r* -8 44 16 72 7 #f2b632|p M-9,145L-9,131L9,131L9,145A23,23,0,1,0,-9,145Z #f2b632|c~ 0 112 4 ${K}`), // chave inglesa
   b: (p) => sv(`c~ 0 138 30 @ci .glowb|r -7 44 14 86 6 #2c323d|r~ -7 56 14 8 0 ${p.ac}|r~ -7 76 14 8 0 ${p.ac}|r -10 120 20 30 9 #9af6ff|p M-13,126l8,6l-6,4l9,8 none s#fff w3 .zap`), // cassetete
@@ -199,14 +200,14 @@ const Braco: React.FC<{ p: Pal; x: number; arma?: Arma; gr?: boolean; ban?: bool
 );
 
 // O ATENDENTE DO LOBBY (como no sprite da loja)
-const AtdCorpo = () => (
+export const AtdCorpo = () => (
   <g {...L}>
     {sv(`p* M84,242L88,186Q90,152,122,148H178Q210,152,212,186L216,242Z ${JAQ}|p M128,148L150,184L172,148Z #f6f1e4 w4|p M144,152H156L160,162L151,214L140,162Z ${K} w3|p M106,158L138,242M194,158L162,242 none s${OURO} w4`)}
     {sv([0, 1, 2].map((i) => `c ${132 + i * 3} ${192 + i * 14} 4.2 ${OURO} w2.5|c ${168 - i * 3} ${192 + i * 14} 4.2 ${OURO} w2.5`).join('|'))}
     {sv(`r 172 176 24 9 2.5 ${OURO} w2.5|p M90,166Q68,180,74,230L104,234Q106,198,114,170Z ${JAQ}|r 72 214 32 11 4 ${OURO} w3|e 90 238 16 11 ${PELE}`)}
   </g>
 );
-const AtdCabeca = () => (
+export const AtdCabeca = () => (
   <g {...L}>
     {sv(`p M104,100Q96,56,130,48H170Q204,56,196,100Z #15101c|r* 108 60 84 86 22 ${PELE}|p M106,96Q100,62,128,62L137,79L150,62L163,79L172,62Q200,62,194,96L186,82L176,94L164,80L150,94L136,80L126,94Z #15101c w4`)}
     {sv(`e~ 132 106 5.6 8.6 ${K}|e~ 168 106 5.6 8.6 ${K}|c~ 119 124 7 #f0906a o.42|c~ 181 124 7 #f0906a o.42|p M134,126Q150,140,166,126 none w4.6`)}
@@ -216,25 +217,25 @@ const AtdCabeca = () => (
     {sv(`p* M100,66V30Q100,14,118,14H182Q200,14,200,30V66Q150,76,100,66Z ${JAQ}|p M100,48Q150,58,200,48V58Q150,68,100,58Z ${OURO} w3.5|c 150 38 12 ${OURO} w4|c~ 150 38 5 ${OURO_E}`)}
   </g>
 );
-const AtdBraco = () => <g transform="translate(212 164)" {...L}>{sv(`r -14 -8 28 58 14 ${JAQ}|r -14 38 28 10 4 ${OURO} w3|e 0 58 14 12 ${PELE}`)}</g>;
-const AtdSino = () => <g {...L}>{sv(`p M250,224Q250,180,288,180Q326,180,326,224Z @ou|r 242 220 92 12 6 ${OURO_E}|r 283 170 10 14 3 ${OURO_E} w3|c 288 168 7 ${OURO} w3.5|p M262,214Q264,194,277,188 none s#fff w4 o.6`)}</g>;
-const AtdBalcao = () => (
+export const AtdBraco = () => <g transform="translate(212 164)" {...L}>{sv(`r -14 -8 28 58 14 ${JAQ}|r -14 38 28 10 4 ${OURO} w3|e 0 58 14 12 ${PELE}`)}</g>;
+export const AtdSino = () => <g {...L}>{sv(`p M250,224Q250,180,288,180Q326,180,326,224Z @ou|r 242 220 92 12 6 ${OURO_E}|r 283 170 10 14 3 ${OURO_E} w3|c 288 168 7 ${OURO} w3.5|p M262,214Q264,194,277,188 none s#fff w4 o.6`)}</g>;
+export const AtdBalcao = () => (
   <g {...L}>{sv(`r 6 226 348 22 7 #2a1710|r~ 6 226 348 7 3.5 @ou o.85|r 16 246 328 84 0 @ma|r 104 258 152 64 8 #0d0609 s${OURO} w3.5|p M156,304Q156,278,180,278Q204,278,204,304Z @ou w2.5|r 150 303 60 7 3.5 ${OURO_E} w2.5|c 180 273 4.5 ${OURO} w2`)}</g>
 );
 
 // O SAGUÃO (como o fundo da loja)
-const Arco = () => <g {...L}>{sv(`p M12,380V176A198,164,0,0,1,408,176V380Z #4a2815|p M40,380V178A170,138,0,0,1,380,178V380Z #12040a|e~ 210 300 130 150 @lz o.2|p M40,380V178A170,138,0,0,1,380,178V380 none s${OURO} w4.5|c 210 26 18 ${OURO} w4.5|c~ 210 26 8 ${OURO_E}`)}</g>;
-const Cortina: React.FC<{ e: boolean }> = ({ e }) => (
+export const Arco = () => <g {...L}>{sv(`p M12,380V176A198,164,0,0,1,408,176V380Z #4a2815|p M40,380V178A170,138,0,0,1,380,178V380Z #12040a|e~ 210 300 130 150 @lz o.2|p M40,380V178A170,138,0,0,1,380,178V380 none s${OURO} w4.5|c 210 26 18 ${OURO} w4.5|c~ 210 26 8 ${OURO_E}`)}</g>;
+export const Cortina: React.FC<{ e: boolean }> = ({ e }) => (
   <g transform={e ? undefined : 'translate(420 0) scale(-1 1)'} {...L} strokeWidth="4">
     {sv(`p M40,178A170,138,0,0,1,128,58Q126,104,100,152Q76,214,98,290Q114,340,100,380H40Z @cu|p M68,128Q58,250,74,378M92,88Q86,210,96,378 none s#3b0712 o.5 w3.5|p M58,290Q92,274,114,292Q92,314,58,304Z ${OURO} w3`)}
   </g>
 );
-const Chaveiro = () => <g {...L}>{sv(`r 10 10 230 282 10 #4a2815|r 26 26 198 196 6 #1c0a08|p~ M26,26H224L26,150Z #fff o.06|r~ 34 70 182 5 2 ${OURO_E}|r~ 34 150 182 5 2 ${OURO_E}|r 10 226 230 66 6 @ma|r 26 236 92 22 3 #2b150c w3.5|r 132 236 92 22 3 #2b150c w3.5|c~ 72 247 3.5 ${OURO}|c~ 178 247 3.5 ${OURO}`)}</g>;
+export const Chaveiro = () => <g {...L}>{sv(`r 10 10 230 282 10 #4a2815|r 26 26 198 196 6 #1c0a08|p~ M26,26H224L26,150Z #fff o.06|r~ 34 70 182 5 2 ${OURO_E}|r~ 34 150 182 5 2 ${OURO_E}|r 10 226 230 66 6 @ma|r 26 236 92 22 3 #2b150c w3.5|r 132 236 92 22 3 #2b150c w3.5|c~ 72 247 3.5 ${OURO}|c~ 178 247 3.5 ${OURO}`)}</g>;
 const Chaves: React.FC<{ y: number }> = ({ y }) => (
   <g stroke="none">{[0, 1, 2, 3, 4].map((i) => <g key={i} transform={`translate(${56 + i * 34} ${y + 6})`}>{sv(`c 0 13 8 none s${OURO} w4|r -2.5 20 5 36 0 ${OURO}|r 2 42 9 5 0 ${OURO}|r 2 50 6 5 0 ${OURO}`)}</g>)}</g>
 );
 const LIVROS: [string, number, number][] = [['#a3202b', 34, 64], ['#2b4a8a', 50, 54], ['#2f7a4d', 64, 70], ['#d79a2c', 80, 58], ['#7a2c6a', 96, 66], ['#a3202b', 112, 52], ['#3c3c48', 126, 62]];
-const Estante = () => (
+export const Estante = () => (
   <g {...L}>
     {sv(`r 6 36 268 354 8 #4a2815|r 20 50 240 246 0 #1d0b09|r 6 168 268 10 0 @ma|r 6 284 268 10 0 @ma|r 20 300 240 86 0 #2b150c w4|r 28 310 108 66 3 #3d2010 w3.5|r 144 310 108 66 3 #3d2010 w3.5|r 98 150 84 18 5 @ma|c 140 96 52 ${OURO} w5|c 140 96 43 #f3e6c2 w3.5|c 140 40 9 ${OURO} w4`)}
     <Ponteiro len={24} w={6} />
@@ -245,12 +246,12 @@ const Estante = () => (
 const Ponteiro: React.FC<{ len: number; w: number }> = ({ len, w }) => <path d={`M140 96V${96 - len}`} stroke={K} strokeWidth={w} strokeLinecap="round" />;
 const QuadroMapa = () => <g {...L}>{sv(`r 6 6 108 158 5 @ou|r 20 20 80 130 0 #e9dcc0 w3.5|p M32,40H88V70H32ZM32,82H60V136H32ZM70,82H88V136H70Z none s#6b5a3a w2.5`)}</g>;
 const QuadroMontes = () => <g {...L}>{sv(`r 6 6 138 158 5 @ou|r 20 20 110 130 0 #3a2a18 w3.5|r~ 20 20 110 60 0 #b87a2a o.55|p~ M20,150L52,92L70,118L96,76L130,150Z #241a12`)}</g>;
-const Lampiao = () => <g {...L} strokeWidth="4">{sv(`p M35,122V86Q35,70,48,66 none s${OURO_E} w5|p M18,70H52L46,30H24Z #ffd98a|r 15 66 40 8 3 ${OURO}|r 22 24 26 8 3 ${OURO}`)}</g>;
-const Planta = () => (
+export const Lampiao = () => <g {...L} strokeWidth="4">{sv(`p M35,122V86Q35,70,48,66 none s${OURO_E} w5|p M18,70H52L46,30H24Z #ffd98a|r 15 66 40 8 3 ${OURO}|r 22 24 26 8 3 ${OURO}`)}</g>;
+export const Planta = () => (
   <g {...L}>{sv([[-46, '#1f6b3a'], [-24, '#2e8b4d'], [0, '#1f6b3a'], [24, '#2e8b4d'], [46, '#1f6b3a']].map(([r, c]) => `p M75,150Q44,100,75,18Q106,100,75,150Z ${c} w4.5 trotate(${r}_75_150)`).join('|'))}
     {sv('p M46,150H104L96,204H54Z #a8391f w5|r 42 144 66 14 5 #c4492a w5')}</g>
 );
-const Tapete = () => <g {...L} strokeWidth="5">{sv(`p M170,6H1070L1234,244H6Z #7a1322|p M204,30H1036L1170,222H70Z none s${OURO} w6|p~ M232,46H1008L1128,210H112Z #8c1a2a|p M620,70L760,128L620,190L480,128Z none s${OURO_E} w4 o.8`)}</g>;
+export const Tapete = () => <g {...L} strokeWidth="5">{sv(`p M170,6H1070L1234,244H6Z #7a1322|p M204,30H1036L1170,222H70Z none s${OURO} w6|p~ M232,46H1008L1128,210H112Z #8c1a2a|p M620,70L760,128L620,190L480,128Z none s${OURO_E} w4 o.8`)}</g>;
 
 // EFEITOS: balões de golpe e estrelas de tontura
 /** [classe, x, y, texto, raio, giro, cor, instante, duração] — x, y na caixa do segurança (200×260). */
@@ -259,8 +260,8 @@ const BAL: [string, number, number, string, number, number, string, number, numb
   ['w4', 88, 44, 'BONK!', 54, 10, '#9af6ff', 5.95, .32], ['w5', 106, 84, 'ZAP!', 52, -6, '#ffe14a', 6.25, .32], ['w6', 116, 58, 'BAM!', 56, 14, '#ffb347', 6.5, .36],
   ['w7', 70, 96, 'WHAM!!', 86, -10, '#fff3b0', 7.3, .7], ['w8', 100, 196, 'THUD!', 54, -6, '#ffb347', 9.25, .5],
 ];
-const Estrela: React.FC<{ c: string }> = ({ c }) => <Pt c={c} vb={VR}><path d={estrela(100, 22, 12, 5, .48)} fill="#ffe14a" stroke={K} strokeWidth="3.5" strokeLinejoin="round" /></Pt>;
-const Golpe: React.FC<{ c: string; cx: number; cy: number; t: string; r: number; cor: string; rot: number; vb?: string }> = ({ c, cx, cy, t, r, cor, rot, vb = VR }) => (
+export const Estrela: React.FC<{ c: string }> = ({ c }) => <Pt c={c} vb={VR}><path d={estrela(100, 22, 12, 5, .48)} fill="#ffe14a" stroke={K} strokeWidth="3.5" strokeLinejoin="round" /></Pt>;
+export const Golpe: React.FC<{ c: string; cx: number; cy: number; t: string; r: number; cor: string; rot: number; vb?: string }> = ({ c, cx, cy, t, r, cor, rot, vb = VR }) => (
   <Pt c={c} vb={vb}>
     <g transform={`translate(${cx} ${cy}) rotate(${rot})`} {...L} strokeWidth="5">
       {sv(`p ${estrela(0, 0, r, 11, .64)} ${cor}`)}
@@ -270,7 +271,7 @@ const Golpe: React.FC<{ c: string; cx: number; cy: number; t: string; r: number;
 );
 
 // A CENA (o React monta uma vez; quem anima é o CSS)
-const Robo: React.FC<{ id: string; p: Pal; k: 0 | 1 | 2; al: Arma; ar: Arma; ex: Exp[]; ban?: boolean; fx?: React.ReactNode }> = ({ id, p, k, al, ar, ex, ban, fx }) => (
+export const Robo: React.FC<{ id: string; p: Pal; k: 0 | 1 | 2; al: Arma; ar: Arma; ex: Exp[]; ban?: boolean; fx?: React.ReactNode }> = ({ id, p, k, al, ar, ex, ban, fx }) => (
   <div className={`e ${id}`}>
     <Pt c={`${id}s`} vb={VR}><ellipse cx="100" cy="248" rx="64" ry="11" fill="#000" fillOpacity=".42" /></Pt>
     <Pt c={`${id}c`}><Pt c={`${id}b`}>
@@ -502,7 +503,17 @@ ${regras.join('\n')}`;
 const CSS = montarCss();
 
 // O COMPONENTE
+/** Todas as cenas: a do saguão (a briga) e as extras (CarregandoCenas). Uma por carregamento, sorteada. */
+const CENAS: React.ComponentType[] = [Cena, ...CENAS_EXTRAS];
+const sortearCena = () => {
+  const q = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('cena') : null; // bancada: ?cena=N
+  if (q !== null && CENAS[+q]) return +q;
+  return Math.floor(Math.random() * CENAS.length);
+};
+
 export const CarregandoAnimado: React.FC<CarregandoAnimadoProps> = ({ progresso, rotulo = 'Carregando…', visivel = true, congelar }) => {
+  const [qual] = useState(sortearCena);
+  const CenaEscolhida = CENAS[qual];
   const [fase, setFase] = useState<'off' | 'on' | 'sai'>(visivel ? 'on' : 'off');
   // a fase atual, lida no efeito sem entrar nas dependências (o efeito só reage a `visivel`)
   const faseAtual = useRef(fase); faseAtual.current = fase;
@@ -522,7 +533,7 @@ export const CarregandoAnimado: React.FC<CarregandoAnimadoProps> = ({ progresso,
     <div className={`cna${fase === 'sai' ? ' cs' : ''}${congelar !== undefined ? ' cg' : ''}`} role="status" aria-live="polite" aria-label={rotulo}
       style={{ '--off': `${-(congelar ?? 0)}s` } as React.CSSProperties}>
       <style>{CSS}</style>
-      <Cena />
+      <CenaEscolhida />
       <div className="hud">
         <div className="rot">{m[1]}{m[2] && <span className="pt"><i>.</i><i>.</i><i>.</i></span>}{p !== undefined && <> · {Math.round(p * 100)}%</>}</div>
         <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p === undefined ? undefined : Math.round(p * 100)}>
