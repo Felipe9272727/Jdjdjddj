@@ -10,6 +10,7 @@ import { quarto, chuva, cortina } from '../../../jubileu/src/CarregandoAndares';
 import { k } from './rig';
 import { Palco, Ator, Fala, Sombra, tremor } from './estilo';
 import { HospedeRig, AurelioRig } from './gente';
+import { andar } from './andar';
 
 export const DUR = 144;
 const RAIOS = [48, 100];
@@ -24,16 +25,22 @@ export function Suite() {
   // a escada: longe e pequeno no fundo → no meio → do lado do hóspede, grande, na frente
   const aur = [{ x: 1250, esc: .72, y: 590 }, { x: 1010, esc: 1.0, y: 650 }, { x: 790, esc: 1.3, y: 712 }][degrau];
   // cada aparição, uma pose: de pé e reto; inclinado espiando; curvado sobre o hóspede, chamando com a garra
-  const POSES = [{ r: 0, cab: -4, bE: { a: 6, d: 6 }, bD: { a: 6, d: 6 } },
+  const POSES = [{ r: Math.sin(f * .07) * 1.5, cab: -4 + Math.sin(f * .09) * 4, bE: { a: 6, d: 6 }, bD: { a: 6, d: 6 } },
                  { r: -6, cab: -18, bE: { a: 10, d: 10 }, bD: { a: 40, d: 30, c: 120 } },
                  { r: -14, cab: -24, bD: { a: 14, d: 10 }, bE: { a: k(f, [[RAIOS[1], 50, 'io'], [114, 105, 'b'], [134, 100]]) + Math.sin(f * .45) * 6, d: -34, c: 150 } }];
-  const aurelio = { x: aur.x, y: aur.y, esc: aur.esc, resp: Math.sin(f * .12) * .012, olhos: Math.max(fl, degrau === 2 ? .8 : .2), garra: degrau === 2, ...POSES[degrau] };
+  const aurelio = { x: aur.x, y: aur.y, esc: aur.esc, resp: Math.sin(f * .12) * .015, olhos: Math.max(fl, degrau === 2 ? .8 : .2), garra: degrau === 2, ...POSES[degrau] };
 
   // ── o hóspede ──
   const fase = f < RAIOS[0] ? 'entra' : f < 74 ? 'susto1' : f < RAIOS[1] ? 'arrisca' : f < 112 ? 'susto2' : 'foge';
-  const x = k(f, [[0, 230, 'io'], [46, 500, 'h'], [50, 500, 'o'], [60, 470, 'io'], [74, 440, 'io'], [100, 560, 'h'], [112, 560, 'o'], [114, 600, 'xi'], [132, 220, 'h'], [144, 230]]);
+  const x = k(f, [[0, 230, 'io'], [46, 410, 'h'], [46.01, 500, 'h'], [50, 500, 'o'], [60, 470, 'io'], [74, 440, 'io'], [100, 560, 'h'], [112, 560, 'o'], [114, 600, 'xi'], [132, 220, 'h'], [144, 230]]);
   const yP = k(f, [[0, 520, 'io'], [46, 650, 'h'], [112, 650, 'xi'], [132, 520, 'h'], [144, 520]]);
   const esc = k(f, [[0, .92, 'io'], [46, 1.15, 'h'], [112, 1.15, 'xi'], [132, .92, 'h'], [144, .92]]);
+  // caminhada de verdade nas fases em que ele anda (pé plantado; o chão sobe em diagonal porta→frente)
+  const chaoDiag = (xx) => 520 + (xx - 230) * (130 / 270);
+  const escDiag = (xx) => .92 + (xx - 230) * (.23 / 270);
+  const W = fase === 'entra' ? andar({ f, f0: 0, x0: 230, dir: 1, passo: 46, periodo: 12, chao: chaoDiag, altPe: 30, quique: 14, separa: 54 })
+    : fase === 'arrisca' ? andar({ f, f0: 74, x0: 440, dir: 1, passo: 48, periodo: 12, chao: 650, altPe: 28, quique: 14, separa: 54 })
+    : fase === 'foge' && f >= 114 && f < 132 ? andar({ f, f0: 114, x0: 600, dir: -1, passo: 63, periodo: 3, chao: chaoDiag, altPe: 40, quique: 16, separa: 50 }) : null;
   const pontaDosPes = fase === 'entra' || fase === 'arrisca';
   const p = Math.sin(f * (fase === 'foge' ? .95 : .33));
   const quica = pontaDosPes ? -Math.abs(p) * 14 - 8 : 0;
@@ -42,18 +49,28 @@ export function Suite() {
   const smear = f === 113 || f === 114 ? 1.25 : 1;
   const susto = fase === 'susto1' && f < 62 || fase === 'susto2';
   const treme = (fase === 'susto1' && f >= 56) || fase === 'arrisca' ? Math.sin(f * 3.1) * 2.5 : 0;
-  const hosp = { x: x + treme, y: yP + quica + pulo, esc, sy, sx: smear / Math.sqrt(sy), r: fase === 'foge' ? -18 : susto ? -12 : pontaDosPes ? p * 3 + 4 : -4,
+  const xW = W ? W.x : x, yW = W ? (typeof W === 'object' && fase !== 'arrisca' ? chaoDiag(W.x) : 650) : yP;
+  const hosp = { x: xW + treme, y: yW + (W ? W.bob - 6 : quica) + pulo, esc: W && fase !== 'arrisca' ? escDiag(W.x) : esc, sy, sx: smear / Math.sqrt(sy), r: fase === 'foge' ? -18 : susto ? -12 : pontaDosPes ? p * 3 + 4 : -4,
     cab: susto ? 10 : fase === 'arrisca' ? -8 + Math.sin(f * .6) * 3 : pontaDosPes ? -6 : 0,
     cara: susto ? 'susto' : f >= 56 ? 'medo' : 'cauto', suor: f >= 56,
     bE: susto ? { a: 150, d: -20 } : fase === 'foge' ? { a: 90 + p * 70, d: 10 } : { a: 40 + p * 10, d: 34, c: 62 },
     bD: susto ? { a: 60, d: 30 } : fase === 'foge' ? { a: 90 - p * 70, d: 10 } : { a: 50 - p * 10, d: 34, c: 62 },
-    pE: fase === 'foge' ? { a: p * 50, d: 10 } : susto ? { a: 26, d: 14 } : pontaDosPes ? { a: p * 20, giro: 28 } : { a: 4 },
-    pD: fase === 'foge' ? { a: -p * 50, d: 10 } : susto ? { a: -8, d: 26 } : pontaDosPes ? { a: -p * 20, giro: 28 } : { a: 4 } };
+    pE: W ? { alvo: W.peE, d: 18, giro: pontaDosPes ? (W.noE ? 42 : 60) : (W.noE ? 0 : 30) } : susto ? { a: 26, d: 14 } : { a: 4 },
+    pD: W ? { alvo: W.peD, d: 18, giro: pontaDosPes ? (W.noD ? 42 : 60) : (W.noD ? 0 : 30) } : susto ? { a: -8, d: 26 } : { a: 4 } };
+  if (W && !susto) {
+    // ponta dos pés com medo: braços dobrados com as mãos à frente do peito, balançando em oposição às pernas;
+    // tronco inclinado para a frente; na fuga, braços largos de corrida
+    // mãos encolhidas na frente do peito (cotovelos para fora, ângulo para DENTRO), balançando de leve em oposição
+    hosp.bE = pontaDosPes ? { a: -38 + W.bracoE * .35, d: -34, c: 50 } : { a: 90 + W.bracoE * 1.6, d: 10 };
+    hosp.bD = pontaDosPes ? { a: -38 - W.bracoD * .35, d: -34, c: 50 } : { a: 90 + W.bracoD * 1.6, d: 10 };
+    hosp.r = pontaDosPes ? 9 + Math.sin(W.t * Math.PI) * 2 : -18;
+    hosp.cab = pontaDosPes ? -4 + Math.sin(W.t * Math.PI * 2) * 3 : hosp.cab;
+  }
 
   // ── câmera quase parada: um empurrão lento na tensão, tranco no trovão ──
-  const z = 1.1; // câmera TRAVADA: a régua do quarto não muda; quem chega perto é o Aurélio
-  const cx = 760;
-  const cy = 410;
+  const z = 1.3; // câmera TRAVADA: a régua do quarto não muda; quem chega perto é o Aurélio
+  const cx = 720;
+  const cy = 450;
   // íris: abre no começo, fecha no fim em cima dos olhos do Aurélio (lá, no escuro, ele volta para longe)
   const iris = f < 8 ? k(f, [[0, 0, 'o'], [8, 1300]]) : f >= 132 ? k(f, [[132, 1300, 'o'], [143, 0]]) : 1300;
   const irisC = f < 8 ? [230, 400] : [aur.x - 4, 668 - 300 * aur.esc];
@@ -94,7 +111,7 @@ export function Suite() {
           <path d="M520,380V340" strokeWidth="7" /><path d="M492,340H548L536,300H504Z" fill="#f2d79a" />
         </g>
       </g>
-      <Sombra x={aur.x} y={672} rx={60 * aur.esc} o={.55} /><Sombra x={x} y={yP + 4} rx={46 * esc} ry={12} o={.4} />
+      <Sombra x={aur.x} y={672} rx={60 * aur.esc} o={.55} /><Sombra x={xW} y={yW + 4} rx={46 * esc} ry={12} o={.4} />
       <g filter={fl > 0 ? 'url(#silhueta)' : undefined}>
         <Ator f={f} luz={false}>
           <g filter={fl > 0 ? undefined : 'url(#aroAurelio)'}><AurelioRig pose={aurelio} f={f} /></g>

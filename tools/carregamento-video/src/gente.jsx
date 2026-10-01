@@ -8,9 +8,13 @@ const TINTA = '#05060a';
 /** Ponto na ponta de um membro: ombro/quadril + ângulo (0 = para baixo; + = para fora do corpo). */
 const ponta = ([x, y], lado, a, c) => { const s = lado === 'E' ? -1 : 1, t = rad(a * s); return [x + Math.sin(t) * c, y + Math.cos(t) * c]; };
 const Mao = ({ p, r = 12, cor }) => <circle cx={p[0]} cy={p[1]} r={r} fill={cor} stroke={TINTA} strokeWidth="5" />;
-const Sapato = ({ p, lado, giro = 0, cor = '#2a2118', w = 22 }) =>
-  <g transform={`translate(${p[0]},${p[1]}) rotate(${giro}) scale(${lado === 'E' ? -1 : 1},1)`} stroke={TINTA} strokeWidth="5" strokeLinejoin="round">
-    <path d={`M-10,-8Q-14,6,2,8H${w}Q${w + 10},6,${w + 6},-4Q${w - 2},-12,8,-12Q-2,-14,-10,-8Z`} fill={cor} />
+/** Sapato; `giro` levanta o CALCANHAR girando em volta da PONTA (ponta dos pés de verdade). */
+const Sapato = ({ p, lado, giro = 0, cor = '#2a2118', w = 34 }) =>
+  <g transform={`translate(${p[0]},${p[1]}) scale(${lado === 'E' ? -1 : 1},1) rotate(${-giro} ${w + 2} 6)`} stroke={TINTA} strokeWidth="5" strokeLinejoin="round">
+    {/* sapato grande de cartum: salto atrás, bico redondo na frente, brilho */}
+    <path d={`M-12,-10Q-16,8,0,9H${w}Q${w + 14},8,${w + 10},-6Q${w + 2},-16,14,-14Q-2,-18,-12,-10Z`} fill={cor} />
+    <path d={`M-12,4H6`} stroke={TINTA} strokeWidth="4" />
+    <ellipse cx={w - 4} cy="-6" rx="8" ry="3" fill="#fff" fillOpacity=".3" stroke="none" />
   </g>;
 
 /**
@@ -20,7 +24,10 @@ const Sapato = ({ p, lado, giro = 0, cor = '#2a2118', w = 22 }) =>
 export function HospedeRig({ pose }) {
   const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'cauto', bE = { a: 10 }, bD = { a: 10 }, pE = { a: 0 }, pD = { a: 0 }, suor = false } = pose;
   const ombro = { E: [52, 114], D: [108, 114] }, quad = { E: [66, 198], D: [94, 198] };
-  const perna = (l, p) => { const q = quad[l], f = ponta(q, l, p.a ?? 0, p.c ?? 84);
+  // mundo → local (para pé plantado no chão do mundo)
+  const local = ([wx, wy]) => { const dx = wx - x, dy = wy - y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
+    return [80 + cx / (esc * sx), 290 + cy / (esc * sy)]; };
+  const perna = (l, p) => { const q = quad[l], f = p.alvo ? local([p.alvo[0], p.alvo[1] - 4]) : ponta(q, l, p.a ?? 0, p.c ?? 84);
     return <g key={l}><Mangueira de={q} ate={f} dobra={(p.d ?? 4) * (l === 'E' ? -1 : 1)} larg={20} cor={l === 'E' ? '#3e6b4a' : '#335a3e'} />
       <Sapato p={[f[0], f[1] + 4]} lado={l} giro={p.giro ?? 0} /></g>; };
   const braco = (l, b) => { const o = ombro[l], m = ponta(o, l, b.a ?? 10, b.c ?? 78);

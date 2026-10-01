@@ -137,12 +137,14 @@ export function Robo({ pose, mundoParaLocal, pal = P64, k: tipo = 0, armaE, arma
   const gr = tipo === 2;
   const ombro = { E: [gr ? 46 : 52, 126], D: [gr ? 154 : 148, 126] }, quadril = { E: [78, 192], D: [122, 192] };
   const mao = (lado, b) => {
-    if (pose[`mao${lado}`] && mundoParaLocal) return mundoParaLocal(pose[`mao${lado}`]);
+    if (pose[`mao${lado}`]) return (mundoParaLocal ?? paraLocal(pose))(pose[`mao${lado}`]);
     const s = lado === 'E' ? -1 : 1, a = rad(b.a * s), c = b.c ?? 64;
     const [ox, oy] = ombro[lado];
     return [ox + Math.sin(a) * c, oy + Math.cos(a) * c];
   };
+  const local = mundoParaLocal ?? paraLocal(pose);
   const pe = (lado, l) => {
+    if (l.alvo) return local(l.alvo);   // pé plantado no mundo (ciclo de caminhada)
     const s = lado === 'E' ? -1 : 1, a = rad((l.a ?? 0) * s), c = l.c ?? 54;
     const [hx, hy] = quadril[lado];
     return [hx + Math.sin(a) * c, hy + Math.cos(a) * c];
