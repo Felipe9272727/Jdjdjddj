@@ -4,7 +4,8 @@
 import React from 'react';
 import { useCurrentFrame } from 'remotion';
 import { RB, Arquivista, DB, Diabrete, arquivo, Mesa8, Foto, RABISCOS, Caixa8 } from '../../../jubileu/src/CarregandoAndares';
-import { k } from './rig';
+import { k, Mangueira } from './rig';
+import { andar } from './andar';
 import { Palco, Ator, Estouro, Sombra, Peca, Boneco, tremor } from './estilo';
 
 export const DUR = 144;
@@ -18,16 +19,33 @@ export function Arquivo() {
   const olha = k(f, [[0, 0], [66, 0, 'io'], [70, 6, 'x'], [72, 22, 'e'], [84, 16], [100, 16, 'io'], [108, 0]]);
   const amassa = CARIMBOS.some((t) => f >= t && f < t + 3) ? .95 : 1;
   // ── Diabrete: entra na ponta dos pés (f0–28), rabisca (f30–66), pof (f72), sai (f116–140) ──
-  const dx = k(f, [[0, 1700, 'l'], [28, 1150, 'h'], [72, 1150, 'h'], [116, 1150, 'xi'], [140, 1800]]);
+  // ponta dos pés de verdade: pés plantados no chão, passos longos e altos, corpo em surtos (o "sneak" de 1930)
+  const ENTRA = { f0: 0, x0: 1700, dir: -1, passo: 137.5, periodo: 7, chao: PE + 4, altPe: 64, quique: 16, D: .6, surto: .3 };
+  const SAI = { f0: 118, x0: 1150, dir: 1, passo: 110, periodo: 4, chao: PE + 4, altPe: 50, quique: 12, D: .5, surto: 0 };
+  const WD = f < 28 ? andar({ ...ENTRA, f }) : f >= 118 && f < 140 ? andar({ ...SAI, f }) : null;
+  const dx = WD ? WD.x : k(f, [[0, 1150], [118, 1150]]);
   const visivel = f < 72 || (f >= 116 && f < 140);
   const anda = f < 28 || f >= 116;
-  const passo = anda ? Math.sin(f * (f >= 116 ? 1 : .55)) : 0;
+  const passo = 0;
   const ri = f >= 30 && f < 66 ? Math.abs(Math.sin(f * .9)) * -6 : 0;
   const dsy = k(f, [[0, 1], [68, 1, 'o'], [72, .55, 'x'], [116, 1.5, 'b'], [122, 1]]);
   const rab = Math.min(3, Math.floor((f - 30) / 12) + 1);
   const caixa = f >= 72 && f < 116;
   const caixaSy = k(f, [[72, .4, 'x'], [76, 1.15, 'b'], [84, 1], [110, 1, 'x'], [116, 1.4, 'o'], [118, 0]]);
 
+  // pernas de mangueira em coordenadas locais (inverso da transformação do Boneco)
+  const dR = WD ? -WD.t * 0 + (f < 28 ? -7 : 7) : 0, dyB = PE + 8 + ri + (WD ? WD.bob : 0), E = 1.15;
+  const local = ([wx, wy]) => { const a = -dR * Math.PI / 180, ux = (wx - dx) / E, uy = (wy - dyB) / E;
+    return [90 + ux * Math.cos(a) - uy * Math.sin(a), 280 + ux * Math.sin(a) + uy * Math.cos(a)]; };
+  const pe = (lado) => {
+    if (WD) { const p = local(lado === 'E' ? WD.peE : WD.peD); return { p, no: lado === 'E' ? WD.noE : WD.noD }; }
+    return { p: lado === 'E' ? [62, 266] : [118, 266], no: true };
+  };
+  const dirD = f < 28 ? -1 : 1;
+  const perna = (lado) => { const { p, no } = pe(lado), q = WD ? [lado === 'E' ? 84 : 96, 150] : [lado === 'E' ? 60 : 120, 150];
+    return <g key={lado}><Mangueira de={q} ate={p} dobra={WD ? -dirD * (no ? 8 : 26) : 0} larg={26} cor="#1a1220" />
+      <ellipse cx={p[0] + dirD * 6} cy={p[1]} rx="18" ry="9" fill="#1a1220" transform={`rotate(${WD && !no ? dirD * 28 : 0} ${p[0]} ${p[1]})`} /></g>; };
+  const pernas = <>{perna(dirD > 0 ? 'E' : 'D')}{perna(dirD > 0 ? 'D' : 'E')}</>;
   const z = k(f, [[0, 1.3, 'io'], [10, 1.36, 'x'], [14, 1.3, 'io'], [30, 1.75, 'io'], [66, 1.8, 'x'], [70, 1.55, 'io'], [84, 2.0, 'io'], [104, 1.35, 'io'], [144, 1.3]]);
   const cx = k(f, [[0, 860, 'io'], [30, 1060, 'io'], [66, 1060, 'x'], [70, 780, 'io'], [84, 1150, 'io'], [104, 900, 'io'], [144, 860]]);
   const cy = k(f, [[0, 450, 'io'], [30, 470, 'io'], [70, 420, 'io'], [84, 560, 'io'], [104, 460, 'io'], [144, 450]]);
@@ -48,8 +66,10 @@ export function Arquivo() {
           {Foto}
           {f >= 30 && f < 140 && RABISCOS.slice(0, rab).map((d, i) => <path key={i} d={d} transform="translate(0 12)" fill="none" stroke="#e63a2e" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />)}
         </g>
-        {visivel && <Boneco x={dx} y={PE + 8 + ri} w={180} h={280} esc={1.15} sy={dsy} sx={1 / Math.sqrt(dsy)} r={anda ? passo * 6 : 0}>
-          <Peca piv={[90, 150]} r={passo * 4}>{Diabrete.corpo}</Peca>
+        {visivel && <Boneco x={dx} y={PE + 8 + ri + (WD ? WD.bob : 0)} w={180} h={280} esc={1.15} sy={dsy} sx={1 / Math.sqrt(dsy)} r={dR}>
+          {pernas}
+          <g stroke="#1a1220" strokeLinejoin="round"><path d="M56,110Q90,94,124,110Q132,160,90,166Q48,160,56,110Z" fill="#1a1220" />
+            <path d="M124,150Q166,160,160,120Q156,104,166,98" fill="none" stroke="#1a1220" strokeWidth="6" /><path d="M160,92L176,96L164,108Z" fill="#1a1220" /></g>
           <Peca piv={[122, 118]} r={f >= 30 && f < 66 ? Math.sin(f * 1.6) * 28 - 10 : 0}>{Diabrete.braco}</Peca>
           <Peca piv={[90, 100]} r={f >= 30 && f < 66 ? Math.sin(f * .9) * 8 : 0}>{Diabrete.cabeca}</Peca>
         </Boneco>}

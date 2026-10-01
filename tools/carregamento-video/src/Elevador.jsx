@@ -5,7 +5,9 @@
 import React from 'react';
 import { useCurrentFrame, AbsoluteFill } from 'remotion';
 import { K, OURO, OURO_E } from '../../../jubileu/src/CarregandoAnimado';
-import { k, rad, Robo64, Luva } from './rig';
+import { k, rad, Robo64, Robo, Luva } from './rig';
+import { andar } from './andar';
+import { P64 } from '../../../jubileu/src/CarregandoAnimado';
 
 export const DUR = 144; // 6 s
 const CX = 800, PISO = 640, TOPO = 150, LARG = 330; // a porta do elevador
@@ -133,8 +135,8 @@ export function Elevador() {
   // agacha (antecipação) · estica no ar · amassa no chão · assenta passando do ponto
   const sy = k(f, [[0, 1, 'h'], [30, 1, 'o'], [35, .8, 'x'], [38, 1.22, 'io'], [46, 1.1, 'l'], [48, .74, 'b'], [56, 1, 'h'], [75, 1, 'x'], [77, 1.15, 'e'], [86, 1, 'h'], [104, 1, 'l'], [105, .62, 'h'], [108, .62, 'o'], [111, 1, 'h'], [144, 1]]);
   const sx = 1 / Math.sqrt(sy) * (f >= 104 && f < 109 ? 1.7 : 1);   // volume + smear
-  const r = k(f, [[0, 0, 'h'], [36, 0, 'o'], [42, -10, 'io'], [48, 0, 'h'], [80, 0, 'o'], [86, 22, 'io'], [92, 26, 'io'], [98, 20, 'io'], [104, 24, 'x'], [106, -30, 'o'], [112, 0, 'h'], [144, 0]])
-    + (f >= 82 && f < 104 ? Math.sin(f * 1.7) * 2.5 : 0);
+  const r = k(f, [[0, 0, 'h'], [36, 0, 'o'], [42, -10, 'io'], [48, 0, 'h'], [80, 0, 'o'], [84, 18, 'io'], [88, 20, 'io'], [96, 30, 'io'], [100, 36, 'io'], [104, 36, 'x'], [106, -30, 'o'], [112, 0, 'h'], [144, 0]])
+    + (f >= 82 && f < 98 ? Math.sin(f * 1.7) * 2.5 : 0);
   const cara = f < 24 ? 'p' : f < 74 ? 'f' : f < 82 ? 's' : f < 104 ? 'b' : f < 116 ? 'x' : 'p';
   const cab = k(f, [[0, 0], [40, 8, 'b'], [48, -6, 'e'], [62, 0, 'io'], [74, -14, 'x'], [80, 10, 'io'], [104, 6, 'x'], [108, -20, 'e'], [124, 0]]);
   // braços: esperam, sobem no pulo, TCHARAM acenando com dobra; o esquerdo fica preso na porta
@@ -144,22 +146,32 @@ export function Elevador() {
   const bD = { a: k(f, [[0, 20], [30, 40, 'o'], [36, -10, 'b'], [44, 150, 'io'], [56, 125, 'io'], [104, 140, 'io'], [112, 160, 'io'], [130, 20]]) + (tch ? -onda * 12 : 0) + (f >= 82 && f < 104 ? Math.sin(f * 2.1) * 25 : 0), d: tch ? -onda * 30 : 18, c: 64 };
   const pernasCorrendo = f >= 82 && f < 104;
   const passo = Math.sin(f * 1.4);
-  const pE = { a: pernasCorrendo ? passo * 38 : k(f, [[0, 6], [36, 20, 'o'], [44, -20, 'io'], [48, 14, 'b'], [56, 6]]), d: pernasCorrendo ? -passo * 14 : 6 };
-  const pD = { a: pernasCorrendo ? -passo * 38 : k(f, [[0, 6], [36, 20, 'o'], [44, -20, 'io'], [48, 14, 'b'], [56, 6]]), d: pernasCorrendo ? passo * 14 : 6 };
+  // puxando a mão presa: corre NO LUGAR no piso encerado — os pés plantam e escorregam para trás (esteira)
+  // o "scramble" de 1930: as pernas viram uma RODA em volta do quadril (f82–98); depois a roda para, os pés
+  // fincam juntos e derrapam (f98–104) — a antecipação do tirão
+  const roda = f >= 82 && f < 98, finca = f >= 98 && f < 104;
+  const ergue = roda ? 20 : 0;
+  const phi = (f - 82) * 2 * Math.PI / 4;
+  const paraMundo = ([lx, ly]) => { const a = rad(r), ux = (lx - 100) * esc * sx, uy = (ly - 250) * esc * sy;
+    return [x + ux * Math.cos(a) - uy * Math.sin(a), yBase - ergue + ux * Math.sin(a) + uy * Math.cos(a)]; };
+  const peRoda = (ph) => paraMundo([100 + 48 * Math.cos(ph), 238 + 28 * Math.sin(ph)]);
+  const repouso = { a: k(f, [[0, 6], [36, 20, 'o'], [44, -20, 'io'], [48, 14, 'b'], [56, 6]]), d: 6 };
+  const pE = roda ? { alvo: peRoda(phi), d: 20 } : finca ? { alvo: [x - 14, yBase], d: 8 } : repouso;
+  const pD = roda ? { alvo: peRoda(phi + Math.PI), d: 20 } : finca ? { alvo: [x + 14, yBase], d: 8 } : repouso;
   // a mão presa na fresta da porta (ponto fixo no mundo) de 74 a 104
   const MAO_PRESA = [CX, 470];
   const presa = f >= 74 && f < 105;
-  const pose = { x, y: yBase - arco, esc, sx, sy, r, cab, cara, bE, bD, pE, pD, maoE: presa ? MAO_PRESA : null };
+  const pose = { x, y: yBase - arco - ergue, esc, sx, sy, r, cab: finca ? -10 : cab, cara, bE, bD, pE, pD, perfil: roda || finca, dir: 1, maoE: presa ? [MAO_PRESA[0], MAO_PRESA[1] + (finca ? Math.sin(f * 3.1) * 3 : 0)] : null };
   const mundoParaLocal = ([wx, wy]) => {
     const dx = wx - pose.x, dy = wy - pose.y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
     return [100 + cx / (esc * sx), 250 + cy / (esc * sy)];
   };
-  const robo = <Robo64 pose={pose} mundoParaLocal={mundoParaLocal} />;
+  const robo = <Robo pose={pose} mundoParaLocal={mundoParaLocal} pal={P64} k={0} />;
 
   // ── câmera: entra no elevador no PLIM, segue o pulo, soco de zoom no SLAM, abre no BONK ──
   const z = k(f, [[0, 1.1, 'io'], [14, 1.25, 'x'], [34, 1.25, 'io'], [50, 1.2, 'io'], [74, 1.3, 'x'], [78, 1.42, 'io'], [100, 1.25, 'x'], [112, 1.15, 'io'], [144, 1.1]]);
   const cx = k(f, [[0, 800, 'io'], [34, 800, 'io'], [52, 900, 'io'], [74, 900, 'io'], [100, 960, 'x'], [112, 820, 'io'], [144, 800]]);
-  const cy = k(f, [[0, 340, 'io'], [14, 290, 'io'], [34, 310, 'io'], [50, 450, 'io'], [100, 460, 'io'], [118, 350, 'io'], [144, 340]]);
+  const cy = k(f, [[0, 340, 'io'], [14, 290, 'io'], [34, 310, 'io'], [50, 450, 'io'], [76, 460, 'io'], [84, 500, 'io'], [100, 500, 'io'], [118, 350, 'io'], [144, 340]]);
   const tremor = (t0, a, d) => (f >= t0 && f < t0 + d ? Math.sin((f - t0) * 2.7) * a * (1 - (f - t0) / d) : 0);
   const tx = tremor(74, 10, 8) + tremor(116, 16, 12), ty = tremor(116, 9, 12) * .7;
   const cam = `translate(${800 + tx},${380 + ty}) scale(${z}) translate(${-cx},${-cy})`;
@@ -209,6 +221,12 @@ export function Elevador() {
           </g>
           <Moldura ponteiro={ponteiro} lampada={lampada} />
           {fora && <ellipse cx={x} cy={716} rx={80 * esc * (1 - arco / 300)} ry={16} fill="#1a0408" opacity=".55" filter="url(#sombraMole)" />}
+          {roda && <g>{/* a roda de pernas: elipse de movimento, pés-fantasma, poeira e riscos de derrapagem */}
+            {(() => { const c = paraMundo([100, 238]); return <ellipse cx={c[0]} cy={c[1]} rx={58 * esc} ry={34 * esc} transform={`rotate(${r} ${c[0]} ${c[1]})`} fill="none" stroke={K} strokeOpacity=".6" strokeWidth="7" strokeDasharray="22 12" strokeDashoffset={-f * 14} />; })()}
+            {[.5, 1.5].map((q) => { const p = peRoda(phi + q * Math.PI); return <ellipse key={q} cx={p[0]} cy={p[1]} rx="24" ry="12" fill={K} opacity=".45" />; })}
+            {[0, 1, 2].map((i) => { const t = ((f - 82 + i * 2) % 6) / 6, b = paraMundo([60, 262]); return <circle key={i} cx={b[0] - t * 60 - i * 10} cy={716 - t * 26} r={10 + t * 12} fill="#f1e6cc" stroke={K} strokeWidth="3" opacity={(1 - t) * .8} />; })}
+          </g>}
+          {(roda || finca) && [0, 1].map((i) => <path key={i} d={`M${x - 150 - i * 40},${720 + i * 10}h${90 - i * 20}`} stroke={K} strokeOpacity=".5" strokeWidth="5" strokeLinecap="round" />)}
           {fora && <g filter={`url(#ferve${ferve})`}>{robo}</g>}
           {/* gotas de esforço */}
           {f >= 84 && f < 104 && [0, 1].map((i) => { const t = ((f - 84 + i * 6) % 12) / 12; return <path key={i} d={`M${x + 70 + i * 20 + t * 40},${yBase - 300 - t * 30 + t * t * 80}q8,14,0,20q-8,-6,0,-20Z`} fill="#9ad6ff" stroke={K} strokeWidth="4" opacity={1 - t} />; })}
