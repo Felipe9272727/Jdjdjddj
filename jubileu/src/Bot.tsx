@@ -503,7 +503,7 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
         ? 'aguardando spawn'
         : `${info.count} bot${info.count > 1 ? 's' : ''} • ${[...new Set(info.behaviors)].join(', ')}`;
     const behaviorEmoji: Record<string, string> = {
-        wander: '🌀', follow: '👣', tour: '🗺️', patrol: '🚶', orbit: '🔄', dance: '💃', idle: '😴',
+        wander: '~', follow: '>', tour: '#', patrol: '=', orbit: 'o', dance: '*', idle: 'z',
     };
     return (
         <div

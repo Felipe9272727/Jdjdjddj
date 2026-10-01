@@ -1811,7 +1811,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                     <div style={{ font: '600 13px/1.2 Georgia,serif', letterSpacing: bossActive ? 2 : 2.4 }}>{p8Objective()}</div>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center', marginTop: 7, font: '10px monospace' }}>
                         <span style={{ color: '#efb8a5' }}>{'◆'.repeat(p8.integrity)}<span style={{ opacity: 0.22 }}>{'◆'.repeat(3 - p8.integrity)}</span></span>
-                        <span>🧶 {p8.spools}</span>
+                        <span>novelos: {p8.spools}</span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>FIO <i style={{ display: 'inline-block', width: 64, height: 5, border: '1px solid rgba(255,255,255,.45)', borderRadius: 4, overflow: 'hidden' }}><b style={{ display: 'block', width: `${p8.threadCharge * 100}%`, height: '100%', background: pal.thread, boxShadow: `0 0 7px ${pal.thread}` }} /></i></span>
                     </div>
                     {bossActive && <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
@@ -1863,7 +1863,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                     <div style={{ textAlign: 'center', padding: 28 }}>
                         <div style={{ color: '#f4d9ce', font: '600 clamp(22px,5vw,38px)/1.2 Georgia,serif', letterSpacing: 4, textShadow: '0 0 28px #a13e58' }}>VOCÊ NÃO SE DERROTOU.</div>
                         <div style={{ color: '#e9b8bf', font: 'italic 18px/1.5 Georgia,serif', margin: '12px 0 7px' }}>Você se refez.</div>
-                        <div style={{ color: '#bda9b4', font: '11px monospace', marginBottom: 26 }}>🧶 {p8.spools} pontas recuperadas</div>
+                        <div style={{ color: '#bda9b4', font: '11px monospace', marginBottom: 26 }}>{p8.spools} pontas recuperadas</div>
                         <button onPointerDown={() => { f8Wake(); onDone?.(); }} style={{ ...btn, width: 'auto', height: 'auto', padding: '13px 34px', borderColor: '#dc8b9b', fontSize: 14, letterSpacing: 2 }}>ACORDAR</button>
                     </div>
                 </div>

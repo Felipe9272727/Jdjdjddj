@@ -63,8 +63,8 @@ const TIMINGS = {
 const ITEM_META: Record<string, { icon: string; hint: string }> = {
   buy_flashlight: { icon: '⌁', hint: 'clareia o que não chegou' },
   buy_cookie: { icon: '●', hint: 'fresco até ser esquecido' },
-  buy_coffee: { icon: '♨', hint: 'quente, mesmo vazio' },
-  buy_key: { icon: '⚿', hint: 'para uma porta específica' },
+  buy_coffee: { icon: '♨︎', hint: 'quente, mesmo vazio' },
+  buy_key: { icon: '⚿︎', hint: 'para uma porta específica' },
   buy_floor: { icon: '▲', hint: 'preço proporcional' },
   buy_memory: { icon: '✦', hint: 'o logo muda sozinho' },
 };

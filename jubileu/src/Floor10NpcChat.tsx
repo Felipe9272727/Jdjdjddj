@@ -176,7 +176,7 @@ const PensamentoCru: React.FC<{
 }> = ({ texto, pensando, tps, threads, segundos }) => (
     <div style={pensamentoCruStyle} aria-live="polite">
         <div style={pensamentoCabecaStyle}>
-            <span>{pensando ? '🧠 vontade · pensando' : '🧠 vontade · pensou'}</span>
+            <span>{pensando ? 'vontade · pensando' : 'vontade · pensou'}</span>
             <span style={{ opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
                 {threads > 0 ? `CPU×${threads}` : ''}
                 {tps > 0 ? ` · ${tps.toFixed(1)} tok/s` : ''}
@@ -518,7 +518,7 @@ const Floor10NpcChat: React.FC = () => {
                 )}
                 {thoughtVisible && (
                     <div style={thoughtBubbleStyle}>
-                        <span style={{ opacity: 0.75 }}>💭</span>
+                        <span style={{ opacity: 0.75 }}>…</span>
                         <span style={{ fontStyle: 'italic' }}>{thought}</span>
                     </div>
                 )}
@@ -530,7 +530,7 @@ const Floor10NpcChat: React.FC = () => {
                 )}
                 {st.near && (
                     <button onClick={open} style={hintStyle}>
-                        💬 {st.autonomousSpeech ? 'Responder' : 'Conversar'} <span style={{ opacity: 0.7 }}>(E)</span>
+                        {st.autonomousSpeech ? 'Responder' : 'Conversar'} <span style={{ opacity: 0.7 }}>(E)</span>
                     </button>
                 )}
             </>
@@ -561,7 +561,7 @@ const Floor10NpcChat: React.FC = () => {
           + (st.storage.needBytes > 0 ? ` · precisa de ${formatGB(st.storage.needBytes)}` : '')
           + (espacoFalta ? ' — não cabe' : '');
     const espacoEmJogo = espacoFalta && livre !== null
-        ? `⚠ não cabe neste aparelho: o Nilo inteiro ocupa `
+        ? `⚠︎ não cabe neste aparelho: o Nilo inteiro ocupa `
           + `${formatGB(st.storage.needBytes)} e o navegador só libera `
           + `${formatGB(livre)} para o jogo`
         : '';
@@ -618,7 +618,7 @@ const Floor10NpcChat: React.FC = () => {
                     qual binário está em pé é o assunto. */}
                 <span>
                     {NPC_NAME} · Hóspede do 10º
-                    {mostrarNumeros && st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭
+                    {mostrarNumeros && st.modelLabel ? ` · ${st.modelLabel}` : ''} 
                 </span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
@@ -662,7 +662,7 @@ const Floor10NpcChat: React.FC = () => {
                         aberta, e continua inteiro no estado da fila. */}
                     {fila.falhados.map((f) => (
                         <div key={f.id} style={filaFalhaStyle}>
-                            <span>⚠</span>
+                            <span>⚠︎</span>
                             <span>
                                 {falhaEmJogo(f.id)}
                                 {mostrarNumeros && f.motivo
@@ -697,7 +697,7 @@ const Floor10NpcChat: React.FC = () => {
 
             {vontadeTrabalhando && (
                 <div style={pensandoStyle} aria-live="polite">
-                    <span>🧭</span>
+                    <span>›</span>
                     <span>
                         {st.deliberationPhase === 'thinking'
                             ? `${NPC_NAME} está pensando por conta própria…`
@@ -801,7 +801,7 @@ const Floor10NpcChat: React.FC = () => {
                             disabled={st.phase === 'thinking' || loading}
                             style={sendStyle}
                         >
-                            ➤
+                            ➤︎
                         </button>
                     </div>
                 </>

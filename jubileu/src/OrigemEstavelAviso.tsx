@@ -51,7 +51,7 @@ export function OrigemEstavelAviso(): React.ReactElement | null {
     return (
         <div style={caixaStyle} role="status">
             <div style={tituloStyle}>
-                ⚠ Você abriu a URL de UM deploy — o Chrome trata como site novo
+                ⚠︎ Você abriu a URL de UM deploy — o Chrome trata como site novo
             </div>
             <div style={textoStyle}>
                 Os cérebros do Nilo (~4,2 GB) e o jogo inteiro ficam guardados por endereço.

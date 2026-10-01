@@ -82,7 +82,7 @@ export const FloorReveal = ({ currentLevel }: any) => (
 );
 
 /**
- * Status banners — "Algo não está certo...", "⚠ CORRA PARA O ELEVADOR ⚠"
+ * Status banners — "Algo não está certo...", "⚠︎ CORRA PARA O ELEVADOR ⚠︎"
  */
 export const StatusBanner = ({ gameState, elevatorTimer }: any) => {
   if (gameState === 'indoor_night') {
@@ -96,7 +96,7 @@ export const StatusBanner = ({ gameState, elevatorTimer }: any) => {
     return (
       <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
         <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-xs sm:text-base animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
-          ⚠ CORRA PARA O ELEVADOR ⚠
+          ⚠︎ CORRA PARA O ELEVADOR ⚠︎
         </div>
       </div>
     );

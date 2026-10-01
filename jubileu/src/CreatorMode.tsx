@@ -197,7 +197,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 12',
     description: 'O elevador vira avião. Luta aérea contra uma cabeça gigante que cospe a lore do hotel pela boca — com o irmão mal-humorado do TROCO-64 de ala.',
     color: 'from-sky-500 via-indigo-400 to-rose-400',
-    icon: <span aria-hidden="true">✈</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 13.5l7-2.5V5.5a2 2 0 014 0V11l7 2.5v2L14 14v4l2.5 1.5V21L12 20l-4.5 1v-1.5L10 18v-4l-7 1.5z" /></svg>),
   },
   {
     id: 'floor-13-vindhjem',
@@ -206,7 +206,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'O TROCO-63 cai numa cidade viking que voa. Ache a casa certa — e escute o que um dos moradores tem a dizer.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">⛵</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v14M12 4l7 11h-7M11 6L5 15h6M3 18h18l-2 3H5z" /></svg>),
   },
   {
     id: 'floor-13-explorar',
@@ -216,7 +216,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Começa já em terra, no pouso.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🏁</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h13l-3 4 3 4H5" /></svg>),
   },
   {
     id: 'floor-13-ragnhild',
@@ -226,7 +226,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante da mercadora (pista do latão).',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🧔</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M8 10c0 6 8 6 8 0M6 21c0-4 2.7-6 6-6s6 2 6 6" /></svg>),
   },
   {
     id: 'floor-13-ulfgar',
@@ -236,7 +236,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante do escaldo.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🧔</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M8 10c0 6 8 6 8 0M6 21c0-4 2.7-6 6-6s6 2 6 6" /></svg>),
   },
   {
     id: 'floor-13-eira',
@@ -246,7 +246,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante da menina do poço.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🧒</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="4.5" /><path d="M7 21c0-3.5 2.2-5.5 5-5.5s5 2 5 5.5M9.5 6.5c1.5 1 3.5 1 5 0" /></svg>),
   },
   {
     id: 'floor-13-brokk',
@@ -256,7 +256,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante do ferreiro (busca do martelo).',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🔨</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 6l4 4M13 7l-2-2 3-3 6 6-3 3-2-2M13 9L4 18a1.4 1.4 0 002 2l9-9" /></svg>),
   },
   {
     id: 'floor-13-sigrun',
@@ -266,7 +266,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante da pastora (busca das ovelhas).',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🐑</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 15a3 3 0 01-1-5.6A3 3 0 019.5 6a3 3 0 015 0 3 3 0 014.5 3.4A3 3 0 0118 15zM8 15v4M16 15v4M19 10.5l2 .5-1 2" /></svg>),
   },
   {
     id: 'floor-13-torvald',
@@ -276,7 +276,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante do capitão (busca do sino).',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🔔</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0" /></svg>),
   },
   {
     id: 'floor-13-astrid',
@@ -286,7 +286,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante da guarda.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🛡</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.2 8.3-7 10-3.8-1.7-7-5-7-10V6z" /></svg>),
   },
   {
     id: 'floor-13-halvard',
@@ -296,7 +296,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante do pescador de nuvem.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🎣</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20L18 4M18 4v10a3 3 0 11-3-3" /></svg>),
   },
   {
     id: 'floor-13-martelo',
@@ -306,7 +306,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Ao lado do martelo perdido.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🔨</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 6l4 4M13 7l-2-2 3-3 6 6-3 3-2-2M13 9L4 18a1.4 1.4 0 002 2l9-9" /></svg>),
   },
   {
     id: 'floor-13-sino',
@@ -316,7 +316,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Diante do sino do templo.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🔔</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0" /></svg>),
   },
   {
     id: 'floor-13-ovelha',
@@ -326,7 +326,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Ao lado de uma ovelha fujona.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🐑</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 15a3 3 0 01-1-5.6A3 3 0 019.5 6a3 3 0 015 0 3 3 0 014.5 3.4A3 3 0 0118 15zM8 15v4M16 15v4M19 10.5l2 .5-1 2" /></svg>),
   },
   {
     id: 'floor-13-entidade',
@@ -346,7 +346,7 @@ export const FLOORS: FloorOption[] = [
     label: 'Andar 13',
     description: 'Todas as pistas, na porta de latão.',
     color: 'from-amber-600 via-sky-500 to-emerald-400',
-    icon: <span aria-hidden="true">🚪</span>,
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 21V4a1 1 0 011-1h12a1 1 0 011 1v17M3 21h18M15 12h.01" /></svg>),
   },
   {
     id: 'floor-11-agent',

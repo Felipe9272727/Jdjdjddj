@@ -122,12 +122,12 @@ export const Floor4Interact: React.FC<{
             const r = f4RingBell(Date.now());
             if (r === 'ring') {
                 // live tally so the player SEES the count building toward the 5th risco
-                const msg = '🔔 ' + '|'.repeat(f4.bellCount);
+                const msg = 'DING ' + '|'.repeat(f4.bellCount);
                 setToast(msg);
                 setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
             }
             if (r === 'solved') {
-                setToast('🔔 ' + '|'.repeat(F4_BELL_RINGS));
+                setToast('DING ' + '|'.repeat(F4_BELL_RINGS));
                 setTimeout(() => setToast(null), 1100);
                 setTimeout(() => { shakeRef.current = 0.7; }, 600);   // he stirs…
             }
@@ -284,7 +284,7 @@ export const Floor4Interact: React.FC<{
                         </div>
                         {hintN.generator > 0 && (
                             <div style={{ marginTop: 30, maxWidth: 280, fontSize: 11, lineHeight: 1.55, color: '#FFD54F' }}>
-                                💡 {F4_HINTS.generator[hintN.generator - 1]}
+                                Dica: {F4_HINTS.generator[hintN.generator - 1]}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: hintN.generator > 0 ? 12 : 34 }}>
@@ -330,7 +330,7 @@ export const Floor4Interact: React.FC<{
                         </div>
                         {hintN.safe > 0 && (
                             <div style={{ marginTop: 14, maxWidth: 240, fontSize: 11, lineHeight: 1.55, color: '#FFD54F' }}>
-                                💡 {F4_HINTS.safe[hintN.safe - 1]}
+                                Dica: {F4_HINTS.safe[hintN.safe - 1]}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: hintN.safe > 0 ? 12 : 14 }}>

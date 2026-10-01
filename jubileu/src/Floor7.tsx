@@ -2315,7 +2315,7 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,10,14,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ maxWidth: 'min(90vw, 560px)', background: 'linear-gradient(165deg,#efe3c2,#e2d0a4 60%,#d8c294)', border: '1px solid #8a6a42', borderRadius: 6, padding: '22px 26px 18px', color: '#3a2a17', boxShadow: '0 12px 44px rgba(0,0,0,0.75), inset 0 0 46px rgba(122,86,52,0.28)', transform: 'rotate(-0.6deg)' }}>
                         <div style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.22em', color: '#7a5634', marginBottom: 10 }}>
-                            ⚓ DIÁRIO DE BORDO — PÁGINA {snap.logPage}/3
+                            DIÁRIO DE BORDO — PÁGINA {snap.logPage}/3
                         </div>
                         <div style={{ fontSize: 15.5, lineHeight: 1.55, fontStyle: 'italic' }}>
                             {LOG_PAGES[snap.logPage - 1]}
@@ -2335,7 +2335,7 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
             {/* landfall run HUD — the island closing in */}
             {sailing && (
                 <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top,0px) + 56px)', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <div style={{ color: '#f3e7cf', fontSize: 12, letterSpacing: '0.15em', textShadow: '0 1px 3px #000' }}>⛵ RUMO À ILHA</div>
+                    <div style={{ color: '#f3e7cf', fontSize: 12, letterSpacing: '0.15em', textShadow: '0 1px 3px #000' }}>RUMO À ILHA</div>
                     <div style={{ width: 200, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
                         <div style={{ width: `${Math.round(snap.landfall * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#7fae6a,#cde8b0)', transition: 'width 0.3s linear' }} />
                     </div>

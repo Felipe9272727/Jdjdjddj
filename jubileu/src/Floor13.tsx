@@ -47,6 +47,7 @@ import { CarregandoAnimado } from './CarregandoAnimado';
 import './CarregandoCenas';
 import './CarregandoAndares';
 import { SelosDasPistas } from './f13Selos';
+import { PERGAMINHO, ROTULO as ROTULO_UI, BOTAO, MOLDURA } from './f13Estilo';
 import { CartaoDeConclusao, type ResumoDoAndar } from './f13Concluido';
 import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
@@ -93,7 +94,6 @@ const ABERRACAO_ENTIDADE = new THREE.Vector2(.0016, .0008);
 /** Estado de movimento do jogador (mutável, lido a cada quadro). */
 interface Jog { x: number; y: number; z: number; ang: number; vy: number; seguro: { x: number; z: number }; levantando: number; andando: number }
 
-const ICONE_DA_PISTA: Record<Pista, string> = { latao: '🚪', fumaca: '🏚', botao: '🔔' };
 
 const t13: React.CSSProperties = {
     fontFamily: 'monospace', fontWeight: 900, color: '#FFE3A0', letterSpacing: 1.5,
@@ -872,7 +872,7 @@ function pertoDe(x: number, z: number): { x: number; z: number; yaw: number } {
 }
 
 // aviso no alto da tela: nunca cobre o botão de ação (embaixo, à direita) nem as falas (embaixo)
-const AVISO: React.CSSProperties = { ...t13, position: 'absolute', fontSize: 15, fontFamily: 'Georgia, serif', fontWeight: 700, color: '#2a1d14', textShadow: 'none', letterSpacing: .3, lineHeight: 1.3, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '7px 12px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', textAlign: 'center', pointerEvents: 'none' };
+const AVISO: React.CSSProperties = { ...t13, ...PERGAMINHO, position: 'absolute', fontSize: 15, fontWeight: 700, textShadow: 'none', letterSpacing: .3, lineHeight: 1.3, padding: '7px 12px', textAlign: 'center', pointerEvents: 'none' };
 
 export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ onExit, inicio }) => {
     const est = useRef(novoEstado13());
@@ -1585,7 +1585,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 oficio.brokkComMartelo = e.buscas.martelo === 'feita';   // o martelo volta à mão dele
                 const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
                 const aberto = cartaoAberto;
-                return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
+                return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, ...PERGAMINHO, textShadow: 'none', padding: retrato ? '5px 9px' : '7px 11px', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
                     {/* as três pistas como selos de lacre que carimbam ao serem achadas (crítico 90) */}
                     <SelosDasPistas pistas={e.pistas} retrato={retrato} aberto={aberto} />
                     {aberto && e.pistas.size === 0 && <div style={{ opacity: .75 }}>Converse com os moradores</div>}
@@ -1618,7 +1618,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             {/* ── O BOTÃO DE AÇÃO ── */}
             {fase === 'explorar' && alvo && <button onPointerDown={(ev) => { ev.stopPropagation(); agir(); }}
                 // o mesmo pergaminho da dica e do HUD (antes era um botão marrom de outro jogo)
-                style={{ fontFamily: 'Georgia, serif', fontWeight: 700, letterSpacing: 1, position: 'absolute', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 22px)', fontSize: 15, color: '#2a1d14', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '12px 20px', boxShadow: '0 4px 12px rgba(0,0,0,.35)', cursor: 'pointer', userSelect: 'none' }}>
+                style={{ fontFamily: 'Georgia, serif', fontWeight: 700, letterSpacing: 1, position: 'absolute', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 22px)', fontSize: 15, ...PERGAMINHO, borderRadius: 999, padding: '12px 20px', cursor: 'pointer', userSelect: 'none' }}>
                 {rotuloDoAlvo(alvo)}
             </button>}
 
@@ -1626,7 +1626,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '3px solid rgba(255,227,160,.6)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 60 + stick.x - 24, top: 60 + stick.y - 24, width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,227,160,.55)' }} />
             </div>}
-            {fase === 'explorar' && !jaAndou && !alvo && <div style={{ fontFamily: 'Georgia, serif', color: '#2a1d14', letterSpacing: .5, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap', opacity: .9, pointerEvents: 'none' }}>
+            {fase === 'explorar' && !jaAndou && !alvo && <div style={{ fontFamily: 'Georgia, serif', color: '#2a1d14', letterSpacing: .5, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 14px)', textAlign: 'center', fontSize: 14, ...PERGAMINHO, borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap', opacity: .9, pointerEvents: 'none' }}>
                 ◀ LADO ESQUERDO: ANDAR{retrato ? <br /> : ' · '}LADO DIREITO: OLHAR ▶
             </div>}
 
@@ -1637,12 +1637,11 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 style={{
                     // na entidade a caixa sobe acima da faixa preta de baixo: o cinemascope fica simétrico
                     position: 'absolute', left: 10, right: 10, bottom: glitch ? 'calc(9vh + 8px)' : 'calc(env(safe-area-inset-bottom) + 12px)', minHeight: 96,
-                    background: glitch ? 'rgba(4,14,8,.93)' : 'linear-gradient(180deg,#efe0bf,#d9c399)', border: `3px solid ${glitch ? '#3dff8a' : '#6b4a2e'}`,
-                    boxShadow: glitch ? '0 0 18px rgba(61,255,138,.35)' : '0 6px 18px rgba(0,0,0,.45), inset 0 0 24px rgba(107,74,46,.35)',
-                    borderRadius: 12, padding: '10px 14px', cursor: 'pointer',
+                    ...(glitch ? { background: 'rgba(4,14,8,.93)', border: '3px solid #3dff8a', boxShadow: '0 0 18px rgba(61,255,138,.35)', borderRadius: 12 } : PERGAMINHO),
+                    padding: '10px 14px', cursor: 'pointer',
                     animation: glitch ? 'f13treme .18s steps(2) infinite' : undefined,
                 }}>
-                <div style={glitch ? { ...t13, fontSize: 13, color: '#3dff8a', marginBottom: 4 } : { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 15, color: '#7a2f1f', letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase' }}>{falas[linha].quem}</div>
+                <div style={glitch ? { ...t13, fontSize: 13, color: '#3dff8a', marginBottom: 4 } : { ...ROTULO_UI, fontSize: 15, marginBottom: 4 }}>{falas[linha].quem}</div>
                 <div style={{ fontFamily: glitch ? 'monospace' : 'Georgia, serif', fontSize: 17, lineHeight: 1.4, color: glitch ? '#b8ffd2' : '#2a1d14' }}>
                     {falas[linha].texto.slice(0, digitado)}{glitch && linha === falas.length - 1 && digitado >= falas[linha].texto.length ? '█' : ''}
                 </div>
@@ -1653,17 +1652,17 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             {menu && fase === 'explorar' && (() => {
                 const e = est.current, ficha = npcPorId(menu.id);
                 const responder = (falas: Fala[]) => { const id = menu.id; setMenu(null); abrirDialogo(falas, id, () => setMenu({ id, citando: false })); };
-                const btn: React.CSSProperties = { fontFamily: 'Georgia, serif', fontSize: 16, color: '#2a1d14', background: 'linear-gradient(180deg,#f3e5c4,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', minHeight: 44, flex: '1 1 150px' };
+                const btn: React.CSSProperties = { ...BOTAO, flex: '1 1 150px' };
                 return <div data-perguntas onPointerDown={(ev) => ev.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 5 }}>
-                    <div style={{ width: 'calc(100% - 20px)', maxWidth: 560, marginBottom: 'calc(env(safe-area-inset-bottom) + 12px)', background: 'rgba(30,20,12,.88)', border: '3px solid #6b4a2e', borderRadius: 12, padding: '10px 12px' }}>
-                        <div style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 13, letterSpacing: 1, color: '#e8c98a', textTransform: 'uppercase', marginBottom: 8 }}>
+                    <div style={{ width: 'calc(100% - 20px)', maxWidth: 560, marginBottom: 'calc(env(safe-area-inset-bottom) + 12px)', ...PERGAMINHO, padding: '10px 12px' }}>
+                        <div style={{ ...ROTULO_UI, fontSize: 13, marginBottom: 8 }}>
                             {menu.citando ? 'Citar o que ouvi' : `Perguntar a ${ficha.nome}`}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             {!menu.citando && assuntosDe(menu.id).map((a) => <button key={a} style={btn} onClick={() => { if (!menuPronto()) return; const r = perguntar(e, menu.id, a); if (r) responder(r.falas); }}>{ROTULO[a]}</button>)}
                             {!menu.citando && citaveis(e).length > 0 && <button style={{ ...btn, background: 'linear-gradient(180deg,#e9cf8f,#c9a13a)' }} onClick={() => menuPronto() && (setMenu({ ...menu, citando: true }))}>citar o que ouvi…</button>}
                             {menu.citando && citaveis(e).map((p) => <button key={p} style={btn} onClick={() => menuPronto() && (responder(citar(e, menu.id, p)))}>{PISTAS[p].nome}</button>)}
-                            <button style={{ ...btn, flex: '0 1 auto', background: 'transparent', color: '#e8c98a', borderColor: '#8a6a45' }} onClick={() => menuPronto() && (menu.citando ? setMenu({ ...menu, citando: false }) : setMenu(null))}>{menu.citando ? 'voltar' : 'chega'}</button>
+                            <button style={{ ...btn, flex: '0 1 auto', background: 'transparent', color: MOLDURA, borderColor: MOLDURA, boxShadow: 'none' }} onClick={() => menuPronto() && (menu.citando ? setMenu({ ...menu, citando: false }) : setMenu(null))}>{menu.citando ? 'voltar' : 'chega'}</button>
                         </div>
                     </div>
                 </div>;

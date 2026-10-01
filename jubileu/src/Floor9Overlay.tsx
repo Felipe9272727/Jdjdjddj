@@ -315,7 +315,7 @@ export const Floor9Overlay: React.FC<{
                                 display: 'inline-block', fontSize: 19, lineHeight: 1,
                                 transform: `rotate(${(target.bearing ?? 0) - 90}deg)`,
                                 transition: 'transform 0.12s linear',
-                            }}>➤</span>
+                            }}>➤︎</span>
                             {OBJ_LABEL[target.kind]} · {target.dist} m
                         </div>
                     )}

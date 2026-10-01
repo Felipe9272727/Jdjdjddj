@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SelosDasPistas } from './f13Selos';
 import type { Pista } from './f13Lore';
+import { PERGAMINHO } from './f13Estilo';
 
 export interface ResumoDoAndar {
     pistas: ReadonlySet<Pista>;
@@ -42,9 +43,9 @@ export const CartaoDeConclusao: React.FC<{ resumo: ResumoDoAndar; aoFim: () => v
                 background: 'radial-gradient(ellipse at 50% 45%, rgba(40,26,14,.82), rgba(5,3,2,.96))', animation: 'f13cc-entra .8s ease-out both' }}>
             <style>{'@keyframes f13cc-entra{from{opacity:0}to{opacity:1}}@keyframes f13cc-sobe{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}'
                 + '@keyframes f13cc-carta{0%{opacity:0;transform:scale(.86) rotate(-2deg)}60%{opacity:1;transform:scale(1.03) rotate(.5deg)}100%{opacity:1;transform:none}}'}</style>
-            <div style={{ width: retrato ? 'calc(100vw - 40px)' : 420, maxWidth: 460, padding: retrato ? '22px 20px' : '26px 28px', borderRadius: 14,
-                background: 'linear-gradient(180deg,#f3e5c4,#d9c399)', border: '3px solid #6b4a2e', boxShadow: '0 12px 40px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,250,235,.5)',
-                fontFamily: 'Georgia, serif', color: '#2a1d14', textAlign: 'center', animation: 'f13cc-carta .7s .2s ease-out both' }}>
+            <div style={{ width: retrato ? 'calc(100vw - 40px)' : 420, maxWidth: 460, padding: retrato ? '22px 20px' : '26px 28px',
+                ...PERGAMINHO, boxShadow: '0 12px 40px rgba(0,0,0,.6), inset 0 0 0 1.5px rgba(255,250,235,.55), inset 0 0 22px rgba(107,74,46,.28)',
+                textAlign: 'center', animation: 'f13cc-carta .7s .2s ease-out both' }}>
                 <div style={{ fontSize: 13, letterSpacing: 4, color: '#7a2f1f', fontWeight: 700 }}>ᚨ ANDAR 13 CONCLUÍDO ᚨ</div>
                 <div style={{ fontSize: retrato ? 30 : 34, fontWeight: 700, margin: '4px 0 2px', letterSpacing: 2 }}>VINDHJEM</div>
                 <div style={{ fontSize: 13, opacity: .75, marginBottom: 12 }}>a vila que flutua nas nuvens deixou você ir</div>
@@ -52,9 +53,9 @@ export const CartaoDeConclusao: React.FC<{ resumo: ResumoDoAndar; aoFim: () => v
                     <SelosDasPistas pistas={mostradas} retrato={false} aberto={false} />
                 </div>
                 <div style={{ fontSize: 15, lineHeight: 1.7 }}>
-                    {linha(2.4, <>ᛞ {mmss(resumo.segundos)} em Vindhjem</>)}
-                    {linha(2.7, <>ᚦ {resumo.portas} {resumo.portas === 1 ? 'porta batida' : 'portas batidas'} · ᚨ {resumo.conversas} {resumo.conversas === 1 ? 'conversa' : 'conversas'}</>)}
-                    {linha(3.0, <>ᛟ {OLHO[Math.max(0, Math.min(3, resumo.olho))]}</>)}
+                    {linha(2.4, <><span style={{ fontSize: 11, letterSpacing: 2, color: "#7a2f1f", fontWeight: 700 }}>TEMPO</span> {mmss(resumo.segundos)}</>)}
+                    {linha(2.7, <><span style={{ fontSize: 11, letterSpacing: 2, color: "#7a2f1f", fontWeight: 700 }}>PORTAS</span> {resumo.portas} {resumo.portas === 1 ? 'porta batida' : 'portas batidas'} · <span style={{ fontSize: 11, letterSpacing: 2, color: "#7a2f1f", fontWeight: 700 }}>CONVERSAS</span> {resumo.conversas} {resumo.conversas === 1 ? 'conversa' : 'conversas'}</>)}
+                    {linha(3.0, <><span style={{ fontSize: 11, letterSpacing: 2, color: "#7a2f1f", fontWeight: 700 }}>O OLHO</span> {OLHO[Math.max(0, Math.min(3, resumo.olho))]}</>)}
                 </div>
                 {linha(3.6, <div style={{ marginTop: 12, fontSize: 13, fontStyle: 'italic', color: '#6b4a2e' }}>
                     {resumo.segredo ? 'Você também viu o outro final. Poucos ficam.' : 'Dizem que há outro jeito de sair de Vindhjem: sentar no banco com o velho Árni… e ficar.'}

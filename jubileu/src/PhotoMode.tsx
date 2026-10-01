@@ -180,7 +180,7 @@ export const PhotoModeButton: React.FC<{ onClick: () => void }> = ({ onClick }) 
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
         }}
-    >📷</button>
+    ><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 012-2h2.5l1.5-2h6l1.5 2H19a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="3.5" /></svg></button>
 );
 
 /** State hook the caller wires to both the rig (in Canvas) and overlay (DOM). */

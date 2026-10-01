@@ -337,7 +337,7 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             {/* ── HUD ── */}
             {phase === 'walk' && (
                 <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 18px)', left: 0, right: 0, textAlign: 'center', fontSize: 22, animation: 'f5pulse 1.2s infinite' }}>
-                    VÁ ATÉ A LARGADA! ➜
+                    VÁ ATÉ A LARGADA! ➜︎
                 </div>
             )}
             {countN !== null && countN <= 3 && (
@@ -376,7 +376,7 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                             )}
                             {phase === 'talk' && typed && f5.talkLine === F5_TALK.length - 1 && (
                                 <button style={{ ...btn64, background: 'linear-gradient(180deg,#58b84d,#3f9638)' }}
-                                    onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>BORA CORRER! 🏁</button>
+                                    onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>BORA CORRER!</button>
                             )}
                             {phase === 'finish' && typed && !isLastFinishLine && (
                                 <button style={btn64} onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>▶</button>
@@ -403,7 +403,7 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
             )}
             {phase === 'finish' && (
                 <div style={{ ...t64, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 16px)', left: 0, right: 0, textAlign: 'center', fontSize: 30, color: f5.winner === 'player' ? '#58ff7a' : '#ff8a7a' }}>
-                    {f5.winner === 'player' ? '🏆 VOCÊ VENCEU!' : 'TROCO-64 VENCEU'}
+                    {f5.winner === 'player' ? 'VOCÊ VENCEU!' : 'TROCO-64 VENCEU'}
                     <div style={{ fontSize: 15, marginTop: 4 }}>VOCÊ {f5.wins.player} × {f5.wins.robot} ROBÔ</div>
                 </div>
             )}
