@@ -44,6 +44,7 @@ import { aoBaterErrado, aoConversar, fixarAtencao, atencao, mudarAtencao } from 
 import { EfeitoChuva } from './f13Chuva';
 import { SaidaDoAndar, CabineDoElevador } from './Floor13Saida';
 import { CarregandoAnimado } from './CarregandoAnimado';
+import { SelosDasPistas } from './f13Selos';
 import {
     NPCS, npcPorId, PISTAS, BUSCAS, ENTIDADE, CASA_CERTA, type FichaNpc, CONEXAO_ENCERRADA, LEGENDAS_DA_QUEDA, CASAS, type Fala, type IdNpc, type Pista,
 } from './f13Lore';
@@ -1558,10 +1559,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 const buscasVisiveis = BUSCAS.filter((b) => e.buscas[b.id] !== 'nova');
                 const aberto = cartaoAberto;
                 return <div style={{ ...t13, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', left: 8, fontSize: retrato ? 12 : 14, lineHeight: 1.25, fontFamily: 'Georgia, serif', color: '#2a1d14', textShadow: 'none', background: 'linear-gradient(180deg,#efe0bf,#d9c399)', border: '2px solid #6b4a2e', borderRadius: 10, padding: retrato ? '4px 8px' : '6px 10px', boxShadow: '0 3px 10px rgba(0,0,0,.35)', pointerEvents: 'none', maxWidth: retrato ? '58vw' : 300, transition: 'opacity .4s', opacity: aberto ? 1 : .8 }}>
-                    <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1 }}>{e.pistas.size >= 3 ? 'ᚨ' : '?'} {e.pistas.size >= 3 ? 'Casa certa achada' : aberto ? 'Ache a casa certa' : 'Ache a casa certa'} · {e.pistas.size}/3 pistas</div>
-                    {aberto && (e.pistas.size === 0 ? <div style={{ opacity: .75 }}>Converse com os moradores</div> : (Object.keys(PISTAS) as Pista[]).map((p) => (
-                        <div key={p} style={{ opacity: e.pistas.has(p) ? 1 : .5 }}>{ICONE_DA_PISTA[p]} {e.pistas.has(p) ? PISTAS[p].nome : 'uma pista a descobrir'}</div>
-                    )))}
+                    {/* as três pistas como selos de lacre que carimbam ao serem achadas (crítico 90) */}
+                    <SelosDasPistas pistas={e.pistas} retrato={retrato} aberto={aberto} />
+                    {aberto && e.pistas.size === 0 && <div style={{ opacity: .75 }}>Converse com os moradores</div>}
                     {buscasVisiveis.some((b) => e.buscas[b.id] !== 'feita' || aberto) && <div style={{ color: '#7a2f1f', fontWeight: 700, letterSpacing: 1, margin: '4px 0 1px' }}>ᛒ BUSCAS</div>}
                     {buscasVisiveis.filter((b) => aberto || e.buscas[b.id] !== 'feita').map((b) => (
                         <div key={b.id} style={{ opacity: e.buscas[b.id] === 'feita' ? .5 : 1, textDecoration: e.buscas[b.id] === 'feita' ? 'line-through' : 'none' }}>
@@ -1585,7 +1585,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 <button onClick={() => { setAceitacao(2); arni.sentado = false; bump(); }} style={{ marginTop: 18, fontFamily: 'Georgia, serif', fontSize: 15, color: '#3a2a1a', background: 'rgba(255,248,236,.7)', border: '1.5px solid #6b4a2e', borderRadius: 999, padding: '8px 18px' }}>continuar olhando</button>
             </div>}
             {aviso && <div style={retrato
-                ? { ...AVISO, top: 'calc(env(safe-area-inset-top) + 56px)', left: 12, right: 12, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }
+                ? { ...AVISO, top: 'calc(env(safe-area-inset-top) + 100px)', left: 12, right: 12, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }
                 : { ...AVISO, top: 'calc(env(safe-area-inset-top) + 8px)', left: 330, right: 16, margin: '0 auto', width: 'fit-content', maxWidth: 'calc(100vw - 346px)' }}>{aviso}</div>}
 
             {/* ── O BOTÃO DE AÇÃO ── */}
