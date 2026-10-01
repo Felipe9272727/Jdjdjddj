@@ -74,7 +74,7 @@ export function Suite() {
   const POSES = [{ r: Math.sin(f * .07) * 1.5, cab: -4 + Math.sin(f * .09) * 4, bE: { a: 6, d: 6 }, bD: { a: 6, d: 6 } },
                  { r: -6, cab: -18, bE: { a: 10, d: 10 }, bD: { a: 40, d: 30, c: 120 } },
                  // curvado sobre ele: a garra POUSA no ombro do hóspede (até ele fugir), depois fica no ar chamando
-                 { r: -12, cab: -26, bD: { a: 14, d: 10 }, bE: f < 112 ? { alvo: ombroHosp, d: -30 } : { a: 95 + Math.sin(f * .45) * 8, d: -30, c: 140 } }];
+                 { r: -12, cab: -26, bD: { a: 14, d: 10 }, bE: f < 112 ? { alvo: ombroHosp, d: -30 } : { a: 105 + Math.sin(f * .45) * 8, d: -30, c: 110 } }];
   const aurelio = { x: aur.x, y: aur.y, esc: aur.esc, resp: Math.sin(f * .12) * .015, olhos: Math.max(fl, degrau === 2 ? .8 : .2), garra: degrau === 2, ...POSES[degrau] };
 
   // ── câmera quase parada: um empurrão lento na tensão, tranco no trovão ──
@@ -131,7 +131,7 @@ export function Suite() {
           <HospedeRig pose={hosp} />
         </Ator>
       </g>
-      <Ator f={f} luz={false}><Fala x={Math.min(Math.max(aur.x + 20, 105 + 230), 1335 - 230)} y={aur.y - 340 * aur.esc - 50} t="VOCÊ TAMBÉM?" w={420} tam={50} cauda={.3} esc={k(f, [[0, 0, 'h'], [108, 0, 'b'], [113, 1, 'h'], [130, 1, 'i'], [134, 0]])} /></Ator>
+      <Ator f={f} luz={false}><Fala x={Math.min(Math.max(aur.x + 20, 105 + 230), 1335 - 230)} y={Math.max(158 + 130, aur.y - 340 * aur.esc + 10)} t="VOCÊ TAMBÉM?" w={360} tam={42} cauda={.3} esc={k(f, [[0, 0, 'h'], [108, 0, 'b'], [113, 1, 'h'], [130, 1, 'i'], [134, 0]])} /></Ator>
       {/* espigões de susto */}
       {susto && (fase === 'susto2' ? [-2, -1, 0, 1, 2] : [-1, 0, 1]).map((i) => <path key={i} d={`M${xW + i * 36},${yW - 330 * escH * sy + pulo}l${i * 18},${fase === 'susto2' ? -64 : -34}`} stroke="#fff3b0" strokeWidth={fase === 'susto2' ? 10 : 7} strokeLinecap="round" />)}
       {/* íris */}
