@@ -81,7 +81,7 @@ export function AurelioRig({ pose, f = 0 }) {
       </g></g>; };
   return (
     <g transform={`translate(${x},${y}) rotate(${r}) scale(${esc * (1 - resp)},${esc * (1 + resp)}) translate(-90,-388)`}>
-      {mao('E', bE)}
+      {!garra && mao('E', bE)}
       {/* sobretudo: ombros em arco, cintura, barra ondulada (balança) */}
       <path d={`M48,150Q90,112,132,150L124,236Q116,250,128,262L142,${370 + Math.sin(f * .2) * 4}Q90,${384 + Math.cos(f * .2) * 6},38,${370 - Math.sin(f * .2) * 4}L52,262Q64,250,56,236Z`} fill="#141b33" stroke={TINTA} strokeWidth="5" strokeLinejoin="round" />
       <path d="M90,150V370" stroke="#0b1022" strokeWidth="4" />
@@ -104,6 +104,7 @@ export function AurelioRig({ pose, f = 0 }) {
         <path d="M60,66Q58,30,90,26Q122,30,120,66Z" fill="#141b33" stroke={TINTA} strokeWidth="5" />
         <path d="M60,58H120" stroke="#3a4766" strokeWidth="6" />
       </g>
+      {garra && mao('E', bE)}
       {mao('D', bD)}
     </g>
   );

@@ -28,7 +28,7 @@ export function andar({ f, f0 = 0, x0, dir = 1, passo = 70, periodo = 8, chao, a
     const apoio = (n) => corpoX(2 * n - desloc + D);              // centrado no meio do apoio
     if (fr < D) { const xa = apoio(ciclo); return { x: xa, y: ch(xa), no: true }; }
     const s = (fr - D) / (1 - D), a0 = apoio(ciclo), a1 = apoio(ciclo + 1);
-    const xx = a0 + (a1 - a0) * suave(s);
+    const xx = a0 + (a1 - a0) * Math.pow(s, .6);   // o pé vai à frente ANTES do pico do arco (não empilha)
     return { x: xx, y: ch(xx) - Math.sin(Math.pow(s, .7) * Math.PI) * altPe, no: false, s };
   };
   const pE = pe(0), pD = pe(1);
