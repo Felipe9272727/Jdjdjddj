@@ -65,6 +65,7 @@ const Floor13PovoDev = lazy(() => import('./floor13-povo-dev.tsx'));
 // ramo morre na compilação e o chunk nem é gerado.
 const CarregandoDev = import.meta.env.DEV ? lazy(() => import('./carregando-dev.tsx')) : null;
 const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
+const ElevadorPreview = lazy(() => import('./ElevadorPreview.tsx'));
 // `?bancada` abre a bancada do cérebro do Nilo: cota do navegador, cronômetro
 // por etapa e erros na tela, sem o jogo em volta. Precisa estar AQUI porque o
 // build publicado emite um único index.html — o floor10.html só existe no dev,
@@ -109,6 +110,7 @@ const isF13 = /[?&]f13\b/.test(search);
 const isF13Povo = /[?&]f13povo\b/.test(search);
 const isCarregando = import.meta.env.DEV && /[?&]carregando\b/.test(search);
 const isF2Preview = search.includes('f2preview');
+const isElevPreview = import.meta.env.DEV && search.includes('elevpreview');
 const isBench = search.includes('bancada');
 const isComparacao = search.includes('comparacao');
 const isMente = search.includes('mente');
@@ -153,6 +155,8 @@ createRoot(document.getElementById('root')!).render(
       <Suspense fallback={null}><Floor10Mente /></Suspense>
     ) : isBench ? (
       <Suspense fallback={null}><Floor10Bench /></Suspense>
+    ) : isElevPreview ? (
+      <Suspense fallback={null}><ElevadorPreview /></Suspense>
     ) : isF2Preview ? (
       <Suspense fallback={null}><Floor2Preview /></Suspense>
     ) : isF3Preview ? (

@@ -1,10 +1,122 @@
-import React, { useRef } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, useGLTF, useTexture } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import { CallPanel } from './BuildingBlocks';
 import * as THREE from 'three';
+import { cabineDecoModel, tetoSolTex, mostradorTex, pisoRosaTex, letreiroTex } from './assets/textureImports';
+
+useGLTF.preload(cabineDecoModel);
+for (const u of [tetoSolTex, mostradorTex, pisoRosaTex, letreiroTex]) useTexture.preload(u);
+// Um material para todas as peças de cada tipo (e para toda montagem da cabine).
+const LATAO = new THREE.MeshStandardMaterial({ color: '#d39a34', metalness: 0.35, roughness: 0.42 });
+const VIDRO = new THREE.MeshBasicMaterial({ color: '#fff3d6', toneMapped: false });
+
+// ── A CABINE ART DÉCO ────────────────────────────────────────────────────────
+// Era uma caixa de madeira com quatro bolachas de luz e um corrimão cinza de
+// caixa. Agora é o elevador de hotel de 1930 que o jogo inteiro sugere:
+//  · latão (corrimão dobrado, pilastras com capitel, moldura do mostrador,
+//    luminária em degraus) modelado no Blender — tools/elevador/cabine.py;
+//  · sol do teto, face do mostrador e rosa do piso desenhados no Manim —
+//    tools/elevador/texturas.py (geometria exata, o que o Manim faz melhor);
+//  · letreiro de lâmpadas em volta do mostrador animado no Remotion —
+//    tools/elevador/remotion (atlas 2x2 de quatro quadros).
+// O mostrador é o mesmo do lado de fora de um prédio velho: o ponteiro anda
+// até o andar atual sempre que o nível muda.
+/** Centro e raio do arco do mostrador (iguais aos de cabine.py). */
+const MOSTRADOR = { y: 2.85, z: 2.86, r: 0.55, lampadas: 0.72 };
+/** Ângulo do andar n no mostrador: 170° no 1, 10° no 13 (igual a texturas.py). */
+export const anguloDoAndar = (n: number) => THREE.MathUtils.degToRad(170 - (THREE.MathUtils.clamp(n, 1, 13) - 1) * 160 / 12);
+
+const Mostrador = ({ level, correndo }: { level: number; correndo: boolean }) => {
+  const [face, atlas] = useTexture([mostradorTex, letreiroTex]);
+  const faceTex = useMemo(() => {
+    const t = face.clone(); t.colorSpace = THREE.SRGBColorSpace;
+    // O semicírculo do PNG tem centro em (512, 793,6) e raio 499 px (1024²): o
+    // CircleGeometry mapeia o quadrado em volta do centro, então só recorta.
+    t.repeat.set(998 / 1024, 998 / 1024); t.offset.set(0.5 - 499 / 1024, (1 - 793.6 / 1024) - 499 / 1024);
+    t.needsUpdate = true; return t;
+  }, [face]);
+  const atlasTex = useMemo(() => {
+    const t = atlas.clone(); t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(0.5, 0.5);
+    // sem mipmap: num atlas sem margem, o mip mistura lâmpadas do quadro vizinho
+    t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+    t.needsUpdate = true; return t;
+  }, [atlas]);
+  useEffect(() => () => { faceTex.dispose(); atlasTex.dispose(); }, [faceTex, atlasTex]);
+  const ponteiro = useRef<THREE.Group>(null);
+  const quadro = useRef(-1);
+  // O ângulo inicial vai só na montagem: uma prop `rotation` seria reaplicada a
+  // cada troca de andar e o ponteiro pularia em vez de andar.
+  useLayoutEffect(() => { if (ponteiro.current) ponteiro.current.rotation.z = anguloDoAndar(level); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useFrame(({ clock }, dtCru) => {
+    const dt = Math.min(dtCru, 0.05); // um engasgo longo no celular não estoura a mola
+    if (ponteiro.current) {
+      const alvo = anguloDoAndar(level);
+      // mola amortecida: chega com uma leve passada, como ponteiro de verdade
+      const g = ponteiro.current as any;
+      g.userData.v = ((g.userData.v ?? 0) + (alvo - g.rotation.z) * 40 * dt) * Math.exp(-7 * dt);
+      g.rotation.z += g.userData.v * dt;
+    }
+    // parado: quadro 0 fixo; andando: o letreiro corre a 8 quadros por segundo
+    const q = correndo ? Math.floor(clock.elapsedTime * 8) % 4 : 0;
+    if (q !== quadro.current) { quadro.current = q; atlasTex.offset.set((q % 2) * 0.5, q < 2 ? 0.5 : 0); }
+  });
+  // O plano do letreiro: 512x288 px com o arco de raio 236 px centrado em (256, 272).
+  const s = MOSTRADOR.lampadas / 236;
+  return (
+    <group position={[0, MOSTRADOR.y, MOSTRADOR.z]} rotation={[0, Math.PI, 0]}>
+      <mesh position={[0, 0, 0.005]}>
+        <circleGeometry args={[MOSTRADOR.r - 0.02, 40, 0, Math.PI]} />
+        <meshBasicMaterial map={faceTex} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, (144 - 272) * -s, 0.012]}>
+        <planeGeometry args={[512 * s, 288 * s]} />
+        <meshBasicMaterial map={atlasTex} transparent depthWrite={false} toneMapped={false} opacity={correndo ? 1 : 0.8} />
+      </mesh>
+      <group ref={ponteiro} position={[0, 0, 0.02]}>
+        <mesh position={[0.21, 0, 0]}><boxGeometry args={[0.42, 0.022, 0.008]} /><meshStandardMaterial color="#141014" roughness={0.5} /></mesh>
+        <mesh position={[0.43, 0, 0]} rotation={[0, 0, Math.PI / 4]}><boxGeometry args={[0.045, 0.045, 0.008]} /><meshStandardMaterial color="#141014" roughness={0.5} /></mesh>
+      </group>
+    </group>
+  );
+};
+
+const CabineDeco = () => {
+  const { scene } = useGLTF(cabineDecoModel);
+  const modelo = useMemo(() => {
+    const m = scene.clone(true);
+    m.traverse((o: any) => {
+      if (!o.isMesh) return;
+      o.castShadow = o.receiveShadow = false;
+      // troca os materiais do GLB pelos do jogo: latão quente e vidro que acende sem bloom
+      // sem envMap, metal alto fica preto onde não reflete a lâmpada: o latão
+      // daqui é meio metal, e o brilho vem da cor
+      o.material = o.material.name === 'vidro' ? VIDRO : LATAO;
+    });
+    return m;
+  }, [scene]);
+  return <primitive object={modelo} />;
+};
+
+const PisoETeto = ({ EH }: { EH: number }) => {
+  const [sol, rosa] = useTexture([tetoSolTex, pisoRosaTex]);
+  useLayoutEffect(() => { for (const t of [sol, rosa]) if (t.colorSpace !== THREE.SRGBColorSpace) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; } }, [sol, rosa]);
+  return (
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
+        <circleGeometry args={[1.55, 48]} /><meshStandardMaterial map={rosa} roughness={0.35} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, EH - 0.01, 0]}>
+        <circleGeometry args={[1.35, 48]} /><meshStandardMaterial map={sol} roughness={0.6} />
+      </mesh>
+    </>
+  );
+};
+
+/** Bronze escovado: a porta de um elevador de 1930, não a chapa cinza de agora. */
+const PORTA_BRONZE = '#9a7546';
 
 export const ElevatorDoors = React.memo(({ closed }: { closed: boolean }) => {
   const leftRef = useRef<any>(null); const rightRef = useRef<any>(null);
@@ -15,8 +127,8 @@ export const ElevatorDoors = React.memo(({ closed }: { closed: boolean }) => {
   });
   return (
       <group position={[0, 2.0, 2.92]}>
-          <group ref={leftRef} position={[-2.3, 0, 0]}><mesh><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color="#B0BEC5" metalness={0.2} roughness={0.3} /></mesh></group>
-          <group ref={rightRef} position={[2.3, 0, 0]}><mesh><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color="#B0BEC5" metalness={0.2} roughness={0.3} /></mesh></group>
+          <group ref={leftRef} position={[-2.3, 0, 0]}><mesh><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color={PORTA_BRONZE} metalness={0.4} roughness={0.38} /></mesh></group>
+          <group ref={rightRef} position={[2.3, 0, 0]}><mesh><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color={PORTA_BRONZE} metalness={0.4} roughness={0.38} /></mesh></group>
       </group>
   );
 });
@@ -53,29 +165,14 @@ export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: { tim
       <group position={[0, 0, EZ]}>
           <pointLight position={[0, 3.5, 0]} intensity={fi} distance={15} color="#FFF3E0" decay={1} />
           <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.02, 0]}><planeGeometry args={[EW, ED]} /><meshStandardMaterial color={COLORS.elevFloor} roughness={0.3} metalness={0.05} /></mesh>
-          <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.023, 0]}>
-              <planeGeometry args={[3.2, 3.2]} />
-              <meshStandardMaterial color={COLORS.elevDiamond} roughness={0.4} metalness={0.1} />
-          </mesh>
-          <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.024, 0]}>
-              <planeGeometry args={[2.7, 2.7]} />
-              <meshStandardMaterial color={COLORS.elevFloor} roughness={0.3} metalness={0.05} />
-          </mesh>
-          <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.025, 0]}>
-              <planeGeometry args={[0.8, 0.8]} />
-              <meshStandardMaterial color={COLORS.elevDiamond} roughness={0.4} metalness={0.1} />
-          </mesh>
-          <mesh position={[-EW/2+0.15, 1.0, 0]}><boxGeometry args={[0.05, 0.05, ED-0.5]} /><meshStandardMaterial color="#9E9E9E" metalness={0.6} roughness={0.2} /></mesh>
-          <mesh position={[EW/2-0.15, 1.0, 0]}><boxGeometry args={[0.05, 0.05, ED-0.5]} /><meshStandardMaterial color="#9E9E9E" metalness={0.6} roughness={0.2} /></mesh>
-          <mesh position={[0, 1.0, -ED/2+0.15]}><boxGeometry args={[EW-0.5, 0.05, 0.05]} /><meshStandardMaterial color="#9E9E9E" metalness={0.6} roughness={0.2} /></mesh>
+          {/* a decoração carrega sozinha: enquanto chega, a cabine continua de pé */}
+          <Suspense fallback={null}>
+              <PisoETeto EH={EH} />
+              <CabineDeco />
+              <Mostrador level={level} correndo={doorsClosed} />
+          </Suspense>
           <group position={[0, EH, 0]}>
               <mesh rotation={[Math.PI/2, 0, 0]}><planeGeometry args={[EW, ED]} /><TextureMaterial url={ASSETS.wood} color="#5D4037" repeat={[3, 3]} roughness={0.8} /></mesh>
-              {[[-2,-2],[2,-2],[-2,2],[2,2]].map((p,i) => (
-                  <mesh key={i} position={[p[0], -0.05, p[1]]} rotation={[Math.PI/2, 0, 0]}>
-                      <circleGeometry args={[0.22, 16]} />
-                      <meshBasicMaterial color="#FFF9C4" toneMapped={false} />
-                  </mesh>
-              ))}
           </group>
           <group position={[0, EH/2, -ED/2+0.05]}>
               <mesh><boxGeometry args={[EW, EH, 0.1]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[2, 2]} rotation={Math.PI/2} roughness={0.8} /></mesh>
@@ -114,9 +211,9 @@ export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: { tim
               </group>
           </group>
           <group position={[0, 0, ED/2]}>
-              <mesh position={[-(EW+OW)/4, EH/2, 0]}><boxGeometry args={[(EW-OW)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
-              <mesh position={[(EW+OW)/4, EH/2, 0]}><boxGeometry args={[(EW-OW)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
-              <mesh position={[0, EH-(EH-2.6)/2, 0]}><boxGeometry args={[OW, EH-2.6, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
+              <mesh position={[-(EW+OW)/4, EH/2, 0]}><boxGeometry args={[(EW-OW)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
+              <mesh position={[(EW+OW)/4, EH/2, 0]}><boxGeometry args={[(EW-OW)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
+              <mesh position={[0, EH-(EH-2.6)/2, 0]}><boxGeometry args={[OW, EH-2.6, 0.2]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
           </group>
           <ElevatorDoors closed={doorsClosed} />
       </group>

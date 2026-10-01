@@ -78,3 +78,10 @@ export { default as diabreteModel }      from './models/diabrete.glb';       // 
 export { default as glovesModel }        from './models/cartoon_gloves.glb'; // Floor 3 hands
 export { default as sharkModel }         from './models/monster/shark.glb';  // Floor 2 monster fish
 export { default as elevadorQuebradoModel } from './models/elevadorQuebrado.glb'; // Floor 9 — cab enferrujado/coberto de vinhas (Blender/bpy headless)
+// Cabine art déco: latão modelado no Blender (tools/elevador/cabine.py), texturas no Manim
+// (tools/elevador/texturas.py) e o letreiro de lâmpadas no Remotion (tools/elevador/remotion).
+export { default as cabineDecoModel } from './models/cabineDeco.glb';
+export { default as tetoSolTex } from './elevador/teto-sol.png';
+export { default as mostradorTex } from './elevador/mostrador.png';
+export { default as pisoRosaTex } from './elevador/piso-rosa.png';
+export { default as letreiroTex } from './elevador/letreiro.png';
