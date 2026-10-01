@@ -1,33 +1,40 @@
-// CICLO DE CAMINHADA COM O PÉ PLANTADO. O defeito que deixava o andar "estranho": o corpo deslizava em
-// velocidade constante e as pernas só balançavam, então o pé patinava no chão. Aqui cada pé fica
-// PARADO no chão (em coordenadas do mundo) durante o apoio, e durante o balanço faz um arco até o
-// próximo apoio. O corpo desce no contato e sobe na passagem (o "up/down" clássico), e os braços
-// balançam em oposição às pernas.
+// CICLO DE CAMINHADA COM O PÉ PLANTADO (refeito pelo plano da crítica do Opus).
+//  · cada pé fica PARADO no chão do mundo durante o apoio; o apoio dura `D` do ciclo (>.5 = há apoio
+//    duplo: os dois pés no chão um instante, o que dá PESO — 50/50 deixava o andar flutuando);
+//  · no balanço o pé sobe cedo e alto e estica (arco com pico antecipado), e pousa no próximo apoio;
+//  · o corpo avança em SURTOS: segura ~1/4 do passo no contato e depois vai (o "sneak" de 1930) —
+//    `surto: 0` volta à velocidade constante (corrida);
+//  · cada apoio é centrado no meio do intervalo em que o corpo passa por cima dele;
+//  · pernas de PERFIL (os dois pés na mesma linha, `separa` 0): tronco de frente, pernas de lado, como
+//    em Bosko e no Mickey dos anos 30 — o par contra o tronco lê como profundidade, não como tesoura.
+const suave = (s) => s * s * (3 - 2 * s);
 /**
- * andar({ f, f0, x0, dir, passo, periodo, chao, altPe, quique, larguraPes })
- *   f: quadro atual · f0: quadro em que começa a andar · x0: x do corpo em f0 · dir: +1 direita, -1 esquerda
- *   passo: distância de um passo (px do mundo) · periodo: quadros por passo · chao: y do chão
- * Devolve { x, bob, peE, peD, bracoE, bracoD, fase } — pés em coordenadas do mundo; braços em graus.
+ * andar({ f, f0, x0, dir, passo, periodo, chao, altPe, quique, D, surto, separa })
+ * Devolve { x, bob, peE, peD, noE, noD, bracoE, bracoD, t } — pés em coordenadas do mundo.
  */
-export function andar({ f, f0 = 0, x0, dir = 1, passo = 70, periodo = 8, chao, altPe = 26, quique = 10, separa = 40 }) {
-  const t = Math.max(0, f - f0) / periodo;              // passos dados (contínuo)
-  const x = x0 + dir * passo * t;                        // o corpo avança sem parar
+export function andar({ f, f0 = 0, x0, dir = 1, passo = 70, periodo = 8, chao, altPe = 26, quique = 10, D = .62, surto = .25, separa = 0 }) {
+  const corpoX = (tt) => {
+    if (tt <= 0) return x0;
+    const n = Math.floor(tt), q = tt - n;
+    const ava = surto > 0 ? (q < surto ? 0 : suave((q - surto) / (1 - surto))) : q;
+    return x0 + dir * passo * (n + ava);
+  };
+  const t = Math.max(0, f - f0) / periodo;
+  const x = corpoX(t);
+  const ch = (xx) => (typeof chao === 'function' ? chao(xx) : chao);
   const pe = (desloc) => {
-    // cada pé: apoio por 1 período, balanço por 1 período (ciclo de 2 passos)
+    // ciclo de 2 passos; o apoio do ciclo n vai de t = 2n − desloc até 2n − desloc + 2D
     const u = (t + desloc) / 2, ciclo = Math.floor(u), fr = u - ciclo;
-    // apoio CENTRADO sob o corpo: o pé planta meio passo à frente e o corpo passa por cima dele até meio passo
-    // atrás (o pé nunca fica todo à frente — com personagem de frente, é isso que impede as pernas de cruzarem)
-    const xApoio = (n) => x0 + dir * passo * (2 * n - desloc + .5);
-    const ch = (xx) => typeof chao === 'function' ? chao(xx) : chao;
-    if (fr < .5) return { x: xApoio(ciclo), y: ch(xApoio(ciclo)), no: true };                   // plantado
-    const s = (fr - .5) * 2, ease = s * s * (3 - 2 * s);                           // balanço suave
-    const xx = xApoio(ciclo) + dir * passo * 2 * ease;
-    return { x: xx, y: ch(xx) - Math.sin(s * Math.PI) * altPe, no: false };
+    const apoio = (n) => corpoX(2 * n - desloc + D);              // centrado no meio do apoio
+    if (fr < D) { const xa = apoio(ciclo); return { x: xa, y: ch(xa), no: true }; }
+    const s = (fr - D) / (1 - D), a0 = apoio(ciclo), a1 = apoio(ciclo + 1);
+    const xx = a0 + (a1 - a0) * suave(s);
+    return { x: xx, y: ch(xx) - Math.sin(Math.pow(s, .7) * Math.PI) * altPe, no: false, s };
   };
   const pE = pe(0), pD = pe(1);
-  const fase = (t % 1);
-  const bob = -Math.abs(Math.sin(fase * Math.PI)) * quique;   // contato embaixo, passagem em cima
+  const q = t % 1;
+  const bob = -Math.sin(q * Math.PI) * quique;                     // o mais baixo no contato
   const balanco = Math.sin(t * Math.PI) * 28;
-  // os pés ficam cada um do seu lado do corpo (esquerdo à esquerda da tela, direito à direita)
-  return { x, bob, peE: [pE.x - separa / 2, pE.y], peD: [pD.x + separa / 2, pD.y], noE: pE.no, noD: pD.no, bracoE: balanco * dir, bracoD: balanco * dir, t };
+  return { x, bob, peE: [pE.x - separa / 2, pE.y], peD: [pD.x + separa / 2, pD.y], noE: pE.no, noD: pD.no, sE: pE.s ?? 0, sD: pD.s ?? 0,
+    bracoE: balanco * dir, bracoD: balanco * dir, t };
 }

@@ -8,10 +8,10 @@ const TINTA = '#05060a';
 /** Ponto na ponta de um membro: ombro/quadril + ângulo (0 = para baixo; + = para fora do corpo). */
 const ponta = ([x, y], lado, a, c) => { const s = lado === 'E' ? -1 : 1, t = rad(a * s); return [x + Math.sin(t) * c, y + Math.cos(t) * c]; };
 const Mao = ({ p, r = 12, cor }) => <circle cx={p[0]} cy={p[1]} r={r} fill={cor} stroke={TINTA} strokeWidth="5" />;
-/** Sapato; `giro` levanta o CALCANHAR girando em volta da PONTA (ponta dos pés de verdade). */
-const Sapato = ({ p, lado, giro = 0, cor = '#2a2118', w = 34 }) =>
-  <g transform={`translate(${p[0]},${p[1]}) scale(${lado === 'E' ? -1 : 1},1) rotate(${-giro} ${w + 2} 6)`} stroke={TINTA} strokeWidth="5" strokeLinejoin="round">
-    {/* sapato grande de cartum: salto atrás, bico redondo na frente, brilho */}
+/** Sapato de cartum; aponta para `dir` (para onde ele anda). `giro` > 0 abaixa o BICO = ergue o calcanhar, girando
+ *  no TORNOZELO (quem chama compensa a altura para a ponta continuar no chão). */
+const Sapato = ({ p, dir = 1, giro = 0, cor = '#2a2118', w = 34 }) =>
+  <g transform={`translate(${p[0]},${p[1]}) scale(${dir},1) rotate(${giro})`} stroke={TINTA} strokeWidth="5" strokeLinejoin="round">
     <path d={`M-12,-10Q-16,8,0,9H${w}Q${w + 14},8,${w + 10},-6Q${w + 2},-16,14,-14Q-2,-18,-12,-10Z`} fill={cor} />
     <path d={`M-12,4H6`} stroke={TINTA} strokeWidth="4" />
     <ellipse cx={w - 4} cy="-6" rx="8" ry="3" fill="#fff" fillOpacity=".3" stroke="none" />
@@ -22,20 +22,27 @@ const Sapato = ({ p, lado, giro = 0, cor = '#2a2118', w = 34 }) =>
  * pose: { x, y, esc, sx, sy, r, cab, cara: 'cauto'|'medo'|'susto', bE, bD: {a, d, c}, pE, pD: {a, d, giro}, ponta (calcanhar erguido 0..1), suor }
  */
 export function HospedeRig({ pose }) {
-  const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'cauto', bE = { a: 10 }, bD = { a: 10 }, pE = { a: 0 }, pD = { a: 0 }, suor = false } = pose;
-  const ombro = { E: [52, 114], D: [108, 114] }, quad = { E: [66, 198], D: [94, 198] };
+  const { x, y, esc = 1, sx = 1, sy = 1, r = 0, cab = 0, cara = 'cauto', bE = { a: 10 }, bD = { a: 10 }, pE = { a: 0 }, pD = { a: 0 }, suor = false, dir = 1, maosNaFrente = false, perfil = false } = pose;
+  const ombro = { E: [52, 114], D: [108, 114] };
+  // pernas de PERFIL quando anda (os dois quadris juntos); de frente, afastados
+  const quad = perfil ? { E: [76, 198], D: [84, 198] } : { E: [66, 198], D: [94, 198] };
   // mundo → local (para pé plantado no chão do mundo)
   const local = ([wx, wy]) => { const dx = wx - x, dy = wy - y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
     return [80 + cx / (esc * sx), 290 + cy / (esc * sy)]; };
-  const perna = (l, p) => { const q = quad[l], f = p.alvo ? local([p.alvo[0], p.alvo[1] - 4]) : ponta(q, l, p.a ?? 0, p.c ?? 84);
-    return <g key={l}><Mangueira de={q} ate={f} dobra={(p.d ?? 4) * (l === 'E' ? -1 : 1)} larg={20} cor={l === 'E' ? '#3e6b4a' : '#335a3e'} />
-      <Sapato p={[f[0], f[1] + 4]} lado={l} giro={p.giro ?? 0} /></g>; };
+  // a perna do lado de lá (longe da câmera, em perfil) é mais escura e vai atrás
+  const longe = dir > 0 ? 'E' : 'D';
+  const perna = (l, p) => {
+    const q = quad[l], g = p.giro ?? 0;
+    const f = p.alvo ? local([p.alvo[0], p.alvo[1] - 36 * esc * Math.sin(rad(g)) - 4]) : ponta(q, l, p.a ?? 0, p.c ?? 84);
+    const dob = perfil ? -dir * Math.abs(p.d ?? 16) : (p.d ?? 4) * (l === 'E' ? -1 : 1);   // joelhos para a frente
+    return <g key={l}><Mangueira de={q} ate={f} dobra={dob} larg={20} cor={perfil && l === longe ? '#2c4a33' : l === 'E' ? '#3e6b4a' : '#335a3e'} />
+      <Sapato p={[f[0], f[1] + 4]} dir={perfil ? dir : l === 'E' ? -1 : 1} giro={g} /></g>; };
   const braco = (l, b) => { const o = ombro[l], m = ponta(o, l, b.a ?? 10, b.c ?? 78);
     return <g key={l}><Mangueira de={o} ate={m} dobra={(b.d ?? 10) * (l === 'E' ? 1 : -1)} larg={19} cor={l === 'E' ? '#3f68a8' : '#4e7cc4'} /><Mao p={m} cor="#e8c49a" /></g>; };
   return (
     <g transform={`translate(${x},${y}) rotate(${r}) scale(${esc * sx},${esc * sy}) translate(-80,-290)`}>
-      {perna('E', pE)}{perna('D', pD)}
-      {braco('E', bE)}
+      {perna(longe, longe === 'E' ? pE : pD)}{perna(longe === 'E' ? 'D' : 'E', longe === 'E' ? pD : pE)}
+      {!maosNaFrente && braco('E', bE)}
       <g>{Hospede.corpo}</g>
       <g transform={`rotate(${cab} 80 96)`}>
         {Hospede.cabeca}
@@ -44,12 +51,13 @@ export function HospedeRig({ pose }) {
           <rect x="60" y="80" width="40" height="12" fill="#e8b48a" />
           {cara === 'medo'
             ? <g stroke={TINTA} strokeLinecap="round"><circle cx="68" cy="65" r="7" fill="#fff" strokeWidth="3" /><circle cx="92" cy="65" r="7" fill="#fff" strokeWidth="3" />
-                <circle cx="69" cy="66" r="3" fill={TINTA} stroke="none" /><circle cx="93" cy="66" r="3" fill={TINTA} stroke="none" />
+                <circle cx={69 + 4 * dir} cy="66" r="3" fill={TINTA} stroke="none" /><circle cx={93 + 4 * dir} cy="66" r="3" fill={TINTA} stroke="none" />
                 <path d="M68,88q4,-4,8,0t8,0t8,0" fill="none" strokeWidth="3.5" /><path d="M58,54L74,58M102,54L86,58" strokeWidth="3.5" /></g>
             : <g stroke={TINTA} strokeLinecap="round">{Hospede.olhos}<path d="M72,88H88" strokeWidth="3.5" /><path d="M60,56L74,54M100,56L86,54" strokeWidth="3.5" /></g>}
         </>}
         {suor && Hospede.suor}
       </g>
+      {maosNaFrente && braco('E', bE)}
       {braco('D', bD)}
     </g>
   );
@@ -62,7 +70,9 @@ export function HospedeRig({ pose }) {
 export function AurelioRig({ pose, f = 0 }) {
   const { x, y, esc = 1, r = 0, cab = 0, bD = { a: 6 }, bE = { a: 6 }, olhos = 0, resp = 0, garra = false } = pose;
   const ombro = { E: [62, 140], D: [118, 140] };
-  const mao = (l, b) => { const o = ombro[l], m = ponta(o, l, b.a ?? 6, b.c ?? 130), ang = Math.atan2(m[0] - o[0], -(m[1] - o[1])) * 180 / Math.PI;
+  const local = ([wx, wy]) => { const dx = wx - x, dy = wy - y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
+    return [90 + cx / (esc * (1 - resp)), 388 + cy / (esc * (1 + resp))]; };
+  const mao = (l, b) => { const o = ombro[l], m = b.alvo ? local(b.alvo) : ponta(o, l, b.a ?? 6, b.c ?? 130), ang = Math.atan2(m[0] - o[0], -(m[1] - o[1])) * 180 / Math.PI;
     return <g key={l}><Mangueira de={o} ate={m} dobra={(b.d ?? 8) * (l === 'E' ? 1 : -1)} larg={24} cor="#1b2440" />
       <g transform={`translate(${m[0]},${m[1]}) rotate(${ang + 180})`} stroke={TINTA} strokeWidth="4" strokeLinejoin="round" fill="#d9d9d2">
         {[-12, -4, 4, 12].map((dx, i) => <path key={i} d={garra && l === 'E' ? `M${dx},4Q${dx * 1.6},${26 + (i % 2) * 4},${dx * .6 - 8},${30 + (i % 2) * 6}` : `M${dx},4Q${dx * 1.4},${30 + (i % 2) * 6},${dx * 1.2},${36 + (i % 2) * 8}`} fill="none" stroke={TINTA} strokeWidth="11" strokeLinecap="round" />)}
