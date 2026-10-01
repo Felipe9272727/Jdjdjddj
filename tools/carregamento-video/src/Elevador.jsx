@@ -123,8 +123,9 @@ export function Elevador() {
   // ── portas: 0 fechadas … 1 abertas ──
   const abre = k(f, [[0, 0, 'h'], [20, 0, 'o'], [23, -.04, 'x'], [31, 1, 'h'], [72, 1, 'xi'], [76, 0, 'o'], [79, .03, 'io'], [82, 0, 'h'], [104, 0, 'x'], [108, 1, 'h'], [112, 1, 'xi'], [116, 0, 'o'], [119, -.05, 'e'], [130, 0]]);
   const fresta = (LARG / 2) * Math.max(0, abre) * .92;
-  const ponteiro = k(f, [[0, -80, 'h'], [2, -80, 'b'], [17, 80, 'h'], [117, 80, 'i'], [128, -95, 'e'], [143, -80]]);
-  const lampada = f >= 17 && f < 40 && Math.floor(f / 3) % 2 === 0 ? 1 : f >= 17 && f < 40 ? .6 : 0;
+  const tremeP = f >= 10 && f < 20 ? Math.sin(f * 3.3) * 2 : 0;   // a porta treme: algo vem aí
+  const ponteiro = k(f, [[0, -80, 'h'], [2, -80, 'i'], [17, 80, 'b'], [20, 80, 'h'], [117, 80, 'i'], [128, -95, 'e'], [143, -80]]);
+  const lampada = (f >= 12 && f < 14) || (f >= 16 && f < 17) ? .8 : f >= 17 && f < 40 && Math.floor(f / 3) % 2 === 0 ? 1 : f >= 17 && f < 40 ? .6 : 0;
 
   // ── o TROCO-64 ──
   const fora = f >= 40 && f < 110;
@@ -216,14 +217,14 @@ export function Elevador() {
           <Cabine luz={Math.max(0, abre)} />
           {!fora && abre > .05 && <g clipPath="url(#vao)" filter={`url(#ferve${ferve})`}>{robo}</g>}
           <g clipPath="url(#vao)">
-            <g transform={`translate(${-fresta},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
-            <g transform={`translate(${fresta},0)`}><Porta x0={CX} larg={LARG / 2} /></g>
+            <g transform={`translate(${-fresta + tremeP},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
+            <g transform={`translate(${fresta + tremeP},0)`}><Porta x0={CX} larg={LARG / 2} /></g>
           </g>
           <Moldura ponteiro={ponteiro} lampada={lampada} />
           {fora && <ellipse cx={x} cy={716} rx={80 * esc * (1 - arco / 300)} ry={16} fill="#1a0408" opacity=".55" filter="url(#sombraMole)" />}
           {roda && <g>{/* a roda de pernas: elipse de movimento, pés-fantasma, poeira e riscos de derrapagem */}
-            {(() => { const c = paraMundo([100, 238]); return <ellipse cx={c[0]} cy={c[1]} rx={58 * esc} ry={34 * esc} transform={`rotate(${r} ${c[0]} ${c[1]})`} fill="none" stroke={K} strokeOpacity=".6" strokeWidth="7" strokeDasharray="22 12" strokeDashoffset={-f * 14} />; })()}
-            {[.5, 1.5].map((q) => { const p = peRoda(phi + q * Math.PI); return <ellipse key={q} cx={p[0]} cy={p[1]} rx="24" ry="12" fill={K} opacity=".45" />; })}
+            {[0, 1, 2].map((i) => { const c = paraMundo([100, 238]), a0 = phi * 180 / Math.PI + i * 120;
+              return <path key={i} transform={`translate(${c[0]},${c[1]}) rotate(${r}) scale(${58 * esc},${34 * esc}) rotate(${a0})`} d="M1,0A1,1,0,0,1,-.5,.866" fill="none" stroke="#fff" strokeOpacity=".7" strokeWidth="6" vectorEffect="non-scaling-stroke" strokeLinecap="round" />; })}
             {[0, 1, 2].map((i) => { const t = ((f - 82 + i * 2) % 6) / 6, b = paraMundo([60, 262]); return <circle key={i} cx={b[0] - t * 60 - i * 10} cy={716 - t * 26} r={10 + t * 12} fill="#f1e6cc" stroke={K} strokeWidth="3" opacity={(1 - t) * .8} />; })}
           </g>}
           {(roda || finca) && [0, 1].map((i) => <path key={i} d={`M${x - 150 - i * 40},${720 + i * 10}h${90 - i * 20}`} stroke={K} strokeOpacity=".5" strokeWidth="5" strokeLinecap="round" />)}
@@ -235,7 +236,7 @@ export function Elevador() {
           <Estouro x={CX - 40} y={380} t="SLAM!" cor="#ffb347" giro={-10} esc={k(f, [[0, 0, 'h'], [75, 0, 'b'], [79, .8, 'h'], [86, .8, 'i'], [89, 0]])} />
           <Estouro x={CX + 60} y={330} t="BONK!" cor="#9af6ff" giro={10} esc={k(f, [[0, 0, 'h'], [116, 0, 'b'], [121, 1, 'h'], [132, 1, 'i'], [136, 0]])} />
           {/* riscos de velocidade no arremesso */}
-          {f >= 104 && f < 111 && [0, 1, 2, 3].map((i) => <path key={i} d={`M${x + 120},${yBase - 230 + i * 45}h${160 + i * 30}`} stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".85" />)}
+          {f >= 104 && f < 111 && [0, 1, 2, 3].map((i) => <path key={i} d={`M${x + 190},${yBase - 230 + i * 45}h${160 + i * 30}`} stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".85" />)}
         </g>
         <PrimeiroPlano px={(800 - cx) * .35} />
         <rect width="1600" height="760" fill="url(#vinheta)" />

@@ -55,7 +55,7 @@ export function Briga() {
 
   // ── atendente: DING no começo e no fim do round ──
   const ding = (t0) => k(f, [[t0 - 4, 0, 'o'], [t0, -70, 'xi'], [t0 + 2, 10, 'b'], [t0 + 10, 0]]);
-  const at = { x: 1330, y: PE + 10, esc: .78, braco: f < 60 ? ding(4) : ding(118), sino: Math.max(0, 1 - Math.abs(f - 6) / 3) + Math.max(0, 1 - Math.abs(f - 120) / 3),
+  const at = { x: 1330, y: PE + 10 + k(f, [[0, 0], [86, 0, 'o'], [88, 70, 'x'], [99, 70, 'h'], [103, 0, 'b']]), esc: .78, braco: f < 60 ? ding(4) : ding(118), sino: Math.max(0, 1 - Math.abs(f - 6) / 3) + Math.max(0, 1 - Math.abs(f - 120) / 3),
     cab: k(f, [[0, 0], [30, -6], [56, -12, 'b'], [70, -4], [100, 8, 'b'], [124, 0]]), cara: f >= 56 && f < 66 ? 's' : f >= 100 && f < 112 ? 's' : 'n',
     corpoY: f >= 56 && f < 64 ? -6 : f >= 100 && f < 108 ? -8 : 0 };
 
@@ -85,7 +85,7 @@ export function Briga() {
       {f >= 40 && f < 46 && <path d="M860,420Q780,520,850,620" fill="none" stroke="#fff" strokeWidth="12" strokeLinecap="round" opacity=".85" />}
       <Estouro x={1330} y={460} t="DING!" cor="#ffe14a" giro={6} tam={46} esc={k(f, [[0, 0, 'b'], [6, .9, 'h'], [16, .9, 'i'], [20, 0, 'h'], [117, 0, 'b'], [121, .9, 'h'], [132, .9, 'i'], [136, 0]])} />
       <Estouro x={980} y={300} t="CLANG!" cor="#fff3b0" giro={-8} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [59, 1, 'h'], [68, 1, 'i'], [72, 0]])} />
-      <Estouro x={gx - 40} y={PE - 300} t="THUD!" cor="#ffb347" giro={8} esc={k(f, [[0, 0, 'h'], [98, 0, 'b'], [102, 1, 'h'], [111, 1, 'i'], [115, 0]])} />
+      <Estouro x={gx - 10} y={PE - 330} t="THUD!" cor="#ffb347" giro={8} esc={k(f, [[0, 0, 'h'], [98, 0, 'b'], [102, 1, 'h'], [111, 1, 'i'], [115, 0]])} />
     </Palco>
   );
 }
