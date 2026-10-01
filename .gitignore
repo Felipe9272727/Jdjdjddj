@@ -26,3 +26,4 @@ critica-*.md
 
 # worktrees dos subagentes usam um link para node_modules: não versionar
 node_modules
+videos-carregamento/
