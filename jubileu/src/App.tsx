@@ -3,7 +3,7 @@ import { createFloor2Run, collectFloor2Shard, catchFloor2Player, FLOOR2_ENRAGE_A
 import Floor10Desfecho from './Floor10Desfecho';
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
+import { Html, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette, HueSaturation, Sepia, BrightnessContrast, Noise } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
@@ -64,6 +64,7 @@ import Floor5Race3D from './Floor5Race3D';
 import Floor12 from './Floor12';
 import Floor13 from './Floor13';
 import { CarregandoAnimado } from './CarregandoAnimado';
+import { useCarregandoAndar, SinalDeAndarPronto } from './CarregandoAndar';
 import './CarregandoCenas';
 import './CarregandoAndares';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
@@ -351,7 +352,8 @@ export default function App() {
   }, []);
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
-  const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [currentLevel, setCurrentLevel] = useState(0);
+  const carregandoAndar = useCarregandoAndar(currentLevel, currentLevel === 13); const [overlayOpacity, setOverlayOpacity] = useState(0);
   // Creator variants are prepared synchronously inside handleStartGame. Keep
   // the pending variant across the currentLevel render so the normal Floor 8
   // arrival effect does not immediately erase a direct YOURSELF jump.
@@ -2424,6 +2426,7 @@ export default function App() {
         )}
         {/* Photo mode — path-traces the frozen view when active (inert otherwise). */}
         <PhotoModeRig active={photo.progress.active} onSample={photo.onSample} onFailed={photo.onFailed} />
+        <SinalDeAndarPronto nivel={currentLevel} />
       </Canvas>
       </CanvasErrorBoundary>
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
@@ -2450,7 +2453,8 @@ export default function App() {
       {/* The 2.5D Floor 8 owns its own opaque loading/cinematic surface. The
           global drei loader also tracks unrelated hotel textures and could sit
           over the YOURSELF reveal while one of those remote files timed out. */}
-      {!f8InImage && <Loader />}
+      {/* a tela de carregamento padrão: toda troca de andar (o 13 tem a sua, com a queda) */}
+      <CarregandoAnimado visivel={carregandoAndar} rotulo={currentLevel === 0 ? 'Carregando o saguão…' : `Carregando o Andar ${currentLevel}…`} />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       {hasStarted && (
         <InventoryHUD
