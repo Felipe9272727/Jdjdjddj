@@ -1316,8 +1316,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 return;
             }
             const primeiraVez = !e.casasBatidas.has(a.i);
-            if (e.casasBatidas.size === 0) window.setTimeout(() => setAviso('Dica: bata de novo na mesma porta para escutar o que tem lá dentro.'), 5200);
+            const primeiraBatida = e.casasBatidas.size === 0;
             const r = baterNaCasa(e, a.i);
+            // a dica de escutar só faz sentido numa porta que não abriu (na certa, a saída já começou)
+            if (primeiraBatida && !r.certa) window.setTimeout(() => { if (!portaAlvo.current) setAviso('Dica: bata de novo na mesma porta para escutar o que tem lá dentro.'); }, 5200);
             if (!r.certa) aoBaterErrado(primeiraVez, a.i === CASA_CERTA);
             if (r.certa) {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
