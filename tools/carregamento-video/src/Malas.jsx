@@ -25,19 +25,19 @@ export function Malas() {
   // ── segurança: marcha de tambor-mor para a esquerda, pisa na casca (f50), take, chute para cima, fica
   //    pendurado no ar pedalando, cai seco (THUD f66), desliza de costas; levanta, cambaleia e sai em disparada ──
   const e = (a, b) => Math.min(1, Math.max(0, (f - a) / (b - a)));
-  const gx = k(f, [[0, 1140, 'l'], [50, 820, 'h'], [52, 820, 'o'], [58, 790, 'l'], [66, 600, 'i'], [68, 600, 'x'], [74, 420, 'o'], [104, 420, 'io'], [117, 480]]);
+  const gx = k(f, [[0, 1140, 'l'], [50, 820, 'h'], [52, 820, 'o'], [56, 790, 'o'], [63, 775, 'l'], [66, 640, 'i'], [68, 600, 'x'], [74, 420, 'o'], [100, 420, 'io'], [112, 520, 'h'], [117, 520]]);
   const take = f >= 50 && f < 52, chute = f >= 52 && f < 56, voa = f >= 56 && f < 66, eC = e(52, 56);
   const pend = k(f, [[0, 0], [52, 0, 'o'], [56, 60, 'x'], [58, 160, 'h'], [63, 160, 'xi'], [66, 0]]);
   const gR = k(f, [[0, 0], [52, 0, 'o'], [56, 80, 'o'], [63, 86, 'i'], [66, 95, 'b'], [70, 90, 'h'], [100, 90, 'io'], [106, 62, 'o'], [111, -12, 'b'], [117, 0]]);
   const gSy = k(f, [[0, 1], [65, 1, 'l'], [66, .7, 'b'], [74, 1]]);
   const GI = { f0: 0, x0: 1140, dir: -1, passo: 64, periodo: 10, chao: PE, altPe: 54, quique: 12, surto: 0, D: .6 };
-  const GV = { f0: 117, x0: 480, dir: 1, passo: 30, periodo: 8, chao: PE, altPe: 20, quique: 6, surto: 0, D: .6 };
+  const GV = { f0: 117, x0: 520, dir: 1, passo: 30, periodo: 8, chao: PE, altPe: 20, quique: 6, surto: 0, D: .6 };
   const WG = f < 50 ? andar({ ...GI, f }) : f >= 117 && f < 120 ? andar({ ...GV, f }) : null;
   const W50 = andar({ ...GI, f: 50 }), xCamb = andar({ ...GV, f: 120 }).x;
   const zip = f >= 120;                                           // sai em disparada (fora de quadro em f131)
   const xZip = k(f, [[120, xCamb, 'i'], [125, 1900, 'h'], [144, 1900]]);
   const g = { x: WG ? WG.x : zip ? xZip : gx, esc: 1.2, sy: gSy, sx: zip ? 1.4 : 1 / Math.sqrt(gSy),
-    y: WG ? PE + WG.bob - 12 : PE - pend - 84 * Math.abs(Math.sin(gR * Math.PI / 180)) * (f >= 52 ? 1 : 0),
+    y: WG ? PE + WG.bob - (f < 50 ? 18 : 12) : PE - pend - 84 * Math.abs(Math.sin(gR * Math.PI / 180)) * (f >= 52 ? 1 : 0),
     r: WG ? (f < 50 ? 5 : Math.sin(f * .5) * 10) : zip ? 14 : gR, cab: f >= 70 && f < 110 ? Math.sin(f * .4) * 14 : 0,
     perfil: !!WG || take || chute || zip, dir: f < 56 ? -1 : 1,
     cara: f >= 50 && f < 66 ? 's' : f >= 66 && f < 112 ? 'x' : 'b',
