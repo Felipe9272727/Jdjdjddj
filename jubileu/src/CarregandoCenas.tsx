@@ -23,19 +23,51 @@ import {
 // ── TEMPO E CSS ──────────────────────────────────────────────────────────────
 export const D = 10; // segundos por laço
 export const pct = (t: number) => `${+(Math.min(D, Math.max(0, t)) / D * 100).toFixed(2)}%`;
-export type Q = [number, string]; // [s, declarações css]
+/** Suavização do trecho que COMEÇA neste quadro: i suave · o chega freando · a arranca · p passa e volta · h degrau · l linear. */
+export type Ez = 'i' | 'o' | 'a' | 'p' | 'h' | 'l';
+const EZ: Record<Ez, string> = { i: 'cubic-bezier(.45,0,.55,1)', o: 'cubic-bezier(.12,.8,.3,1)', a: 'cubic-bezier(.7,0,.84,.3)', p: 'cubic-bezier(.3,1.6,.5,1)', h: 'steps(1,end)', l: 'linear' };
+export type Q = [number, string, Ez?]; // [s, declarações css, suavização do trecho seguinte]
 /** Uma animação: @keyframes + a regra da classe (pivô, laço, atraso da bancada). */
-export const an = (cls: string, piv: string | null, q: Q[], atraso = 0) => {
+export const an = (cls: string, piv: string | null, q: Q[], atraso = 0, dur = D) => {
   // quadro sem opacidade numa animação que mexe nela interpolaria até o próximo valor (o ator
   // ia sumindo devagar): todo quadro que não diz nada sobre ela vale opacity:1
   const usaOp = q.some(([, c]) => c.includes('opacity'));
-  const f = q.map(([t, c]): Q => [t, usaOp && !c.includes('opacity') ? `${c};opacity:1` : c]).sort((a, b) => a[0] - b[0]);
+  const f = q.map(([t, c, e]): Q => [t, usaOp && !c.includes('opacity') ? `${c};opacity:1` : c, e]).sort((a, b) => a[0] - b[0]);
   if (f[0][0] > 0) f.unshift([0, f[f.length - 1][1]]);
-  if (f[f.length - 1][0] < D) f.push([D, f[0][1]]);
+  if (f[f.length - 1][0] < dur) f.push([dur, f[0][1]]);
   const nome = `k-${cls.replace(/[^a-z0-9-]/gi, '_')}`;
-  return `@keyframes ${nome}{${f.map(([t, c]) => `${pct(t)}{${c}}`).join('')}}`
+  const pc = (t: number) => `${+(Math.min(dur, Math.max(0, t)) / dur * 100).toFixed(2)}%`;
+  return `@keyframes ${nome}{${f.map(([t, c, e]) => `${pc(t)}{${c}${e && e !== 'i' ? `;animation-timing-function:${EZ[e]}` : ''}}`).join('')}}`
     + `.cna .${cls}{${piv ? `transform-origin:${piv};` : ''}will-change:transform,opacity;`
-    + `animation:${nome} ${D}s cubic-bezier(.45,0,.55,1) infinite both;animation-delay:calc(var(--off) - ${atraso}s)}`;
+    + `animation:${nome} ${dur}s ${EZ.i} infinite both;animation-delay:calc(var(--off) - ${atraso}s)}`;
+};
+/** Respiração: sobe e alarga de leve num laço próprio (dur s), defasada por `fase` para ninguém respirar junto. */
+export const respira = (cls: string, piv: string, dur = 2.6, amp = .022, fase = 0) =>
+  an(cls, piv, [[0, 'transform:translateY(0) scale(1,1)'], [dur / 2, `transform:translateY(-${amp * 40}%) scale(${1 - amp / 2},${1 + amp})`], [dur, 'transform:translateY(0) scale(1,1)']], fase, dur);
+/** Piscar: o olho fecha (scaleY) por 120 ms nos instantes `ts` do laço. */
+export const pisca = (cls: string, piv: string, ts: number[]) => {
+  const q: Q[] = [[0, 'transform:scaleY(1)']];
+  for (const t of ts) q.push([t - .01, 'transform:scaleY(1)'], [t + .05, 'transform:scaleY(.08)'], [t + .12, 'transform:scaleY(1)']);
+  return an(cls, piv, q);
+};
+/** Passada com peso: o corpo desce no apoio e sobe no meio do passo (n passos entre t0 e t1). */
+export const balanco = (cls: string, t0: number, t1: number, n: number, alt = 3, gir = 2): Q[] =>
+  Array.from({ length: n * 2 + 1 }, (_, i): Q => {
+    const t = t0 + (t1 - t0) * i / (n * 2);
+    return [t, i === 0 || i === n * 2 ? tr() : tr(0, i % 2 ? -alt : 0, i % 2 ? 0 : (i / 2) % 2 ? gir : -gir), i % 2 ? 'a' : 'o'];
+  });
+/** Poeira: três tufos que estouram de um ponto e somem (nos instantes ts). */
+export const poeira = (cls: string, ts: number[]) => [0, 1, 2].map((k) => {
+  const q: Q[] = [[0, `${tr(0, 0, 0, .2)};${op(0)}`]];
+  for (const t of ts) q.push([t - .01, `${tr(0, 0, 0, .2)};${op(0)}`], [t, `${tr(0, 0, 0, .3)};${op(.9)}`, 'o'], [t + .45, `${tr((k - 1) * 70, -30 - k * 6, 0, 1.25)};${op(0)}`]);
+  return an(`${cls}${k}`, '50% 80%', q);
+}).join('');
+export const Poeira: React.FC<{ c: string }> = ({ c }) => <>{[0, 1, 2].map((k) => <Pt key={k} c={`${c}${k}`} vb="0 0 120 80"><ellipse cx="60" cy="56" rx="26" ry="16" fill="#e8d8c0" opacity=".85" /></Pt>)}</>;
+/** Tranco de impacto num elemento (o palco inteiro, um prédio): instantes ts, amplitude a (%). */
+export const tranco = (cls: string, ts: number[], a = 1.2) => {
+  const q: Q[] = [[0, tr()]];
+  for (const t of ts) q.push([t - .01, tr()], [t, tr(a, -a * .6)], [t + .05, tr(-a * .8, a * .5)], [t + .1, tr(a * .5, -a * .3)], [t + .16, tr(-a * .2, a * .1)], [t + .24, tr()]);
+  return an(cls, '50% 50%', q);
 };
 export const tr = (x = 0, y = 0, r = 0, sx = 1, sy = sx) => `transform:translate(${x}%,${y}%) rotate(${r}deg) scale(${sx},${sy})`;
 export const rot = (a: number) => `transform:rotate(${a}deg)`;
@@ -87,10 +119,13 @@ export const Fala: React.FC<{ c: string; t: string; w?: number }> = ({ c, t, w =
 /** O atendente atrás do balcão, com camadas que cada cena anima (pref = prefixo das classes). */
 const Atendente: React.FC<{ pref: string; mao?: React.ReactNode }> = ({ pref, mao }) => (
   <div className={`e ${pref}t`}>
-    <Pt c={`${pref}tk`} vb={VA}><AtdCorpo /></Pt>
-    <Pt c={`${pref}th`} vb={VA}><AtdCabeca /></Pt>
+    <div className={`p ${pref}tr`}>
+      <Pt c={`${pref}tk`} vb={VA}><AtdCorpo /></Pt>
+      <Pt c={`${pref}th`} vb={VA}><AtdCabeca /></Pt>
+    </div>
     <Pt vb={VA}><AtdBalcao /></Pt>
-    <Pt c={`${pref}ta`} vb={VA}><AtdBraco />{mao}</Pt>
+    {/* o braço vem depois do balcão (a mão e o bule ficam por cima dele) e respira junto com o corpo */}
+    <div className={`p ${pref}tr`}><Pt c={`${pref}ta`} vb={VA}><AtdBraco />{mao}</Pt></div>
   </div>
 );
 /** Substitui as caretas do atendente (ypb sono, yps susto, ypy bocejo) pelas janelas desta cena. */
@@ -170,6 +205,7 @@ const CSS1 = [
   an('c1ta', PA.braco, [[0, rot(0)], [.3, rot(-112)], [1.6, rot(-112)], [1.9, rot(0)], [6.4, rot(0)], [6.7, rot(-112)], [8.8, rot(-112)], [9.1, rot(0)]]),
   an('c1th', PA.cab, [[0, rot(0)], [.35, rot(10)], [1.5, rot(10)], [1.9, rot(-6)], [4.2, rot(-6)], [4.4, rot(4)], [5.4, rot(0)], [6.7, rot(10)], [8.8, rot(10)], [9.1, rot(0)]]),
   caretas('c1', { ypb: [[7.0, 8.6]], yps: [[4.2, 5.4]], ypy: [[2.0, 3.2]] }),
+  respira('c1mb', PV.c, 2.2, .025), respira('c1tr', '50% 80%', 3, .012, .7), tranco('c1-sh', [4.3, 4.85], .9),
 ].join('');
 
 const Elevador = memo(function Elevador() {
@@ -178,7 +214,7 @@ const Elevador = memo(function Elevador() {
       <Defs />
       <style>{CSS1}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh">
+      <div className="pal"><div className="sh c1-sh">
         <FundoSaguao semArco />
         <div className="e c1-ei"><Pt c="c1-eix" vb={EL}><Cabine /></Pt></div>
         <Robo id="c1m" p={P64} k={0} al="n" ar="n" ex={ROSTOS} />
@@ -268,6 +304,9 @@ const CSS2 = [
   an('c2ah', PV.h, [[0, rot(0)], [3.2, rot(-10)], [3.6, rot(0)], [5.0, rot(-8)], [8.4, rot(0)], [8.6, rot(12)], [9.4, rot(-8)], [9.6, rot(0)]]),
   vis('c2afs', [[3.3, 4.0], [8.3, 9.4]]), vis('c2aff', [[5.0, 8.2]]),
   pop('c2-tc', [5.0], .8), pop('c2-ih', [8.6], .7),
+  respira('c2gb', PV.c, 2.6, .022), respira('c2ab', PV.c, 2.2, .025, .9), respira('c2tr', '50% 80%', 3, .012, .4),
+  tranco('c2-sh', [3.45, 4.88], 1.1), poeira('c2-pg', [3.45]), poeira('c2-pa', [4.86]),
+  pos('c2-pgw', [620, 700, 240, 160], [40, 1190, 220, 146]), pos('c2-paw', [960, 520, 240, 160], [300, 1040, 220, 146]),
 ].join('');
 
 const MalaFujona = memo(function MalaFujona() {
@@ -276,7 +315,7 @@ const MalaFujona = memo(function MalaFujona() {
       <Defs />
       <style>{CSS2}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh">
+      <div className="pal"><div className="sh c2-sh">
         <FundoSaguao />
         <Atendente pref="c2" />
         <div className="e c2-ba"><Pt vb="-40 -40 80 80"><Banana /></Pt></div>
@@ -289,6 +328,8 @@ const MalaFujona = memo(function MalaFujona() {
           <Pt c="c2-mt" vb={CA}><Chapeleira /></Pt>
         </div></div>
         <Robo id="c2a" p={P63} k={1} al="n" ar="c" ex={ROSTOS} />
+        <div className="e c2-pgw"><Poeira c="c2-pg" /></div>
+        <div className="e c2-paw"><Poeira c="c2-pa" /></div>
         <div className="e c2-ffw"><Fala c="c2-ff" t="MINHA MALA!" w={320} /></div>
         <div className="e c2-thw"><Golpe c="c2-th" cx={130} cy={100} t="THUD!" r={70} cor="#ffb347" rot={-8} vb="0 0 260 200" /></div>
         <div className="e c2-tcw"><Golpe c="c2-tc" cx={120} cy={120} t="TCHAN!" r={86} cor="#fff3b0" rot={8} vb="0 0 240 240" /></div>
@@ -367,6 +408,8 @@ const CSS3 = [
   an('c3th', PA.cab, [[0, rot(0)], [3.4, rot(0)], [3.8, rot(-12)], [6.9, rot(-12)], [7.1, rot(6)], [8.6, rot(0)]]),
   caretas('c3', { ypb: [[3.6, 6.95]], yps: [[7.05, 8.6]] }),
   pop('c3-bt', [4.82], .6), pop('c3-cr', [7.06], .8), pop('c3-hm', [5.45], .55),
+  respira('c3ab', PV.c, 2.4, .022), respira('c3gb', PV.c, 2.8, .02, 1.1), respira('c3mb', PV.c, 2, .028, .5), respira('c3tr', '50% 80%', 3, .012, .2),
+  tranco('c3-sh', [4.84, 7.06], 1), poeira('c3-pm', [7.6]), pos('c3-pmw', [560, 720, 300, 200], [180, 1340, 280, 186]),
 ].join('');
 
 const TreguaDoCha = memo(function TreguaDoCha() {
@@ -375,7 +418,7 @@ const TreguaDoCha = memo(function TreguaDoCha() {
       <Defs />
       <style>{CSS3}</style>
       <div className="pa" /><div className="ch" /><div className="lb" />
-      <div className="pal"><div className="sh">
+      <div className="pal"><div className="sh c3-sh">
         <FundoSaguao />
         <Atendente pref="c3" mao={<g className="c3-bl">
           {/* o bule na mão (gira junto com o braço) e o fio de chá */}
@@ -389,6 +432,7 @@ const TreguaDoCha = memo(function TreguaDoCha() {
         <Robo id="c3a" p={P63} k={1} al="n" ar="c" ex={ROSTOS} />
         <div className="e c3-mew"><Pt c="c3-me" vb={ME}><Mesa /></Pt></div>
         {VOO.map((_, i) => <div key={i} className={`e c3-kw${i}`}><Pt c={`c3-k${i}`} vb="0 0 60 80"><Carta n={i} /></Pt></div>)}
+        <div className="e c3-pmw"><Poeira c="c3-pm" /></div>
         <div className="e c3-btw"><Fala c="c3-bt" t="BATI!" w={280} /></div>
         <div className="e c3-hmw"><Golpe c="c3-hm" cx={90} cy={90} t="HÃ?" r={60} cor="#9af6ff" rot={-10} vb="0 0 180 180" /></div>
         <div className="e c3-crw"><Golpe c="c3-cr" cx={150} cy={150} t="CRASH!" r={110} cor="#fff3b0" rot={6} vb="0 0 300 300" /></div>

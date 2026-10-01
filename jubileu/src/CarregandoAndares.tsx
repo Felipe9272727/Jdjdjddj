@@ -17,7 +17,7 @@
  */
 import React, { memo } from 'react';
 import { Robo, P64, Defs, Pt, Golpe, K, OURO, OURO_E, FONTE, L, registrarCenas } from './CarregandoAnimado';
-import { an, tr, rot, op, pop, vis, pos, PV, passos, ROSTOS, Fala, type Q } from './CarregandoCenas';
+import { an, tr, rot, op, pop, vis, pos, PV, passos, ROSTOS, Fala, respira, pisca, balanco, tranco, poeira, Poeira, type Q } from './CarregandoCenas';
 
 /** O cenário: arte de paisagem e de retrato, cada uma só na sua orientação. */
 const Cenario: React.FC<{ h: React.ReactNode; v: React.ReactNode; fundo: string }> = ({ h, v, fundo }) => (
@@ -31,17 +31,19 @@ const ORIENT = '.cna .ov{display:none}@media(orientation:portrait){.cna .oh{disp
 /** O hóspede (o avatar "cabelo de bacon"): camisa azul, calça verde. Caixa 160×300. */
 const HB = '0 0 160 300';
 const Hospede = {
-  pernas: <g {...L}><path d="M62,200L56,282M98,200L104,282" stroke="#3d6b35" strokeWidth="26" /><path d="M40,286H72M90,286H122" stroke="#2a2118" strokeWidth="16" /></g>,
-  corpo: <g {...L}><path d="M44,120Q44,96,80,94Q116,96,116,120V206H44Z" fill="#3b6fb0" /><path d="M66,96L80,112L94,96" fill="none" stroke="#2c5489" strokeWidth="5" /></g>,
-  bracoE: <g {...L}><path d="M50,112Q34,150,38,186" fill="none" stroke="#3b6fb0" strokeWidth="22" /><circle cx="38" cy="192" r="11" fill="#e8b48a" /></g>,
+  pernaE: <g {...L}><path d="M66,200L60,282" stroke="#3d6b35" strokeWidth="24" /><path d="M44,286H74" stroke="#2a2118" strokeWidth="16" /></g>,
+  pernaD: <g {...L}><path d="M94,200L100,282" stroke="#2b4d24" strokeWidth="24" /><path d="M88,286H118" stroke="#2a2118" strokeWidth="16" /></g>,
+  corpo: <g {...L}><path d="M44,120Q44,96,80,94Q116,96,116,120V206H44Z" fill="#3b6fb0" /><path d="M66,96L80,112L94,96" fill="none" stroke="#2c5489" strokeWidth="5" /><path d="M58,140Q80,150,102,140" fill="none" stroke="#2c5489" strokeWidth="4" /></g>,
+  bracoE: <g {...L}><path d="M50,112Q34,150,38,186" fill="none" stroke="#2c5489" strokeWidth="22" /><circle cx="38" cy="192" r="11" fill="#e8b48a" /></g>,
   bracoD: <g {...L}><path d="M110,112Q126,150,122,186" fill="none" stroke="#3b6fb0" strokeWidth="22" /><circle cx="122" cy="192" r="11" fill="#e8b48a" /></g>,
   cabeca: <g {...L}>
     <rect x="50" y="34" width="60" height="64" rx="18" fill="#e8b48a" />
     <path d="M44,58Q42,24,80,22Q120,24,116,60Q104,40,92,46Q84,34,72,44Q60,36,44,58Z" fill="#7a4a24" />
-    <circle cx="68" cy="66" r="5" fill={K} stroke="none" /><circle cx="92" cy="66" r="5" fill={K} stroke="none" />
-    <path d="M70,84Q80,90,90,84" fill="none" strokeWidth="4" />
+    <path d="M70,86Q80,91,90,86" fill="none" strokeWidth="4" />
   </g>,
-  susto: <g {...L}><circle cx="68" cy="64" r="8" fill="#fff" strokeWidth="3" /><circle cx="92" cy="64" r="8" fill="#fff" strokeWidth="3" /><circle cx="68" cy="64" r="3" fill={K} stroke="none" /><circle cx="92" cy="64" r="3" fill={K} stroke="none" /><ellipse cx="80" cy="86" rx="6" ry="8" fill={K} /></g>,
+  olhos: <g stroke="none"><ellipse cx="68" cy="66" rx="4.5" ry="5.5" fill={K} /><ellipse cx="92" cy="66" rx="4.5" ry="5.5" fill={K} /><circle cx="69.5" cy="64" r="1.6" fill="#fff" /><circle cx="93.5" cy="64" r="1.6" fill="#fff" /></g>,
+  susto: <g {...L}><rect x="52" y="54" width="56" height="24" fill="#e8b48a" stroke="none" /><circle cx="68" cy="64" r="9" fill="#fff" strokeWidth="3" /><circle cx="92" cy="64" r="9" fill="#fff" strokeWidth="3" /><circle cx="68" cy="65" r="3.2" fill={K} stroke="none" /><circle cx="92" cy="65" r="3.2" fill={K} stroke="none" /><rect x="60" y="80" width="40" height="16" fill="#e8b48a" stroke="none" /><ellipse cx="80" cy="88" rx="7" ry="9" fill="#5a1a1a" /><path d="M50,40L44,30M110,40L116,30M80,24V14" stroke={K} strokeWidth="4" /></g>,
+  suor: <g {...L} strokeWidth="3"><path d="M116,50Q122,62,116,66Q110,62,116,50Z" fill="#bfe9ff" /></g>,
 };
 /** Aurélio Campos: alto, magro, sobretudo azul-meia-noite de gola alta, chapéu baixo. Caixa 180×400. */
 const AB = '0 0 180 400';
@@ -62,6 +64,8 @@ const Aurelio = {
     <path d="M62,64Q60,34,90,30Q120,34,118,64Z" fill="#1d2840" /><path d="M62,58H118" stroke="#3a4766" strokeWidth="6" />
   </g>,
   olhar: <g {...L}><circle cx="80" cy="90" r="4.2" fill="#e8f0ff" strokeWidth="2" /><circle cx="100" cy="90" r="4.2" fill="#e8f0ff" strokeWidth="2" /></g>,
+  bainha: <g {...L}><path d="M50,330L44,380H136L130,330Z" fill="#1d2840" /><path d="M90,330V380" stroke="#121a2c" strokeWidth="4" /></g>,
+  mao: <g {...L}><path d="M50,138Q34,180,44,226" fill="none" stroke="#1d2840" strokeWidth="24" /><circle cx="46" cy="234" r="11" fill="#d8cfc2" /></g>,
 };
 /** O Capitão: casaca vermelha de galões, tricórnio, barba preta, tapa-olho. Caixa 260×360. */
 const CB = '0 0 260 360';
@@ -172,39 +176,67 @@ const quarto = (W: number, H: number) => {
   const chao = H * .66, jx = W * .58, jw = W * .26;
   return <g {...L}>
     <rect width={W} height={chao} fill="#3a2e24" /><rect width={W} height={chao} fill="url(#a6-pp)" />
-    <rect y={chao} width={W} height={H - chao} fill="#2a1d14" /><rect y={chao - 18} width={W} height="22" fill="#4a3424" />
-    <rect x={jx} y={H * .14} width={jw} height={H * .36} fill="#0b1424" />
+    <rect y={chao} width={W} height={H - chao} fill="#2a1d14" /><rect y={chao} width={W} height={H - chao} fill="url(#a6-tb)" stroke="none" />
+    <rect y={chao - 18} width={W} height="22" fill="#4a3424" />
+    <rect x={jx} y={H * .14} width={jw} height={H * .36} fill="url(#a6-nt)" />
     <path d={`M${jx + jw / 2},${H * .14}V${H * .5}M${jx},${H * .32}H${jx + jw}`} stroke="#5a4634" strokeWidth="12" />
     <rect x={jx - 14} y={H * .12} width={jw + 28} height={H * .4} fill="none" stroke="#5a4634" strokeWidth="18" />
+    <rect x={jx - 26} y={H * .52} width={jw + 52} height="16" fill="#5a4634" />
     <path d={`M${W * .08},${chao}V${H * .3}H${W * .2}V${chao}`} fill="#2e2219" strokeWidth="8" />
     <rect x={W * .1} y={H * .33} width={W * .08} height={chao - H * .33} fill="#1a120c" />
     <circle cx={W * .17} cy={(chao + H * .33) / 2} r="7" fill={OURO} />
+    {/* a cama e o criado-mudo (fundo) */}
+    <rect x={W * .3} y={chao - H * .12} width={W * .18} height={H * .12} rx="10" fill="#6e1f24" />
+    <rect x={W * .3} y={chao - H * .16} width={W * .05} height={H * .16} rx="6" fill="#4a3424" />
+    <rect x={W * .31} y={chao - H * .145} width={W * .06} height={H * .035} rx="10" fill="#efe3c8" />
   </g>;
 };
 const chuva = (W: number, H: number) => <g stroke="#9ab4d6" strokeWidth="3" opacity=".6">
-  {Array.from({ length: 16 }, (_, i) => <path key={i} d={`M${W * .6 + (i * 37) % (W * .22)},${H * .16 + (i * 53) % (H * .3)}l-8,22`} />)}
+  {Array.from({ length: 22 }, (_, i) => <path key={i} d={`M${W * .585 + (i * 37) % (W * .25)},${H * .15 + (i * 53) % (H * .33)}l-8,22`} />)}
 </g>;
+/** As cortinas (cada lado balança com a corrente de ar da janela). */
+const cortina = (lado: number) => <g {...L} strokeWidth="5"><path d={lado < 0 ? 'M10,0H70Q60,120,80,240Q50,250,20,236Q4,120,10,0Z' : 'M50,0H110Q116,120,100,236Q70,250,40,240Q60,120,50,0Z'} fill="#7a1c22" /><path d={lado < 0 ? 'M30,10Q26,120,40,236' : 'M90,10Q94,120,80,236'} fill="none" stroke="#4a0e14" strokeWidth="4" /></g>;
+const RELAMPAGOS = [2.9, 6.4];
 const CSS6 = [
   ORIENT,
-  pos('a6h', [300, 690, 160, 300], [110, 1330, 160, 300]),
-  pos('a6a', [1010, 640, 180, 400], [470, 1180, 180, 400]),
+  pos('a6h', [260, 720, 216, 405], [90, 1360, 200, 375]),
+  pos('a6a', [990, 700, 240, 533], [450, 1240, 220, 489]),
   pos('a6-abw', [1180, 230, 360, 144], [380, 660, 380, 152]),
-  // a chuva escorre (as gotas descem em laço curto) e o relâmpago estoura duas vezes
-  an('a6-cv', null, [[0, tr(0, -6)], [.5, tr(0, 6)], [.51, tr(0, -6)], [1, tr(0, 6)], [1.01, tr(0, -6)], [1.5, tr(0, 6)], [1.51, tr(0, -6)], [2, tr(0, 6)], [2.01, tr(0, -6)], [2.5, tr(0, 6)], [2.51, tr(0, -6)], [3, tr(0, 6)], [3.01, tr(0, -6)], [3.5, tr(0, 6)], [3.51, tr(0, -6)], [4, tr(0, 6)], [4.01, tr(0, -6)], [4.5, tr(0, 6)], [4.51, tr(0, -6)], [5, tr(0, 6)], [5.01, tr(0, -6)], [5.5, tr(0, 6)], [5.51, tr(0, -6)], [6, tr(0, 6)], [6.01, tr(0, -6)], [6.5, tr(0, 6)], [6.51, tr(0, -6)], [7, tr(0, 6)], [7.01, tr(0, -6)], [7.5, tr(0, 6)], [7.51, tr(0, -6)], [8, tr(0, 6)], [8.01, tr(0, -6)], [8.5, tr(0, 6)], [8.51, tr(0, -6)], [9, tr(0, 6)], [9.01, tr(0, -6)], [9.5, tr(0, 6)], [9.51, tr(0, -6)], [10, tr(0, 6)]]),
-  vis('a6-rl', [[2.9, 3.0], [3.12, 3.22], [6.4, 6.5], [6.6, 6.72]]),
-  // a lâmpada pisca (o quarto escurece por cima)
-  an('a6-es', null, [[0, op(.18)], [1.2, op(.18)], [1.25, op(.55)], [1.32, op(.18)], [4.6, op(.18)], [4.65, op(.6)], [4.8, op(.6)], [4.85, op(.18)], [8.6, op(.18)], [8.62, op(.7)], [9.1, op(.7)], [9.4, op(.18)]]),
-  // o hóspede: entra na ponta dos pés, para, olha, leva o susto e recua
-  an('a6hc', '50% 96%', [[0, `${tr(-140)};${op(0)}`], [.3, `${tr(-140)};${op(1)}`], [2.8, `${tr(0, -3)};${op(1)}`], [3.0, `${tr(-6, 0, -8, 1.06, .92)};${op(1)}`], [3.4, `${tr(-10)};${op(1)}`],
-    [6.3, `${tr(40, -3)};${op(1)}`], [6.5, `${tr(30, -16, -10)};${op(1)}`], [6.8, `${tr(20, 0, -6, 1.06, .92)};${op(1)}`], [8.6, `${tr(-150, 0, -4)};${op(1)}`], [8.9, `${tr(-200)};${op(0)}`]]),
-  an('a6hl', '40% 66%', [[0, rot(0)], ...[.6, 1.2, 1.8, 2.4, 3.8, 4.4, 5.0, 5.6, 7.0, 7.4, 7.8, 8.2].map((t, i): Q => [t, rot(i % 2 ? 16 : -16)]), [8.6, rot(0)]]),
-  an('a6hk', '50% 30%', [[0, rot(0)], [3.0, rot(0)], [3.2, rot(10)], [4.2, rot(10)], [4.6, rot(0)], [6.4, rot(-8)]]),
-  vis('a6hs', [[2.95, 3.9], [6.45, 8.7]]),
-  // o Aurélio: imóvel; a cada relâmpago está mais perto (e encarando)
-  an('a6ac', '50% 96%', [[0, tr()], [2.98, tr()], [3.0, tr(-60)], [6.48, tr(-60)], [6.5, tr(-110, 0, 0, 1.12, 1.12)], [9.3, tr(-110, 0, 0, 1.12, 1.12)], [9.5, `${tr(-110, 0, 0, 1.12, 1.12)};${op(0)}`], [9.7, `${tr()};${op(0)}`], [10, `${tr()};${op(1)}`]]),
-  an('a6ak', '50% 22%', [[0, rot(0)], [1.6, rot(0)], [2.6, rot(-12)], [3.0, rot(-12)], [6.5, rot(-16)]]),
+  pos('a6-ce', [880, 400, 120, 250], [400, 830, 110, 230]), pos('a6-cd', [1360, 400, 120, 250], [690, 830, 110, 230]),
+  pos('a6-lu', [740, 110, 120, 220], [330, 300, 120, 220]),
+  // a chuva escorre em laço curto (0,5 s) e o quarto treme no trovão
+  an('a6-cv', null, [[0, tr(0, -6), 'l'], [.5, tr(0, 6)]], 0, .5),
+  vis('a6-rl', RELAMPAGOS.flatMap((t): [number, number][] => [[t, t + .08], [t + .2, t + .3]])),
+  tranco('a6-qt', RELAMPAGOS.map((t) => t + .35), .8),
+  // as cortinas respiram com a corrente de ar; a luminária pendente balança e a luz vai junto
+  an('a6-ce', '50% 0%', [[0, 'transform:skewX(0deg)'], [1.6, 'transform:skewX(4deg)'], [3.2, 'transform:skewX(-1deg)'], [3.4, 'transform:skewX(8deg)', 'o'], [5, 'transform:skewX(0deg)'], [6.9, 'transform:skewX(9deg)', 'o'], [8.4, 'transform:skewX(2deg)']]),
+  an('a6-cd', '50% 0%', [[0, 'transform:skewX(0deg)'], [1.8, 'transform:skewX(-3deg)'], [3.4, 'transform:skewX(-8deg)', 'o'], [5.2, 'transform:skewX(0deg)'], [6.9, 'transform:skewX(-9deg)', 'o'], [8.6, 'transform:skewX(-2deg)']]),
+  an('a6-lu', '50% 0%', [[0, rot(-5)], [1.25, rot(5)], [2.5, rot(-5)], [3.3, rot(9), 'o'], [4.6, rot(-7)], [5.9, rot(5)], [6.8, rot(-10), 'o'], [8.2, rot(6)], [9.2, rot(-4)]]),
+  an('a6-es', null, [[0, op(.2)], [1.2, op(.2), 'h'], [1.25, op(.6), 'h'], [1.32, op(.2)], [4.6, op(.2), 'h'], [4.65, op(.65), 'h'], [4.82, op(.2)], [8.6, op(.2)], [8.62, op(.72), 'h'], [9.1, op(.72)], [9.4, op(.2)]]),
+  // O HÓSPEDE: passos na ponta dos pés (corpo sobe no meio do passo), para, ESTICA o pescoço;
+  // no relâmpago dá um pulo de susto (antecipa, estica, cai amassando) e recua devagar; no 2º, foge
+  an('a6hc', '50% 96%', [[0, `${tr(-140)};${op(0)}`], [.3, `${tr(-140)};${op(1)}`, 'l'], [2.6, tr(-4), 'o'], [2.8, tr(0)], [2.95, tr(0, 0, 0, 1.08, .9), 'a'], [3.15, tr(-6, -22, -6, .9, 1.12), 'o'], [3.38, tr(-8, 0, -4, 1.1, .88), 'p'], [3.6, tr(-8)],
+    [3.9, tr(-8), 'i'], [5.8, tr(36), 'o'], [6.42, tr(36)], [6.5, tr(36, 0, 0, 1.08, .9), 'a'], [6.7, tr(26, -28, -12, .88, 1.14), 'o'], [6.95, tr(18, 0, -6, 1.12, .88), 'p'], [7.15, tr(14), 'a'], [8.6, tr(-170, 0, -6)], [8.9, `${tr(-210)};${op(0)}`]]),
+  an('a6hb', '50% 96%', [[0, tr()], ...balanco('a6hb', .3, 2.6, 4, 3.2, 2), [3.9, tr()], ...balanco('a6hb', 3.9, 5.8, 3, 2.4, 1.5), ...balanco('a6hb', 7.15, 8.6, 4, 4, 3)]),
+  ...([['a6hpe', 1], ['a6hpd', -1]] as const).map(([c, g]) => an(c, '50% 66%', [[0, rot(0)],
+    ...[[.3, 2.6, 4], [3.9, 5.8, 3], [7.15, 8.6, 4]].flatMap(([a, b, n]) => Array.from({ length: n * 2 + 1 }, (_, i): Q => [a + (b - a) * i / (n * 2), rot(i === 0 || i === n * 2 ? 0 : g * (Math.floor(i / 2) % 2 ? 1 : -1) * (b === 8.6 ? 30 : 20))]))])),
+  ...([['a6hbe', 1], ['a6hbd', -1]] as const).map(([c, g]) => an(c, c === 'a6hbe' ? '31% 37%' : '69% 37%', [[0, rot(0)],
+    ...[[.3, 2.6, 4], [3.9, 5.8, 3], [7.15, 8.6, 4]].flatMap(([a, b, n]) => Array.from({ length: n * 2 + 1 }, (_, i): Q => [a + (b - a) * i / (n * 2), rot(i === 0 || i === n * 2 ? 0 : -g * (Math.floor(i / 2) % 2 ? 1 : -1) * 18)])),
+    [3.0, rot(g * 70), 'o'], [3.5, rot(g * 40)], [6.5, rot(g * 90), 'o'], [7.0, rot(g * 50)]])),
+  an('a6hk', '50% 30%', [[0, rot(0)], [2.7, rot(0), 'o'], [2.85, tr(4, -6, 8)], [3.0, rot(-4)], [3.6, rot(-4), 'i'], [4.2, rot(10)], [5.8, rot(10)], [6.2, rot(-8)]]),
+  pisca('a6ho', '50% 22%', [1.1, 2.2, 4.4, 5.3]),
+  vis('a6hs', [[2.95, 3.9], [6.45, 8.7]]), vis('a6hz', [[3.4, 5.6], [7.0, 8.6]]),
+  an('a6hzd', '72% 18%', [[0, tr(0, 0)], [3.4, tr(0, 0)], [4.4, tr(0, 22)], [4.45, tr(0, 0)], [5.5, tr(0, 22)], [7.0, tr(0, 0)], [7.8, tr(0, 22)]]),
+  // O AURÉLIO: respira devagar (nunca para), a bainha balança; a cabeça vira MUITO devagar,
+  // e a cada relâmpago ele está mais perto — no segundo já erguendo a mão
+  respira('a6ab', '50% 96%', 3.2, .018),
+  an('a6ac', '50% 96%', [[0, tr()], [RELAMPAGOS[0] + .07, tr(), 'h'], [RELAMPAGOS[0] + .08, tr(-60)], [RELAMPAGOS[1] + .07, tr(-60), 'h'], [RELAMPAGOS[1] + .08, tr(-115, 0, 0, 1.14, 1.14)], [9.3, tr(-115, 0, 0, 1.14, 1.14)], [9.5, `${tr(-115, 0, 0, 1.14, 1.14)};${op(0)}`], [9.7, `${tr()};${op(0)}`], [10, `${tr()};${op(1)}`]]),
+  an('a6ak', '50% 22%', [[0, rot(0)], [1.2, rot(0), 'i'], [2.7, rot(-14)], [RELAMPAGOS[0] + .07, rot(-14), 'h'], [RELAMPAGOS[0] + .08, rot(-20)], [5.6, rot(-20), 'i'], [6.3, rot(-8)], [RELAMPAGOS[1] + .08, rot(-24)], [8.4, rot(-24), 'i'], [9.2, rot(-30)]]),
+  an('a6am', '30% 34%', [[0, rot(0)], [RELAMPAGOS[1] + .07, rot(0), 'h'], [RELAMPAGOS[1] + .08, rot(20)], [7.2, rot(20), 'i'], [8.2, rot(58)], [9.3, rot(58)]]),
+  an('a6ah', '50% 0%', [[0, 'transform:skewX(0deg)'], [1.6, 'transform:skewX(2deg)'], [3.4, 'transform:skewX(-5deg)', 'o'], [5, 'transform:skewX(1deg)'], [6.9, 'transform:skewX(-6deg)', 'o'], [8.4, 'transform:skewX(1deg)']]),
+  pisca('a6ap', '50% 22%', [1.8, 4.9]),
   vis('a6ao', [[3.0, 9.4]]),
-  pop('a6-ab', [7.2], 1.6),
+  pop('a6-ab', [7.6], 1.5),
 ].join('');
 const Suite612 = memo(function Suite612() {
   return (
@@ -212,23 +244,38 @@ const Suite612 = memo(function Suite612() {
       <Defs />
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true"><defs>
         <pattern id="a6-pp" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M30,8Q40,30,30,52Q20,30,30,8Z" fill="#4a3b2c" /></pattern>
+        <pattern id="a6-tb" width="160" height="40" patternUnits="userSpaceOnUse"><path d="M0,39H160M80,0V40" stroke="#1d140d" strokeWidth="3" /></pattern>
+        <linearGradient id="a6-nt" x2="0" y2="1"><stop offset="0" stopColor="#0b1424" /><stop offset="1" stopColor="#1d2b48" /></linearGradient>
+        <radialGradient id="a6-lz" cx=".5" cy=".1" r=".9"><stop offset="0" stopColor="#ffd98a" stopOpacity=".55" /><stop offset="1" stopColor="#ffd98a" stopOpacity="0" /></radialGradient>
       </defs></svg>
       <style>{CSS6}</style>
-      <Cenario fundo="#1a120c" h={quarto(1600, 760)} v={quarto(780, 1600)} />
-      <div className="p oh a6-cv"><svg viewBox="0 0 1600 760" preserveAspectRatio="xMidYMid slice">{chuva(1600, 760)}</svg></div>
-      <div className="p ov a6-cv"><svg viewBox="0 0 780 1600" preserveAspectRatio="xMidYMid slice">{chuva(780, 1600)}</svg></div>
-      <div className="pal"><div className="sh">
-        <div className="e a6a"><div className="p a6ac"><Pt vb={AB}>{Aurelio.corpo}</Pt><Pt vb={AB}>{Aurelio.braco}</Pt><Pt c="a6ak" vb={AB}>{Aurelio.cabeca}<g className="a6ao">{Aurelio.olhar}</g></Pt></div></div>
-        <div className="e a6h"><div className="p a6hc">
-          <Pt c="a6hl" vb={HB}>{Hospede.pernas}</Pt>
-          <Pt vb={HB}>{Hospede.corpo}</Pt><Pt vb={HB}>{Hospede.bracoE}</Pt><Pt vb={HB}>{Hospede.bracoD}</Pt>
-          <Pt c="a6hk" vb={HB}>{Hospede.cabeca}<g className="a6hs">{Hospede.susto}</g></Pt>
+      <div className="p a6-qt">
+        <Cenario fundo="#1a120c" h={quarto(1600, 760)} v={quarto(780, 1600)} />
+        <div className="p oh a6-cv"><svg viewBox="0 0 1600 760" preserveAspectRatio="xMidYMid slice">{chuva(1600, 760)}</svg></div>
+        <div className="p ov a6-cv"><svg viewBox="0 0 780 1600" preserveAspectRatio="xMidYMid slice">{chuva(780, 1600)}</svg></div>
+        <div className="pal"><div className="sh">
+          <div className="e a6-ce"><Pt vb="0 0 120 250">{cortina(-1)}</Pt></div>
+          <div className="e a6-cd"><Pt vb="0 0 120 250">{cortina(1)}</Pt></div>
+          <div className="e a6-lu"><Pt vb="0 0 120 220"><path d="M60,0V60" stroke={K} strokeWidth="4" /><path d="M30,90Q60,40,90,90Z" fill="#7a5a2a" stroke={K} strokeWidth="5" /><ellipse cx="60" cy="150" rx="70" ry="80" fill="url(#a6-lz)" /></Pt></div>
+          <div className="e a6a"><div className="p a6ac"><div className="p a6ab">
+            <Pt c="a6ah" vb={AB}>{Aurelio.bainha}</Pt>
+            <Pt vb={AB}>{Aurelio.corpo}</Pt><Pt vb={AB}>{Aurelio.braco}</Pt>
+            <Pt c="a6am" vb={AB}>{Aurelio.mao}</Pt>
+            <Pt c="a6ak" vb={AB}>{Aurelio.cabeca}<g className="a6ap">{Aurelio.olhar}</g><g className="a6ao">{Aurelio.olhar}</g></Pt>
+          </div></div></div>
+          <div className="e a6h"><div className="p a6hc"><div className="p a6hb">
+            <Pt c="a6hpd" vb={HB}>{Hospede.pernaD}</Pt><Pt c="a6hpe" vb={HB}>{Hospede.pernaE}</Pt>
+            <Pt c="a6hbe" vb={HB}>{Hospede.bracoE}</Pt>
+            <Pt vb={HB}>{Hospede.corpo}</Pt>
+            <Pt c="a6hbd" vb={HB}>{Hospede.bracoD}</Pt>
+            <Pt c="a6hk" vb={HB}>{Hospede.cabeca}<g className="a6ho">{Hospede.olhos}</g><g className="a6hs">{Hospede.susto}</g><g className="a6hz"><g className="a6hzd">{Hospede.suor}</g></g></Pt>
+          </div></div></div>
+          <div className="e a6-abw"><Fala c="a6-ab" t="VOCÊ TAMBÉM?" w={300} /></div>
         </div></div>
-        <div className="e a6-abw"><Fala c="a6-ab" t="VOCÊ TAMBÉM?" w={300} /></div>
-      </div></div>
+      </div>
       {/* a luz que falha e o relâmpago, por cima de tudo */}
       <div className="p a6-es" style={{ background: '#05070c' }} />
-      <div className="p a6-rl" style={{ background: '#a9bce6', mixBlendMode: 'screen' }} />
+      <div className="p a6-rl" style={{ background: '#6f84b8', mixBlendMode: 'screen' }} />
     </>
   );
 });
@@ -287,6 +334,7 @@ const CSS7 = [
   an('a7md', PV.d, [[0, rot(-50)], [4.6, rot(-50)], [4.8, rot(-160)], [5.6, rot(-150)], [6.4, rot(-50)]]),
   vis('a7mff', [[0, 4.5], [7, 9.9]]), vis('a7mfx', [[4.8, 6.6]]),
   pop('a7-sp', [4.7], .9), vis('a7-ww', [[4.8, 6.8]]),
+  respira('a7cb', '50% 96%', 2.8, .02), respira('a7mb', PV.c, 2.2, .025, .6), tranco('a7-tq', [4.7], 1.2),
 ].join('');
 const Esfregao = <g {...L} strokeWidth="5"><path d="M100,150L100,250" stroke="#a0522d" strokeWidth="8" /><path d="M78,250H122L128,272H72Z" fill="#f1e6cc" /></g>;
 const Conves7 = memo(function Conves7() {
@@ -304,13 +352,13 @@ const Conves7 = memo(function Conves7() {
       <div className="p a7-bl">
         <div className="p oh"><svg viewBox="0 0 1600 760" preserveAspectRatio="xMidYMid slice">{conves(1600, 760)}</svg></div>
         <div className="p ov"><svg viewBox="0 0 780 1600" preserveAspectRatio="xMidYMid slice">{conves(780, 1600)}</svg></div>
-        <div className="pal"><div className="sh">
+        <div className="pal"><div className="sh a7-tq">
           <div className="e a7t"><Pt vb="0 0 120 120">{TIMAO}</Pt></div>
-          <div className="e a7c"><div className="p a7cc">
+          <div className="e a7c"><div className="p a7cc"><div className="p a7cb">
             <Pt c="a7ce" vb={CB}>{Capitao.bracoE}</Pt><Pt vb={CB}>{Capitao.corpo}</Pt><Pt c="a7cd" vb={CB}>{Capitao.bracoD}</Pt>
             <Pt vb={CB}>{Capitao.cabeca}<g className="a7cr">{Capitao.riso}</g></Pt>
             <Pt c="a7ch" vb={CB}>{Capitao.chapeu}</Pt>
-          </div></div>
+          </div></div></div>
           <Robo id="a7m" p={P64} k={0} al="n" ar="n" ex={ROSTOS} fx={<Pt vb="0 0 200 260">{Esfregao}</Pt>} />
           <div className="e a7-ww"><Pt vb="0 0 300 120"><g stroke="#9ad6ff" strokeWidth="6" strokeLinecap="round">{[40, 90, 150, 210, 260].map((x, i) => <path key={x} d={`M${x},${20 + (i % 2) * 20}v26`} />)}</g></Pt></div>
           <div className="e a7-spw"><Golpe c="a7-sp" cx={180} cy={150} t="SPLASH!" r={120} cor="#bfe9ff" rot={-8} vb="0 0 360 300" /></div>
@@ -378,6 +426,7 @@ const CSS8 = [
   // os rabiscos aparecem na foto aos poucos
   ...[0, 1, 2].map((i) => vis(`a8-r${i}`, [[3.0 + i * .6, 9.6]])),
   pop('a8-hm', [5.7], .7),
+  respira('a8rr', '50% 96%', 3, .016), respira('a8db', '50% 96%', 1.6, .03), tranco('a8-sh', [.85, 2.85, 4.85, 9.25], .35),
 ].join('');
 const ArquivoDoAndar8 = memo(function ArquivoDoAndar8() {
   return (
@@ -388,19 +437,19 @@ const ArquivoDoAndar8 = memo(function ArquivoDoAndar8() {
       </defs></svg>
       <style>{CSS8}</style>
       <Cenario fundo="#120c08" h={arquivo(1600, 760)} v={arquivo(780, 1600)} />
-      <div className="pal"><div className="sh">
-        <div className="e a8r"><div className="p a8rc">
+      <div className="pal"><div className="sh a8-sh">
+        <div className="e a8r"><div className="p a8rc"><div className="p a8rr">
           <Pt vb={RB}>{Arquivista.bracoE}</Pt><Pt vb={RB}>{Arquivista.corpo}</Pt>
           <Pt c="a8rk" vb={RB}>{Arquivista.cabeca}<g className="a8rb">{Arquivista.bravo}</g></Pt>
           <Pt c="a8rd" vb={RB}>{Arquivista.bracoD}</Pt>
-        </div></div>
+        </div></div></div>
         <div className="e a8-me"><Pt vb="0 0 460 200">{Mesa8}</Pt></div>
         <div className="e a8-fo"><Pt vb="0 0 120 148">{Foto}</Pt>{[0, 1, 2].map((i) => <Pt key={i} c={`a8-r${i}`} vb="0 0 120 148"><path d={RABISCOS[i]} transform="translate(0 12)" fill="none" stroke="#e63a2e" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /></Pt>)}</div>
-        <div className="e a8d"><div className="p a8dc">
+        <div className="e a8d"><div className="p a8dc"><div className="p a8db">
           <Pt c="a8dl" vb={DB}>{Diabrete.corpo}</Pt>
           <Pt c="a8dd" vb={DB}>{Diabrete.braco}</Pt>
           <Pt vb={DB}>{Diabrete.cabeca}</Pt>
-        </div></div>
+        </div></div></div>
         <div className="e a8-cx"><Pt vb="0 0 180 180">{Caixa8}</Pt><Pt c="a8-ol" vb="0 0 180 180"><g {...L} strokeWidth="4"><circle cx="76" cy="62" r="9" fill="#fff" /><circle cx="104" cy="62" r="9" fill="#fff" /><circle cx="78" cy="64" r="4" fill={K} stroke="none" /><circle cx="102" cy="64" r="4" fill={K} stroke="none" /></g></Pt></div>
         <div className="e a8-arw"><Golpe c="a8-ar" cx={150} cy={150} t="ARQUIVADO!" r={128} cor="#f1e6cc" rot={-10} vb="0 0 300 300" /></div>
         <div className="e a8-hmw"><Golpe c="a8-hm" cx={110} cy={110} t="HMM?" r={80} cor="#9af6ff" rot={8} vb="0 0 220 220" /></div>
@@ -450,6 +499,7 @@ const CSS12 = [
     [7.0, 'transform:translate(calc(var(--vx) * .66),-60%) rotate(-370deg)'], [7.4, 'transform:translate(calc(var(--vx) * .72),20%) rotate(-340deg)'], [9.6, 'transform:translate(var(--vx),-40%) rotate(-372deg)'], [9.62, `transform:translate(var(--vx),-40%) rotate(-372deg);${op(0)}`], [9.95, `transform:translate(0,0) rotate(0deg);${op(0)}`], [10, `transform:translate(0,0) rotate(0deg);${op(1)}`]]),
   an('a12ph', '93.6% 55%', [[0, 'transform:scaleY(1)'], ...Array.from({ length: 40 }, (_, i): Q => [(i + 1) * .25, `transform:scaleY(${i % 2 ? 1 : .2})`])]),
   pop('a12-pw', [3.3], .7),
+  respira('a12zr', '50% 70%', 4, .02), tranco('a12-sh', [2.62, 6.82], .7),
 ].join('');
 const CeuDoAndar12 = memo(function CeuDoAndar12() {
   return (
@@ -460,14 +510,14 @@ const CeuDoAndar12 = memo(function CeuDoAndar12() {
       </defs></svg>
       <style>{CSS12}</style>
       <Cenario fundo="#3a2f66" h={ceu(1600, 760)} v={ceu(780, 1600)} />
-      <div className="pal"><div className="sh">
+      <div className="pal"><div className="sh a12-sh">
         {[1, 2, 3].map((i) => <div key={i} className={`e a12-n${i}`}><Pt vb="0 0 180 90">{nuvem}</Pt></div>)}
-        <div className="e a12z"><div className="p a12zc">
+        <div className="e a12z"><div className="p a12zc"><div className="p a12zr">
           <Pt c="a12zg" vb={ZB}>{Cabeca.goela}</Pt>
           <Pt vb={ZB}>{Cabeca.boca}</Pt>
           <Pt c="a12zm" vb={ZB}>{Cabeca.mandibula}</Pt>
           <Pt vb={ZB}>{Cabeca.cranio}</Pt>
-        </div></div>
+        </div></div></div>
         <div className="e a12-cp"><Pt vb="0 0 90 90"><circle cx="45" cy="45" r="30" fill="#7dd35a" stroke={K} strokeWidth="6" /><circle cx="36" cy="36" r="8" fill="#c6f5a8" /></Pt></div>
         <div className="e a12p"><Pt vb={BP}>{Biplano.corpo}</Pt><Pt c="a12ph" vb={BP}>{Biplano.helice}</Pt></div>
         <div className="e a12-pww"><Golpe c="a12-pw" cx={140} cy={140} t="UFA!" r={100} cor="#fff3b0" rot={-8} vb="0 0 280 280" /></div>
