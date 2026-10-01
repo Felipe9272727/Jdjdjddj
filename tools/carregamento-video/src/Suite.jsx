@@ -29,18 +29,18 @@ export function Suite() {
   const escY = (yy) => .92 + (yy - 520) * (.23 / 130);
   // caminhadas: "sneak" de 1930 (passo alto e lento, corpo em surtos, apoio duplo); fuga em corrida
   const ENTRA = { f0: 0, x0: 230, dir: 1, passo: 72, periodo: 18, chao: chaoDiag, altPe: 48, quique: 18 };
-  const ARRISCA = { f0: 74, dir: 1, passo: 52, periodo: 20, altPe: 26, quique: 5 };
+  const ARRISCA = { f0: 80, dir: 1, passo: 34, periodo: 10, altPe: 26, quique: 5 };
   const xFimEntra = andar({ ...ENTRA, f: RAIOS[0] }).x;                  // onde a entrada termina…
-  const xArrisca0 = xFimEntra - 30;                                       // …recua 30 de medo e arrisca dali
+  const xArrisca0 = xFimEntra - 90;                                       // …recua 90 de medo (para trás, rumo à porta)
   const yArrisca = 690; // no "arrisca" ele vem mais para a frente (cabeça longe da cúpula do abajur)
   ARRISCA.x0 = xArrisca0; ARRISCA.chao = yArrisca;
   const xFimArrisca = andar({ ...ARRISCA, f: RAIOS[1] }).x;
   const FOGE = { f0: 114, x0: xFimArrisca, dir: -1, passo: 64, periodo: 3, chao: (xx) => 690 + (xFimArrisca - xx) * ((520 - 690) / (xFimArrisca - 230)), altPe: 40, quique: 16, D: .45, surto: 0 };
   const W = fase === 'entra' ? andar({ ...ENTRA, f })
-    : fase === 'arrisca' ? andar({ ...ARRISCA, f })
+    : fase === 'arrisca' && f >= 80 ? andar({ ...ARRISCA, f })
     : fase === 'foge' && f >= 114 && f < 132 ? andar({ ...FOGE, f }) : null;
   // fora das caminhadas, o x/y seguem keyframes que COMEÇAM e TERMINAM onde as caminhadas estão (sem saltos)
-  const xK = k(f, [[0, 230], [RAIOS[0], xFimEntra, 'o'], [60, xFimEntra - 20, 'io'], [74, xArrisca0, 'h'], [RAIOS[1], xFimArrisca, 'h'], [112, xFimArrisca, 'o'], [114, xFimArrisca + 30, 'h'], [132, 220, 'h'], [144, 230]]);
+  const xK = k(f, [[0, 230], [RAIOS[0], xFimEntra, 'o'], [60, xFimEntra - 20, 'io'], [74, xArrisca0, 'h'], [80, xArrisca0, 'h'], [RAIOS[1], xFimArrisca, 'h'], [112, xFimArrisca, 'o'], [114, xFimArrisca + 30, 'h'], [132, 220, 'h'], [144, 230]]);
   const xW = W ? W.x : xK;
   // a descida até 690 acontece no RECUO do susto 1 (ele recua para a frente, de medo) — sem salto de profundidade
   const yFimEntra = chaoDiag(xFimEntra);
@@ -59,11 +59,11 @@ export function Suite() {
   const hosp = { x: xW + treme, y: yW + (W ? W.bob : 0) + pulo, esc: escH, sy: sy * pesoSy, sx: smear / Math.sqrt(sy * pesoSy),
     dir: fase === 'foge' ? -1 : 1, perfil: true, maosNaFrente: pontaDosPes || (fase === 'susto1' && f >= 62),
     r: fase === 'foge' ? -18 : susto ? -12 : pontaDosPes && W ? (fase === 'arrisca' ? 5 + 7 * Math.sin((W.t % 1) * Math.PI) : 4 + 12 * Math.sin((W.t % 1) * Math.PI)) : 4,
-    cab: susto ? 10 : pontaDosPes && W ? -6 - 6 * Math.sin((W.t % 1) * Math.PI) : 0,
+    cab: susto ? 10 : fase === 'arrisca' && f < 80 ? k(f, [[74, 0], [78, -12, 'b'], [80, -12]]) : pontaDosPes && W ? -6 - 6 * Math.sin((W.t % 1) * Math.PI) : 0,
     cara: susto ? 'susto' : f >= 56 || fase === 'entra' ? 'medo' : 'cauto', suor: f >= 56,
     // mãos na boca (o medroso de 1930); no susto, braços para cima assimétricos; na fuga, braços de corrida
-    bE: susto ? { a: 150, d: -20 } : pontaDosPes || fase === 'susto1' ? { a: -140 - tr, d: 24, c: 40 } : { a: 90 + (W ? W.bracoE * 1.6 : 0), d: 10 },
-    bD: susto ? { a: 60, d: 30 } : pontaDosPes || fase === 'susto1' ? { a: -150 + tr, d: -24, c: 42 } : { a: 90 + (W ? W.bracoD * 1.6 : 0), d: 10 },
+    bE: susto ? { a: 150, d: -20 } : pontaDosPes || fase === 'susto1' ? { a: -140 - tr, d: 24, c: 40 } : { a: 90 + (W ? W.bracoE * 2.2 : 0), d: 40, c: 60 },
+    bD: susto ? { a: 60, d: 30 } : pontaDosPes || fase === 'susto1' ? { a: -150 + tr, d: -24, c: 42 } : { a: 90 + (W ? W.bracoD * 2.2 : 0), d: -40, c: 60 },
     pE: W ? { alvo: W.peE, d: W.noE ? 16 : 40, giro: giroPe(W.noE) } : { a: -8, d: 10, giro: fase === 'susto1' ? 22 : 0 },
     pD: W ? { alvo: W.peD, d: W.noD ? 16 : 40, giro: giroPe(W.noD) } : { a: 14, d: -10 } };
 
@@ -74,7 +74,7 @@ export function Suite() {
   const POSES = [{ r: Math.sin(f * .07) * 1.5, cab: -4 + Math.sin(f * .09) * 4, bE: { a: 6, d: 6 }, bD: { a: 6, d: 6 } },
                  { r: -6, cab: -18, bE: { a: 10, d: 10 }, bD: { a: 40, d: 30, c: 120 } },
                  // curvado sobre ele: a garra POUSA no ombro do hóspede (até ele fugir), depois fica no ar chamando
-                 { r: -12, cab: -26, bD: { a: 14, d: 10 }, bE: f < 112 ? { alvo: ombroHosp, d: -30 } : { a: 120 + Math.sin(f * .45) * 8, d: -40, c: 120 } }];
+                 { r: -12, cab: -26, bD: { a: 14, d: 10 }, bE: f < 112 ? { alvo: ombroHosp, d: -30 } : { a: 95 + Math.sin(f * .45) * 8, d: -30, c: 140 } }];
   const aurelio = { x: aur.x, y: aur.y, esc: aur.esc, resp: Math.sin(f * .12) * .015, olhos: Math.max(fl, degrau === 2 ? .8 : .2), garra: degrau === 2, ...POSES[degrau] };
 
   // ── câmera quase parada: um empurrão lento na tensão, tranco no trovão ──
@@ -131,7 +131,7 @@ export function Suite() {
           <HospedeRig pose={hosp} />
         </Ator>
       </g>
-      <Ator f={f} luz={false}><Fala x={Math.min(Math.max(aur.x - 120, 105 + 230), 1335 - 230)} y={aur.y - 300 * aur.esc - 10} t="VOCÊ TAMBÉM?" w={420} tam={50} cauda={.7} esc={k(f, [[0, 0, 'h'], [108, 0, 'b'], [113, 1, 'h'], [130, 1, 'i'], [134, 0]])} /></Ator>
+      <Ator f={f} luz={false}><Fala x={Math.min(Math.max(aur.x + 20, 105 + 230), 1335 - 230)} y={aur.y - 340 * aur.esc - 50} t="VOCÊ TAMBÉM?" w={420} tam={50} cauda={.3} esc={k(f, [[0, 0, 'h'], [108, 0, 'b'], [113, 1, 'h'], [130, 1, 'i'], [134, 0]])} /></Ator>
       {/* espigões de susto */}
       {susto && (fase === 'susto2' ? [-2, -1, 0, 1, 2] : [-1, 0, 1]).map((i) => <path key={i} d={`M${xW + i * 36},${yW - 330 * escH * sy + pulo}l${i * 18},${fase === 'susto2' ? -64 : -34}`} stroke="#fff3b0" strokeWidth={fase === 'susto2' ? 10 : 7} strokeLinecap="round" />)}
       {/* íris */}

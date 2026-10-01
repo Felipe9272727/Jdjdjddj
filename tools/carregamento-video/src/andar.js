@@ -36,5 +36,5 @@ export function andar({ f, f0 = 0, x0, dir = 1, passo = 70, periodo = 8, chao, a
   const bob = -Math.sin(q * Math.PI) * quique;                     // o mais baixo no contato
   const balanco = Math.sin(t * Math.PI) * 28;
   return { x, bob, peE: [pE.x - separa / 2, pE.y], peD: [pD.x + separa / 2, pD.y], noE: pE.no, noD: pD.no, sE: pE.s ?? 0, sD: pD.s ?? 0,
-    bracoE: balanco * dir, bracoD: balanco * dir, t };
+    bracoE: balanco * dir, bracoD: -balanco * dir, t };   // com o ângulo espelhado por lado, sinais opostos = um à frente, outro atrás
 }
