@@ -78,6 +78,8 @@ const GRAVANDO = import.meta.env.DEV && typeof location !== 'undefined' && new U
 /** VP9 com alfa: Chrome, Edge, Firefox e Android; no iOS/Safari o fundo sai preto. */
 const TITULO_COM_ALFA = typeof navigator !== 'undefined'
     && /Chrome|Firefox|Android/.test(navigator.userAgent) && !/iPhone|iPad|iPod|CriOS|FxiOS/.test(navigator.userAgent);
+/** O chão de quem atende à porta (o ponto do vão cai no degrau ou sob o beiral). */
+const chaoDoFoco: { y: number | null } = { y: null };
 /** A entidade em cena: a câmera fecha mais nela. */
 const entidadeNaCena = { valor: false, linha: 0 };
 const SEM_ABERRACAO = new THREE.Vector2(0, 0);
@@ -508,7 +510,7 @@ const CameraDeExplorar: React.FC<{
         { const c = camera.position, f = foraDoTelhado(c.x, c.y, c.z, .42); c.x = f.x; c.z = f.z; }
         if (foco.current) {
             // conversa: o olhar vai sozinho para o rosto de quem fala
-            const f = foco.current, chaoF = chaoEm(f.x, f.z) ?? j.y;
+            const f = foco.current, chaoF = chaoDoFoco.y ?? chaoEm(f.x, f.z) ?? j.y;
             empurra.current = ent ? Math.min(1, empurra.current + dt * .12) : 0;
             // a entidade: um passo atrás (recuo suave da câmera) e o olhar puxa
             // para o lado do braço erguido — mão e rosto inteiros, acima da caixa
@@ -519,7 +521,7 @@ const CameraDeExplorar: React.FC<{
                 const k = Math.min(1, empurra.current * 4);
                 ax += dz0 / d0 * .05 * k; az += -dx0 / d0 * .05 * k;
             }
-            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo ? (retrato ? 1.32 : 1.5) : 1.78), az), 1 - Math.exp(-dt * 4));
+            alvo.current.lerp(mira.current.set(ax, chaoF + (ent ? 1.95 : conversaCam.ativo ? (retrato ? 1.32 : 1.5) : chaoDoFoco.y !== null ? (retrato ? 1.15 : 1.35) : 1.78), az), 1 - Math.exp(-dt * 4));
             const dx = alvo.current.x - camera.position.x, dz = alvo.current.z - camera.position.z;
             yaw.current = Math.atan2(-dx, -dz);
             pitch.current = Math.atan2(alvo.current.y - camera.position.y, Math.hypot(dx, dz));
@@ -1011,6 +1013,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             pistas: (...p: Pista[]) => { p.forEach((x) => est.current.pistas.add(x)); bump(); },
             pular: () => { tQueda.current = DURACAO_DA_QUEDA; },
             tQueda: () => tQueda.current,
+            foco: () => [foco.current?.toArray(), chaoDoFoco.y, fase],
             atencao: (v?: number) => { if (v !== undefined) fixarAtencao(v); return { valor: atencao.valor, nivel: atencao.nivel, x: jog.current.x, z: jog.current.z }; },
             // o mesmo que o botão de ação (a bancada a 2 qps erra o clique)
             agir: () => acao.current(),
@@ -1136,7 +1139,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
 
     const fecharDialogo = useCallback(() => {
         if (falando.current) npcVis[falando.current].current.falando = false;
-        falando.current = null; foco.current = null; conversaCam.ativo = false;
+        falando.current = null; foco.current = null; conversaCam.ativo = false; chaoDoFoco.y = null;
         setFalas(null); setGlitch(false);
         setFase((f) => (f === 'dialogo' ? 'explorar' : f));
         const fim = aoFimDoDialogo.current; aoFimDoDialogo.current = null;
@@ -1303,6 +1306,9 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 if (a.i !== CASA_CERTA) batidasNasCasas[a.i] = performance.now();
                 const casa = a.i;
                 abrirDialogo(r.falas, null, () => { conversaAcabou[casa] = performance.now(); });
+                // o olhar vai sozinho para o vão da porta, na altura de quem atende
+                // (sem isso a câmera ficava onde estava — às vezes no beiral do telhado)
+                { const d = portaNoMundo(casa); foco.current = new THREE.Vector3(d.x + d.fx * .4, 0, d.z + d.fz * .4); chaoDoFoco.y = chaoEm(d.x + d.fx * 2, d.z + d.fz * 2) ?? jog.current.y; conversaCam.ativo = false; }
                 // porta errada: a vila repara. Na terceira, todo mundo para o
                 // que está fazendo e encara o forasteiro, em silêncio
                 // conta porta errada diferente: bater de novo na mesma não é suspeito
