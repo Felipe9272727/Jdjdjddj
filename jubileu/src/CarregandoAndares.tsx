@@ -40,8 +40,8 @@ const Cenario: React.FC<{ h: React.ReactNode; v: React.ReactNode; fundo: string 
 const ORIENT = '.cna .ov{display:none}@media(orientation:portrait){.cna .oh{display:none}.cna .ov{display:block}}';
 // ── OS PERSONAGENS ───────────────────────────────────────────────────────────
 /** O hóspede (o avatar "cabelo de bacon"): camisa azul, calça verde. Caixa 160×300. */
-const HB = '0 0 160 300';
-const Hospede = {
+export const HB = '0 0 160 300';
+export const Hospede = {
   pernaE: <g {...L}><path d="M66,200L60,282" stroke="#3d6b35" strokeWidth="24" /><path d="M44,286H74" stroke="#2a2118" strokeWidth="16" /></g>,
   pernaD: <g {...L}><path d="M94,200L100,282" stroke="#2b4d24" strokeWidth="24" /><path d="M88,286H118" stroke="#2a2118" strokeWidth="16" /></g>,
   corpo: <g {...L}><path d="M44,120Q44,96,80,94Q116,96,116,120V206H44Z" fill="#3b6fb0" /><path d="M66,96L80,112L94,96" fill="none" stroke="#2c5489" strokeWidth="5" /><path d="M58,140Q80,150,102,140" fill="none" stroke="#2c5489" strokeWidth="4" /></g>,
@@ -57,8 +57,8 @@ const Hospede = {
   suor: <g {...L} strokeWidth="3"><path d="M116,50Q122,62,116,66Q110,62,116,50Z" fill="#bfe9ff" /></g>,
 };
 /** Aurélio Campos: alto, magro, sobretudo azul-meia-noite de gola alta, chapéu baixo. Caixa 180×400. */
-const AB = '0 0 180 400';
-const Aurelio = {
+export const AB = '0 0 180 400';
+export const Aurelio = {
   corpo: <g {...L}>
     <path d="M60,130Q50,120,90,114Q130,120,120,130L136,380H44Z" fill="#1d2840" />
     <path d="M90,132V380" stroke="#121a2c" strokeWidth="4" />
@@ -79,8 +79,8 @@ const Aurelio = {
   mao: <g {...L}><path d="M50,138Q34,180,44,226" fill="none" stroke="#1d2840" strokeWidth="24" /><circle cx="46" cy="234" r="11" fill="#d8cfc2" /></g>,
 };
 /** O Capitão: casaca vermelha de galões, tricórnio, barba preta, tapa-olho. Caixa 260×360. */
-const CB = '0 0 260 360';
-const Capitao = {
+export const CB = '0 0 260 360';
+export const Capitao = {
   corpo: <g {...L}>
     <path d="M70,150Q70,124,130,120Q190,124,190,150L204,330H56Z" fill="#9e1b22" />
     <path d="M96,128L130,200L164,128" fill="#f1e6cc" />
@@ -105,8 +105,8 @@ const Capitao = {
   </g>,
 };
 /** O Arquivista: senhor de óculos redondos, colete marrom, mangas arregaçadas. Caixa 240×300 (atrás da mesa). */
-const RB = '0 0 240 300';
-const Arquivista = {
+export const RB = '0 0 240 300';
+export const Arquivista = {
   corpo: <g {...L}>
     <path d="M58,170Q58,136,120,132Q182,136,182,170V300H58Z" fill="#cfc4a8" />
     <path d="M78,140L92,300H148L162,140Q140,150,120,150Q100,150,78,140Z" fill="#3c3328" />
@@ -127,8 +127,8 @@ const Arquivista = {
   bravo: <g {...L}><path d="M94,80L114,86M146,80L126,86" strokeWidth="5" /></g>,
 };
 /** O Diabrete (andar 3): borracha 1930, preto, olhos de torta, luvas brancas, pincel. Caixa 180×280. */
-const DB = '0 0 180 280';
-const Diabrete = {
+export const DB = '0 0 180 280';
+export const Diabrete = {
   corpo: <g {...L}>
     <path d="M60,150Q50,250,64,262M120,150Q130,250,116,262" fill="none" stroke={K} strokeWidth="16" />
     <ellipse cx="62" cy="266" rx="18" ry="9" fill={K} /><ellipse cx="118" cy="266" rx="18" ry="9" fill={K} />
@@ -149,8 +149,8 @@ const Diabrete = {
   </g>,
 };
 /** A Cabeça do andar 12: plástico chapado, quepe de concierge azul-petróleo; mandíbula separada. Caixa 420×440. */
-const ZB = '0 0 420 440';
-const Cabeca = {
+export const ZB = '0 0 420 440';
+export const Cabeca = {
   cranio: <g {...L} strokeWidth="8">
     <path d="M70,170Q70,70,210,64Q350,70,350,170V292H70Z" fill="#c9b8a6" />
     <ellipse cx="148" cy="196" rx="34" ry="24" fill="#fffaf0" /><ellipse cx="272" cy="196" rx="34" ry="24" fill="#fffaf0" />
@@ -167,8 +167,8 @@ const Cabeca = {
   goela: <g stroke="none"><ellipse cx="210" cy="320" rx="70" ry="40" fill="#ff7a3a" opacity=".85" /></g>,
 };
 /** O biplano do TROCO-63 (de lado, indo para a direita). Caixa 280×160. */
-const BP = '0 0 280 160';
-const Biplano = {
+export const BP = '0 0 280 160';
+export const Biplano = {
   corpo: <g {...L}>
     <path d="M20,40H230" stroke="#f1e6cc" strokeWidth="14" /><path d="M40,124H220" stroke="#f1e6cc" strokeWidth="14" />
     <path d="M70,46V118M190,46V118" strokeWidth="6" />
@@ -180,10 +180,10 @@ const Biplano = {
   </g>,
   helice: <g {...L} strokeWidth="5"><ellipse cx="262" cy="88" rx="7" ry="44" fill="#f1e6cc" fillOpacity=".5" /><circle cx="262" cy="88" r="8" fill={OURO} /></g>,
 };
-const gaivota = <g {...L} strokeWidth="5"><path d="M10,30Q30,6,50,28Q70,6,90,30" fill="none" /><ellipse cx="50" cy="32" rx="10" ry="7" fill="#fff" /><path d="M58,32L68,34L58,37Z" fill="#ffb347" /></g>;
+export const gaivota = <g {...L} strokeWidth="5"><path d="M10,30Q30,6,50,28Q70,6,90,30" fill="none" /><ellipse cx="50" cy="32" rx="10" ry="7" fill="#fff" /><path d="M58,32L68,34L58,37Z" fill="#ffb347" /></g>;
 
 // ═══ ANDAR 6 — SUÍTE 612 ═════════════════════════════════════════════════════
-const quarto = (W: number, H: number) => {
+export const quarto = (W: number, H: number) => {
   const chao = H * .66, jx = W * .58, jw = W * .26;
   return <g {...L}>
     <rect width={W} height={chao} fill="#3a2e24" /><rect width={W} height={chao} fill="url(#a6-pp)" />
@@ -202,11 +202,11 @@ const quarto = (W: number, H: number) => {
     <rect x={W * .31} y={chao - H * .145} width={W * .06} height={H * .035} rx="10" fill="#efe3c8" />
   </g>;
 };
-const chuva = (W: number, H: number) => <g stroke="#9ab4d6" strokeWidth="3" opacity=".6">
+export const chuva = (W: number, H: number) => <g stroke="#9ab4d6" strokeWidth="3" opacity=".6">
   {Array.from({ length: 22 }, (_, i) => <path key={i} d={`M${W * .585 + (i * 37) % (W * .25)},${H * .15 + (i * 53) % (H * .33)}l-8,22`} />)}
 </g>;
 /** As cortinas (cada lado balança com a corrente de ar da janela). */
-const cortina = (lado: number) => <g {...L} strokeWidth="5"><path d={lado < 0 ? 'M10,0H70Q60,120,80,240Q50,250,20,236Q4,120,10,0Z' : 'M50,0H110Q116,120,100,236Q70,250,40,240Q60,120,50,0Z'} fill="#7a1c22" /><path d={lado < 0 ? 'M30,10Q26,120,40,236' : 'M90,10Q94,120,80,236'} fill="none" stroke="#4a0e14" strokeWidth="4" /></g>;
+export const cortina = (lado: number) => <g {...L} strokeWidth="5"><path d={lado < 0 ? 'M10,0H70Q60,120,80,240Q50,250,20,236Q4,120,10,0Z' : 'M50,0H110Q116,120,100,236Q70,250,40,240Q60,120,50,0Z'} fill="#7a1c22" /><path d={lado < 0 ? 'M30,10Q26,120,40,236' : 'M90,10Q94,120,80,236'} fill="none" stroke="#4a0e14" strokeWidth="4" /></g>;
 const RELAMPAGOS = [2.9, 6.4];
 const CSS6 = [
   ORIENT,
@@ -322,7 +322,7 @@ const Suite612 = memo(function Suite612() {
 });
 
 // ═══ ANDAR 7 — O CONVÉS ══════════════════════════════════════════════════════
-const mar = (W: number, H: number) => {
+export const mar = (W: number, H: number) => {
   const hz = H * .42;
   return <g {...L}>
     <rect width={W} height={hz} fill="#8fc3e6" /><circle cx={W * .8} cy={hz * .35} r={H * .07} fill="#fff3b0" stroke="none" />
@@ -330,11 +330,11 @@ const mar = (W: number, H: number) => {
     <path d={`M0,${hz}H${W}`} strokeWidth="5" />
   </g>;
 };
-const ondas = (W: number, H: number, y: number, cor: string) => {
+export const ondas = (W: number, H: number, y: number, cor: string) => {
   const n = Math.ceil(W / 120) + 3;
   return <path d={`M-240,${H * y}` + Array.from({ length: n }, (_, i) => `q60,-26,120,0`).join('') + `V${H}H-240Z`} fill={cor} stroke={K} strokeWidth="5" strokeLinejoin="round" />;
 };
-const conves = (W: number, H: number) => {
+export const conves = (W: number, H: number) => {
   const y = H * .72;
   return <g {...L}>
     <path d={`M0,${y}H${W}V${H}H0Z`} fill="#8a5a32" />
@@ -344,7 +344,7 @@ const conves = (W: number, H: number) => {
     <path d={`M0,${y}H${W}`} stroke="#3d2010" strokeWidth="10" />
   </g>;
 };
-const TIMAO = <g {...L} strokeWidth="7">
+export const TIMAO = <g {...L} strokeWidth="7">
   {Array.from({ length: 8 }, (_, i) => <path key={i} d={`M60,60L${60 + Math.cos(i * Math.PI / 4) * 58},${60 + Math.sin(i * Math.PI / 4) * 58}`} stroke="#7a4a1a" strokeWidth="9" />)}
   <circle cx="60" cy="60" r="42" fill="none" stroke="#a0522d" strokeWidth="12" /><circle cx="60" cy="60" r="12" fill={OURO} />
 </g>;
@@ -427,7 +427,7 @@ const CSS7 = [
   assar('a7-tq', '50% 50%', D, (tl, a) => { tremor(tl, a, 4.7, 1.2, 6); }),
 
 ].join('');
-const Esfregao = <g {...L} strokeWidth="5"><path d="M100,150L100,250" stroke="#a0522d" strokeWidth="8" /><path d="M78,250H122L128,272H72Z" fill="#f1e6cc" /></g>;
+export const Esfregao = <g {...L} strokeWidth="5"><path d="M100,150L100,250" stroke="#a0522d" strokeWidth="8" /><path d="M78,250H122L128,272H72Z" fill="#f1e6cc" /></g>;
 const Conves7 = memo(function Conves7() {
   return (
     <>
@@ -464,7 +464,7 @@ const Conves7 = memo(function Conves7() {
 });
 
 // ═══ ANDAR 8 — O ARQUIVO ═════════════════════════════════════════════════════
-const arquivo = (W: number, H: number) => {
+export const arquivo = (W: number, H: number) => {
   const chao = H * .7, col = Math.ceil(W / 150);
   return <g {...L}>
     <rect width={W} height={H} fill="#1a120c" />
@@ -482,15 +482,15 @@ const arquivo = (W: number, H: number) => {
     <rect width={W} height={H} fill="url(#a8-lz)" stroke="none" />
   </g>;
 };
-const Mesa8 = <g {...L}>
+export const Mesa8 = <g {...L}>
   <rect x="10" y="20" width="440" height="34" rx="6" fill="#4a2814" />
   <path d="M30,54V200M430,54V200" stroke="#2b150c" strokeWidth="16" />
   <rect x="300" y="-6" width="70" height="26" rx="3" fill="#f1e6cc" /><rect x="306" y="-14" width="70" height="26" rx="3" fill="#f6f1e4" />
 </g>;
-const Foto = <g {...L} strokeWidth="5"><rect x="4" y="4" width="112" height="140" fill="#f1e6cc" /><rect x="16" y="16" width="88" height="96" fill="#6f6252" /><circle cx="60" cy="54" r="18" fill="#c2a381" /><path d="M30,112Q60,72,90,112Z" fill="#3c3328" /></g>;
+export const Foto = <g {...L} strokeWidth="5"><rect x="4" y="4" width="112" height="140" fill="#f1e6cc" /><rect x="16" y="16" width="88" height="96" fill="#6f6252" /><circle cx="60" cy="54" r="18" fill="#c2a381" /><path d="M30,112Q60,72,90,112Z" fill="#3c3328" /></g>;
 /** Os rabiscos do Diabrete na foto, um por vez: chifres, bigode, sobrancelhas. */
-const RABISCOS = ['M42,40l-8,-14M78,40l8,-14', 'M40,70Q60,62,80,70', 'M48,46q4,-4,8,0M64,46q4,-4,8,0'];
-const Caixa8 = <g {...L} strokeWidth="5"><rect x="4" y="30" width="172" height="150" rx="6" fill="#b88a52" /><rect x="60" y="80" width="60" height="22" fill="#f1e6cc" /><path d="M4,30L20,4H160L176,30" fill="#c49a62" /></g>;
+export const RABISCOS = ['M42,40l-8,-14M78,40l8,-14', 'M40,70Q60,62,80,70', 'M48,46q4,-4,8,0M64,46q4,-4,8,0'];
+export const Caixa8 = <g {...L} strokeWidth="5"><rect x="4" y="30" width="172" height="150" rx="6" fill="#b88a52" /><rect x="60" y="80" width="60" height="22" fill="#f1e6cc" /><path d="M4,30L20,4H160L176,30" fill="#c49a62" /></g>;
 const CSS8 = [
   ORIENT,
   pos('a8r', [640, 600, 240, 300], [270, 1150, 240, 300]),
@@ -591,7 +591,7 @@ const ArquivoDoAndar8 = memo(function ArquivoDoAndar8() {
 });
 
 // ═══ ANDAR 12 — O CÉU ════════════════════════════════════════════════════════
-const ceu = (W: number, H: number) => {
+export const ceu = (W: number, H: number) => {
   const hz = H * .7;
   return <g {...L}>
     <rect width={W} height={H} fill="url(#a12-ceu)" stroke="none" />
@@ -605,7 +605,7 @@ const ceu = (W: number, H: number) => {
     <path d={`M0,${hz}Q${W * .15},${hz - 40},${W * .3},${hz}T${W * .6},${hz}T${W * .9},${hz}T${W * 1.2},${hz}V${H}H0Z`} fill="#f1d6e0" />
   </g>;
 };
-const nuvem = <g {...L} strokeWidth="5"><path d="M20,70Q10,40,44,40Q52,10,90,20Q120,4,140,34Q176,30,170,64Q172,82,140,80H40Q16,82,20,70Z" fill="#fde9ef" /></g>;
+export const nuvem = <g {...L} strokeWidth="5"><path d="M20,70Q10,40,44,40Q52,10,90,20Q120,4,140,34Q176,30,170,64Q172,82,140,80H40Q16,82,20,70Z" fill="#fde9ef" /></g>;
 const CSS12 = [
   ORIENT,
   pos('a12z', [560, 500, 420, 440], [180, 900, 420, 440]),

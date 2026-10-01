@@ -134,8 +134,8 @@ const caretas = (pref: string, j: Partial<Record<'ypb' | 'yps' | 'ypy', [number,
   (['ypb', 'yps', 'ypy'] as const).map((k) => vis(`${pref}t .${k}`, j[k] ?? [])).join('');
 
 // ═══ 1. ELEVADOR ═════════════════════════════════════════════════════════════
-const EL = '0 0 400 460';
-const Cabine = () => ( // o fundo da cabine (atrás do 64)
+export const EL = '0 0 400 460';
+export const Cabine = () => ( // o fundo da cabine (atrás do 64)
   <g {...L}>
     <rect x="70" y="110" width="260" height="330" fill="#1c0d08" />
     <circle cx="200" cy="130" r="150" fill="url(#cna-lz)" opacity=".55" />
@@ -151,7 +151,7 @@ const Porta: React.FC<{ x: number }> = ({ x }) => (
     <path d={`M${x + 65},150L${x + 98},197L${x + 65},244L${x + 32},197Z`} fill="none" stroke={OURO_E} strokeWidth="4" />
   </g>
 );
-const Moldura = () => (
+export const Moldura = () => (
   <g {...L}>
     <path d="M0,60H400V460H0Z M70,110V440H330V110Z" fill="url(#cna-ma)" fillRule="evenodd" />
     <path d="M18,78H382V460M18,78V460" fill="none" stroke={OURO} strokeWidth="5" />
@@ -164,7 +164,7 @@ const Moldura = () => (
     ))}
   </g>
 );
-const Ponteiro = () => <g {...L} strokeWidth="4"><path d="M200,64L196,24L200,16L204,24Z" fill="#b3111a" /><circle cx="200" cy="60" r="7" fill={OURO} /></g>;
+export const Ponteiro = () => <g {...L} strokeWidth="4"><path d="M200,64L196,24L200,16L204,24Z" fill="#b3111a" /><circle cx="200" cy="60" r="7" fill={OURO} /></g>;
 const BOTOES = [0, 1, 2, 3, 4, 5];
 const Painel = () => (
   <g {...L} strokeWidth="4">
@@ -307,15 +307,15 @@ const Elevador = memo(function Elevador() {
 });
 
 // ═══ 2. MALA FUJONA ══════════════════════════════════════════════════════════
-const CA = '0 0 360 320';
-const Carrinho = () => (
+export const CA = '0 0 360 320';
+export const Carrinho = () => (
   <g {...L}>
     <path d="M40,252V44Q40,22,62,22H298Q320,22,320,44V252" fill="none" stroke={OURO_E} strokeWidth="14" />
     <path d="M40,252V44Q40,22,62,22H298Q320,22,320,44V252" fill="none" stroke={OURO} strokeWidth="7" />
     <rect x="22" y="246" width="316" height="22" rx="6" fill="url(#cna-ou)" />
   </g>
 );
-const Malas = () => (
+export const Malas = () => (
   <g {...L}>
     <rect x="58" y="150" width="148" height="98" rx="10" fill="#2b4a8a" />
     <path d="M58,182H206M58,214H206" stroke="#16264a" strokeWidth="5" />
@@ -324,10 +324,10 @@ const Malas = () => (
     <circle cx="240" cy="200" r="11" fill="#ffe14a" /><circle cx="286" cy="222" r="8" fill="#4dff7a" />
   </g>
 );
-const Chapeleira = () => (
+export const Chapeleira = () => (
   <g {...L}><rect x="96" y="96" width="96" height="56" rx="12" fill="#d79a2c" /><path d="M96,112H192" stroke="#7a4a1a" strokeWidth="5" /><rect x="128" y="82" width="32" height="16" rx="5" fill="#7a4a1a" /></g>
 );
-const Roda: React.FC<{ x: number }> = ({ x }) => (
+export const Roda: React.FC<{ x: number }> = ({ x }) => (
   <g {...L}><circle cx={x} cy="290" r="26" fill="#2a1710" /><circle cx={x} cy="290" r="9" fill={OURO} /><path d={`M${x},266V314M${x - 24},290H${x + 24}`} stroke={OURO_E} strokeWidth="4" /></g>
 );
 
@@ -496,8 +496,8 @@ const MalaFujona = memo(function MalaFujona() {
 });
 
 // ═══ 3. TRÉGUA DO CHÁ ════════════════════════════════════════════════════════
-const ME = '0 0 360 260';
-const Mesa = () => (
+export const ME = '0 0 360 260';
+export const Mesa = () => (
   <g {...L}>
     <path d="M110,190L92,256M250,190L268,256" stroke="#3d2010" strokeWidth="14" />
     <path d="M14,96Q16,190,40,206Q180,232,320,206Q344,190,346,96Z" fill="#f6f1e4" />
@@ -512,8 +512,8 @@ const Mesa = () => (
     <rect x="164" y="76" width="40" height="24" rx="4" fill="#fff" transform="rotate(6 184 88)" />
   </g>
 );
-const NAIPES = ['♥', '♠', '♦', '♣', '♥', '♠'];
-const Carta: React.FC<{ n: number }> = ({ n }) => (
+export const NAIPES = ['♥', '♠', '♦', '♣', '♥', '♠'];
+export const Carta: React.FC<{ n: number }> = ({ n }) => (
   <g {...L} strokeWidth="4">
     <rect x="4" y="4" width="52" height="72" rx="8" fill="#fffaf0" />
     <text x="30" y="52" textAnchor="middle" fontSize="34" fill={n % 2 ? K : '#e63a2e'} stroke="none">{NAIPES[n]}</text>

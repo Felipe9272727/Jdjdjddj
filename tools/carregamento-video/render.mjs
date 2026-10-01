@@ -15,7 +15,7 @@ if (quadro !== undefined) {
   await renderStill({ composition, serveUrl, output: `out/${id}-${quadro}.png`, frame: +quadro, browserExecutable });
   console.log(`out/${id}-${quadro}.png`);
 } else {
-  await renderMedia({ composition, serveUrl, codec: 'vp9', outputLocation: `out/${id}.webm`, browserExecutable, crf: 34, concurrency: 4 });
+  if (!process.env.SO_MP4) await renderMedia({ composition, serveUrl, codec: 'vp9', outputLocation: `out/${id}.webm`, browserExecutable, crf: 34, concurrency: 4 });
   await renderMedia({ composition, serveUrl, codec: 'h264', outputLocation: `out/${id}.mp4`, browserExecutable, crf: 23, pixelFormat: 'yuv420p', concurrency: 4 });
   console.log(`out/${id}.webm`, `out/${id}.mp4`);
 }

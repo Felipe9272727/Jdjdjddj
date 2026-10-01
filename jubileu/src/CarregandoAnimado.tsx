@@ -132,7 +132,7 @@ export const P64 = pal('#b4bdc7 #6f7a87 #8a95a1 #3a4047 #4a525c #0e1318 #e8503a 
 export const P63 = pal('#8cc4b4 #3f6f68 #8e97a6 #3a4047 #3f6f68 #0c1716 #8e97a6 #75e6e0 #3fe0c8 #3fe0c8 #3fe0c8 #3fe0c8'); // "azedo" (Floor12Avioes)
 export const PSG = pal('#66748c #2f3848 #46526a #20252d #2a303b #0a0c10 #ffc21a #ff4a3c #ff3b30 #ff3b30 #ffc21a #ff3b30'); // aço + faixa de perigo
 
-const Perna: React.FC<{ p: Pal; x: number; gr?: boolean }> = ({ p, x, gr }) => {
+export const Perna: React.FC<{ p: Pal; x: number; gr?: boolean }> = ({ p, x, gr }) => {
   const w = gr ? 10 : 8, f = gr ? 27 : 25;
   return <g {...L}>{sv(`r ${x - w} 186 ${w * 2} 36 5 ${p.j}|r* ${x - f} 214 ${f * 2} 30 12 ${p.m}|r~ ${x - f + 8} 219 22 6 3 #fff o.4`)}</g>;
 };
@@ -168,7 +168,7 @@ export const Cara: React.FC<{ p: Pal; k: 0 | 1 | 2; t: Exp }> = ({ p, k, t }) =>
     </g>
   );
 };
-const Cabeca: React.FC<{ p: Pal; k: 0 | 1 | 2; x: string; ex: Exp[] }> = ({ p, k, x, ex }) => {
+export const Cabeca: React.FC<{ p: Pal; k: 0 | 1 | 2; x: string; ex: Exp[] }> = ({ p, k, x, ex }) => {
   const s = k === 2;
   return (
     <g {...L}>
@@ -191,7 +191,7 @@ const ARMAS: Record<string, (p: Pal) => React.ReactNode> = {
   b: (p) => sv(`c~ 0 138 30 @ci .glowb|r -7 44 14 86 6 #2c323d|r~ -7 56 14 8 0 ${p.ac}|r~ -7 76 14 8 0 ${p.ac}|r -10 120 20 30 9 #9af6ff|p M-13,126l8,6l-6,4l9,8 none s#fff w3 .zap`), // cassetete
   f: () => <>{sv(`r -3.5 40 7 120 3 #e0c890|p M-3,112L-72,124L-54,140L-72,156L-3,168Z #3fe0c8`)}<text x="-38" y="150" textAnchor="middle" fontFamily={FONTE} fontSize="25" fill={K} stroke="none" transform="rotate(180 -38 142)">63</text></>, // bandeirinha
 };
-const Braco: React.FC<{ p: Pal; x: number; arma?: Arma; gr?: boolean; ban?: boolean }> = ({ p, x, arma = 'n', gr, ban }) => (
+export const Braco: React.FC<{ p: Pal; x: number; arma?: Arma; gr?: boolean; ban?: boolean }> = ({ p, x, arma = 'n', gr, ban }) => (
   <g transform={`translate(${x} 124)${gr ? ' scale(1.14)' : ''}`} {...L}>
     {ARMAS[arma]?.(p)}
     {sv(`r* -10 -4 20 56 10 ${p.m}|r -14 46 11 25 4 ${p.j}|r 3 46 11 25 4 ${p.j}|c 0 0 13 ${p.ac}`)}

@@ -5,7 +5,7 @@
 import React from 'react';
 import { useCurrentFrame, AbsoluteFill } from 'remotion';
 import { K, OURO, OURO_E } from '../../../jubileu/src/CarregandoAnimado';
-import { k, rad, Robo64, Letreiro, COR } from './rig';
+import { k, rad, Robo64, Luva } from './rig';
 
 export const DUR = 144; // 6 s
 const CX = 800, PISO = 640, TOPO = 150, LARG = 330; // a porta do elevador
@@ -129,19 +129,19 @@ export function Elevador() {
   const x = k(f, [[0, CX, 'h'], [36, CX, 'o'], [48, 1030, 'h'], [80, 1030, 'io'], [100, 1150, 'h'], [104, 1150, 'xi'], [110, CX, 'h'], [144, CX]]);
   const yBase = k(f, [[0, PISO - 30, 'h'], [36, PISO - 30, 'l'], [48, 712, 'h'], [104, 712, 'xi'], [110, PISO - 30, 'h'], [144, PISO - 30]]);
   const arco = f >= 36 && f < 48 ? Math.sin(((f - 36) / 12) * Math.PI) * 150 : 0;
-  const esc = k(f, [[0, .95, 'h'], [36, .95, 'l'], [48, 1.38, 'h'], [104, 1.38, 'xi'], [110, .95, 'h'], [144, .95]]);
+  const esc = k(f, [[0, .95, 'h'], [36, .95, 'l'], [48, 1.35, 'h'], [104, 1.35, 'xi'], [110, .95, 'h'], [144, .95]]);
   // agacha (antecipação) · estica no ar · amassa no chão · assenta passando do ponto
-  const sy = k(f, [[0, 1, 'h'], [30, 1, 'o'], [35, .8, 'x'], [38, 1.22, 'io'], [46, 1.1, 'l'], [48, .74, 'b'], [56, 1, 'h'], [75, 1, 'x'], [77, 1.15, 'e'], [86, 1, 'h'], [104, 1, 'l'], [105, 1.3, 'h'], [109, 1.3, 'o'], [112, 1, 'h'], [144, 1]]);
-  const sx = 1 / Math.sqrt(sy);   // volume
-  const r = k(f, [[0, 0, 'h'], [36, 0, 'o'], [42, -10, 'io'], [48, 0, 'h'], [80, 0, 'o'], [86, 22, 'io'], [92, 26, 'io'], [98, 20, 'io'], [104, 24, 'x'], [105, -62, 'h'], [109, -62, 'o'], [113, 0, 'h'], [144, 0]])
+  const sy = k(f, [[0, 1, 'h'], [30, 1, 'o'], [35, .8, 'x'], [38, 1.22, 'io'], [46, 1.1, 'l'], [48, .74, 'b'], [56, 1, 'h'], [75, 1, 'x'], [77, 1.15, 'e'], [86, 1, 'h'], [104, 1, 'l'], [105, .62, 'h'], [108, .62, 'o'], [111, 1, 'h'], [144, 1]]);
+  const sx = 1 / Math.sqrt(sy) * (f >= 104 && f < 109 ? 1.7 : 1);   // volume + smear
+  const r = k(f, [[0, 0, 'h'], [36, 0, 'o'], [42, -10, 'io'], [48, 0, 'h'], [80, 0, 'o'], [86, 22, 'io'], [92, 26, 'io'], [98, 20, 'io'], [104, 24, 'x'], [106, -30, 'o'], [112, 0, 'h'], [144, 0]])
     + (f >= 82 && f < 104 ? Math.sin(f * 1.7) * 2.5 : 0);
   const cara = f < 24 ? 'p' : f < 74 ? 'f' : f < 82 ? 's' : f < 104 ? 'b' : f < 116 ? 'x' : 'p';
   const cab = k(f, [[0, 0], [40, 8, 'b'], [48, -6, 'e'], [62, 0, 'io'], [74, -14, 'x'], [80, 10, 'io'], [104, 6, 'x'], [108, -20, 'e'], [124, 0]]);
   // braços: esperam, sobem no pulo, TCHARAM acenando com dobra; o esquerdo fica preso na porta
   const tch = f >= 56 && f < 74;
   const onda = Math.sin(f * .55);
-  const bE = { a: k(f, [[0, 20], [30, 40, 'o'], [36, -10, 'b'], [44, 150, 'io'], [56, 120, 'b'], [62, 110]]) + (tch ? onda * 12 : 0), d: tch ? onda * 30 : 18 };
-  const bD = { a: k(f, [[0, 20], [30, 40, 'o'], [36, -10, 'b'], [44, 150, 'io'], [56, 125, 'io'], [104, 140, 'io'], [112, 160, 'io'], [130, 20]]) + (tch ? -onda * 12 : 0) + (f >= 82 && f < 104 ? Math.sin(f * 2.1) * 25 : 0), d: tch ? -onda * 30 : 18 };
+  const bE = { a: k(f, [[0, 20], [30, 40, 'o'], [36, -10, 'b'], [44, 150, 'io'], [56, 120, 'b'], [62, 110]]) + (tch ? onda * 12 : 0), d: tch ? onda * 30 : 18, c: 64 };
+  const bD = { a: k(f, [[0, 20], [30, 40, 'o'], [36, -10, 'b'], [44, 150, 'io'], [56, 125, 'io'], [104, 140, 'io'], [112, 160, 'io'], [130, 20]]) + (tch ? -onda * 12 : 0) + (f >= 82 && f < 104 ? Math.sin(f * 2.1) * 25 : 0), d: tch ? -onda * 30 : 18, c: 64 };
   const pernasCorrendo = f >= 82 && f < 104;
   const passo = Math.sin(f * 1.4);
   const pE = { a: pernasCorrendo ? passo * 38 : k(f, [[0, 6], [36, 20, 'o'], [44, -20, 'io'], [48, 14, 'b'], [56, 6]]), d: pernasCorrendo ? -passo * 14 : 6 };
@@ -149,17 +149,12 @@ export function Elevador() {
   // a mão presa na fresta da porta (ponto fixo no mundo) de 74 a 104
   const MAO_PRESA = [CX, 470];
   const presa = f >= 74 && f < 105;
-  // balanço no ritmo (1930: ninguém fica congelado nas pausas) — ciclo de 12 quadros
-  const parado = (f >= 56 && f < 74) || f < 30;
-  const bob = parado ? Math.abs(Math.sin(f * Math.PI / 12)) * -7 : 0;
-  // o braço de borracha ondula enquanto estica e depois do puxão (amortece em 10 quadros)
-  const ondaE = f >= 82 && f < 104 ? 3 + Math.sin(f * .7) * 2 : f >= 104 && f < 116 ? 12 * (1 - (f - 104) / 12) : 0;
-  const pose = { x, y: yBase - arco + bob, esc, sx, sy: sy * (parado ? 1 + bob * -.004 : 1), r, cab, cara, bE, bD, pE, pD, maoE: presa ? MAO_PRESA : null, ondaE };
+  const pose = { x, y: yBase - arco, esc, sx, sy, r, cab, cara, bE, bD, pE, pD, maoE: presa ? MAO_PRESA : null };
   const mundoParaLocal = ([wx, wy]) => {
     const dx = wx - pose.x, dy = wy - pose.y, a = rad(-r), cx = dx * Math.cos(a) - dy * Math.sin(a), cy = dx * Math.sin(a) + dy * Math.cos(a);
     return [100 + cx / (esc * sx), 250 + cy / (esc * sy)];
   };
-  const robo = <Robo64 pose={pose} mundoParaLocal={mundoParaLocal} f={f} />;
+  const robo = <Robo64 pose={pose} mundoParaLocal={mundoParaLocal} />;
 
   // ── câmera: entra no elevador no PLIM, segue o pulo, soco de zoom no SLAM, abre no BONK ──
   const z = k(f, [[0, 1.1, 'io'], [14, 1.25, 'x'], [34, 1.25, 'io'], [50, 1.2, 'io'], [74, 1.3, 'x'], [78, 1.42, 'io'], [100, 1.25, 'x'], [112, 1.15, 'io'], [144, 1.1]]);
@@ -175,7 +170,7 @@ export function Elevador() {
       <svg viewBox="0 0 1600 760" width="100%" height="100%" style={{ filter: 'sepia(.16) contrast(1.06) saturate(1.1)' }}>
         <defs>
           <radialGradient id="luz"><stop offset="0" stopColor="#ffd98a" stopOpacity=".85" /><stop offset=".5" stopColor="#ffb347" stopOpacity=".3" /><stop offset="1" stopColor="#ffb347" stopOpacity="0" /></radialGradient>
-          <linearGradient id="ouro" x2="0" y2="1"><stop offset="0" stopColor="#e8cf86" /><stop offset=".55" stopColor="#c9a44c" /><stop offset="1" stopColor="#8a6a24" /></linearGradient>
+          <linearGradient id="ouro" x2="0" y2="1"><stop offset="0" stopColor="#ffe59a" /><stop offset=".55" stopColor="#f2b53c" /><stop offset="1" stopColor="#b9791a" /></linearGradient>
           <radialGradient id="cna-ci"><stop offset="0" stopColor="#7df9ff" stopOpacity=".95" /><stop offset=".45" stopColor="#16e0e8" stopOpacity=".45" /><stop offset="1" stopColor="#16e0e8" stopOpacity="0" /></radialGradient>
           {/* o personagem: traço que "ferve" de leve + luz quente no contorno de cima e sombra do lado de baixo (volume) */}
           {[0, 1, 2].map((s) => <filter key={s} id={`ferve${s}`} x="-20%" y="-20%" width="140%" height="140%">
@@ -188,11 +183,10 @@ export function Elevador() {
             <feComposite in="sombra" in2="b" operator="atop" result="b2" />
             <feComposite in="aro" in2="b2" operator="atop" />
           </filter>)}
-          <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#3e1d1e" /><stop offset=".45" stopColor="#6b2e2e" /><stop offset=".62" stopColor="#5e2829" /><stop offset="1" stopColor="#2e1416" /></linearGradient>
-          <linearGradient id="feixe" x2="0" y2="1"><stop offset="0" stopColor="#ffe6a8" stopOpacity=".5" /><stop offset="1" stopColor="#ffe6a8" stopOpacity="0" /></linearGradient>
+          <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#3e0c18" /><stop offset=".45" stopColor="#6a1626" /><stop offset=".62" stopColor="#5a1220" /><stop offset="1" stopColor="#2a0a10" /></linearGradient>
           <pattern id="papel" width="80" height="96" patternUnits="userSpaceOnUse">
-            <path d="M40,80Q40,40,40,12M40,80Q22,50,8,30M40,80Q58,50,72,30" fill="none" stroke="#a4504e" strokeWidth="3" />
-            <path d="M24,80A16,16,0,0,1,56,80" fill="none" stroke="#a4504e" strokeWidth="3" />
+            <path d="M40,80Q40,40,40,12M40,80Q22,50,8,30M40,80Q58,50,72,30" fill="none" stroke="#8a2236" strokeWidth="3" />
+            <path d="M24,80A16,16,0,0,1,56,80" fill="none" stroke="#8a2236" strokeWidth="3" />
             <circle cx="40" cy="10" r="4" fill="#a83046" />
           </pattern>
           <radialGradient id="poca"><stop offset="0" stopColor="#ffcf7a" stopOpacity=".55" /><stop offset=".4" stopColor="#ff9a4a" stopOpacity=".18" /><stop offset="1" stopColor="#ff9a4a" stopOpacity="0" /></radialGradient>
@@ -201,19 +195,13 @@ export function Elevador() {
           <filter id="sombraMole"><feGaussianBlur stdDeviation="8" /></filter>
           <filter id="papelTex"><feTurbulence type="fractalNoise" baseFrequency=".012 .05" numOctaves="3" seed="4" /><feColorMatrix values="0 0 0 0 .55  0 0 0 0 .4  0 0 0 0 .25  0 0 0 .18 0" /></filter>
           <clipPath id="vao"><rect x={ESQ} y={TOPO} width={LARG} height={PISO - TOPO} /></clipPath>
-          <radialGradient id="vinheta" cx=".5" cy=".5" r=".72"><stop offset=".5" stopColor="#1a1410" stopOpacity="0" /><stop offset="1" stopColor="#1a1410" stopOpacity=".72" /></radialGradient>
+          <radialGradient id="vinheta" cx=".5" cy=".5" r=".75"><stop offset=".55" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".6" /></radialGradient>
         </defs>
         <g transform={cam}>
           <Fundo />
           <rect width="1600" height="760" filter="url(#papelTex)" style={{ mixBlendMode: 'multiply' }} />
           <Reflexo fresta={fresta} />
           <Cabine luz={Math.max(0, abre)} />
-          {/* o feixe de luz que sai do elevador quando abre, com poeira brilhando dentro */}
-          {abre > .05 && <g opacity={Math.min(1, abre) * .9} style={{ mixBlendMode: 'screen' }}>
-            <path d={`M${CX - fresta},${PISO}L${CX + fresta},${PISO}L${CX + fresta * 2.4},760L${CX - fresta * 2.4},760Z`} fill="url(#feixe)" filter="url(#desfoque)" />
-            {Array.from({ length: 18 }, (_, i) => { const t = ((f * .004 + i * .137) % 1), px = CX + Math.sin(i * 7.1 + f * .03) * fresta * (.4 + t * 1.6), py = TOPO + 60 + t * 520;
-              return <circle key={i} cx={px} cy={py} r={2 + (i % 3)} fill="#fff4cc" opacity={.6 * Math.sin(t * Math.PI)} />; })}
-          </g>}
           {!fora && abre > .05 && <g clipPath="url(#vao)" filter={`url(#ferve${ferve})`}>{robo}</g>}
           <g clipPath="url(#vao)">
             <g transform={`translate(${-fresta},0)`}><Porta x0={ESQ} larg={LARG / 2} /></g>
@@ -224,25 +212,18 @@ export function Elevador() {
           {fora && <g filter={`url(#ferve${ferve})`}>{robo}</g>}
           {/* gotas de esforço */}
           {f >= 84 && f < 104 && [0, 1].map((i) => { const t = ((f - 84 + i * 6) % 12) / 12; return <path key={i} d={`M${x + 70 + i * 20 + t * 40},${yBase - 300 - t * 30 + t * t * 80}q8,14,0,20q-8,-6,0,-20Z`} fill="#9ad6ff" stroke={K} strokeWidth="4" opacity={1 - t} />; })}
-          {/* letreiros de 1930: entram amassados (130%→100%), balançam no ritmo e seguram ~10 quadros */}
-          <Letreiro x={CX + 250} y={TOPO - 40} t="PLIM!" giro={-5 + Math.sin(f * .5) * 3} esc={k(f, [[0, 0, 'h'], [17, 0, 'b'], [21, 1, 'h'], [34, 1, 'i'], [38, 0]])} />
-          <Letreiro x={x - 250} y={330} t="TCHARAM!" giro={6 + Math.sin(f * .5) * 3} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [59, 1, 'h'], [72, 1, 'i'], [75, 0]])} />
-          <Letreiro x={CX - 30} y={300} t="SLAM!" giro={-8} tam={80} esc={k(f, [[0, 0, 'h'], [74, 0, 'b'], [77, 1, 'h'], [87, 1, 'i'], [90, 0]])} />
-          <Letreiro x={CX + 40} y={260} t="BONK!" giro={8 + Math.sin(f * .6) * 3} tam={84} esc={k(f, [[0, 0, 'h'], [116, 0, 'b'], [119, 1, 'h'], [132, 1, 'i'], [136, 0]])} />
-          {/* poeira no arranque do arremesso */}
-          {f >= 104 && f < 118 && [0, 1, 2].map((i) => { const t = (f - 104) / 14; return <circle key={i} cx={1150 + (i - 1) * 50 + t * (i - 1) * 60} cy={706 - t * 30 - i * 6} r={18 + t * 30} fill={COR.creme} opacity={(1 - t) * .8} stroke={COR.tinta} strokeWidth="4" />; })}
+          <Estouro x={CX} y={TOPO - 230} t="PLIM!" cor="#fff3b0" giro={-6} esc={k(f, [[0, 0, 'h'], [17, 0, 'b'], [23, 1, 'h'], [34, 1, 'i'], [39, 0]])} />
+          <Estouro x={x - 210} y={330} t="TCHARAM!" cor="#ffe14a" giro={8} esc={k(f, [[0, 0, 'h'], [55, 0, 'b'], [61, .9, 'h'], [72, .9, 'i'], [75, 0]])} />
+          <Estouro x={CX - 40} y={380} t="SLAM!" cor="#ffb347" giro={-10} esc={k(f, [[0, 0, 'h'], [75, 0, 'b'], [79, .8, 'h'], [86, .8, 'i'], [89, 0]])} />
+          <Estouro x={CX + 60} y={330} t="BONK!" cor="#9af6ff" giro={10} esc={k(f, [[0, 0, 'h'], [116, 0, 'b'], [121, 1, 'h'], [132, 1, 'i'], [136, 0]])} />
           {/* riscos de velocidade no arremesso */}
-          {f >= 104 && f < 111 && [0, 1, 2, 3].map((i) => <path key={i} d={`M${x + 140},${yBase - 200 + i * 40}h${180 + i * 40}`} stroke={COR.creme} strokeWidth="10" strokeLinecap="round" opacity=".9" />)}
+          {f >= 104 && f < 111 && [0, 1, 2, 3].map((i) => <path key={i} d={`M${x + 120},${yBase - 230 + i * 45}h${160 + i * 30}`} stroke="#fff" strokeWidth="9" strokeLinecap="round" opacity=".85" />)}
         </g>
         <PrimeiroPlano px={(800 - cx) * .35} />
         <rect width="1600" height="760" fill="url(#vinheta)" />
         {/* grão de filme (troca a cada 2 quadros) */}
-        <filter id="grao"><feTurbulence type="fractalNoise" baseFrequency=".9" seed={Math.floor(f / 2)} /><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .45  0 0 0 0 .38  0 0 0 .13 0" /></filter>
+        <filter id="grao"><feTurbulence type="fractalNoise" baseFrequency=".9" seed={Math.floor(f / 2)} /><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .07 0" /></filter>
         <rect width="1600" height="760" filter="url(#grao)" />
-        {/* riscos de película (mudam a cada 2 quadros) e a cintilação do projetor */}
-        {(() => { const s2 = Math.floor(f / 2), rnd = (n) => { const v = Math.sin(n * 127.1 + s2 * 311.7) * 43758.5453; return v - Math.floor(v); };
-          return [0, 1].filter((i) => rnd(i + 9) > .45).map((i) => <path key={i} d={`M${rnd(i) * 1600},0V760`} stroke={rnd(i + 3) > .5 ? '#f2ebd6' : '#1a1410'} strokeWidth={1 + rnd(i + 5) * 2} opacity={.18 + rnd(i + 7) * .15} />); })()}
-        <rect width="1600" height="760" fill={Math.sin(f * 2.3) > 0 ? '#fff' : '#000'} opacity={Math.abs(Math.sin(f * 1.7 + 1)) * .03} />
       </svg>
     </AbsoluteFill>
   );
