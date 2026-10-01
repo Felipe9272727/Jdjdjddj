@@ -7,9 +7,10 @@
  * quando ele chega perto, e cada ofício tem seu gesto (o ferreiro martela, o
  * pescador puxa a linha, a menina corre em volta do poço).
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { fundirEstaticos } from './f13Fundir';
 import { MARCA_ALTURA, fadeDaMarca, materialDaMarca } from './f13Marca';
 import type { FichaNpc } from './f13Lore';
 
@@ -334,6 +335,15 @@ export const Ovelha: React.FC<{ x: number; y: number; z: number; achadaRef: Reac
     const pret = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: .8 }), []);
     const casco = useMemo(() => new THREE.MeshStandardMaterial({ color: '#141210', roughness: .5 }), []);
     const sumiu = useRef(0);
+    // ~29 malhas por ovelha viram ~10: cada parte que se mexe (cabeça, cada perna) é fundida no
+    // próprio espaço, e o corpo no da ovelha — a animação continua a mesma, com menos chamadas
+    useLayoutEffect(() => {
+        const o = g.current; if (!o) return;
+        const partes = [cabeca.current, ...pernas.current].filter((x): x is THREE.Group => !!x);
+        partes.forEach((p) => { p.userData.vivo = true; });
+        const desfazer = [fundirEstaticos(o), ...partes.map((p) => fundirEstaticos(p))];
+        return () => desfazer.forEach((d) => d());
+    }, []);
     useFrame(({ clock }, dt) => {
         const o = g.current; if (!o) return;
         const t = clock.elapsedTime;
