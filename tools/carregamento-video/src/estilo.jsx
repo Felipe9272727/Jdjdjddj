@@ -10,7 +10,7 @@ import { AtdCorpo, AtdCabeca, AtdBraco, AtdBalcao, AtdSino } from '../../../jubi
 export const LT = '#2a120c'; // traço do cenário
 
 /** Personagem: volume (luz em cima, sombra embaixo, por dentro do contorno) + traço tremido a 12 qps. */
-export const Ator = ({ f, children }) => <g filter={`url(#ferve${Math.floor(f / 2) % 3})`}>{children}</g>;
+export const Ator = ({ f, children, luz = true }) => <g filter={`url(#${luz ? 'ferve' : 'treme'}${Math.floor(f / 2) % 3})`}>{children}</g>;
 
 export const Estouro = ({ x, y, t, cor, esc, giro = 0, tam = 54 }) => esc <= 0.01 ? null : (
   <g transform={`translate(${x},${y}) rotate(${giro}) scale(${esc})`}>
@@ -20,10 +20,12 @@ export const Estouro = ({ x, y, t, cor, esc, giro = 0, tam = 54 }) => esc <= 0.0
   </g>
 );
 /** Balão de fala de cartum (rabinho para baixo). */
-export const Fala = ({ x, y, t, esc, w = 300 }) => esc <= .01 ? null : (
+export const Fala = ({ x, y, t, esc, w = 300, tam = 40, cauda = .3 }) => esc <= .01 ? null : (
   <g transform={`translate(${x},${y}) scale(${esc}) translate(${-w / 2},-100)`} stroke={K} strokeWidth="6" strokeLinejoin="round">
-    <path d={`M14,12H${w - 14}Q${w - 4},12,${w - 4},24V70Q${w - 4},82,${w - 14},82H${w * .42}L${w * .3},112L${w * .33},82H14Q4,82,4,70V24Q4,12,14,12Z`} fill="#fffaf0" />
-    <text x={w / 2} y="62" textAnchor="middle" fontFamily="'Luckiest Guy',Impact" fontSize="40" fill="#e63a2e" stroke={K} strokeWidth="4" paintOrder="stroke">{t}</text>
+    {/* balão de nanquim: borda ondulada, contorno duplo, rabicho em S */}
+    <path transform="translate(6,7)" d={`M18,10Q${w / 2},-2,${w - 18},10Q${w + 4},46,${w - 18},84Q${w / 2},96,${w * (cauda + .14)},86Q${w * cauda},104,${w * (cauda - .06)},120Q${w * (cauda + .02)},100,${w * (cauda - .04)},86Q18,90,14,84Q-4,46,18,10Z`} fill={K} stroke="none" />
+    <path d={`M18,10Q${w / 2},-2,${w - 18},10Q${w + 4},46,${w - 18},84Q${w / 2},96,${w * (cauda + .14)},86Q${w * cauda},104,${w * (cauda - .06)},120Q${w * (cauda + .02)},100,${w * (cauda - .04)},86Q18,90,14,84Q-4,46,18,10Z`} fill="#fffaf0" />
+    <text x={w / 2} y={50 + tam * .3} textAnchor="middle" fontFamily="'Luckiest Guy',Impact" fontSize={tam} fill="#e63a2e" stroke={K} strokeWidth="4" paintOrder="stroke">{t}</text>
   </g>
 );
 export const Sombra = ({ x, y, rx, ry = 14, o = .5 }) => <ellipse cx={x} cy={y} rx={rx} ry={ry} fill="#1a0408" opacity={o} filter="url(#sombraMole)" />;
@@ -66,6 +68,10 @@ export function Palco({ f, z = 1, cx = 800, cy = 380, tx = 0, ty = 0, frente, fu
             <feFlood floodColor="#2a0a20" floodOpacity=".35" /><feComposite in2="lado" operator="in" result="sombra" />
             <feComposite in="sombra" in2="b" operator="atop" result="b2" />
             <feComposite in="aro" in2="b2" operator="atop" />
+          </filter>)}
+          {/* só o traço tremido, sem o brilho creme (cenas escuras: o brilho virava um adesivo) */}
+          {[0, 1, 2].map((s) => <filter key={`t${s}`} id={`treme${s}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed={s * 7 + 3} /><feDisplacementMap in="SourceGraphic" scale="1.8" />
           </filter>)}
           <linearGradient id="parede" x2="0" y2="1"><stop offset="0" stopColor="#3e0c18" /><stop offset=".45" stopColor="#6a1626" /><stop offset=".62" stopColor="#5a1220" /><stop offset="1" stopColor="#2a0a10" /></linearGradient>
           <pattern id="papel" width="80" height="96" patternUnits="userSpaceOnUse">
