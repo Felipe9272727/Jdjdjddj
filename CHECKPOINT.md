@@ -18,17 +18,19 @@ Para retomar se a cota acabar ou o container reiniciar. Atualizado a cada rodada
 - Desempenho: recorte por visão dos moradores (217→105 chamadas, 585k→222k triângulos).
 - Câmera de conversa no rosto, desviando de barracas; câmera da porta no vão.
 - Assuntos sem beco sem saída; guarda de 400 ms no menu; olho da vila escala; noite legível.
+- Tela de carregamento 2D animada (TROCO-63 x robô, TROCO-64, atendente) cobrindo compilação + aquecimento.
+- Crítico 89 (DeepSeek com visão + JEV, `scratchpad/critico_ds.py` + `jogada.mjs`): menu de assuntos fecha a >4 m,
+  olho com pílula escura, 2ª/3ª batida com retorno visual. Vídeo paisagem novo (cabine nova, densidade 2).
 
 ## Em andamento
 - Vídeo da queda NOVO (cabine nova), densidade 2: `tools/queda/gravar.sh` (captura em `tools/queda/captura.mjs`) grava em `/tmp/cap/{h,v}`;
   depois acabamento Remotion (`tools/queda/remotion`: `npm ci && ./run.sh h|v`; caminhos em /tmp), VP9 + H.264, trocar em `public/`.
   Se perdido: refazer com `?f13aovivo&f13gravar` + relógio falso (Playwright `clock`), 34 ms/quadro, 29,4118 qps.
-- Tela de carregamento 2D animada (Tropo 63 x robô, Tropo 64, atendente do lobby):
-  branch `sub/loading` (`CarregandoAnimado.tsx`), plugar enquanto `!quedaPronta`.
-- Crítico rodada 89.
+- Vídeo EM PÉ (720x1280, densidade 2) gravando: `ORIENT=v tools/queda/gravar.sh` → `/tmp/cap/v`; depois Remotion `run.sh v`,
+  VP9 crf 34 + H.264, `public/queda-v.*`.
 
 ## Próximos
 - Medir no celular com `?f13fps` (o usuário reporta ~15 qps) e cortar onde o gargalo estiver,
   sem perda gráfica (candidatos: juntar peças com esqueleto por morador, lotes de adereços estáticos).
-- UI mais bonita.
+- UI mais bonita: unificar caixas (fala, objetivo, aviso, olho) num só estilo (crítico 89).
 - Continuar o gauntlet loop: crítico (DeepSeek com visão + JEV) → correções.
