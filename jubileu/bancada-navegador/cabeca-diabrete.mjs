@@ -8,8 +8,8 @@ const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194
 const p = await (await b.newContext({ viewport:{width:800,height:600} })).newPage();
 await p.route('**://raw.githubusercontent.com/**', r=>r.fulfill({status:200,contentType:'image/png',body:PNG}));
 p.on('pageerror', e=>console.log('  [erro]', String(e.message).slice(0,140)));
-for (const [nome,cam] of [['frente','0.70,2.35,15.6'],['close','0.66,2.15,14.95'],['tres4','1.9,2.4,15.2'],['perfil','2.3,2.35,14.0']]) {
-  await p.goto(`http://127.0.0.1:${PORTA}/index.html?f3preview&nopost&cam=${cam}&alvo=0.66,2.25,14`,{waitUntil:'domcontentloaded',timeout:120000});
+for (const [nome,cam] of [['corpo','0.70,1.9,16.6'],['tres4','1.9,2.4,15.2'],['perfil','2.3,2.35,14.0']]) {
+  await p.goto(`http://127.0.0.1:${PORTA}/index.html?f3preview&nopost&cam=${cam}&alvo=0.66,1.85,14`,{waitUntil:'domcontentloaded',timeout:120000});
   await new Promise(r=>setTimeout(r,14000));
   await p.screenshot({path:`${OUT}/dh-${nome}-${S}.png`}); console.log('ok',nome);
 }

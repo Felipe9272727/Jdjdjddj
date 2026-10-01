@@ -326,6 +326,9 @@ const OLHOS_CENTRO_Y = 0.826;
 // Régua 0,509 (entre os olhos e a boca) e raio de ~17% da largura do rosto, que
 // é a proporção da bola na ficha de referência que ele mandou.
 
+/** Quanto a cabeça desce em relação ao osso (ver `headAnchor`). */
+const PESCOCO_ENCURTA = 0.055;
+
 const GRAVATA_Y = 0.55;
 const GRAVATA_Z = 0.175;
 const GRAVATA_LARGURA = 0.175;
@@ -685,11 +688,17 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     const sculpt = createDiabreteSculpt();
     const headAnchor = new THREE.Object3D();
     headAnchor.name = 'diabrete-head-anchor';
+    // ── O PESCOÇO COMPRIDO ───────────────────────────────────────────────────
+    // A cabeça esculpida ficava no osso (0,84) e o tubo do pescoço ia do peito
+    // até ela: um palmo de pescoço preto, "pescoçudo". Na ficha dele a cabeça
+    // quase encosta nos ombros. Descer a cabeça (e a ponta do pescoço junto)
+    // encurta o tubo sem mexer no esqueleto nem nas animações.
+    headAnchor.position.y = -PESCOCO_ENCURTA;
     bones[B.head].add(headAnchor);
     const group = new THREE.Group();
     group.add(fill);
     group.add(sculpt.group);
-    const neck = createDiabreteNeck(group, bones[B.body], bones[B.head]);
+    const neck = createDiabreteNeck(group, bones[B.body], bones[B.head], .08, -.155 - PESCOCO_ENCURTA);
 
     const sculptScale = 0.205;
     const parentInverse = new THREE.Matrix4();
