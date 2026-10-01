@@ -67,6 +67,13 @@ const IntroDirector: React.FC<{ doorRef: React.MutableRefObject<number>; lockRef
     return null;
 };
 
+/** Avisa depois de 2 quadros desenhados (contexto criado, shaders compilados, cena na tela). */
+const PrimeirosQuadros: React.FC<{ aoDesenhar: () => void }> = ({ aoDesenhar }) => {
+    const n = useRef(0);
+    useFrame(() => { if (n.current < 3 && ++n.current === 2) aoDesenhar(); });
+    return null;
+};
+
 export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const dirRef = useRef(0);
     const doorRef = useRef(0);          // 2D elevator doors (0 closed → 1 open)
@@ -77,6 +84,9 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     const shakeRef = useRef(0);         // 0..1 screen shake (knocks from below)
     const wrapRef = useRef<HTMLDivElement>(null);
     const [flash, setFlash] = useState(true);   // black veil that fades on entry
+    // o 2D só aparece depois de desenhar: antes, o invólucro escuro cobria a tela enquanto o Canvas
+    // novo criava o contexto e compilava — a tela preta entre o 3D pixelado e o 2D
+    const [desenhou, setDesenhou] = useState(false);
     const [loreV, setLoreV] = useState(0);      // re-render scene on lore changes
 
     useEffect(() => { const id = setTimeout(() => setFlash(false), 50); return () => clearTimeout(id); }, []);
@@ -158,8 +168,9 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     };
 
     return (
-        <div ref={wrapRef} style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#160b10', touchAction: 'none' }}>
+        <div ref={wrapRef} style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#160b10', touchAction: 'none', opacity: desenhou ? 1 : 0, transition: 'opacity .35s ease-out' }}>
             <Canvas orthographic camera={{ position: [0, 3, 10], zoom: 48, near: 0.1, far: 100 }} gl={{ preserveDrawingBuffer: true }}>
+                <PrimeirosQuadros aoDesenhar={() => setDesenhou(true)} />
                 <AxisAlignedCamera />
                 <ResolveFX />
                 <IntroDirector doorRef={doorRef} lockRef={lockRef} />
