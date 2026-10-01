@@ -38,7 +38,7 @@ export const CONVERSA: Readonly<Partial<Record<IdNpc, Partial<Record<Assunto, En
     ragnhild: {
         casa: { tipo: 'dica', dica: { pista: 'latao',
             com: [f('Ragnhild', 'Latão, já disse. Vi de perto no dia de feira. Dizem que a porta nem range. Porta que não range, meu bem, esconde coisa.')],
-            sem: [f('Ragnhild', 'Ah, essa casa. Tem coisa aí, mas conversa boa custa conversa. Circula, escuta, volta.')] } },
+            sem: [f('Ragnhild', 'Ah, essa casa. Porta amarela, isso até a cabra viu. Qual das amarelas? Conversa boa custa conversa: fala com mais gente e volta.')] } },
         halvard: { tipo: 'sensivel', falas: [f('Ragnhild', 'Do Halvard eu… olha, tenho fogo no fogão. Outro assunto.'), f('Ragnhild', 'Sim, EU calada. Anota a data. …Pergunta à Astrid, ela vigia a ponte e vê quem ele visita.')] },
         forasteiros: { tipo: 'sabor', falas: [f('Ragnhild', 'Forasteiro cai aqui uma vez por estação. A cabra ficou dois dias. Comeu meu repolho e foi embora sem agradecer.')] },
     },

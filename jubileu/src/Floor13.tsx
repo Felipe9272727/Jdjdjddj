@@ -942,6 +942,20 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         }, 300);
         return () => window.clearInterval(id);
     }, [menu, npcOnde]);
+    // com o menu aberto o olhar continua no rosto de quem pergunta (fechar a fala
+    // devolvia a câmera ao olho do hóspede, às vezes atrás do toldo da barraca)
+    useEffect(() => {
+        if (!menu) return;
+        const o = npcOnde[menu.id].current;
+        foco.current = new THREE.Vector3(o.x, (chaoEm(o.x, o.z) ?? 0) + 1.6, o.z);
+        posicionarConversaCam(jog.current.x, jog.current.z, o.x, o.z, OBSTACULOS);
+        // ainda em conversa: sem a marca "?" por cima da cabeça
+        const id = menu.id; npcVis[id].current.falando = true;
+        return () => {
+            if (falando.current !== id) npcVis[id].current.falando = false;
+            if (!falando.current) { foco.current = null; conversaCam.ativo = false; }
+        };
+    }, [menu?.id, npcOnde]); // eslint-disable-line react-hooks/exhaustive-deps
     const erradas = useRef(0);
     const gatosVistos = useRef(0);
     // a chegada (f13Chegada): o shiba puxa o hóspede para a vila, uma vez, ao fim da queda
