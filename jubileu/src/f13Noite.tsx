@@ -285,8 +285,11 @@ export function NoiteDoMundo(): React.ReactElement {
             halos[i].opacity = i === CASA_CERTA ? .85 * s : Math.min(.55, k * .22);
             // a certa é um fogo de lareira visto de longe; as erradas, um frio que mal passa da janela
             glows[i].opacity = i === CASA_CERTA ? (.72 + .08 * Math.sin(t * 1.3)) * s : Math.min(.14, k * .05);
-            // halos crescem com a distância para ler da praça
+            // halos crescem com a distância para ler da praça — e somem de perto: diante da
+            // porta o halo grande cobria a tela inteira de laranja
             const d = gr.position.distanceTo(estado.camera.position);
+            const perto = Math.min(1, Math.max(0, (d - 4) / 8));
+            glows[i].opacity *= perto; halos[i].opacity *= .35 + .65 * perto;
             const m = Math.min(5, Math.max(1, d / 14));
             const ss = spr.current[i];
             for (let q = 0; q < ss.length; q++) {

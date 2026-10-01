@@ -111,7 +111,9 @@ describe('f13 — conversas, buscas e a entidade', () => {
         const e = novoEstado13();
         expect(entidadeAcorda(e)).toBe(false);
         falarCom(e, 'ulfgar'); expect(entidadeAcorda(e)).toBe(false);
-        tocarSino(e); falarCom(e, 'ulfgar');            // o sino pagou a pista da fumaça
+        tocarSino(e); falarCom(e, 'ulfgar');            // só o sino não basta: a saga é de noite
+        expect(e.pistas.has('fumaca')).toBe(false);
+        e.noiteVista = true; falarCom(e, 'ulfgar');      // a noite pagou a pista da fumaça
         expect(e.pistas.has('fumaca')).toBe(true);
         expect(entidadeAcorda(e)).toBe(false);
         falarCom(e, 'brokk'); pegarMartelo(e); falarCom(e, 'brokk');   // e o martelo, a do latão
@@ -173,7 +175,7 @@ describe('f13 — o preço em favor: pista nenhuma sai de graça', () => {
         falarCom(e, 'ulfgar');
         expect(e.pistas.has('fumaca')).toBe(false);
         expect(favorFeito(e, 'ulfgar')).toBe(false);
-        tocarSino(e);
+        tocarSino(e); e.noiteVista = true;   // a saga é de noite
         const falas = falarCom(e, 'ulfgar').map((f) => f.texto).join(' ');
         expect(e.pistas.has('fumaca')).toBe(true);
         expect(falas).toMatch(/fumaça/i);                 // a pista vem na conversa, não só no estado
@@ -201,7 +203,7 @@ describe('f13 — o preço em favor: pista nenhuma sai de graça', () => {
     it('os favores podem ser pagos em qualquer ordem — sino, ovelhas, fofoca', () => {
         const e = novoEstado13();
         // 1) o sino
-        tocarSino(e);
+        tocarSino(e); e.noiteVista = true;   // a saga é de noite
         falarCom(e, 'ulfgar');
         expect(e.pistas.has('fumaca')).toBe(true);
         // 2) as ovelhas (que também pagam o favor da Eira)
@@ -227,7 +229,7 @@ describe('f13 — o preço em favor: pista nenhuma sai de graça', () => {
         falarCom(e, 'eira');
         expect(e.pistas.has('botao')).toBe(true);
         expect(e.pistas.has('fumaca')).toBe(false);
-        tocarSino(e);
+        tocarSino(e); e.noiteVista = true;   // a saga é de noite
         falarCom(e, 'ulfgar');
         expect(e.pistas.has('fumaca')).toBe(true);
         expect([...e.pistas].sort()).toEqual(['botao', 'fumaca', 'latao']);

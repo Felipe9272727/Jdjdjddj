@@ -262,13 +262,15 @@ export interface Estado13 {
     temMartelo: boolean;
     ovelhas: boolean[];
     sinoTocou: boolean;
+    /** Já caiu a noite pelo menos uma vez (o Ulfgar só canta a saga de noite). */
+    noiteVista: boolean;
     entidade: 'nao' | 'falando' | 'caido';
     casasBatidas: Set<number>;
 }
 export const novoEstado13 = (): Estado13 => ({
     pistas: new Set(), conversou: new Set(),
     buscas: { martelo: 'nova', ovelhas: 'nova', sino: 'nova' },
-    temMartelo: false, ovelhas: [false, false, false], sinoTocou: false,
+    temMartelo: false, ovelhas: [false, false, false], sinoTocou: false, noiteVista: false,
     entidade: 'nao', casasBatidas: new Set(),
 });
 
@@ -285,14 +287,14 @@ const BUSCA_DE: Partial<Record<IdNpc, IdBusca>> = { brokk: 'martelo', sigrun: 'o
  */
 const PEDIDO_DE: Readonly<Partial<Record<IdNpc, Fala[]>>> = Object.freeze({
     ragnhild: [{ quem: 'Ragnhild', texto: 'Segredo não se dá, se troca. Fala com mais dois por aí e volta. Aí eu conto.' }],
-    ulfgar: [{ quem: 'Ulfgar', texto: 'Saga sem sino é conversa de feira. Toca o sino do templo, que eu canto o resto.' }],
+    ulfgar: [{ quem: 'Ulfgar', texto: 'Saga de dia é conversa de feira. Toca o sino grave três vezes: cai a noite, e eu canto acordado.' }],
     eira: [{ quem: 'Eira', texto: 'Conto! Mas antes você me ajuda: traz as ovelhas da Sigrun, ou o martelo do Brokk. Um dos dois!' }],
 });
 
 /** A pista na boca de quem cobrou o favor, no dia em que ele é pago. */
 const ENTREGA_DE: Readonly<Partial<Record<IdNpc, Fala[]>>> = Object.freeze({
     ragnhild: [{ quem: 'Ragnhild', texto: 'Está bem, você mereceu. Das portas daqui, todas são de carvalho. Todas, menos uma: aquela é de latão. Ninguém aqui forja latão.' }],
-    ulfgar: [{ quem: 'Ulfgar', texto: 'Sino tocado, história contada. Tem uma casa lá em cima que nunca soltou fumaça. Nem no inverno. Casa sem fogo não é casa: é outra coisa.' }],
+    ulfgar: [{ quem: 'Ulfgar', texto: 'Noite caída, história contada. Olha as chaminés lá em cima: todas fumegam, menos uma. Nunca soltou fumaça. Nem no inverno. Casa sem fogo não é casa: é outra coisa.' }],
     eira: [{ quem: 'Eira', texto: 'Você voltou! Então ó: a casa tem um botão na parede, do lado da porta. Eu apertei e fez DING! Casa não faz ding.' }],
 });
 
@@ -300,7 +302,7 @@ const ENTREGA_DE: Readonly<Partial<Record<IdNpc, Fala[]>>> = Object.freeze({
 export function favorFeito(e: Estado13, id: IdNpc): boolean {
     switch (id) {
         case 'ragnhild': return e.conversou.size >= 3;   // a fofoca: ela e mais dois
-        case 'ulfgar': return e.sinoTocou;               // o sino do templo
+        case 'ulfgar': return e.sinoTocou && e.noiteVista;   // a saga é de noite: o sino grave, três vezes
         case 'eira': return e.buscas.ovelhas === 'feita' || e.buscas.martelo === 'feita';
         default: return true;
     }

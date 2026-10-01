@@ -632,7 +632,8 @@ const Radar: React.FC<{
             const o = onde[id].current;
             // à noite todos dormem: o botão diz isso, em vez de simplesmente sumir;
             // generoso no ângulo: quem está diante do morador sempre pode falar
-            tenta(moradoresDormem() ? { tipo: 'dormindo', id } : { tipo: 'npc', id }, o.x, o.z, l.ronda ? 2.6 : 2.5, 1.5, 1.8);
+            tenta(moradoresDormem() && id !== 'ulfgar' ? { tipo: 'dormindo', id } : { tipo: 'npc', id },   // o escaldo fica acordado: canta de noite
+                o.x, o.z, l.ronda ? 2.6 : 2.5, 1.5, 1.8);
         }
         if (!e.temMartelo) tenta({ tipo: 'martelo' }, MARTELO.x, MARTELO.z, 1.8);
         OVELHAS.forEach((o, i) => { if (!e.ovelhas[i]) tenta({ tipo: 'ovelha', i }, o.x, o.z, 1.9); });
@@ -970,6 +971,10 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
         gatosVistos.current = gatos.alimentados;
         if (gatos.alimentados > 0) setAviso(gatos.saciados >= 3 ? 'Os três gatos comeram. O Soneca até ronrona.' : `${gatos.ultimoNome} come o peixe inteiro e lambe o bigode.`);
     }, 400); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // a primeira noite fica registrada: é dela que o Ulfgar precisa para cantar a saga
+    useEffect(() => { const id = window.setInterval(() => {
+        if (noite.alvo === 1 && !est.current.noiteVista) { est.current.noiteVista = true; bump(); }
+    }, 500); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     const [compilado, setCompilado] = useState(false);
     // aquecimento: logo que os shaders compilam, o mundo desenha ~1,2 s escondido
     // atrás do vídeo (texturas, buffers e o mapa de sombra sobem aí), para o fim
@@ -1302,26 +1307,7 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
             if (avisoNoite) sinos.passo = 0;
             window.setTimeout(() => setAviso(avisoNoite ?? (ganhou ? `${sinos.aviso}  PISTA: ${PISTAS.latao.nome}` : sinos.avisoTempo > 0 ? sinos.aviso : 'O sino ecoa por Vindhjem.')), 30);
         } else if (a.tipo === 'casa') {
-            // bater de novo na mesma porta é escutar (f13Batidas)
-            const seguida = contarBatida(a.i, performance.now());
-            if (seguida >= 2) {
-                tocarPegar();
-                if (seguida === 2) { setAviso(oQueSeOuve(a.i)); setEscuta({ n: 2, k: performance.now() }); }
-                else {
-                    const t = batidaNaPorta(a.i, seguida);
-                    setAviso(t.texto);
-                    // só a 3ª assusta e chama a atenção; da 4ª em diante é silêncio
-                    if (t.errada && seguida === 3) { tocarGlitch(); mudarAtencao(10); setEscuta({ n: 3, k: performance.now() }); }
-                }
-                return;
-            }
-            const primeiraVez = !e.casasBatidas.has(a.i);
-            const primeiraBatida = e.casasBatidas.size === 0;
-            const r = baterNaCasa(e, a.i);
-            // a dica de escutar só faz sentido numa porta que não abriu (na certa, a saída já começou)
-            if (primeiraBatida && !r.certa) window.setTimeout(() => { if (!portaAlvo.current) setAviso('Dica: bata de novo na mesma porta para escutar o que tem lá dentro.'); }, 5200);
-            if (!r.certa) aoBaterErrado(primeiraVez, a.i === CASA_CERTA);
-            if (r.certa) {
+            const abrirASaida = () => {
                 tocarDingDaCasa(); setFase('elevador'); setAviso(null);
                 {
                     // a porta (no centro da folha) e a direção para fora dela
@@ -1340,6 +1326,33 @@ export const Floor13: React.FC<{ onExit?: () => void; inicio?: string }> = ({ on
                 // daqui em diante a SaidaDoAndar conduz: olhar para trás, a
                 // chuva de runas, a cabine do elevador — e só então onExit
                 saidaT0.current = performance.now();
+            };
+            // bater de novo na mesma porta é escutar (f13Batidas)
+            const seguida = contarBatida(a.i, performance.now());
+            if (seguida >= 2) {
+                tocarPegar();
+                if (seguida === 2) { setAviso(oQueSeOuve(a.i)); setEscuta({ n: 2, k: performance.now() }); }
+                else if (a.i === CASA_CERTA && e.pistas.size >= 3 && seguida === 3) {
+                    // a terceira na casa certa, com as três pistas: o DING — a porta cede
+                    abrirASaida();
+                } else {
+                    const t = batidaNaPorta(a.i, seguida);
+                    setAviso(t.texto);
+                    // só a 3ª assusta e chama a atenção; da 4ª em diante é silêncio
+                    if (t.errada && seguida === 3) { tocarGlitch(); mudarAtencao(10); setEscuta({ n: 3, k: performance.now() }); }
+                }
+                return;
+            }
+            const primeiraVez = !e.casasBatidas.has(a.i);
+            const primeiraBatida = e.casasBatidas.size === 0;
+            const r = baterNaCasa(e, a.i);
+            // a dica de escutar só faz sentido numa porta que não abriu (na certa, a saída já começou)
+            if (primeiraBatida && !r.certa) window.setTimeout(() => { if (!portaAlvo.current) setAviso('Dica: bata de novo na mesma porta para escutar o que tem lá dentro.'); }, 5200);
+            if (!r.certa) aoBaterErrado(primeiraVez, a.i === CASA_CERTA);
+            if (r.certa) {
+                // a casa certa não abre na primeira: o latão está morno e lá dentro algo zune —
+                // bater de novo é escutar (o zumbido), e só a terceira batida tira o DING
+                tocarPegar(); setAviso('O latão está morno ao toque, e lá dentro alguma coisa zune. A porta não cede… ainda. Bata de novo e escute.');
             } else {
                 // quem mora atende: a porta entreabre (a trancada da casa certa não)
                 if (a.i !== CASA_CERTA) batidasNasCasas[a.i] = performance.now();
