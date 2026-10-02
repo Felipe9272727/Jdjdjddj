@@ -15,6 +15,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import { alturaEm, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO } from './f14Terreno';
 
 type Fase = 'chegada' | 'sufocando' | 'explorar' | 'fim';
@@ -130,7 +132,7 @@ const Pedras: React.FC = () => {
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow receiveShadow>
-        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#7a3b26" roughness={.9} flatShading />
+        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#6a3a2a" roughness={.9} flatShading />
     </instancedMesh>;
 };
 
@@ -249,7 +251,7 @@ const Agulhas: React.FC = () => {
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow receiveShadow>
-        <coneGeometry args={[.5, 1, 6, 3]} /><meshStandardMaterial color="#3a2026" roughness={.85} flatShading />
+        <coneGeometry args={[.5, 1, 6, 3]} /><meshStandardMaterial color="#1d1f26" roughness={.92} emissive="#3a1a2a" emissiveIntensity={.25} flatShading />
     </instancedMesh>;
 };
 
@@ -283,7 +285,15 @@ function texturaTabuas(): THREE.CanvasTexture {
 const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
     const tab = useMemo(texturaTabuas, []);
     const g = useRef<THREE.Group>(null);
-    useFrame(({ clock }) => { if (g.current) g.current.rotation.y = Math.sin(clock.elapsedTime * .4) * .15 + .6; });
+    const luzBeacon = useRef<THREE.PointLight>(null), halo = useRef<THREE.Sprite>(null);
+    const brilho = useMemo(() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d')!; const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gr.addColorStop(0, 'rgba(255,220,160,1)'); gr.addColorStop(.35, 'rgba(255,170,80,.45)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); }, []);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime, pulso = .5 + .5 * Math.sin(t * Math.PI * 1.6);   // farol a 0,8 Hz: dá para achar a 30 m
+        if (g.current) g.current.rotation.y = Math.sin(t * .4) * .15 + .6;
+        if (luzBeacon.current) luzBeacon.current.intensity = visivel ? 2 + pulso * 3 : 0;
+        if (halo.current) { halo.current.scale.setScalar(1.6 + pulso * 1.4); (halo.current.material as THREE.SpriteMaterial).opacity = visivel ? .35 + pulso * .4 : 0; }
+    });
     const y = alturaEm(CAPACETE.x, CAPACETE.z);
     return <group ref={g} position={[CAPACETE.x, y + .28, CAPACETE.z]} rotation={[0, .6, .25]} visible={visivel}>
         <mesh castShadow><sphereGeometry args={[.36, 24, 16, 0, Math.PI * 2, 0, Math.PI * .62]} /><meshStandardMaterial map={tab} roughness={.8} /></mesh>
@@ -294,7 +304,8 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
         {[0, 1, 2, 3, 4, 5].map((i) => <mesh key={i} position={[Math.cos(i * 1.047) * .15, -.02 + Math.sin(i * 1.047) * .15, .36]}><sphereGeometry args={[.018, 8, 6]} /><meshStandardMaterial color="#e0c060" metalness={.9} roughness={.3} /></mesh>)}
         {/* a mangueira de ar, de couro, enterrada na areia */}
         <mesh position={[.3, -.25, -.1]} rotation={[0, 0, 1.2]}><torusGeometry args={[.22, .035, 8, 20, Math.PI]} /><meshStandardMaterial color="#3a2a1c" roughness={.9} /></mesh>
-        <pointLight position={[0, .5, .4]} color="#ffcf80" intensity={visivel ? 1.2 : 0} distance={3} />
+        <pointLight ref={luzBeacon} position={[0, .6, .4]} color="#ffb347" intensity={visivel ? 3 : 0} distance={9} decay={2} />
+        <sprite ref={halo} scale={[2.2, 2.2, 1]} position={[0, .1, 0]}><spriteMaterial map={brilho} color="#ffb347" transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={.6} /></sprite>
     </group>;
 };
 
@@ -544,6 +555,13 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Capacete visivel={!comCapacete} />
                 <Pegadas ate={vistas} />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
+                <EffectComposer multisampling={0}>
+                    <Bloom intensity={.55} luminanceThreshold={.82} luminanceSmoothing={.2} mipmapBlur />
+                    <Vignette offset={.35} darkness={.4} />
+                    <HueSaturation saturation={.18} />
+                    <BrightnessContrast contrast={.12} />
+                    <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                </EffectComposer>
                 <Corpo jog={jog} entrada={entrada} yaw={yaw} pitch={pitch} fase={fase} folego={folego} />
             </Canvas>
 
