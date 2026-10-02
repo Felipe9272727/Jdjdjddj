@@ -8,10 +8,12 @@ import { Suite, DUR as DUR_SU } from './Suite';
 import { Conves, DUR as DUR_CO } from './Conves';
 import { Arquivo, DUR as DUR_AR } from './Arquivo';
 import { Ceu, DUR as DUR_CE } from './Ceu';
+import { Chegada14, DUR as DUR_C14 } from './Chegada14';
 
 // a fonte de cartum do jogo (Luckiest Guy, Apache 2.0), servida localmente
 const espera = delayRender('fonte');
 new FontFace('Luckiest Guy', `url(${staticFile('luckiest.woff2')})`).load().then((f) => { document.fonts.add(f); continueRender(espera); });
 
 export const CENAS = [['Briga', Briga, DUR_BR], ['Elevador', Elevador, DUR_EL], ['Malas', Malas, DUR_MA], ['Cha', Cha, DUR_CH], ['Suite', Suite, DUR_SU], ['Conves', Conves, DUR_CO], ['Arquivo', Arquivo, DUR_AR], ['Ceu', Ceu, DUR_CE]];
-registerRoot(() => <>{CENAS.map(([id, C, d]) => <Composition key={id} id={id} component={C} durationInFrames={d} fps={24} width={1280} height={608} />)}</>);
+registerRoot(() => <>{CENAS.map(([id, C, d]) => <Composition key={id} id={id} component={C} durationInFrames={d} fps={24} width={1280} height={608} />)}
+  <Composition id="Chegada14" component={Chegada14} durationInFrames={DUR_C14} fps={24} width={1280} height={608} /></>);
