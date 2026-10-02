@@ -63,6 +63,7 @@ import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
 import Floor12 from './Floor12';
 import Floor13 from './Floor13';
+import Floor14 from './Floor14';
 import { CarregandoAnimado } from './CarregandoAnimado';
 import { useCarregandoAndar, SinalDeAndarPronto } from './CarregandoAndar';
 import './CarregandoCenas';
@@ -1814,10 +1815,22 @@ export default function App() {
     clearFloor13Sfx();
     setGameState('outdoor');
     setNightMode(false);
+    // a casa-elevador de Vindhjem se abre direto no ANDAR 14 (Kessar-9): a chegada é a cutscene do próprio Floor14
+    if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
+    setNextElevatorDestination(null);
+    setElevatorTimer(null);
+    setTravelPhase('idle');
+    setDoorsClosed(false);
+    setZoomLevel(0);
+    setCurrentLevel(14);
+  }, []);
+
+  /** Saída do ANDAR 14: depois do encontro com a entidade, a casa-elevador volta ao saguão. */
+  const handleFloor14Exit = useCallback(() => {
+    setGameState('outdoor');
     playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
     setDoorsClosed(true);
     setDoorSoundTrigger(prev => prev + 1);
-    // O andar 14 ainda não existe: a casa-elevador leva de volta ao saguão.
     setNextElevatorDestination(0);
     setZoomLevel(0);
     setElevatorTimer(20);
@@ -2881,6 +2894,7 @@ export default function App() {
           Canvas, câmera e controles dele, e o mundo do hotel fica por baixo. */}
       {currentLevel === 12 && !doorsClosed && <Floor12 onExit={handleFloor12Exit} />}
       {currentLevel === 13 && !doorsClosed && <Floor13 onExit={handleFloor13Exit} inicio={f13Inicio} />}
+      {currentLevel === 14 && !doorsClosed && <Floor14 onExit={handleFloor14Exit} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}
