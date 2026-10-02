@@ -48,6 +48,29 @@ const APARICOES_BASE: { x: number; z: number; foge: number; como: 'afunda' | 'po
 ];
 const APARICOES = APARICOES_BASE.map((ap) => (ap.alto ? { ...ap, ...pontoAlto(ap.x, ap.z, ap.alto) } : ap));
 const MONOLITO = pontoAlto(14, -165, 45);
+/** Linha de visão livre do olho (1,7 m) até a cabeça da sombra (+6 m)? E o fundo atrás dela é céu? */
+function visaoLivre(ox: number, oz: number, a: { x: number; z: number }): { livre: boolean; ceu: boolean } {
+    const y0 = alturaEm(ox, oz) + 1.7, y1 = alturaEm(a.x, a.z) + 6;
+    for (let k = 1; k < 30; k++) { const u = k / 30, x = ox + (a.x - ox) * u, z = oz + (a.z - oz) * u; if (alturaEm(x, z) > y0 + (y1 - y0) * u - .3) return { livre: false, ceu: false }; }
+    const dx = a.x - ox, dz = a.z - oz, d = Math.hypot(dx, dz), sy = (y1 - y0) / d;
+    for (let t = 5; t < 260; t += 8) { const x = a.x + dx / d * t, z = a.z + dz / d * t; if (alturaEm(x, z) > y1 + sy * t) return { livre: true, ceu: false }; }
+    return { livre: true, ceu: true };
+}
+/** O ponto de chegada da trilha (a ~55 m da aparição): gira em passos de 15° a partir da direção de quem
+ *  vem, até a visão ficar livre — de preferência com céu atrás dela. */
+const CHEGADAS = APARICOES.map((a, i) => {
+    if (i === 0) return null;
+    const b = APARICOES[i - 1], base = Math.atan2(b.z - a.z, b.x - a.x);
+    let melhor: { x: number; z: number } | null = null;
+    for (const R of i === APARICOES.length - 1 ? [26, 32] : [55, 42]) for (let k = 0; k < 24; k++) {   // na cratera: já dentro, descendo a borda
+        const ang = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, x = a.x + Math.cos(ang) * R, z = a.z + Math.sin(ang) * R;
+        if (Math.hypot(x, z) > RAIO_DO_MUNDO - 45) continue;
+        const v = visaoLivre(x, z, a);
+        if (v.livre && v.ceu) return { x, z };
+        if (v.livre && !melhor) melhor = { x, z };
+    }
+    return melhor;
+});
 
 // ── som (WebAudio mínimo, sem arquivos) ───────────────────────────────────
 let ctx: AudioContext | null = null;
@@ -109,6 +132,7 @@ const Terreno: React.FC = () => {
             if (r.platos > 0) c.lerp(tmp.copy(faixaA).lerp(faixaB, .5 + .5 * Math.sin(h * .55)), r.platos);
             const incl = inclinacao(x, z);
             c.lerp(rocha, Math.min(1, Math.max(r.crista * .7, incl * 1.1)));
+            if (r.crista > 0) c.multiplyScalar(1 + r.crista * Math.min(.35, Math.max(-.15, (h - 30) / 120)));
             if (r.sal > 0) c.lerp(sal, r.sal * (.85 + n * .15));
             if (r.cratera > 0) c.lerp(vidro, r.cratera);
             cor[i * 3] = c.r; cor[i * 3 + 1] = c.g; cor[i * 3 + 2] = c.b;
@@ -116,7 +140,7 @@ const Terreno: React.FC = () => {
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
         const rip = new Float32Array(p.count);
         for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), r = regiaoEm(x, z), incl = inclinacao(x, z);
-            rip[i] = Math.max(0, 1 - r.sal * 1.4) * (1 - Math.min(1, Math.max(0, (incl - .3) / .15))) * (.3 + .7 * fbm(x * .02 + 9, z * .02, 2)); }
+            rip[i] = Math.max(0, 1 - r.sal * 1.4) * (1 - r.cratera * .75) * (1 - Math.min(1, Math.max(0, (incl - .3) / .15))) * (.3 + .7 * fbm(x * .02 + 9, z * .02, 2)); }
         g.setAttribute('rip', new THREE.BufferAttribute(rip, 1));
         g.computeVertexNormals();
         return g;
@@ -231,7 +255,7 @@ const Cristais: React.FC = () => {
             if (regiaoEm(cx, cz).cratera > .3) continue;
             const n = 2 + Math.floor(rnd() * 5);
             for (let i = 0; i < n && k < N; i++) {
-                const x = cx + (rnd() - .5) * 5, z = cz + (rnd() - .5) * 5, e = .8 + rnd() * 1.6;
+                const x = cx + (rnd() - .5) * 5, z = cz + (rnd() - .5) * 5, e = (.4 + rnd() * 1.4) * (t < 6 ? .6 : 1);
                 o.position.set(x, alturaEm(x, z) - .1, z); o.rotation.set((rnd() - .5) * .9, rnd() * 6.28, (rnd() - .5) * .9);
                 o.scale.set(e, e * (2 + rnd() * 3), e); o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
             }
@@ -239,7 +263,7 @@ const Cristais: React.FC = () => {
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow>
-        <octahedronGeometry args={[.5, 0]} /><meshStandardMaterial color="#2fe0b0" emissive="#0fff80" emissiveIntensity={.75} roughness={.15} metalness={.1} transparent opacity={.9} flatShading />
+        <octahedronGeometry args={[.5, 0]} /><meshPhysicalMaterial color="#7fe6c8" emissive="#1fd9a0" emissiveIntensity={.35} roughness={.2} metalness={0} transmission={.6} thickness={.8} ior={1.5} transparent opacity={.85} flatShading />
     </instancedMesh>;
 };
 
@@ -303,10 +327,10 @@ const Agulhas: React.FC = () => {
 
 /** Arcos de erosão na borda da bacia de sal. */
 const Arcos: React.FC = () => <group>
-    {[[0.4, 64, 13], [1.6, 60, 9], [2.9, 66, 11], [4.4, 62, 15]].map(([a, r, e], i) => {
+    {[[0.4, 64, 16], [1.6, 60, 12], [2.9, 66, 14], [4.4, 62, 18], [3.6, 58, 10]].map(([a, r, e], i) => {
         const x = 150 + Math.cos(a) * r, z = -20 + Math.sin(a) * r;
         return <mesh key={i} position={[x, alturaEm(x, z) - 1, z]} rotation={[0, a + Math.PI / 2, 0]} castShadow>
-            <torusGeometry args={[e, e * .22, 8, 20, Math.PI]} /><meshStandardMaterial color="#9c4a2c" roughness={.9} flatShading /></mesh>;
+            <torusGeometry args={[e, e * .2, 10, 28, Math.PI]} /><meshStandardMaterial color="#b35a34" roughness={.9} emissive="#5a1e0c" emissiveIntensity={.2} flatShading /></mesh>;
     })}
 </group>;
 
@@ -442,10 +466,13 @@ const Pegadas: React.FC<{ ate: number }> = ({ ate }) => {
     const pontos = useMemo(() => {
         const ps: [number, number, number][] = [];
         for (let i = 0; i < ate && i < APARICOES.length - 1; i++) {
-            const a = APARICOES[i], b = APARICOES[i + 1], L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.floor(L / 3.2), ang = Math.atan2(b.x - a.x, b.z - a.z);
-            for (let k = 1; k < n; k++) {
-                const u = k / n, lado = k % 2 ? .25 : -.25, x = a.x + (b.x - a.x) * u + Math.cos(ang) * lado, z = a.z + (b.z - a.z) * u - Math.sin(ang) * lado;
-                ps.push([x, z, ang]);
+            const c = CHEGADAS[i + 1], trechos: [{ x: number; z: number }, { x: number; z: number }][] = c ? [[APARICOES[i], c], [c, APARICOES[i + 1]]] : [[APARICOES[i], APARICOES[i + 1]]];
+            for (const [a, b] of trechos) {
+                const L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.floor(L / 1.6), ang = Math.atan2(b.x - a.x, b.z - a.z);
+                for (let k = 1; k < n; k++) {
+                    const u = k / n, lado = k % 2 ? .3 : -.3, x = a.x + (b.x - a.x) * u + Math.cos(ang) * lado, z = a.z + (b.z - a.z) * u - Math.sin(ang) * lado;
+                    ps.push([x, z, ang]);
+                }
             }
         }
         return ps;
@@ -455,7 +482,7 @@ const Pegadas: React.FC<{ ate: number }> = ({ ate }) => {
         pontos.forEach(([x, z, a], i) => { o.position.set(x, alturaEm(x, z) + .04, z); o.rotation.set(-Math.PI / 2, 0, a); o.scale.set(1, 1, 1); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
         m.count = pontos.length; m.instanceMatrix.needsUpdate = true;
     }, [pontos]);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, 600]}><circleGeometry args={[.16, 8]} /><meshBasicMaterial color="#120a10" transparent opacity={.7} depthWrite={false} /></instancedMesh>;
+    return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, 1400]}><circleGeometry args={[.16, 8]} /><meshBasicMaterial color="#120a10" transparent opacity={.7} depthWrite={false} /></instancedMesh>;
 };
 
 // ── o hóspede (primeira pessoa) ───────────────────────────────────────────
@@ -583,9 +610,9 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     // bancada: mexer no hóspede e na fase pelo console / Playwright
     if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, vestir: () => { tocarCapacete(); setFase('explorar'); capaceteVestido.v = true; }, fase,
         // a vista de quem chega pela trilha: 70 m antes da aparição, vindo da anterior
-        aparicao: (i: number) => { const a = APARICOES[i], b = APARICOES[Math.max(0, i - 1)] ?? APARICOES[0]; let dx = a.x - (i ? b.x : 0), dz = a.z - (i ? b.z : 0); const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-            const x = a.x - dx * 70, z = a.z - dz * 70, ya = Math.atan2(-(a.x - x), -(a.z - z)), alt = alturaEm(a.x, a.z) + 4 - (alturaEm(x, z) + 1.7);
-            return [x, z, ya, Math.atan2(alt, 70)]; } };
+        aparicao: (i: number) => { const a = APARICOES[i], c = CHEGADAS[i] ?? { x: 0, z: 0 };
+            const ya = Math.atan2(-(a.x - c.x), -(a.z - c.z)), d = Math.hypot(a.x - c.x, a.z - c.z), alt = alturaEm(a.x, a.z) + 4 - (alturaEm(c.x, c.z) + 1.7);
+            return [c.x, c.z, ya, Math.atan2(alt, d)]; } };
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number; cy: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0, cy: 0 });
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
