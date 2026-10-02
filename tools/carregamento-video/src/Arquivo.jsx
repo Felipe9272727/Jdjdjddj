@@ -85,7 +85,7 @@ export function Arquivo() {
       </Ator>
       {zip && [0, 1, 2].map((i) => <path key={i} d={`M${dx - 120 - i * 26},${PE - 220 + i * 70}h-${150 - i * 30}`} stroke="#f1e6cc" strokeWidth="7" strokeLinecap="round" opacity=".8" />)}
       {f >= 121 && f < 129 && [0, 1, 2].map((i) => { const t = (f - 121) / 8; return <circle key={i} cx={1150 - 20 - i * 30 - t * 40} cy={PE - t * 30 - i * 8} r={14 + t * 18} fill="#c9b79a" stroke="#1a1220" strokeWidth="3" opacity={(1 - t) * .8} />; })}
-      {CARIMBOS.map((t) => <Estouro key={t} x={Math.max(560, cx - 800 / z + 170)} y={300} t="ARQUIVADO!" cor="#f1e6cc" giro={-10} tam={40} esc={k(f, [[t - 1, 0, 'b'], [t + 3, .9, 'h'], [t + 10, .9, 'i'], [t + 13, 0]])} />)}
+      {CARIMBOS.map((t) => <Estouro key={t} x={Math.max(560, cx - 800 / z + 170)} y={Math.max(160, cy - 380 / z + 70)} t="ARQUIVADO!" cor="#f1e6cc" giro={-10} tam={40} esc={k(f, [[t - 1, 0, 'b'], [t + 3, .9, 'h'], [t + 10, .9, 'i'], [t + 13, 0]])} />)}
       <Estouro x={860} y={250} t="HMM?" cor="#9af6ff" giro={8} tam={50} esc={k(f, [[0, 0, 'h'], [70, 0, 'b'], [74, .85, 'h'], [84, .85, 'i'], [88, 0]])} />
       <Estouro x={1150} y={400} t="POF!" cor="#fff3b0" giro={-6} tam={50} esc={k(f, [[0, 0, 'h'], [72, 0, 'b'], [75, .8, 'h'], [82, .8, 'i'], [85, 0]])} />
     </Palco>
