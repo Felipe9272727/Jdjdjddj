@@ -25,17 +25,29 @@ interface Jog { x: number; y: number; z: number; andando: number; caido: number 
 const FOLEGO_TOTAL = 30;
 /** Obstáculos sólidos (pedras grandes, agulhas): preenchidos quando cada grupo é gerado. */
 const SOLIDOS: { x: number; z: number; r: number }[] = [];
-const CAPACETE = { x: 1.5, z: -7 };
+const capaceteVestido = { v: false };
+const CAPACETE = { x: .4, z: -4.2 };
 const INICIO = { x: 0, z: 0 };
 
 /** Onde a sombra aparece, em ordem. `foge` = distância em que ela some. */
-const APARICOES: { x: number; z: number; foge: number; como: 'afunda' | 'poeira' | 'crista'; dica: string }[] = [
-    { x: 6, z: -62, foge: 30, como: 'poeira', dica: 'Uma silhueta de pé nas dunas, ao norte.' },
-    { x: 14, z: -128, foge: 34, como: 'crista', dica: 'Ela subiu a crista. As pegadas vão para o alto.' },
+/** O ponto mais alto num raio (para a sombra e o monólito ficarem recortados contra o céu). */
+function pontoAlto(x: number, z: number, raio: number): { x: number; z: number } {
+    let mx = x, mz = z, mh = -1e9;
+    for (let r = 0; r <= raio; r += 3) for (let a = 0; a < 6.283; a += r ? 3 / r : 7) {
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r, h = alturaEm(px, pz);
+        if (h > mh) { mh = h; mx = px; mz = pz; }
+    }
+    return { x: mx, z: mz };
+}
+const APARICOES_BASE: { x: number; z: number; foge: number; como: 'afunda' | 'poeira' | 'crista'; dica: string; alto?: number }[] = [
+    { x: 6, z: -62, foge: 30, alto: 18, como: 'poeira', dica: 'Uma silhueta de pé nas dunas, ao norte.' },
+    { x: 14, z: -140, foge: 34, alto: 30, como: 'crista', dica: 'Ela subiu a crista. As pegadas vão para o alto.' },
     { x: 150, z: -22, foge: 32, como: 'afunda', dica: 'Pegadas escuras descem para a bacia de sal, a leste.' },
-    { x: -142, z: 34, foge: 36, como: 'poeira', dica: 'Lá em cima dos platôs, a oeste… ela está te esperando?' },
+    { x: -142, z: 34, foge: 36, alto: 30, como: 'poeira', dica: 'Lá em cima dos platôs, a oeste… ela está te esperando?' },
     { x: 20, z: 170, foge: 0, como: 'afunda', dica: 'As pegadas terminam na cratera ao sul.' },
 ];
+const APARICOES = APARICOES_BASE.map((ap) => (ap.alto ? { ...ap, ...pontoAlto(ap.x, ap.z, ap.alto) } : ap));
+const MONOLITO = pontoAlto(14, -165, 45);
 
 // ── som (WebAudio mínimo, sem arquivos) ───────────────────────────────────
 let ctx: AudioContext | null = null;
@@ -102,19 +114,34 @@ const Terreno: React.FC = () => {
             cor[i * 3] = c.r; cor[i * 3 + 1] = c.g; cor[i * 3 + 2] = c.b;
         }
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+        const rip = new Float32Array(p.count);
+        for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), r = regiaoEm(x, z), incl = inclinacao(x, z);
+            rip[i] = Math.max(0, 1 - r.sal * 1.4) * (1 - Math.min(1, Math.max(0, (incl - .3) / .15))) * (.3 + .7 * fbm(x * .02 + 9, z * .02, 2)); }
+        g.setAttribute('rip', new THREE.BufferAttribute(rip, 1));
         g.computeVertexNormals();
         return g;
     }, []);
     const ondas = useMemo(() => {
         const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d')!, img = g.createImageData(256, 256);
         for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
-            const u = x / 256, v = y / 256, w = Math.sin((u * 6 + Math.sin(v * 6.283 * 2) * .25 + Math.sin((u * 2 + v * 3) * 6.283) * .12) * Math.PI * 2);   // periódico: sem emenda
+            const u = x / 256, v = y / 256, w = .65 * Math.sin((u * 7 + Math.sin(v * 6.283 * 2) * .3 + Math.sin((u * 2 + v * 3) * 6.283) * .15) * Math.PI * 2) + .35 * Math.sin((u * 2 + v * 1 + Math.sin(u * 6.283 * 3) * .2) * Math.PI * 2);   // periódico, 2 escalas
             const val = 128 + w * 70 + (Math.random() - .5) * 26, i = (y * 256 + x) * 4;
             img.data[i] = img.data[i + 1] = img.data[i + 2] = val; img.data[i + 3] = 255;
         }
-        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(150, 150); return t;
+        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(140, 140); t.anisotropy = 8; return t;
     }, []);
-    return <mesh geometry={geo} receiveShadow><meshStandardMaterial vertexColors roughness={.95} metalness={0} bumpMap={ondas} bumpScale={1.6} /></mesh>;
+    const matChao = useMemo(() => {
+        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0, bumpMap: ondas, bumpScale: 1.6 });
+        m.onBeforeCompile = (sh) => {
+            sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float rip; varying float vRip;')
+                .replace('#include <project_vertex>', '#include <project_vertex>\nvRip = rip * clamp(1. - (length(mvPosition.xyz) - 45.) / 50., 0., 1.);');
+            sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRip;')
+                .replace('uniform float bumpScale;', 'uniform float bumpScale_;\n#define bumpScale (bumpScale_ * vRip)');
+            sh.uniforms.bumpScale_ = sh.uniforms.bumpScale;
+        };
+        return m;
+    }, [ondas]);
+    return <mesh geometry={geo} material={matChao} receiveShadow />;
 };
 
 /** Pedras e agulhas espalhadas (instanciadas), mais densas nas regiões rochosas. */
@@ -130,8 +157,9 @@ const Pedras: React.FC = () => {
             const x = Math.cos(a) * r, z = Math.sin(a) * r, reg = regiaoEm(x, z);
             if (reg.sal > .3 || reg.cratera > .5) continue;
             if (rnd() > .25 + reg.crista + reg.platos) continue;
-            const agulha = rnd() < .25 + reg.platos * .4;
-            const esc = .6 + rnd() * (agulha ? 2.2 : 1.6);
+            if (APARICOES_BASE.some((ap) => Math.hypot(ap.x - x, ap.z - z) < 8) || Math.hypot(x - CAPACETE.x, z - CAPACETE.z) < 8) continue;
+            const agulha = false;
+            const esc = .4 + rnd() * 1.1;
             o.position.set(x, alturaEm(x, z) - .3, z);
             o.rotation.set(rnd() * .3, rnd() * 6.28, rnd() * .3);
             o.scale.set(esc, esc * (agulha ? 3.5 + rnd() * 3 : .7 + rnd() * .6), esc);
@@ -186,7 +214,7 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) =>
     useFrame(() => {
         const l = luz.current; if (!l) return; const j = jog.current;
         const sx = Math.round(j.x / .5) * .5, sz = Math.round(j.z / .5) * .5;   // passo de texel: a sombra não treme
-        l.position.set(sx + 180, j.y + 110, sz - 260); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
+        l.position.set(sx + 120, j.y + (j.caido > 0 || !capaceteVestido.v ? 230 : 110), sz - 200); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
     return <directionalLight ref={luz} intensity={2.4} color="#ffd2a0" castShadow shadow-mapSize={[2048, 2048]} />;
 };
@@ -241,26 +269,35 @@ const NevoaPorRegiao: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog })
 
 /** Agulhas de basalto (12–20 m) nas regiões rochosas: dão escala e silhueta. */
 const Agulhas: React.FC = () => {
-    const ref = useRef<THREE.InstancedMesh>(null); const N = 70;
+    const ref = useRef<THREE.InstancedMesh>(null); const N = 260;
+    const geo = useMemo(() => {   // prisma hexagonal com o topo mais claro (aresta de basalto)
+        const g = new THREE.CylinderGeometry(.48, .5, 1, 6, 1); const p = g.attributes.position, cor = new Float32Array(p.count * 3);
+        for (let i = 0; i < p.count; i++) { const topo = p.getY(i) > .49; const c = new THREE.Color(topo ? '#4a3a36' : '#2a1f22'); cor.set([c.r, c.g, c.b], i * 3); }
+        g.setAttribute('color', new THREE.BufferAttribute(cor, 3)); return g;
+    }, []);
     useEffect(() => {
         const m = ref.current; if (!m) return;
         let s = 4242; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
         const o = new THREE.Object3D(), ps: [number, number][] = []; let k = 0;
-        for (let t = 0; t < 4000 && k < N; t++) {
+        for (let t = 0; t < 4000 && k < N - 7; t++) {
             const x = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), z = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), r = regiaoEm(x, z);
             if (Math.hypot(x, z) < 35 || r.sal > .2 || r.cratera > .2) continue;
+            if (APARICOES_BASE.some((a) => Math.hypot(a.x - x, a.z - z) < 12)) continue;
             if (rnd() > .08 + r.platos * .6 + r.crista * .5) continue;
             if (ps.some(([px, pz]) => Math.hypot(px - x, pz - z) < 14)) continue;   // disco de Poisson
             ps.push([x, z]);
-            const h = 12 + rnd() * 9, b = 2.2 + rnd() * 1.5;
-            o.position.set(x, alturaEm(x, z) + h / 2 - 1, z); o.rotation.set((rnd() - .5) * .12, rnd() * 6.28, (rnd() - .5) * .12);
-            SOLIDOS.push({ x, z, r: b * .45 });
-            o.scale.set(b, h, b); o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
+            const n = 3 + Math.floor(rnd() * 5), alt = 8 + rnd() * 12;          // um grupo de 3–7 colunas
+            for (let c = 0; c < n; c++) {
+                const cx = x + (rnd() - .5) * 3.5, cz = z + (rnd() - .5) * 3.5, h = alt * (.55 + rnd() * .45), b = 1.4 + rnd() * .8;
+                SOLIDOS.push({ x: cx, z: cz, r: b * .5 });
+                o.position.set(cx, alturaEm(cx, cz) + h / 2 - 1, cz); o.rotation.set((rnd() - .5) * .06, rnd() * 6.28, (rnd() - .5) * .06);
+                o.scale.set(b, h, b); o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
+            }
         }
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow receiveShadow>
-        <coneGeometry args={[.5, 1, 6, 3]} /><meshStandardMaterial color="#1d1f26" roughness={.92} emissive="#3a1a2a" emissiveIntensity={.25} flatShading />
+    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, undefined, N]} castShadow receiveShadow>
+        <meshStandardMaterial vertexColors roughness={.9} flatShading />
     </instancedMesh>;
 };
 
@@ -275,7 +312,7 @@ const Arcos: React.FC = () => <group>
 
 /** Um monólito negro no alto da crista: dá escala e aponta o caminho. */
 const Monolito: React.FC = () => {
-    const x = 14, z = -150, y = alturaEm(x, z);
+    const { x, z } = MONOLITO, y = alturaEm(x, z);
     return <mesh position={[x, y + 19, z]} rotation={[0, .4, .03]} castShadow><boxGeometry args={[5, 40, 2]} /><meshStandardMaterial color="#120c12" roughness={.3} metalness={.7} emissive="#5a2a10" emissiveIntensity={.25} /></mesh>;
 };
 
@@ -290,12 +327,14 @@ const ColunaDaCratera: React.FC = () => {
 const Escotilha: React.FC = () => <>
     <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}80%{opacity:.22}}'}</style>
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(circle at 50% 50%, transparent 0, transparent 60vh, #e8c46a calc(60vh + 1px), #9a6a26 calc(60vh + 7px), #4a2c12 calc(60vh + 12px), #2a1a0c calc(60vh + 40px), #1a0f06 100%)' }} />
+        background: 'radial-gradient(circle at 50% 50%, transparent 0, transparent 48vh, #e8c46a calc(48vh + 1px), #9a6a26 calc(48vh + 7px), #4a2c12 calc(48vh + 12px), #3b2414 calc(48vh + 14px), #2c1a0d calc(48vh + 60px), #1a0f06 100%)' }} />
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(92deg, rgba(0,0,0,.22) 0 3px, transparent 3px 22px)',
+        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, transparent calc(48vh + 13px), #000 calc(48vh + 14px))', maskImage: 'radial-gradient(circle at 50% 50%, transparent calc(48vh + 13px), #000 calc(48vh + 14px))' }} />
     {Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + .39;
-        return <div key={i} style={{ position: 'absolute', left: `calc(50% + ${Math.cos(a)} * 63vh - 6px)`, top: `calc(50% + ${Math.sin(a)} * 63vh - 6px)`, width: 12, height: 12, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff2b8, #b8862e 60%, #5a3a12)', pointerEvents: 'none' }} />; })}
-    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '120vh', height: '120vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
+        return <div key={i} style={{ position: 'absolute', left: `calc(50% + ${Math.cos(a)} * 50.5vh - 6px)`, top: `calc(50% + ${Math.sin(a)} * 50.5vh - 6px)`, width: 12, height: 12, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff2b8, #b8862e 60%, #5a3a12)', pointerEvents: 'none' }} />; })}
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '96vh', height: '96vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
         background: 'radial-gradient(ellipse at 50% 85%, rgba(255,255,255,.9), transparent 55%)', animation: 'f14bafo 3.5s ease-in-out infinite' }} />
-    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '120vh', height: '120vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '96vh', height: '96vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
         background: 'linear-gradient(125deg, rgba(255,255,255,.12) 0%, transparent 28%, transparent 75%, rgba(255,255,255,.05) 100%)' }} />
 </>;
 
@@ -457,7 +496,7 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
 export default function Floor14({ onExit }: { onExit: () => void }) {
     const [fase, setFase] = useState<Fase>('chegada');
     const jog = useRef<Jog>({ x: INICIO.x, y: alturaEm(0, 0), z: INICIO.z, andando: 0, caido: 1 });
-    const entrada = useRef({ x: 0, z: 0 }), yaw = useRef(0), pitch = useRef(-.18);
+    const entrada = useRef({ x: 0, z: 0 }), yaw = useRef(0), pitch = useRef(-.32);
     const folego = useRef(FOLEGO_TOTAL);
     const [folegoUi, setFolegoUi] = useState(FOLEGO_TOTAL);
     const [perto, setPerto] = useState(false);
@@ -507,7 +546,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
 
     const vestir = () => {
         if (fase !== 'sufocando' || !perto) return;
-        tocarCapacete(); setFase('explorar'); setPerto(false);
+        tocarCapacete(); setFase('explorar'); setPerto(false); capaceteVestido.v = true;
         window.setTimeout(() => setDica(APARICOES[0].dica), 1800);
     };
 
@@ -542,7 +581,11 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     }, []);
     const acaoRef = useRef(vestir); acaoRef.current = vestir;
     // bancada: mexer no hóspede e na fase pelo console / Playwright
-    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, vestir: () => { tocarCapacete(); setFase('explorar'); }, fase };
+    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, vestir: () => { tocarCapacete(); setFase('explorar'); capaceteVestido.v = true; }, fase,
+        // a vista de quem chega pela trilha: 70 m antes da aparição, vindo da anterior
+        aparicao: (i: number) => { const a = APARICOES[i], b = APARICOES[Math.max(0, i - 1)] ?? APARICOES[0]; let dx = a.x - (i ? b.x : 0), dz = a.z - (i ? b.z : 0); const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+            const x = a.x - dx * 70, z = a.z - dz * 70, ya = Math.atan2(-(a.x - x), -(a.z - z)), alt = alturaEm(a.x, a.z) + 4 - (alturaEm(x, z) + 1.7);
+            return [x, z, ya, Math.atan2(alt, 70)]; } };
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number; cy: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0, cy: 0 });
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
@@ -593,7 +636,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <EffectComposer multisampling={0}>
                     <Bloom intensity={.55} luminanceThreshold={.82} luminanceSmoothing={.2} mipmapBlur />
                     <Vignette offset={.35} darkness={.4} />
-                    <HueSaturation saturation={.18} />
+                    <HueSaturation saturation={.08} />
                     <BrightnessContrast contrast={.12} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                 </EffectComposer>
