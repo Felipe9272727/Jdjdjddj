@@ -105,7 +105,16 @@ const Terreno: React.FC = () => {
         g.computeVertexNormals();
         return g;
     }, []);
-    return <mesh geometry={geo} receiveShadow><meshStandardMaterial vertexColors roughness={.95} metalness={0} /></mesh>;
+    const ondas = useMemo(() => {
+        const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d')!, img = g.createImageData(256, 256);
+        for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+            const u = x / 256, v = y / 256, w = Math.sin((u * 6 + Math.sin(v * 6.283 * 2) * .25 + Math.sin((u * 2 + v * 3) * 6.283) * .12) * Math.PI * 2);   // periódico: sem emenda
+            const val = 128 + w * 70 + (Math.random() - .5) * 26, i = (y * 256 + x) * 4;
+            img.data[i] = img.data[i + 1] = img.data[i + 2] = val; img.data[i + 3] = 255;
+        }
+        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(150, 150); return t;
+    }, []);
+    return <mesh geometry={geo} receiveShadow><meshStandardMaterial vertexColors roughness={.95} metalness={0} bumpMap={ondas} bumpScale={1.6} /></mesh>;
 };
 
 /** Pedras e agulhas espalhadas (instanciadas), mais densas nas regiões rochosas. */
@@ -132,7 +141,7 @@ const Pedras: React.FC = () => {
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow receiveShadow>
-        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#6a3a2a" roughness={.9} flatShading />
+        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#3e2622" roughness={.9} flatShading />
     </instancedMesh>;
 };
 
@@ -267,8 +276,28 @@ const Arcos: React.FC = () => <group>
 /** Um monólito negro no alto da crista: dá escala e aponta o caminho. */
 const Monolito: React.FC = () => {
     const x = 14, z = -150, y = alturaEm(x, z);
-    return <mesh position={[x, y + 8, z]} rotation={[0, .4, .05]} castShadow><boxGeometry args={[3, 18, 1.2]} /><meshStandardMaterial color="#1a1018" roughness={.35} metalness={.6} /></mesh>;
+    return <mesh position={[x, y + 19, z]} rotation={[0, .4, .03]} castShadow><boxGeometry args={[5, 40, 2]} /><meshStandardMaterial color="#120c12" roughness={.3} metalness={.7} emissive="#5a2a10" emissiveIntensity={.25} /></mesh>;
 };
+
+/** Um pilar de luz violeta subindo da cratera: o fim do caminho, visível desde o pouso. */
+const ColunaDaCratera: React.FC = () => {
+    const m = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame(({ clock, camera }) => { if (m.current) m.current.opacity = (.16 + Math.sin(clock.elapsedTime * .7) * .05) * Math.min(1, Math.max(0, (Math.hypot(camera.position.x - 20, camera.position.z - 170) - 45) / 60)); });   // some quando você chega
+    return <mesh position={[20, 60, 170]}><cylinderGeometry args={[6, 14, 160, 24, 1, true]} /><meshBasicMaterial ref={m} color="#b07cff" transparent opacity={.18} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} fog={false} /></mesh>;
+};
+
+/** O visor do capacete: escotilha REDONDA de latão com rebites, madeira por fora e o bafo no vidro. */
+const Escotilha: React.FC = () => <>
+    <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}80%{opacity:.22}}'}</style>
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(circle at 50% 50%, transparent 0, transparent 60vh, #e8c46a calc(60vh + 1px), #9a6a26 calc(60vh + 7px), #4a2c12 calc(60vh + 12px), #2a1a0c calc(60vh + 40px), #1a0f06 100%)' }} />
+    {Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + .39;
+        return <div key={i} style={{ position: 'absolute', left: `calc(50% + ${Math.cos(a)} * 63vh - 6px)`, top: `calc(50% + ${Math.sin(a)} * 63vh - 6px)`, width: 12, height: 12, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff2b8, #b8862e 60%, #5a3a12)', pointerEvents: 'none' }} />; })}
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '120vh', height: '120vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 85%, rgba(255,255,255,.9), transparent 55%)', animation: 'f14bafo 3.5s ease-in-out infinite' }} />
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '120vh', height: '120vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
+        background: 'linear-gradient(125deg, rgba(255,255,255,.12) 0%, transparent 28%, transparent 75%, rgba(255,255,255,.05) 100%)' }} />
+</>;
 
 // ── o capacete de madeira ─────────────────────────────────────────────────
 function texturaTabuas(): THREE.CanvasTexture {
@@ -310,7 +339,7 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
 };
 
 // ── a ENTIDADE: uma sombra de pé ──────────────────────────────────────────
-interface EstadoSombra { i: number; fugindo: number; visto: boolean }
+interface EstadoSombra { i: number; fugindo: number; visto: boolean; percebeu: number }
 const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: React.MutableRefObject<Jog>; ativa: boolean; aoFugir: (i: number) => void; aoAlcancar: () => void }> = ({ estado, jog, ativa, aoFugir, aoAlcancar }) => {
     const g = useRef<THREE.Group>(null), corpo = useRef<THREE.MeshBasicMaterial>(null);
     const fiapos = useRef<THREE.InstancedMesh>(null);
@@ -321,7 +350,11 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         const j = jog.current, d = Math.hypot(j.x - a.x, j.z - a.z);
         let x = a.x, z = a.z, y = alturaEm(a.x, a.z), opac = 1, esc = 1;
         if (ativa && s.fugindo === 0) {
-            if (a.foge > 0 && d < a.foge) { s.fugindo = .0001; tocarSumico(); }
+            // ela PERCEBE quando o hóspede olha para ela (a < 60 m, mirando a menos de 12°) ou chega a 25 m:
+            // fica 1,5 s parada, encarando, e só então some
+            const olhando = (() => { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); const v = new THREE.Vector3(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(v) > Math.cos(12 * Math.PI / 180); })();
+            if (a.foge > 0 && s.percebeu === 0 && (d < 25 || (d < 60 && olhando))) s.percebeu = .0001;
+            if (s.percebeu > 0) { s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); } }
             else if (a.foge === 0 && d < 5) aoAlcancar();
         }
         if (s.fugindo > 0) {
@@ -336,7 +369,8 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         gr.position.set(x, y, z);
         // vira-se para o hóspede (só o corpo, sem rosto)
         gr.rotation.y = Math.atan2(j.x - x, j.z - z);
-        gr.scale.setScalar(esc * 1.8);
+        const tremor = 1 + Math.sin(t * 50) * .02;          // tremor de calor a 8 Hz
+        gr.scale.set(1.5 * esc * tremor, 4.2 * esc, 1.5 * esc);   // alta e magra demais: errada
         gr.visible = ativa;
         if (corpo.current) corpo.current.opacity = opac * (.88 + Math.sin(t * 13) * .04 + (Math.random() < .02 ? -.4 : 0));
         // fiapos de fumaça escura subindo do contorno
@@ -353,10 +387,10 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
     });
     return <group ref={g}>
         {/* silhueta alta e magra: tronco, ombros caídos, cabeça sem rosto */}
-        <mesh position={[0, 1.15, 0]}><capsuleGeometry args={[.28, 1.4, 4, 10]} /><meshBasicMaterial ref={corpo} color="#050307" transparent depthWrite={false} /></mesh>
-        <mesh position={[0, 2.25, 0]}><sphereGeometry args={[.22, 14, 10]} /><meshBasicMaterial color="#050307" /></mesh>
-        <mesh position={[-.42, 1.3, 0]} rotation={[0, 0, .12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" /></mesh>
-        <mesh position={[.42, 1.3, 0]} rotation={[0, 0, -.12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" /></mesh>
+        <mesh position={[0, 1.15, 0]}><capsuleGeometry args={[.28, 1.4, 4, 10]} /><meshBasicMaterial ref={corpo} color="#050307" transparent depthWrite={false} fog={false} /></mesh>
+        <mesh position={[0, 2.25, 0]}><sphereGeometry args={[.22, 14, 10]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
+        <mesh position={[-.42, 1.3, 0]} rotation={[0, 0, .12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
+        <mesh position={[.42, 1.3, 0]} rotation={[0, 0, -.12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
         {/* a sombra no chão, comprida, apontando para longe do sol */}
         <mesh position={[-1.6, .05, 1.6]} rotation={[-Math.PI / 2, 0, -.8]}><planeGeometry args={[.7, 4.5]} /><meshBasicMaterial color="#000" transparent opacity={.35} depthWrite={false} /></mesh>
         <instancedMesh ref={fiapos} frustumCulled={false} args={[undefined, undefined, 24]}><sphereGeometry args={[1, 8, 6]} /><meshBasicMaterial color="#0a0610" transparent opacity={.5} depthWrite={false} /></instancedMesh>
@@ -430,7 +464,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const [dica, setDica] = useState<string | null>(null);
     const [vistas, setVistas] = useState(0);
     const [desmaios, setDesmaios] = useState(0);
-    const sombra = useRef<EstadoSombra>({ i: 0, fugindo: 0, visto: false });
+    const sombra = useRef<EstadoSombra>({ i: 0, fugindo: 0, visto: false, percebeu: 0 });
     const [fim, setFim] = useState(0);
     const video = useRef<HTMLVideoElement>(null);
 
@@ -550,6 +584,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Cristais />
                 <Ossada />
                 <Monolito />
+                <ColunaDaCratera />
                 <Agulhas />
                 <Arcos />
                 <Capacete visivel={!comCapacete} />
@@ -570,8 +605,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 background: `radial-gradient(ellipse at center, transparent ${55 - falta * 35}%, rgba(90,0,10,${.35 + falta * .5}) 100%)`,
                 opacity: .8 + Math.sin(performance.now() * .006) * .2 }} />}
             {/* com o capacete: a escotilha de latão e a borda de madeira */}
-            {comCapacete && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-                background: 'radial-gradient(ellipse 70% 78% at center, transparent 90%, #e3bd62 91.2%, #8a5d22 92.6%, #3a2210 94.5%, #140a04 100%)' }} />}
+            {comCapacete && <Escotilha />}
             {comCapacete && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(120deg, rgba(255,255,255,.07) 0%, transparent 30%, transparent 70%, rgba(255,255,255,.04) 100%)' }} />}
 
             {/* HUD */}
