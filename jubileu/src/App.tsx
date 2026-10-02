@@ -1543,6 +1543,14 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+      } else if (startLevel === 14) {
+        // Andar 14 — Kessar-9: monta direto (a chegada é a cutscene do próprio andar)
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
       } else if (startLevel === 12 || startLevel === 13) {
         setF13Inicio(startLevel === 13 ? startVariant : undefined);
         // Andar 12 — A CABEÇA. Igual ao andar 5: as portas ficam ABERTAS e o

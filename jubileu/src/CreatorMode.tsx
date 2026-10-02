@@ -200,6 +200,15 @@ export const FLOORS: FloorOption[] = [
     icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 13.5l7-2.5V5.5a2 2 0 014 0V11l7 2.5v2L14 14v4l2.5 1.5V21L12 20l-4.5 1v-1.5L10 18v-4l-7 1.5z" /></svg>),
   },
   {
+    id: 'floor-14-kessar',
+    level: 14,
+    name: 'Andar 14 — Kessar-9',
+    label: 'Andar 14',
+    description: 'Um planeta deserto sem ar. Vista o capacete de madeira e cace a sombra que sempre some quando você chega perto.',
+    color: 'from-orange-500 via-rose-500 to-violet-600',
+    icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="11" r="7" /><circle cx="12" cy="11" r="3" /><path d="M5 18h14" /></svg>),
+  },
+  {
     id: 'floor-13-vindhjem',
     level: 13,
     name: 'Andar 13 — Vindhjem',
