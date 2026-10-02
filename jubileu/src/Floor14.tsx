@@ -25,6 +25,8 @@ interface Jog { x: number; y: number; z: number; andando: number; caido: number 
 const FOLEGO_TOTAL = 30;
 /** Obstáculos sólidos (pedras grandes, agulhas): preenchidos quando cada grupo é gerado. */
 const SOLIDOS: { x: number; z: number; r: number }[] = [];
+/** o tremor da câmera e o anel de areia de quando ela some */
+const abalo = { v: 0 }, anel = { t: 9, x: 0, z: 0 };
 const capaceteVestido = { v: false };
 const CAPACETE = { x: .4, z: -4.2 };
 const INICIO = { x: 0, z: 0 };
@@ -50,11 +52,18 @@ const APARICOES = APARICOES_BASE.map((ap) => (ap.alto ? { ...ap, ...pontoAlto(ap
 const MONOLITO = pontoAlto(14, -165, 45);
 /** Linha de visão livre do olho (1,7 m) até a cabeça da sombra (+6 m)? E o fundo atrás dela é céu? */
 function visaoLivre(ox: number, oz: number, a: { x: number; z: number }): { livre: boolean; ceu: boolean } {
-    const y0 = alturaEm(ox, oz) + 1.7, y1 = alturaEm(a.x, a.z) + 6;
+    const y0 = alturaEm(ox, oz) + 1.7, y1 = alturaEm(a.x, a.z) + 7;
     for (let k = 1; k < 30; k++) { const u = k / 30, x = ox + (a.x - ox) * u, z = oz + (a.z - oz) * u; if (alturaEm(x, z) > y0 + (y1 - y0) * u - .3) return { livre: false, ceu: false }; }
     const dx = a.x - ox, dz = a.z - oz, d = Math.hypot(dx, dz), sy = (y1 - y0) / d;
     for (let t = 5; t < 260; t += 8) { const x = a.x + dx / d * t, z = a.z + dz / d * t; if (alturaEm(x, z) > y1 + sy * t) return { livre: true, ceu: false }; }
     return { livre: true, ceu: true };
+}
+/** Há relevo a menos de 8 m num leque de 70° em volta do olhar? (a câmera ficaria olhando uma parede) */
+function paredePerto(x: number, z: number, rumo: number): boolean {
+    const olho = alturaEm(x, z) + 1.7;
+    for (let k = -5; k <= 5; k++) { const a = rumo + k * (48 / 5) * Math.PI / 180;
+        for (let d = 2; d <= 24; d += 2) if (alturaEm(x + Math.sin(a) * d, z + Math.cos(a) * d) > olho - .2) return true; }
+    return false;
 }
 /** O ponto de chegada da trilha (a ~55 m da aparição): gira em passos de 15° a partir da direção de quem
  *  vem, até a visão ficar livre — de preferência com céu atrás dela. */
@@ -62,9 +71,10 @@ const CHEGADAS = APARICOES.map((a, i) => {
     if (i === 0) return null;
     const b = APARICOES[i - 1], base = Math.atan2(b.z - a.z, b.x - a.x);
     let melhor: { x: number; z: number } | null = null;
-    for (const R of i === APARICOES.length - 1 ? [26, 32] : [75, 62]) for (let k = 0; k < 24; k++) {   // na cratera: já dentro, descendo a borda
+    for (const R of i === APARICOES.length - 1 ? [26, 32] : [75, 62, 90, 50]) for (let k = 0; k < 24; k++) {   // na cratera: já dentro, descendo a borda
         const ang = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, x = a.x + Math.cos(ang) * R, z = a.z + Math.sin(ang) * R;
         if (Math.hypot(x, z) > RAIO_DO_MUNDO - 45) continue;
+        if (i < APARICOES.length - 1 && (inclinacao(x, z) > .3 || paredePerto(x, z, Math.atan2(a.x - x, a.z - z)))) continue;
         const v = visaoLivre(x, z, a);
         if (v.livre && v.ceu) return { x, z };
         if (v.livre && !melhor) melhor = { x, z };
@@ -108,6 +118,13 @@ function tocarCapacete() {
     window.setTimeout(() => { const s = a.createBufferSource(); s.buffer = ruidoBuf(1.4); const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700;
         const g = a.createGain(), t2 = a.currentTime; g.gain.setValueAtTime(0, t2); g.gain.linearRampToValueAtTime(.35, t2 + .5); g.gain.linearRampToValueAtTime(0, t2 + 1.3);
         s.connect(f).connect(g).connect(a.destination); s.start(); }, 350);
+}
+function tocarOlhar() {   // um grave que cresce enquanto ela te encara
+    const a = audio(), t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(42, t); o.frequency.linearRampToValueAtTime(58, t + 1.5);
+    const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.35, t + 1.45); g.gain.exponentialRampToValueAtTime(.0001, t + 1.7);
+    o.connect(f).connect(g).connect(a.destination); o.start(); o.stop(t + 1.8);
 }
 function tocarSumico() {
     const a = audio(), t = a.currentTime, o = a.createOscillator(), g = a.createGain();
@@ -181,7 +198,7 @@ const Pedras: React.FC = () => {
             const x = Math.cos(a) * r, z = Math.sin(a) * r, reg = regiaoEm(x, z);
             if (reg.sal > .3 || reg.cratera > .5) continue;
             if (rnd() > .25 + reg.crista + reg.platos) continue;
-            if (APARICOES_BASE.some((ap) => Math.hypot(ap.x - x, ap.z - z) < 8) || Math.hypot(x - CAPACETE.x, z - CAPACETE.z) < 8) continue;
+            if (APARICOES_BASE.some((ap) => Math.hypot(ap.x - x, ap.z - z) < 8) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 14) || Math.hypot(x - CAPACETE.x, z - CAPACETE.z) < 8) continue;
             const agulha = false;
             const esc = .4 + rnd() * 1.1;
             o.position.set(x, alturaEm(x, z) - .3, z);
@@ -306,7 +323,7 @@ const Agulhas: React.FC = () => {
         for (let t = 0; t < 4000 && k < N - 7; t++) {
             const x = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), z = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), r = regiaoEm(x, z);
             if (Math.hypot(x, z) < 35 || r.sal > .2 || r.cratera > .2) continue;
-            if (APARICOES_BASE.some((a) => Math.hypot(a.x - x, a.z - z) < 12)) continue;
+            if (APARICOES_BASE.some((a) => Math.hypot(a.x - x, a.z - z) < 12) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 16)) continue;
             if (rnd() > .08 + r.platos * .6 + r.crista * .5) continue;
             if (ps.some(([px, pz]) => Math.hypot(px - x, pz - z) < 14)) continue;   // disco de Poisson
             ps.push([x, z]);
@@ -326,13 +343,22 @@ const Agulhas: React.FC = () => {
 };
 
 /** Arcos de erosão na borda da bacia de sal. */
-const Arcos: React.FC = () => <group>
-    {[[0.4, 64, 16], [1.6, 60, 12], [2.9, 66, 14], [4.4, 62, 18], [3.6, 58, 10]].map(([a, r, e], i) => {
-        const x = 150 + Math.cos(a) * r, z = -20 + Math.sin(a) * r;
-        return <mesh key={i} position={[x, alturaEm(x, z) - 1, z]} rotation={[0, a + Math.PI / 2, 0]} castShadow>
-            <torusGeometry args={[e, e * .2, 10, 28, Math.PI]} /><meshStandardMaterial color="#b35a34" roughness={.9} emissive="#5a1e0c" emissiveIntensity={.2} flatShading /></mesh>;
-    })}
-</group>;
+const Arcos: React.FC = () => {
+    const geo = useMemo(() => [1, .6].map((volta) => {   // tubo que engrossa nas pernas (base 1,6×), com volta inteira ou quebrada
+        const pts = Array.from({ length: 24 }, (_, k) => { const a = Math.PI * volta * k / 23; return new THREE.Vector3(Math.cos(a), Math.sin(a) * 1.15, 0); });
+        const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, .2, 10, false), p = g.attributes.position, cor = new Float32Array(p.count * 3), c = new THREE.Color();
+        for (let k = 0; k < p.count; k++) { const y = p.getY(k), engrossa = 1 + Math.max(0, .55 - y) * 1.1; p.setX(k, p.getX(k) * (1 + (engrossa - 1) * .25)); p.setZ(k, p.getZ(k) * engrossa);
+            c.set('#c98a62').multiplyScalar(.82 + .18 * Math.sin(y * 22)); cor.set([c.r, c.g, c.b], k * 3); }   // estratos
+        g.setAttribute('color', new THREE.BufferAttribute(cor, 3)); g.computeVertexNormals(); return g;
+    }), []);
+    return <group>
+        {[[0.4, 64, 16, 0, 0], [1.6, 60, 12, 0, .12], [2.9, 66, 14, 1, 0], [4.4, 62, 18, 0, -.1], [3.6, 58, 10, 0, .18]].map(([a, r, e, quebrado, torto], i) => {
+            const x = 150 + Math.cos(a) * r, z = -20 + Math.sin(a) * r;
+            return <mesh key={i} geometry={geo[quebrado]} position={[x, alturaEm(x, z) - e * .12, z]} rotation={[0, a + Math.PI / 2, torto]} scale={[e, e, e]} castShadow>
+                <meshStandardMaterial vertexColors roughness={.92} /></mesh>;
+        })}
+    </group>;
+};
 
 /** Um monólito negro no alto da crista: dá escala e aponta o caminho. */
 const Monolito: React.FC = () => {
@@ -416,8 +442,8 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             // ela PERCEBE quando o hóspede olha para ela (a < 60 m, mirando a menos de 12°) ou chega a 25 m:
             // fica 1,5 s parada, encarando, e só então some
             const olhando = (() => { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); const v = new THREE.Vector3(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(v) > Math.cos(12 * Math.PI / 180); })();
-            if (a.foge > 0 && s.percebeu === 0 && (d < 25 || (d < 45 && olhando))) s.percebeu = .0001;
-            if (s.percebeu > 0) { s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); } }
+            if (a.foge > 0 && s.percebeu === 0 && (d < 18 || (d < 30 && olhando))) s.percebeu = .0001;
+            if (s.percebeu > 0) { if (s.percebeu === .0001) tocarOlhar(); s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); abalo.v = .6; anel.t = 0; anel.x = a.x; anel.z = a.z; } }
             else if (a.foge === 0 && d < 5) aoAlcancar();
         }
         if (s.fugindo > 0) {
@@ -429,10 +455,11 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             else { opac = 1 - k; esc = 1 + k * .6; }
             if (s.fugindo > 1.7) { const anterior = s.i; s.i = Math.min(APARICOES.length - 1, s.i + 1); s.fugindo = 0; aoFugir(anterior); }
         }
+        const tenso = Math.min(1, s.percebeu / 1.5);
         gr.position.set(x, y, z);
         // vira-se para o hóspede (só o corpo, sem rosto)
-        gr.rotation.y = Math.atan2(j.x - x, j.z - z);
-        const tremor = 1 + Math.sin(t * 50) * .02;          // tremor de calor a 8 Hz
+        gr.rotation.y = Math.atan2(j.x - x, j.z - z); gr.rotation.z = tenso * .26;   // inclina a cabeça
+        const tremor = 1 + Math.sin(t * 50) * (.02 + tenso * .06);          // tremor de calor a 8 Hz, que cresce quando ela te encara
         gr.scale.set(1.5 * esc * tremor, 4.2 * esc, 1.5 * esc);   // alta e magra demais: errada
         gr.visible = ativa;
         if (corpo.current) corpo.current.opacity = opac * (.88 + Math.sin(t * 13) * .04 + (Math.random() < .02 ? -.4 : 0));
@@ -440,7 +467,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         const f = fiapos.current;
         if (f) {
             for (let i = 0; i < 24; i++) {
-                const u = (t * .35 + i / 24) % 1, an = i * 2.4;
+                const u = (t * (.35 + tenso * .9) + i / 24) % 1, an = i * 2.4;
                 o.position.set(Math.cos(an) * .35 * (1 + u), u * 3.2, Math.sin(an) * .2 * (1 + u));
                 o.scale.setScalar((.18 + u * .25) * (1 - u) * opac * esc); o.updateMatrix(); f.setMatrixAt(i, o.matrix);
             }
@@ -457,6 +484,22 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         {/* a sombra no chão, comprida, apontando para longe do sol */}
         <mesh position={[-1.6, .05, 1.6]} rotation={[-Math.PI / 2, 0, -.8]}><planeGeometry args={[.7, 4.5]} /><meshBasicMaterial color="#000" transparent opacity={.35} depthWrite={false} /></mesh>
         <instancedMesh ref={fiapos} frustumCulled={false} args={[undefined, undefined, 24]}><sphereGeometry args={[1, 8, 6]} /><meshBasicMaterial color="#0a0610" transparent opacity={.5} depthWrite={false} /></instancedMesh>
+    </group>;
+};
+
+/** Quando ela some: uma pluma de areia que se abre num anel. */
+const AnelDeAreia: React.FC = () => {
+    const g = useRef<THREE.Group>(null), m1 = useRef<THREE.MeshBasicMaterial>(null), m2 = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame((_, dt) => {
+        anel.t += dt; const k = anel.t / .9, gr = g.current; if (!gr) return;
+        gr.visible = k < 1; if (k >= 1) return;
+        gr.position.set(anel.x, alturaEm(anel.x, anel.z) + .2, anel.z);
+        const r = .5 + k * 4; (gr.children[0] as THREE.Mesh).scale.set(r, r, 1); (gr.children[1] as THREE.Mesh).scale.set(1 + k * 2, .3 + k * 3, 1 + k * 2);
+        if (m1.current) m1.current.opacity = .8 * (1 - k); if (m2.current) m2.current.opacity = .6 * (1 - k);
+    });
+    return <group ref={g} visible={false}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[.7, 1, 32]} /><meshBasicMaterial ref={m1} color="#e8b98a" transparent depthWrite={false} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, 1.2, 0]}><sphereGeometry args={[1, 12, 8]} /><meshBasicMaterial ref={m2} color="#d9a47a" transparent depthWrite={false} /></mesh>
     </group>;
 };
 
@@ -515,6 +558,7 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
         const altura = 1.68 - j.caido * 1.3;
         camera.position.set(j.x, j.y + altura + bob, j.z);
         camera.rotation.set(0, 0, 0, 'YXZ');
+        if (abalo.v > 0) { abalo.v = Math.max(0, abalo.v - dt); camera.position.x += (Math.random() - .5) * .15 * abalo.v; camera.position.y += (Math.random() - .5) * .15 * abalo.v; }
         camera.rotation.y = yaw.current; camera.rotation.x = pitch.current - j.caido * .6; camera.rotation.z = cambaleio + Math.cos(passo.current * .5) * .012 * j.andando;
     });
     return null;
@@ -610,6 +654,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     // bancada: mexer no hóspede e na fase pelo console / Playwright
     if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, vestir: () => { tocarCapacete(); setFase('explorar'); capaceteVestido.v = true; }, fase,
         // a vista de quem chega pela trilha: 70 m antes da aparição, vindo da anterior
+        aparicaoXZ: (i: number) => APARICOES[i],
         aparicao: (i: number) => { const a = APARICOES[i], c = CHEGADAS[i] ?? { x: 0, z: 0 };
             const ya = Math.atan2(-(a.x - c.x), -(a.z - c.z)), d = Math.hypot(a.x - c.x, a.z - c.z), alt = alturaEm(a.x, a.z) + 4 - (alturaEm(c.x, c.z) + 1.7);
             return [c.x, c.z, ya, Math.atan2(alt, d)]; } };
@@ -659,6 +704,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Arcos />
                 <Capacete visivel={!comCapacete} />
                 <Pegadas ate={vistas} />
+                <AnelDeAreia />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
                 <EffectComposer multisampling={0}>
                     <Bloom intensity={.55} luminanceThreshold={.82} luminanceSmoothing={.2} mipmapBlur />
