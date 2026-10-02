@@ -62,7 +62,7 @@ const CHEGADAS = APARICOES.map((a, i) => {
     if (i === 0) return null;
     const b = APARICOES[i - 1], base = Math.atan2(b.z - a.z, b.x - a.x);
     let melhor: { x: number; z: number } | null = null;
-    for (const R of i === APARICOES.length - 1 ? [26, 32] : [55, 42]) for (let k = 0; k < 24; k++) {   // na cratera: já dentro, descendo a borda
+    for (const R of i === APARICOES.length - 1 ? [26, 32] : [75, 62]) for (let k = 0; k < 24; k++) {   // na cratera: já dentro, descendo a borda
         const ang = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, x = a.x + Math.cos(ang) * R, z = a.z + Math.sin(ang) * R;
         if (Math.hypot(x, z) > RAIO_DO_MUNDO - 45) continue;
         const v = visaoLivre(x, z, a);
@@ -416,7 +416,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             // ela PERCEBE quando o hóspede olha para ela (a < 60 m, mirando a menos de 12°) ou chega a 25 m:
             // fica 1,5 s parada, encarando, e só então some
             const olhando = (() => { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); const v = new THREE.Vector3(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(v) > Math.cos(12 * Math.PI / 180); })();
-            if (a.foge > 0 && s.percebeu === 0 && (d < 25 || (d < 60 && olhando))) s.percebeu = .0001;
+            if (a.foge > 0 && s.percebeu === 0 && (d < 25 || (d < 45 && olhando))) s.percebeu = .0001;
             if (s.percebeu > 0) { s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); } }
             else if (a.foge === 0 && d < 5) aoAlcancar();
         }
