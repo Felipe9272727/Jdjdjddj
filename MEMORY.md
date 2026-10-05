@@ -4183,3 +4183,15 @@ fonte + index.html + version.json juntos e remove o próprio workflow da árvore
 - Toda leitura, análise ou pesquisa do repositório deve ser delegada ao subagente **GPT-5.6-Luna**; a sessão principal fica responsável por aplicar e executar as mudanças autorizadas.
 - A integração do mapa10 deve preservar o target `6757d48721fe7e3af98628ccf2547633217f1a48` e sua árvore completa `83c0aafb72884af2a848a4c86128313ec0d0e679`.
 - Os sete commits do target (35064209, dccc09ee, 7d8e7f94, 05b0c3e0, b1b16c01, 8b80f8fa, 6757d487) formam a sequência Floor3 a preservar durante a integração da Sala 03:17 cooperativa.
+
+## 2026-10-05 — Andar 14: realismo e abertura entregue (gauntlet GPT-6.1)
+
+Pedido do Felipe: melhorar último floor e cutscene, Blender + Remotion, crítico GPT-6.1. Base confirmada `e7cb59f` da `agent/floor12-gpt-compare` (última branch atualizada; remote conferido novamente antes da entrega). O mp4 da chegada era referenciado mas faltava no repositório.
+
+- Blender/Cycles: cinco placas originais, capacete madeira/latão, portal, areia e luz física; Remotion: montagem POV de 12s e som procedural. Arquivo H264/AAC ~2,1 MB agora em public e raiz. Manim opcional não foi necessário. Reprodução bloqueada pede toque; pular/falha não gastam fôlego antes de mundo pronto.
+- Mundo: sol constante, planeta/anéis shader, materiais terrosos, cascalho instanciado, arcos erodidos, visor mais aberto, entidade com fade completo/poeira suave/sombra no mundo; clareira nas APARICOES reais. Altura pisável corresponde aos triângulos do terreno, ver teste Raycaster.
+- Low respeita configurações; sem transmissão/pós, sombras1024/DPR1; HUD10Hz, colliders com cleanup, Canvas do hotel suspenso durante F14.
+- Três rodadas de crítica GPT-6.1, correções integradas; aprovado sem bloqueadores visuais nas evidências. Relatório e imagens: `jubileu/docs/floor14-realismo/README.md`. Limites: SwiftShader não mede desempenho do celular; não foi percorrido o trajeto completo das cinco aparições.
+- TypeScript/build/audit concluídos; 2318 testes aprovados somando suíte e repetição isolada dos dois arquivos sensíveis a tempo/DNS (1 ignorado). Browser verificou vídeo natural, caminhada/coleta real, pulo, autoplay por clique e fallback. Single-file comprimido internamente em gzip para ficar abaixo de100MiB, mantendo todos os assets (Chrome80+/Safari16.4+); dist convencional preservado.
+
+- Instrução final do Felipe: não enviar/reconstruir o HTML agora. Job temporário cancelado; entrega remota somente source + vídeo + evidências, preservando index.html/version.json anteriores. Build validado permanece na branch local de artefato.

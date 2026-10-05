@@ -17,7 +17,10 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
-import { alturaEm, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO } from './f14Terreno';
+import { superficieEm as alturaEm, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO } from './f14Terreno';
+import { CeuKessar, PoeiraKessar, CascalhoKessar, SOL } from './f14Atmosfera';
+import { useOptionalSettings } from './Settings';
+import { ChegadaKessar } from './f14Chegada';
 
 type Fase = 'chegada' | 'sufocando' | 'explorar' | 'fim';
 interface Jog { x: number; y: number; z: number; andando: number; caido: number }
@@ -27,7 +30,6 @@ const FOLEGO_TOTAL = 30;
 const SOLIDOS: { x: number; z: number; r: number }[] = [];
 /** o tremor da câmera e o anel de areia de quando ela some */
 const abalo = { v: 0 }, anel = { t: 9, x: 0, z: 0 };
-const capaceteVestido = { v: false };
 const CAPACETE = { x: .4, z: -4.2 };
 const INICIO = { x: 0, z: 0 };
 
@@ -139,8 +141,8 @@ const Terreno: React.FC = () => {
         const L = 640, N = 256, g = new THREE.PlaneGeometry(L, L, N, N);
         g.rotateX(-Math.PI / 2);
         const p = g.attributes.position as THREE.BufferAttribute, cor = new Float32Array(p.count * 3);
-        const c = new THREE.Color(), areia = new THREE.Color('#d08a4e'), ferrugem = new THREE.Color('#8f3f22'), sal = new THREE.Color('#ece5d6'),
-            vidro = new THREE.Color('#5d4870'), rocha = new THREE.Color('#6e3626'), faixaA = new THREE.Color('#b8653a'), faixaB = new THREE.Color('#e0a565'), tmp = new THREE.Color();
+        const c = new THREE.Color(), areia = new THREE.Color('#b99269'), ferrugem = new THREE.Color('#8d5c42'), sal = new THREE.Color('#ece5d6'),
+            vidro = new THREE.Color('#5d4870'), rocha = new THREE.Color('#655049'), faixaA = new THREE.Color('#957252'), faixaB = new THREE.Color('#cab391'), tmp = new THREE.Color();
         for (let i = 0; i < p.count; i++) {
             const x = p.getX(i), z = p.getZ(i), h = alturaEm(x, z);
             p.setY(i, h);
@@ -166,13 +168,13 @@ const Terreno: React.FC = () => {
         const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d')!, img = g.createImageData(256, 256);
         for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
             const u = x / 256, v = y / 256, w = .65 * Math.sin((u * 7 + Math.sin(v * 6.283 * 2) * .3 + Math.sin((u * 2 + v * 3) * 6.283) * .15) * Math.PI * 2) + .35 * Math.sin((u * 2 + v * 1 + Math.sin(u * 6.283 * 3) * .2) * Math.PI * 2);   // periódico, 2 escalas
-            const val = 128 + w * 70 + (Math.random() - .5) * 26, i = (y * 256 + x) * 4;
+            const val = 128 + w * 48 + (Math.sin(x * 127.1 + y * 311.7) * 43758.5453 % 1) * 10, i = (y * 256 + x) * 4;
             img.data[i] = img.data[i + 1] = img.data[i + 2] = val; img.data[i + 3] = 255;
         }
-        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(140, 140); t.anisotropy = 8; return t;
+        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(110, 110); t.anisotropy = 8; return t;
     }, []);
     const matChao = useMemo(() => {
-        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0, bumpMap: ondas, bumpScale: 1.6 });
+        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0, bumpMap: ondas, bumpScale: .18 });
         m.onBeforeCompile = (sh) => {
             sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float rip; varying float vRip;')
                 .replace('#include <project_vertex>', '#include <project_vertex>\nvRip = rip * clamp(1. - (length(mvPosition.xyz) - 45.) / 50., 0., 1.);');
@@ -189,63 +191,45 @@ const Terreno: React.FC = () => {
 const Pedras: React.FC = () => {
     const ref = useRef<THREE.InstancedMesh>(null);
     const N = 420;
+    const geo = useMemo(() => {
+        const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+            const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+            const r = 1 + .13 * Math.sin(x * 9 + z * 4) * Math.cos(y * 7) + .08 * Math.sin(z * 13 + y * 5);
+            p.setXYZ(i, x * r, y * r * .85, z * r);
+        }
+        g.computeVertexNormals(); return g;
+    }, []);
     useEffect(() => {
         const m = ref.current; if (!m) return;
         let s = 12345; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-        const o = new THREE.Object3D(); let k = 0;
+        const o = new THREE.Object3D(), tint = new THREE.Color(), colliders: typeof SOLIDOS = []; let k = 0;
         for (let i = 0; i < N * 3 && k < N; i++) {
             const a = rnd() * Math.PI * 2, r = 14 + Math.sqrt(rnd()) * (RAIO_DO_MUNDO - 40);
             const x = Math.cos(a) * r, z = Math.sin(a) * r, reg = regiaoEm(x, z);
             if (reg.sal > .3 || reg.cratera > .5) continue;
             if (rnd() > .25 + reg.crista + reg.platos) continue;
-            if (APARICOES_BASE.some((ap) => Math.hypot(ap.x - x, ap.z - z) < 8) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 14) || Math.hypot(x - CAPACETE.x, z - CAPACETE.z) < 8) continue;
+            if (APARICOES.some((ap) => Math.hypot(ap.x - x, ap.z - z) < 8) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 14) || Math.hypot(x - CAPACETE.x, z - CAPACETE.z) < 8) continue;
             const agulha = false;
             const esc = .4 + rnd() * 1.1;
             o.position.set(x, alturaEm(x, z) - .3, z);
             o.rotation.set(rnd() * .3, rnd() * 6.28, rnd() * .3);
             o.scale.set(esc, esc * (agulha ? 3.5 + rnd() * 3 : .7 + rnd() * .6), esc);
-            if (esc > 1) SOLIDOS.push({ x, z, r: esc * .9 });
+            if (esc > 1) colliders.push({ x, z, r: esc * .9 });
+            tint.set('#766252').multiplyScalar(.75 + rnd() * .45); m.setColorAt(k, tint);
             o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
         }
         m.count = k; m.instanceMatrix.needsUpdate = true;
+        SOLIDOS.push(...colliders);
+        return () => { for (const ob of colliders) { const i = SOLIDOS.indexOf(ob); if (i >= 0) SOLIDOS.splice(i, 1); } };
     }, []);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow receiveShadow>
-        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#3e2622" roughness={.9} flatShading />
+    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, undefined, N]} castShadow receiveShadow>
+        <meshStandardMaterial roughness={.94} />
     </instancedMesh>;
 };
 
-/** O céu: gradiente alienígena, dois sóis e um planeta anelado. */
-const Ceu: React.FC = () => {
-    const mat = useMemo(() => new THREE.ShaderMaterial({
-        side: THREE.BackSide, depthWrite: false,
-        uniforms: { sol: { value: new THREE.Vector3(.55, .22, -.8).normalize() } },
-        vertexShader: 'varying vec3 v; void main(){ v = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-        fragmentShader: `varying vec3 v; uniform vec3 sol;
-            void main(){
-              float h = clamp(v.y, -.1, 1.);
-              vec3 horiz = vec3(.96,.66,.48), meio = vec3(.55,.30,.50), topo = vec3(.07,.05,.16);
-              vec3 c = mix(horiz, meio, smoothstep(0., .25, h)); c = mix(c, topo, smoothstep(.25, .9, h));
-              float s = max(0., dot(v, sol)); c += vec3(1.,.75,.45) * (pow(s, 700.) * 3. + pow(s, 12.) * .35);
-              vec3 sol2 = normalize(vec3(-.3,.12,-.95)); float s2 = max(0., dot(v, sol2)); c += vec3(.6,.85,1.) * (pow(s2, 1800.) * 2.5 + pow(s2, 40.) * .18);
-              vec3 q = floor(v * 420.); float hs = fract(sin(dot(q, vec3(12.9898,78.233,37.719))) * 43758.5453);
-              c += vec3(.9,.95,1.) * step(.9965, hs) * smoothstep(.3, .8, h);          // estrelas de dia, no alto
-              c += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453) - .5) * .006;   // dither (sem faixas)
-              gl_FragColor = vec4(c, 1.);
-            }`,
-    }), []);
-    return <group>
-        <mesh material={mat}><sphereGeometry args={[900, 32, 16]} /></mesh>
-        {/* o planeta anelado no céu */}
-        <group position={[-260, 330, -620]} rotation={[.35, 0, -.4]}>
-            <mesh><sphereGeometry args={[70, 32, 16]} /><meshBasicMaterial color="#c9a6d6" fog={false} /></mesh>
-            <mesh position={[-14, 6, 30]}><sphereGeometry args={[66, 32, 16]} /><meshBasicMaterial color="#5a4380" transparent opacity={.55} fog={false} /></mesh>
-            <mesh rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[95, 150, 64]} /><meshBasicMaterial color="#e9d4c0" side={THREE.DoubleSide} transparent opacity={.55} fog={false} /></mesh>
-        </group>
-    </group>;
-};
-
 /** O sol acompanha o hóspede: sombra nítida só perto dele (sem a caixa de sombra aparecendo no chão). */
-const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
+const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolean }> = ({ jog, reduzida }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     useEffect(() => {
         const l = luz.current; if (!l) return;
@@ -255,9 +239,9 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) =>
     useFrame(() => {
         const l = luz.current; if (!l) return; const j = jog.current;
         const sx = Math.round(j.x / .5) * .5, sz = Math.round(j.z / .5) * .5;   // passo de texel: a sombra não treme
-        l.position.set(sx + 120, j.y + (j.caido > 0 || !capaceteVestido.v ? 230 : 110), sz - 200); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
+        l.position.set(sx + SOL.x * 260, j.y + SOL.y * 260, sz + SOL.z * 260); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
-    return <directionalLight ref={luz} intensity={2.4} color="#ffd2a0" castShadow shadow-mapSize={[2048, 2048]} />;
+    return <directionalLight ref={luz} intensity={2.8} color="#ffe0b4" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
 };
 
 /** Cristais de quartzo azul-petróleo brotando da areia (o primeiro sinal de "isto não é a Terra"). */
@@ -280,7 +264,7 @@ const Cristais: React.FC = () => {
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow>
-        <octahedronGeometry args={[.5, 0]} /><meshPhysicalMaterial color="#7fe6c8" emissive="#1fd9a0" emissiveIntensity={.35} roughness={.2} metalness={0} transmission={.6} thickness={.8} ior={1.5} transparent opacity={.85} flatShading />
+        <octahedronGeometry args={[.5, 0]} /><meshStandardMaterial color="#527f78" emissive="#28584c" emissiveIntensity={.10} roughness={.3} metalness={.28} flatShading />
     </instancedMesh>;
 };
 
@@ -298,7 +282,7 @@ const Ossada: React.FC = () => {
 /** A névoa muda com o lugar: poeira laranja nas dunas, branca no sal, violeta na cratera. */
 const NevoaPorRegiao: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
     const scene = useThree((s) => s.scene);
-    const base = useMemo(() => ({ duna: new THREE.Color('#e3a07a'), sal: new THREE.Color('#efe2d2'), crat: new THREE.Color('#7d5a8e'), crista: new THREE.Color('#c27a68'), alvo: new THREE.Color() }), []);
+    const base = useMemo(() => ({ duna: new THREE.Color('#bba18c'), sal: new THREE.Color('#efe2d2'), crat: new THREE.Color('#7d5a8e'), crista: new THREE.Color('#a08f83'), alvo: new THREE.Color() }), []);
     useFrame((_, dt) => {
         const f = scene.fog as THREE.Fog | null; if (!f) return; const j = jog.current, r = regiaoEm(j.x, j.z);
         base.alvo.copy(base.duna).lerp(base.crista, r.crista * .7).lerp(base.sal, r.sal).lerp(base.crat, r.cratera);
@@ -319,23 +303,25 @@ const Agulhas: React.FC = () => {
     useEffect(() => {
         const m = ref.current; if (!m) return;
         let s = 4242; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-        const o = new THREE.Object3D(), ps: [number, number][] = []; let k = 0;
+        const o = new THREE.Object3D(), ps: [number, number][] = [], colliders: typeof SOLIDOS = []; let k = 0;
         for (let t = 0; t < 4000 && k < N - 7; t++) {
             const x = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), z = (rnd() - .5) * 2 * (RAIO_DO_MUNDO - 50), r = regiaoEm(x, z);
             if (Math.hypot(x, z) < 35 || r.sal > .2 || r.cratera > .2) continue;
-            if (APARICOES_BASE.some((a) => Math.hypot(a.x - x, a.z - z) < 12) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 16)) continue;
+            if (APARICOES.some((a) => Math.hypot(a.x - x, a.z - z) < 24) || CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < 16)) continue;
             if (rnd() > .08 + r.platos * .6 + r.crista * .5) continue;
             if (ps.some(([px, pz]) => Math.hypot(px - x, pz - z) < 14)) continue;   // disco de Poisson
             ps.push([x, z]);
             const n = 3 + Math.floor(rnd() * 5), alt = 8 + rnd() * 12;          // um grupo de 3–7 colunas
             for (let c = 0; c < n; c++) {
                 const cx = x + (rnd() - .5) * 3.5, cz = z + (rnd() - .5) * 3.5, h = alt * (.55 + rnd() * .45), b = 1.4 + rnd() * .8;
-                SOLIDOS.push({ x: cx, z: cz, r: b * .5 });
+                colliders.push({ x: cx, z: cz, r: b * .5 });
                 o.position.set(cx, alturaEm(cx, cz) + h / 2 - 1, cz); o.rotation.set((rnd() - .5) * .06, rnd() * 6.28, (rnd() - .5) * .06);
                 o.scale.set(b, h, b); o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
             }
         }
         m.count = k; m.instanceMatrix.needsUpdate = true;
+        SOLIDOS.push(...colliders);
+        return () => { for (const ob of colliders) { const i = SOLIDOS.indexOf(ob); if (i >= 0) SOLIDOS.splice(i, 1); } };
     }, []);
     return <instancedMesh ref={ref} frustumCulled={false} args={[geo, undefined, N]} castShadow receiveShadow>
         <meshStandardMaterial vertexColors roughness={.9} flatShading />
@@ -345,10 +331,17 @@ const Agulhas: React.FC = () => {
 /** Arcos de erosão na borda da bacia de sal. */
 const Arcos: React.FC = () => {
     const geo = useMemo(() => [1, .6].map((volta) => {   // tubo que engrossa nas pernas (base 1,6×), com volta inteira ou quebrada
-        const pts = Array.from({ length: 24 }, (_, k) => { const a = Math.PI * volta * k / 23; return new THREE.Vector3(Math.cos(a), Math.sin(a) * 1.15, 0); });
+        const pts = Array.from({ length: 24 }, (_, k) => { const a = Math.PI * volta * k / 23; return new THREE.Vector3(Math.cos(a), Math.pow(Math.sin(a), .78) * 1.15, Math.sin(a * 2) * .08); });
         const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, .2, 10, false), p = g.attributes.position, cor = new Float32Array(p.count * 3), c = new THREE.Color();
-        for (let k = 0; k < p.count; k++) { const y = p.getY(k), engrossa = 1 + Math.max(0, .55 - y) * 1.1; p.setX(k, p.getX(k) * (1 + (engrossa - 1) * .25)); p.setZ(k, p.getZ(k) * engrossa);
-            c.set('#c98a62').multiplyScalar(.82 + .18 * Math.sin(y * 22)); cor.set([c.r, c.g, c.b], k * 3); }   // estratos
+        for (let k = 0; k < p.count; k++) {
+            const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
+            const ruido = fbm(x * 9 + 5, y * 9 + z * 3, 3) - .4;
+            const base = 1 + Math.max(0, .6 - y) * .9;
+            p.setXYZ(k, x * (1 + (base - 1) * .16) + ruido * .10, y + ruido * .09, z * base + ruido * .12);
+            const estrato = .5 + .5 * Math.sin(y * 55 + Math.sin(x * 9) * .7);
+            c.set('#ac8d6f').lerp(new THREE.Color('#736052'), estrato * .22).multiplyScalar(.9 + ruido * .3);
+            cor.set([c.r, c.g, c.b], k * 3);
+        }
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3)); g.computeVertexNormals(); return g;
     }), []);
     return <group>
@@ -375,17 +368,18 @@ const ColunaDaCratera: React.FC = () => {
 
 /** O visor do capacete: escotilha REDONDA de latão com rebites, madeira por fora e o bafo no vidro. */
 const Escotilha: React.FC = () => <>
-    <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}80%{opacity:.22}}'}</style>
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(circle at 50% 50%, transparent 0, transparent 48vh, #e8c46a calc(48vh + 1px), #9a6a26 calc(48vh + 7px), #4a2c12 calc(48vh + 12px), #3b2414 calc(48vh + 14px), #2c1a0d calc(48vh + 60px), #1a0f06 100%)' }} />
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(92deg, rgba(0,0,0,.22) 0 3px, transparent 3px 22px)',
-        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, transparent calc(48vh + 13px), #000 calc(48vh + 14px))', maskImage: 'radial-gradient(circle at 50% 50%, transparent calc(48vh + 13px), #000 calc(48vh + 14px))' }} />
-    {Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + .39;
-        return <div key={i} style={{ position: 'absolute', left: `calc(50% + ${Math.cos(a)} * 50.5vh - 6px)`, top: `calc(50% + ${Math.sin(a)} * 50.5vh - 6px)`, width: 12, height: 12, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff2b8, #b8862e 60%, #5a3a12)', pointerEvents: 'none' }} />; })}
-    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '96vh', height: '96vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
-        background: 'radial-gradient(ellipse at 50% 85%, rgba(255,255,255,.9), transparent 55%)', animation: 'f14bafo 3.5s ease-in-out infinite' }} />
-    <div style={{ position: 'absolute', left: '50%', top: '50%', width: '96vh', height: '96vh', transform: 'translate(-50%,-50%)', borderRadius: '50%', pointerEvents: 'none',
-        background: 'linear-gradient(125deg, rgba(255,255,255,.12) 0%, transparent 28%, transparent 75%, rgba(255,255,255,.05) 100%)' }} />
+    <style>{'@keyframes f14bafo{0%,65%,100%{opacity:0}82%{opacity:.12}}'}</style>
+    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} aria-hidden="true">
+        <defs>
+            <radialGradient id="f14metal"><stop offset="0" stopColor="#372a1b"/><stop offset=".89" stopColor="#372a1b"/><stop offset=".94" stopColor="#94764b"/><stop offset=".965" stopColor="#3c3022"/><stop offset="1" stopColor="#100e0b"/></radialGradient>
+            <mask id="f14visor"><rect width="1000" height="1000" fill="white"/><ellipse cx="500" cy="500" rx="465" ry="458" fill="black"/></mask>
+        </defs>
+        <rect width="1000" height="1000" fill="#171310" mask="url(#f14visor)"/>
+        <ellipse cx="500" cy="500" rx="473" ry="467" fill="none" stroke="url(#f14metal)" strokeWidth="22"/>
+        <ellipse cx="500" cy="500" rx="464" ry="458" fill="none" stroke="#d5b67d" strokeOpacity=".35" strokeWidth="1.5"/>
+        {[.35, .8, 2.35, 2.8, 3.5, 3.95, 5.5, 5.95].map((a,i)=><ellipse key={i} cx={500+Math.cos(a)*476} cy={500+Math.sin(a)*470} rx="3" ry="3.5" fill="#a38960" stroke="#1b1712" strokeWidth="2"/>)}
+    </svg>
+    <div style={{ position: 'absolute', inset: '5%', pointerEvents: 'none', borderRadius: '48%', background: 'radial-gradient(ellipse at 50% 100%, #c9d8d2, transparent 42%)', animation: 'f14bafo 4.5s ease-in-out infinite' }} />
 </>;
 
 // ── o capacete de madeira ─────────────────────────────────────────────────
@@ -408,9 +402,9 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
         gr.addColorStop(0, 'rgba(255,220,160,1)'); gr.addColorStop(.35, 'rgba(255,170,80,.45)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); }, []);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime, pulso = .5 + .5 * Math.sin(t * Math.PI * 1.6);   // farol a 0,8 Hz: dá para achar a 30 m
-        if (g.current) g.current.rotation.y = Math.sin(t * .4) * .15 + .6;
+        // O capacete tem peso: permanece enterrado; apenas o reflexo pulsa.
         if (luzBeacon.current) luzBeacon.current.intensity = visivel ? 2 + pulso * 3 : 0;
-        if (halo.current) { halo.current.scale.setScalar(1.6 + pulso * 1.4); (halo.current.material as THREE.SpriteMaterial).opacity = visivel ? .35 + pulso * .4 : 0; }
+        if (halo.current) { halo.current.scale.setScalar(1.6 + pulso * 1.4); (halo.current.material as THREE.SpriteMaterial).opacity = visivel ? .16 + pulso * .20 : 0; }
     });
     const y = alturaEm(CAPACETE.x, CAPACETE.z);
     return <group ref={g} position={[CAPACETE.x, y + .28, CAPACETE.z]} rotation={[0, .6, .25]} visible={visivel}>
@@ -430,9 +424,25 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
 // ── a ENTIDADE: uma sombra de pé ──────────────────────────────────────────
 interface EstadoSombra { i: number; fugindo: number; visto: boolean; percebeu: number }
 const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: React.MutableRefObject<Jog>; ativa: boolean; aoFugir: (i: number) => void; aoAlcancar: () => void }> = ({ estado, jog, ativa, aoFugir, aoAlcancar }) => {
-    const g = useRef<THREE.Group>(null), corpo = useRef<THREE.MeshBasicMaterial>(null);
-    const fiapos = useRef<THREE.InstancedMesh>(null);
-    const o = useMemo(() => new THREE.Object3D(), []);
+    const g = useRef<THREE.Group>(null);
+    const corpo = useMemo(() => new THREE.MeshBasicMaterial({color: '#050307', transparent: true, depthWrite: false, fog: true}), []);
+    const fumaca = useMemo(() => {
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
+        const c = canvas.getContext('2d')!, grad = c.createRadialGradient(16,16,0,16,16,16);
+        grad.addColorStop(0,'rgba(255,255,255,.65)'); grad.addColorStop(1,'rgba(255,255,255,0)');
+        c.fillStyle=grad;c.fillRect(0,0,32,32);
+        const texture=new THREE.CanvasTexture(canvas), geo=new THREE.BufferGeometry();
+        geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(24*3),3));
+        const mat=new THREE.PointsMaterial({color:'#0a0610',map:texture,transparent:true,depthWrite:false,size:.65,opacity:.24});
+        return {texture,geo,mat};
+    }, []);
+    const fuma = fumaca.mat;
+    const sombraGeo = useMemo(() => new THREE.PlaneGeometry(1, 1, 2, 16), []);
+    const sombraMesh = useRef<THREE.Mesh>(null);
+    const sombraMat = useMemo(() => new THREE.MeshBasicMaterial({color: '#000', map: fumaca.texture, transparent: true, opacity: .25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1}), [fumaca.texture]);
+    const dir = useMemo(() => new THREE.Vector3(), []), alvo = useMemo(() => new THREE.Vector3(), []);
+    useEffect(() => () => {corpo.dispose(); fuma.dispose(); sombraMat.dispose(); fumaca.geo.dispose(); fumaca.texture.dispose(); sombraGeo.dispose();}, [corpo, fuma, sombraMat]);
+
     useFrame(({ clock, camera }, dt) => {
         const s = estado.current, a = APARICOES[s.i], gr = g.current; if (!gr) return;
         const t = clock.elapsedTime;
@@ -441,7 +451,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         if (ativa && s.fugindo === 0) {
             // ela PERCEBE quando o hóspede olha para ela (a < 60 m, mirando a menos de 12°) ou chega a 25 m:
             // fica 1,5 s parada, encarando, e só então some
-            const olhando = (() => { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); const v = new THREE.Vector3(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(v) > Math.cos(12 * Math.PI / 180); })();
+            const olhando = (() => { camera.getWorldDirection(dir); alvo.set(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(alvo) > Math.cos(12 * Math.PI / 180); })();
             if (a.foge > 0 && s.percebeu === 0 && (d < 18 || (d < 30 && olhando))) s.percebeu = .0001;
             if (s.percebeu > 0) { if (s.percebeu === .0001) tocarOlhar(); s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); abalo.v = .6; anel.t = 0; anel.x = a.x; anel.z = a.z; } }
             else if (a.foge === 0 && d < 5) aoAlcancar();
@@ -450,7 +460,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             s.fugindo += dt;
             const k = Math.min(1, s.fugindo / 1.6);
             const dx = a.x - j.x, dz = a.z - j.z, dn = Math.hypot(dx, dz) || 1;
-            if (a.como === 'afunda') y -= k * k * 3.2;
+            if (a.como === 'afunda') { y -= k * k * 11; opac = 1 - THREE.MathUtils.smoothstep(k, .45, 1); }
             else if (a.como === 'crista') { x += dx / dn * k * 14; z += dz / dn * k * 14; y = alturaEm(x, z) + k * 2; opac = 1 - k; }
             else { opac = 1 - k; esc = 1 + k * .6; }
             if (s.fugindo > 1.7) { const anterior = s.i; s.i = Math.min(APARICOES.length - 1, s.i + 1); s.fugindo = 0; aoFugir(anterior); }
@@ -462,29 +472,34 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         const tremor = 1 + Math.sin(t * 50) * (.02 + tenso * .06);          // tremor de calor a 8 Hz, que cresce quando ela te encara
         gr.scale.set(1.5 * esc * tremor, 4.2 * esc, 1.5 * esc);   // alta e magra demais: errada
         gr.visible = ativa;
-        if (corpo.current) corpo.current.opacity = opac * (.88 + Math.sin(t * 13) * .04 + (Math.random() < .02 ? -.4 : 0));
-        // fiapos de fumaça escura subindo do contorno
-        const f = fiapos.current;
-        if (f) {
-            for (let i = 0; i < 24; i++) {
-                const u = (t * (.35 + tenso * .9) + i / 24) % 1, an = i * 2.4;
-                o.position.set(Math.cos(an) * .35 * (1 + u), u * 3.2, Math.sin(an) * .2 * (1 + u));
-                o.scale.setScalar((.18 + u * .25) * (1 - u) * opac * esc); o.updateMatrix(); f.setMatrixAt(i, o.matrix);
-            }
-            f.instanceMatrix.needsUpdate = true;
+        // Projeção em coordenadas mundo: nunca gira com o corpo e acompanha cada triângulo.
+        if (sombraMesh.current) sombraMesh.current.visible = ativa;
+        const shadowPos = sombraGeo.attributes.position as THREE.BufferAttribute;
+        const sunLength = Math.hypot(SOL.x, SOL.z), dx = -SOL.x / sunLength, dz = -SOL.z / sunLength;
+        for (let i = 0; i < shadowPos.count; i++) {
+            const u = (i % 3) / 2 - .5, v = Math.floor(i / 3) / 16;
+            const px = x + dx * v * 17 + dz * u * 1.5, pz = z + dz * v * 17 - dx * u * 1.5;
+            shadowPos.setXYZ(i, px, alturaEm(px,pz)+.045, pz);
         }
-        s.visto = new THREE.Vector3(x, y + 1.5, z).project(camera).z < 1;
+        shadowPos.needsUpdate = true;
+        corpo.opacity = opac * (.91 + Math.sin(t * 13) * .025); fuma.opacity = opac * .24; sombraMat.opacity = opac * .25;
+        // fiapos de fumaça escura subindo do contorno
+        const fp = fumaca.geo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < 24; i++) {
+            const u = (t * (.22 + tenso * .4) + i / 24) % 1, an = i * 2.4;
+            fp.setXYZ(i, Math.cos(an) * (.24 + u * .18), .25 + u * 2.2, Math.sin(an) * .17);
+        }
+        fp.needsUpdate = true;
+        s.visto = alvo.set(x, y + 1.5, z).project(camera).z < 1;
     });
-    return <group ref={g}>
+    return <><mesh ref={sombraMesh} geometry={sombraGeo} material={sombraMat} frustumCulled={false} /><group ref={g}>
         {/* silhueta alta e magra: tronco, ombros caídos, cabeça sem rosto */}
-        <mesh position={[0, 1.15, 0]}><capsuleGeometry args={[.28, 1.4, 4, 10]} /><meshBasicMaterial ref={corpo} color="#050307" transparent depthWrite={false} fog={false} /></mesh>
-        <mesh position={[0, 2.25, 0]}><sphereGeometry args={[.22, 14, 10]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
-        <mesh position={[-.42, 1.3, 0]} rotation={[0, 0, .12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
-        <mesh position={[.42, 1.3, 0]} rotation={[0, 0, -.12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><meshBasicMaterial color="#050307" fog={false} /></mesh>
-        {/* a sombra no chão, comprida, apontando para longe do sol */}
-        <mesh position={[-1.6, .05, 1.6]} rotation={[-Math.PI / 2, 0, -.8]}><planeGeometry args={[.7, 4.5]} /><meshBasicMaterial color="#000" transparent opacity={.35} depthWrite={false} /></mesh>
-        <instancedMesh ref={fiapos} frustumCulled={false} args={[undefined, undefined, 24]}><sphereGeometry args={[1, 8, 6]} /><meshBasicMaterial color="#0a0610" transparent opacity={.5} depthWrite={false} /></instancedMesh>
-    </group>;
+        <mesh position={[0, 1.15, 0]}><capsuleGeometry args={[.28, 1.4, 4, 10]} /><primitive object={corpo} attach="material" /></mesh>
+        <mesh position={[0, 2.25, 0]}><sphereGeometry args={[.22, 14, 10]} /><primitive object={corpo} attach="material" /></mesh>
+        <mesh position={[-.42, 1.3, 0]} rotation={[0, 0, .12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><primitive object={corpo} attach="material" /></mesh>
+        <mesh position={[.42, 1.3, 0]} rotation={[0, 0, -.12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><primitive object={corpo} attach="material" /></mesh>
+        <points geometry={fumaca.geo} material={fuma} frustumCulled={false} />
+    </group></>;
 };
 
 /** Quando ela some: uma pluma de areia que se abre num anel. */
@@ -550,7 +565,7 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
             else if (dentro) { j.x += (nx - j.x) * .25; j.z += (nz - j.z) * .25; } // escorrega de lado
             j.andando = Math.min(1, j.andando + dt * 5);
         } else j.andando = Math.max(0, j.andando - dt * 5);
-        j.y += (alturaEm(j.x, j.z) - j.y) * Math.min(1, dt * 12);
+        j.y = alturaEm(j.x, j.z);
         if (j.caido > 0) j.caido = Math.max(0, j.caido - dt * .5);
         passo.current += dt * j.andando * (fase === 'sufocando' ? 5 : 8);
         const bob = Math.sin(passo.current) * .05 * j.andando;
@@ -559,15 +574,24 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
         camera.position.set(j.x, j.y + altura + bob, j.z);
         camera.rotation.set(0, 0, 0, 'YXZ');
         if (abalo.v > 0) { abalo.v = Math.max(0, abalo.v - dt); camera.position.x += (Math.random() - .5) * .15 * abalo.v; camera.position.y += (Math.random() - .5) * .15 * abalo.v; }
-        camera.rotation.y = yaw.current; camera.rotation.x = pitch.current - j.caido * .6; camera.rotation.z = cambaleio + Math.cos(passo.current * .5) * .012 * j.andando;
+        camera.rotation.y = yaw.current; camera.rotation.x = pitch.current + j.caido * .04; camera.rotation.z = cambaleio + Math.cos(passo.current * .5) * .012 * j.andando;
     });
     return null;
 };
 
+const MundoPronto: React.FC<{pronto: (v: boolean) => void}> = ({pronto}) => {
+    const frames = useRef(0);
+    useFrame(() => {if (++frames.current === 3) pronto(true);});
+    return null;
+};
+
 export default function Floor14({ onExit }: { onExit: () => void }) {
+    const settings = useOptionalSettings();
+    const reduzida = settings.quality === 'low';
+    useEffect(() => { abalo.v = 0; anel.t = 9; }, []);
     const [fase, setFase] = useState<Fase>('chegada');
     const jog = useRef<Jog>({ x: INICIO.x, y: alturaEm(0, 0), z: INICIO.z, andando: 0, caido: 1 });
-    const entrada = useRef({ x: 0, z: 0 }), yaw = useRef(0), pitch = useRef(-.32);
+    const entrada = useRef({ x: 0, z: 0 }), yaw = useRef(0), pitch = useRef(-.10);
     const folego = useRef(FOLEGO_TOTAL);
     const [folegoUi, setFolegoUi] = useState(FOLEGO_TOTAL);
     const [perto, setPerto] = useState(false);
@@ -576,32 +600,22 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const [desmaios, setDesmaios] = useState(0);
     const sombra = useRef<EstadoSombra>({ i: 0, fugindo: 0, visto: false, percebeu: 0 });
     const [fim, setFim] = useState(0);
-    const video = useRef<HTMLVideoElement>(null);
-
-    // ── chegada: o vídeo (se existir), pulável; senão vai direto ──
+    const [mundoPronto, setMundoPronto] = useState(false);
+    const [chegadaTerminou, setChegadaTerminou] = useState(false);
     useEffect(() => {
-        if (fase !== 'chegada') return;
-        const v = video.current;
-        const seguir = () => { setFase('sufocando'); jog.current.caido = 1; };
-        if (!v) { seguir(); return; }
-        v.play().catch(() => seguir());
-        v.onended = seguir; v.onerror = seguir;
-        const pular = (ev: Event) => { if (ev instanceof KeyboardEvent && !['Escape', ' ', 'Enter'].includes(ev.key)) return; seguir(); };
-        window.addEventListener('keydown', pular); v.addEventListener('pointerdown', pular);
-        return () => { window.removeEventListener('keydown', pular); v.removeEventListener('pointerdown', pular); };
-    }, [fase]);
+        if (chegadaTerminou && mundoPronto) { jog.current.caido = 1; setFase('sufocando'); }
+    }, [chegadaTerminou, mundoPronto]);
 
     // ── o fôlego acabando ──
     useEffect(() => {
         if (fase !== 'sufocando') return;
         tocarVento();
-        let ultimo = performance.now(), proxArfar = 0, raf = 0;
+        let ultimo = performance.now(), proxArfar = 0, raf = 0, proximaUi = 0;
         const tick = (agora: number) => {
             const dt = Math.min(.1, (agora - ultimo) / 1000); ultimo = agora;
-            folego.current = Math.max(0, folego.current - dt);
-            setFolegoUi(folego.current);
+            folego.current = Math.max(0, folego.current - (document.hidden ? 0 : dt));
             const j = jog.current;
-            setPerto(Math.hypot(j.x - CAPACETE.x, j.z - CAPACETE.z) < 2.6);
+            if (agora >= proximaUi) { setFolegoUi(folego.current); setPerto(Math.hypot(j.x - CAPACETE.x, j.z - CAPACETE.z) < 2.6); proximaUi = agora + 100; }
             proxArfar -= dt;
             if (proxArfar <= 0) { tocarArfar(1 - folego.current / FOLEGO_TOTAL * .6); proxArfar = .5 + folego.current / FOLEGO_TOTAL * 1.6; }
             if (folego.current <= 0) {
@@ -617,7 +631,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
 
     const vestir = () => {
         if (fase !== 'sufocando' || !perto) return;
-        tocarCapacete(); setFase('explorar'); setPerto(false); capaceteVestido.v = true;
+        tocarCapacete(); setFase('explorar'); setPerto(false);
         window.setTimeout(() => setDica(APARICOES[0].dica), 1800);
     };
 
@@ -647,12 +661,13 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
         };
         const down = (ev: KeyboardEvent) => { const k = ev.key.toLowerCase(); teclas.add(k); atualizar(); if (k === 'e' || k === 'enter') acaoRef.current(); if (k === 'q') yaw.current += .3; };
         const up = (ev: KeyboardEvent) => { teclas.delete(ev.key.toLowerCase()); atualizar(); };
-        window.addEventListener('keydown', down); window.addEventListener('keyup', up);
-        return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+        const clear = () => { teclas.clear(); atualizar(); };
+        window.addEventListener('blur', clear); window.addEventListener('keydown', down); window.addEventListener('keyup', up);
+        return () => { window.removeEventListener('blur', clear); window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
     }, []);
     const acaoRef = useRef(vestir); acaoRef.current = vestir;
     // bancada: mexer no hóspede e na fase pelo console / Playwright
-    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, vestir: () => { tocarCapacete(); setFase('explorar'); capaceteVestido.v = true; }, fase,
+    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, entrada, solidos: SOLIDOS, folego, vestir: () => { tocarCapacete(); setFase('explorar');  }, fase,
         // a vista de quem chega pela trilha: 70 m antes da aparição, vindo da anterior
         aparicaoXZ: (i: number) => APARICOES[i],
         aparicao: (i: number) => { const a = APARICOES[i], c = CHEGADAS[i] ?? { x: 0, z: 0 };
@@ -661,6 +676,8 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const toque = useRef<{ id: number | null; ox: number; oy: number; cam: number | null; cx: number; cy: number }>({ id: null, ox: 0, oy: 0, cam: null, cx: 0, cy: 0 });
     const [stick, setStick] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
     const onDown = (ev: React.PointerEvent) => {
+        if (fase === 'chegada' || fase === 'fim') return;
+        ev.currentTarget.setPointerCapture(ev.pointerId);
         if (ev.clientX < window.innerWidth * .5 && toque.current.id === null) { toque.current = { ...toque.current, id: ev.pointerId, ox: ev.clientX, oy: ev.clientY }; setStick({ ox: ev.clientX, oy: ev.clientY, x: 0, y: 0 }); }
         else if (toque.current.cam === null) toque.current = { ...toque.current, cam: ev.pointerId, cx: ev.clientX, cy: ev.clientY };
     };
@@ -687,15 +704,17 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: '#120a14', touchAction: 'none', userSelect: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
-                dpr={[1, 1.5]} shadows camera={{ fov: 72, near: .1, far: 2000 }} gl={{ antialias: true }}>
-                <fog attach="fog" args={['#e3a07a', 45, 380]} />
+                dpr={reduzida ? 1 : [1, settings.quality === 'high' ? 1.5 : 1.25]} shadows camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
+                <fog attach="fog" args={['#bba18c', 65, 380]} />
                 <NevoaPorRegiao jog={jog} />
-                <hemisphereLight args={['#e7c2ea', '#6a3557', 1.5]} />
-                <SolQueSegue jog={jog} />
+                <hemisphereLight args={['#c4cedd', '#74604c', 1.4]} />
+                <SolQueSegue jog={jog} reduzida={reduzida} />
                 <directionalLight position={[-120, 50, -400]} intensity={.35} color="#9ad0ff" />
-                <Ceu />
+                <CeuKessar />
+                <PoeiraKessar reduzida={reduzida} />
                 <Terreno />
                 <Pedras />
+                <CascalhoKessar reduzida={reduzida} />
                 <Cristais />
                 <Ossada />
                 <Monolito />
@@ -706,13 +725,14 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Pegadas ate={vistas} />
                 <AnelDeAreia />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
-                <EffectComposer multisampling={0}>
-                    <Bloom intensity={.55} luminanceThreshold={.82} luminanceSmoothing={.2} mipmapBlur />
+                {!reduzida && <EffectComposer multisampling={0}>
+                    <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur />
                     <Vignette offset={.35} darkness={.4} />
-                    <HueSaturation saturation={.08} />
-                    <BrightnessContrast contrast={.12} />
+                    <HueSaturation saturation={-.07} />
+                    <BrightnessContrast contrast={.035} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-                </EffectComposer>
+                </EffectComposer>}
+                <MundoPronto pronto={setMundoPronto} />
                 <Corpo jog={jog} entrada={entrada} yaw={yaw} pitch={pitch} fase={fase} folego={folego} />
             </Canvas>
 
@@ -732,7 +752,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 </div>
                 <div style={{ fontSize: 13, marginTop: 6, opacity: .85 }}>{desmaios ? 'Você apagou… Ali, meio enterrado: um capacete.' : 'Algo brilha na areia, logo à frente.'}</div>
             </div>}
-            {perto && fase === 'sufocando' && <button onPointerDown={(e) => { e.stopPropagation(); vestir(); }}
+            {perto && fase === 'sufocando' && <button onPointerDown={(e) => e.stopPropagation()} onClick={vestir}
                 style={{ position: 'absolute', bottom: 40, right: 40, padding: '16px 26px', fontSize: 18, fontFamily: 'Georgia, serif', background: '#f2c46a', color: '#2a1408', border: '3px solid #2a1408', borderRadius: 14 }}>
                 VESTIR O CAPACETE (E)
             </button>}
@@ -742,8 +762,8 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <div style={{ position: 'absolute', left: 44 + stick.x, top: 44 + stick.y, width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,240,220,.6)' }} /></div>}
 
             {/* a chegada: vídeo pré-renderizado (Blender + Manim + Remotion) */}
-            {fase === 'chegada' && <video ref={video} src="/chegada-14.mp4" playsInline muted={false} preload="auto"
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />}
+            {fase === 'chegada' && !chegadaTerminou && <ChegadaKessar onFinish={() => setChegadaTerminou(true)} volume={settings.masterVolume} />}
+            {fase === 'chegada' && chegadaTerminou && <div role="status" style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#080b10',color:'#d9c6aa',fontFamily:'Georgia,serif'}}>Preparando o deserto…</div>}
             {fase === 'fim' && <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: fim, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ color: '#f6e2cc', fontFamily: 'Georgia, serif', fontSize: 22, opacity: Math.min(1, fim * 2) }}>Ela se vira. Não tem rosto. E agora não foge mais.</div></div>}
         </div>

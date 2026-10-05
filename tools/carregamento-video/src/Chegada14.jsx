@@ -1,41 +1,57 @@
-// A CHEGADA ao Andar 14 (Kessar-9): plano A e B do Blender, o POV do sufoco (quadro C do Blender
-// animado aqui) e os gráficos do Manim (título KESSAR-9 e a linha da respiração achatando).
-// Quadros em public/ch14/: A_0001…A_0072, B_0060…B_0120, C_0001, Titulo0000…, Folego0000…
+// Blender/Cycles plates, deliberately edited as a first-person cinematic montage.
+// Rebuild with tools/chegada14/render.mjs after rendering cena.py; no legacy sprite frames.
 import React from 'react';
-import { AbsoluteFill, Img, staticFile, useCurrentFrame, interpolate, Sequence } from 'remotion';
-
-export const DUR = 252;
-const pad = (n, w = 4) => String(n).padStart(w, '0');
-const TIT = 70, FOL = 109;   // quadros do Manim
-
+import { AbsoluteFill, Audio, Img, staticFile, useCurrentFrame, interpolate } from 'remotion';
+export const DUR = 288;
+const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' };
+const ease = (frame, start, end) => {
+  const x = interpolate(frame, [start, end], [0, 1], clamp);
+  return x * x * (3 - 2 * x);
+};
+const SHOTS = [
+  { name: 'portal', start: 0, end: 60, from: 1.04, to: 1.09 },
+  { name: 'vista', start: 60, end: 120, from: 1.06, to: 1.025 },
+  { name: 'fall', start: 120, end: 144, from: 1.06, to: 1.14 },
+  { name: 'ground', start: 144, end: 180, from: 1.07, to: 1.055 },
+  { name: 'helmet', start: 180, end: 228, from: 1.025, to: 1.075 },
+  { name: 'ground', start: 228, end: DUR, from: 1.06, to: 1.025 },
+];
 export function Chegada14() {
-    const f = useCurrentFrame();
-    // ── plano A (0–71) e B (72–132) ──
-    const placa = f < 72 ? `ch14/A_${pad(f + 1)}.jpg` : f < 133 ? `ch14/B_${pad(f - 72 + 60)}.jpg` : null;
-    // ── POV (133–251): treme, embaça e pulsa vermelho; o capacete brilha lá na frente ──
-    const p = f - 133, k = Math.max(0, p) / (DUR - 133);
-    const batida = Math.pow(Math.max(0, Math.sin(p * .35)), 6);              // o coração
-    const treme = p > 0 ? Math.sin(p * 1.7) * (3 + k * 9) : 0;
-    const desfoque = p > 0 ? 1.5 + k * 5 + batida * 3 : 0;
-    const escurece = interpolate(f, [228, 251], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-    const flash = interpolate(f, [12, 17, 30], [0, .85, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-    return (
-        <AbsoluteFill style={{ background: '#000' }}>
-            {placa && <Img src={staticFile(placa)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-            {p >= 0 && <AbsoluteFill style={{ transform: `translate(${treme}px, ${treme * .6}px) scale(${1.04 + k * .08}) rotate(${Math.sin(p * .2) * 2 * k}deg)`, filter: `blur(${desfoque}px) saturate(${1 - k * .6})` }}>
-                <Img src={staticFile('ch14/C_0001.jpg')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </AbsoluteFill>}
-            {p >= 0 && <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent ${50 - k * 30}%, rgba(110,0,12,${.35 + batida * .35 + k * .4}) 100%)` }} />}
-            {/* o clarão da porta abrindo */}
-            <AbsoluteFill style={{ background: '#ffd9a0', opacity: flash, mixBlendMode: 'screen' }} />
-            {/* Manim: o título sobre os planos A/B, a respiração no POV */}
-            <Sequence from={24} durationInFrames={TIT}><Quadros prefixo="ch14/Titulo" total={TIT} /></Sequence>
-            <Sequence from={133} durationInFrames={FOL}><Quadros prefixo="ch14/Folego" total={FOL} /></Sequence>
-            <AbsoluteFill style={{ background: '#000', opacity: escurece }} />
-        </AbsoluteFill>
-    );
-}
-function Quadros({ prefixo, total }) {
-    const f = Math.min(total - 1, useCurrentFrame());
-    return <Img src={staticFile(`${prefixo}${pad(f)}.png`)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />;
+  const f = useCurrentFrame();
+  const shot = SHOTS.find((s) => f >= s.start && f < s.end) || SHOTS[SHOTS.length - 1];
+  const progress = ease(f, shot.start, shot.end - 1);
+  const falling = shot.name === 'fall';
+  const onGround = shot.name === 'ground';
+  const breath = onGround ? Math.sin((f - shot.start) * .135) : 0;
+  const scale = shot.from + (shot.to - shot.from) * progress;
+  const rotation = falling ? progress * 5.5 : onGround ? -1.4 + breath * .2 : 0;
+  const flash = interpolate(f, [54, 59, 61, 70], [0, .8, .8, 0], clamp);
+  const impact = interpolate(f, [138, 143, 147, 153], [0, .78, .45, 0], clamp);
+  const black = Math.max(1 - ease(f, 0, 16), ease(f, 271, DUR - 1));
+  const title = ease(f, 72, 87) * (1 - ease(f, 109, 119));
+  const suffocation = ease(f, 140, 272);
+  return <AbsoluteFill style={{ background: '#080908', overflow: 'hidden' }}>
+    <Audio src={staticFile('ch14-v2/arrival.wav')} volume={.82} />
+    <AbsoluteFill style={{
+      transform: `translateY(${falling ? progress * 8 : breath * 1.4}px) scale(${scale}) rotate(${rotation}deg)`,
+      filter: `blur(${falling ? Math.sin(progress * Math.PI) * 3 : onGround ? Math.max(0, breath) * .25 : 0}px)`,
+    }}>
+      <Img src={staticFile(`ch14-v2/${shot.name}.png`)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    </AbsoluteFill>
+    {/* Windborne dust passes independently of the camera; sparse and out of focus. */}
+    {Array.from({ length: 18 }, (_, i) => {
+      const x = ((i * 83.31 + f * (1.5 + (i % 4) * .5)) % 1420) - 70;
+      const y = 360 + (i * 47 % 200) + Math.sin(f * .03 + i) * 9;
+      return <div key={i} style={{ position: 'absolute', left: x, top: y, width: 2 + i % 3, height: 1, borderRadius: '50%', background: '#f9d9a7', opacity: .12 + (i % 3) * .06, filter: 'blur(1px)', transform: 'rotate(-8deg)' }} />;
+    })}
+    <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 43%, transparent 27%, rgba(14,8,6,${.23 + suffocation * .34}) 100%)` }} />
+    <div style={{ position: 'absolute', left: 76, bottom: 68, color: '#f6e7d0', opacity: title, fontFamily: 'Georgia, serif', textShadow: '0 2px 16px #0008' }}>
+      <div style={{ fontSize: 11, letterSpacing: 5, fontFamily: 'Arial, sans-serif', marginBottom: 13 }}>ANDAR 14</div>
+      <div style={{ fontSize: 39, letterSpacing: 9, fontWeight: 400 }}>KESSAR–9</div>
+      <div style={{ height: 1, width: 47, marginTop: 18, background: '#eac78d', opacity: .7 }} />
+    </div>
+    <AbsoluteFill style={{ background: '#ffe4ba', opacity: flash }} />
+    <AbsoluteFill style={{ background: '#21130b', opacity: impact }} />
+    <AbsoluteFill style={{ background: '#000', opacity: black }} />
+  </AbsoluteFill>;
 }

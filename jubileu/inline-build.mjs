@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
@@ -175,11 +176,19 @@ html = html.replace(scriptMatch[0], () => '');
 
 // Insert the inlined script just before </body> so the DOM (#root) exists
 // when the script runs — inline scripts in <head> lack implicit defer.
-const inlinedJs = escapeScript(js);
-if (!html.includes('</body>')) {
-  throw new Error('</body> not found in dist/index.html — refusing to write a broken bundle.');
-}
-html = html.replace('</body>', () => `<script>${inlinedJs}</script>\n  </body>`);
+// O bundle completo excede 100 MiB com os assets existentes. Gzip no próprio
+// HTML preserva o download único/offline e cabe no GitHub sem reduzir assets.
+// Chrome 80+/Safari 16.4+ descompactam os bytes originais do script clássico.
+const packedJs = gzipSync(Buffer.from(js), {level: 9}).toString('base64');
+if (!html.includes('</body>')) throw new Error('</body> not found in dist/index.html');
+const boot = `(async()=>{
+  const payload=document.getElementById('tne-packed-game');
+  const response=await fetch('data:application/gzip;base64,'+payload.textContent.trim());
+  payload.remove();
+  const source=await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).text();
+  const script=document.createElement('script');script.textContent=source;document.body.appendChild(script);
+})().catch(error=>{console.error('Falha ao abrir o jogo',error);const root=document.getElementById('root');if(root)root.textContent='Não foi possível abrir o jogo. Recarregue a página.';});`;
+html = html.replace('</body>', () => `<script id="tne-packed-game" type="application/gzip">${packedJs}</script><script>${boot}</script>\n</body>`);
 
 // Remove modulepreload link tags — they point to external assets that don't
 // exist in a standalone file and cause load errors when opened via file://.
@@ -214,6 +223,7 @@ console.log('Wrote', outPath, 'size:', html.length, 'build:', idDoBuild);
 // Copiar deixou de ser opcional quando ele passou a ser também quem guarda o
 // jogo.
 for (const arquivo of [
+  'chegada-14.mp4',
   'coi-serviceworker.js',
   'manifest.webmanifest',
   'icon-192.png',

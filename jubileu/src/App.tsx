@@ -2133,7 +2133,7 @@ export default function App() {
         // O Andar 8 fica totalmente coberto e pode usar `never`. No chat do 10º
         // o cenário precisa continuar visível: `demand` desenha sob demanda,
         // preservando o fundo sem manter 60 FPS competindo com o LLM.
-        frameloop={f8InImage ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
+        frameloop={(f8InImage || (currentLevel === 14 && !doorsClosed)) ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change

@@ -45,6 +45,8 @@ export const REGIOES = {
     cratera: { x: 20, z: 170 },
 } as const;
 export const RAIO_DO_MUNDO = 280;
+export const TAMANHO_TERRENO = 640;
+export const SEGMENTOS_TERRENO = 256;
 
 export function alturaEm(x: number, z: number): number {
     // dunas: ondas longas na direção do vento + ruído
@@ -100,4 +102,18 @@ export function regiaoEm(x: number, z: number) {
 export function inclinacao(x: number, z: number): number {
     const e = 1.2, dx = alturaEm(x + e, z) - alturaEm(x - e, z), dz = alturaEm(x, z + e) - alturaEm(x, z - e);
     return Math.min(1, Math.hypot(dx, dz) / (2 * e) / 1.6);
+}
+
+/** A superfície exata dos triângulos de PlaneGeometry, também usada pelos pés
+ * e adereços. Os terraços analíticos podem saltar 6 m entre dois vértices. */
+export function superficieEm(x: number, z: number): number {
+    const passo = TAMANHO_TERRENO / SEGMENTOS_TERRENO, metade = TAMANHO_TERRENO / 2;
+    const gx = Math.max(0, Math.min(SEGMENTOS_TERRENO - 1e-6, (x + metade) / passo));
+    const gz = Math.max(0, Math.min(SEGMENTOS_TERRENO - 1e-6, (z + metade) / passo));
+    const ix = Math.floor(gx), iz = Math.floor(gz), u = gx - ix, v = gz - iz;
+    const ax = ix * passo - metade, az = iz * passo - metade;
+    const a = alturaEm(ax, az), b = alturaEm(ax, az + passo), d = alturaEm(ax + passo, az);
+    if (u + v <= 1) return a + (d - a) * u + (b - a) * v;
+    const c = alturaEm(ax + passo, az + passo);
+    return c + (b - c) * (1 - u) + (d - c) * (1 - v);
 }
