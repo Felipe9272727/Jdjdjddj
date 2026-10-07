@@ -12,13 +12,14 @@
  *     pegadas escuras: a crista ao norte, a bacia de sal a leste, os platôs a
  *     oeste. Na CRATERA ao sul ela finalmente não tem para onde ir.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
-import { superficieEm as alturaEm, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO } from './f14Terreno';
-import { CeuKessar, PoeiraKessar, CascalhoKessar, SOL } from './f14Atmosfera';
+import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
+import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera } from './f14Visual';
+import { CeuKessar, PoeiraKessar, CascalhoKessar, AmbienteDoCeu, SOL } from './f14Atmosfera';
 import { useOptionalSettings } from './Settings';
 import { ChegadaKessar } from './f14Chegada';
 
@@ -136,55 +137,40 @@ function tocarSumico() {
 }
 
 // ── o chão ────────────────────────────────────────────────────────────────
-const Terreno: React.FC = () => {
+const Terreno: React.FC<{ reduzida: boolean }> = ({ reduzida }) => {
     const geo = useMemo(() => {
-        const L = 640, N = 256, g = new THREE.PlaneGeometry(L, L, N, N);
+        const L = TAMANHO_TERRENO, N = SEGMENTOS_TERRENO, g = new THREE.PlaneGeometry(L, L, N, N);
         g.rotateX(-Math.PI / 2);
-        const p = g.attributes.position as THREE.BufferAttribute, cor = new Float32Array(p.count * 3);
-        const c = new THREE.Color(), areia = new THREE.Color('#b99269'), ferrugem = new THREE.Color('#8d5c42'), sal = new THREE.Color('#ece5d6'),
-            vidro = new THREE.Color('#5d4870'), rocha = new THREE.Color('#655049'), faixaA = new THREE.Color('#957252'), faixaB = new THREE.Color('#cab391'), tmp = new THREE.Color();
+        const p = g.attributes.position as THREE.BufferAttribute, cor = new Float32Array(p.count * 3), alt = new Float32Array(p.count);
+        for (let i = 0; i < p.count; i++) { const h = alturaBruta(p.getX(i), p.getZ(i)); p.setY(i, h); alt[i] = h; }
+        g.computeVertexNormals();
+        // a grade do PlaneGeometry corre em x e depois em z: a mesma ordem da grade de alturas
+        g.setAttribute('ao', new THREE.BufferAttribute(oclusaoDoRelevo(alt, N, L / N), 1));
+        const c = new THREE.Color(), areia = new THREE.Color('#c88d59'), ferrugem = new THREE.Color('#9a5432'), sal = new THREE.Color('#efe7da'),
+            vidro = new THREE.Color('#4a3a5c'), serra = new THREE.Color('#9b6243'), faixaA = new THREE.Color('#b06e45'), faixaB = new THREE.Color('#dca46c'), tmp = new THREE.Color();
+        const nrm = g.attributes.normal as THREE.BufferAttribute;
         for (let i = 0; i < p.count; i++) {
-            const x = p.getX(i), z = p.getZ(i), h = alturaEm(x, z);
-            p.setY(i, h);
+            const x = p.getX(i), z = p.getZ(i), h = alt[i];
             const r = regiaoEm(x, z), n = fbm(x * .05, z * .05, 3);
-            c.copy(areia).lerp(ferrugem, Math.max(0, n - .4) * 1.6);
-            if (r.platos > 0) c.lerp(tmp.copy(faixaA).lerp(faixaB, .5 + .5 * Math.sin(h * .55)), r.platos);
-            const incl = inclinacao(x, z);
-            c.lerp(rocha, Math.min(1, Math.max(r.crista * .7, incl * 1.1)));
-            if (r.crista > 0) c.multiplyScalar(1 + r.crista * Math.min(.35, Math.max(-.15, (h - 30) / 120)));
+            c.copy(areia).lerp(ferrugem, Math.max(0, n - .42) * 1.5);
+            if (r.platos > 0) c.lerp(tmp.copy(faixaA).lerp(faixaB, .5 + .5 * Math.sin(h * .55)), r.platos * .8);
+            if (r.crista > 0) c.lerp(serra, r.crista * .6);
+            // vale sombreado puxa para o vermelho; topo plano clareia (poeira fina)
+            c.multiplyScalar(.92 + .14 * Math.min(1, Math.max(0, nrm.getY(i))));
             if (r.sal > 0) c.lerp(sal, r.sal * (.85 + n * .15));
             if (r.cratera > 0) c.lerp(vidro, r.cratera);
             cor[i * 3] = c.r; cor[i * 3 + 1] = c.g; cor[i * 3 + 2] = c.b;
         }
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
-        const rip = new Float32Array(p.count);
-        for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), r = regiaoEm(x, z), incl = inclinacao(x, z);
-            rip[i] = Math.max(0, 1 - r.sal * 1.4) * (1 - r.cratera * .75) * (1 - Math.min(1, Math.max(0, (incl - .3) / .15))) * (.3 + .7 * fbm(x * .02 + 9, z * .02, 2)); }
-        g.setAttribute('rip', new THREE.BufferAttribute(rip, 1));
-        g.computeVertexNormals();
+        const pesoSal = new Float32Array(p.count);
+        for (let i = 0; i < p.count; i++) pesoSal[i] = regiaoEm(p.getX(i), p.getZ(i)).sal;
+        g.setAttribute('sal', new THREE.BufferAttribute(pesoSal, 1));
         return g;
     }, []);
-    const ondas = useMemo(() => {
-        const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d')!, img = g.createImageData(256, 256);
-        for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
-            const u = x / 256, v = y / 256, w = .65 * Math.sin((u * 7 + Math.sin(v * 6.283 * 2) * .3 + Math.sin((u * 2 + v * 3) * 6.283) * .15) * Math.PI * 2) + .35 * Math.sin((u * 2 + v * 1 + Math.sin(u * 6.283 * 3) * .2) * Math.PI * 2);   // periódico, 2 escalas
-            const val = 128 + w * 48 + (Math.sin(x * 127.1 + y * 311.7) * 43758.5453 % 1) * 10, i = (y * 256 + x) * 4;
-            img.data[i] = img.data[i + 1] = img.data[i + 2] = val; img.data[i + 3] = 255;
-        }
-        g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(110, 110); t.anisotropy = 8; return t;
-    }, []);
-    const matChao = useMemo(() => {
-        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0, bumpMap: ondas, bumpScale: .18 });
-        m.onBeforeCompile = (sh) => {
-            sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float rip; varying float vRip;')
-                .replace('#include <project_vertex>', '#include <project_vertex>\nvRip = rip * clamp(1. - (length(mvPosition.xyz) - 45.) / 50., 0., 1.);');
-            sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRip;')
-                .replace('uniform float bumpScale;', 'uniform float bumpScale_;\n#define bumpScale (bumpScale_ * vRip)');
-            sh.uniforms.bumpScale_ = sh.uniforms.bumpScale;
-        };
-        return m;
-    }, [ondas]);
-    return <mesh geometry={geo} material={matChao} receiveShadow />;
+    const mat = useMemo(() => remendarRocha(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .96, metalness: 0 }),
+        { terreno: true, oclusao: true, baixa: reduzida, conjunto: 'serra', escala: 16, tom: '#ffe2c8' }), [reduzida]);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    return <mesh geometry={geo} material={mat} receiveShadow />;
 };
 
 /** Pedras e agulhas espalhadas (instanciadas), mais densas nas regiões rochosas. */
@@ -223,9 +209,8 @@ const Pedras: React.FC = () => {
         SOLIDOS.push(...colliders);
         return () => { for (const ob of colliders) { const i = SOLIDOS.indexOf(ob); if (i >= 0) SOLIDOS.splice(i, 1); } };
     }, []);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, undefined, N]} castShadow receiveShadow>
-        <meshStandardMaterial roughness={.94} />
-    </instancedMesh>;
+    const mat = useMemo(() => remendarRocha(new THREE.MeshStandardMaterial({ roughness: .94 }), { conjunto: 'pedra', escala: 3 }), []);
+    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, mat, N]} castShadow receiveShadow />;
 };
 
 /** O sol acompanha o hóspede: sombra nítida só perto dele (sem a caixa de sombra aparecendo no chão). */
@@ -241,7 +226,7 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolea
         const sx = Math.round(j.x / .5) * .5, sz = Math.round(j.z / .5) * .5;   // passo de texel: a sombra não treme
         l.position.set(sx + SOL.x * 260, j.y + SOL.y * 260, sz + SOL.z * 260); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
-    return <directionalLight ref={luz} intensity={2.8} color="#ffe0b4" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
+    return <directionalLight ref={luz} intensity={3.3} color="#ffd2a2" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
 };
 
 /** Cristais de quartzo azul-petróleo brotando da areia (o primeiro sinal de "isto não é a Terra"). */
@@ -282,12 +267,12 @@ const Ossada: React.FC = () => {
 /** A névoa muda com o lugar: poeira laranja nas dunas, branca no sal, violeta na cratera. */
 const NevoaPorRegiao: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog }) => {
     const scene = useThree((s) => s.scene);
-    const base = useMemo(() => ({ duna: new THREE.Color('#bba18c'), sal: new THREE.Color('#efe2d2'), crat: new THREE.Color('#7d5a8e'), crista: new THREE.Color('#a08f83'), alvo: new THREE.Color() }), []);
+    const base = useMemo(() => ({ duna: new THREE.Color('#d49a6c'), sal: new THREE.Color('#f0e2d0'), crat: new THREE.Color('#6f5088'), crista: new THREE.Color('#b9806a'), alvo: new THREE.Color() }), []);
     useFrame((_, dt) => {
-        const f = scene.fog as THREE.Fog | null; if (!f) return; const j = jog.current, r = regiaoEm(j.x, j.z);
+        const f = scene.fog as THREE.FogExp2 | null; if (!f || !('density' in f)) return; const j = jog.current, r = regiaoEm(j.x, j.z);
         base.alvo.copy(base.duna).lerp(base.crista, r.crista * .7).lerp(base.sal, r.sal).lerp(base.crat, r.cratera);
         f.color.lerp(base.alvo, 1 - Math.exp(-dt * 1.5));
-        f.far += ((r.cratera > .3 ? 220 : 380) - f.far) * (1 - Math.exp(-dt));
+        f.density += ((r.cratera > .3 ? .0085 : r.sal > .3 ? .0035 : .0042) - f.density) * (1 - Math.exp(-dt));
     });
     return null;
 };
@@ -296,7 +281,7 @@ const NevoaPorRegiao: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog })
 const Agulhas: React.FC = () => {
     const ref = useRef<THREE.InstancedMesh>(null); const N = 260;
     const geo = useMemo(() => {   // prisma hexagonal com o topo mais claro (aresta de basalto)
-        const g = new THREE.CylinderGeometry(.48, .5, 1, 6, 1); const p = g.attributes.position, cor = new Float32Array(p.count * 3);
+        const g = new THREE.CylinderGeometry(.48, .5, 1, 6, 1).toNonIndexed(); g.computeVertexNormals(); const p = g.attributes.position, cor = new Float32Array(p.count * 3);
         for (let i = 0; i < p.count; i++) { const topo = p.getY(i) > .49; const c = new THREE.Color(topo ? '#4a3a36' : '#2a1f22'); cor.set([c.r, c.g, c.b], i * 3); }
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3)); return g;
     }, []);
@@ -323,9 +308,8 @@ const Agulhas: React.FC = () => {
         SOLIDOS.push(...colliders);
         return () => { for (const ob of colliders) { const i = SOLIDOS.indexOf(ob); if (i >= 0) SOLIDOS.splice(i, 1); } };
     }, []);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, undefined, N]} castShadow receiveShadow>
-        <meshStandardMaterial vertexColors roughness={.9} flatShading />
-    </instancedMesh>;
+    const mat = useMemo(() => remendarRocha(new THREE.MeshStandardMaterial({ roughness: .9 }), { conjunto: 'basalto', escala: 4 }), []);
+    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, mat, N]} castShadow receiveShadow />;
 };
 
 /** Arcos de erosão na borda da bacia de sal. */
@@ -344,11 +328,11 @@ const Arcos: React.FC = () => {
         }
         g.setAttribute('color', new THREE.BufferAttribute(cor, 3)); g.computeVertexNormals(); return g;
     }), []);
+    const matArco = useMemo(() => remendarRocha(new THREE.MeshStandardMaterial({ roughness: .92 }), { conjunto: 'serra', escala: 5, tom: '#ffd8b6' }), []);
     return <group>
         {[[0.4, 64, 16, 0, 0], [1.6, 60, 12, 0, .12], [2.9, 66, 14, 1, 0], [4.4, 62, 18, 0, -.1], [3.6, 58, 10, 0, .18]].map(([a, r, e, quebrado, torto], i) => {
             const x = 150 + Math.cos(a) * r, z = -20 + Math.sin(a) * r;
-            return <mesh key={i} geometry={geo[quebrado]} position={[x, alturaEm(x, z) - e * .12, z]} rotation={[0, a + Math.PI / 2, torto]} scale={[e, e, e]} castShadow>
-                <meshStandardMaterial vertexColors roughness={.92} /></mesh>;
+            return <mesh key={i} geometry={geo[quebrado]} material={matArco} position={[x, alturaEm(x, z) - e * .12, z]} rotation={[0, a + Math.PI / 2, torto]} scale={[e, e, e]} castShadow receiveShadow />;
         })}
     </group>;
 };
@@ -367,19 +351,28 @@ const ColunaDaCratera: React.FC = () => {
 };
 
 /** O visor do capacete: escotilha REDONDA de latão com rebites, madeira por fora e o bafo no vidro. */
+/** O visor do capacete: o vidro ocupa a tela inteira. A borda de latão é uma elipse MAIOR que a tela —
+ *  só aparece nos quatro cantos, como num capacete de escafandro de verdade — e nada escurece o centro. */
 const Escotilha: React.FC = () => <>
-    <style>{'@keyframes f14bafo{0%,65%,100%{opacity:0}82%{opacity:.12}}'}</style>
+    <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}84%{opacity:.07}}'}</style>
     <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} aria-hidden="true">
         <defs>
-            <radialGradient id="f14metal"><stop offset="0" stopColor="#372a1b"/><stop offset=".89" stopColor="#372a1b"/><stop offset=".94" stopColor="#94764b"/><stop offset=".965" stopColor="#3c3022"/><stop offset="1" stopColor="#100e0b"/></radialGradient>
-            <mask id="f14visor"><rect width="1000" height="1000" fill="white"/><ellipse cx="500" cy="500" rx="465" ry="458" fill="black"/></mask>
+            <radialGradient id="f14canto" cx=".5" cy=".5" r=".72">
+                <stop offset=".80" stopColor="#0d0a07" stopOpacity="0" /><stop offset=".93" stopColor="#0d0a07" stopOpacity=".55" /><stop offset="1" stopColor="#0d0a07" stopOpacity=".9" />
+            </radialGradient>
+            <linearGradient id="f14latao" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e9cf93" /><stop offset=".45" stopColor="#8a6a3c" /><stop offset="1" stopColor="#3b2a17" /></linearGradient>
+            <mask id="f14foraDoVidro"><rect width="1000" height="1000" fill="white" /><ellipse cx="500" cy="500" rx="694" ry="674" fill="black" /></mask>
         </defs>
-        <rect width="1000" height="1000" fill="#171310" mask="url(#f14visor)"/>
-        <ellipse cx="500" cy="500" rx="473" ry="467" fill="none" stroke="url(#f14metal)" strokeWidth="22"/>
-        <ellipse cx="500" cy="500" rx="464" ry="458" fill="none" stroke="#d5b67d" strokeOpacity=".35" strokeWidth="1.5"/>
-        {[.35, .8, 2.35, 2.8, 3.5, 3.95, 5.5, 5.95].map((a,i)=><ellipse key={i} cx={500+Math.cos(a)*476} cy={500+Math.sin(a)*470} rx="3" ry="3.5" fill="#a38960" stroke="#1b1712" strokeWidth="2"/>)}
+        {/* escurece só os cantos, fora do vidro */}
+        <rect width="1000" height="1000" fill="url(#f14canto)" />
+        <rect width="1000" height="1000" fill="#120d08" mask="url(#f14foraDoVidro)" />
+        <ellipse cx="500" cy="500" rx="700" ry="680" fill="none" stroke="url(#f14latao)" strokeWidth="16" />
+        <ellipse cx="500" cy="500" rx="691" ry="671" fill="none" stroke="#f3dfae" strokeOpacity=".45" strokeWidth="1.6" />
+        {[.72, .85, 2.29, 2.42, 3.86, 3.99, 5.43, 5.56].map((a, i) => <circle key={i} cx={500 + Math.cos(a) * 700} cy={500 + Math.sin(a) * 680} r="5" fill="#c9a86a" stroke="#2a1d10" strokeWidth="2" />)}
     </svg>
-    <div style={{ position: 'absolute', inset: '5%', pointerEvents: 'none', borderRadius: '48%', background: 'radial-gradient(ellipse at 50% 100%, #c9d8d2, transparent 42%)', animation: 'f14bafo 4.5s ease-in-out infinite' }} />
+    {/* reflexo leve no vidro (canto superior esquerdo) e o bafo, bem fraco, embaixo */}
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(128deg, rgba(255,246,228,.08) 0%, rgba(255,246,228,.02) 18%, transparent 30%)' }} />
+    <div style={{ position: 'absolute', left: '15%', right: '15%', bottom: 0, height: '30%', pointerEvents: 'none', borderRadius: '50% 50% 0 0', background: 'radial-gradient(ellipse at 50% 100%, #dfe8e4, transparent 70%)', animation: 'f14bafo 4.5s ease-in-out infinite' }} />
 </>;
 
 // ── o capacete de madeira ─────────────────────────────────────────────────
@@ -588,6 +581,7 @@ const MundoPronto: React.FC<{pronto: (v: boolean) => void}> = ({pronto}) => {
 export default function Floor14({ onExit }: { onExit: () => void }) {
     const settings = useOptionalSettings();
     const reduzida = settings.quality === 'low';
+    useLayoutEffect(() => ligarAtmosfera(), []);   // névoa com altura e sol, só enquanto o andar existe
     useEffect(() => { abalo.v = 0; anel.t = 9; }, []);
     const [fase, setFase] = useState<Fase>('chegada');
     const jog = useRef<Jog>({ x: INICIO.x, y: alturaEm(0, 0), z: INICIO.z, andando: 0, caido: 1 });
@@ -705,14 +699,15 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
                 dpr={reduzida ? 1 : [1, settings.quality === 'high' ? 1.5 : 1.25]} shadows camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
-                <fog attach="fog" args={['#bba18c', 65, 380]} />
+                <fogExp2 attach="fog" args={['#d49a6c', .0042]} />
+                <AmbienteDoCeu intensidade={.6} />
                 <NevoaPorRegiao jog={jog} />
-                <hemisphereLight args={['#c4cedd', '#74604c', 1.4]} />
+                <hemisphereLight args={['#b8a3d0', '#8a5434', .5]} />
                 <SolQueSegue jog={jog} reduzida={reduzida} />
                 <directionalLight position={[-120, 50, -400]} intensity={.35} color="#9ad0ff" />
                 <CeuKessar />
                 <PoeiraKessar reduzida={reduzida} />
-                <Terreno />
+                <Terreno reduzida={reduzida} />
                 <Pedras />
                 <CascalhoKessar reduzida={reduzida} />
                 <Cristais />
@@ -725,7 +720,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Pegadas ate={vistas} />
                 <AnelDeAreia />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
-                {!reduzida && <EffectComposer multisampling={0}>
+                {!reduzida && !(import.meta.env.DEV && location.search.includes('sempos')) && <EffectComposer multisampling={0}>
                     <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur />
                     <Vignette offset={.35} darkness={.4} />
                     <HueSaturation saturation={-.07} />
@@ -742,7 +737,6 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 opacity: .8 + Math.sin(performance.now() * .006) * .2 }} />}
             {/* com o capacete: a escotilha de latão e a borda de madeira */}
             {comCapacete && <Escotilha />}
-            {comCapacete && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(120deg, rgba(255,255,255,.07) 0%, transparent 30%, transparent 70%, rgba(255,255,255,.04) 100%)' }} />}
 
             {/* HUD */}
             {fase === 'sufocando' && <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', color: '#ffe6d0', fontFamily: 'Georgia, serif', textShadow: '0 2px 6px #000', pointerEvents: 'none' }}>
