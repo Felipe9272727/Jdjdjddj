@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PerformanceMonitor } from '@react-three/drei';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
@@ -222,15 +223,34 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolea
         const c = l.shadow.camera; c.left = -45; c.right = 45; c.top = 45; c.bottom = -45; c.near = 1; c.far = 160; c.updateProjectionMatrix();
         l.shadow.bias = -.0004; l.shadow.normalBias = .04;
     }, []);
-    useFrame(() => {
+    const ultimo = useRef(''), quadros = useRef(0);
+    useFrame(({ gl }) => {
         const l = luz.current; if (!l) return; const j = jog.current;
         const sx = Math.round(j.x / .5) * .5, sz = Math.round(j.z / .5) * .5;   // passo de texel: a sombra não treme
+        // tudo que projeta sombra aqui é parado: o mapa só é refeito quando o sol anda junto com o hóspede
+        const chave = `${sx},${sz},${Math.round(j.y * 4)}`;
+        gl.shadowMap.autoUpdate = false;
+        if (chave !== ultimo.current || quadros.current++ < 60) { ultimo.current = chave; gl.shadowMap.needsUpdate = true; }   // e nos 1ºs quadros (instâncias chegando)
         l.position.set(sx + SOL.x * 80, j.y + SOL.y * 80, sz + SOL.z * 80);   // só sombras de perto: colunas a 150 m jogavam faixas enormes no chão à frente l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
     return <directionalLight ref={luz} intensity={3.3} color="#ffd2a2" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
 };
 
 /** Cristais de quartzo azul-petróleo brotando da areia (o primeiro sinal de "isto não é a Terra"). */
+/** Quartzo sem `transmission`: a transmissão de verdade renderiza a cena INTEIRA de novo a cada quadro
+ *  (era 2,7× o custo do andar). Aqui: translúcido, verniz, reflexo do céu e o miolo verde mais denso
+ *  no centro de cada face (onde o vidro é mais grosso), mais claro nas bordas — o mesmo olhar, um passe só. */
+function cristalFalso() {
+    const m = new THREE.MeshPhysicalMaterial({ color: '#8ff0d4', emissive: '#18c290', emissiveIntensity: .55, roughness: .08, metalness: 0, ior: 1.54,
+        clearcoat: 1, clearcoatRoughness: .1, transparent: true, opacity: .84, envMapIntensity: 1.5 });
+    m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+{ float frente = abs(dot(normalize(vViewPosition), normal)); totalEmissiveRadiance *= .45 + 1.25 * frente * frente; }`);
+    };
+    m.customProgramCacheKey = () => 'k14cristal';
+    return m;
+}
+
 const Cristais: React.FC<{ reduzida: boolean }> = ({ reduzida }) => {
     const ref = useRef<THREE.InstancedMesh>(null); const N = 160;
     useEffect(() => {
@@ -257,7 +277,7 @@ const Cristais: React.FC<{ reduzida: boolean }> = ({ reduzida }) => {
     }, []);
     const mat = useMemo(() => reduzida
         ? new THREE.MeshStandardMaterial({ color: '#7fe6c8', emissive: '#1ec99a', emissiveIntensity: .45, roughness: .18, metalness: .05 })
-        : new THREE.MeshPhysicalMaterial({ color: '#8ff0d4', emissive: '#18c290', emissiveIntensity: .5, roughness: .08, metalness: 0, transmission: .55, thickness: .6, ior: 1.54, clearcoat: 1, clearcoatRoughness: .1 }), [reduzida]);
+        : cristalFalso(), [reduzida]);
     return <instancedMesh ref={ref} frustumCulled={false} args={[geo, mat, N]} castShadow />;
 };
 
@@ -571,9 +591,27 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
     return null;
 };
 
+/** chaves de medição (só no dev): ?x<efeito> desliga um efeito para medir quanto ele custa */
+const xdev = (k: string) => import.meta.env.DEV && location.search.includes('x' + k);
+
 const MundoPronto: React.FC<{pronto: (v: boolean) => void}> = ({pronto}) => {
     const frames = useRef(0);
-    useFrame(() => {if (++frames.current === 3) pronto(true);});
+    // durante o vídeo da chegada o Canvas fica parado (frameloop "demand"): compila TODOS os shaders
+    // de uma vez (nada de engasgo depois, quando um cristal ou arco entra na tela) e desenha alguns
+    // quadros espaçados para aquecer sombra e pós-processamento, sem disputar a GPU com o vídeo
+    const { gl, scene, camera, invalidate } = useThree();
+    useEffect(() => {
+        let vivo = true;
+        gl.compileAsync(scene, camera).catch(() => undefined).finally(() => {
+            for (let i = 0; i < 4; i++) setTimeout(() => { if (vivo) invalidate(); }, 300 * i);
+        });
+        return () => { vivo = false; };
+    }, [gl, scene, camera, invalidate]);
+    useFrame(({ gl }) => {
+        if (import.meta.env.DEV) {   // estatística do quadro inteiro (sombra + cena + pós), não só do último passe
+            (window as unknown as { __f14gl: unknown }).__f14gl = { ...gl.info.render, programas: gl.info.programs?.length, tex: gl.info.memory.textures };
+            gl.info.autoReset = false; gl.info.reset();
+        }if (++frames.current === 3) pronto(true);});
     return null;
 };
 
@@ -594,6 +632,10 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const sombra = useRef<EstadoSombra>({ i: 0, fugindo: 0, visto: false, percebeu: 0 });
     const [fim, setFim] = useState(0);
     const [mundoPronto, setMundoPronto] = useState(false);
+    // resolução adaptativa: começa no máximo da qualidade escolhida e só desce (até 1×, nunca abaixo
+    // da tela) se o aparelho não sustentar o quadro; volta a subir quando sobra folga
+    const dprMax = reduzida ? 1 : settings.quality === 'high' ? 1.5 : 1.25;
+    const [dpr, setDpr] = useState(() => Math.min(dprMax, window.devicePixelRatio || 1));
     const [chegadaTerminou, setChegadaTerminou] = useState(false);
     useEffect(() => {
         if (chegadaTerminou && mundoPronto) { jog.current.caido = 1; setFase('sufocando'); }
@@ -697,19 +739,19 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: '#120a14', touchAction: 'none', userSelect: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
-                dpr={reduzida ? 1 : [1, settings.quality === 'high' ? 1.5 : 1.25]} shadows camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
+                dpr={dpr} frameloop={fase === 'chegada' ? 'demand' : 'always'} shadows={!xdev('sombra')} camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
                 <fogExp2 attach="fog" args={['#d49a6c', .0036]} />
-                <AmbienteDoCeu intensidade={.6} />
+                {!xdev('amb') && <AmbienteDoCeu intensidade={.6} />}
                 <NevoaPorRegiao jog={jog} />
                 <hemisphereLight args={['#b8a3d0', '#8a5434', .5]} />
                 <SolQueSegue jog={jog} reduzida={reduzida} />
                 <directionalLight position={[-120, 50, -400]} intensity={.35} color="#9ad0ff" />
-                <CeuKessar />
-                <PoeiraKessar reduzida={reduzida} />
-                <Terreno reduzida={reduzida} />
-                <Pedras />
-                <CascalhoKessar reduzida={reduzida} />
-                <Cristais reduzida={reduzida} />
+                {!xdev('ceu') && <CeuKessar />}
+                {!xdev('poeira') && <PoeiraKessar reduzida={reduzida} />}
+                <Terreno reduzida={reduzida || xdev('terreno')} />
+                {!xdev('pedra') && <Pedras />}
+                {!xdev('cascalho') && <CascalhoKessar reduzida={reduzida} />}
+                {!xdev('cristal') && <Cristais reduzida={reduzida} />}
                 <Ossada />
                 <Monolito />
                 <ColunaDaCratera />
@@ -727,6 +769,9 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                 </EffectComposer>}
                 <MundoPronto pronto={setMundoPronto} />
+                <PerformanceMonitor bounds={() => [50, 58]} flipflops={4}
+                    onDecline={() => setDpr((d) => Math.max(1, +(d - .25).toFixed(2)))}
+                    onIncline={() => setDpr((d) => Math.min(dprMax, window.devicePixelRatio || 1, +(d + .25).toFixed(2)))} />
                 <Corpo jog={jog} entrada={entrada} yaw={yaw} pitch={pitch} fase={fase} folego={folego} />
             </Canvas>
 
