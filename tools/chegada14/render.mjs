@@ -44,6 +44,6 @@ execFileSync(ff, ['-y', '-loglevel', 'error', '-i', saida, '-c:v', 'libx264', '-
   '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-g', '48', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', tmp]);
 await fs.rename(tmp, saida);
 await fs.copyFile(saida, path.join(root, 'chegada-14.mp4'));
-for (const frame of [40, 98, 110, 175, 290, 455])
+for (const frame of [33, 47, 84, 110, 122, 455])
   await renderStill({ composition, serveUrl, browserExecutable, frame, output: path.join(here, 'frames', `edit-${frame}.png`) });
 console.log('\nchegada-14.mp4 + quadros de conferência prontos.');
