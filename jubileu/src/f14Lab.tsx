@@ -2,8 +2,8 @@
  * f14Lab.tsx — o LABORATÓRIO debaixo da cratera de Kessar-9.
  *
  * Fases: 'quem' (ela conta quem é) → 'receita' (o pedido) → 'bancada' (o puzzle) →
- * 'arremesso' (cutscene: o béquer voa e se quebra no chão; o chão "esquece" e abre um portal) →
- * 'despedida' (o pedido final) → 'mergulho' (a câmera entra no portal) → aoFim.
+ * 'video' (cutscene pré-renderizada — Blender + Manim + Remotion, f14-portal.mp4: o béquer voa e se
+ * quebra; o chão "esquece" e abre um portal; a despedida; o mergulho) → aoFim.
  *
  * O PUZZLE (mistura anti-simulação): três reagentes, cada dose soma às três barras da assinatura.
  *   Ferrugem Fria (2,0,1) · Sal de Eco (0,2,1) · Vidro Líquido (1,1,0). Alvo: (4,6,3).
@@ -15,7 +15,8 @@ import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { FiguraDaEntidade, visualPadrao, type VisualEntidade } from './f14Entidade';
 import { Dialogo } from './f14Dialogo';
-import { LAB_QUEM, LAB_RECEITA, LAB_REACOES, DESPEDIDA } from './f14Lore';
+import { LAB_QUEM, LAB_RECEITA, LAB_REACOES } from './f14Lore';
+import { ChegadaKessar } from './f14Chegada';
 
 export const REAGENTES = [
     { id: 'ferrugem', nome: 'Ferrugem Fria', cor: '#c4572e', soma: [2, 0, 1] },
@@ -37,11 +38,11 @@ export const passou = (b: Bancada) => b.barras.some((v, i) => v > ALVO[i]);
 export const bateu = (b: Bancada) => b.barras.every((v, i) => v === ALVO[i]);
 export const naFaixa = (b: Bancada) => b.temp >= FAIXA[0] && b.temp <= FAIXA[1];
 
-type Fase = 'quem' | 'receita' | 'bancada' | 'arremesso' | 'despedida' | 'mergulho';
+type Fase = 'quem' | 'receita' | 'bancada' | 'video';
 
 // ── som (sintetizado) ──
 let ac: AudioContext | null = null;
-function som(tipo: 'glub' | 'clique' | 'quebra' | 'portal' | 'erro') {
+function som(tipo: 'glub' | 'clique' | 'erro') {
     try {
         ac = ac ?? new AudioContext(); const c = ac, t = c.currentTime, g = c.createGain(); g.connect(c.destination);
         if (tipo === 'glub' || tipo === 'clique' || tipo === 'erro') {
@@ -61,19 +62,29 @@ function som(tipo: 'glub' | 'clique' | 'quebra' | 'portal' | 'erro') {
 }
 
 // ── a sala ──
+/** Material com textura de verdade (Poly Haven CC0, public/kessar): cor + mapa normal, repetido. */
+function texturado(base: string, rep: [number, number], extra: THREE.MeshStandardMaterialParameters) {
+    const ld = new THREE.TextureLoader(), raiz = `${import.meta.env.BASE_URL}kessar/${base}`;
+    const cor = ld.load(`${raiz}_diffuse.jpg`), nor = ld.load(`${raiz}_nor_gl.jpg`);
+    for (const t of [cor, nor]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); t.anisotropy = 8; }
+    cor.colorSpace = THREE.SRGBColorSpace;
+    return new THREE.MeshStandardMaterial({ map: cor, normalMap: nor, ...extra });
+}
 const Sala: React.FC = () => {
-    const metal = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a3f47', roughness: .55, metalness: .7 }), []);
-    const parede = useMemo(() => new THREE.MeshStandardMaterial({ color: '#4a4452', roughness: .85 }), []);
-    const tampo = useMemo(() => new THREE.MeshStandardMaterial({ color: '#1d1f24', roughness: .3, metalness: .4 }), []);
-    useEffect(() => () => { metal.dispose(); parede.dispose(); tampo.dispose(); }, [metal, parede, tampo]);
+    const metal = useMemo(() => texturado('metal_plate', [1, 1], { color: '#8a8f98', roughness: .45, metalness: .75 }), []);
+    const parede = useMemo(() => texturado('concrete_wall_006', [4, 2], { color: '#9a94a4', roughness: .9 }), []);
+    const tampo = useMemo(() => texturado('metal_plate', [3, 1], { color: '#5a5e66', roughness: .35, metalness: .6 }), []);
+    const piso = useMemo(() => texturado('metal_plate', [6, 6], { color: '#8a8890', roughness: .5, metalness: .55 }), []);
+    const teto = useMemo(() => texturado('concrete_floor_worn_001', [4, 4], { color: '#5a5660', roughness: .95, side: THREE.DoubleSide }), []);
+    useEffect(() => () => { for (const m of [metal, parede, tampo, piso, teto]) { m.map?.dispose(); m.normalMap?.dispose(); m.dispose(); } }, [metal, parede, tampo, piso, teto]);
     return <group>
         {/* chão de placas e paredes de rocha da cratera revestidas */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[14, 14]} /><meshStandardMaterial color="#3a3840" roughness={.55} metalness={.3} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={piso}><planeGeometry args={[14, 14]} /></mesh>
         {Array.from({ length: 7 }, (_, i) => <mesh key={i} position={[-7 + i * 2.33, .002, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[.02, 14]} /><meshBasicMaterial color="#0d0c10" /></mesh>)}
         <mesh position={[0, 3, -5]} material={parede}><boxGeometry args={[14, 6, .3]} /></mesh>
         <mesh position={[-6, 3, 0]} rotation={[0, Math.PI / 2, 0]} material={parede}><boxGeometry args={[14, 6, .3]} /></mesh>
         <mesh position={[6, 3, 0]} rotation={[0, Math.PI / 2, 0]} material={parede}><boxGeometry args={[14, 6, .3]} /></mesh>
-        <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[14, 14]} /><meshStandardMaterial color="#141317" side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, 0, 0]} material={teto}><planeGeometry args={[14, 14]} /></mesh>
         {/* luminárias e fitas violeta */}
         {[-3, 0, 3].map((x) => <mesh key={x} position={[x, 5.9, -1]}><boxGeometry args={[1.6, .05, .25]} /><meshBasicMaterial color="#dfe8ff" /></mesh>)}
         {[-5.8, 5.8].map((x) => <mesh key={x} position={[x, 1.2, -1]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[9, .04, .04]} /><meshBasicMaterial color="#8a5cff" /></mesh>)}
@@ -105,7 +116,7 @@ const Frasco: React.FC<{ x: number; cor: string; ativo: boolean; aoTocar: () => 
 };
 
 /** O béquer no aquecedor: o líquido sobe e mistura as cores; borrado quando pronto (a simulação não desenha). */
-const Bequer: React.FC<{ b: Bancada; voando: number }> = ({ b, voando }) => {
+const Bequer: React.FC<{ b: Bancada }> = ({ b }) => {
     const g = useRef<THREE.Group>(null), liq = useRef<THREE.Mesh>(null), mat = useRef<THREE.MeshStandardMaterial>(null), halo = useRef<THREE.Mesh>(null);
     const total = b.doses.reduce((a, c) => a + c, 0);
     const cor = useMemo(() => {
@@ -121,11 +132,6 @@ const Bequer: React.FC<{ b: Bancada; voando: number }> = ({ b, voando }) => {
         if (liq.current) { const h = Math.min(1, total / 6); liq.current.scale.set(1, Math.max(.01, h), 1); liq.current.position.y = .04 + .17 * h; }
         if (mat.current) { mat.current.color.copy(cor); mat.current.emissive.copy(cor); mat.current.emissiveIntensity = .4 + (b.temp - 24) / 80 + (b.agitado ? Math.sin(t * 9) * .4 + .6 : 0); }
         if (halo.current) { halo.current.visible = b.agitado; halo.current.scale.setScalar(1 + Math.sin(t * 13) * .08); (halo.current.material as THREE.MeshBasicMaterial).opacity = .25 + Math.sin(t * 7) * .1; }
-        if (g.current && voando > 0) {   // o arremesso: arco até o chão à frente
-            const k = Math.min(1, (performance.now() - voando) / 900);
-            g.current.position.set(THREE.MathUtils.lerp(.0, .2, k), THREE.MathUtils.lerp(.95, 0, k) + Math.sin(k * Math.PI) * 1.1, THREE.MathUtils.lerp(-1.05, 1.6, k));
-            g.current.rotation.set(k * 7, 0, k * 3); g.current.visible = k < 1;
-        }
     });
     return <group ref={g} position={[0, .95, -1.05]}>
         <mesh position={[0, .22, 0]}><cylinderGeometry args={[.16, .16, .44, 24, 1, true]} /><meshPhysicalMaterial color="#eef6ff" transparent opacity={.22} roughness={.04} clearcoat={1} side={THREE.DoubleSide} /></mesh>
@@ -143,31 +149,8 @@ const Aquecedor: React.FC<{ temp: number }> = ({ temp }) => {
     </group>;
 };
 
-/** O portal: um disco no chão onde o chão "esquece" — anéis violeta girando e, no fundo, a luz quente do elevador. */
-const Portal: React.FC<{ desde: number }> = ({ desde }) => {
-    const g = useRef<THREE.Group>(null);
-    const mat = useMemo(() => new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, uniforms: { t: { value: 0 }, abre: { value: 0 } },
-        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-        fragmentShader: `varying vec2 vUv; uniform float t, abre;
-        void main(){ vec2 p = vUv - .5; float r = length(p) * 2., a = atan(p.y, p.x);
-          float espiral = sin(a * 5. + r * 14. - t * 4.) * .5 + .5;
-          vec3 fundo = mix(vec3(1., .78, .42), vec3(.35, .18, .7), smoothstep(.0, .75, r));   // a luz do elevador no centro
-          vec3 c = mix(fundo, vec3(.62, .4, 1.), espiral * smoothstep(.2, .9, r) * .7);
-          float borda = smoothstep(abre, abre - .08, r);
-          c += vec3(.8, .6, 1.) * smoothstep(.06, 0., abs(r - abre + .03)) * 1.5;
-          gl_FragColor = vec4(c, borda); }`,
-    }), []);
-    useEffect(() => () => mat.dispose(), [mat]);
-    useFrame(({ clock }) => { mat.uniforms.t.value = clock.elapsedTime; mat.uniforms.abre.value = Math.min(1, Math.max(0, (performance.now() - desde) / 2200)); if (g.current) g.current.visible = desde > 0; });
-    return <group ref={g} position={[.2, .01, 1.6]} visible={false}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} material={mat}><circleGeometry args={[1.4, 64]} /></mesh>
-        <pointLight color="#c9a0ff" intensity={6} distance={6} position={[0, .4, 0]} />
-    </group>;
-};
-
 /** Câmera: em pé diante da bancada; arrastar gira um pouco; nas cutscenes, segue o roteiro. */
-const Olhos: React.FC<{ fase: Fase; arremesso: number; giro: React.MutableRefObject<{ x: number; y: number }> }> = ({ fase, arremesso, giro }) => {
+const Olhos: React.FC<{ fase: Fase; giro: React.MutableRefObject<{ x: number; y: number }> }> = ({ fase, giro }) => {
     const { camera } = useThree(), alvo = useMemo(() => new THREE.Vector3(), []), pos = useMemo(() => new THREE.Vector3(), []);
     const inicio = useRef(performance.now());
     useEffect(() => { inicio.current = performance.now(); }, [fase]);
@@ -175,19 +158,17 @@ const Olhos: React.FC<{ fase: Fase; arremesso: number; giro: React.MutableRefObj
         const t = (performance.now() - inicio.current) / 1000;
         if (fase === 'quem' || fase === 'receita') { pos.set(.2, 1.68, 1.6); alvo.set(-1.9, 1.9, -1.4); }
         else if (fase === 'bancada') { pos.set(0, 1.62, .55); alvo.set(giro.current.x * 1.6, .95 + giro.current.y * .8, -1.2); }
-        else if (fase === 'arremesso' || fase === 'despedida') { const k = Math.min(1, (performance.now() - arremesso) / 1400); pos.set(0, 1.62, .55).lerp(new THREE.Vector3(-.4, 1.75, .2), k); alvo.set(.2, .1, 1.6).lerp(new THREE.Vector3(-1, 1.2, .9), fase === 'despedida' ? Math.min(1, t / 2) : 0); }
-        else { const k = Math.min(1, t / 2.4); pos.set(-.4, 1.75, .2).lerp(new THREE.Vector3(.2, .3, 1.6), k * k); alvo.set(.2, -2, 1.61); }
+        else return;
         camera.position.lerp(pos, .08); camera.lookAt(alvo);
     });
     return null;
 };
 
-export default function LabKessar({ aoFim, reduzida }: { aoFim: () => void; reduzida: boolean }) {
+export default function LabKessar({ aoFim, reduzida, volume = 1 }: { aoFim: () => void; reduzida: boolean; volume?: number }) {
     const [fase, setFase] = useState<Fase>('quem');
     const [b, setB] = useState<Bancada>(bancadaVazia);
     const [msg, setMsg] = useState<string | null>(null);
     const [pulsos, setPulsos] = useState([0, 0, 0]);
-    const [arremesso, setArremesso] = useState(0), [portal, setPortal] = useState(0), [branco, setBranco] = useState(0);
     const vis = useRef<VisualEntidade>(visualPadrao()), giro = useRef({ x: 0, y: 0 });
     const toque = useRef<{ x: number; y: number } | null>(null);
 
@@ -197,8 +178,8 @@ export default function LabKessar({ aoFim, reduzida }: { aoFim: () => void; redu
         const id = window.setInterval(() => setB((v) => (v.temp > QUENTE && !v.agitado ? { ...v, temp: Math.max(FAIXA[1], v.temp - 2) } : v)), 500);   // só esfria se passou do ponto
         return () => window.clearInterval(id);
     }, [fase]);
-    // a entidade mexe o braço quando aponta a bancada e quando o portal abre
-    useEffect(() => { vis.current.braco = fase === 'receita' ? .8 : fase === 'despedida' ? .5 : 0; vis.current.alturaBraco = fase === 'receita' ? -.4 : 0; }, [fase]);
+    // a entidade estende o braço quando aponta a bancada
+    useEffect(() => { vis.current.braco = fase === 'receita' ? .8 : 0; vis.current.alturaBraco = fase === 'receita' ? -.4 : 0; }, [fase]);
 
     const despeja = (r: number) => {
         if (b.agitado) return;
@@ -216,28 +197,14 @@ export default function LabKessar({ aoFim, reduzida }: { aoFim: () => void; redu
     const agita = () => {
         if (!bateu(b) || !naFaixa(b) || b.agitado) return;
         setB({ ...b, agitado: true }); setMsg(LAB_REACOES.agitado); som('glub');
-        window.setTimeout(() => { setMsg(null); setFase('arremesso'); setArremesso(performance.now()); }, 2600);
+        window.setTimeout(() => { setMsg(null); setFase('video'); }, 2600);
     };
-    // o arremesso: o béquer voa, quebra, o portal abre; depois a despedida; por fim o mergulho e o branco
-    useEffect(() => {
-        if (fase !== 'arremesso') return;
-        const a = window.setTimeout(() => { som('quebra'); setPortal(performance.now()); som('portal'); }, 900);
-        const c = window.setTimeout(() => setFase('despedida'), 3600);
-        return () => { window.clearTimeout(a); window.clearTimeout(c); };
-    }, [fase]);
-    useEffect(() => {
-        if (fase !== 'mergulho') return;
-        let raf = 0; const t0 = performance.now();
-        const f = (agora: number) => { const k = Math.min(1, (agora - t0) / 2600); setBranco(Math.max(0, (k - .45) / .55)); if (k < 1) raf = requestAnimationFrame(f); else aoFim(); };
-        raf = requestAnimationFrame(f); return () => cancelAnimationFrame(raf);
-    }, [fase, aoFim]);
-
     const pronta = bateu(b), instavel = passou(b);
     const botao: React.CSSProperties = { fontFamily: 'Georgia, serif', fontSize: 15, padding: '11px 16px', borderRadius: 10, border: '1px solid rgba(180,150,255,.5)', background: 'rgba(20,12,34,.85)', color: '#ece4ff', cursor: 'pointer', minWidth: 44 };
     return <div style={{ position: 'absolute', inset: 0, background: '#000', touchAction: 'none' }}
         onPointerDown={(e) => { toque.current = { x: e.clientX, y: e.clientY }; }} onPointerUp={() => { toque.current = null; }}
         onPointerMove={(e) => { if (!toque.current || fase !== 'bancada') return; giro.current.x = Math.max(-1, Math.min(1, giro.current.x + (e.clientX - toque.current.x) * .004)); giro.current.y = Math.max(-.6, Math.min(.8, giro.current.y - (e.clientY - toque.current.y) * .004)); toque.current = { x: e.clientX, y: e.clientY }; }}>
-        <Canvas shadows dpr={reduzida ? 1 : [1, 1.5]} camera={{ fov: 62, near: .05, far: 60, position: [.2, 1.68, 1.6] }} gl={{ toneMapping: THREE.ACESFilmicToneMapping }}>
+        <Canvas frameloop={fase === 'video' ? 'never' : 'always'} shadows dpr={reduzida ? 1 : [1, 1.5]} camera={{ fov: 62, near: .05, far: 60, position: [.2, 1.68, 1.6] }} gl={{ toneMapping: THREE.ACESFilmicToneMapping }}>
             <color attach="background" args={['#07060a']} />
             <fog attach="fog" args={['#0b0910', 10, 26]} />
             <ambientLight intensity={.9} color="#a9a3c4" />
@@ -247,16 +214,15 @@ export default function LabKessar({ aoFim, reduzida }: { aoFim: () => void; redu
             <pointLight position={[-2.2, 2.6, -2]} intensity={6} distance={6} color="#9a7bff" />
             <Sala />
             <Aquecedor temp={b.temp} />
-            <Bequer b={b} voando={arremesso} />
+            <Bequer b={b} />
             {REAGENTES.map((r, i) => <Frasco key={r.id} x={[-1.2, -.7, .75][i]} cor={r.cor} ativo={fase === 'bancada'} aoTocar={() => despeja(i)} pulso={pulsos[i]} />)}
-            <Portal desde={portal} />
             <group position={[-1.9, 0, -1.5]} rotation={[0, .6, 0]}><FiguraDaEntidade vis={vis} escala={1.05} /></group>
-            <Olhos fase={fase} arremesso={arremesso} giro={giro} />
+            <Olhos fase={fase} giro={giro} />
         </Canvas>
 
         {fase === 'quem' && <Dialogo falas={LAB_QUEM} aoFim={() => setFase('receita')} />}
         {fase === 'receita' && <Dialogo falas={LAB_RECEITA} aoFim={() => setFase('bancada')} />}
-        {fase === 'despedida' && <Dialogo falas={DESPEDIDA} aoFim={() => setFase('mergulho')} />}
+        {fase === 'video' && <ChegadaKessar src="f14-portal.mp4" titulo="ANTI-SIMULAÇÃO" volume={volume} onFinish={aoFim} />}
 
         {fase === 'bancada' && <>
             {/* a tela da assinatura: alvo (traço) e o que está no béquer (barra) */}
@@ -284,6 +250,5 @@ export default function LabKessar({ aoFim, reduzida }: { aoFim: () => void; redu
             {msg && <div style={{ position: 'absolute', top: 14, left: 14, right: 'min(330px, 50vw)', color: '#ece4ff', fontFamily: 'Georgia, serif', fontSize: 'clamp(14px, 2.2vw, 18px)',
                 textShadow: '0 2px 8px #000, 0 0 14px rgba(110,60,220,.6)', pointerEvents: 'none' }}><span style={{ color: '#b49cff', fontSize: 11, letterSpacing: 3 }}>A SOMBRA</span><br />{msg}</div>}
         </>}
-        <div style={{ position: 'absolute', inset: 0, background: '#fff', opacity: branco, pointerEvents: 'none' }} />
     </div>;
 }

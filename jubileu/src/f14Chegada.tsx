@@ -1,7 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 
 /** Autoplay negado pede um toque; falha de rede oferece continuar explicitamente. */
-export function ChegadaKessar({onFinish, volume}: {onFinish: () => void; volume: number}) {
+/** Toca um vídeo pré-renderizado do andar (a chegada; as cutscenes do final com `src`). */
+export function ChegadaKessar({onFinish, volume, src = 'chegada-14.mp4', titulo = 'KESSAR–9'}: {onFinish: () => void; volume: number; src?: string; titulo?: string}) {
     const video = useRef<HTMLVideoElement>(null), done = useRef(false);
     const [blocked, setBlocked] = useState(false), [failed, setFailed] = useState(false), [started, setStarted] = useState(false);
     const finish = () => { if (!done.current) {done.current = true; video.current?.pause(); onFinish();} };
@@ -15,13 +16,13 @@ export function ChegadaKessar({onFinish, volume}: {onFinish: () => void; volume:
         return () => {active=false;v.pause();window.removeEventListener('keydown',key);};
     }, []);
     return <div onPointerDown={e=>e.stopPropagation()} style={{position:'absolute',inset:0,background:'#080b10',display:'grid',placeItems:'center'}}>
-        <video ref={video} src={`${import.meta.env.BASE_URL}chegada-14.mp4`} playsInline preload="auto"
+        <video ref={video} src={`${import.meta.env.BASE_URL}${src}`} playsInline preload="auto"
             onPlaying={()=>{setStarted(true);setBlocked(false);}} onEnded={finish} onError={()=>{setFailed(true);setBlocked(false);}}
             style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} />
         {(!started || blocked || failed) && <div style={{position:'relative',textAlign:'center',color:'#d9c6aa',fontFamily:'Georgia,serif',padding:24}}>
             <div style={{fontSize:12,letterSpacing:5,marginBottom:14}}>ANDAR 14</div>
-            <div style={{fontSize:32,letterSpacing:8,marginBottom:28}}>KESSAR–9</div>
-            {failed ? <><p>A chegada não pôde ser carregada.</p><button style={button} onClick={finish}>Continuar para o deserto</button></>
+            <div style={{fontSize:32,letterSpacing:8,marginBottom:28}}>{titulo}</div>
+            {failed ? <><p>A chegada não pôde ser carregada.</p><button style={button} onClick={finish}>Continuar</button></>
                 : blocked ? <button style={button} onClick={()=>{setBlocked(false);video.current?.play().catch(()=>setBlocked(true));}}>Iniciar chegada</button>
                 : <div role="status" style={{fontSize:14,opacity:.7}}>Preparando a chegada…</div>}
         </div>}

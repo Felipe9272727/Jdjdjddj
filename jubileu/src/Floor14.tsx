@@ -21,9 +21,8 @@ import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, Brightness
 import { ToneMappingMode } from 'postprocessing';
 import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
 import { FiguraDaEntidade, visualPadrao, type VisualEntidade } from './f14Entidade';
-import { CenaDescida, type PontosDescida } from './f14Descida';
-import { Dialogo, Legenda } from './f14Dialogo';
-import { ENCONTRO, BOTAO } from './f14Lore';
+import { Dialogo } from './f14Dialogo';
+import { ENCONTRO } from './f14Lore';
 import LabKessar from './f14Lab';
 import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera, ruidoLento } from './f14Visual';
 import { CeuKessar, PoeiraKessar, CascalhoKessar, AmbienteDoCeu, SOL } from './f14Atmosfera';
@@ -685,9 +684,7 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
         setDica(i === 0 ? 'Ela sumiu. Ficaram pegadas na areia.' : 'Sumiu de novo…');
         window.setTimeout(() => setDica(APARICOES[Math.min(APARICOES.length - 1, i + 1)].dica), 2600);
     };
-    const [pontosDescida, setPontosDescida] = useState<PontosDescida | null>(null);
-    const [legenda, setLegenda] = useState<string | null>(null);
-    // alcançou: ela não some — o encontro (diálogo), depois a descida (cutscene) e o laboratório
+        // alcançou: ela não some — o encontro (diálogo), depois a descida (cutscene) e o laboratório
     // atalho do modo criador: direto ao encontro na cratera (o mundo precisa estar montado)
     const saltou = useRef(false);
     useEffect(() => {
@@ -697,13 +694,10 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
         Object.assign(sombra.current, { i: APARICOES.length - 1, fugindo: 0, percebeu: 0 });
         Object.assign(jog.current, { x: ap.x + 3, z: ap.z + 3, caido: 0 }); jog.current.y = alturaEm(ap.x + 3, ap.z + 3);
         const a = APARICOES[APARICOES.length - 1], j = jog.current;
-        setPontosDescida({ ent: new THREE.Vector3(a.x, alturaEm(a.x, a.z), a.z), jog: new THREE.Vector3(j.x, j.y, j.z) });
         setFase('encontro');
     });
     const aoAlcancar = () => {
         if (fase !== 'explorar') return;
-        const a = APARICOES[APARICOES.length - 1], j = jog.current;
-        setPontosDescida({ ent: new THREE.Vector3(a.x, alturaEm(a.x, a.z), a.z), jog: new THREE.Vector3(j.x, j.y, j.z) });
         setFase('encontro'); tocarOlhar();
     };
     useEffect(() => {
@@ -780,7 +774,7 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: '#120a14', touchAction: 'none', userSelect: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
-                dpr={dpr} frameloop={fase === 'chegada' ? 'demand' : fase === 'lab' ? 'never' : 'always'} shadows={!xdev('sombra')} camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
+                dpr={dpr} frameloop={fase === 'chegada' ? 'demand' : fase === 'lab' || fase === 'descida' ? 'never' : 'always'} shadows={!xdev('sombra')} camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
                 <fogExp2 attach="fog" args={['#d49a6c', .0036]} />
                 {!xdev('amb') && <AmbienteDoCeu intensidade={.6} />}
                 <NevoaPorRegiao jog={jog} />
@@ -802,7 +796,7 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
                 <Pegadas ate={vistas} />
                 <AnelDeAreia />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete && fase !== 'descida' && fase !== 'lab'} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
-                {fase === 'descida' && pontosDescida && <CenaDescida pontos={pontosDescida} legenda={BOTAO} aoLegenda={setLegenda} abalo={abalo} aoFim={() => { setLegenda(null); setFase('lab'); }} />}
+
                 {!reduzida && !(import.meta.env.DEV && location.search.includes('sempos')) && <EffectComposer multisampling={0}>
                     <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur />
                     <Vignette offset={.35} darkness={.4} />
@@ -849,8 +843,8 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
             </div>}
             {/* o final: o encontro na cratera, a descida e o laboratório */}
             {fase === 'encontro' && <Dialogo falas={ENCONTRO} aoFim={() => setFase('descida')} />}
-            {fase === 'descida' && <Legenda texto={legenda} />}
-            {fase === 'lab' && <LabKessar reduzida={reduzida} aoFim={() => { vento?.parar(); onExit(); }} />}
+            {fase === 'descida' && <ChegadaKessar src="f14-descida.mp4" titulo="O PONTO CEGO" volume={settings.masterVolume} onFinish={() => setFase('lab')} />}
+            {fase === 'lab' && <LabKessar reduzida={reduzida} volume={settings.masterVolume} aoFim={() => { vento?.parar(); onExit(); }} />}
             {/* a chegada: vídeo pré-renderizado (Blender + Manim + Remotion) */}
             {fase === 'chegada' && !chegadaTerminou && <ChegadaKessar onFinish={() => setChegadaTerminou(true)} volume={settings.masterVolume} />}
             {fase === 'chegada' && chegadaTerminou && <div role="status" style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#080b10',color:'#d9c6aa',fontFamily:'Georgia,serif'}}>Preparando o deserto…</div>}
