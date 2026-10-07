@@ -20,6 +20,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
+import { FiguraDaEntidade, visualPadrao, type VisualEntidade } from './f14Entidade';
 import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera, ruidoLento } from './f14Visual';
 import { CeuKessar, PoeiraKessar, CascalhoKessar, AmbienteDoCeu, SOL } from './f14Atmosfera';
 import { useOptionalSettings } from './Settings';
@@ -439,7 +440,7 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
 interface EstadoSombra { i: number; fugindo: number; visto: boolean; percebeu: number }
 const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: React.MutableRefObject<Jog>; ativa: boolean; aoFugir: (i: number) => void; aoAlcancar: () => void }> = ({ estado, jog, ativa, aoFugir, aoAlcancar }) => {
     const g = useRef<THREE.Group>(null);
-    const corpo = useMemo(() => new THREE.MeshBasicMaterial({color: '#050307', transparent: true, depthWrite: false, fog: true}), []);
+    const vis = useRef<VisualEntidade>(visualPadrao());
     const fumaca = useMemo(() => {
         const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
         const c = canvas.getContext('2d')!, grad = c.createRadialGradient(16,16,0,16,16,16);
@@ -455,7 +456,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
     const sombraMesh = useRef<THREE.Mesh>(null);
     const sombraMat = useMemo(() => new THREE.MeshBasicMaterial({color: '#000', map: fumaca.texture, transparent: true, opacity: .25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1}), [fumaca.texture]);
     const dir = useMemo(() => new THREE.Vector3(), []), alvo = useMemo(() => new THREE.Vector3(), []);
-    useEffect(() => () => {corpo.dispose(); fuma.dispose(); sombraMat.dispose(); fumaca.geo.dispose(); fumaca.texture.dispose(); sombraGeo.dispose();}, [corpo, fuma, sombraMat]);
+    useEffect(() => () => {fuma.dispose(); sombraMat.dispose(); fumaca.geo.dispose(); fumaca.texture.dispose(); sombraGeo.dispose();}, [fuma, sombraMat]);
 
     useFrame(({ clock, camera }, dt) => {
         const s = estado.current, a = APARICOES[s.i], gr = g.current; if (!gr) return;
@@ -482,9 +483,9 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         const tenso = Math.min(1, s.percebeu / 1.5);
         gr.position.set(x, y, z);
         // vira-se para o hóspede (só o corpo, sem rosto)
-        gr.rotation.y = Math.atan2(j.x - x, j.z - z); gr.rotation.z = tenso * .26;   // inclina a cabeça
-        const tremor = 1 + Math.sin(t * 50) * (.02 + tenso * .06);          // tremor de calor a 8 Hz, que cresce quando ela te encara
-        gr.scale.set(1.5 * esc * tremor, 4.2 * esc, 1.5 * esc);   // alta e magra demais: errada
+        gr.rotation.y = Math.atan2(j.x - x, j.z - z);   // vira-se para o hóspede (a cabeça inclina na figura)
+        gr.scale.setScalar(1.25 * esc);   // ~3,2 m: alta demais para ser gente (o tremor e a inclinação vêm da figura)
+        vis.current.tenso = tenso;
         gr.visible = ativa;
         // Projeção em coordenadas mundo: nunca gira com o corpo e acompanha cada triângulo.
         if (sombraMesh.current) sombraMesh.current.visible = ativa;
@@ -496,7 +497,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             shadowPos.setXYZ(i, px, alturaEm(px,pz)+.045, pz);
         }
         shadowPos.needsUpdate = true;
-        corpo.opacity = opac * (.91 + Math.sin(t * 13) * .025); fuma.opacity = opac * .24; sombraMat.opacity = opac * .25;
+        vis.current.opac = opac * (.93 + Math.sin(t * 13) * .03); fuma.opacity = opac * .24; sombraMat.opacity = opac * .25;
         // fiapos de fumaça escura subindo do contorno
         const fp = fumaca.geo.attributes.position as THREE.BufferAttribute;
         for (let i = 0; i < 24; i++) {
@@ -507,11 +508,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
         s.visto = alvo.set(x, y + 1.5, z).project(camera).z < 1;
     });
     return <><mesh ref={sombraMesh} geometry={sombraGeo} material={sombraMat} frustumCulled={false} /><group ref={g}>
-        {/* silhueta alta e magra: tronco, ombros caídos, cabeça sem rosto */}
-        <mesh position={[0, 1.15, 0]}><capsuleGeometry args={[.28, 1.4, 4, 10]} /><primitive object={corpo} attach="material" /></mesh>
-        <mesh position={[0, 2.25, 0]}><sphereGeometry args={[.22, 14, 10]} /><primitive object={corpo} attach="material" /></mesh>
-        <mesh position={[-.42, 1.3, 0]} rotation={[0, 0, .12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><primitive object={corpo} attach="material" /></mesh>
-        <mesh position={[.42, 1.3, 0]} rotation={[0, 0, -.12]}><capsuleGeometry args={[.07, 1.1, 3, 6]} /><primitive object={corpo} attach="material" /></mesh>
+        <FiguraDaEntidade vis={vis} />
         <points geometry={fumaca.geo} material={fuma} frustumCulled={false} />
     </group></>;
 };
