@@ -25,6 +25,35 @@ float k14n(vec3 x){
 float k14fbm(vec3 p){ float s = 0., a = .5; for (int i = 0; i < K14_OITAVAS; i++) { s += a * k14n(p); p = p * 2.03 + 17.1; a *= .5; } return s; }
 `;
 
+/** O MESMO ruído do GLSL (k14fbm, 4 oitavas) em JS: o terreno recebe os ruídos lentos prontos por vértice. */
+const fr = (x: number) => x - Math.floor(x);
+function h3(x: number, y: number, z: number) {
+    x = fr(x * .1031); y = fr(y * .1031); z = fr(z * .1031);
+    const d = x * (z + 31.32) + y * (y + 31.32) + z * (x + 31.32); x += d; y += d; z += d;
+    return fr((x + y) * z);
+}
+function n3(x: number, y: number, z: number) {
+    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+    let fx = x - ix, fy = y - iy, fz = z - iz; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+    const m = (a: number, b: number, t: number) => a + (b - a) * t;
+    return m(m(m(h3(ix, iy, iz), h3(ix + 1, iy, iz), fx), m(h3(ix, iy + 1, iz), h3(ix + 1, iy + 1, iz), fx), fy),
+             m(m(h3(ix, iy, iz + 1), h3(ix + 1, iy, iz + 1), fx), m(h3(ix, iy + 1, iz + 1), h3(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+}
+export function fbmJs(x: number, y: number, z: number, oitavas = 4) {
+    let s = 0, a = .5;
+    for (let i = 0; i < oitavas; i++) { s += a * n3(x, y, z); x = x * 2.03 + 17.1; y = y * 2.03 + 17.1; z = z * 2.03 + 17.1; a *= .5; }
+    return s;
+}
+/** atributo `lento` do terreno: (fbm a .045, fbm a .02) na posição de MUNDO de cada vértice */
+export function ruidoLento(pos: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, mundo: THREE.Matrix4, oitavas = 4): Float32Array {
+    const out = new Float32Array(pos.count * 2), v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mundo);
+        out[i * 2] = fbmJs(v.x * .045, v.y * .045, v.z * .045, oitavas); out[i * 2 + 1] = fbmJs(v.x * .02, v.y * .02, v.z * .02, oitavas);
+    }
+    return out;
+}
+
 // ── as texturas (Poly Haven, CC0; ver public/kessar/LICENCA.txt) ─────────────────────────────
 export type Conjunto = 'serra' | 'pedra' | 'basalto';
 interface Par { cor: THREE.Texture; nor: THREE.Texture }
@@ -75,7 +104,10 @@ export function remendarRocha(m: THREE.MeshStandardMaterial, o: OpcoesRocha = {}
         Object.assign(sh.uniforms, uni);
         sh.vertexShader = sh.vertexShader
             .replace('#include <common>', `#include <common>
-varying vec3 vK14Mundo; varying vec3 vK14Normal;
+varying vec3 vK14Mundo; varying vec3 vK14Normal; varying vec2 vK14Lento;
+#ifdef K14_TERRENO
+attribute vec2 lento;
+#endif
 #ifdef K14_AO
 attribute float ao; varying float vK14Ao;
 #endif
@@ -90,6 +122,10 @@ attribute float sal; varying float vK14Sal;
         k14wp = instanceMatrix * k14wp; k14nw = mat3(instanceMatrix) * k14nw;
     #endif
     k14wp = modelMatrix * k14wp; vK14Mundo = k14wp.xyz; vK14Normal = normalize(mat3(modelMatrix) * k14nw);
+    // terreno: os ruídos lentos (20–50 m) vêm PRONTOS do vértice (calculados uma vez em JS, ruidoLento)
+    #ifdef K14_TERRENO
+        vK14Lento = lento;
+    #endif
     #ifdef K14_AO
         vK14Ao = ao;
     #endif
@@ -99,7 +135,7 @@ attribute float sal; varying float vK14Sal;
 }`);
         sh.fragmentShader = sh.fragmentShader
             .replace('#include <common>', `#include <common>
-varying vec3 vK14Mundo; varying vec3 vK14Normal;
+varying vec3 vK14Mundo; varying vec3 vK14Normal; varying vec2 vK14Lento;
 uniform sampler2D k14RochaCor, k14RochaNor, k14AreiaCor, k14AreiaNor, k14SalCor, k14SalNor;
 uniform float k14EscalaRocha; uniform vec3 k14Tom;
 #ifdef K14_AO
@@ -134,7 +170,11 @@ float k14Rocha; float k14Altura; vec3 k14NMundo;`)
     vec3 P = vK14Mundo, N = normalize(vK14Normal);
     float distK = length(P - cameraPosition);
     vec3 w = pow(abs(N), vec3(4.)); w /= (w.x + w.y + w.z);
-    float quebra = k14fbm(P * .045);
+    #ifdef K14_TERRENO
+        float quebra = vK14Lento.x;
+    #else
+        float quebra = k14fbm(P * .045);
+    #endif
     #ifdef K14_TERRENO
         float declive = 1. - clamp(N.y, 0., 1.);
         k14Rocha = smoothstep(.30, .50, declive + (quebra - .5) * .3);
@@ -158,7 +198,7 @@ float k14Rocha; float k14Altura; vec3 k14NMundo;`)
             ac = mix(ac, texture2D(k14AreiaCor, pa * .19 + .41).rgb, .4);
         #endif
         vec3 areia = diffuseColor.rgb * mix(vec3(k14lum(ac) / .30), ac / .30, .18);
-        areia *= .86 + .28 * k14fbm(P * .02);
+        areia *= .86 + .28 * vK14Lento.y;
         vec3 nA = k14PlanoNor(k14AreiaNor, pa, N, .6);
         // SAL: lama rachada embranquecida
         float sal = smoothstep(.15, .6, vK14Sal);
@@ -171,7 +211,8 @@ float k14Rocha; float k14Altura; vec3 k14NMundo;`)
         k14NMundo = normalize(mix(nA, nR, k14Rocha));
         // ondulação de vento (procedural, maior que a foto), só na areia e de perto
         float perto = 1. - smoothstep(20., 110., distK);
-        k14Altura = (sin(dot(P.xz, vec2(.82, .57)) * 3.4 + k14fbm(P * .3) * 5.) * .5) * .045 * (1. - k14Rocha) * (1. - sal) * perto;
+        k14Altura = 0.;
+        if (perto > 0.) k14Altura = (sin(dot(P.xz, vec2(.82, .57)) * 3.4 + k14fbm(P * .3) * 5.) * .5) * .045 * (1. - k14Rocha) * (1. - sal) * perto;   // longe: nem calcula
     #else
         diffuseColor.rgb = rc;
         k14Altura = 0.;

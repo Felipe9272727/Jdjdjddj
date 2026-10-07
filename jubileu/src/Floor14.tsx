@@ -20,7 +20,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
-import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera } from './f14Visual';
+import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera, ruidoLento } from './f14Visual';
 import { CeuKessar, PoeiraKessar, CascalhoKessar, AmbienteDoCeu, SOL } from './f14Atmosfera';
 import { useOptionalSettings } from './Settings';
 import { ChegadaKessar } from './f14Chegada';
@@ -167,6 +167,8 @@ const Terreno: React.FC<{ reduzida: boolean }> = ({ reduzida }) => {
         const pesoSal = new Float32Array(p.count);
         for (let i = 0; i < p.count; i++) pesoSal[i] = regiaoEm(p.getX(i), p.getZ(i)).sal;
         g.setAttribute('sal', new THREE.BufferAttribute(pesoSal, 1));
+        // os dois ruídos lentos do shader, calculados aqui uma vez (antes: 8 oitavas por pixel, todo quadro)
+        g.setAttribute('lento', new THREE.BufferAttribute(ruidoLento(p, new THREE.Matrix4()), 2));
         return g;
     }, []);
     const mat = useMemo(() => remendarRocha(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .96, metalness: 0 }),
@@ -638,7 +640,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const [dpr, setDpr] = useState(() => Math.min(dprMax, window.devicePixelRatio || 1));
     const [chegadaTerminou, setChegadaTerminou] = useState(false);
     useEffect(() => {
-        if (chegadaTerminou && mundoPronto) { jog.current.caido = 1; setFase('sufocando'); }
+        if (chegadaTerminou && mundoPronto) { jog.current.caido = 0; setFase('explorar'); }   // a cutscene termina com o capacete na cabeça: o jogo começa já com ele
     }, [chegadaTerminou, mundoPronto]);
 
     // ── o fôlego acabando ──
