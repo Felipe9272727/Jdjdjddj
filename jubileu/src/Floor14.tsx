@@ -385,19 +385,7 @@ const Escotilha: React.FC = () => <>
 </>;
 
 // ── o capacete de madeira ─────────────────────────────────────────────────
-function texturaTabuas(): THREE.CanvasTexture {
-    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
-    const g = c.getContext('2d')!;
-    g.fillStyle = '#8b5a2b'; g.fillRect(0, 0, 256, 128);
-    for (let i = 0; i < 8; i++) {
-        g.fillStyle = i % 2 ? '#7a4c22' : '#9a6634'; g.fillRect(i * 32, 0, 30, 128);
-        g.strokeStyle = 'rgba(40,20,8,.6)'; g.lineWidth = 2; g.strokeRect(i * 32, 0, 32, 128);
-        for (let k = 0; k < 6; k++) { g.strokeStyle = 'rgba(60,30,10,.35)'; g.beginPath(); g.moveTo(i * 32 + 4 + k * 4, 0); g.bezierCurveTo(i * 32 + 10 + k * 3, 40, i * 32 + k * 4, 90, i * 32 + 6 + k * 4, 128); g.stroke(); }
-    }
-    const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
-}
 const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
-    const tab = useMemo(texturaTabuas, []);
     const g = useRef<THREE.Group>(null);
     const luzBeacon = useRef<THREE.PointLight>(null), halo = useRef<THREE.Sprite>(null);
     const brilho = useMemo(() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d')!; const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -408,18 +396,31 @@ const Capacete: React.FC<{ visivel: boolean }> = ({ visivel }) => {
         if (luzBeacon.current) luzBeacon.current.intensity = visivel ? 2 + pulso * 3 : 0;
         if (halo.current) { halo.current.scale.setScalar(1.6 + pulso * 1.4); (halo.current.material as THREE.SpriteMaterial).opacity = visivel ? .16 + pulso * .20 : 0; }
     });
+    // casco torneado (aduelas de carvalho escuro com textura de verdade), aros e escotilha de latão com vidro
+    const pecas = useMemo(() => {
+        const perfil = [[.0, .54], [.12, .53], [.22, .49], [.29, .41], [.33, .3], [.345, .18], [.345, .06], [.33, 0]].map(([r, z]) => new THREE.Vector2(r, z));
+        const casco = new THREE.LatheGeometry(perfil, 40);
+        const ld = new THREE.TextureLoader(), base = `${import.meta.env.BASE_URL}kessar/`;
+        const cor = ld.load(base + 'dark_wood_diffuse.jpg'); cor.colorSpace = THREE.SRGBColorSpace;
+        const nor = ld.load(base + 'dark_wood_nor_gl.jpg');
+        for (const t of [cor, nor]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.center.set(.5, .5); t.rotation = Math.PI / 2; t.repeat.set(1.2, 4); t.anisotropy = 8; }
+        const madeira = new THREE.MeshStandardMaterial({ map: cor, normalMap: nor, normalScale: new THREE.Vector2(.8, .8), color: '#c99a7a', roughness: .62, side: THREE.DoubleSide });
+        const latao = new THREE.MeshStandardMaterial({ color: '#c9a043', metalness: .9, roughness: .28 });
+        return { casco, madeira, latao };
+    }, []);
+    useEffect(() => () => { pecas.casco.dispose(); pecas.madeira.map?.dispose(); pecas.madeira.normalMap?.dispose(); pecas.madeira.dispose(); pecas.latao.dispose(); }, [pecas]);
     const y = alturaEm(CAPACETE.x, CAPACETE.z);
-    return <group ref={g} position={[CAPACETE.x, y + .28, CAPACETE.z]} rotation={[0, .6, .25]} visible={visivel}>
-        <mesh castShadow><sphereGeometry args={[.36, 24, 16, 0, Math.PI * 2, 0, Math.PI * .62]} /><meshStandardMaterial map={tab} roughness={.8} /></mesh>
-        <mesh position={[0, -.1, 0]} castShadow><cylinderGeometry args={[.33, .35, .22, 24, 1, true]} /><meshStandardMaterial map={tab} roughness={.8} side={THREE.DoubleSide} /></mesh>
-        {/* a escotilha de latão com vidro */}
-        <mesh position={[0, -.02, .33]}><torusGeometry args={[.15, .03, 10, 28]} /><meshStandardMaterial color="#c9a043" metalness={.85} roughness={.3} /></mesh>
-        <mesh position={[0, -.02, .325]}><circleGeometry args={[.15, 28]} /><meshStandardMaterial color="#9fd8d0" transparent opacity={.55} metalness={.2} roughness={.05} /></mesh>
-        {[0, 1, 2, 3, 4, 5].map((i) => <mesh key={i} position={[Math.cos(i * 1.047) * .15, -.02 + Math.sin(i * 1.047) * .15, .36]}><sphereGeometry args={[.018, 8, 6]} /><meshStandardMaterial color="#e0c060" metalness={.9} roughness={.3} /></mesh>)}
+    return <group ref={g} position={[CAPACETE.x, y - .05, CAPACETE.z]} rotation={[.12, .6, .2]} visible={visivel}>
+        <mesh geometry={pecas.casco} material={pecas.madeira} castShadow receiveShadow />
+        {[[.02, .345], [.3, .335]].map(([z, r], i) => <mesh key={i} position={[0, z, 0]} rotation={[Math.PI / 2, 0, 0]} material={pecas.latao} castShadow><torusGeometry args={[r, .018, 8, 40]} /></mesh>)}
+        {/* a escotilha: aro, vidro esverdeado e oito rebites */}
+        <mesh position={[0, .22, .335]} material={pecas.latao}><torusGeometry args={[.13, .026, 10, 32]} /></mesh>
+        <mesh position={[0, .22, .33]}><circleGeometry args={[.125, 32]} /><meshStandardMaterial color="#5f8f86" transparent opacity={.72} metalness={.4} roughness={.04} envMapIntensity={1.6} /></mesh>
+        {Array.from({ length: 8 }, (_, i) => <mesh key={i} position={[Math.cos(i * .785) * .13, .22 + Math.sin(i * .785) * .13, .362]} material={pecas.latao}><sphereGeometry args={[.012, 8, 6]} /></mesh>)}
         {/* a mangueira de ar, de couro, enterrada na areia */}
-        <mesh position={[.3, -.25, -.1]} rotation={[0, 0, 1.2]}><torusGeometry args={[.22, .035, 8, 20, Math.PI]} /><meshStandardMaterial color="#3a2a1c" roughness={.9} /></mesh>
-        <pointLight ref={luzBeacon} position={[0, .6, .4]} color="#ffb347" intensity={visivel ? 3 : 0} distance={9} decay={2} />
-        <sprite ref={halo} scale={[2.2, 2.2, 1]} position={[0, .1, 0]}><spriteMaterial map={brilho} color="#ffb347" transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={.6} /></sprite>
+        <mesh position={[.32, .06, -.12]} rotation={[0, .4, 1.25]}><torusGeometry args={[.22, .035, 8, 20, Math.PI]} /><meshStandardMaterial color="#3a2a1c" roughness={.9} /></mesh>
+        <pointLight ref={luzBeacon} position={[0, .75, .45]} color="#ffb347" intensity={visivel ? 3 : 0} distance={9} decay={2} />
+        <sprite ref={halo} scale={[2.2, 2.2, 1]} position={[0, .3, 0]}><spriteMaterial map={brilho} color="#ffb347" transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={.6} /></sprite>
     </group>;
 };
 

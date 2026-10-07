@@ -143,7 +143,7 @@ def _feixe(m):
 _feixe(FEIXE)
 
 # ═════════════════════════════ CÉU ═════════════════════════════
-SOL_AZ, SOL_EL = math.radians(160), math.radians(11)   # sol baixo, quase atrás da porta (contraluz)
+SOL_AZ, SOL_EL = math.radians(24), math.radians(9)   # sol baixo ATRÁS da porta (+Y): contraluz, sombras compridas para a câmera
 SOL_DIR = Vector((math.cos(SOL_EL) * math.sin(SOL_AZ), math.cos(SOL_EL) * math.cos(SOL_AZ), math.sin(SOL_EL)))
 w = bpy.data.worlds.new('ceu'); sc.world = w; w.use_nodes = True
 def _ceu(m):
@@ -153,22 +153,26 @@ def _ceu(m):
     nt.links.new(tc.outputs['Generated'], sep.inputs[0])
     r = nt.nodes.new('ShaderNodeValToRGB'); e = r.color_ramp.elements
     e[0].position = .0; e[0].color = (.95, .40, .17, 1)
-    e[1].position = .55; e[1].color = (.006, .006, .03, 1)
-    for pos, cor in ((.06, (.62, .22, .2, 1)), (.18, (.16, .06, .16, 1))):
+    e[1].position = .7; e[1].color = (.025, .012, .06, 1)
+    for pos, cor in ((.07, (.66, .24, .2, 1)), (.25, (.2, .07, .18, 1))):
         x = e.new(pos); x.color = cor
     nt.links.new(sep.outputs['Z'], r.inputs[0])
     # nuvens altas: ruído esticado em projeção de cúpula
-    nuv = nt.nodes.new('ShaderNodeTexNoise'); nuv.inputs['Scale'].default_value = 3.; nuv.inputs['Detail'].default_value = 8.; nuv.inputs['Distortion'].default_value = 1.5
-    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1., 4., 1.)
-    nt.links.new(tc.outputs['Generated'], mp.inputs[0]); nt.links.new(mp.outputs[0], nuv.inputs['Vector'])
+    nuv = nt.nodes.new('ShaderNodeTexNoise'); nuv.inputs['Scale'].default_value = 1.2; nuv.inputs['Detail'].default_value = 10.; nuv.inputs['Distortion'].default_value = .6
+    zz = nt.nodes.new('ShaderNodeMath'); zz.operation = 'ADD'; zz.inputs[1].default_value = .12; nt.links.new(sep.outputs['Z'], zz.inputs[0])
+    ux = nt.nodes.new('ShaderNodeMath'); ux.operation = 'DIVIDE'; nt.links.new(sep.outputs['X'], ux.inputs[0]); nt.links.new(zz.outputs[0], ux.inputs[1])
+    uy = nt.nodes.new('ShaderNodeMath'); uy.operation = 'DIVIDE'; nt.links.new(sep.outputs['Y'], uy.inputs[0]); nt.links.new(zz.outputs[0], uy.inputs[1])
+    cb = nt.nodes.new('ShaderNodeCombineXYZ'); nt.links.new(ux.outputs[0], cb.inputs['X']); nt.links.new(uy.outputs[0], cb.inputs['Y'])
+    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (.35, 2.6, 1.)
+    nt.links.new(cb.outputs[0], mp.inputs[0]); nt.links.new(mp.outputs[0], nuv.inputs['Vector'])
     cr = nt.nodes.new('ShaderNodeValToRGB'); ce = cr.color_ramp.elements; ce[0].position = .55; ce[1].position = .8
-    ce[0].color = (0, 0, 0, 1); ce[1].color = (1, 1, 1, 1)
+    ce[0].color = (0, 0, 0, 1); ce[1].color = (.55, .55, .55, 1)
     nt.links.new(nuv.outputs['Fac'], cr.inputs[0])
-    faixa = nt.nodes.new('ShaderNodeMapRange'); faixa.inputs['From Min'].default_value = .02; faixa.inputs['From Max'].default_value = .2
+    faixa = nt.nodes.new('ShaderNodeMapRange'); faixa.inputs['From Min'].default_value = .015; faixa.inputs['From Max'].default_value = .12
     nt.links.new(sep.outputs['Z'], faixa.inputs['Value'])
     mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'
     nt.links.new(cr.outputs['Color'], mul.inputs[0]); nt.links.new(faixa.outputs['Result'], mul.inputs[1])
-    mx = nt.nodes.new('ShaderNodeMixRGB'); mx.inputs['Color2'].default_value = (.9, .55, .4, 1)
+    mx = nt.nodes.new('ShaderNodeMixRGB'); mx.inputs['Color2'].default_value = (1., .5, .3, 1)
     nt.links.new(mul.outputs[0], mx.inputs['Fac']); nt.links.new(r.outputs['Color'], mx.inputs['Color1'])
     nt.links.new(mx.outputs['Color'], fundo.inputs['Color']); fundo.inputs['Strength'].default_value = 1.15
     nt.links.new(fundo.outputs[0], out.inputs['Surface'])
@@ -185,28 +189,36 @@ sol2.rotation_euler = (-d2).to_track_quat('-Z', 'Y').to_euler()
 
 # o gigante gasoso anelado, enorme, atrás da porta
 def gigante():
-    c = Vector((140., 1400., 260.))
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=96, ring_count=48, radius=330, location=c); g = bpy.context.object
+    c = Vector((150., 1500., 360.))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=96, ring_count=48, radius=250, location=c); g = bpy.context.object
     m = bpy.data.materials.new('gigante'); m.use_nodes = True; b = m.node_tree.nodes['Principled BSDF']
-    tc = no(m, 'ShaderNodeTexCoord'); onda = no(m, 'ShaderNodeTexWave', wave_type='BANDS', bands_direction='Z', Scale=3.5, Distortion=4., **{'Detail Scale': 1.5})
-    liga(m, tc.outputs['Object'], onda.inputs['Vector'])
-    rp = no(m, 'ShaderNodeValToRGB'); e = rp.color_ramp.elements; e[0].color = (.42, .25, .2, 1); e[1].color = (.85, .66, .5, 1)
+    tc = no(m, 'ShaderNodeTexCoord'); onda = no(m, 'ShaderNodeTexWave', wave_type='BANDS', bands_direction='Z', Scale=3.2, Distortion=3.5, **{'Detail Scale': 1.2, 'Detail': 3.})
+    liga(m, tc.outputs['Generated'], onda.inputs['Vector'])
+    rp = no(m, 'ShaderNodeValToRGB'); e = rp.color_ramp.elements; e[0].color = (.45, .24, .18, 1); e[1].color = (.88, .7, .55, 1); x = e.new(.55); x.color = (.68, .42, .3, 1)
     liga(m, onda.outputs['Fac'], rp.inputs[0]); liga(m, rp.outputs['Color'], b.inputs['Base Color']); b.inputs['Roughness'].default_value = .9
     g.data.materials.append(m)
     for p in g.data.polygons: p.use_smooth = True
     g.visible_shadow = False; g.pass_index = 7
-    bpy.ops.mesh.primitive_circle_add(vertices=192, radius=640, fill_type='NOTHING', location=c); anel = bpy.context.object
-    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT'); bpy.ops.mesh.extrude_region_shrink_fatten(TRANSFORM_OT_shrink_fatten={'value': 210}); bpy.ops.object.mode_set(mode='OBJECT')
-    anel.rotation_euler = (math.radians(78), math.radians(14), 0)
+    me = bpy.data.meshes.new('anel'); bm = bmesh.new(); K = 192
+    dentro = [bm.verts.new((math.cos(k / K * math.tau) * 330, math.sin(k / K * math.tau) * 330, 0)) for k in range(K)]
+    fora = [bm.verts.new((math.cos(k / K * math.tau) * 540, math.sin(k / K * math.tau) * 540, 0)) for k in range(K)]
+    for k in range(K): bm.faces.new((dentro[k], dentro[(k + 1) % K], fora[(k + 1) % K], fora[k]))
+    bm.to_mesh(me); bm.free()
+    anel = bpy.data.objects.new('anel', me); sc.collection.objects.link(anel); anel.location = c
+    anel.rotation_euler = (math.radians(13), math.radians(5), math.radians(-20))   # quase de perfil: uma elipse fina cruzando o planeta
     ma = bpy.data.materials.new('anel'); ma.use_nodes = True; nt = ma.node_tree; nt.nodes.clear()
     out = nt.nodes.new('ShaderNodeOutputMaterial'); dif = nt.nodes.new('ShaderNodeBsdfDiffuse'); dif.inputs['Color'].default_value = (.85, .7, .55, 1)
     tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mx = nt.nodes.new('ShaderNodeMixShader')
     tc2 = nt.nodes.new('ShaderNodeTexCoord'); grad = nt.nodes.new('ShaderNodeTexGradient'); grad.gradient_type = 'SPHERICAL'
-    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1 / 850, 1 / 850, 1 / 850)
+    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1 / 600, 1 / 600, 1 / 600)
     nt.links.new(tc2.outputs['Object'], mp.inputs[0]); nt.links.new(mp.outputs[0], grad.inputs[0])
-    on2 = nt.nodes.new('ShaderNodeTexWave'); on2.wave_type = 'RINGS'; on2.inputs['Scale'].default_value = 2.; on2.inputs['Distortion'].default_value = 2.
-    nt.links.new(tc2.outputs['Object'], on2.inputs['Vector'])
-    nt.links.new(on2.outputs['Fac'], mx.inputs['Fac']); nt.links.new(tr.outputs[0], mx.inputs[1]); nt.links.new(dif.outputs[0], mx.inputs[2])
+    comp = nt.nodes.new('ShaderNodeVectorMath'); comp.operation = 'LENGTH'; nt.links.new(tc2.outputs['Object'], comp.inputs[0])
+    seno = nt.nodes.new('ShaderNodeMath'); seno.operation = 'SINE'
+    mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = .11
+    nt.links.new(comp.outputs['Value'], mul.inputs[0]); nt.links.new(mul.outputs[0], seno.inputs[0])
+    faixas = nt.nodes.new('ShaderNodeValToRGB'); fe = faixas.color_ramp.elements; fe[0].position = .2; fe[1].position = .9
+    fe[0].color = (0, 0, 0, 1); fe[1].color = (.75, .75, .75, 1)
+    nt.links.new(seno.outputs[0], faixas.inputs[0]); nt.links.new(faixas.outputs['Color'], mx.inputs['Fac']); nt.links.new(tr.outputs[0], mx.inputs[1]); nt.links.new(dif.outputs[0], mx.inputs[2])
     nt.links.new(mx.outputs[0], out.inputs['Surface'])
     anel.data.materials.append(ma); anel.visible_shadow = False; anel.pass_index = 7
 gigante()
@@ -226,7 +238,7 @@ def fbm(x, y, o=4):
 PERIODO = 46.
 def duna(x, y):
     """Dunas barcanas em série: crista afiada, face de deslizamento íngreme do lado -Y (o lado da câmera)."""
-    u = -y + 7. * math.sin(x * .028) + 3. * math.sin(x * .07 + 1.) + PERIODO * .8
+    u = -y + 7. * math.sin(x * .028) + 3. * math.sin(x * .07 + 1.) - 3. * math.sin(1.) + PERIODO * .8   # crista passa por (0, 0)
     t = (u % PERIODO) / PERIODO
     p = t / .8 if t < .8 else (1 - t) / .2
     perfil = suave(p) if t < .8 else p ** 1.6
@@ -258,8 +270,8 @@ def serra(loc, esc, rot):
     d2 = o.modifiers.new('d2', 'DISPLACE'); d2.texture = t2; d2.strength = .15
     o.data.materials.append(SERRA)
     for p in o.data.polygons: p.use_smooth = True
-for k, (x, y, s, rot) in enumerate([(-260, 520, 120, .3), (-40, 640, 170, 1.1), (230, 560, 140, 2.), (420, 430, 90, .7), (-470, 380, 80, 2.5)]):
-    serra((x, y, -s * .25), (s * 1.6, s * .8, s * .75), rot)
+for k, (x, y, s, rot) in enumerate([(-330, 760, 120, .3), (-60, 980, 150, 1.1), (300, 820, 130, 2.), (560, 620, 90, .7), (-620, 560, 80, 2.5)]):
+    serra((x, y, -s * .3), (s * 1.6, s * .8, s * .48), rot)
 def colunas(cx, cy, n):
     for i in range(n):
         a = random.random() * 6.28; r = random.random() * 4
@@ -505,7 +517,7 @@ def mao_pose(q, loc, rot, curva, polegar=None):
 
 # ═════════════════════════════ CÂMERAS ═════════════════════════════
 bpy.ops.object.camera_add(); cam = bpy.context.object; sc.camera = cam
-cam.data.sensor_width = 36
+cam.data.sensor_width = 36; cam.data.clip_start = .02; cam.data.clip_end = 6000   # o gigante está a 1,4 km
 def olhar(loc, alvo, rolar=0.):
     d = Vector(alvo) - Vector(loc); q = d.to_track_quat('-Z', 'Y'); e = q.to_euler(); e.rotate_axis('Z', math.radians(rolar)); return e
 def cam_chave(q, loc, alvo, lente=35, rolar=0., foco=None, f=2.8):
@@ -519,8 +531,8 @@ def cam_chave(q, loc, alvo, lente=35, rolar=0., foco=None, f=2.8):
 OLHO_CHAO = Vector((.7, -10.6, altura(.7, -10.6) + .32))
 if PLANO == 'geral':
     # do alto da duna anterior (crista em y=-46): o vale e, do outro lado, a face íngreme com a porta no topo
-    cam_chave(1, (-12, -48, altura(-12, -48) + 2.0), (0, 0, CRISTA_Z + 4.5), 62)
-    cam_chave(84, (-8, -40, altura(-8, -40) + 1.6), (0, 0, CRISTA_Z + 3.0), 70)
+    cam_chave(1, (-12, -48, altura(-12, -48) + 1.8), (0, 0, CRISTA_Z + 7.), 40)
+    cam_chave(84, (-8, -40, altura(-8, -40) + 1.4), (0, 0, CRISTA_Z + 5.), 48)
 elif PLANO == 'porta':
     cam_chave(85, (2.6, -9.5, zc(-9.5) + 1.3), (0, 0, CRISTA_Z + 1.6), 40, foco=9.5, f=4)
     cam_chave(150, (1.6, -7.2, zc(-7.2) + 1.0), (0, -1.6, CRISTA_Z + .9), 36, foco=6., f=4)
@@ -531,8 +543,8 @@ elif PLANO == 'queda':
 elif PLANO == 'pov':
     O = OLHO_CHAO
     # deitado de costas: o céu e o gigante; vira a cabeça para a areia; o capacete ao longe
-    cam_chave(211, O, O + Vector((0, .3, 1)), 22, rolar=0, foco=200, f=8)
-    cam_chave(240, O + Vector((0, 0, .02)), O + Vector((.15, .35, 1)), 22, rolar=-6, foco=200, f=8)
+    cam_chave(211, O, O + Vector((.08, 1, .62)), 22, rolar=0, foco=200, f=8)
+    cam_chave(240, O + Vector((0, 0, .02)), O + Vector((.2, 1, .55)), 22, rolar=-6, foco=200, f=8)
     cam_chave(262, O + Vector((.1, -.05, -.05)), O + Vector((.4, -1.2, .1)), 24, rolar=-30, foco=.6, f=1.8)
     cam_chave(285, O + Vector((.1, -.1, -.08)), CAP_POS + Vector((0, 0, .25)), 28, rolar=-14, foco=.5, f=1.8)
     cam_chave(305, O + Vector((.1, -.2, -.08)), CAP_POS + Vector((0, 0, .25)), 30, rolar=-8, foco=4.1, f=2.4)
@@ -592,10 +604,13 @@ sc.use_nodes = True; nt = sc.node_tree; nt.nodes.clear()
 rl = nt.nodes.new('CompositorNodeRLayers'); comp = nt.nodes.new('CompositorNodeComposite')
 mx = nt.nodes.new('CompositorNodeMixRGB'); mx.blend_type = 'MIX'; mx.inputs[2].default_value = (.95, .55, .34, 1)
 fat = nt.nodes.new('CompositorNodeMath'); fat.operation = 'MULTIPLY'; fat.inputs[1].default_value = .6
-idm = nt.nodes.new('CompositorNodeIDMask'); idm.index = 7; idm.use_antialiasing = True
+# névoa só nos objetos do chão (índice 1): o céu (0) e o gigante (7) ficam limpos
+for ob in sc.objects:
+    if ob.type in ('MESH', 'CURVE') and ob.pass_index == 0: ob.pass_index = 1
+idm = nt.nodes.new('CompositorNodeIDMask'); idm.index = 1; idm.use_antialiasing = True
 saida_idx = next((o for o in rl.outputs if o.name in ('IndexOB', 'Object Index')), None)
 if saida_idx: nt.links.new(saida_idx, idm.inputs[0])
-inv = nt.nodes.new('CompositorNodeMath'); inv.operation = 'SUBTRACT'; inv.inputs[0].default_value = 1.
+inv = nt.nodes.new('CompositorNodeMath'); inv.operation = 'MULTIPLY'; inv.inputs[0].default_value = 1.
 nt.links.new(idm.outputs[0], inv.inputs[1])
 fat2 = nt.nodes.new('CompositorNodeMath'); fat2.operation = 'MULTIPLY'
 saida_mist = next((o for o in rl.outputs if o.name == 'Mist'), None)

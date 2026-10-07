@@ -1,2 +1,2 @@
 Texturas de Kessar-9 (Andar 14): Poly Haven (https://polyhaven.com), licença CC0 (domínio público).
-dense_sand, cliff_side, rock_face_03, dark_rock, mud_cracked_dry_03 — mapas Diffuse e Normal (OpenGL), 1k, recomprimidos.
+dense_sand, cliff_side, rock_face_03, dark_rock, mud_cracked_dry_03, dark_wood — mapas Diffuse e Normal (OpenGL), 1k, recomprimidos.
