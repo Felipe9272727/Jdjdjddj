@@ -481,7 +481,7 @@ bpy.ops.object.light_add(type='POINT', location=CAP_POS + Vector((0, -.5, .35)))
 brilho.data.energy = 25; brilho.data.color = (1., .75, .4); brilho.data.shadow_soft_size = .05; brilho.parent = CAPACETE; brilho.matrix_parent_inverse = CAPACETE.matrix_world.inverted()
 
 # ═════════════════════════════ A MÃO (POV) ═════════════════════════════
-LUVA_COURO = pbr('luva_couro', 'brown_leather', 9., tom=(.62, .44, .32), relevo=.35, dist=.004)
+LUVA_COURO = pbr('luva_couro', 'brown_leather', 9., tom=(.28, .19, .13), relevo=.35, dist=.004)
 LUVA_COURO.node_tree.nodes['Principled BSDF'].inputs['Sheen Weight'].default_value = .25   # o brilho baixo do couro gasto
 def mao():
     """Mão direita anatômica (WebXR generic-hand, MIT, modelos/mao_direita.glb): malha com pele e 25 ossos.
@@ -498,12 +498,24 @@ def mao():
     R = Matrix(((0, -1, 0), (0, 0, -1), (1, 0, 0))).to_4x4()
     bpy.ops.object.empty_add(location=(0, 0, 0)); raiz = bpy.context.object; raiz.name = 'mao_rig'
     arm.parent = raiz; arm.matrix_parent_inverse = R @ Matrix.Translation(-pulso) @ arm.matrix_world.inverted() @ arm.matrix_world
+    # o glTF traz uma transformação a mais: mede onde o PULSO da malha deformada caiu no espaço da raiz
+    # (o anel de vértices mais baixo, em y) e desloca o esqueleto para que ele fique na origem
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get(); ev = pele.evaluated_get(dg); me = ev.to_mesh()
+    inv = raiz.matrix_world.inverted() @ ev.matrix_world
+    pts = [inv @ v.co for v in me.vertices]; ymin = min(p.y for p in pts); anel = [p for p in pts if p.y < ymin + .012]
+    centro = sum(anel, Vector()) / len(anel); ev.to_mesh_clear()
+    arm.matrix_parent_inverse = Matrix.Translation(-centro) @ arm.matrix_parent_inverse
     pele.data.materials.clear(); pele.data.materials.append(LUVA_COURO)
     for poly in pele.data.polygons: poly.use_smooth = True
     sub = pele.modifiers.new('liso', 'SUBSURF'); sub.levels = 1; sub.render_levels = 2
-    # a manga da jaqueta: um tubo do pulso para trás, com a borda dobrada
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=.048, depth=.34, location=(0, -.2, .005), rotation=(math.radians(90), 0, 0))
-    manga = bpy.context.object; manga.scale = (1., 1., .82); manga.parent = raiz; manga.data.materials.append(JAQUETA)
+    # o antebraço na manga da jaqueta: 75 cm, afinando no punho, e inclinado para trás (para a câmera / o ombro),
+    # para o braço sair da borda da tela em vez de terminar no meio do quadro
+    bpy.ops.mesh.primitive_cone_add(vertices=32, radius1=.064, radius2=.046, depth=.82, location=(0, -.33, 0), rotation=(math.radians(90), 0, 0))
+    manga = bpy.context.object; manga.scale = (1., 1., .85)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    manga.rotation_euler = (math.radians(-12), 0, 0)   # gira em torno do pulso: o cotovelo vai para trás e para baixo
+    manga.parent = raiz; manga.data.materials.append(JAQUETA)
     punho = manga
     for o in (manga,): o.data.polygons.foreach_set('use_smooth', [True] * len(o.data.polygons))
     for o in (pele, manga, punho): o['mao'] = 1   # partes da mão (escondidas/mostradas juntas)
@@ -563,7 +575,7 @@ def mao_na_camera():
     MAO_RIG.parent = cam; MAO_RIG.matrix_parent_inverse = Matrix.Identity(4)
 VAO.visible_camera = False   # o plano de luz do vão não pode tapar a vista de quem está DENTRO da porta
 if PLANO == 'geral':
-    P = PORTA; dentro = Vector((0.05, P.y + .62, P.z + 1.66))
+    P = PORTA; dentro = Vector((0.05, P.y + .9, P.z + 1.66))
     cam_chave(1, dentro, (0, P.y - 6, P.z + 1.45), 24, foco=.8, f=2.8)
     cam_chave(26, dentro + Vector((0, -.06, -.02)), (0, P.y - 6, P.z + 1.4), 24, foco=.6, f=2.8)
     cam_chave(36, dentro + Vector((0, -.14, -.04)), (0, P.y - 6, P.z + 1.35), 24, foco=.55, f=2.8)   # empurra
@@ -577,9 +589,10 @@ if PLANO == 'geral':
     cam_chave(84, (.25, -1.5, zc(-1.5) + 1.63), (1.5, 40, zc(-1.5) + 1.63 + 40 * math.tan(math.radians(14))), 18, foco=30, f=8)
     mao_na_camera()   # a luva empurra as folhas
     # a palma espalmada na madeira (costas da mão para a câmera, dedos para cima), empurra e acompanha a folha
-    for q, loc, rot, c in ((1, (.22, -.62, -.3), (0, 0, -6), .35), (16, (.22, -.62, -.3), (0, 0, -6), .35), (28, (.1, -.14, -.4), (-4, 0, -8), .08),
-                           (34, (.09, -.11, -.45), (-6, 0, -8), .0), (40, (.09, -.1, -.5), (-8, 0, -8), .0), (45, (.1, -.13, -.58), (-12, 0, -6), .1),
-                           (51, (.22, -.62, -.42), (-25, 0, 0), .35)):
+    # braço esticado: a palma espalmada na madeira, o antebraço entrando pela borda de baixo à direita
+    for q, loc, rot, c in ((1, (.3, -.75, -.4), (0, 0, 14), .35), (16, (.3, -.75, -.4), (0, 0, 14), .35), (28, (.12, -.06, -.62), (-4, 0, 16), .08),
+                           (34, (.11, -.04, -.66), (-6, 0, 16), .0), (40, (.11, -.03, -.68), (-8, 0, 16), .0), (45, (.12, -.06, -.8), (-12, 0, 14), .1),
+                           (51, (.3, -.7, -.55), (-25, 0, 10), .35)):
         mao_pose(q, Vector(loc), rot, c, polegar=c)
 elif PLANO == 'porta':
     O = Vector((.25, -1.5, zc(-1.5) + 1.63)); alvo = O + Vector((1.3, 40, 40 * math.tan(math.radians(14))))
@@ -589,9 +602,9 @@ elif PLANO == 'porta':
         olho = alvo + Vector((0, 0, -3.5 * ar)) + tremor(q, .5 + 2.2 * ar)
         cam_chave(q, pos + tremor(q, .015 + .03 * ar), olho, 18, rolar=-14 * suave((q - 118) / 32) + 4 * math.sin(q * .7) * ar, foco=6, f=8)
     mao_na_camera()   # a mão sobe ao rosto, abre e fecha arranhando o ar
-    for q, loc, rot, c in ((85, (.22, -.6, -.35), (0, 0, 0), .4), (96, (.22, -.6, -.35), (0, 0, 0), .4), (104, (.06, -.17, -.34), (10, 0, -12), .1),
-                           (110, (.03, -.12, -.32), (14, 0, -18), .85), (116, (.07, -.15, -.33), (8, 0, -10), .2), (122, (.02, -.11, -.31), (16, 0, -20), .9),
-                           (130, (.08, -.2, -.34), (6, 0, -8), .3), (138, (.05, -.16, -.32), (12, 0, -16), .95), (150, (.18, -.45, -.36), (-10, 0, 0), .6)):
+    for q, loc, rot, c in ((85, (0.22, -0.6, -0.35), (0, 0, 0), .4), (96, (0.22, -0.6, -0.35), (0, 0, 0), .4), (104, (0.12, -0.06, -0.51), (10, 0, 18), .1),
+                           (110, (0.09, -0.01, -0.49), (14, 0, 12), .85), (116, (0.13, -0.04, -0.5), (8, 0, 20), .2), (122, (0.08, 0, -0.48), (16, 0, 10), .9),
+                           (130, (0.14, -0.09, -0.51), (6, 0, 22), .3), (138, (0.11, -0.05, -0.49), (12, 0, 14), .95), (150, (0.18, -0.45, -0.36), (-10, 0, 0), .6)):
         mao_pose(q, Vector(loc), rot, c, polegar=c * .8)
 elif PLANO == 'queda':
     # cai de COSTAS e rola duna abaixo: cambalhota para trás (o olhar sobe, passa pelo céu, pela areia de
