@@ -47,6 +47,9 @@ export function Chegada14() {
     <AbsoluteFill style={{ transform: `translate(${tx}px,${ty}px) scale(${pulsa * (tranco ? 1.02 : 1)})`,
       filter: `saturate(${1 - sufoco * .45}) contrast(${1 + sufoco * .12}) blur(${(batida * sufoco * 1.2).toFixed(2)}px)` }}>
       <Img src={staticFile(`ch14-v3/quadros/${plano}_${n4(qb)}.jpg`)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      {/* a luva, renderizada à parte (cinema.py com K14_MAO=1) e posta por cima: no rosto no sufoco, arranhando a areia no chão */}
+      {((qb >= 85 && qb <= 150) || (qb >= 258 && qb <= 330)) &&
+        <Img src={staticFile(`ch14-v3/mao/mao_${plano}_${n4(qb)}.png`)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
     </AbsoluteFill>
     {/* poeira que o vento carrega por cima de tudo (fora do capacete) */}
     {f < DENTRO && Array.from({ length: 22 }, (_, i) => {

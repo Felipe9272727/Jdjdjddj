@@ -26,6 +26,10 @@ for f in sorted(glob.glob('${path.join(here, 'frames/cinema')}/*.png')):
 for (const f of await fs.readdir(path.join(here, 'frames/manim/images/titulo')))
   await fs.copyFile(path.join(here, 'frames/manim/images/titulo', f), path.join(dest, 'manim', f));
 await fs.copyFile(path.join(here, 'frames/chegada.wav'), path.join(dest, 'chegada.wav'));
+// a camada da luva (cinema.py com K14_MAO=1), PNG com transparência
+await fs.mkdir(path.join(dest, 'mao'), { recursive: true });
+for (const f of await fs.readdir(path.join(here, 'frames/mao')).catch(() => []))
+  if (f.endsWith('.png')) await fs.copyFile(path.join(here, 'frames/mao', f), path.join(dest, 'mao', f));
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'composition.jsx'), publicDir: pub,
   webpackOverride: c => ({ ...c, resolve: { ...c.resolve, alias: { ...(c.resolve?.alias || {}), react: path.join(video, 'node_modules/react'), 'react-dom': path.join(video, 'node_modules/react-dom'), remotion: path.join(video, 'node_modules/remotion') } } }) });
@@ -34,7 +38,12 @@ const composition = await selectComposition({ serveUrl, id: 'Chegada14', browser
 const saida = path.join(root, 'jubileu/public/chegada-14.mp4');
 await renderMedia({ composition, serveUrl, browserExecutable, codec: 'h264', pixelFormat: 'yuv420p', crf: 20, concurrency: 2,
   outputLocation: saida, onProgress: ({ progress }) => { if (Math.round(progress * 100) % 10 === 0) process.stdout.write('.'); } });
+// yuv420p + faststart: decodificação por hardware no celular e começa a tocar sem baixar tudo
+const ff = execFileSync('python3', ['-c', 'import imageio_ffmpeg as f; print(f.get_ffmpeg_exe())']).toString().trim(), tmp = saida + '.tmp.mp4';
+execFileSync(ff, ['-y', '-loglevel', 'error', '-i', saida, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-profile:v', 'high', '-level', '4.0', '-pix_fmt', 'yuv420p',
+  '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-g', '48', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', tmp]);
+await fs.rename(tmp, saida);
 await fs.copyFile(saida, path.join(root, 'chegada-14.mp4'));
-for (const frame of [40, 98, 175, 300, 395, 455])
+for (const frame of [40, 98, 110, 175, 290, 455])
   await renderStill({ composition, serveUrl, browserExecutable, frame, output: path.join(here, 'frames', `edit-${frame}.png`) });
 console.log('\nchegada-14.mp4 + quadros de conferência prontos.');

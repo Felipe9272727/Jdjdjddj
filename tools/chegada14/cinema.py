@@ -14,7 +14,7 @@ TUDO EM PRIMEIRA PESSOA (os olhos do hóspede; nunca se vê o corpo de fora):
 Variáveis: K14_ESCALA (% da resolução, padrão 100), K14_AMOSTRAS (padrão 24).
 """
 import bpy, bmesh, math, os, sys, random
-from mathutils import Vector, Euler, Matrix
+from mathutils import Vector, Euler, Matrix, Quaternion
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = os.path.abspath(args[0] if args else '/tmp/ch14')
@@ -426,9 +426,9 @@ for q, raiz, rot, ossos in CHAVES: pose(q, raiz, rot, ossos)
 # (o corpo nunca aparece: tudo é visto pelos olhos dele)
 # a porta: fechada com luz vazando (1–96), estoura (97–102), aberta; o feixe acende junto
 for dob, lado in FOLHAS:
-    for q, ang in ((34, 0), (37, -lado * 125), (41, -lado * 105), (48, -lado * 112)):
+    for q, ang in ((34, 0), (40, -lado * 9), (49, -lado * 48), (58, -lado * 104), (64, -lado * 112)):
         dob.rotation_euler = (0, 0, math.radians(ang)); dob.keyframe_insert('rotation_euler', frame=q)
-for q, e, ef in ((1, 25, .6), (30, 45, .8), (34, 70, 1.), (37, 6000, 6.), (44, 1200, 2.5), (84, 500, 1.6), (330, 250, .9), (411, 60, .3)):   # e vai se apagando
+for q, e, ef in ((1, 25, .6), (30, 45, .8), (34, 70, 1.), (40, 220, 1.1), (49, 600, 1.7), (58, 700, 1.8), (84, 500, 1.6), (330, 250, .9), (411, 60, .3)):   # e vai se apagando
     LUZ.data.energy = e; LUZ.data.keyframe_insert('energy', frame=q)
     nd = LUZ_PORTA.node_tree.nodes['Principled BSDF'].inputs['Emission Strength']; nd.default_value = ef * 6; nd.keyframe_insert('default_value', frame=q)
     fe = FEIXE.node_tree.nodes['Emission'].inputs['Strength']; fe.default_value = ef * .12; fe.keyframe_insert('default_value', frame=q)
@@ -481,48 +481,51 @@ bpy.ops.object.light_add(type='POINT', location=CAP_POS + Vector((0, -.5, .35)))
 brilho.data.energy = 25; brilho.data.color = (1., .75, .4); brilho.data.shadow_soft_size = .05; brilho.parent = CAPACETE; brilho.matrix_parent_inverse = CAPACETE.matrix_world.inverted()
 
 # ═════════════════════════════ A MÃO (POV) ═════════════════════════════
+LUVA_COURO = pbr('luva_couro', 'brown_leather', 9., tom=(.62, .44, .32), relevo=.35, dist=.004)
+LUVA_COURO.node_tree.nodes['Principled BSDF'].inputs['Sheen Weight'].default_value = .25   # o brilho baixo do couro gasto
 def mao():
-    """Luva de couro com 5 dedos (pele + esqueleto) e a manga azul; origem no pulso, dedos para +Y."""
-    J = {'pulso': ((0, 0, 0), .045), 'palma': ((0, .09, 0), .05)}
-    dedos = {'polegar': (-.045, .03, (-.05, .05, 0)), 'indicador': (-.03, .1, (0, .045, 0)), 'medio': (-.008, .105, (0, .05, 0)), 'anelar': (.015, .1, (0, .045, 0)), 'minimo': (.035, .09, (0, .035, 0))}
-    for d, (x, y, (dx, dy, dz)) in dedos.items():
-        for s in range(3): J[f'{d}{s}'] = ((x + dx * s * (1 if d != 'polegar' else .9), y + dy * s + (.0 if s else 0), dz * s), .015 - s * .0015)
-        J[f'{d}3'] = ((x + dx * 3, y + dy * 3, 0), .012)
-    J['manga'] = ((0, -.28, 0), .07)
-    nomes = list(J); idx = {n: i for i, n in enumerate(nomes)}
-    ar = [('manga', 'pulso'), ('pulso', 'palma')] + [(('palma' if s == 0 else f'{d}{s - 1}'), f'{d}{s}') for d in dedos for s in range(4)]
-    me = bpy.data.meshes.new('mao'); me.from_pydata([J[n][0] for n in nomes], [(idx[a], idx[b]) for a, b in ar], []); me.update()
-    o = bpy.data.objects.new('mao', me); sc.collection.objects.link(o)
-    sk = o.modifiers.new('pele', 'SKIN')
-    for n in nomes: r = J[n][1]; me.skin_vertices[0].data[idx[n]].radius = (r, r * (.55 if n == 'palma' else 1.))
-    me.skin_vertices[0].data[idx['manga']].use_root = True
-    sm = o.modifiers.new('liso', 'SUBSURF'); sm.levels = 1; sm.render_levels = 2
-    bpy.context.view_layer.objects.active = o; o.select_set(True); bpy.ops.object.modifier_apply(modifier='pele')
-    o.data.materials.append(LUVA); o.data.materials.append(JAQUETA)
-    for p in o.data.polygons: p.material_index = 1 if p.center.y < -.05 else 0; p.use_smooth = True
-    arm = bpy.data.armatures.new('mao_arm'); rig = bpy.data.objects.new('mao_rig', arm); sc.collection.objects.link(rig)
-    bpy.context.view_layer.objects.active = rig; bpy.ops.object.mode_set(mode='EDIT')
-    b0 = arm.edit_bones.new('palma'); b0.head = J['pulso'][0]; b0.tail = J['palma'][0]
-    bm0 = arm.edit_bones.new('manga'); bm0.head = J['manga'][0]; bm0.tail = J['pulso'][0]; b0.parent = bm0
-    for d in dedos:
-        pai = b0
-        for s in range(3):
-            b = arm.edit_bones.new(f'{d}{s}'); b.head = J[f'{d}{s}'][0]; b.tail = J[f'{d}{s + 1}'][0]; b.parent = pai; pai = b
-    bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    return o, rig, list(dedos)
-MAO, MAO_RIG, DEDOS = mao()
+    """Mão direita anatômica (WebXR generic-hand, MIT, modelos/mao_direita.glb): malha com pele e 25 ossos.
+    Calçada numa luva de couro (textura Poly Haven CC0) e com a manga da jaqueta. A raiz (MAO_RIG) segue a
+    convenção antiga: origem no pulso, dedos para +Y, costas da mão para +Z, polegar para -X."""
+    antes = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modelos', 'mao_direita.glb'))
+    novos = [o for o in bpy.data.objects if o not in antes]
+    arm = next(o for o in novos if o.type == 'ARMATURE'); pele = next(o for o in novos if o.type == 'MESH' and o.parent == arm)
+    for o in novos:
+        if o not in (arm, pele): bpy.data.objects.remove(o)
+    pulso = arm.matrix_world @ arm.data.bones['wrist'].head_local
+    # dedos -Z → +Y, costas +X → +Z (a palma do modelo olha para -X)
+    R = Matrix(((0, -1, 0), (0, 0, -1), (1, 0, 0))).to_4x4()
+    bpy.ops.object.empty_add(location=(0, 0, 0)); raiz = bpy.context.object; raiz.name = 'mao_rig'
+    arm.parent = raiz; arm.matrix_parent_inverse = R @ Matrix.Translation(-pulso) @ arm.matrix_world.inverted() @ arm.matrix_world
+    pele.data.materials.clear(); pele.data.materials.append(LUVA_COURO)
+    for poly in pele.data.polygons: poly.use_smooth = True
+    sub = pele.modifiers.new('liso', 'SUBSURF'); sub.levels = 1; sub.render_levels = 2
+    # a manga da jaqueta: um tubo do pulso para trás, com a borda dobrada
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=.048, depth=.34, location=(0, -.2, .005), rotation=(math.radians(90), 0, 0))
+    manga = bpy.context.object; manga.scale = (1., 1., .82); manga.parent = raiz; manga.data.materials.append(JAQUETA)
+    punho = manga
+    for o in (manga,): o.data.polygons.foreach_set('use_smooth', [True] * len(o.data.polygons))
+    for o in (pele, manga, punho): o['mao'] = 1   # partes da mão (escondidas/mostradas juntas)
+    return pele, raiz, arm
+MAO, MAO_RIG, MAO_ARM = mao()
+DEDOS = ('index', 'middle', 'ring', 'pinky')
 def mao_pose(q, loc, rot, curva, polegar=None):
-    """curva: 0 = aberta … 1 = fechada (garra/agarrando)."""
+    """curva: 0 = aberta … 1 = fechada (garra/agarrando). Cada falange gira em torno do eixo de lado a lado da
+    palma (o y do modelo), mais na base, menos na ponta; o polegar dobra para dentro da palma."""
     MAO_RIG.location = loc; MAO_RIG.rotation_euler = Euler([math.radians(a) for a in rot])
     MAO_RIG.keyframe_insert('location', frame=q); MAO_RIG.keyframe_insert('rotation_euler', frame=q)
-    for pb in MAO_RIG.pose.bones:
-        pb.rotation_mode = 'XYZ'
-        if pb.name[:-1] in DEDOS:
-            k = (polegar if (polegar is not None and pb.name.startswith('polegar')) else curva)
-            pb.rotation_euler = Euler((math.radians(-k * (55 if pb.name[-1] == '0' else 70)), 0, 0))
-        pb.keyframe_insert('rotation_euler', frame=q)
+    pol = curva if polegar is None else polegar
+    for pb in MAO_ARM.pose.bones:
+        pb.rotation_mode = 'QUATERNION'; n = pb.name; ang = 0.; eixo = Vector((0, 1, 0))
+        if any(n.startswith(d) for d in DEDOS):
+            ang = {'phalanx-proximal': 62, 'phalanx-intermediate': 78, 'phalanx-distal': 46}.get(n.split('-finger-')[-1], 0) * curva
+        elif n.startswith('thumb'):
+            ang = {'thumb-metacarpal': 18, 'thumb-phalanx-proximal': 34, 'thumb-phalanx-distal': 40}.get(n, 0) * pol; eixo = Vector((-.35, .25, -1)).normalized()
+        local = (pb.bone.matrix_local.to_3x3().inverted() @ eixo).normalized()
+        pb.rotation_quaternion = Quaternion(local, math.radians(ang * SINAL_CURVA))
+        pb.keyframe_insert('rotation_quaternion', frame=q)
+SINAL_CURVA = float(os.environ.get('K14_SINAL', '1'))
 
 # ═════════════════════════════ CÂMERAS ═════════════════════════════
 bpy.ops.object.camera_add(); cam = bpy.context.object; sc.camera = cam
@@ -557,22 +560,26 @@ def tremor(q, forca):
     return Vector((math.sin(q * 1.9) * .6 + math.sin(q * 4.3) * .4, 0, math.sin(q * 2.7) * .5 + math.sin(q * 5.1) * .5)) * forca
 def mao_na_camera():
     """a luva presa à câmera: no espaço dela x = direita, y = cima, z = para trás (olha para -z)"""
-    MAO_RIG.parent = cam; MAO_RIG.matrix_parent_inverse = Matrix.Identity(4); MAO.hide_render = False
+    MAO_RIG.parent = cam; MAO_RIG.matrix_parent_inverse = Matrix.Identity(4)
 VAO.visible_camera = False   # o plano de luz do vão não pode tapar a vista de quem está DENTRO da porta
 if PLANO == 'geral':
-    P = PORTA; dentro = Vector((0.05, P.y + 1.25, P.z + 1.66))
-    cam_chave(1, dentro, (0, P.y - 6, P.z + 1.45), 26, foco=1.4, f=2.8)
-    cam_chave(28, dentro + Vector((0, -.25, -.03)), (0, P.y - 6, P.z + 1.4), 26, foco=1.2, f=2.8)
-    cam_chave(36, dentro + Vector((0, -.42, -.05)), (0, P.y - 6, P.z + 1.35), 26, foco=1., f=2.8)
-    cam_chave(40, dentro + Vector((0, -.2, .02)), (0, P.y - 6, P.z + 1.8), 26, foco=8., f=5.6)       # o tranco da luz
-    cam_chave(56, (.1, -1.2, zc(-1.2) + 1.66), (.4, -22, zc(-22) + 1.2), 22, foco=20, f=8)            # atravessa: o vale
-    cam_chave(66, (.15, -1.35, zc(-1.35) + 1.65), (-3, -22, zc(-22) + 2.), 22, rolar=-2, foco=20, f=8)
+    P = PORTA; dentro = Vector((0.05, P.y + .62, P.z + 1.66))
+    cam_chave(1, dentro, (0, P.y - 6, P.z + 1.45), 24, foco=.8, f=2.8)
+    cam_chave(26, dentro + Vector((0, -.06, -.02)), (0, P.y - 6, P.z + 1.4), 24, foco=.6, f=2.8)
+    cam_chave(36, dentro + Vector((0, -.14, -.04)), (0, P.y - 6, P.z + 1.35), 24, foco=.55, f=2.8)   # empurra
+    cam_chave(44, dentro + Vector((0, .2, .02)), (0, P.y - 6, P.z + 1.6), 20, foco=1.5, f=4)          # ofuscado, recua um passo
+    cam_chave(54, dentro + Vector((0, .5, .03)), (0, P.y - 6, P.z + 1.5), 18, foco=2.5, f=4)          # e vê as duas folhas girando
+    cam_chave(60, dentro + Vector((0, .1, 0)), (0, P.y - 6, P.z + 1.5), 20, foco=10., f=5.6)
+    cam_chave(64, (.1, -1.2, zc(-1.2) + 1.66), (.4, -22, zc(-22) + 1.2), 22, foco=20, f=8)            # atravessa: o vale
+    cam_chave(70, (.15, -1.35, zc(-1.35) + 1.65), (-3, -22, zc(-22) + 2.), 22, rolar=-2, foco=20, f=8)
     # e se vira, ainda na crista: pelo vão da porta, o gigante gasoso (a ~11° acima do horizonte)
     cam_chave(74, (.2, -1.45, zc(-1.45) + 1.64), (-30, -2, zc(-1.45) + 4.), 20, rolar=-4, foco=20, f=8)
     cam_chave(84, (.25, -1.5, zc(-1.5) + 1.63), (1.5, 40, zc(-1.5) + 1.63 + 40 * math.tan(math.radians(14))), 18, foco=30, f=8)
     mao_na_camera()   # a luva empurra as folhas
-    for q, loc, rot, c in ((1, (.2, -.55, -.3), (-75, 0, 0), .3), (16, (.2, -.55, -.3), (-75, 0, 0), .3), (26, (.1, -.16, -.4), (-85, 0, 4), .05),
-                           (34, (.08, -.13, -.62), (-88, 0, 4), .0), (38, (.1, -.2, -.5), (-60, 0, 10), .4), (46, (.25, -.6, -.3), (-40, 0, 20), .5)):
+    # a palma espalmada na madeira (costas da mão para a câmera, dedos para cima), empurra e acompanha a folha
+    for q, loc, rot, c in ((1, (.22, -.62, -.3), (0, 0, -6), .35), (16, (.22, -.62, -.3), (0, 0, -6), .35), (28, (.1, -.14, -.4), (-4, 0, -8), .08),
+                           (34, (.09, -.11, -.45), (-6, 0, -8), .0), (40, (.09, -.1, -.5), (-8, 0, -8), .0), (45, (.1, -.13, -.58), (-12, 0, -6), .1),
+                           (51, (.22, -.62, -.42), (-25, 0, 0), .35)):
         mao_pose(q, Vector(loc), rot, c, polegar=c)
 elif PLANO == 'porta':
     O = Vector((.25, -1.5, zc(-1.5) + 1.63)); alvo = O + Vector((1.3, 40, 40 * math.tan(math.radians(14))))
@@ -651,7 +658,11 @@ if PLANO in ('geral', 'porta'):   # da crista, o gigante baixo ficaria atrás da
     _O = Vector((.25, -1.5, zc(-1.5) + 1.63))
     for ob in GIGANTE:
         d = ob.location - _O; ob.location.z = _O.z + d.xy.length * math.tan(math.radians(22))
-MAO.hide_render = True    # sem mãos na tela: só o que os olhos veem
+# K14_MAO=1: renderiza SÓ a luva, numa camada transparente que o Remotion põe por cima dos quadros
+# já prontos (o resto da cena vira "holdout": recorta a mão onde passa na frente e segue iluminando)
+MAO_SO = os.environ.get('K14_MAO') == '1'
+for _o in sc.objects:
+    if _o.get('mao'): _o.hide_render = not (MAO_SO or PLANO == 'geral') or PLANO == 'visor'   # na porta a mão já sai no render
 CORPO.hide_render = True  # nada de terceira pessoa
 if PLANO in ('geral',): CAPACETE.hide_render = False
 
@@ -694,6 +705,11 @@ nt.links.new(mx.outputs[0], glare.inputs[0]); nt.links.new(glare.outputs[0], com
 r.image_settings.file_format = 'PNG'; r.image_settings.color_mode = 'RGB'
 r.use_overwrite = False; r.use_placeholder = True   # rodar de novo continua de onde parou
 sc.frame_start, sc.frame_end = DE, ATE; sc.frame_step = PASSO
+if MAO_SO:
+    for ob in sc.objects:
+        if not ob.get('mao') and ob.type in ('MESH', 'CURVE'): ob.is_holdout = True
+    r.film_transparent = True; r.image_settings.color_mode = 'RGBA'; sc.use_nodes = False
+    r.filepath = os.path.join(OUT, 'mao_' + PLANO + '_')
 exec(os.environ.get('K14_EXTRA', ''))   # ajustes de depuração vindos de fora
-r.filepath = os.path.join(OUT, PLANO + '_')
+r.filepath = r.filepath if MAO_SO else os.path.join(OUT, PLANO + '_')
 bpy.ops.render.render(animation=True)
