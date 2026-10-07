@@ -354,7 +354,8 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0);
-  const carregandoAndar = useCarregandoAndar(currentLevel, currentLevel === 13); const [overlayOpacity, setOverlayOpacity] = useState(0);
+  // o 13 tem tela própria; o 14 abre direto no vídeo da chegada (que espera a si mesmo) — a tela genérica tampava o começo
+  const carregandoAndar = useCarregandoAndar(currentLevel, currentLevel === 13 || currentLevel === 14); const [overlayOpacity, setOverlayOpacity] = useState(0);
   // Creator variants are prepared synchronously inside handleStartGame. Keep
   // the pending variant across the currentLevel render so the normal Floor 8
   // arrival effect does not immediately erase a direct YOURSELF jump.
