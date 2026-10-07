@@ -362,6 +362,7 @@ export default function App() {
   const floor8StartVariantRef = useRef<string | null>(null);
   // destino do Modo Criador dentro do Andar 13 (morador, casa certa, entidade…)
   const [f13Inicio, setF13Inicio] = useState<string | undefined>(undefined);
+  const [f14Inicio, setF14Inicio] = useState<string | undefined>(undefined);   // atalhos do criador: 'f14Final' | 'f14Lab'
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -1546,6 +1547,7 @@ export default function App() {
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       } else if (startLevel === 14) {
         // Andar 14 — Kessar-9: monta direto (a chegada é a cutscene do próprio andar)
+        setF14Inicio(startVariant);
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
@@ -2903,7 +2905,7 @@ export default function App() {
           Canvas, câmera e controles dele, e o mundo do hotel fica por baixo. */}
       {currentLevel === 12 && !doorsClosed && <Floor12 onExit={handleFloor12Exit} />}
       {currentLevel === 13 && !doorsClosed && <Floor13 onExit={handleFloor13Exit} inicio={f13Inicio} />}
-      {currentLevel === 14 && !doorsClosed && <Floor14 onExit={handleFloor14Exit} />}
+      {currentLevel === 14 && !doorsClosed && <Floor14 onExit={handleFloor14Exit} inicio={f14Inicio} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}

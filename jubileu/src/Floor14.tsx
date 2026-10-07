@@ -471,8 +471,8 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             // ela PERCEBE quando o hóspede olha para ela (a < 60 m, mirando a menos de 12°) ou chega a 25 m:
             // fica 1,5 s parada, encarando, e só então some
             const olhando = (() => { camera.getWorldDirection(dir); alvo.set(a.x - camera.position.x, y + 3 - camera.position.y, a.z - camera.position.z).normalize(); return dir.dot(alvo) > Math.cos(12 * Math.PI / 180); })();
-            if (a.foge > 0 && s.percebeu === 0 && (d < 18 || (d < 30 && olhando))) s.percebeu = .0001;
-            if (s.percebeu > 0) { if (s.percebeu === .0001) tocarOlhar(); s.percebeu += dt; if (s.percebeu > 1.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); abalo.v = .6; anel.t = 0; anel.x = a.x; anel.z = a.z; } }
+            if (a.foge > 0 && s.percebeu === 0 && (d < 12 || (d < 20 && olhando))) s.percebeu = .0001;   // deixa chegar mais perto antes de perceber
+            if (s.percebeu > 0) { if (s.percebeu === .0001) tocarOlhar(); s.percebeu += dt; if (s.percebeu > 2.5) { s.fugindo = .0001; s.percebeu = 0; tocarSumico(); abalo.v = .6; anel.t = 0; anel.x = a.x; anel.z = a.z; } }
             else if (a.foge === 0 && d < 5) aoAlcancar();
         }
         if (s.fugindo > 0) {
@@ -484,7 +484,7 @@ const Sombra: React.FC<{ estado: React.MutableRefObject<EstadoSombra>; jog: Reac
             else { opac = 1 - k; esc = 1 + k * .6; }
             if (s.fugindo > 1.7) { const anterior = s.i; s.i = Math.min(APARICOES.length - 1, s.i + 1); s.fugindo = 0; aoFugir(anterior); }
         }
-        const tenso = Math.min(1, s.percebeu / 1.5);
+        const tenso = Math.min(1, s.percebeu / 2.5);
         gr.position.set(x, y, z);
         // vira-se para o hóspede (só o corpo, sem rosto)
         gr.rotation.y = Math.atan2(j.x - x, j.z - z);   // vira-se para o hóspede (a cabeça inclina na figura)
@@ -625,12 +625,12 @@ const MundoPronto: React.FC<{pronto: (v: boolean) => void}> = ({pronto}) => {
     return null;
 };
 
-export default function Floor14({ onExit }: { onExit: () => void }) {
+export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio?: string }) {
     const settings = useOptionalSettings();
     const reduzida = settings.quality === 'low';
     useLayoutEffect(() => ligarAtmosfera(), []);   // névoa com altura e sol, só enquanto o andar existe
     useEffect(() => { abalo.v = 0; anel.t = 9; }, []);
-    const [fase, setFase] = useState<Fase>('chegada');
+    const [fase, setFase] = useState<Fase>(inicio === 'f14Lab' ? 'lab' : inicio === 'f14Final' ? 'explorar' : 'chegada');
     const jog = useRef<Jog>({ x: INICIO.x, y: alturaEm(0, 0), z: INICIO.z, andando: 0, caido: 1 });
     const entrada = useRef({ x: 0, z: 0 }), yaw = useRef(0), pitch = useRef(-.10);
     const folego = useRef(FOLEGO_TOTAL);
@@ -688,6 +688,18 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     const [pontosDescida, setPontosDescida] = useState<PontosDescida | null>(null);
     const [legenda, setLegenda] = useState<string | null>(null);
     // alcançou: ela não some — o encontro (diálogo), depois a descida (cutscene) e o laboratório
+    // atalho do modo criador: direto ao encontro na cratera (o mundo precisa estar montado)
+    const saltou = useRef(false);
+    useEffect(() => {
+        if (inicio !== 'f14Final' || saltou.current || !mundoPronto) return;
+        saltou.current = true;
+        const ap = APARICOES[APARICOES.length - 1];
+        Object.assign(sombra.current, { i: APARICOES.length - 1, fugindo: 0, percebeu: 0 });
+        Object.assign(jog.current, { x: ap.x + 3, z: ap.z + 3, caido: 0 }); jog.current.y = alturaEm(ap.x + 3, ap.z + 3);
+        const a = APARICOES[APARICOES.length - 1], j = jog.current;
+        setPontosDescida({ ent: new THREE.Vector3(a.x, alturaEm(a.x, a.z), a.z), jog: new THREE.Vector3(j.x, j.y, j.z) });
+        setFase('encontro');
+    });
     const aoAlcancar = () => {
         if (fase !== 'explorar') return;
         const a = APARICOES[APARICOES.length - 1], j = jog.current;
@@ -751,6 +763,17 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
         if (ev.pointerId === t.cam) t.cam = null;
     };
 
+    // a bússola: uma seta violeta para a sombra e a distância (atualiza 5×/s, sem re-render a cada quadro)
+    const [bussola, setBussola] = useState<{ ang: number; d: number } | null>(null);
+    useEffect(() => {
+        if (fase !== 'explorar') { setBussola(null); return; }
+        const id = window.setInterval(() => {
+            const a = APARICOES[sombra.current.i], j = jog.current, dx = a.x - j.x, dz = a.z - j.z;
+            const rel = Math.atan2(-dx, -dz) - yaw.current;
+            setBussola({ ang: -Math.atan2(Math.sin(rel), Math.cos(rel)), d: Math.hypot(dx, dz) });
+        }, 200);
+        return () => window.clearInterval(id);
+    }, [fase]);
     const falta = 1 - folegoUi / FOLEGO_TOTAL;
     const comCapacete = fase === 'explorar' || fase === 'encontro' || fase === 'descida' || fase === 'lab' || fase === 'fim';
     return (
@@ -818,6 +841,12 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '2px solid rgba(255,240,220,.5)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 44 + stick.x, top: 44 + stick.y, width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,240,220,.6)' }} /></div>}
 
+            {bussola && <div style={{ position: 'absolute', top: 44, right: 18, width: 74, textAlign: 'center', pointerEvents: 'none', color: '#ece4ff', fontFamily: 'Georgia, serif', fontSize: 13, textShadow: '0 1px 4px #000' }}>
+                <div style={{ width: 54, height: 54, margin: '0 auto 4px', borderRadius: '50%', border: '2px solid rgba(180,140,255,.55)', background: 'rgba(12,6,20,.45)', display: 'grid', placeItems: 'center' }}>
+                    <svg width="34" height="34" viewBox="-17 -17 34 34" style={{ transform: `rotate(${bussola.ang}rad)` }}><path d="M0,-14 L8,8 L0,3 L-8,8 Z" fill="#b48aff" stroke="#1a0c2a" strokeWidth="1.5" /></svg>
+                </div>
+                {Math.round(bussola.d)} m
+            </div>}
             {/* o final: o encontro na cratera, a descida e o laboratório */}
             {fase === 'encontro' && <Dialogo falas={ENCONTRO} aoFim={() => setFase('descida')} />}
             {fase === 'descida' && <Legenda texto={legenda} />}
