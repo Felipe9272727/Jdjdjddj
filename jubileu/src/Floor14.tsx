@@ -772,7 +772,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 </EffectComposer>}
                 <MundoPronto pronto={setMundoPronto} />
                 <PerformanceMonitor bounds={() => [50, 58]} flipflops={4}
-                    onDecline={() => setDpr((d) => Math.max(1, +(d - .25).toFixed(2)))}
+                    onDecline={({ fps }) => setDpr((d) => Math.max(fps < 30 ? .8 : 1, +(d - .25).toFixed(2)))}   // abaixo de 1× só se ainda engasgar
                     onIncline={() => setDpr((d) => Math.min(dprMax, window.devicePixelRatio || 1, +(d + .25).toFixed(2)))} />
                 <Corpo jog={jog} entrada={entrada} yaw={yaw} pitch={pitch} fase={fase} folego={folego} />
             </Canvas>

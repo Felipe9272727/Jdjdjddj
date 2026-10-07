@@ -11,7 +11,10 @@ export function materialCeu(): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
         side: THREE.BackSide, depthWrite: false, fog: false,
         uniforms: { sun: { value: SOL }, tempo: { value: 0 } },
-        vertexShader: 'varying vec3 direction; void main(){direction=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+        // a cúpula vai para o FUNDO do buffer de profundidade (z = w) e é desenhada por último (renderOrder alto):
+        // o terreno a esconde antes do shader rodar — só os pixels de céu que aparecem pagam o custo dele
+        vertexShader: 'varying vec3 direction; void main(){direction=position; vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.); gl_Position=p.xyww;}',
+        depthFunc: THREE.LessEqualDepth,
         fragmentShader: `varying vec3 direction; uniform vec3 sun; uniform float tempo;
         float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float vn(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
@@ -29,11 +32,13 @@ export function materialCeu(): THREE.ShaderMaterial {
           // faixa de poeira no horizonte
           c=mix(c,vec3(1.,.70,.47),exp(-abs(h)*16.)*.42);
           // nuvens altas (cirros): ruído esticado no vento, acesas por trás pelo sol
-          vec2 uv=v.xz/(max(h,.02)+.10);
-          float n=fbm2(vec2(uv.x*.55+tempo*.006,uv.y*2.1)+fbm2(uv*.7)*1.3);
-          float nuv=smoothstep(.52,.86,n)*smoothstep(.015,.14,h)*(1.-smoothstep(.45,.85,h));
-          vec3 corNuv=mix(vec3(.92,.66,.58),vec3(1.,.84,.62),pow(sd,3.))*(.75+pow(sd,8.)*1.6);
-          c=mix(c,corNuv,nuv*.65);
+          if(h>.015 && h<.85){   // só onde pode haver nuvem: 10 avaliações de ruído a menos no resto
+            vec2 uv=v.xz/(max(h,.02)+.10);
+            float n=fbm2(vec2(uv.x*.55+tempo*.006,uv.y*2.1)+fbm2(uv*.7)*1.3);
+            float nuv=smoothstep(.52,.86,n)*smoothstep(.015,.14,h)*(1.-smoothstep(.45,.85,h));
+            vec3 corNuv=mix(vec3(.92,.66,.58),vec3(1.,.84,.62),pow(sd,3.))*(.75+pow(sd,8.)*1.6);
+            c=mix(c,corNuv,nuv*.65);
+          }
           // o segundo sol, pequeno e frio
           vec3 second=normalize(vec3(-.3,.12,-.95));
           float s2=max(dot(v,second),0.); c+=vec3(.7,.85,1.)*(pow(s2,2600.)*3.+pow(s2,60.)*.08);
@@ -72,7 +77,7 @@ export function CeuKessar() {
     const material = useMemo(materialCeu, []);
     useFrame(({camera, clock})=>{if(dome.current)dome.current.position.copy(camera.position); material.uniforms.tempo.value = clock.elapsedTime;});
     React.useEffect(() => () => material.dispose(), [material]);
-    return <mesh ref={dome} material={material} renderOrder={-10}><sphereGeometry args={[900,48,24]} /></mesh>;
+    return <mesh ref={dome} material={material} renderOrder={1000} frustumCulled={false}><sphereGeometry args={[900,48,24]} /></mesh>;
 }
 
 /** O céu acende o mundo: um mapa de ambiente (PMREM) feito do próprio céu, uma vez. */
