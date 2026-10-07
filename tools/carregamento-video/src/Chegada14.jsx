@@ -10,7 +10,7 @@ export const DUR = 472;
 const BLENDER = 460;
 const PLANOS = [['geral', 1, 84], ['porta', 85, 150], ['queda', 151, 210], ['pov', 211, 330], ['pega', 331, 410], ['visor', 411, 460]];
 const DENTRO = 405;   // o capacete fecha na cabeça (quadro daqui = quadro do Blender − 1)
-const BAQUES = [153, 163, 173, 183, 193, 201];
+const BAQUES = [158, 169, 181, 193, 202];   // a cambalhota bate na areia
 const c = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' };
 const liso = (f, a, b) => { const x = interpolate(f, [a, b], [0, 1], c); return x * x * (3 - 2 * x); };
 const n4 = (n) => String(n).padStart(4, '0');
@@ -28,7 +28,7 @@ export function Chegada14() {
   const plano = PLANOS.find(([, a, b]) => qb >= a && qb <= b)[0];
 
   // o sufoco: cresce do chão (pov) até o capacete fechar; depois some com o primeiro fôlego
-  const sufoco = liso(f, 140, DENTRO - 6) * (1 - liso(f, DENTRO + 10, DENTRO + 40));
+  const sufoco = liso(f, 86, DENTRO - 6) * (1 - liso(f, DENTRO + 10, DENTRO + 40));
   const ritmo = .95 - .45 * sufoco;   // segundos entre batidas (o coração dispara)
   const batida = Math.exp(-((f / 24) % ritmo) * 9);
   // o tranco dos baques na queda
@@ -36,7 +36,7 @@ export function Chegada14() {
   const tx = Math.sin(f * 2.7) * tranco, ty = Math.cos(f * 3.1) * tranco * .8;
   const pulsa = 1 + batida * sufoco * .012;
   // a luz do estouro da porta
-  const clarao = interpolate(f, [95, 97, 99, 118], [0, .85, .7, 0], c);
+  const clarao = interpolate(f, [33, 36, 39, 58], [0, .85, .7, 0], c);   // as folhas estouram (quadro 37 do Blender)
   // o embaçado do vidro na expiração dentro do capacete
   const bafo = interpolate(f, [448, 456, 466, 472], [0, .42, .3, .18], c);
   const preto = Math.max(1 - liso(f, 0, 14), liso(f, 462, DUR - 1));
@@ -56,7 +56,7 @@ export function Chegada14() {
     })}
     <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 46%, transparent ${38 - sufoco * 22}%, rgba(10,4,3,${escuro}) 100%)` }} />
     <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 72%, rgba(255,240,222,.9) 0%, rgba(255,236,214,.35) 30%, transparent 60%)', opacity: bafo, filter: 'blur(6px)' }} />
-    <Manim f={f} cena="Titulo" de={8} quadros={72} />
+    <Manim f={f} cena="Titulo" de={84} quadros={72} />
     <Manim f={f} cena="Folego" de={210} quadros={201} />
     <Manim f={f} cena="Alivio" de={412} quadros={51} />
     <AbsoluteFill style={{ background: '#ffe2b0', opacity: clarao, mixBlendMode: 'screen' }} />

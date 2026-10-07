@@ -1,6 +1,6 @@
 """Som da chegada ao Andar 14, sintetizado e determinístico (sem áudio de terceiros, sem voz gerada).
 Sincronizado aos planos de cinema.py (24 q/s): python3 audio.py [saida.wav] [quadros]
-  geral 1–84 · porta 85–150 (estouro em 97–99) · queda 151–210 · pov 211–330 · pega 331–410 · visor 411–460"""
+  (tudo em 1ª pessoa) porta 1–84 (estouro em 37) · sufoco 85–150 · queda 151–210 · chão 211–330 · capacete 331–410 · visor 411–460"""
 import numpy as np, wave, os, sys
 
 SR = 48000; FPS = 24
@@ -49,20 +49,20 @@ amb += .05 * vento * raj + .012 * assobio * np.clip(np.sin(t * .45), 0, 1) ** 2
 amb += .02 * np.sin(2 * np.pi * (34 * t + .3 * np.sin(t * .5))) * np.clip(t / 2, 0, 1)
 
 # ── a porta: a luz vaza (rangido grave), ESTOURA, e vai se apagando ──
-amb += janela(q(60), q(97) - q(60), 1.) * .06 * np.sin(2 * np.pi * (46 * t + 8 * t ** 2 / DUR))
-inch = np.clip((t - q(80)) / (q(97) - q(80)), 0, 1) ** 3 * (t < q(97))
+amb += janela(q(1), q(37) - q(1), 1.) * .06 * np.sin(2 * np.pi * (46 * t + 8 * t ** 2 / DUR))
+inch = np.clip((t - q(20)) / (q(37) - q(20)), 0, 1) ** 3 * (t < q(37))
 amb += inch * (.25 * filtrado(lambda f: np.exp(-((f - 700) / 900) ** 2)))   # o sopro que antecede o estouro
-amb += env(q(97), .01, .55) * (.6 * grave + .25 * vento + .5 * np.sin(2 * np.pi * 42 * np.clip(t - q(97), 0, None)))
-amb += env(q(97), .02, 1.6) * .12 * assobio
-for f0 in (99, 103):   # as folhas batem nas dobradiças
+amb += env(q(37), .01, .55) * (.6 * grave + .25 * vento + .5 * np.sin(2 * np.pi * 42 * np.clip(t - q(37), 0, None)))
+amb += env(q(37), .02, 1.6) * .12 * assobio
+for f0 in (39, 43):   # as folhas batem nas dobradiças
     u = np.clip(t - q(f0), 0, None); amb += (t >= q(f0)) * np.exp(-u * 18) * .25 * np.sin(2 * np.pi * 130 * u) * np.exp(-u * 3)
 
 # ── engasgos (porta e queda): sopros curtos, travados, com a glote batendo ──
-for ini, d in ((q(100), .32), (q(112), .28), (q(124), .3), (q(136), .25), (q(146), .2)):
+for ini, d in ((q(90), .34), (q(102), .3), (q(113), .3), (q(124), .26), (q(134), .24), (q(143), .2)):
     trava = .55 + .45 * np.sign(np.sin(2 * np.pi * 26 * t))
     perto += janela(ini, d, 1.5) * .22 * sopro * trava
 # ── a queda: baques na areia e a areia escorrendo ──
-for f0, a in ((154, .9), (164, .7), (174, .8), (184, .6), (194, .7), (202, .4)):
+for f0, a in ((159, .9), (170, .7), (182, .8), (194, .6), (203, .4)):
     u = np.clip(t - q(f0), 0, None)
     amb += (t >= q(f0)) * np.exp(-u * 16) * a * (.5 * grave + .35 * np.sin(2 * np.pi * 58 * u))
     amb += env(q(f0), .005, .35) * a * .16 * areia
@@ -75,15 +75,15 @@ while tk < k1 - .2:
     p = (tk - k0) / (k1 - k0)
     d = .6 - .35 * p; perto += janela(tk, d, 1.2) * (.2 + .1 * p) * sopro * (.6 + .4 * np.sign(np.sin(2 * np.pi * (18 + 14 * p) * t)))
     tk += d + .45 - .3 * p
-tb = q(200)
+tb = q(88)
 while tb < DUR - .3:
     p = np.clip((tb - k0) / (k1 - k0), 0, 1) if tb < DENTRO else 1 - np.clip((tb - DENTRO) / 1.8, 0, .7)
     for atraso, a in ((0, .5), (.17, .3)):
         u = np.clip(t - tb - atraso, 0, None); perto += (t >= tb + atraso) * np.exp(-u * 28) * a * .3 * np.sin(2 * np.pi * 48 * u)
     tb += .95 - .45 * p
 # ── as mãos arranhando a areia, a madeira do capacete ──
-for f0 in (268, 280, 290, 300, 310, 322, 336, 350):
-    perto += janela(q(f0), .22, 1.) * .2 * areia * (.6 + .4 * np.sin(2 * np.pi * 31 * t))
+for f0 in (268, 290, 310, 336, 350):   # o corpo se arrastando na areia
+    perto += janela(q(f0), .3, 1.) * .12 * areia * (.6 + .4 * np.sin(2 * np.pi * 31 * t))
 for f0, a in ((380, .5), (392, .2), (402, .3)):   # agarra (madeira oca), ergue, encosta no ombro
     u = np.clip(t - q(f0), 0, None)
     perto += (t >= q(f0)) * np.exp(-u * 22) * a * (np.sin(2 * np.pi * 210 * u) + .6 * np.sin(2 * np.pi * 330 * u) + .3 * np.sin(2 * np.pi * 520 * u))

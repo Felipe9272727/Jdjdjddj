@@ -3,9 +3,11 @@
     blender -b -P tools/chegada14/cinema.py -- <pasta_saida> <plano> [de] [ate]
 
 Uma linha do tempo só (24 qps); cada PLANO tem a sua câmera e renderiza o seu trecho:
-  geral  (  1– 84)  a porta de Vindhjem sozinha na crista de uma duna, o gigante gasoso atrás
-  porta  ( 85–150)  a porta estoura em luz; o hóspede sai cambaleando, a mão na garganta
-  queda  (151–210)  ele perde o pé e rola pela face da duna; a areia espirra
+TUDO EM PRIMEIRA PESSOA (os olhos do hóspede; nunca se vê o corpo de fora):
+  geral  (  1– 84)  de dentro da porta de Vindhjem: a luva empurra, as folhas estouram em luz, ele
+                    atravessa, vê o vale e se vira: a porta na crista e o gigante gasoso atrás
+  porta  ( 85–150)  o ar não vem: a vista treme e pende, a mão sobe ao rosto, ele recua cambaleando
+  queda  (151–210)  cai de costas e rola duna abaixo (céu, areia, céu) até parar deitado
   pov    (211–330)  no chão, sem ar: o céu, a areia, a mão arranhando; ao longe, o capacete
   pega   (331–410)  ele se arrasta, agarra o capacete e o traz para a cabeça
   visor  (411–460)  de dentro do capacete: a paisagem pela escotilha, o primeiro fôlego
@@ -325,8 +327,9 @@ def porta():
     # o vão: luz de Vindhjem lá dentro
     bpy.ops.mesh.primitive_plane_add(size=1, location=(P.x, P.y + .12, P.z + 1.62)); v = bpy.context.object
     v.scale = (1.62, 3.2, 1); v.rotation_euler = (math.radians(90), 0, 0); v.data.materials.append(LUZ_PORTA)
+    global VAO; VAO = v
     bpy.ops.object.light_add(type='AREA', location=(P.x, P.y + .4, P.z + 1.6)); luz = bpy.context.object
-    luz.data.size = 1.5; luz.data.color = (1., .75, .45); luz.data.energy = 0; luz.rotation_euler = (math.radians(-90), 0, 0)
+    luz.visible_camera = False; luz.data.size = 1.5; luz.data.color = (1., .75, .45); luz.data.energy = 0; luz.rotation_euler = (math.radians(-90), 0, 0)
     # o feixe de luz que sai pelo vão (um cone translúcido emissivo: "raios" sem volume)
     bpy.ops.mesh.primitive_cone_add(vertices=32, radius1=3.6, radius2=.85, depth=9, location=(P.x, P.y - 4.6, P.z + 1.2))
     fx = bpy.context.object; fx.rotation_euler = (math.radians(-95), 0, 0); fx.data.materials.append(FEIXE); fx.visible_shadow = False; fx.hide_render = True   # o brilho fica com o glare
@@ -420,13 +423,12 @@ CHAVES = [
 ]
 for q, raiz, rot, ossos in CHAVES: pose(q, raiz, rot, ossos)
 # esconde o corpo fora dos planos dele
-for q, vis in ((1, False), (84, False), (85, True), (210, True), (211, False)):
-    CORPO.hide_render = not vis; CORPO.keyframe_insert('hide_render', frame=q)
+# (o corpo nunca aparece: tudo é visto pelos olhos dele)
 # a porta: fechada com luz vazando (1–96), estoura (97–102), aberta; o feixe acende junto
 for dob, lado in FOLHAS:
-    for q, ang in ((96, 0), (99, -lado * 125), (103, -lado * 105), (110, -lado * 112)):
+    for q, ang in ((34, 0), (37, -lado * 125), (41, -lado * 105), (48, -lado * 112)):
         dob.rotation_euler = (0, 0, math.radians(ang)); dob.keyframe_insert('rotation_euler', frame=q)
-for q, e, ef in ((1, 60, .4), (90, 150, .6), (96, 300, .8), (99, 6000, 6.), (106, 1200, 2.5), (150, 500, 1.6), (330, 250, .9), (411, 60, .3)):   # e vai se apagando
+for q, e, ef in ((1, 25, .6), (30, 45, .8), (34, 70, 1.), (37, 6000, 6.), (44, 1200, 2.5), (84, 500, 1.6), (330, 250, .9), (411, 60, .3)):   # e vai se apagando
     LUZ.data.energy = e; LUZ.data.keyframe_insert('energy', frame=q)
     nd = LUZ_PORTA.node_tree.nodes['Principled BSDF'].inputs['Emission Strength']; nd.default_value = ef * 6; nd.keyframe_insert('default_value', frame=q)
     fe = FEIXE.node_tree.nodes['Emission'].inputs['Strength']; fe.default_value = ef * .12; fe.keyframe_insert('default_value', frame=q)
@@ -527,8 +529,22 @@ bpy.ops.object.camera_add(); cam = bpy.context.object; sc.camera = cam
 cam.data.sensor_width = 36; cam.data.clip_start = .02; cam.data.clip_end = 6000   # o gigante está a 1,4 km
 def olhar(loc, alvo, rolar=0.):
     d = Vector(alvo) - Vector(loc); q = d.to_track_quat('-Z', 'Y'); e = q.to_euler(); e.rotate_axis('Z', math.radians(rolar)); return e
+_ULT = [None]
+def cam_rot(q, loc, e, lente=35, foco=None, f=2.8):
+    """Chave de câmera com orientação explícita; o euler fica contínuo com a chave anterior (sem giro de 360° no meio)."""
+    if _ULT[0] is not None: e.make_compatible(_ULT[0])
+    _ULT[0] = e.copy()
+    cam.location = loc; cam.rotation_euler = e; cam.data.lens = lente
+    cam.keyframe_insert('location', frame=q); cam.keyframe_insert('rotation_euler', frame=q); cam.data.keyframe_insert('lens', frame=q)
+    cam.data.dof.use_dof = foco is not None
+    if foco is not None:
+        cam.data.dof.focus_distance = foco; cam.data.dof.aperture_fstop = f
+        cam.data.dof.keyframe_insert('focus_distance', frame=q); cam.data.dof.keyframe_insert('aperture_fstop', frame=q)
 def cam_chave(q, loc, alvo, lente=35, rolar=0., foco=None, f=2.8):
-    cam.location = loc; cam.rotation_euler = olhar(loc, alvo, rolar); cam.data.lens = lente
+    e = olhar(loc, alvo, rolar)
+    if _ULT[0] is not None: e.make_compatible(_ULT[0])
+    _ULT[0] = e.copy()
+    cam.location = loc; cam.rotation_euler = e; cam.data.lens = lente
     cam.keyframe_insert('location', frame=q); cam.keyframe_insert('rotation_euler', frame=q); cam.data.keyframe_insert('lens', frame=q)
     cam.data.dof.use_dof = foco is not None
     if foco is not None:
@@ -536,17 +552,51 @@ def cam_chave(q, loc, alvo, lente=35, rolar=0., foco=None, f=2.8):
         cam.data.dof.keyframe_insert('focus_distance', frame=q); cam.data.dof.keyframe_insert('aperture_fstop', frame=q)
 
 OLHO_CHAO = Vector((.7, -10.6, altura(.7, -10.6) + .32))
+def tremor(q, forca):
+    """pequeno sacolejo determinístico da cabeça (falta de ar)"""
+    return Vector((math.sin(q * 1.9) * .6 + math.sin(q * 4.3) * .4, 0, math.sin(q * 2.7) * .5 + math.sin(q * 5.1) * .5)) * forca
+def mao_na_camera():
+    """a luva presa à câmera: no espaço dela x = direita, y = cima, z = para trás (olha para -z)"""
+    MAO_RIG.parent = cam; MAO_RIG.matrix_parent_inverse = Matrix.Identity(4); MAO.hide_render = False
+VAO.visible_camera = False   # o plano de luz do vão não pode tapar a vista de quem está DENTRO da porta
 if PLANO == 'geral':
-    # do alto da duna anterior (crista em y=-46): o vale e, do outro lado, a face íngreme com a porta no topo
-    cam_chave(1, (-12, -48, altura(-12, -48) + 1.8), (0, 0, CRISTA_Z + 7.), 40)
-    cam_chave(84, (-8, -40, altura(-8, -40) + 1.4), (0, 0, CRISTA_Z + 5.), 48)
+    P = PORTA; dentro = Vector((0.05, P.y + 1.25, P.z + 1.66))
+    cam_chave(1, dentro, (0, P.y - 6, P.z + 1.45), 26, foco=1.4, f=2.8)
+    cam_chave(28, dentro + Vector((0, -.25, -.03)), (0, P.y - 6, P.z + 1.4), 26, foco=1.2, f=2.8)
+    cam_chave(36, dentro + Vector((0, -.42, -.05)), (0, P.y - 6, P.z + 1.35), 26, foco=1., f=2.8)
+    cam_chave(40, dentro + Vector((0, -.2, .02)), (0, P.y - 6, P.z + 1.8), 26, foco=8., f=5.6)       # o tranco da luz
+    cam_chave(56, (.1, -1.2, zc(-1.2) + 1.66), (.4, -22, zc(-22) + 1.2), 22, foco=20, f=8)            # atravessa: o vale
+    cam_chave(66, (.15, -1.35, zc(-1.35) + 1.65), (-3, -22, zc(-22) + 2.), 22, rolar=-2, foco=20, f=8)
+    # e se vira, ainda na crista: pelo vão da porta, o gigante gasoso (a ~11° acima do horizonte)
+    cam_chave(74, (.2, -1.45, zc(-1.45) + 1.64), (-30, -2, zc(-1.45) + 4.), 20, rolar=-4, foco=20, f=8)
+    cam_chave(84, (.25, -1.5, zc(-1.5) + 1.63), (1.5, 40, zc(-1.5) + 1.63 + 40 * math.tan(math.radians(14))), 18, foco=30, f=8)
+    mao_na_camera()   # a luva empurra as folhas
+    for q, loc, rot, c in ((1, (.2, -.55, -.3), (-75, 0, 0), .3), (16, (.2, -.55, -.3), (-75, 0, 0), .3), (26, (.1, -.16, -.4), (-85, 0, 4), .05),
+                           (34, (.08, -.13, -.62), (-88, 0, 4), .0), (38, (.1, -.2, -.5), (-60, 0, 10), .4), (46, (.25, -.6, -.3), (-40, 0, 20), .5)):
+        mao_pose(q, Vector(loc), rot, c, polegar=c)
 elif PLANO == 'porta':
-    cam_chave(85, (2.6, -9.5, zc(-9.5) + 1.3), (0, 0, CRISTA_Z + 1.6), 40, foco=9.5, f=4)
-    cam_chave(150, (1.6, -7.2, zc(-7.2) + 1.0), (0, -1.6, CRISTA_Z + .9), 36, foco=6., f=4)
+    O = Vector((.25, -1.5, zc(-1.5) + 1.63)); alvo = O + Vector((1.3, 40, 40 * math.tan(math.radians(14))))
+    for q in range(85, 151, 3):
+        t = (q - 85) / 65; ar = suave((q - 88) / 40)
+        recua = Vector((.05 * t, -.9 * suave(t), 0)); pos = O + recua; pos.z = zc(pos.y) + 1.62 - .25 * suave((q - 120) / 30)
+        olho = alvo + Vector((0, 0, -3.5 * ar)) + tremor(q, .5 + 2.2 * ar)
+        cam_chave(q, pos + tremor(q, .015 + .03 * ar), olho, 18, rolar=-14 * suave((q - 118) / 32) + 4 * math.sin(q * .7) * ar, foco=6, f=8)
+    mao_na_camera()   # a mão sobe ao rosto, abre e fecha arranhando o ar
+    for q, loc, rot, c in ((85, (.22, -.6, -.35), (0, 0, 0), .4), (96, (.22, -.6, -.35), (0, 0, 0), .4), (104, (.06, -.17, -.34), (10, 0, -12), .1),
+                           (110, (.03, -.12, -.32), (14, 0, -18), .85), (116, (.07, -.15, -.33), (8, 0, -10), .2), (122, (.02, -.11, -.31), (16, 0, -20), .9),
+                           (130, (.08, -.2, -.34), (6, 0, -8), .3), (138, (.05, -.16, -.32), (12, 0, -16), .95), (150, (.18, -.45, -.36), (-10, 0, 0), .6)):
+        mao_pose(q, Vector(loc), rot, c, polegar=c * .8)
 elif PLANO == 'queda':
-    cam_chave(151, (5.5, -3.2, zc(-3.2) + 1.6), (0, -3.4, zc(-3.4) + .5), 30, foco=5.5, f=4)
-    cam_chave(185, (5.0, -7.4, zc(-7.4) + 1.1), (.4, -8.2, zc(-8.2) + .3), 30, foco=5., f=4)
-    cam_chave(210, (3.6, -11.2, zc(-11.2) + .8), (.7, -10.35, zc(-10.35) + .2), 36, foco=3.2, f=4)
+    # cai de COSTAS e rola duna abaixo: cambalhota para trás (o olhar sobe, passa pelo céu, pela areia de
+    # ponta-cabeça e volta), terminando deitado de costas olhando para cima — como começa o plano seguinte
+    ini = Vector((.25, -2.9, zc(-2.9) + 1.3)); fim = OLHO_CHAO
+    for q in list(range(151, 211, 2)):
+        t = suave((q - 151) / 52)
+        pos = ini.lerp(fim, t); pos.z = zc(pos.y) + .32 + (1. - .32) * (1 - t) ** 2 + .25 * abs(math.sin(t * math.pi * 2.)) * (1 - t)
+        a = math.radians(8 + (360 + 24) * t)                     # cambalhota: o olhar gira para cima e para trás
+        e = olhar(pos, pos + Vector((0, 1, 0)), 0).to_matrix() @ Matrix.Rotation(a, 3, 'X') @ Matrix.Rotation(math.radians(9 * math.sin(t * 9) * (1 - t)), 3, 'Z')
+        cam_rot(q, pos, e.to_euler('XYZ'), 22, foco=200, f=8)
+    cam_chave(210, OLHO_CHAO, OLHO_CHAO + Vector((.08, 1, .62)), 22, foco=200, f=8)
 elif PLANO == 'pov':
     O = OLHO_CHAO
     # deitado de costas: o céu e o gigante; vira a cabeça para a areia; o capacete ao longe
@@ -597,7 +647,12 @@ elif PLANO == 'visor':
     bpy.ops.object.light_add(type='POINT'); dentro = bpy.context.object; dentro.data.energy = .6; dentro.data.color = (1., .7, .45); dentro.data.shadow_soft_size = .1
     dentro.parent = cam; dentro.matrix_parent_inverse = Matrix.Identity(4); dentro.location = (0, .05, .04)
     brilho.data.energy = 0
-if PLANO not in ('pov', 'pega'): MAO.hide_render = True
+if PLANO in ('geral', 'porta'):   # da crista, o gigante baixo ficaria atrás da duna: sobe a ~22°
+    _O = Vector((.25, -1.5, zc(-1.5) + 1.63))
+    for ob in GIGANTE:
+        d = ob.location - _O; ob.location.z = _O.z + d.xy.length * math.tan(math.radians(22))
+MAO.hide_render = True    # sem mãos na tela: só o que os olhos veem
+CORPO.hide_render = True  # nada de terceira pessoa
 if PLANO in ('geral',): CAPACETE.hide_render = False
 
 # ═════════════════════════════ RENDER + NÉVOA (passe de névoa) ═════════════════════════════
