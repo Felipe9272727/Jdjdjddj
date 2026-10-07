@@ -219,13 +219,13 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolea
     const luz = useRef<THREE.DirectionalLight>(null);
     useEffect(() => {
         const l = luz.current; if (!l) return;
-        const c = l.shadow.camera; c.left = -45; c.right = 45; c.top = 45; c.bottom = -45; c.near = 1; c.far = 500; c.updateProjectionMatrix();
+        const c = l.shadow.camera; c.left = -45; c.right = 45; c.top = 45; c.bottom = -45; c.near = 1; c.far = 160; c.updateProjectionMatrix();
         l.shadow.bias = -.0004; l.shadow.normalBias = .04;
     }, []);
     useFrame(() => {
         const l = luz.current; if (!l) return; const j = jog.current;
         const sx = Math.round(j.x / .5) * .5, sz = Math.round(j.z / .5) * .5;   // passo de texel: a sombra não treme
-        l.position.set(sx + SOL.x * 260, j.y + SOL.y * 260, sz + SOL.z * 260); l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
+        l.position.set(sx + SOL.x * 80, j.y + SOL.y * 80, sz + SOL.z * 80);   // só sombras de perto: colunas a 150 m jogavam faixas enormes no chão à frente l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
     return <directionalLight ref={luz} intensity={3.3} color="#ffd2a2" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
 };
@@ -349,7 +349,8 @@ const Arcos: React.FC = () => {
 /** Um monólito negro no alto da crista: dá escala e aponta o caminho. */
 const Monolito: React.FC = () => {
     const { x, z } = MONOLITO, y = alturaEm(x, z);
-    return <mesh position={[x, y + 19, z]} rotation={[0, .4, .03]} castShadow><boxGeometry args={[5, 40, 2]} /><meshStandardMaterial color="#120c12" roughness={.3} metalness={.7} emissive="#5a2a10" emissiveIntensity={.25} /></mesh>;
+    // sem sombra: com o sol baixo, a sombra de 40 m chegava a 165 m e cobria a tela no pouso
+    return <mesh position={[x, y + 19, z]} rotation={[0, .4, .03]}><boxGeometry args={[5, 40, 2]} /><meshStandardMaterial color="#120c12" roughness={.3} metalness={.7} emissive="#5a2a10" emissiveIntensity={.25} /></mesh>;
 };
 
 /** Um pilar de luz violeta subindo da cratera: o fim do caminho, visível desde o pouso. */
@@ -359,29 +360,17 @@ const ColunaDaCratera: React.FC = () => {
     return <mesh position={[20, 60, 170]}><cylinderGeometry args={[6, 14, 160, 24, 1, true]} /><meshBasicMaterial ref={m} color="#b07cff" transparent opacity={.18} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} fog={false} /></mesh>;
 };
 
-/** O visor do capacete: escotilha REDONDA de latão com rebites, madeira por fora e o bafo no vidro. */
-/** O visor do capacete: o vidro ocupa a tela inteira. A borda de latão é uma elipse MAIOR que a tela —
- *  só aparece nos quatro cantos, como num capacete de escafandro de verdade — e nada escurece o centro. */
+/** O visor do capacete NÃO atrapalha a visão: ao vestir, a borda de latão aparece por um instante
+ *  (para dizer "você está dentro do capacete") e some em 2,5 s. Depois fica só uma vinheta leve nas
+ *  bordas e, de vez em quando, um bafo fraquíssimo embaixo. O centro da tela nunca é coberto. */
 const Escotilha: React.FC = () => <>
-    <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}84%{opacity:.07}}'}</style>
-    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} aria-hidden="true">
-        <defs>
-            <radialGradient id="f14canto" cx=".5" cy=".5" r=".72">
-                <stop offset=".80" stopColor="#0d0a07" stopOpacity="0" /><stop offset=".93" stopColor="#0d0a07" stopOpacity=".55" /><stop offset="1" stopColor="#0d0a07" stopOpacity=".9" />
-            </radialGradient>
-            <linearGradient id="f14latao" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e9cf93" /><stop offset=".45" stopColor="#8a6a3c" /><stop offset="1" stopColor="#3b2a17" /></linearGradient>
-            <mask id="f14foraDoVidro"><rect width="1000" height="1000" fill="white" /><ellipse cx="500" cy="500" rx="694" ry="674" fill="black" /></mask>
-        </defs>
-        {/* escurece só os cantos, fora do vidro */}
-        <rect width="1000" height="1000" fill="url(#f14canto)" />
-        <rect width="1000" height="1000" fill="#120d08" mask="url(#f14foraDoVidro)" />
-        <ellipse cx="500" cy="500" rx="700" ry="680" fill="none" stroke="url(#f14latao)" strokeWidth="16" />
-        <ellipse cx="500" cy="500" rx="691" ry="671" fill="none" stroke="#f3dfae" strokeOpacity=".45" strokeWidth="1.6" />
-        {[.72, .85, 2.29, 2.42, 3.86, 3.99, 5.43, 5.56].map((a, i) => <circle key={i} cx={500 + Math.cos(a) * 700} cy={500 + Math.sin(a) * 680} r="5" fill="#c9a86a" stroke="#2a1d10" strokeWidth="2" />)}
+    <style>{'@keyframes f14bafo{0%,70%,100%{opacity:0}84%{opacity:.05}}@keyframes f14aro{0%,35%{opacity:1}100%{opacity:0}}'}</style>
+    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', animation: 'f14aro 2.5s ease-out forwards' }} aria-hidden="true">
+        <defs><linearGradient id="f14latao" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e9cf93" /><stop offset=".45" stopColor="#8a6a3c" /><stop offset="1" stopColor="#3b2a17" /></linearGradient></defs>
+        <ellipse cx="500" cy="500" rx="700" ry="680" fill="none" stroke="url(#f14latao)" strokeWidth="14" />
     </svg>
-    {/* reflexo leve no vidro (canto superior esquerdo) e o bafo, bem fraco, embaixo */}
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(128deg, rgba(255,246,228,.08) 0%, rgba(255,246,228,.02) 18%, transparent 30%)' }} />
-    <div style={{ position: 'absolute', left: '15%', right: '15%', bottom: 0, height: '30%', pointerEvents: 'none', borderRadius: '50% 50% 0 0', background: 'radial-gradient(ellipse at 50% 100%, #dfe8e4, transparent 70%)', animation: 'f14bafo 4.5s ease-in-out infinite' }} />
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, transparent 72%, rgba(13,10,7,.28) 100%)' }} />
+    <div style={{ position: 'absolute', left: '20%', right: '20%', bottom: 0, height: '22%', pointerEvents: 'none', borderRadius: '50% 50% 0 0', background: 'radial-gradient(ellipse at 50% 100%, #dfe8e4, transparent 70%)', animation: 'f14bafo 6s ease-in-out infinite' }} />
 </>;
 
 // ── o capacete de madeira ─────────────────────────────────────────────────
