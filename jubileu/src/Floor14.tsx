@@ -21,12 +21,16 @@ import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, Brightness
 import { ToneMappingMode } from 'postprocessing';
 import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
 import { FiguraDaEntidade, visualPadrao, type VisualEntidade } from './f14Entidade';
+import { CenaDescida, type PontosDescida } from './f14Descida';
+import { Dialogo, Legenda } from './f14Dialogo';
+import { ENCONTRO, BOTAO } from './f14Lore';
+import LabKessar from './f14Lab';
 import { remendarRocha, oclusaoDoRelevo, ligarAtmosfera, ruidoLento } from './f14Visual';
 import { CeuKessar, PoeiraKessar, CascalhoKessar, AmbienteDoCeu, SOL } from './f14Atmosfera';
 import { useOptionalSettings } from './Settings';
 import { ChegadaKessar } from './f14Chegada';
 
-type Fase = 'chegada' | 'sufocando' | 'explorar' | 'fim';
+type Fase = 'chegada' | 'sufocando' | 'explorar' | 'encontro' | 'descida' | 'lab' | 'fim';
 interface Jog { x: number; y: number; z: number; andando: number; caido: number }
 
 const FOLEGO_TOTAL = 30;
@@ -559,7 +563,14 @@ const Corpo: React.FC<{ jog: React.MutableRefObject<Jog>; entrada: React.Mutable
     const camera = useThree((s) => s.camera);
     const passo = useRef(0);
     useFrame((_, raw) => {
+        if (fase === 'descida' || fase === 'lab') return;   // a cutscene / o laboratório comandam a câmera
         const dt = Math.min(raw, .05), j = jog.current;
+        if (fase === 'encontro') {   // ela não foge mais: os olhos se voltam para o capuz dela
+            const a = APARICOES[APARICOES.length - 1], dx = a.x - j.x, dz = a.z - j.z;
+            const alvoYaw = Math.atan2(-dx, -dz), alvoPitch = Math.atan2(alturaEm(a.x, a.z) + 3.1 - (j.y + 1.68), Math.hypot(dx, dz));
+            let dy = alvoYaw - yaw.current; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+            yaw.current += dy * Math.min(1, dt * 2.5); pitch.current += (alvoPitch - pitch.current) * Math.min(1, dt * 2.5);
+        }
         const pode = fase === 'sufocando' || fase === 'explorar';
         const e = entrada.current, s = Math.sin(yaw.current), c = Math.cos(yaw.current);
         let mx = 0, mz = 0;
@@ -674,7 +685,15 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
         setDica(i === 0 ? 'Ela sumiu. Ficaram pegadas na areia.' : 'Sumiu de novo…');
         window.setTimeout(() => setDica(APARICOES[Math.min(APARICOES.length - 1, i + 1)].dica), 2600);
     };
-    const aoAlcancar = () => { if (fase !== 'explorar') return; setFase('fim'); tocarSumico(); };
+    const [pontosDescida, setPontosDescida] = useState<PontosDescida | null>(null);
+    const [legenda, setLegenda] = useState<string | null>(null);
+    // alcançou: ela não some — o encontro (diálogo), depois a descida (cutscene) e o laboratório
+    const aoAlcancar = () => {
+        if (fase !== 'explorar') return;
+        const a = APARICOES[APARICOES.length - 1], j = jog.current;
+        setPontosDescida({ ent: new THREE.Vector3(a.x, alturaEm(a.x, a.z), a.z), jog: new THREE.Vector3(j.x, j.y, j.z) });
+        setFase('encontro'); tocarOlhar();
+    };
     useEffect(() => {
         if (fase !== 'fim') return;
         let raf = 0; const t0 = performance.now();
@@ -701,7 +720,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     }, []);
     const acaoRef = useRef(vestir); acaoRef.current = vestir;
     // bancada: mexer no hóspede e na fase pelo console / Playwright
-    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { jog, yaw, pitch, sombra, entrada, solidos: SOLIDOS, folego, vestir: () => { tocarCapacete(); setFase('explorar');  }, fase,
+    if (import.meta.env.DEV) (window as unknown as { __f14: unknown }).__f14 = { alcancar: () => { const ap = APARICOES[APARICOES.length - 1]; Object.assign(sombra.current, { i: APARICOES.length - 1, fugindo: 0, percebeu: 0 }); Object.assign(jog.current, { x: ap.x + 3, z: ap.z + 3, caido: 0 }); jog.current.y = alturaEm(ap.x + 3, ap.z + 3); aoAlcancar(); }, jog, yaw, pitch, sombra, entrada, solidos: SOLIDOS, folego, vestir: () => { tocarCapacete(); setFase('explorar');  }, fase,
         // a vista de quem chega pela trilha: 70 m antes da aparição, vindo da anterior
         aparicaoXZ: (i: number) => APARICOES[i],
         aparicao: (i: number) => { const a = APARICOES[i], c = CHEGADAS[i] ?? { x: 0, z: 0 };
@@ -733,12 +752,12 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
     };
 
     const falta = 1 - folegoUi / FOLEGO_TOTAL;
-    const comCapacete = fase === 'explorar' || fase === 'fim';
+    const comCapacete = fase === 'explorar' || fase === 'encontro' || fase === 'descida' || fase === 'lab' || fase === 'fim';
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: '#120a14', touchAction: 'none', userSelect: 'none' }}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
-                dpr={dpr} frameloop={fase === 'chegada' ? 'demand' : 'always'} shadows={!xdev('sombra')} camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
+                dpr={dpr} frameloop={fase === 'chegada' ? 'demand' : fase === 'lab' ? 'never' : 'always'} shadows={!xdev('sombra')} camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
                 <fogExp2 attach="fog" args={['#d49a6c', .0036]} />
                 {!xdev('amb') && <AmbienteDoCeu intensidade={.6} />}
                 <NevoaPorRegiao jog={jog} />
@@ -759,7 +778,8 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Capacete visivel={!comCapacete} />
                 <Pegadas ate={vistas} />
                 <AnelDeAreia />
-                <Sombra estado={sombra} jog={jog} ativa={comCapacete} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
+                <Sombra estado={sombra} jog={jog} ativa={comCapacete && fase !== 'descida' && fase !== 'lab'} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
+                {fase === 'descida' && pontosDescida && <CenaDescida pontos={pontosDescida} legenda={BOTAO} aoLegenda={setLegenda} abalo={abalo} aoFim={() => { setLegenda(null); setFase('lab'); }} />}
                 {!reduzida && !(import.meta.env.DEV && location.search.includes('sempos')) && <EffectComposer multisampling={0}>
                     <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur />
                     <Vignette offset={.35} darkness={.4} />
@@ -794,10 +814,14 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 VESTIR O CAPACETE (E)
             </button>}
             {dica && <div style={{ position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)', maxWidth: '80vw', padding: '10px 18px', background: 'rgba(20,10,16,.72)', color: '#f6e2cc', fontFamily: 'Georgia, serif', fontSize: 16, borderRadius: 10, pointerEvents: 'none' }}>{dica}</div>}
-            {comCapacete && <div style={{ position: 'absolute', top: 14, right: 18, color: '#f6e2cc', fontFamily: 'Georgia, serif', fontSize: 14, textShadow: '0 1px 4px #000', pointerEvents: 'none' }}>A sombra · {vistas}/{APARICOES.length - 1} rastros</div>}
+            {fase === 'explorar' && <div style={{ position: 'absolute', top: 14, right: 18, color: '#f6e2cc', fontFamily: 'Georgia, serif', fontSize: 14, textShadow: '0 1px 4px #000', pointerEvents: 'none' }}>A sombra · {vistas}/{APARICOES.length - 1} rastros</div>}
             {stick && <div style={{ position: 'absolute', left: stick.ox - 60, top: stick.oy - 60, width: 120, height: 120, borderRadius: '50%', border: '2px solid rgba(255,240,220,.5)', pointerEvents: 'none' }}>
                 <div style={{ position: 'absolute', left: 44 + stick.x, top: 44 + stick.y, width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,240,220,.6)' }} /></div>}
 
+            {/* o final: o encontro na cratera, a descida e o laboratório */}
+            {fase === 'encontro' && <Dialogo falas={ENCONTRO} aoFim={() => setFase('descida')} />}
+            {fase === 'descida' && <Legenda texto={legenda} />}
+            {fase === 'lab' && <LabKessar reduzida={reduzida} aoFim={() => { vento?.parar(); onExit(); }} />}
             {/* a chegada: vídeo pré-renderizado (Blender + Manim + Remotion) */}
             {fase === 'chegada' && !chegadaTerminou && <ChegadaKessar onFinish={() => setChegadaTerminou(true)} volume={settings.masterVolume} />}
             {fase === 'chegada' && chegadaTerminou && <div role="status" style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#080b10',color:'#d9c6aa',fontFamily:'Georgia,serif'}}>Preparando o deserto…</div>}
