@@ -15,6 +15,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer, Bloom, Vignette, ToneMapping, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { superficieEm as alturaEm, alturaEm as alturaBruta, regiaoEm, inclinacao, fbm, RAIO_DO_MUNDO, TAMANHO_TERRENO, SEGMENTOS_TERRENO } from './f14Terreno';
@@ -230,7 +231,7 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolea
 };
 
 /** Cristais de quartzo azul-petróleo brotando da areia (o primeiro sinal de "isto não é a Terra"). */
-const Cristais: React.FC = () => {
+const Cristais: React.FC<{ reduzida: boolean }> = ({ reduzida }) => {
     const ref = useRef<THREE.InstancedMesh>(null); const N = 160;
     useEffect(() => {
         const m = ref.current; if (!m) return;
@@ -248,9 +249,16 @@ const Cristais: React.FC = () => {
         }
         m.count = k; m.instanceMatrix.needsUpdate = true;
     }, []);
-    return <instancedMesh ref={ref} frustumCulled={false} args={[undefined, undefined, N]} castShadow>
-        <octahedronGeometry args={[.5, 0]} /><meshStandardMaterial color="#527f78" emissive="#28584c" emissiveIntensity={.10} roughness={.3} metalness={.28} flatShading />
-    </instancedMesh>;
+    // prisma hexagonal com ponta (quartzo de verdade, não pirâmide), facetado; brilho verde por dentro
+    const geo = useMemo(() => {
+        const corpo = new THREE.CylinderGeometry(.22, .25, .75, 6, 1, true).translate(0, .375, 0);
+        const ponta = new THREE.ConeGeometry(.22, .32, 6, 1).translate(0, .91, 0);
+        const g = mergeGeometries([corpo.toNonIndexed(), ponta.toNonIndexed()])!; g.computeVertexNormals(); corpo.dispose(); ponta.dispose(); return g;
+    }, []);
+    const mat = useMemo(() => reduzida
+        ? new THREE.MeshStandardMaterial({ color: '#7fe6c8', emissive: '#1ec99a', emissiveIntensity: .45, roughness: .18, metalness: .05 })
+        : new THREE.MeshPhysicalMaterial({ color: '#8ff0d4', emissive: '#18c290', emissiveIntensity: .5, roughness: .08, metalness: 0, transmission: .55, thickness: .6, ior: 1.54, clearcoat: 1, clearcoatRoughness: .1 }), [reduzida]);
+    return <instancedMesh ref={ref} frustumCulled={false} args={[geo, mat, N]} castShadow />;
 };
 
 /** A ossada de um bicho enorme meio enterrada (costelas em arco) — marco entre o pouso e a crista. */
@@ -272,7 +280,7 @@ const NevoaPorRegiao: React.FC<{ jog: React.MutableRefObject<Jog> }> = ({ jog })
         const f = scene.fog as THREE.FogExp2 | null; if (!f || !('density' in f)) return; const j = jog.current, r = regiaoEm(j.x, j.z);
         base.alvo.copy(base.duna).lerp(base.crista, r.crista * .7).lerp(base.sal, r.sal).lerp(base.crat, r.cratera);
         f.color.lerp(base.alvo, 1 - Math.exp(-dt * 1.5));
-        f.density += ((r.cratera > .3 ? .0085 : r.sal > .3 ? .0035 : .0042) - f.density) * (1 - Math.exp(-dt));
+        f.density += ((r.cratera > .3 ? .0075 : r.sal > .3 ? .003 : .0036) - f.density) * (1 - Math.exp(-dt));
     });
     return null;
 };
@@ -332,6 +340,7 @@ const Arcos: React.FC = () => {
     return <group>
         {[[0.4, 64, 16, 0, 0], [1.6, 60, 12, 0, .12], [2.9, 66, 14, 1, 0], [4.4, 62, 18, 0, -.1], [3.6, 58, 10, 0, .18]].map(([a, r, e, quebrado, torto], i) => {
             const x = 150 + Math.cos(a) * r, z = -20 + Math.sin(a) * r;
+            if (CHEGADAS.some((c) => c && Math.hypot(c.x - x, c.z - z) < e + 12)) return null;   // não tampa a vista de quem chega
             return <mesh key={i} geometry={geo[quebrado]} material={matArco} position={[x, alturaEm(x, z) - e * .12, z]} rotation={[0, a + Math.PI / 2, torto]} scale={[e, e, e]} castShadow receiveShadow />;
         })}
     </group>;
@@ -699,7 +708,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
             <Canvas style={{ position: 'absolute', inset: 0, filter: fase === 'sufocando' ? `blur(${falta * 2.5}px) saturate(${1 - falta * .5})` : undefined }}
                 dpr={reduzida ? 1 : [1, settings.quality === 'high' ? 1.5 : 1.25]} shadows camera={{ fov: 68, near: .08, far: 2000 }} gl={{ antialias: settings.quality === 'high', toneMapping: THREE.ACESFilmicToneMapping }}>
-                <fogExp2 attach="fog" args={['#d49a6c', .0042]} />
+                <fogExp2 attach="fog" args={['#d49a6c', .0036]} />
                 <AmbienteDoCeu intensidade={.6} />
                 <NevoaPorRegiao jog={jog} />
                 <hemisphereLight args={['#b8a3d0', '#8a5434', .5]} />
@@ -710,7 +719,7 @@ export default function Floor14({ onExit }: { onExit: () => void }) {
                 <Terreno reduzida={reduzida} />
                 <Pedras />
                 <CascalhoKessar reduzida={reduzida} />
-                <Cristais />
+                <Cristais reduzida={reduzida} />
                 <Ossada />
                 <Monolito />
                 <ColunaDaCratera />

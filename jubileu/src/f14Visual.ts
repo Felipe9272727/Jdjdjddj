@@ -159,7 +159,7 @@ float k14Rocha; float k14Altura; vec3 k14NMundo;`)
         #endif
         vec3 areia = diffuseColor.rgb * mix(vec3(k14lum(ac) / .30), ac / .30, .18);
         areia *= .86 + .28 * k14fbm(P * .02);
-        vec3 nA = k14PlanoNor(k14AreiaNor, pa, N, .9);
+        vec3 nA = k14PlanoNor(k14AreiaNor, pa, N, .6);
         // SAL: lama rachada embranquecida
         float sal = smoothstep(.15, .6, vK14Sal);
         vec2 ps = P.xz * .16;
