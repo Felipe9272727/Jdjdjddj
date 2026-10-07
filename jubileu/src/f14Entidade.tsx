@@ -1,25 +1,27 @@
 /**
- * f14Entidade.tsx — a ENTIDADE de Kessar-9, como figura.
+ * f14Entidade.tsx — a ENTIDADE de Kessar-9, como figura (modelo do Blender: tools/chegada14/entidade.py
+ * → public/kessar/entidade.glb).
  *
- * Uma sombra de pé que ainda não pode mostrar o rosto: um manto alto (perfil torneado), ombros
- * caídos, capuz fundo. O material é preto absoluto com uma borda violeta contra a luz; a barra
- * ondula ao vento e se desfaz em fumaça (descarte por ruído); dentro do capuz, dois pontos
- * pálidos que piscam. Um braço comprido, de dedos finos, sai da manga direita quando ela precisa
- * apontar, apertar ou mexer em alguma coisa (`braco` 0 = recolhido … 1 = estendido).
+ * Um manto de veludo escuro com dobras e barra rasgada em tiras, capa curta de linho sobre os ombros,
+ * capuz fundo; dentro, o vazio e dois olhos pálidos que piscam. O braço direito (nó `ombroD`: manga +
+ * braço longo de dedos finos) sobe quando ela aponta ou aperta alguma coisa.
  *
- * Quem usa controla tudo por uma ref (`vis`), sem re-render: opacidade, tensão (inclina e treme),
- * braço e olhos.
+ * No jogo o pano ganha um shader por cima do material normal: contraluz violeta no contorno, a barra do
+ * manto ondula ao vento e se desfaz em fumaça (descarte por ruído), e a opacidade inteira para ela sumir.
+ *
+ * Quem usa controla tudo por uma ref (`vis`), sem re-render.
  */
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 
 export interface VisualEntidade {
     /** 0 = invisível … 1 = presente */
     opac: number;
     /** 0 = calma … 1 = encarando (tremor, cabeça inclinada) */
     tenso: number;
-    /** 0 = braço dentro da manga … 1 = estendido para a frente */
+    /** 0 = braço caído na manga … 1 = estendido para a frente */
     braco: number;
     /** altura do braço estendido: -1 = para baixo … 1 = para cima */
     alturaBraco: number;
@@ -28,6 +30,9 @@ export interface VisualEntidade {
 }
 export const visualPadrao = (): VisualEntidade => ({ opac: 1, tenso: 0, braco: 0, alturaBraco: 0, olhos: 1 });
 
+const URL = `${import.meta.env.BASE_URL}kessar/entidade.glb`;
+const TEX = `${import.meta.env.BASE_URL}kessar/`;
+
 const GLSL_RUIDO = /* glsl */`
 float e14h(vec3 p){ p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
 float e14n(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
@@ -35,121 +40,102 @@ float e14n(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
              mix(mix(e14h(i + vec3(0,0,1)), e14h(i + vec3(1,0,1)), f.x), mix(e14h(i + vec3(0,1,1)), e14h(i + vec3(1,1,1)), f.x), f.y), f.z); }
 `;
 
-/** O pano da sombra: preto, borda violeta, barra que ondula e se desfaz em fumaça. */
-function materialManto(tempo: { value: number }, opac: { value: number }, barra: boolean) {
-    const m = new THREE.MeshBasicMaterial({ color: '#030205', side: THREE.DoubleSide, transparent: true, fog: true });
-    if (barra) m.defines = { E14_BARRA: '' };   // só o corpo ondula e se desfaz embaixo (capuz e mangas ficam inteiros)
+/** O pano: veludo/linho com a trama da foto (só a luz, a cor é nossa), contraluz violeta, e — no manto —
+ *  a barra que ondula e se desfaz. */
+function materialPano(tempo: { value: number }, opac: { value: number }, base: string, repetir: number, barra: boolean) {
+    const ld = new THREE.TextureLoader();
+    const cor = ld.load(`${TEX}${base}_diffuse.jpg`), nor = ld.load(`${TEX}${base}_nor_gl.jpg`);
+    for (const t of [cor, nor]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repetir, repetir); t.anisotropy = 4; }
+    cor.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.MeshStandardMaterial({ color: '#2a2433', map: cor, normalMap: nor, normalScale: new THREE.Vector2(1.1, 1.1), roughness: .82, metalness: 0,
+        side: THREE.DoubleSide, transparent: true, fog: true });
+    if (barra) m.defines = { E14_BARRA: '' };
     m.onBeforeCompile = (sh) => {
         sh.uniforms.e14Tempo = tempo; sh.uniforms.e14Opac = opac;
         sh.vertexShader = sh.vertexShader
             .replace('#include <common>', `#include <common>
-uniform float e14Tempo; varying vec3 vE14Local; varying vec3 vE14Normal; varying vec3 vE14Vista;
+uniform float e14Tempo; varying vec3 vE14Local;
 ${GLSL_RUIDO}`)
             .replace('#include <begin_vertex>', `#include <begin_vertex>
-{
-    #ifdef E14_BARRA
-    // o vento pega mais embaixo: a barra ondula, o alto quase não mexe
-    float solto = 1. - smoothstep(.2, 1.7, transformed.y);
+#ifdef E14_BARRA
+{   // o vento pega mais embaixo: a barra ondula, o alto quase não mexe
+    float solto = 1. - smoothstep(.15, 1.5, transformed.y);
     float onda = sin(e14Tempo * 2.3 + transformed.y * 3.1 + atan(transformed.z, transformed.x) * 2.) * .5 + e14n(vec3(transformed.xz * 2., e14Tempo * .6)) - .5;
-    transformed.xz += normalize(transformed.xz + 1e-4) * onda * .09 * solto;
-    transformed.x += sin(e14Tempo * 1.3 + transformed.y) * .05 * solto;
-    #endif
-    vE14Local = transformed;
-}`)
-            .replace('#include <project_vertex>', `#include <project_vertex>
-vE14Normal = normalize(normalMatrix * normal); vE14Vista = -mvPosition.xyz;`);
+    transformed.xz += normalize(transformed.xz + 1e-4) * onda * .07 * solto;
+    transformed.x += sin(e14Tempo * 1.3 + transformed.y) * .04 * solto;
+}
+#endif
+vE14Local = transformed;`);
         sh.fragmentShader = sh.fragmentShader
             .replace('#include <common>', `#include <common>
-uniform float e14Tempo; uniform float e14Opac; varying vec3 vE14Local; varying vec3 vE14Normal; varying vec3 vE14Vista;
+uniform float e14Tempo; uniform float e14Opac; varying vec3 vE14Local;
 ${GLSL_RUIDO}`)
+            .replace('#include <map_fragment>', `
+#ifdef USE_MAP
+    { vec4 fotoE14 = texture2D(map, vMapUv); diffuseColor.rgb *= vec3(dot(fotoE14.rgb, vec3(.3, .59, .11)) * 2.2); }   // da foto, só a trama
+#endif`)
             .replace('#include <color_fragment>', `#include <color_fragment>
-{
-    // a barra se desfaz em fumaça: furos que sobem e se mexem
-    float fio = 0., corte = 1.;
-    #ifdef E14_BARRA
-    fio = e14n(vec3(vE14Local.x * 7., vE14Local.y * 5. - e14Tempo * .9, vE14Local.z * 7.));
-    corte = smoothstep(.05, .55, vE14Local.y) * .9 + .1;
-    if (fio > corte + .15) discard;
-    #endif
-    // borda contra a luz: um violeta escuro só no contorno (é a única coisa que se vê dela além do preto)
-    float borda = pow(1. - abs(dot(normalize(vE14Normal), normalize(vE14Vista))), 3.);
-    diffuseColor.rgb += vec3(.20, .09, .42) * borda * .9;
-    diffuseColor.a = e14Opac * (.97 - smoothstep(corte, corte + .15, fio) * .6);
+float e14Fio = 0.;
+#ifdef E14_BARRA
+    e14Fio = e14n(vec3(vE14Local.x * 7., vE14Local.y * 5. - e14Tempo * .9, vE14Local.z * 7.));
+    if (e14Fio > smoothstep(.0, .5, vE14Local.y) * .9 + .25) discard;   // a barra se desfaz em fumaça
+#endif
+diffuseColor.a *= e14Opac;`)
+            .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+{   // contraluz violeta: o contorno é a única coisa que se vê dela além do escuro
+    float bordaE14 = pow(1. - abs(dot(normalize(normal), normalize(vViewPosition))), 3.);
+    totalEmissiveRadiance += vec3(.22, .1, .5) * bordaE14 * .8;
 }`);
     };
-    m.customProgramCacheKey = () => 'e14manto' + (barra ? '-barra' : '');
-    return m;
+    m.customProgramCacheKey = () => 'e14pano' + (barra ? '-barra' : '');
+    return { m, tex: [cor, nor] };
 }
 
-/** A figura. `vis` é lido a cada quadro; `escala` dá a altura (1 ≈ 2,6 m). */
-export const FiguraDaEntidade: React.FC<{ vis: React.MutableRefObject<VisualEntidade>; escala?: number }> = ({ vis, escala = 1 }) => {
-    const raiz = useRef<THREE.Group>(null), cabeca = useRef<THREE.Group>(null), braco = useRef<THREE.Group>(null);
-    const olhoE = useRef<THREE.Mesh>(null), olhoD = useRef<THREE.Mesh>(null);
+const Modelo: React.FC<{ vis: React.MutableRefObject<VisualEntidade> }> = ({ vis }) => {
+    const { scene } = useGLTF(URL);
     const u = useMemo(() => ({ tempo: { value: 0 }, opac: { value: 1 } }), []);
     const pecas = useMemo(() => {
-        const manto = materialManto(u.tempo, u.opac, true), pano = materialManto(u.tempo, u.opac, false);
-        // corpo: o manto do chão aos ombros (largo embaixo, estreito em cima, ombros caídos)
-        const perfil = [[.62, 0], [.58, .12], [.5, .5], [.42, 1.0], [.36, 1.45], [.33, 1.75], [.36, 1.9], [.33, 2.0], [.2, 2.08], [.13, 2.12]]
-            .map(([r, y]) => new THREE.Vector2(r, y));
-        const corpo = new THREE.LatheGeometry(perfil, 40);
-        // capuz: casca funda e contínua, aberta só na frente (+z); a borda desce até os ombros
-        // (no three, phi = π/2 é a frente: a abertura fica entre π/2 ± 0,32π)
-        const capuz = new THREE.SphereGeometry(.3, 40, 24, Math.PI / 2 + Math.PI * .32, Math.PI * 1.36, 0, Math.PI * .82);
-        capuz.scale(1, 1.3, 1.15);
-        const pico = new THREE.ConeGeometry(.16, .34, 20, 1, true); pico.rotateX(-1.15); pico.translate(0, .2, -.3);   // a ponta cai para trás
-        const fundo = new THREE.SphereGeometry(.22, 20, 14);   // o vazio dentro do capuz
-        // mangas: cones caídos dos ombros
-        const manga = new THREE.CylinderGeometry(.08, .16, 1.05, 18, 4, true); manga.translate(0, -.52, 0);
-        // braço longo demais, fino, quatro dedos compridos
-        const antebraco = new THREE.CylinderGeometry(.035, .05, .85, 10); antebraco.translate(0, -.42, 0);
-        const dedo = new THREE.CylinderGeometry(.008, .014, .22, 6); dedo.translate(0, -.11, 0);
-        const preto = new THREE.MeshBasicMaterial({ color: '#010102', transparent: true, fog: true });
-        const olho = new THREE.MeshBasicMaterial({ color: '#b9b0d8', transparent: true, fog: false, blending: THREE.AdditiveBlending, depthWrite: false });
-        return { manto, pano, corpo, capuz, pico, fundo, manga, antebraco, dedo, preto, olho };
-    }, [u]);
-    useEffect(() => () => { for (const v of Object.values(pecas)) (v as { dispose?: () => void }).dispose?.(); }, [pecas]);
+        const raiz = scene.clone(true);
+        const manto = materialPano(u.tempo, u.opac, 'velour_velvet', 3, true), veludo = materialPano(u.tempo, u.opac, 'velour_velvet', 3, false);
+        const linho = materialPano(u.tempo, u.opac, 'rough_linen', 4, false);
+        const pele = new THREE.MeshPhysicalMaterial({ color: '#050408', roughness: .35, clearcoat: .6, sheen: .6, sheenColor: new THREE.Color('#7a5aff'), transparent: true, fog: true });
+        const vazio = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, fog: true });
+        const olhos = new THREE.MeshBasicMaterial({ color: '#cfc8ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+        let ombro: THREE.Object3D | null = null, olhoMesh: THREE.Object3D | null = null, capuz: THREE.Object3D | null = null;
+        raiz.traverse((o) => {
+            const me = o as THREE.Mesh;
+            if (o.name === 'ombroD') ombro = o;
+            if (!me.isMesh) return;
+            me.frustumCulled = false;
+            me.material = o.name === 'manto' ? manto.m : o.name === 'capa' || o.name === 'capuz' ? linho.m : o.name === 'braco' ? pele : o.name === 'vazio' ? vazio : o.name === 'olhos' ? olhos : veludo.m;
+            if (o.name === 'olhos') olhoMesh = o;
+            if (o.name === 'capuz') capuz = o;
+        });
+        raiz.rotation.y = Math.PI;   // a frente do modelo é -z no glTF; no jogo ela olha para +z
+        return { raiz, ombro: ombro as THREE.Object3D | null, olhoMesh: olhoMesh as THREE.Object3D | null, capuz: capuz as THREE.Object3D | null,
+            mats: [manto.m, veludo.m, linho.m, pele, vazio, olhos], tex: [...manto.tex, ...veludo.tex, ...linho.tex] };
+    }, [scene, u]);
+    useEffect(() => () => { for (const m of pecas.mats) m.dispose(); for (const t of pecas.tex) t.dispose(); }, [pecas]);
 
     useFrame(({ clock }) => {
         const t = clock.elapsedTime, v = vis.current;
         u.tempo.value = t; u.opac.value = v.opac;
-        pecas.preto.opacity = v.opac;
-        // olhos: brilho fraco que respira e pisca a cada ~5 s
+        for (const m of pecas.mats.slice(3, 5)) m.opacity = v.opac;
         const pisca = (t % 5.3) < .12 ? 0 : 1;
-        pecas.olho.opacity = v.opac * v.olhos * pisca * (.55 + Math.sin(t * 1.7) * .15 + v.tenso * .4);
-        if (cabeca.current) { cabeca.current.rotation.z = v.tenso * .28 + Math.sin(t * .7) * .03; cabeca.current.rotation.x = .08 + v.tenso * .1; }
-        if (braco.current) {
-            // sobe à frente (x negativo = para a frente da figura, que olha para +z)
-            braco.current.rotation.x = -v.braco * (1.35 + v.alturaBraco * .45) + Math.sin(t * 2.1) * .03 * v.braco;
-            braco.current.scale.y = .25 + v.braco * .75;
-        }
-        if (raiz.current) {
-            const tremor = Math.sin(t * 50) * (.012 + v.tenso * .03);
-            raiz.current.scale.set(escala * (1 + tremor), escala, escala * (1 + tremor));
-            raiz.current.visible = v.opac > .01;
-        }
-        const brilho = 1 + v.tenso * .35;
-        for (const o of [olhoE.current, olhoD.current]) if (o) o.scale.setScalar(brilho);
+        pecas.mats[5].opacity = v.opac * v.olhos * pisca * (.65 + Math.sin(t * 1.7) * .15 + v.tenso * .3);
+        if (pecas.olhoMesh) pecas.olhoMesh.scale.setScalar(1 + v.tenso * .35);
+        if (pecas.capuz) pecas.capuz.rotation.z = v.tenso * .22 + Math.sin(t * .7) * .025;   // inclina a cabeça quando encara
+        // o braço sobe à frente (no glTF, girar o ombro em +x leva a manga para a frente)
+        if (pecas.ombro) pecas.ombro.rotation.x = v.braco * (1.35 + v.alturaBraco * .45) + Math.sin(t * 2.1) * .03 * v.braco;
+        const tremor = Math.sin(t * 50) * (.01 + v.tenso * .025);
+        pecas.raiz.scale.set(1 + tremor, 1, 1 + tremor);
+        pecas.raiz.visible = v.opac > .01;
     });
-
-    const { manto, pano, corpo, capuz, pico, fundo, manga, antebraco, dedo, preto, olho } = pecas;
-    return <group ref={raiz}>
-        <mesh geometry={corpo} material={manto} />
-        <group ref={cabeca} position={[0, 2.12, .02]}>
-            <mesh geometry={capuz} material={pano} position={[0, .12, 0]} />
-            <mesh geometry={pico} material={pano} position={[0, .12, 0]} />
-            <mesh geometry={fundo} material={preto} position={[0, .08, -.04]} scale={[1, 1.25, .85]} />
-            <mesh ref={olhoE} position={[-.065, .12, .12]}><sphereGeometry args={[.016, 10, 8]} /><primitive object={olho} attach="material" /></mesh>
-            <mesh ref={olhoD} position={[.065, .12, .12]}><sphereGeometry args={[.016, 10, 8]} /><primitive object={olho} attach="material" /></mesh>
-        </group>
-        {/* manga esquerda, caída */}
-        <mesh geometry={manga} material={pano} position={[-.34, 1.98, .02]} rotation={[0, 0, .06]} />
-        {/* manga e braço direito: o braço sai da manga quando ela estende */}
-        <group ref={braco} position={[.34, 1.98, .02]} rotation={[0, 0, -.06]}>
-            <mesh geometry={manga} material={pano} />
-            <group position={[0, -.8, 0]}>
-                <mesh geometry={antebraco} material={preto} />
-                {[-.03, -.01, .01, .03].map((x, i) => <mesh key={i} geometry={dedo} material={preto} position={[x, -.84, .01]} rotation={[0, 0, x * 2]} />)}
-            </group>
-        </group>
-    </group>;
+    return <primitive object={pecas.raiz} />;
 };
+
+/** A figura (≈2,6 m com escala 1). */
+export const FiguraDaEntidade: React.FC<{ vis: React.MutableRefObject<VisualEntidade>; escala?: number }> = ({ vis, escala = 1 }) =>
+    <group scale={escala}><Suspense fallback={null}><Modelo vis={vis} /></Suspense></group>;
+
+useGLTF.preload(URL);
