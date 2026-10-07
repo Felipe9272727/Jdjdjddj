@@ -12,7 +12,7 @@ Uma linha do tempo só (24 qps); cada PLANO tem a sua câmera e renderiza o seu 
 Variáveis: K14_ESCALA (% da resolução, padrão 100), K14_AMOSTRAS (padrão 24).
 """
 import bpy, bmesh, math, os, sys, random
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Matrix
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = os.path.abspath(args[0] if args else '/tmp/ch14')
@@ -132,6 +132,12 @@ SERRA = pbr('serra_tex', 'cliff_side', .05, tom=(1.25, .8, .62), relevo=2., dist
 CRISTAL = material('cristal', (.25, .9, .7), rough=.08, emissao=2.5, cor_em=(.05, 1., .55))
 CRISTAL.node_tree.nodes['Principled BSDF'].inputs['Transmission Weight'].default_value = .6
 VIDRO = material('vidro', (.6, .8, .75), rough=.04); VIDRO.node_tree.nodes['Principled BSDF'].inputs['Transmission Weight'].default_value = .95
+# vidro fino da escotilha: um disco sem espessura não pode refratar (entortaria e escureceria a vista);
+# transparente quase limpo + um reflexo de Fresnel por cima
+VIDRO_FINO = bpy.data.materials.new('vidro_fino'); VIDRO_FINO.use_nodes = True; _n = VIDRO_FINO.node_tree; _n.nodes.clear()
+_o = _n.nodes.new('ShaderNodeOutputMaterial'); _t = _n.nodes.new('ShaderNodeBsdfTransparent'); _t.inputs['Color'].default_value = (.93, .97, .95, 1)
+_g = _n.nodes.new('ShaderNodeBsdfGlossy'); _g.inputs['Roughness'].default_value = .06; _lw = _n.nodes.new('ShaderNodeLayerWeight'); _lw.inputs['Blend'].default_value = .12
+_m = _n.nodes.new('ShaderNodeMixShader'); _n.links.new(_lw.outputs['Fresnel'], _m.inputs['Fac']); _n.links.new(_t.outputs[0], _m.inputs[1]); _n.links.new(_g.outputs[0], _m.inputs[2]); _n.links.new(_m.outputs[0], _o.inputs['Surface'])
 LUZ_PORTA = material('luz_porta', (1., .8, .5), emissao=0., cor_em=(1., .72, .4))
 FEIXE = bpy.data.materials.new('feixe'); FEIXE.use_nodes = True
 def _feixe(m):
@@ -189,7 +195,7 @@ sol2.rotation_euler = (-d2).to_track_quat('-Z', 'Y').to_euler()
 
 # o gigante gasoso anelado, enorme, atrás da porta
 def gigante():
-    c = Vector((150., 1500., 360.))
+    c = Vector((150., 1500., 290.))
     bpy.ops.mesh.primitive_uv_sphere_add(segments=96, ring_count=48, radius=250, location=c); g = bpy.context.object
     m = bpy.data.materials.new('gigante'); m.use_nodes = True; b = m.node_tree.nodes['Principled BSDF']
     tc = no(m, 'ShaderNodeTexCoord'); onda = no(m, 'ShaderNodeTexWave', wave_type='BANDS', bands_direction='Z', Scale=3.2, Distortion=3.5, **{'Detail Scale': 1.2, 'Detail': 3.})
@@ -207,7 +213,7 @@ def gigante():
     anel = bpy.data.objects.new('anel', me); sc.collection.objects.link(anel); anel.location = c
     anel.rotation_euler = (math.radians(13), math.radians(5), math.radians(-20))   # quase de perfil: uma elipse fina cruzando o planeta
     ma = bpy.data.materials.new('anel'); ma.use_nodes = True; nt = ma.node_tree; nt.nodes.clear()
-    out = nt.nodes.new('ShaderNodeOutputMaterial'); dif = nt.nodes.new('ShaderNodeBsdfDiffuse'); dif.inputs['Color'].default_value = (.85, .7, .55, 1)
+    out = nt.nodes.new('ShaderNodeOutputMaterial'); dif = nt.nodes.new('ShaderNodeBsdfPrincipled'); dif.inputs['Base Color'].default_value = (.85, .7, .55, 1); dif.inputs['Emission Color'].default_value = (.9, .68, .52, 1); dif.inputs['Emission Strength'].default_value = .22
     tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mx = nt.nodes.new('ShaderNodeMixShader')
     tc2 = nt.nodes.new('ShaderNodeTexCoord'); grad = nt.nodes.new('ShaderNodeTexGradient'); grad.gradient_type = 'SPHERICAL'
     mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1 / 600, 1 / 600, 1 / 600)
@@ -216,12 +222,13 @@ def gigante():
     seno = nt.nodes.new('ShaderNodeMath'); seno.operation = 'SINE'
     mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = .11
     nt.links.new(comp.outputs['Value'], mul.inputs[0]); nt.links.new(mul.outputs[0], seno.inputs[0])
-    faixas = nt.nodes.new('ShaderNodeValToRGB'); fe = faixas.color_ramp.elements; fe[0].position = .2; fe[1].position = .9
-    fe[0].color = (0, 0, 0, 1); fe[1].color = (.75, .75, .75, 1)
+    faixas = nt.nodes.new('ShaderNodeValToRGB'); fe = faixas.color_ramp.elements; fe[0].position = .05; fe[1].position = .75
+    fe[0].color = (.08, .08, .08, 1); fe[1].color = (.95, .95, .95, 1)
     nt.links.new(seno.outputs[0], faixas.inputs[0]); nt.links.new(faixas.outputs['Color'], mx.inputs['Fac']); nt.links.new(tr.outputs[0], mx.inputs[1]); nt.links.new(dif.outputs[0], mx.inputs[2])
     nt.links.new(mx.outputs[0], out.inputs['Surface'])
     anel.data.materials.append(ma); anel.visible_shadow = False; anel.pass_index = 7
-gigante()
+    return g, anel
+GIGANTE = gigante()
 
 # ═════════════════════════════ O CHÃO: CAMPO DE DUNAS ═════════════════════════════
 def ruido(x, y):
@@ -419,7 +426,7 @@ for q, vis in ((1, False), (84, False), (85, True), (210, True), (211, False)):
 for dob, lado in FOLHAS:
     for q, ang in ((96, 0), (99, -lado * 125), (103, -lado * 105), (110, -lado * 112)):
         dob.rotation_euler = (0, 0, math.radians(ang)); dob.keyframe_insert('rotation_euler', frame=q)
-for q, e, ef in ((1, 60, .4), (90, 150, .6), (96, 300, .8), (99, 6000, 6.), (106, 1200, 2.5), (150, 500, 1.6)):
+for q, e, ef in ((1, 60, .4), (90, 150, .6), (96, 300, .8), (99, 6000, 6.), (106, 1200, 2.5), (150, 500, 1.6), (330, 250, .9), (411, 60, .3)):   # e vai se apagando
     LUZ.data.energy = e; LUZ.data.keyframe_insert('energy', frame=q)
     nd = LUZ_PORTA.node_tree.nodes['Principled BSDF'].inputs['Emission Strength']; nd.default_value = ef * 6; nd.keyframe_insert('default_value', frame=q)
     fe = FEIXE.node_tree.nodes['Emission'].inputs['Strength']; fe.default_value = ef * .12; fe.keyframe_insert('default_value', frame=q)
@@ -451,10 +458,10 @@ def capacete():
     casco.data.materials.append(MADEIRA)
     for p in me.polygons: p.use_smooth = True
     # aros de latão (base e meio) e a escotilha com rebites
-    for z, r in ((.02, .345), (.3, .335)):
+    for z, r in ((.02, .345), (.41, .295)):   # o aro do meio passa ACIMA da escotilha (z .10–.34)
         bpy.ops.mesh.primitive_torus_add(major_radius=r, minor_radius=.018, location=(0, 0, z)); t = bpy.context.object; t.parent = raiz; t.data.materials.append(LATAO)
     bpy.ops.mesh.primitive_torus_add(major_radius=.13, minor_radius=.028, location=(0, -.33, .22)); e = bpy.context.object; e.rotation_euler = (math.radians(90), 0, 0); e.parent = raiz; e.data.materials.append(LATAO)
-    bpy.ops.mesh.primitive_circle_add(vertices=48, radius=.12, fill_type='NGON', location=(0, -.325, .22)); vd = bpy.context.object; vd.rotation_euler = (math.radians(90), 0, 0); vd.parent = raiz; vd.data.materials.append(VIDRO)
+    bpy.ops.mesh.primitive_circle_add(vertices=48, radius=.12, fill_type='NGON', location=(0, -.325, .22)); vd = bpy.context.object; vd.rotation_euler = (math.radians(90), 0, 0); vd.parent = raiz; vd.data.materials.append(VIDRO_FINO); vd.pass_index = 7
     for k in range(8):
         a = k / 8 * math.tau
         bpy.ops.mesh.primitive_uv_sphere_add(radius=.012, location=(math.cos(a) * .13, -.36, .22 + math.sin(a) * .13)); bpy.context.object.parent = raiz; bpy.context.object.data.materials.append(LATAO)
@@ -572,14 +579,23 @@ elif PLANO == 'pega':
 elif PLANO == 'visor':
     # de pé, de dentro do capacete: a escotilha emoldura a duna e o gigante
     O = Vector((1.0, -12.8, altura(1.0, -12.8) + 1.68))
+    # ele se ergue olhando a areia e LEVANTA o olhar: a crista, a porta em contraluz e, acima dela, o gigante.
+    # Do pé da duna a crista sobe a ~25° e esconderia o gigante (10° no plano geral): aqui ele fica a 40°.
     cam_chave(411, O + Vector((0, 0, -.35)), O + Vector((-.6, 12, .4)), 20, foco=40, f=11)
-    cam_chave(460, O, O + Vector((-.4, 12, 2.2)), 20, foco=40, f=11)
-    CAPACETE.location = O + Vector((0, -.08, -.24)); CAPACETE.rotation_euler = (0, 0, math.radians(180))
+    cam_chave(420, O + Vector((0, 0, -.22)), O + Vector((-.5, 12, .9)), 20, foco=40, f=11)
+    cam_chave(460, O, O + Vector((.2, 12, 12 * math.tan(math.radians(31)))), 20, foco=40, f=11)
+    for ob in GIGANTE:
+        d = ob.location - O; ob.location.z = O.z + d.xy.length * math.tan(math.radians(40))
+    GIGANTE[1].rotation_euler.x = math.radians(27)   # visto de baixo, o anel ficaria de frente (um alvo): inclina para abrir ~12°
+    # o capacete está NA CABEÇA: vai preso à câmera, com a escotilha 16 cm à frente do olho
+    # (girar 180° em Z leva a frente do capacete, -Y, para +Y; -90° em X leva +Y → -Z, o eixo de visão)
+    R = Matrix.Rotation(math.radians(-90), 4, 'X') @ Matrix.Rotation(math.radians(180), 4, 'Z')
+    p = (R @ Vector((0, -.325, .22, 1))).xyz
+    CAPACETE.parent = cam; CAPACETE.matrix_parent_inverse = Matrix.Identity(4)
+    CAPACETE.matrix_basis = Matrix.Translation(Vector((0, -.02, -.165)) - p) @ R
     MAO.hide_render = True
-    # sobe junto com a câmera
-    CAPACETE.keyframe_insert('location', frame=460); CAPACETE.location = O + Vector((0, -.08, -.59)); CAPACETE.keyframe_insert('location', frame=411)
-    bpy.ops.object.light_add(type='POINT', location=O + Vector((0, -.05, .05))); dentro = bpy.context.object; dentro.data.energy = .6; dentro.data.color = (1., .7, .45); dentro.data.shadow_soft_size = .1
-    dentro.keyframe_insert('location', frame=460); dentro.location = O + Vector((0, -.05, -.3)); dentro.keyframe_insert('location', frame=411)
+    bpy.ops.object.light_add(type='POINT'); dentro = bpy.context.object; dentro.data.energy = .6; dentro.data.color = (1., .7, .45); dentro.data.shadow_soft_size = .1
+    dentro.parent = cam; dentro.matrix_parent_inverse = Matrix.Identity(4); dentro.location = (0, .05, .04)
     brilho.data.energy = 0
 if PLANO not in ('pov', 'pega'): MAO.hide_render = True
 if PLANO in ('geral',): CAPACETE.hide_render = False
@@ -623,5 +639,6 @@ nt.links.new(mx.outputs[0], glare.inputs[0]); nt.links.new(glare.outputs[0], com
 r.image_settings.file_format = 'PNG'; r.image_settings.color_mode = 'RGB'
 r.use_overwrite = False; r.use_placeholder = True   # rodar de novo continua de onde parou
 sc.frame_start, sc.frame_end = DE, ATE; sc.frame_step = PASSO
+exec(os.environ.get('K14_EXTRA', ''))   # ajustes de depuração vindos de fora
 r.filepath = os.path.join(OUT, PLANO + '_')
 bpy.ops.render.render(animation=True)
