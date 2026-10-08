@@ -50,8 +50,9 @@ describe('Game constants', () => {
       });
     }
 
-    it('BARNEY_URL should be a valid remote URL', () => {
-      expect(BARNEY_URL).toMatch(/^https?:\/\/.+/);
+    it('BARNEY_URL should be a valid image URL', () => {
+      // servidas de public/remoto/ (antes vinham do GitHub em tempo real e travavam sem rede)
+      expect(BARNEY_URL).toMatch(/^(https?:\/\/|\/).+\.(png|jpe?g)$/);
       expect(BARNEY_URL.length).toBeGreaterThan(10);
     });
   });
@@ -76,7 +77,7 @@ describe('Game constants', () => {
       const required = ['noise', 'grass', 'wood', 'lobbyFloor', 'wall'];
       for (const key of required) {
         expect(ASSETS).toHaveProperty(key);
-        expect((ASSETS as any)[key]).toMatch(/^https?:\/\/.+/);
+        expect((ASSETS as any)[key]).toMatch(/^(https?:\/\/|\/).+\.(png|jpe?g)$/);
       }
     });
   });

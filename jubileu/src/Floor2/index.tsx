@@ -63,7 +63,7 @@ import {
     CAVE_WALL_N_GEO, CAVE_WALL_S_GEO, CAVE_WALL_W_GEO, CAVE_WALL_E_GEO,
     UW_WALL_NORTH_GEO, UW_WALL_SOUTH_GEO, UW_WALL_WEST_GEO, UW_WALL_EAST_GEO,
     UW_FLOOR_GEO,
-    PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D,
+    PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D, UW_PILLARS_GEO, UW_ARCHES_GEO,
     MERGED_STALAGMITE_GEO, MERGED_STALACTITE_GEO,
 } from './geometry';
 
@@ -77,6 +77,12 @@ import {
 } from './underwater-effects';
 import { BioluminescentPatches, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 import { MonsterFish } from './MonsterFish';
+import { comCausticas, CAUSTICA_TEMPO } from './caustic-patch';
+import { useFrame } from '@react-three/fiber';
+
+/** Liga as cáusticas no material do fundo (uma vez). */
+const aplicaCaustica = (m: THREE.Material) => { if (!m.userData.e2) { m.userData.e2 = true; comCausticas(m); m.needsUpdate = true; } };
+const RelogioCaustica: React.FC = () => { useFrame((_, dt) => { CAUSTICA_TEMPO.value += Math.min(dt, .05); }); return null; };
 
 
 // ─── Texture loading helper ────────────────────────────────────────
@@ -98,6 +104,7 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
 const V2_15 = /*@__PURE__*/ new THREE.Vector2(0.65, 0.65);
 const V2_18 = /*@__PURE__*/ new THREE.Vector2(0.75, 0.75);
 const V2_20 = /*@__PURE__*/ new THREE.Vector2(0.8, 0.8);
+const V2_CHAO = /*@__PURE__*/ new THREE.Vector2(0.45, 0.45);
 const V2_22 = /*@__PURE__*/ new THREE.Vector2(0.85, 0.85);
 const V2_24 = /*@__PURE__*/ new THREE.Vector2(0.9, 0.9);
 const V2_25 = /*@__PURE__*/ new THREE.Vector2(0.95, 0.95);
@@ -131,7 +138,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     // ─── Load real PBR texture sets ────────────────────────────────
     const caveFloor = usePBRSet(
         caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
-        12, 12
+        7, 7   // 12×12 virava chiado de TV a poucos metros
     );
     const caveWall = usePBRSet(
         caveWallColor, caveWallNormal, caveWallRoughness, caveWallAO,
@@ -147,7 +154,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     );
     const uwRock = usePBRSet(
         uwRockColor, uwRockNormal, uwRockRoughness, uwRockAO,
-        1, 1
+        3, 2   // rochas grandes: sem a textura esticada
     );
     const uwWall = usePBRSet(
         uwWallColor, uwWallNormal, uwWallRoughness, uwWallAO,
@@ -193,6 +200,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <BioluminescentPatches />}
 
         <DynamicFog playerPositionRef={playerPositionRef} />
+        <RelogioCaustica />
 
         {/* ─── CAVE FLOOR with hole ─── */}
         <mesh
@@ -201,10 +209,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             position={[0, 0, 0]}
         >
             <meshStandardMaterial
-                color="#625448"
+                color="#7a6450"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={V2_20}
+                normalScale={V2_CHAO}
                 roughnessMap={caveFloor.rough}
                 roughness={0.88}
                 aoMap={caveFloor.ao}
@@ -320,7 +328,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
-            <meshStandardMaterial
+            <meshStandardMaterial onUpdate={aplicaCaustica}
                 color="#46554b"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
@@ -358,7 +366,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             if (!rocks.length) return null;
             return (
                 <Instances key={gi} limit={rocks.length} range={rocks.length} geometry={geo}>
-                    <meshStandardMaterial color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+                    <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
                     {rocks.map(([x, y, z, s, ry], i) => (
                         <Instance key={i} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
                     ))}
@@ -368,7 +376,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Underwater pebbles — darkened */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#424e49" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_18} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#424e49" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_18} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
@@ -384,7 +392,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             if (!rocks.length) return null;
             return (
                 <Instances key={`scatter-${gi}`} limit={rocks.length} range={rocks.length} geometry={geo}>
-                    <meshStandardMaterial color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                    <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} />
                     {rocks.map(([x, y, z, s, ry, rx], i) => (
                         <Instance key={i} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[rx, ry, 0]} />
                     ))}
@@ -395,49 +403,28 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* ─── UNDERWATER CAVE WALLS — organic displaced PlaneGeometry ─── */}
         {/* North underwater wall (z = -30) — faces +Z (inward) */}
         <mesh position={[0, -15, -30]} rotation={[0, 0, 0]} geometry={UW_WALL_NORTH_GEO}>
-            <meshStandardMaterial color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* South underwater wall (z = 30) — faces -Z (inward) */}
         <mesh position={[0, -15, 30]} rotation={[0, Math.PI, 0]} geometry={UW_WALL_SOUTH_GEO}>
-            <meshStandardMaterial color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* West underwater wall (x = -30) — faces +X (inward) */}
         <mesh position={[-30, -15, 0]} rotation={[0, Math.PI / 2, 0]} geometry={UW_WALL_WEST_GEO}>
-            <meshStandardMaterial color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* East underwater wall (x = 30) — faces -X (inward) */}
         <mesh position={[30, -15, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={UW_WALL_EAST_GEO}>
-            <meshStandardMaterial color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Underwater coral/rock pillars — tall vertical formations */}
-        {UW_CORAL_PILLARS.map(([x, z, h, rTop, rBot], i) => (
-            <mesh key={`coral-${i}`} position={[x, -30 + h / 2, z]}>
-                <cylinderGeometry args={[rTop, rBot, h, 8]} />
-                <meshStandardMaterial color="#61736a" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_25} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading side={THREE.DoubleSide} />
-            </mesh>
-        ))}
-
-        {/* Underwater arches — curved rock formations spanning the seafloor */}
-        {UW_ARCHES.map(([x, z, h, span, thick], i) => (
-            <group key={`arch-${i}`} position={[x, -30, z]}>
-                {/* Left pillar */}
-                <mesh position={[-span / 2, h / 2, 0]}>
-                    <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
-                </mesh>
-                {/* Right pillar */}
-                <mesh position={[span / 2, h / 2, 0]}>
-                    <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
-                </mesh>
-                {/* Top beam */}
-                <mesh position={[0, h, 0]} rotation={[0, 0, Math.PI / 2]}>
-                    <cylinderGeometry args={[thick * 0.8, thick * 0.8, span + thick * 2, 6]} />
-                    <meshStandardMaterial color="#61736a" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
-                </mesh>
-            </group>
-        ))}
+        {/* Colunas e arcos de rocha orgânicos (uma malha cada) */}
+        <mesh geometry={UW_PILLARS_GEO}>
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#61736a" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_25} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} />
+        </mesh>
+        <mesh geometry={UW_ARCHES_GEO}>
+            <meshStandardMaterial onUpdate={aplicaCaustica} color="#586764" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} />
+        </mesh>
 
         <ShardField
             paused={paused}

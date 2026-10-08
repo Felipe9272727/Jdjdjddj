@@ -5,7 +5,7 @@
  * entire module goes near-zero CPU cost while the player is in the cave.
  */
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Instances, Instance } from '@react-three/drei';
 import * as THREE from 'three';
@@ -56,56 +56,81 @@ export const UnderwaterCaustics: React.FC<{ playerPositionRef?: React.MutableRef
 };
 
 // ─── KelpField — single useFrame driving all kelp ─────────────────────
-export const KelpField: React.FC = () => {
-    const meshRefs = useRef<(THREE.Mesh | null)[][]>(
-        KELP_POSITIONS.map(() => new Array(3).fill(null))
-    );
-    useFrame((state) => {
-        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
-        const t = state.clock.elapsedTime;
-        for (let k = 0; k < KELP_POSITIONS.length; k++) {
-            const phase = KELP_POSITIONS[k][3];
-            const segments = 3;
-            for (let i = 0; i < segments; i++) {
-                const m = meshRefs.current[k]?.[i];
-                if (!m) continue;
-                const swayAmt = (i / segments) * 0.25;
-                m.rotation.z = Math.sin(t * 0.6 + phase + i * 0.4) * swayAmt;
-                m.rotation.x = Math.cos(t * 0.5 + phase + i * 0.3) * swayAmt * 0.6;
+/** Algas: caule fino + folhas em fita (onduladas, alternando de lado), todas numa malha só; o balanço é no
+ *  shader de vértice (cresce com a altura), então não custa nada na CPU. */
+function kelpGeo(): THREE.BufferGeometry {
+    const P: number[] = [], A: number[] = [], F: number[] = [], C: number[] = [], I: number[] = [];
+    let base = 0;
+    const rnd = (k: number) => { const x = Math.sin(k * 127.1) * 43758.5453; return x - Math.floor(x); };
+    const tri = (a: number, b: number, c: number) => I.push(base + a, base + b, base + c);
+    KELP_POSITIONS.forEach(([x, z, h, fase], k) => {
+        const H = h * 1.35;
+        // caule: 5 lados, 14 anéis, levemente torto
+        const L = 14, R = 5; base = P.length / 3;
+        for (let j = 0; j <= L; j++) {
+            const t = j / L, y = t * H, r = 0.045 * (1 - t * 0.6);
+            const ox = Math.sin(t * 3 + k) * 0.15, oz = Math.cos(t * 2.3 + k) * 0.12;
+            for (let i = 0; i < R; i++) {
+                const a = i / R * Math.PI * 2;
+                P.push(x + ox + Math.cos(a) * r, -30 + y, z + oz + Math.sin(a) * r); A.push(t); F.push(fase); C.push(0.55);
             }
         }
+        for (let j = 0; j < L; j++) for (let i = 0; i < R; i++) {
+            const a0 = j * R + i, a1 = j * R + (i + 1) % R, b0 = a0 + R, b1 = a1 + R; tri(a0, b0, a1); tri(a1, b0, b1);
+        }
+        // folhas: a cada ~30 cm a partir de 25% da altura
+        const n = Math.floor(H / 0.3);
+        for (let f = 0; f < n; f++) {
+            const t0 = 0.22 + 0.76 * f / n, y0 = t0 * H, lado = (f % 2 ? 1 : -1), giro = rnd(k * 31 + f) * Math.PI * 2;
+            const comp = 0.45 + rnd(k * 17 + f) * 0.5, larg = 0.09 + rnd(k * 7 + f) * 0.06, S = 7;
+            const dx = Math.cos(giro), dz = Math.sin(giro), px = -dz, pz = dx;
+            const ox = Math.sin(t0 * 3 + k) * 0.15, oz = Math.cos(t0 * 2.3 + k) * 0.12;
+            base = P.length / 3;
+            for (let i = 0; i <= S; i++) {
+                const u = i / S, ao = u * comp, cai = -u * u * comp * 0.55;          // sai do caule e cai
+                const w = larg * Math.sin(Math.min(1, u * 1.6 + 0.08) * Math.PI * 0.95) * (1 - u * 0.3);
+                const babado = Math.sin(u * 14 + f) * 0.03;                           // borda ondulada
+                for (const sgn of [-1, 1]) {
+                    P.push(x + ox + dx * ao * lado + px * w * sgn, -30 + y0 + cai + babado * sgn, z + oz + dz * ao * lado + pz * w * sgn);
+                    A.push(Math.min(1, (y0 + cai) / H + 0.05)); F.push(fase + f * 0.13); C.push(0.75 + 0.25 * u);
+                }
+            }
+            for (let i = 0; i < S; i++) { const a = i * 2; tri(a, a + 2, a + 1); tri(a + 1, a + 2, a + 3); }
+        }
     });
-    return (
-        <>
-            {KELP_POSITIONS.map(([x, z, height, phase], k) => {
-                const segments = 3;
-                const segLen = height / segments;
-                return (
-                    <group key={`kelp-${k}`} position={[x, -30, z]}>
-                        {Array.from({ length: segments }, (_, i) => (
-                            <mesh
-                                key={i}
-                                ref={(r: any) => { if (meshRefs.current[k]) meshRefs.current[k][i] = r; }}
-                                position={[0, segLen * 0.5 + i * segLen * 0.95, 0]}
-                                geometry={KELP_GEO}
-                                scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
-                            >
-                                <meshStandardMaterial color={i < 2 ? '#0a0805' : '#0c0a06'} roughness={0.85} flatShading />
-                            </mesh>
-                        ))}
-                        <mesh
-                            position={[0, height * 0.9, 0]}
-                            rotation={[0.3 + Math.sin(phase) * 0.2, phase, 0.1]}
-                            scale={[0.6, 0.3, 0.02]}
-                        >
-                            <planeGeometry args={[1, 1]} />
-                            <meshStandardMaterial color="#0c0f06" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.85} />
-                        </mesh>
-                    </group>
-                );
-            })}
-        </>
-    );
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('aAlt', new THREE.Float32BufferAttribute(A, 1));
+    g.setAttribute('aFase', new THREE.Float32BufferAttribute(F, 1));
+    g.setAttribute('aTom', new THREE.Float32BufferAttribute(C, 1));
+    g.setIndex(I); g.computeVertexNormals();
+    return g;
+}
+
+export const KelpField: React.FC = () => {
+    const geo = useMemo(kelpGeo, []);
+    const u = useMemo(() => ({ value: 0 }), []);
+    const mat = useMemo(() => {
+        const m = new THREE.MeshStandardMaterial({ color: '#3c4a1c', roughness: 0.6, side: THREE.DoubleSide, emissive: '#0d1a08', emissiveIntensity: 1 });
+        m.onBeforeCompile = (sh) => {
+            sh.uniforms.kTempo = u;
+            sh.vertexShader = sh.vertexShader
+                .replace('#include <common>', '#include <common>\nuniform float kTempo;\nattribute float aAlt;\nattribute float aFase;\nattribute float aTom;\nvarying float vTom;')
+                .replace('#include <begin_vertex>', `#include <begin_vertex>
+    float kw = aAlt * aAlt;
+    transformed.x += (sin(kTempo * 0.55 + aFase + position.y * 0.35) * 0.55 + sin(kTempo * 1.7 + aFase * 3.0 + position.y) * 0.06) * kw;
+    transformed.z += (cos(kTempo * 0.45 + aFase * 1.3 + position.y * 0.3) * 0.4) * kw;
+    vTom = aTom;`);
+            sh.fragmentShader = sh.fragmentShader
+                .replace('#include <common>', '#include <common>\nvarying float vTom;')
+                .replace('#include <color_fragment>', '#include <color_fragment>\n    diffuseColor.rgb *= vTom;');
+        };
+        m.customProgramCacheKey = () => 'f2kelp';
+        return m;
+    }, [u]);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    useFrame((_, dt) => { u.value += Math.min(dt, 0.05); });
+    return <mesh geometry={geo} material={mat} frustumCulled={false} />;
 };
 
 // ─── Coral ────────────────────────────────────────────────────────────

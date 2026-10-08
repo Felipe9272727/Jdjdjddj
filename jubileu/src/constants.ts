@@ -20,10 +20,13 @@ export const IDLE_URL = idleModel;
 export const NPC_WALK_URL = npcWalkModel;
 export const NPC_IDLE_URL = npcIdleModel;
 export const DUSSEKAR_URL = blockyCharModel;
-export const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
+// Fonte local dos textos 3D (<Text> do drei): sem ela o troika busca fontes no jsdelivr e, se a rede
+// bloquear, a cena fica em "Carregando..." para sempre. DejaVu Sans Bold recortada (só latim + ▲▼◆●).
+export const FONTE_PAINEL = `${import.meta.env.BASE_URL}fontes/painel.ttf`;
+export const BARNEY_URL = `${import.meta.env.BASE_URL}remoto/barney.png`;
 
 export const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", ceiling: "#BCAAA4", metal: "#B0BEC5", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E", light: "#FFE0B2" };
-export const ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
+export const ASSETS = { noise: `${import.meta.env.BASE_URL}remoto/noise.jpg`, grass: `${import.meta.env.BASE_URL}remoto/grass.jpg`, wood: `${import.meta.env.BASE_URL}remoto/wood.jpg`, lobbyFloor: `${import.meta.env.BASE_URL}remoto/lobbyFloor.jpg`, wallPanel: `${import.meta.env.BASE_URL}remoto/wallPanel.jpg`, wall: `${import.meta.env.BASE_URL}remoto/wall.jpg`, ceiling: `${import.meta.env.BASE_URL}remoto/ceiling.jpg` };
 
 export const BARNEY_DIALOGUE: Record<string, any> = {
   "greet": {

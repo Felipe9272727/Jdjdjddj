@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
-import { ASSETS, COLORS } from './constants';
+import { ASSETS, COLORS, FONTE_PAINEL } from './constants';
 import { cashierModel } from './assets/textureImports';
 import * as THREE from 'three';
 
@@ -24,7 +24,7 @@ export const WallPanel = React.memo(({ x, z, rot }: any) => (
     <group position={[x, 2.2, z]} rotation={[0, rot, 0]}>
       <mesh><boxGeometry args={[2, 1.2, 0.05]} /><meshStandardMaterial color="#212121" roughness={0.2} /></mesh>
       <mesh position={[0, 0, 0.03]}><boxGeometry args={[1.8, 1.0, 0.01]} /><meshBasicMaterial color="#000000" /></mesh>
-      <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" anchorX="center" anchorY="middle">3</Text>
+      <Text font={FONTE_PAINEL} position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" anchorX="center" anchorY="middle">3</Text>
     </group>
 ));
 
@@ -35,8 +35,8 @@ export const CallPanel = React.memo(({ x, z, rot }: any) => (
         <mesh position={[0, 0.15, 0.035]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.06, 0.06, 0.02, 16]} /><meshStandardMaterial color="#FFD54F" emissive="#FFD54F" emissiveIntensity={0.8} toneMapped={false} /></mesh>
         <mesh position={[0, -0.05, 0.035]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.06, 0.06, 0.02, 16]} /><meshStandardMaterial color="#424242" metalness={0.6} roughness={0.3} /></mesh>
         <mesh position={[0, -0.22, 0.035]}><planeGeometry args={[0.3, 0.15]} /><meshBasicMaterial color="#000000" /></mesh>
-        <Text position={[0, -0.22, 0.04]} fontSize={0.09} color="#FF3333" anchorX="center" anchorY="middle">▲ 01</Text>
-        <Text position={[0, 0.15, 0.05]} fontSize={0.08} color="#1a1a1a" anchorX="center" anchorY="middle">▲</Text>
+        <Text font={FONTE_PAINEL} position={[0, -0.22, 0.04]} fontSize={0.09} color="#FF3333" anchorX="center" anchorY="middle">▲ 01</Text>
+        <Text font={FONTE_PAINEL} position={[0, 0.15, 0.05]} fontSize={0.08} color="#1a1a1a" anchorX="center" anchorY="middle">▲</Text>
     </group>
 ));
 

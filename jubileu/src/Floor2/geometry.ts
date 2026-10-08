@@ -9,9 +9,10 @@
 import * as THREE from 'three';
 import { createNoise3D } from 'simplex-noise';
 import { mergeBufferGeometries as mergeGeometries } from 'three-stdlib';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, STALAGMITES, STALACTITES,
-    UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS,
+    UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS, UW_CORAL_PILLARS, UW_ARCHES,
 } from './constants';
 
 // ─── Simplex noise instance (shared across all procedural geometry) ─────
@@ -40,7 +41,7 @@ export const GLOW_TEXTURE = (() => {
 // ─── Shared simple geometries ─────────────────────────────────────────
 export const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 export const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
-export const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
+export const PEBBLE_GEO  = /*@__PURE__*/ createProceduralRock(1, 2, 0.3, 200);   // seixos: rocha lisa, não icosaedro de 20 faces
 export const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
 export const KELP_GEO    = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
 export const FISH_GEO    = new THREE.ConeGeometry(0.18, 0.55, 4);
@@ -107,24 +108,81 @@ export function createProceduralRock(
   roughness: number = 0.35,
   seed: number = 0
 ): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(radius, detail);
-  const positions = geo.attributes.position;
-  const normals = geo.attributes.normal;
-  const v = new THREE.Vector3();
-  const n = new THREE.Vector3();
-  for (let i = 0; i < positions.count; i++) {
-    v.fromBufferAttribute(positions, i);
-    n.fromBufferAttribute(normals, i);
-    let disp = 0;
-    disp += noise3D(v.x * 0.8 + seed, v.y * 0.8, v.z * 0.8) * roughness;
-    disp += noise3D(v.x * 2.0 + seed, v.y * 2.0, v.z * 2.0) * roughness * 0.3;
-    disp += noise3D(v.x * 5.0 + seed, v.y * 5.0, v.z * 5.0) * roughness * 0.1;
-    disp *= 0.7 + 0.3 * Math.abs(n.y);
-    positions.setX(i, v.x + n.x * disp);
-    positions.setY(i, v.y + n.y * disp);
-    positions.setZ(i, v.z + n.z * disp);
+  // Vértices UNIDOS antes de deslocar (o icosaedro do three vem com cada face solta: deslocar por face
+  // abria rachaduras e deixava tudo facetado). Desloca na direção radial, com camadas sedimentares e
+  // arestas mais vivas; UV esférica no fim para as texturas.
+  const base = new THREE.IcosahedronGeometry(radius, Math.max(detail, 4));
+  base.deleteAttribute('normal'); base.deleteAttribute('uv');
+  const geo = mergeVertices(base); base.dispose();
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const v = new THREE.Vector3(), d = new THREE.Vector3();
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i); d.copy(v).normalize();
+    let disp = noise3D(d.x * 0.9 + seed, d.y * 0.9, d.z * 0.9) * roughness;
+    disp += noise3D(d.x * 2.2 + seed, d.y * 2.2, d.z * 2.2) * roughness * 0.4;
+    disp += (1 - Math.abs(noise3D(d.x * 4.5 + seed, d.y * 4.5, d.z * 4.5))) * roughness * 0.22;   // cristas
+    disp += noise3D(d.x * 11 + seed, d.y * 11, d.z * 11) * roughness * 0.06;
+    const strata = Math.sin(d.y * 9 + noise3D(d.x * 1.3, d.z * 1.3, seed) * 2.5);                  // camadas
+    disp += Math.max(0, strata) * roughness * 0.12;
+    const r = radius * (1 + disp) * (d.y < -0.55 ? 0.85 + 0.15 * (1 + d.y) / 0.45 : 1);          // base mais chata
+    pos.setXYZ(i, d.x * r, d.y * r, d.z * r);
+    uv[i * 2] = 0.5 + Math.atan2(d.z, d.x) / (Math.PI * 2); uv[i * 2 + 1] = 0.5 + Math.asin(THREE.MathUtils.clamp(d.y, -1, 1)) / Math.PI;
   }
-  positions.needsUpdate = true;
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Coluna de rocha orgânica (no lugar do prisma de 8 lados): perfil torneado com base alargada e topo
+ *  arredondado, corpo que ondula de lado, saliências, camadas e cavidades. Origem no pé. */
+export function createRockPillar(h: number, rTop: number, rBot: number, seed: number): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  const N = 36;
+  for (let k = 0; k <= N; k++) {
+    const t = k / N, y = t * h;
+    let r = rBot + (rTop - rBot) * Math.pow(t, 0.8);
+    r *= 1 + 0.55 * Math.pow(1 - t, 6);                           // pé espalhado no leito
+    if (t > 0.9) r *= Math.sqrt(Math.max(0.001, 1 - Math.pow((t - 0.9) / 0.1, 2)));   // topo arredondado
+    pts.push(new THREE.Vector2(Math.max(r, 0.001), y));
+  }
+  const geo = new THREE.LatheGeometry(pts, 28);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const t = v.y / h, r = Math.hypot(v.x, v.z), ang = Math.atan2(v.z, v.x);
+    const cx = Math.cos(ang), cz = Math.sin(ang);
+    let disp = noise3D(cx * 1.2 + seed, v.y * 0.18, cz * 1.2) * 0.32;
+    disp += noise3D(cx * 3 + seed, v.y * 0.6, cz * 3) * 0.14;
+    disp += (1 - Math.abs(noise3D(cx * 5 + seed, v.y * 1.4, cz * 5))) * 0.1;
+    disp += Math.max(0, Math.sin(v.y * 2.3 + noise3D(cx, cz, seed + v.y * .05) * 3)) * 0.1;   // camadas
+    const nr = r * (1 + disp);
+    const swayX = noise3D(seed, v.y * 0.09, 3) * 0.9 * t, swayZ = noise3D(seed, v.y * 0.09, 7) * 0.9 * t;   // o corpo serpenteia
+    pos.setXYZ(i, cx * nr + swayX, v.y, cz * nr + swayZ);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Arco de rocha: um tubo em curva (pé esquerdo → topo → pé direito) com a mesma pele de rocha. */
+export function createRockArch(h: number, span: number, thick: number, seed: number): THREE.BufferGeometry {
+  const curva = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-span / 2 - thick * .4, -0.3, 0), new THREE.Vector3(-span / 2, h * 0.55, 0.2),
+    new THREE.Vector3(-span * 0.3, h * 0.95, -0.15), new THREE.Vector3(span * 0.25, h * 1.02, 0.1),
+    new THREE.Vector3(span / 2, h * 0.5, -0.2), new THREE.Vector3(span / 2 + thick * .4, -0.3, 0),
+  ]);
+  const geo = new THREE.TubeGeometry(curva, 64, thick, 14, false);
+  const pos = geo.attributes.position as THREE.BufferAttribute, nor = geo.attributes.normal as THREE.BufferAttribute;
+  const v = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i); n.fromBufferAttribute(nor, i);
+    const pe = Math.max(0, 1 - (v.y + 0.3) / (h * 0.25));      // os pés engrossam
+    let disp = noise3D(v.x * 0.5 + seed, v.y * 0.5, v.z * 0.5) * 0.45 + noise3D(v.x * 1.6 + seed, v.y * 1.6, v.z * 1.6) * 0.18;
+    disp += (1 - Math.abs(noise3D(v.x * 3 + seed, v.y * 3, v.z * 3))) * 0.12 + pe * 0.7;
+    v.addScaledVector(n, thick * disp);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
   geo.computeVertexNormals();
   return geo;
 }
@@ -249,6 +307,9 @@ export const UW_WALL_EAST_GEO  = createOrganicCaveWall(62, 35, 64, 70, 3.5);
 // Pre-computed procedural rock geometries
 // Detail 2 → 3 quadruples the face count (80 → 320) so rocks read as smooth
 // silhouettes against the cave instead of obvious low-poly icosahedrons.
+// Pilares e arcos do fundo: todos numa malha só cada (2 chamadas de desenho).
+export const UW_PILLARS_GEO = /*@__PURE__*/ (() => mergeGeometries(UW_CORAL_PILLARS.map(([x, z, h, rTop, rBot], i) => createRockPillar(h, rTop, rBot, i * 13.7).translate(x, -30, z))))()!;
+export const UW_ARCHES_GEO = /*@__PURE__*/ (() => mergeGeometries(UW_ARCHES.map(([x, z, h, span, thick], i) => createRockArch(h, span, thick, i * 7.1 + 3).translate(x, -30, z))))()!;
 export const PROC_ROCK_A = createProceduralRock(1, 3, 0.35, 0);
 export const PROC_ROCK_B = createProceduralRock(1, 3, 0.3, 50);
 export const PROC_ROCK_C = createProceduralRock(1, 3, 0.4, 100);

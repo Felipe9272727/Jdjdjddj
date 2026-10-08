@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 're
 import { useFrame } from '@react-three/fiber';
 import { Text, useGLTF, useTexture } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
-import { ASSETS, COLORS } from './constants';
+import { ASSETS, COLORS, FONTE_PAINEL } from './constants';
 import { CallPanel } from './BuildingBlocks';
 import * as THREE from 'three';
 import { cabineDecoModel, tetoSolTex, mostradorTex, pisoRosaTex, letreiroTex } from './assets/textureImports';
@@ -148,7 +148,7 @@ export const ElevatorFacade = React.memo(({ z, height = 4.5, width = 10 }: { z: 
           <mesh position={[0, H - (H-2.8)/2, 0]}><boxGeometry args={[4, H - 2.8, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[1, 0.5]} roughness={0.9} /></mesh>
           <group position={[0, H - 0.4, 0.3]}>
               <mesh><boxGeometry args={[3.5, 0.6, 0.06]} /><meshStandardMaterial color="#1a1a1a" roughness={0.2} /></mesh>
-              <Text position={[0, 0, 0.04]} fontSize={0.18} color="#FFD54F" anchorX="center" anchorY="middle" letterSpacing={0.12}>THE NORMAL ELEVATOR</Text>
+              <Text font={FONTE_PAINEL} position={[0, 0, 0.04]} fontSize={0.18} color="#FFD54F" anchorX="center" anchorY="middle" letterSpacing={0.12}>THE NORMAL ELEVATOR</Text>
               <pointLight position={[0, -0.3, 0.5]} intensity={1} distance={4} color="#FFD54F" decay={2} />
           </group>
           <CallPanel x={2.3} z={0.05} rot={0} />
@@ -192,7 +192,7 @@ export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: { tim
               <mesh position={[0, 0.5, 0.012]}><boxGeometry args={[0.48, 0.04, 0.005]} /><meshStandardMaterial color="#FFD54F" metalness={0.7} roughness={0.25} /></mesh>
               <group position={[0, 0.3, 0.02]}>
                   <mesh><planeGeometry args={[0.4, 0.18]} /><meshBasicMaterial color="#000000" /></mesh>
-                  <Text position={[0, 0, 0.01]} fontSize={0.14} color={panelColor} anchorX="center" anchorY="middle" letterSpacing={0.1}>{panelText}</Text>
+                  <Text font={FONTE_PAINEL} position={[0, 0, 0.01]} fontSize={0.14} color={panelColor} anchorX="center" anchorY="middle" letterSpacing={0.1}>{panelText}</Text>
               </group>
               <group position={[0, -0.15, 0.015]}>
                   {[1,2,3,4].map((num,i) => {
@@ -200,7 +200,7 @@ export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: { tim
                       return (
                           <group key={num} position={[((i%2)-0.5)*0.18, (1-Math.floor(i/2))*0.18, 0]}>
                               <mesh rotation={[Math.PI/2,0,0]}><cylinderGeometry args={[0.05, 0.05, 0.02, 16]} /><meshStandardMaterial color={lit ? "#FFEB3B" : "#BDBDBD"} emissive={lit ? "#FFEB3B" : "#000000"} emissiveIntensity={lit ? 0.8 : 0} metalness={0.4} roughness={0.3} toneMapped={!lit} /></mesh>
-                              <Text position={[0, 0, 0.013]} fontSize={0.045} color={lit ? "#1a1a1a" : "#424242"} anchorX="center" anchorY="middle">{num}</Text>
+                              <Text font={FONTE_PAINEL} position={[0, 0, 0.013]} fontSize={0.045} color={lit ? "#1a1a1a" : "#424242"} anchorX="center" anchorY="middle">{num}</Text>
                           </group>
                       );
                   })}

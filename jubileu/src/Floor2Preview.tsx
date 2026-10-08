@@ -15,7 +15,8 @@ const VIEWS: Record<string,View> = {
 };
 function Probe() {
     const frames=useRef(0);
-    const { gl }=useThree();
+    const { gl, scene }=useThree();
+    (window as any).__f2scene=scene;
     useFrame(() => {
         (window as any).__f2PreviewStats={frames:++frames.current,calls:gl.info.render.calls,triangles:gl.info.render.triangles};
     });
