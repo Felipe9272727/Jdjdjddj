@@ -581,7 +581,7 @@ sc.cycles.caustics_reflective = False; sc.cycles.caustics_refractive = False; sc
 r.use_persistent_data = True; r.fps = 24
 r.resolution_x, r.resolution_y = 1280, 608; r.resolution_percentage = int(os.environ.get('K14_ESCALA', 75))
 r.use_motion_blur = True; r.motion_blur_shutter = .45
-sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'; sc.view_settings.exposure = -.1 if PLANO == 'descida' else -.25
+sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'; sc.view_settings.exposure = .45 if PLANO == 'descida' else -.25
 sc.use_nodes = True; nt = sc.node_tree; nt.nodes.clear()
 rl = nt.nodes.new('CompositorNodeRLayers'); comp = nt.nodes.new('CompositorNodeComposite')
 glare = nt.nodes.new('CompositorNodeGlare'); glare.glare_type = 'FOG_GLOW'; glare.threshold = .9; glare.size = 7; glare.mix = -.75

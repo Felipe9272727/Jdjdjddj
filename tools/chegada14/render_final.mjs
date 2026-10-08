@@ -17,7 +17,8 @@ execFileSync('python3', ['-c', `
 import glob, os
 from PIL import Image
 for f in sorted(glob.glob('${path.join(here, 'frames/final')}/*.png')):
-    Image.open(f).convert('RGB').save(os.path.join('${path.join(dest, 'quadros')}', os.path.basename(f)[:-4] + '.jpg'), quality=93)
+    try: Image.open(f).convert('RGB').save(os.path.join('${path.join(dest, 'quadros')}', os.path.basename(f)[:-4] + '.jpg'), quality=93)
+    except Exception: pass   # quadro ainda sendo renderizado
 `], { stdio: 'inherit' });
 for (const f of await fs.readdir(path.join(here, 'frames/manim_final/images/titulo_final')))
   await fs.copyFile(path.join(here, 'frames/manim_final/images/titulo_final', f), path.join(dest, 'manim', f));
@@ -26,7 +27,7 @@ const serveUrl = await bundle({ entryPoint: path.join(here, 'composition_final.j
   webpackOverride: c => ({ ...c, resolve: { ...c.resolve, alias: { ...(c.resolve?.alias || {}), react: path.join(video, 'node_modules/react'), 'react-dom': path.join(video, 'node_modules/react-dom'), remotion: path.join(video, 'node_modules/remotion') } } }) });
 const browserExecutable = process.env.CHROMIUM_PATH || execFileSync('sh', ['-c', 'ls -d /opt/pw-browsers/chromium_headless_shell-*/*/headless_shell | head -1']).toString().trim();
 const ff = execFileSync('python3', ['-c', 'import imageio_ffmpeg as f; print(f.get_ffmpeg_exe())']).toString().trim();
-for (const [id, nome, conf] of [['FinalDescida', 'f14-descida.mp4', [130, 250, 345]], ['FinalPortal', 'f14-portal.mp4', [30, 100, 200, 300, 460]]]) {
+for (const [id, nome, conf] of [['FinalDescida', 'f14-descida.mp4', [120, 190, 280, 352]], ['FinalPortal', 'f14-portal.mp4', [30, 100, 150, 280, 460]]].filter(([i]) => !process.env.K14_SO || process.env.K14_SO === i)) {   // K14_SO=FinalDescida: só um
   const composition = await selectComposition({ serveUrl, id, browserExecutable });
   const saida = path.join(root, 'jubileu/public', nome), tmp = saida + '.tmp.mp4';
   await renderMedia({ composition, serveUrl, browserExecutable, codec: 'h264', pixelFormat: 'yuv420p', crf: 20, concurrency: 2, outputLocation: saida });
