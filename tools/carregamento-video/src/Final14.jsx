@@ -61,7 +61,7 @@ export function FinalPortal() {
     </AbsoluteFill>
     <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 46%, transparent 50%, rgba(8,4,12,.5) 100%)' }} />
     <Manim f={f} cena="AntiSimulacao" de={6} quadros={69} />
-    <Manim f={f} cena="Selo" de={80} quadros={109} />
+    {/* (o selo do Manim saiu: o portal oval do Blender já tem a borda acesa, e um selo fixo na tela não acompanhava a câmera) */}
     {DESPEDIDA.map(([de, ate, t]) => <Fala key={de} f={f} de={de} ate={ate} texto={t} />)}
     <AbsoluteFill style={{ background: '#e7d4ff', opacity: estouro, mixBlendMode: 'screen' }} />
     <AbsoluteFill style={{ background: '#fff4e6', opacity: branco }} />
