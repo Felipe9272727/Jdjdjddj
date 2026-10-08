@@ -214,7 +214,12 @@ def aplicar_modificadores():
 if __name__ == '__main__':
     aplicar_modificadores()
     os.makedirs(os.path.dirname(BLEND), exist_ok=True)
-    bpy.ops.wm.save_as_mainfile(filepath=BLEND)
+    bpy.ops.wm.save_as_mainfile(filepath=BLEND)   # as cutscenes usam a malha cheia
+    # o jogo leva uma versão mais leve (o pano grande vira ~40% das faces; a silhueta não muda)
+    for o in COL.objects:
+        if o.type == 'MESH' and o.name in ('manto', 'capa', 'capuz', 'mangaE', 'mangaD', 'braco'):
+            d = o.modifiers.new('leve', 'DECIMATE'); d.ratio = .4 if o.name in ('manto', 'capa') else .55
+            bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier='leve')
     bpy.ops.object.select_all(action='DESELECT')
     for o in COL.objects: o.select_set(True)
     bpy.ops.export_scene.gltf(filepath=GLB, export_format='GLB', use_selection=True, export_apply=True, export_yup=True,

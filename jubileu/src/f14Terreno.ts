@@ -46,7 +46,7 @@ export const REGIOES = {
 } as const;
 export const RAIO_DO_MUNDO = 280;
 export const TAMANHO_TERRENO = 640;
-export const SEGMENTOS_TERRENO = 384;   // 1,67 m por quadrado: serras com aresta, sem bolhas
+export const SEGMENTOS_TERRENO = 320;   // 2 m por quadrado: serras com aresta, ~30% menos triângulos que 384
 
 export function alturaEm(x: number, z: number): number {
     // dunas: ondas longas na direção do vento + ruído

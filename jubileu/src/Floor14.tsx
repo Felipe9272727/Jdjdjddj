@@ -222,7 +222,7 @@ const Pedras: React.FC = () => {
 };
 
 /** O sol acompanha o hóspede: sombra nítida só perto dele (sem a caixa de sombra aparecendo no chão). */
-const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolean }> = ({ jog, reduzida }) => {
+const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolean; alta?: boolean }> = ({ jog, alta }) => {
     const luz = useRef<THREE.DirectionalLight>(null);
     useEffect(() => {
         const l = luz.current; if (!l) return;
@@ -239,7 +239,7 @@ const SolQueSegue: React.FC<{ jog: React.MutableRefObject<Jog>; reduzida: boolea
         if (chave !== ultimo.current || quadros.current++ < 60) { ultimo.current = chave; gl.shadowMap.needsUpdate = true; }   // e nos 1ºs quadros (instâncias chegando)
         l.position.set(sx + SOL.x * 80, j.y + SOL.y * 80, sz + SOL.z * 80);   // só sombras de perto: colunas a 150 m jogavam faixas enormes no chão à frente l.target.position.set(sx, j.y, sz); l.target.updateMatrixWorld();
     });
-    return <directionalLight ref={luz} intensity={3.3} color="#ffd2a2" castShadow shadow-mapSize={reduzida ? [1024, 1024] : [2048, 2048]} />;
+    return <directionalLight ref={luz} intensity={3.3} color="#ffd2a2" castShadow shadow-mapSize={alta ? [2048, 2048] : [1024, 1024]} />;
 };
 
 /** Cristais de quartzo azul-petróleo brotando da areia (o primeiro sinal de "isto não é a Terra"). */
@@ -644,7 +644,8 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
     // resolução adaptativa: começa no máximo da qualidade escolhida e só desce (até 1×, nunca abaixo
     // da tela) se o aparelho não sustentar o quadro; volta a subir quando sobra folga
     const dprMax = reduzida ? 1 : settings.quality === 'high' ? 1.5 : 1.25;
-    const [dpr, setDpr] = useState(() => Math.min(dprMax, window.devicePixelRatio || 1));
+    const [dpr, setDpr] = useState(1);   // começa em 1× e só sobe se o aparelho sustentar
+    const [pos, setPos] = useState(true);   // pós-processamento: desliga sozinho se nem a 0,8× o aparelho aguentar
     const [chegadaTerminou, setChegadaTerminou] = useState(false);
     useEffect(() => {
         if (chegadaTerminou && mundoPronto) { jog.current.caido = 0; setFase('explorar'); }   // a cutscene termina com o capacete na cabeça: o jogo começa já com ele
@@ -779,7 +780,7 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
                 {!xdev('amb') && <AmbienteDoCeu intensidade={.6} />}
                 <NevoaPorRegiao jog={jog} />
                 <hemisphereLight args={['#b8a3d0', '#8a5434', .5]} />
-                <SolQueSegue jog={jog} reduzida={reduzida} />
+                <SolQueSegue jog={jog} reduzida={reduzida} alta={settings.quality === 'high'} />
                 <directionalLight position={[-120, 50, -400]} intensity={.35} color="#9ad0ff" />
                 {!xdev('ceu') && <CeuKessar />}
                 {!xdev('poeira') && <PoeiraKessar reduzida={reduzida} />}
@@ -797,8 +798,8 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
                 <AnelDeAreia />
                 <Sombra estado={sombra} jog={jog} ativa={comCapacete && fase !== 'descida' && fase !== 'lab'} aoFugir={aoFugir} aoAlcancar={aoAlcancar} />
 
-                {!reduzida && !(import.meta.env.DEV && location.search.includes('sempos')) && <EffectComposer multisampling={0}>
-                    <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur />
+                {pos && !reduzida && !(import.meta.env.DEV && location.search.includes('sempos')) && <EffectComposer multisampling={0}>
+                    <Bloom intensity={.18} luminanceThreshold={1.1} luminanceSmoothing={.2} mipmapBlur resolutionScale={.5} levels={5} />
                     <Vignette offset={.35} darkness={.4} />
                     <HueSaturation saturation={-.07} />
                     <BrightnessContrast contrast={.035} />
@@ -806,7 +807,7 @@ export default function Floor14({ onExit, inicio }: { onExit: () => void; inicio
                 </EffectComposer>}
                 <MundoPronto pronto={setMundoPronto} />
                 <PerformanceMonitor bounds={() => [50, 58]} flipflops={4}
-                    onDecline={({ fps }) => setDpr((d) => Math.max(fps < 30 ? .8 : 1, +(d - .25).toFixed(2)))}   // abaixo de 1× só se ainda engasgar
+                    onDecline={({ fps }) => { setDpr((d) => Math.max(fps < 30 ? .8 : 1, +(d - .25).toFixed(2))); if (fps < 25 && dpr <= .8) setPos(false); }}   // abaixo de 1× só se ainda engasgar
                     onIncline={() => setDpr((d) => Math.min(dprMax, window.devicePixelRatio || 1, +(d + .25).toFixed(2)))} />
                 <Corpo jog={jog} entrada={entrada} yaw={yaw} pitch={pitch} fase={fase} folego={folego} />
             </Canvas>
