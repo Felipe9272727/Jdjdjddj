@@ -187,6 +187,38 @@ def braco():
     return o
 br = braco(); br.parent = ombro
 
+# o esqueleto do braço (ombro, cotovelo, pulso, palma, dedos): o braço e a manga direita deformam por ele.
+# Os ossos apontam para baixo com o eixo Z para a frente: girar em +X leva o osso para a frente (sobe o
+# braço, dobra o cotovelo, curva os dedos para a palma) — o mesmo vale no jogo e nas cutscenes.
+def esqueleto():
+    J = {'ombro': (0, 0, -.32), 'cotovelo': (0, .02, -.72), 'pulso': (0, .03, -1.08), 'palma': (0, .04, -1.17)}
+    for d, (dx, comp) in enumerate(((-.03, .24), (-.01, .27), (.01, .26), (.03, .22))):
+        for s in range(4): J[f'd{d}{s}'] = (dx * (1 + s * .25), .04 + s * .012, -1.19 - (s + 1) * comp / 4)
+    J['p0'] = (-.045, .05, -1.15); J['p1'] = (-.07, .08, -1.21); J['p2'] = (-.08, .1, -1.27)
+    arm = bpy.data.armatures.new('braco_arm'); rig = bpy.data.objects.new('esqueleto', arm); COL.objects.link(rig); rig.parent = ombro
+    bpy.context.view_layer.objects.active = rig; bpy.ops.object.mode_set(mode='EDIT')
+    def osso(nome, a, b, pai=None):
+        e = arm.edit_bones.new(nome); e.head = J[a] if isinstance(a, str) else a; e.tail = J[b]
+        e.align_roll(Vector((0, 1, 0)))
+        if pai: e.parent = arm.edit_bones[pai]; e.use_connect = False
+        return e
+    osso('braco', (0, 0, 0), 'cotovelo'); osso('antebraco', 'cotovelo', 'pulso', 'braco'); osso('mao', 'pulso', 'palma', 'antebraco')
+    for d in range(4):
+        osso(f'dedo{d}_1', 'palma', f'd{d}1', 'mao'); osso(f'dedo{d}_2', f'd{d}1', f'd{d}2', f'dedo{d}_1'); osso(f'dedo{d}_3', f'd{d}2', f'd{d}3', f'dedo{d}_2')
+    osso('polegar_1', 'palma', 'p1', 'mao'); osso('polegar_2', 'p1', 'p2', 'polegar_1')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for malha in (br, mD):
+        bpy.ops.object.select_all(action='DESELECT'); malha.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
+        mw = malha.matrix_world.copy(); bpy.ops.object.parent_set(type='ARMATURE_AUTO'); malha.matrix_world = mw
+    # a manga só acompanha braço e antebraço, com a passagem suave em volta do cotovelo (o pano não quebra)
+    for g in list(mD.vertex_groups): mD.vertex_groups.remove(g)
+    gb, ga = mD.vertex_groups.new(name='braco'), mD.vertex_groups.new(name='antebraco')
+    for v in mD.data.vertices:
+        x = min(1., max(0., (-v.co.z - .5) / .4)); a = x * x * (3 - 2 * x)
+        gb.add([v.index], 1 - a, 'REPLACE'); ga.add([v.index], a, 'REPLACE')
+    return rig
+ESQ = esqueleto()
+
 # o vazio dentro do capuz e os olhos
 bpy.ops.mesh.primitive_uv_sphere_add(radius=.21, segments=24, ring_count=16, location=(0, -.03, 2.22)); vz = bpy.context.object; vz.name = 'vazio'
 vz.scale = (1, .8, 1.2); vz.data.materials.append(VAZIO)
@@ -209,7 +241,8 @@ def aplicar_modificadores():
     for o in COL.objects:
         if o.type == 'MESH' and o.modifiers:
             bpy.context.view_layer.objects.active = o
-            for md in list(o.modifiers): bpy.ops.object.modifier_apply(modifier=md.name)
+            for md in list(o.modifiers):
+                if md.type != 'ARMATURE': bpy.ops.object.modifier_apply(modifier=md.name)
 
 if __name__ == '__main__':
     aplicar_modificadores()
