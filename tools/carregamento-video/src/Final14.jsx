@@ -25,10 +25,10 @@ const Fala = ({ f, de, ate, texto }) => {
 
 export function FinalDescida() {
   const f = useCurrentFrame(), qb = Math.min(DUR_DESCIDA, f + 1);
-  const clarao = interpolate(f, [117, 119, 132], [0, .55, 0], c);
-  const tremor = interpolate(f, [150, 160, 196, 205], [0, 1, 1, 0], c) + interpolate(f, [326, 330, 345], [0, 1.4, 0], c);
+  const clarao = interpolate(f, [118, 120, 133], [0, .55, 0], c);
+  const tremor = interpolate(f, [150, 160, 186, 196], [0, 1, 1, 0], c) + interpolate(f, [189, 191, 200], [0, 2.2, 0], c) + interpolate(f, [326, 330, 345], [0, 1.4, 0], c);
   const tx = Math.sin(f * 2.3) * 3 * tremor, ty = Math.cos(f * 2.9) * 2.5 * tremor;
-  const preto = 1 - interpolate(f, [0, 12], [0, 1], c), branco = interpolate(f, [338, 359], [0, 1], c);
+  const preto = 1 - interpolate(f, [0, 12], [0, 1], c), branco = interpolate(f, [350, 359], [0, 1], c);
   return <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
     <Audio src={staticFile('f14final/descida.wav')} />
     <AbsoluteFill style={{ transform: `translate(${tx}px,${ty}px) scale(1.02)` }}>
@@ -52,7 +52,7 @@ const DESPEDIDA = [
 export function FinalPortal() {
   const f = useCurrentFrame(), qb = Math.min(DUR_PORTAL, f + 1);
   const estouro = interpolate(f, [70, 72, 84], [0, .6, 0], c);
-  const preto = 1 - interpolate(f, [0, 10], [0, 1], c), branco = interpolate(f, [440, 478], [0, 1], c);
+  const preto = 1 - interpolate(f, [0, 10], [0, 1], c), branco = interpolate(f, [468, 479], [0, 1], c);
   const tremor = interpolate(f, [72, 76, 92], [0, 1, 0], c);
   return <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
     <Audio src={staticFile('f14final/portal.wav')} />

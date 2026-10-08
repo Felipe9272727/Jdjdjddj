@@ -43,7 +43,12 @@ x += liso(q(128), q(165)) * (1 - liso(q(300), q(340))) * (.05 * np.sin(2 * np.pi
 x += env(q(160), .01, .5) * .3 * grave
 motor = liso(q(185), q(200)) * (1 - liso(q(325), q(335)))
 x += motor * (.16 * grave * (1 + .3 * np.sin(2 * np.pi * 7 * t)) + .06 * np.sin(2 * np.pi * (48 + 4 * np.sin(t)) * t) + .03 * areia)
+metal = filtrado(lambda f: np.exp(-((f - 1400) / 500) ** 2))
+x += janela(q(168), q(196) - q(168), 1.) * (.12 * metal * (1 + .5 * np.sin(2 * np.pi * 13 * t)) + .1 * areia)   # a grade de latão rasga a areia
+u = np.clip(t - q(196), 0, None); x += (t >= q(196)) * np.exp(-u * 18) * .2 * np.sin(2 * np.pi * 420 * u)        # trava no lugar
+x += env(q(190), .005, .25) * .55 * grave + env(q(193), .003, .12) * .25 * metal                                   # o tranco
 x += env(q(330), .02, .6) * .4 * grave                             # chega ao fundo
+x += janela(q(334), q(352) - q(334), 1.2) * (.1 * metal + .08 * grave)                                              # a porta desliza
 x += liso(q(300), q(345)) * (.05 * np.sin(2 * np.pi * 174.6 * t) + .04 * np.sin(2 * np.pi * 261.6 * t))   # a porta: um acorde quente
 x *= np.minimum(1, t / .5) * np.minimum(1, (t[-1] - t) / .6)
 ir = np.zeros(int(SR * .5)); ir[0] = 1

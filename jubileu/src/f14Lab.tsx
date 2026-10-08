@@ -17,6 +17,7 @@ import { FiguraDaEntidade, visualPadrao, type VisualEntidade } from './f14Entida
 import { Dialogo } from './f14Dialogo';
 import { LAB_QUEM, LAB_RECEITA, LAB_REACOES } from './f14Lore';
 import { ChegadaKessar } from './f14Chegada';
+import { Vidraria, useAmbienteVidro, type Forma } from './f14Vidro';
 
 export const REAGENTES = [
     { id: 'ferrugem', nome: 'Ferrugem Fria', cor: '#c4572e', soma: [2, 0, 1] },
@@ -71,6 +72,7 @@ function texturado(base: string, rep: [number, number], extra: THREE.MeshStandar
     return new THREE.MeshStandardMaterial({ map: cor, normalMap: nor, ...extra });
 }
 const Sala: React.FC = () => {
+    const env = useAmbienteVidro();
     const metal = useMemo(() => texturado('metal_plate', [1, 1], { color: '#8a8f98', roughness: .45, metalness: .75 }), []);
     const parede = useMemo(() => texturado('concrete_wall_006', [4, 2], { color: '#9a94a4', roughness: .9 }), []);
     const tampo = useMemo(() => texturado('metal_plate', [3, 1], { color: '#5a5e66', roughness: .35, metalness: .6 }), []);
@@ -94,7 +96,12 @@ const Sala: React.FC = () => {
         {/* estantes com vidraria no fundo, máquinas, tubos */}
         {[-3.8, 3.8].map((x) => <group key={x} position={[x, 0, -4.4]}>
             {[.8, 1.7, 2.6].map((y) => <mesh key={y} position={[0, y, 0]} material={metal}><boxGeometry args={[1.8, .05, .5]} /></mesh>)}
-            {[.8, 1.7, 2.6].flatMap((y) => [-.6, -.2, .2, .6].map((dx) => <mesh key={`${y}${dx}`} position={[dx, y + .17, 0]}><cylinderGeometry args={[.07, .09, .3, 10]} /><meshStandardMaterial color={['#5fd3c4', '#c46b3a', '#9a7bff', '#d8d8d0'][Math.abs(Math.round(dx * 5 + y)) % 4]} transparent opacity={.75} roughness={.1} /></mesh>))}
+            {[.8, 1.7, 2.6].flatMap((y, j) => [-.65, -.3, .05, .38, .65].map((dx, k) => {
+                const forma = (['bequer', 'erlen', 'balao', 'bequer', 'tubo'] as Forma[])[(k + j * 2) % 5];
+                const [h, R] = { bequer: [.2, .065], erlen: [.24, .085], balao: [.26, .07], tubo: [.18, .02] }[forma];
+                return <Vidraria key={`${y}${dx}`} env={env} forma={forma} h={h} R={R} position={[dx, y + .025, ((k * 37 + j * 11) % 7) / 50 - .06]}
+                    cor={['#d8521f', '#3fbff2', '#9a5cff', '#66e65a', '#f2cc33'][(k + j) % 5]} nivel={.3 + ((k * 3 + j) % 5) / 10} />;
+            }))}
         </group>)}
         <mesh position={[-2.5, 1.2, -4.5]} material={metal}><boxGeometry args={[1, 2.4, .8]} /></mesh>
         <mesh position={[-2.5, 1.7, -4.08]}><planeGeometry args={[.7, .4]} /><meshBasicMaterial color="#47ff9a" /></mesh>
@@ -104,19 +111,20 @@ const Sala: React.FC = () => {
 
 /** Frasco clicável na bancada. */
 const Frasco: React.FC<{ x: number; cor: string; ativo: boolean; aoTocar: () => void; pulso: number }> = ({ x, cor, ativo, aoTocar, pulso }) => {
+    const env = useAmbienteVidro();
     const g = useRef<THREE.Group>(null), [sobre, setSobre] = useState(false);
     useFrame(() => { if (g.current) { const k = Math.max(0, 1 - (performance.now() - pulso) / 400); g.current.position.y = .94 + (sobre ? .05 : 0) + Math.sin(k * Math.PI) * .12; g.current.rotation.z = k * .9; } });
     return <group ref={g} position={[x, .94, -1.05]} onPointerOver={(e) => { e.stopPropagation(); if (ativo) setSobre(true); }} onPointerOut={() => setSobre(false)}
         onPointerDown={(e) => { e.stopPropagation(); if (ativo) aoTocar(); }}>
-        <mesh position={[0, .2, 0]}><cylinderGeometry args={[.12, .14, .4, 20]} /><meshPhysicalMaterial color="#e8f2ff" transparent opacity={.28} roughness={.05} clearcoat={1} /></mesh>
-        <mesh position={[0, .14, 0]}><cylinderGeometry args={[.115, .135, .26, 20]} /><meshStandardMaterial color={cor} emissive={cor} emissiveIntensity={sobre ? 1.2 : .55} roughness={.2} /></mesh>
-        <mesh position={[0, .45, 0]}><cylinderGeometry args={[.04, .05, .12, 10]} /><meshStandardMaterial color="#5a4630" roughness={.8} /></mesh>
+        <Vidraria env={env} forma="erlen" h={.42} R={.15} cor={cor} nivel={.42} brilho={sobre ? 1.1 : .45} />
+        <mesh position={[0, .44, 0]}><cylinderGeometry args={[.052, .044, .07, 12]} /><meshStandardMaterial color="#5a4630" roughness={.8} /></mesh>
         <pointLight color={cor} intensity={sobre ? 1.2 : .5} distance={1.4} position={[0, .25, .1]} />
     </group>;
 };
 
 /** O béquer no aquecedor: o líquido sobe e mistura as cores; borrado quando pronto (a simulação não desenha). */
 const Bequer: React.FC<{ b: Bancada }> = ({ b }) => {
+    const env = useAmbienteVidro();
     const g = useRef<THREE.Group>(null), liq = useRef<THREE.Mesh>(null), mat = useRef<THREE.MeshStandardMaterial>(null), halo = useRef<THREE.Mesh>(null);
     const total = b.doses.reduce((a, c) => a + c, 0);
     const cor = useMemo(() => {
@@ -134,7 +142,7 @@ const Bequer: React.FC<{ b: Bancada }> = ({ b }) => {
         if (halo.current) { halo.current.visible = b.agitado; halo.current.scale.setScalar(1 + Math.sin(t * 13) * .08); (halo.current.material as THREE.MeshBasicMaterial).opacity = .25 + Math.sin(t * 7) * .1; }
     });
     return <group ref={g} position={[0, .95, -1.05]}>
-        <mesh position={[0, .22, 0]}><cylinderGeometry args={[.16, .16, .44, 24, 1, true]} /><meshPhysicalMaterial color="#eef6ff" transparent opacity={.22} roughness={.04} clearcoat={1} side={THREE.DoubleSide} /></mesh>
+        <Vidraria env={env} forma="bequer" h={.44} R={.165} />
         <mesh ref={liq} position={[0, .04, 0]}><cylinderGeometry args={[.15, .15, .34, 24]} /><meshStandardMaterial ref={mat} color="#222" roughness={.15} transparent opacity={.92} /></mesh>
         <mesh ref={halo} position={[0, .25, 0]} visible={false}><sphereGeometry args={[.32, 20, 14]} /><meshBasicMaterial color="#b28cff" transparent opacity={.3} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
     </group>;
