@@ -15,6 +15,7 @@ DATA=json.loads((HERE/'scene-data.json').read_text())
 TIMING=json.loads((ROOT/'jubileu/src/Floor2/cinematic.json').read_text())
 SHOTS=[{'shot':'poco','frames':TIMING['introFrames']}]+TIMING['beats']
 STEP=int(os.getenv('F2_STEP','8'))
+WORKER=int(os.getenv('F2_WORKER','0')); WORKERS=int(os.getenv('F2_WORKERS','1'))
 ARGS=sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else ['all']
 random.seed(20261008)
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
@@ -206,6 +207,7 @@ for shot in selected:
     count=math.ceil(shot['frames']/STEP)+1
     first=int(ARGS[1]) if len(ARGS)>1 else 0; last=int(ARGS[2]) if len(ARGS)>2 else count-1
     for i in range(first,last+1):
+        if i%WORKERS!=WORKER: continue
         file=OUT/f'{shot["shot"]}_{i:04d}.png'
         if os.getenv('F2_FORCE')!='1' and file.exists() and file.stat().st_size>8000: continue
         pose(shot['shot'],min(1,i*STEP/max(1,shot['frames']-1))); sc.render.filepath=str(file)

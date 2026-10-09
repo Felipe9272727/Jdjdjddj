@@ -8,6 +8,6 @@ import {writeFileSync} from 'node:fs';
 writeFileSync('../tools/floor2-cinematic/scene-data.json',JSON.stringify(data,null,2));
 JS
 )
-blender -b -t 4 --python-exit-code 1 -P tools/floor2-cinematic/scene.py -- all
+python tools/floor2-cinematic/parallel.py
 (cd tools/floor2-cinematic && python -m manim --disable_caching -t --format=png -r 1280,720 --fps 24 --media_dir frames/manim opening.py Abismo)
 node tools/floor2-cinematic/render.mjs

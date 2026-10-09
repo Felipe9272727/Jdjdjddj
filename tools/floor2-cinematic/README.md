@@ -23,6 +23,8 @@ Set `CHROMIUM_PATH` for the Remotion browser. On Debian/Ubuntu Blender needs its
 
 `REMOTION_LOOPBACK_ONLY=1` binds Remotion's internal server only to `127.0.0.1` on restricted hosts that cannot enumerate interfaces. The optional helper targets the locked Remotion version.
 
+`F2_WORKERS=2 F2_THREADS=4` distributes disjoint source frames between Blender processes. The default is one process; image quality is identical. Worker logs stay in ignored `frames/`.
+
 ## Validate
 
 With Vite, `/floor2-cinematic.html` previews playback and `/floor2.html` still inspects the unchanged cave.

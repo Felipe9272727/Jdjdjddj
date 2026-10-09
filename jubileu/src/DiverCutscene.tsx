@@ -66,7 +66,9 @@ export const DiverCutscene = (props: DiverCutsceneProps) => {
     play();
     const tick = (now: number) => {
       const c = clock.current;
-      const dt = Math.max(0, (now - c.last) / 1000); c.last = now;
+      // A slow 3D fallback frame must leave each caption readable. Media
+      // playback still follows its own clock, including chapter seeks.
+      const dt = Math.min(.5, Math.max(0, (now - c.last) / 1000)); c.last = now;
       if (!c.done && !document.hidden) {
         if (c.fallback) enterTime(c.time + dt);
         else if (v) {

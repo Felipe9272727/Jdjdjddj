@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const out=process.env.F2_QA_OUT??'/tmp/floor2-cinematic-qa';
 await mkdir(out,{recursive:true});
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3095'],{stdio:['ignore','pipe','pipe']});
-let browser;
+let browser,page;
 const errors=[],checks=[],evidence={};
 const checked=message=>{checks.push(message);console.log(message);};
 try {
@@ -15,7 +15,7 @@ try {
     server.stdout.on('data',d=>{if(d.toString().includes('Local:')){clearTimeout(timer);resolve();}});
   });
   browser=await chromium.launch({headless:true,executablePath:process.env.F2_CHROMIUM??'/tmp/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  const page=await browser.newPage({viewport:{width:844,height:390}});
+  page=await browser.newPage({viewport:{width:844,height:390}});
   page.on('pageerror',e=>errors.push(e.message));
   const preview='http://127.0.0.1:3095/floor2-cinematic.html';
   const film=page.locator('.f2-film'),next=page.getByRole('button',{name:/CONTINUAR/});
@@ -73,7 +73,9 @@ try {
   }
   if(!process.env.F2_PREVIEW_ONLY) {
     if(process.env.F2_FALLBACK_ONLY&&process.env.F2_APP_ONLY)await page.route('**/floor2-mergulhador.mp4',route=>route.abort());
-    await page.setViewportSize({width:844,height:390});
+    // Real callbacks under software WebGL, with a small viewport to avoid
+    // shader compilation competing with the offline Blender workers in CI.
+    await page.setViewportSize({width:320,height:180});
     await page.goto('http://127.0.0.1:3095/',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.__startFloor&&window.__f2Test,null,{timeout:90000});
     await page.evaluate(()=>window.__startFloor(2,'floor2Diver'));
@@ -105,5 +107,16 @@ try {
   }
   if(errors.length)throw Error(errors.join('; '));
   console.log(JSON.stringify({checks,errors,evidence}));
-} catch(e){errors.push(e.message);console.error(e);process.exitCode=1;}
+} catch(e){
+  errors.push(e.message);console.error(e);process.exitCode=1;
+  if(page) {
+    console.error(JSON.stringify(await page.evaluate(()=>({
+      hidden:document.hidden,game:window.__f2Test?.snapshot(),
+      film:{beat:document.querySelector('.f2-film')?.dataset.beat,fallback:document.querySelector('.f2-film')?.dataset.fallback},
+      video:{time:document.querySelector('video')?.currentTime,error:document.querySelector('video')?.error?.code},
+      text:document.body.innerText.slice(-700)
+    }))));
+    await page.screenshot({path:`${out}/failed.png`});
+  }
+}
 finally {await writeFile(`${out}/checks.json`,JSON.stringify({checks,errors,evidence},null,2));await browser?.close();server.kill();}
