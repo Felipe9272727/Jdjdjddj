@@ -1,0 +1,10 @@
+{
+  "fps": 24, "width": 1280, "height": 720, "introFrames": 72,
+  "beats": [
+    { "shot": "encontro", "frames": 120, "text": "Ahh... mais um turista. Eu estava te esperando, sabe?" },
+    { "shot": "memoria", "frames": 168, "text": "Eu fui o mergulhador da casa. Antes dela ser uma casa. Antes dela ser qualquer coisa." },
+    { "shot": "cuidado", "frames": 144, "text": "Agora eu cuido das pessoas que descem. Faço com que vocês respirem. E que vejam." },
+    { "shot": "mascara", "frames": 144, "text": "Já tem gente demais lá embaixo. Toma — encaixa direitinho na cara." },
+    { "shot": "despedida", "frames": 132, "text": "Ative a visão noturna quando precisar enxergar no escuro. Vai. E boa sorte." }
+  ]
+}

@@ -128,6 +128,21 @@ const AdaptivePerfProbe: React.FC = () => {
   return null;
 };
 
+/** DEV: count Canvas ticks separately from offscreen environment-map draws. */
+const CanvasFrameProbe: React.FC = () => {
+  const get = useThree(state => state.get);
+  const frames = useRef(0);
+  useFrame(() => { frames.current++; });
+  useEffect(() => {
+    const w = window as any;
+    const probe = () => ({ frame:frames.current, gpuPasses:get().gl.info.render.frame,
+      loop:get().frameloop, pending:get().internal.frames });
+    w.__f2RenderState = probe;
+    return () => { if (w.__f2RenderState === probe) delete w.__f2RenderState; };
+  }, [get]);
+  return null;
+};
+
 // Ao trocar o Canvas do 10º para `demand`, força um frame já com o painel
 // aberto. `never` deixava o drawing buffer sem uma apresentação nova e alguns
 // Chromes Android exibiam preto. Dois frames bastam para manter o cenário
@@ -423,6 +438,7 @@ export default function App() {
   type DiverPhase = 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading' | 'done';
   const [diverPhase, setDiverPhase] = useState<DiverPhase>('hidden');
   const [diverDialogueOpen, setDiverDialogueOpen] = useState(false);
+  const [diverFilmActive, setDiverFilmActive] = useState(false);
   const [rebreather3DActive, setRebreather3DActive] = useState(false);
   const lastSpawnTimeRef = useRef<number>(0);
   const diverBeatRef = useRef<number>(-1);
@@ -1496,8 +1512,10 @@ export default function App() {
         setDoorOpenAmount(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
         setDoorsClosed(false);
-        inventoryAddItem('rebreather');
-        inventoryAddItem('nightVision');
+        if (startVariant !== 'floor2Diver') {
+          inventoryAddItem('rebreather');
+          inventoryAddItem('nightVision');
+        }
       } else if (startLevel === 3) {
         // Floor 3 (parkour). The currentLevel===3 effect handles the spawn
         // position, the cartoon intro and the ragtime music.
@@ -1639,8 +1657,8 @@ export default function App() {
   // (used by the offline playtest harness + the critic to actually play). Inert
   // unless something calls it.
   useEffect(() => {
-    const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
-    w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    const w = window as unknown as { __startFloor?: (n: number, variant?: string) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
+    w.__startFloor = (n: number, variant?: string) => handleStartGame(false, 'Tester', n, variant);
     // ── PULAR A INTRO DO ANDAR 3 ─────────────────────────────────────────
     // A intro é guiada por `dt` acumulado e a bancada roda a ~2 fps, então
     // atravessá-la custa oito minutos de relógio por olhada. Isso já fez uma
@@ -2111,12 +2129,15 @@ export default function App() {
         paused:floor2RunRef.current.paused, shards:[...floor2RunRef.current.collected],
         berserk, stamina:staminaRef.current, destination:nextElevatorDestination,
         timer:elevatorTimer, player:sharedPlayerPositionRef.current.toArray(),
-        monster:monsterPositionRef.current.toArray() }),
+        monster:monsterPositionRef.current.toArray(), diverOpen:diverDialogueOpen,
+        diverFilm:diverFilmActive, diverPhase, gear:inventory.rebreather.owned,
+        puttingOnGear:rebreather3DActive }),
       teleport: (x:number,y:number,z:number) => { playerPositionCmdRef.current={x,y,z}; },
       pause: (value:boolean) => setSettingsOpen(value),
       collect: handleCollectShard,
       catch: handleFloor2Caught,
       prepare: () => { setDiverPhase('done');setDiverDialogueOpen(false);setDoorsClosed(false);setElevatorTimer(null); },
+      conversation: () => { setDiverPhase('idle'); setDiverDialogueOpen(true); },
     };
     return () => { delete w.__f2Test; };
   });
@@ -2136,7 +2157,7 @@ export default function App() {
         // O Andar 8 fica totalmente coberto e pode usar `never`. No chat do 10º
         // o cenário precisa continuar visível: `demand` desenha sob demanda,
         // preservando o fundo sem manter 60 FPS competindo com o LLM.
-        frameloop={(f8InImage || (currentLevel === 14 && !doorsClosed)) ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
+        frameloop={(f8InImage || (currentLevel === 14 && !doorsClosed) || (currentLevel === 2 && diverDialogueOpen && diverFilmActive)) ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
@@ -2170,6 +2191,7 @@ export default function App() {
           ? <Pixelate3DRamp timer={elevatorTimer} />
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
+        {import.meta.env.DEV && <CanvasFrameProbe />}
         <Suspense fallback={<Html fullscreen zIndexRange={[9999, 9999]}><CarregandoAnimado rotulo="Carregando…" /></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={floor2Paused || dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} floor3CenaSemCabine={cartoonCutscene && cutsceneLine >= 1} f6CabDead={f6CabDead} f8InImage={f8InImage} onFloor10Exit={handleFloor10Exit} onPlayerCaught={handleFloor2Caught} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
@@ -2769,6 +2791,7 @@ export default function App() {
           onAccept={handleCutsceneAccept}
           onRefuse={handleCutsceneRefuse}
           onBeat={handleCutsceneBeat}
+          onFilmActive={setDiverFilmActive}
           audioCtx={audioCtx}
         />
       )}
